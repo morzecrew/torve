@@ -605,7 +605,7 @@ def _landing_repo(tmp_path):
     spec_dir = corpus(
         tmp_path, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/**`")])}
     )
-    task = Task(id="T-0001", rfc=".torve/specs/S-0001", phase=1, decisions=[])
+    task = Task(id="T-0001", spec="S-0001", phase=1, decisions=[])
     (tmp_path / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
 
     return spec_dir, task
@@ -665,7 +665,7 @@ def test_land_refuses_no_document_and_an_unknown_one_and_replays_idempotently(tm
     with pytest.raises(ValueError, match="names no document"):
         land(tmp_path, spec_dir, Task(id="T-0002", decisions=[]), attempt=1, entries=[])
 
-    stranger = Task(id="T-0003", rfc=".torve/specs/S-0009", decisions=[])
+    stranger = Task(id="T-0003", spec="S-0009", decisions=[])
 
     with pytest.raises(ValueError, match="does not hold"):
         land(tmp_path, spec_dir, stranger, attempt=1, entries=[])

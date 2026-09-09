@@ -103,8 +103,8 @@ def runner_execute(
 
     With a log, the run is also observed. Three things go in before it
     starts: each attempt reports itself as it happens, under the tier that
-    actually ran it (S-0044/D-3); the broker's metering lands per response (RFC
-    0045 S-0045/D-4); and the journal sync records the attempt's divergences and
+    actually ran it (S-0044/D-3); the broker's metering lands per response
+    (S-0045/D-4); and the journal sync records the attempt's divergences and
     rewrites the worktree's log from the record before each gate pass reads
     it (S-0044/A-3) — host-side, because the sandbox that wrote them has no route
     to the store. Without a log the runner behaves exactly as v1 does: the

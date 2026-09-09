@@ -218,7 +218,7 @@ def _render(envelope: dict[str, Any]) -> None:
         f"{envelope['task']} · " + (state if state else "state not provable from the stream"),
         envelope["regime"]["config_hash"],
     )
-    console.print(Text(f"contract: {envelope.get('rfc') or 'unknown document'}", STYLE_DIM))
+    console.print(Text(f"contract: {envelope.get('spec') or 'unknown document'}", STYLE_DIM))
     console.print()
 
     # The rendered form interleaves chronologically (the envelope keeps the

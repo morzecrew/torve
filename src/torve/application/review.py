@@ -54,7 +54,7 @@ from torve.config.runconfig import (
 )
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import SCHEMA_VERSION, Budget, Task
+from torve.domain.task import CONTRACT_SCHEMA_VERSION, SCHEMA_VERSION, Budget, Task
 from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
@@ -69,7 +69,7 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
 
     review = Task(
         id=f"T-{next_task_number(root):04d}",
-        rfc=target.rfc,
+        spec=target.spec,
         role="review",
         targets=[target.id],
         intent=intent
@@ -82,7 +82,7 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
     contract_dir = root / layout.TORVE_DIR / "tasks" / review.id
     contract_dir.mkdir(parents=True, exist_ok=True)
     document = review.model_dump(exclude_defaults=True)
-    document["schema_version"] = SCHEMA_VERSION
+    document["schema_version"] = CONTRACT_SCHEMA_VERSION
     document["decisions"] = [d.model_dump() for d in review.decisions]
 
     (contract_dir / "contract.yaml").write_text(

@@ -216,7 +216,7 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
                 "stale": [
                     {
                         "task": s.task_id,
-                        "rfc": s.document,
+                        "spec": s.document,
                         "superseded_by": s.superseded_by,
                         "state": s.state,
                         "action": s.action,

@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (S-0059):** a contract names its document as `spec: S-NNNN`, the
+  identifier, never a path; `rfc` refuses with a hint, `torve intake --spec`
+  replaces `--rfc`, and every envelope and source id says `spec`. A gate's
+  `origin` is a citation (`S-0054/D-2`), never `rfc/NNNN`. The contract's
+  `schema_version` is 2.
 - **Breaking (RFC 0058):** execution is a directory — one file per
   landing, `execution/<task>-<attempt>-<instant>.yaml`, written once — and
   every time the engine writes is the one instant `YYYY-MM-DDTHH:MM:SSZ`

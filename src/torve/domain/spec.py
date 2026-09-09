@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torve.base.clock import INSTANT_PATTERN
 from torve.domain.rfc import Grade, Implementation, Kind, Status
-from torve.domain.task import Task
+from torve.domain.task import SPEC_PATTERN, Task
 
 # ----------------------- #
 
@@ -44,7 +44,7 @@ FINGERPRINT_LENGTH = 16
 # prose key. Inside its own document an item is written by the local half
 # alone; in memory every identifier is global, and the writer strips the
 # document's own prefix on the way out.
-DOCUMENT_ID = re.compile(r"^S-\d{4}$")
+DOCUMENT_ID = re.compile(SPEC_PATTERN)
 LOCAL_ID = re.compile(r"^[DIQA]-\d+$")
 CITATION = re.compile(r"^S-\d{4}(?:/(?:[DIQAP]-\d+|[a-z0-9][a-z0-9-]*))?$")
 # A key a section or a design entry may carry: never a family shape.
@@ -53,7 +53,8 @@ SECTION_KEY = re.compile(r"^(?![DIQAP]-\d+$)[a-z0-9][a-z0-9-]*$")
 
 def document_id(reference: str) -> str:
     """`S-0057` from what a caller has: `S-0057`, `0057`, `57`, a directory
-    name, or a path ending in one (a contract's `rfc`, a legacy file name).
+    name, or a path ending in one (a legacy file name, the path a contract
+    carried before S-0059).
     Raises `ValueError` when no number is there."""
 
     name = reference.strip().rstrip("/").rsplit("/", 1)[-1]

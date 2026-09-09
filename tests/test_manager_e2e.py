@@ -132,5 +132,5 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     assert from_files["found"] and from_record["found"]
     assert set(from_files) == set(from_record)
 
-    for key in ("attempts", "totals", "rfc", "reviews"):
+    for key in ("attempts", "totals", "spec", "reviews"):
         assert from_files[key] == from_record[key], key

@@ -58,7 +58,7 @@ def config_hash(
         "gates.yaml": manifest_path.read_text(encoding="utf-8"),
         "torve": torve.__version__,
         # The substrate pin, not the installed version: the pin names the
-        # schema regime the migrations were written against (rfcs/0012-migrations.md §6);
+        # schema regime the migrations were written against (S-0012);
         # torve doctor is what compares it to the installed version.
         "forze": forze_pin(),
     }

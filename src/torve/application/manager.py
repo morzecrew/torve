@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from torve.application.planner import scopes_clash
 from torve.application.sizing import estimate
 from torve.domain.events import EventKind, SubjectType
+from torve.domain.spec import document_id
 from torve.domain.states import TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, Task
 
@@ -145,10 +146,28 @@ def minted_contract(payload: Mapping[str, Any]) -> Task | None:
         return None
 
     try:
-        return Task.model_validate(raw)
+        return Task.model_validate(current_shape(raw))
 
     except ValidationError:
         return None
+
+
+def current_shape(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """A recorded contract as the model reads it today (S-0059/D-3): a mint
+    written before S-0059 carries `rfc`, the document's path; it folds as
+    `spec`, the document's identifier, and the record is never rewritten."""
+
+    if "rfc" not in raw:
+        return dict(raw)
+
+    modern = {key: value for key, value in raw.items() if key != "rfc"}
+
+    try:
+        modern["spec"] = document_id(str(raw["rfc"] or ""))
+    except ValueError:
+        modern["spec"] = None
+
+    return modern
 
 
 # ....................... #

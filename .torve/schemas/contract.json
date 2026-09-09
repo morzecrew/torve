@@ -142,7 +142,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The task contract, `.torve/tasks/T-nnnn.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
+  "description": "The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
   "properties": {
     "acceptance": {
       "items": {
@@ -210,18 +210,6 @@
       "title": "Phase",
       "type": "integer"
     },
-    "rfc": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Rfc"
-    },
     "role": {
       "default": "implement",
       "enum": [
@@ -234,12 +222,25 @@
       "type": "string"
     },
     "schema_version": {
-      "default": 1,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
     "scope": {
       "$ref": "#/$defs/Scope"
+    },
+    "spec": {
+      "anyOf": [
+        {
+          "pattern": "^S-\\d{4}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Spec"
     },
     "targets": {
       "items": {

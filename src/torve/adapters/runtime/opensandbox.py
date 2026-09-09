@@ -1,4 +1,4 @@
-"""Runtime port over OpenSandbox (S-0003/D-3) — the platform the RFCs adopt for
+"""Runtime port over OpenSandbox (S-0003/D-3) — the platform the specifications adopt for
 its credential vault, per-sandbox egress control, strong isolation options and
 platform-enforced timeout (S-0003/runtime).
 

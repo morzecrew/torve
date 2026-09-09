@@ -6,7 +6,7 @@ of engine state is a projection rebuilt from it (S-0044/D-1). Events are written
 at the moment the fact occurs and never derived afterwards (S-0044/D-3), which
 is why the vocabulary is closed the way the escalation enum is closed: an
 extensible kind list makes history incomparable across time, and a payload
-that grew a field silently makes replay lie. Adding a kind is an RFC
+that grew a field silently makes replay lie. Adding a kind is a document
 amendment, not a code change.
 
 Write authority is domain knowledge, not adapter policy (S-0044/D-2): the
@@ -194,7 +194,7 @@ class TaskMinted(BaseModel):
     is what the event carries.
 
     `title` and `source_id` are the board's own derivations — a fallback
-    chain and `rfc or "operator"` — rather than contract fields. `phase` and
+    chain and `spec or "operator"` (S-0059/D-3) — rather than contract fields. `phase` and
     `depends_on` are copies, kept because 192 mints written before this
     amendment carry them and nothing else, with a test pinning them equal to
     the contract's: the fold prefers the contract and falls back to them.

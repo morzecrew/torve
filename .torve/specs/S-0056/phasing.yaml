@@ -159,9 +159,9 @@ phasing:
     depends_on:
       - 3
 contract_example:
-  schema_version: 1
+  schema_version: 2
   id: T-0300
-  rfc: rfcs/0056-structure-for-everything.yaml
+  spec: S-0056
   phase: 1
   role: implement
   title: the document is the model

@@ -156,14 +156,14 @@ def test_reap_cleans_up_after_kill_nine(repo):
 
 
 def test_the_sandbox_receives_no_rfc_document(repo):
-    # S-0003/context-assembly as amended by A-18: `rfc` on the contract is provenance — a
+    # S-0003/context-assembly as amended by A-18: `spec` on the contract is provenance — a
     # reference, never the document. The task names a specification that does
     # not exist anywhere; a runner that tried to read or copy it would fail,
     # and the worktree the sandbox sees must contain no corpus at all.
     seed_run_repo(repo)
     task_path = layout.task_file(repo.root, TASK_ID)
     contract = yaml.safe_load(task_path.read_text(encoding="utf-8"))
-    contract["rfc"] = "rfcs/0042-imaginary.md"
+    contract["spec"] = "S-0042"
     task_path.write_text(yaml.safe_dump(contract), encoding="utf-8")
     repo.commit("provenance points at a document this repository does not hold")
     agent = FakeAgent([{"writes": {"src/feature.py": "FEATURE = True\n"}, "exit": 0}])

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from torve.application.manager import IN_FLIGHT, Board, TaskView, project
+from torve.application.manager import IN_FLIGHT, Board, TaskView, current_shape, project
 from torve.application.planner import document_of
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
@@ -62,7 +62,7 @@ SUBJECT_ID = re.compile(r"\([^)]*?(T-\d{4,})[^)]*\)|torve/(T-\d{4,})")
 TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
 
 # S-0004/measurement-defects-to-fix-before-trusting-a-number, reproduced verbatim (S-0022/D-7, LOCKED: printed with the report,
-# never paraphrased). `torve.cli.rfc` owns and prints this same text for
+# never paraphrased). `torve.cli.spec` owns and prints this same text for
 # `torve spec health`; the layering contract puts `torve.cli` above
 # `torve.application`, so this module cannot import it back and the string
 # is copied rather than shared — a wording change updates both call sites.
@@ -166,7 +166,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
 
         entry: dict[str, Any] = {
             "id": task_id,
-            "rfc": record.get("rfc"),
+            "spec": record.get("spec"),
             # `shipped` is a projection-derived pseudo-state, not a member of
             # the engine's state machine: no run state exists, but a shipping
             # commit cites the task.
@@ -881,8 +881,8 @@ def _document_signals(
     reason with the two document-indicting reasons always present, spec-drift
     findings and their count (`class: drift` log entries — the same field
     the `decisions-reported` gate checks its declared `drift_count` against),
-    human_minutes and rework rate from `torve feedback`. Tasks without an
-    `rfc` have no document to indict and are excluded (S-0022/D-9's reading, one
+    human_minutes and rework rate from `torve feedback`. Tasks without a
+    `spec` have no document to indict and are excluded (S-0022/D-9's reading, one
     level up from the decision join).
 
     Reuses `specquality.read_tasks` for the log join rather than parsing
@@ -894,8 +894,8 @@ def _document_signals(
     by_document: dict[str, list[dict[str, Any]]] = {}
 
     for task in tasks:
-        if task["rfc"]:
-            by_document.setdefault(str(task["rfc"]), []).append(task)
+        if task["spec"]:
+            by_document.setdefault(str(task["spec"]), []).append(task)
 
     signals: list[dict[str, Any]] = []
 
@@ -936,7 +936,7 @@ def _document_signals(
 
         signals.append(
             {
-                "rfc": document,
+                "spec": document,
                 "minted": len(entries),
                 "attempts_to_green_median": statistics.median(attempts) if attempts else None,
                 "attempts_to_green_n": len(attempts),
@@ -983,10 +983,8 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
     by_document: dict[str, list[dict[str, Any]]] = {}
 
     for task in tasks:
-        if task["rfc"]:
-            # keyed without the suffix: a contract minted before S-0056
-            # names the markdown file the document converted from
-            by_document.setdefault(document_of(str(task["rfc"])), []).append(task)
+        if task["spec"]:
+            by_document.setdefault(str(task["spec"]), []).append(task)
 
     view: list[dict[str, Any]] = []
 
@@ -1061,7 +1059,7 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
 
         view.append(
             {
-                "rfc": number,
+                "spec": number,
                 "title": str(fm.get("title", "")),
                 "status": status,
                 "kind": fm.get("kind") or "design",
@@ -1230,7 +1228,7 @@ def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
     return [
         {
             "id": task_id,
-            "rfc": view.contract.rfc,
+            "spec": view.contract.spec,
             "phase": view.contract.phase,
             "role": view.contract.role,
             "state": _entry_state(view, view.contract),
@@ -1279,7 +1277,7 @@ def context_report(
                 {
                     "task": task["id"],
                     "at": task["escalated_at"],
-                    "rfc": task["rfc"],
+                    "spec": task["spec"],
                     "age_s": _age_seconds(task["escalated_at"]),
                     "route": escalation_route(str(task["escalation"])),
                 }
@@ -1747,7 +1745,7 @@ def _stream_state(attempts: list[dict[str, Any]], events: list[dict[str, Any]]) 
 
 def _minted_contract(events: Sequence[EventRecord]) -> dict[str, Any] | None:
     """The contract the task was last minted with, as a plain mapping — the
-    envelope wants `rfc` and nothing else from it (S-0049 S-0049/D-1).
+    envelope wants `spec` and nothing else from it (S-0049 S-0049/D-1).
 
     None means the record does not hold this task, which is the one signal
     `why_report` falls back to the files on.
@@ -1760,7 +1758,7 @@ def _minted_contract(events: Sequence[EventRecord]) -> dict[str, Any] | None:
         contract = event.payload.get("contract")
 
         if isinstance(contract, dict) and contract:
-            return cast("dict[str, Any]", contract)
+            return current_shape(cast("dict[str, Any]", contract))  # S-0059/D-3
 
     return None
 
@@ -1882,7 +1880,7 @@ def why_report(
         "schema_version": SCHEMA_VERSION,
         "task": task_id,
         "found": True,
-        "rfc": contract.get("rfc"),
+        "spec": contract.get("spec"),
         "state": _stream_state(attempts, events),
         "attempts": attempts,
         "events": events,
@@ -1931,7 +1929,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items()) or "no tasks"
 
         lines.append(
-            f"- **{doc['rfc']}** {doc['title']} — {doc['status']}, "
+            f"- **{doc['spec']}** {doc['title']} — {doc['status']}, "
             f"impl {doc['implementation']} · {progress}"
             + (" · " + " · ".join(marks) if marks else "")
         )
@@ -2096,7 +2094,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         )
 
         lines.append(
-            f"- **{doc['rfc']}** — {doc['minted']} minted, {attempts}, {minutes}, {rework}, "
+            f"- **{doc['spec']}** — {doc['minted']} minted, {attempts}, {minutes}, {rework}, "
             f"{doc['drift_count']} spec-drift finding(s), escalations: {escalations}"
         )
 

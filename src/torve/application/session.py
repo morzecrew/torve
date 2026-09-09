@@ -242,8 +242,8 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 
 
 def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
-    """(env_passthrough, volumes) for the tier's authentication route (RFC
-    S-0004/adapters): key names for api and harness, a per-slot volume for
+    """(env_passthrough, volumes) for the tier's authentication route
+    (S-0004/adapters): key names for api and harness, a per-slot volume for
     subscription (S-0004/D-2), nothing for fake."""
 
     if tier.adapter in ("api", "harness"):

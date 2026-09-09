@@ -275,7 +275,7 @@ ECHO_BASE_COMMAND = 'printf "%s" "{base}"'
 def _single_gate_manifest(run: str) -> dict[str, object]:
     return {
         "schema_version": 1,
-        "gates": [{"name": "g", "run": run, "state": "blocking", "origin": "rfc/0036"}],
+        "gates": [{"name": "g", "run": run, "state": "blocking", "origin": "S-0036"}],
     }
 
 
@@ -316,7 +316,7 @@ def test_a_base_requesting_gate_on_an_unresolvable_base_errors(tmp_path):
     from torve.gates.context import GateContext
     from torve.gates.runner import run_gates
 
-    gate = Gate(name="g", run=ECHO_BASE_COMMAND, state="blocking", origin="rfc/0036")
+    gate = Gate(name="g", run=ECHO_BASE_COMMAND, state="blocking", origin="S-0036")
     ctx = GateContext(
         root=tmp_path,
         manifest=Manifest(gates=[gate]),
@@ -406,7 +406,7 @@ def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
     repo.seed()
     repo.task(
         base_task(allow=["src/**"], decisions=_checked("true", twin="tests/test_x.py"))
-        | {"rfc": ".torve/specs/S-0054"},
+        | {"spec": "S-0054"},
         log_document(),
     )
     repo.write("src/app.py", "print('x')\n")
@@ -415,7 +415,7 @@ def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
     (gate,) = decision_gates(context_for(repo))
 
     assert gate.name == "decision:S-0009/D-1" and gate.run == "true"
-    assert gate.origin == "rfc/0054#S-0009/D-1" and gate.axis == "compliance"
+    assert gate.origin == "S-0009/D-1" and gate.axis == "compliance"
     assert gate.sabotage == "tests/test_x.py" and gate.input == "worktree"
 
 
@@ -449,7 +449,7 @@ def test_scope_implicitly_allows_the_named_documents_execution_directory(repo):
     repo.seed()
     repo.task(base_task(allow=["src/**"]), None)
     contract = repo.root / ".torve" / "tasks" / TASK_ID / "contract.yaml"
-    task = load_task(contract).model_copy(update={"rfc": ".torve/specs/S-0001"})
+    task = load_task(contract).model_copy(update={"spec": "S-0001"})
     repo.write(".torve/specs/S-0001/execution/T-0001-1-20260101T000000Z.yaml", "task: T-0001\n")
     repo.write(".torve/specs/S-0001/document.yaml", "id: '0001'\n")
     repo.write("src/app.py", "print('changed')\n")

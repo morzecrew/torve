@@ -48,12 +48,12 @@ BASE_MANIFEST: dict[str, Any] = {
             "origin": "structural",
         },
         {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
-        {"name": "source-layout", "run": "@source-layout", "state": "shadow", "origin": "rfc/0014"},
+        {"name": "source-layout", "run": "@source-layout", "state": "shadow", "origin": "S-0014"},
         {
             "name": "user-facing-text",
             "run": "@user-facing-text",
             "state": "shadow",
-            "origin": "rfc/0011",
+            "origin": "S-0011",
         },
         {
             "name": "acceptance",
@@ -571,7 +571,7 @@ COVERAGE_GATE_MANIFEST: dict[str, Any] = {
                 " && diff-cover coverage.xml --compare-branch {base} --fail-under 80"
             ),
             "state": "blocking",
-            "origin": "rfc/0036",
+            "origin": "S-0036",
             "input": "worktree",
             "timeout": 120,
         }

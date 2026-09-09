@@ -75,6 +75,9 @@ class GateContext:
     log_path: Path | None = None
     log_text: str | None = None
     bypasses: list[BypassRecord] = field(default_factory=list)
+    # S-0059/D-2: the corpus, repo-relative, so a gate names a document's
+    # directory from the contract's identifier without a lookup.
+    specs: str = layout.SPECS_DIR
 
     # Where shell gates execute. None means the host (the CI runner is the
     # sandbox in that context); `torve run` injects a fresh-sandbox executor
@@ -230,6 +233,7 @@ def build_context(
     manifest: Manifest,
     base: str | None = None,
     task_path: Path | None = None,
+    specs: str = layout.SPECS_DIR,
 ) -> GateContext:
     head_sha = git(root, "rev-parse", "HEAD").strip()
     resolved = resolve_base(root, base)
@@ -274,4 +278,5 @@ def build_context(
         log_path=log_path,
         log_text=log_text,
         bypasses=bypasses,
+        specs=specs,
     )

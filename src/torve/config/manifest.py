@@ -13,6 +13,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from torve.domain.attempt import GateInput, GateState
+from torve.domain.spec import is_citation
 from torve.domain.task import SCHEMA_VERSION, Scope
 
 # ----------------------- #
@@ -60,7 +61,7 @@ class Gate(BaseModel):
     name: str
     run: str
     state: GateState
-    origin: str  # structural | leak/<task> | rfc/<id> — why this gate exists
+    origin: str  # structural | leak/<task> | a citation (S-0059/D-4) — why this gate exists
     added: date | None = None
     input: GateInput | None = None  # derived for builtins; defaults to worktree for shell gates
     timeout: float | None = None  # seconds; derived for builtins, 600 for shell gates
@@ -73,11 +74,12 @@ class Gate(BaseModel):
     @field_validator("origin")
     @classmethod
     def _origin_shape(cls, value: str) -> str:
-        if value == "structural" or value.startswith(("leak/", "rfc/")):
+        if value == "structural" or value.startswith("leak/") or is_citation(value):
             return value
 
         raise ValueError(
-            f"origin {value!r} must be 'structural', 'leak/<task>' or 'rfc/<id>' (S-0002/D-19)"
+            f"origin {value!r} must be 'structural', 'leak/<task>' or a citation such as "
+            "'S-0011' or 'S-0054/D-2' (S-0002/D-19, S-0059/D-4)"
         )
 
     # ....................... #

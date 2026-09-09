@@ -3,7 +3,7 @@ read-only MCP server over the projections, served on stdio for a planning
 session on the operator's machine. Queries only — no write tool is
 registered, and nothing wires this server into an execution sandbox. The
 mcp package is an optional extra, lazily imported like the migrate extra
-(rfcs/0012-migrations.md precedent), so a gates-only install never pays
+(S-0012's precedent), so a gates-only install never pays
 for it.
 """
 

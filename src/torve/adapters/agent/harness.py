@@ -110,8 +110,8 @@ def build_prompt(
     if task.intent:
         lines += [task.intent.strip(), ""]
 
-    if task.rfc:
-        lines += [f"Specification: see the decisions below, inherited from `{task.rfc}`.", ""]
+    if task.spec:
+        lines += [f"Specification: see the decisions below, inherited from `{task.spec}`.", ""]
 
     lines += ["## Decisions", ""]
 

@@ -95,7 +95,7 @@ phasing:
     depends_on: [1]
 contract_example:             # optional; validated against the live task schema
   id: T-0142
-  rfc: .torve/specs/S-NNNN
+  spec: S-NNNN
   role: implement
   intent: One paragraph: what changes and why.
   scope:

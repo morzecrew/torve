@@ -421,6 +421,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             manifest,
             base=resolve_base(run.worktree, run.gates_base or run.config.base),
             task_path=task_file if task_file.is_file() else None,
+            specs=run.config.specs.path,
         )
 
         ctx.execute = executor

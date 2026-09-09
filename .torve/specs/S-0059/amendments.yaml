@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-09T21:34:41Z'
+    title: >-
+      the retired key stands where it is refused or folded
+    md: >-
+      I-2 said the word does not stand in `src/torve` at all, and phase 1 found the
+      two places it must: the refusal that names the key a contract may not carry
+      (S-0059/D-1) and the fold that reads it off a mint recorded before this document
+      (S-0059/D-3). The invariant names them; its check excludes those two files and
+      nothing else. No row changes.

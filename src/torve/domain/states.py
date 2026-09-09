@@ -7,7 +7,7 @@ The escalation vocabulary is deliberately closed (S-0001/where-abstraction-is-al
 extensible enum makes telemetry incomparable across time. It is §4's list
 plus `cost_anomaly` (§5.2), `killed` (S-0006/blocked-dispatch-must-be-visible), `underspecified`
 (charter S-0001/A-7) and `stale_inheritance` (charter S-0001/A-8); any further addition
-is an RFC amendment, not a code change.
+is a document amendment, not a code change.
 """
 
 from __future__ import annotations

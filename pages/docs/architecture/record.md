@@ -108,9 +108,10 @@ A **source** is any provenance carrying zero or more decisions: a
 specification document, an incident, an audit, a review finding, an
 operator's ask. The corpus is one shape of this and not a privileged one —
 before the record existed, an incident that settled something had to become
-an RFC first or the settlement was lost. A source is identified as
-`<namespace>/<slug>`, so `rfc/0044` keeps its identity when the file is
-renamed and the decisions stay attached to it.
+a document first or the settlement was lost. A source is identified by a
+stable id — the corpus's is the document identifier, `S-0044` — so a
+document renamed on disk keeps its identity and the decisions stay attached
+to it; a task's source is the `spec` its contract names (S-0059/D-3).
 
 A **decision** is a subject, and this is the one distinction worth reading
 twice, because getting it backwards makes every count wrong and the error

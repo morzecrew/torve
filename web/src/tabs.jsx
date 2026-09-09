@@ -58,7 +58,7 @@ export function Board({ ctx }) {
     col("task", "id", { cls: "id" }),
     col("state", "state", { cell: (t) => <Badge color={STATE_COLOR[t.state]}>{t.state}</Badge> }),
     col("role", "role", { cls: "dim" }),
-    col("rfc", (t) => (t.rfc || "").replace("rfcs/", "").replace(".md", ""), { cls: "id dim" }),
+    col("spec", "spec", { cls: "id dim" }),
     col("phase", "phase", { num: true, cls: "dim" }),
     col("attempts", (t) => t.attempts || undefined, { num: true }),
     col("escalation", "escalation", {
@@ -78,7 +78,7 @@ export function Board({ ctx }) {
         <Card k="ready" v={by.ready?.length || 0} s="awaiting merge" />
       </div>
       <div className="flex gap-2.5 items-center flex-wrap mb-3.5">
-        <Search value={q} onChange={setQ} placeholder="filter id / rfc / role…" />
+        <Search value={q} onChange={setQ} placeholder="filter id / spec / role…" />
         <MultiSelect
           label="state"
           options={allStates.map((s) => ({ value: s, count: by[s].length }))}
@@ -371,7 +371,7 @@ export function Programme({ ctx }) {
   const rows = all.filter((r) => impls.has(r.implementation || "none") || r.disagreement);
 
   const columns = [
-    col("rfc", "rfc", { cls: "id" }),
+    col("spec", "spec", { cls: "id" }),
     col("title", "title", { cls: "wrap" }),
     col("status", "status", {
       cell: (r) => <Badge color={r.status === "accepted" ? "green" : "grey"}>{r.status}</Badge>,
@@ -444,7 +444,7 @@ export function Attention({ ctx }) {
   if (!oa) return <Empty>no attention data</Empty>;
 
   const columns = [
-    col("document", (d) => (d.rfc || "").replace("rfcs/", "").replace(".md", ""), { cls: "id" }),
+    col("document", "spec", { cls: "id" }),
     col("minted", "minted", { num: true }),
     col("attempts→green", (d) => d.attempts_to_green_median, {
       num: true, cls: "dim",

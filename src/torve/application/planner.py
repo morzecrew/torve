@@ -174,7 +174,7 @@ class PlannedTask:
 @dataclass(frozen=True)
 class PlanReport:
     number: str
-    document: str  # repo-relative path, what the contract's `rfc` field cites
+    document: str  # the identifier the contract's `spec` names (S-0059/D-1)
     tasks: list[PlannedTask]
 
 
@@ -261,10 +261,10 @@ def next_task_number(root: Path, taken: Iterable[str] = ()) -> int:
 
 
 def document_of(reference: str) -> str:
-    """The document a contract's `rfc` names, as `S-NNNN`, whatever the
-    path's shape was when it was minted — a directory since S-0057, a
-    file before it — so a mint is recognised across the conversions; the
-    empty string when the reference names none."""
+    """The document a contract names, as `S-NNNN` — from `spec`, or from
+    the path a contract minted before S-0059 carried, whatever its shape
+    was — so a recorded mint is recognised across the conversions
+    (S-0059/D-3); the empty string when the reference names none."""
 
     try:
         return document_id(reference)
@@ -286,10 +286,10 @@ def _already_minted(
     for view in board.tasks.values() if board is not None else []:
         contract = view.contract
 
-        if contract is None or not contract.rfc or contract.phase not in phases:
+        if contract is None or not contract.spec or contract.phase not in phases:
             continue
 
-        if document_of(contract.rfc) == wanted:
+        if document_of(contract.spec) == wanted:
             clashes.append(view.task_id)
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
@@ -309,7 +309,7 @@ def _already_minted(
 
         record = cast("dict[str, Any]", raw)
 
-        minted = document_of(str(record.get("rfc", "")))
+        minted = document_of(str(record.get("spec") or ""))
 
         if minted == wanted and record.get("phase") in phases:
             clashes.append(str(record.get("id", path.parent.name)))
@@ -365,7 +365,7 @@ def inherit_decisions(doc: Document) -> list[InheritedDecision]:
 
 def load_corpus(rfc_dir: Path) -> Corpus:
     """The corpus as the planner reads it: the loader's refusals as
-    `PlanError`, so nothing mints from a document `rfc check` refuses."""
+    `PlanError`, so nothing mints from a document `spec check` refuses."""
 
     try:
         return spec.load_corpus(rfc_dir)
@@ -433,7 +433,7 @@ def plan_document(
     if not entries:
         raise PlanError(
             f"{doc_path.name} has no phasing — a `phasing` list is what `torve plan` "
-            "consumes (rfc-writer rule 2)"
+            "consumes (spec-writer rule 2)"
         )
 
     known = {e.phase for e in entries}
@@ -463,7 +463,7 @@ def plan_document(
 
     decisions = inherit_decisions(doc)
 
-    document = str(doc_path.resolve().relative_to(root.resolve()))
+    document = doc.id
     clashes = _already_minted(root, document, {e.phase for e in entries}, board)
 
     if clashes:
@@ -484,7 +484,7 @@ def plan_document(
     for offset, entry in enumerate(ordered):
         task = Task(
             id=f"T-{next_number + offset:04d}",
-            rfc=document,
+            spec=document,
             phase=entry.phase,
             role="implement",  # review tasks are minted by the runner at `gated` (§3)
             intent=entry.intent.strip(),
@@ -627,8 +627,7 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
             continue
 
         if doc.status == "superseded" or doc.superseded_by:
-            document = str(Path(doc.path).resolve().relative_to(root.resolve()))
-            superseded[document] = doc.superseded_by or None
+            superseded[doc.id] = doc.superseded_by or None
 
     found: list[StaleTask] = []
     tasks_dir = root / layout.TORVE_DIR / "tasks"
@@ -647,7 +646,7 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
             continue
 
         record = cast("dict[str, Any]", raw)
-        document = str(record.get("rfc", ""))
+        document = document_of(str(record.get("spec") or ""))
 
         if document not in superseded:
             continue

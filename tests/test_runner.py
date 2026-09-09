@@ -2091,7 +2091,7 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
     spec_dir = corpus(
         worktree, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/**`")])}
     )
-    task = Task(id="T-0001", rfc=".torve/specs/S-0001", phase=1, decisions=[])
+    task = Task(id="T-0001", spec="S-0001", phase=1, decisions=[])
     log_path = worktree / ".torve" / "tasks" / task.id / "log.yaml"
     log_path.parent.mkdir(parents=True)
     log_path.write_text(

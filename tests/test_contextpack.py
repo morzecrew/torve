@@ -45,7 +45,7 @@ AMENDMENTS = [
 def _task(**extra: object) -> Task:
     return Task(
         id="T-0500",
-        rfc="rfcs/0001-document-0001.yaml",
+        spec="S-0001",
         decisions=[
             InheritedDecision(
                 id="S-0001/D-1",

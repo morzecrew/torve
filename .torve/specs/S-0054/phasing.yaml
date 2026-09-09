@@ -140,9 +140,9 @@ phasing:
       - 3
     character: structural
 contract_example:
-  schema_version: 1
+  schema_version: 2
   id: T-0300
-  rfc: rfcs/0054-decisions-as-gates-and-the-projections-beside-the-code.md
+  spec: S-0054
   phase: 0
   role: implement
   title: ''

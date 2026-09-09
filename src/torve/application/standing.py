@@ -313,19 +313,19 @@ def evaluate_predicate(
 # ....................... #
 
 
-def _resolve_rfc_path(root: Path, config: RunnerConfig, identifier: str) -> str:
-    """`decisions_from` names an RFC id (S-0023/the-standing-contract's `"0012"`), resolved
-    the same way `torve plan` resolves one — `inherit_decisions` (reached
-    through adoption) reads a path, not a bare number."""
+def _resolve_document(root: Path, config: RunnerConfig, identifier: str) -> str:
+    """`decisions_from` names a document (S-0023/the-standing-contract's
+    `"0012"`), by number or identifier; the instance's contract carries the
+    identifier (S-0059/D-1), and the corpus is asked first so a job naming a
+    document that is not there fails here rather than at adoption."""
 
     from torve.config import spec
+    from torve.domain.spec import document_id
 
-    found = spec.document_dir(root / config.specs.path, identifier)
-
-    if found is None:
+    if spec.document_dir(root / config.specs.path, identifier) is None:
         raise ValueError(f"no document {identifier!r} under {config.specs.path}")
 
-    return str(found.resolve().relative_to(root.resolve()))
+    return document_id(identifier)
 
 
 # ....................... #
@@ -341,7 +341,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
     from torve.application.intake import adopt, drafts_file
 
     scratch = f"standing-{job.name}-{uuid.uuid4().hex[:8]}"
-    rfc = _resolve_rfc_path(root, config, job.decisions_from) if job.decisions_from else None
+    document = _resolve_document(root, config, job.decisions_from) if job.decisions_from else None
 
     source = drafts_file(root, scratch)
     source.parent.mkdir(parents=True, exist_ok=True)
@@ -350,7 +350,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
             {
                 "schema_version": 1,
                 "request": job.intent,
-                "rfc": rfc,
+                "spec": document,
                 "rationale": "",
                 "drafts": [
                     {

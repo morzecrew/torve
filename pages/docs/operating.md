@@ -19,7 +19,7 @@ shell has not set is filled in.
 
 | Verb | What it does |
 | --- | --- |
-| `torve plan <rfc>` | mint task contracts from an accepted document — deterministic, no model call |
+| `torve plan <spec>` | mint task contracts from an accepted document — deterministic, no model call |
 | `torve intake "<request>"` | draft contracts from prose in a read-only sandbox; a human adopts or refuses |
 | `torve adopt <task>` | the human signature: ids are minted here, under the engine lock |
 | `torve run <task>` | one task, synchronously, sandboxed — the exit code carries the outcome |

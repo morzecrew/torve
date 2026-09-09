@@ -7,7 +7,7 @@ modelled — ReviewFeedback arrives with S-0005.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -15,7 +15,16 @@ from torve.domain.rfc import Grade
 
 # ----------------------- #
 
+# The engine's shape version, borrowed by every envelope the engine writes —
+# telemetry, run state, the manifest, the projections. Not the contract's.
 SCHEMA_VERSION = 1
+# S-0059/D-1: the contract's own — 2 names the document as `spec: S-NNNN`;
+# 1 carried `rfc`, a path.
+CONTRACT_SCHEMA_VERSION = 2
+
+# The document grammar (S-0058/D-1), spelled here because `domain/spec.py`
+# imports this module for the contract example and compiles the pattern from it.
+SPEC_PATTERN = r"^S-\d{4}$"
 
 
 # ....................... #
@@ -79,7 +88,7 @@ DISPATCHABLE_ROLES = ("implement", "revert")
 
 
 class Task(BaseModel):
-    """The task contract, `.torve/tasks/T-nnnn.yaml` (S-0001/domain, §6).
+    """The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, §6).
 
     `decisions` has no default on purpose: an empty list is legal but must be
     explicit (S-0007/D-5), so `decisions-reported` can distinguish "none apply"
@@ -87,9 +96,12 @@ class Task(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-    schema_version: int = SCHEMA_VERSION
+    schema_version: int = CONTRACT_SCHEMA_VERSION
     id: str
-    rfc: str | None = None
+    # S-0059/D-1: the document the contract was minted from, by identifier and
+    # never by path — `document_dir` is the one lookup that finds it. None is
+    # the document-less lane: an operator's ask, a standing job.
+    spec: str | None = Field(default=None, pattern=SPEC_PATTERN)
     phase: int = 0
     role: Literal["implement", "review", "revert", "draft"] = "implement"
 
@@ -129,6 +141,21 @@ class Task(BaseModel):
     # default — a task with no character declared routes on the seat alone,
     # same as one with no tier_variant.
     character: Literal["structural", "routine"] | None = None
+
+    # ....................... #
+
+    @model_validator(mode="before")
+    @classmethod
+    def _spec_not_rfc(cls, data: Any) -> Any:
+        # S-0059/D-1: the key S-0057 retired, refused with the one it wants —
+        # `extra="forbid"` alone would say "extra inputs are not permitted".
+        if isinstance(data, dict) and "rfc" in data:
+            raise ValueError(
+                "`rfc` is `spec` since S-0059 (S-0059/D-1): the contract names its "
+                "document by identifier, `spec: S-NNNN`"
+            )
+
+        return data
 
     # ....................... #
 

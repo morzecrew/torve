@@ -121,9 +121,9 @@ phasing:
       - 3
     character: routine
 contract_example:
-  schema_version: 1
+  schema_version: 2
   id: T-0290
-  rfc: rfcs/0053-the-item-model-and-the-rebuilt-corpus.md
+  spec: S-0053
   phase: 0
   role: implement
   title: ''

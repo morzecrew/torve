@@ -5,7 +5,7 @@ the row as it was minted.
 
 The report never edits a decision table, proposes no text and calls no model
 (S-0022/D-1, LOCKED): everything here is a read over `.torve/tasks/*/contract.yaml`,
-`log.yaml`, run state, git's own landing trailer and the RFC corpus — a plain
+`log.yaml`, run state, git's own landing trailer and the corpus — a plain
 reader over JSONL-shaped YAML, no new dependency, so moving to S-0004/telemetry-staged
 stage 2 is a change of reader, not a rewrite (S-0022/D-5). The grade compared is
 always the one copied onto the contract at mint time, never the row as the
@@ -111,9 +111,8 @@ class TaskFacts:
     copied onto this contract at mint time (S-0022/D-2)."""
 
     id: str
-    rfc: (
-        str | None
-    )  # S-0022/D-9: carried through so a document-level reader can bucket None on its own
+    # S-0022/D-9: carried through so a document-level reader can bucket None on its own
+    spec: str | None
     scope_allow: list[str]
     acceptance: list[str]  # S-0022/D-11: the other half of the size verdict's own inputs
     decisions: list[dict[str, Any]]  # [{id, grade, paths}], mint-time copies
@@ -350,7 +349,7 @@ def read_tasks(root: Path) -> list[TaskFacts]:
         found.append(
             TaskFacts(
                 id=task_id,
-                rfc=str(record["rfc"]) if record.get("rfc") else None,
+                spec=str(record["spec"]) if record.get("spec") else None,
                 scope_allow=_contract_scope_allow(record),
                 acceptance=_contract_acceptance(record),
                 decisions=_contract_decisions(record),

@@ -100,14 +100,14 @@ def test_decision_recorded_carries_consequence_and_check_and_defaults_them():
     from torve.domain.events import DecisionRecorded
 
     old = DecisionRecorded.model_validate(
-        {"grade": "LOCKED", "text": "x", "paths": [], "source_id": "rfc/0001"}
+        {"grade": "LOCKED", "text": "x", "paths": [], "source_id": "S-0001"}
     )
     new = DecisionRecorded.model_validate(
         {
             "grade": "LOCKED",
             "text": "x",
             "paths": [],
-            "source_id": "rfc/0001",
+            "source_id": "S-0001",
             "consequence": "why",
             "check": "true",
         }

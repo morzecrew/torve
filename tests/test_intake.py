@@ -201,7 +201,7 @@ def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
     # have been allowed. Three drafting attempts proposed `torve gates
     # check` and were refused with the reason and no alternative; all three
     # proposed it again.
-    assert any("rfc check" in e and "lint-imports" in e for e in refused)
+    assert any("spec check" in e and "lint-imports" in e for e in refused)
 
     # A bare git command is the same wall, said plainly.
     assert any(
@@ -219,7 +219,7 @@ def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
                     acceptance=[
                         "uv run pytest tests/test_newmod.py",
                         "uv run lint-imports --config pyproject.toml",
-                        "uv run torve rfc check",
+                        "uv run torve spec check",
                     ]
                 )
             ),
@@ -836,9 +836,9 @@ def test_run_intake_spent_budget_escalates(seeded):
 # Adoption (S-0020/D-1, S-0020/D-4).
 
 
-def adopted_ready_run(seeded, *, rfc: str | None = None) -> str:
+def adopted_ready_run(seeded, *, spec: str | None = None) -> str:
     config = RunnerConfig()
-    task = mint_intake_task(seeded.root, "two modules", config, rfc=rfc)
+    task = mint_intake_task(seeded.root, "two modules", config, spec=spec)
     agent = ScriptedAgent(
         [
             output_for(
@@ -881,7 +881,7 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
 def test_adopt_copies_decisions_from_an_accepted_document(seeded):
     place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture spec")
-    source = adopted_ready_run(seeded, rfc=f"{SPECS}/S-0099")
+    source = adopted_ready_run(seeded, spec="S-0099")
     adopted = adopt(seeded.root, source, RunnerConfig())
 
     contract = yaml.safe_load(
@@ -906,10 +906,10 @@ def test_adopt_copies_decisions_from_an_accepted_document(seeded):
 def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
     # S-0030/standing-inheritance: adoption always merges standing rows — the cited copy
     # is not the only lane; a scope crossing another document's paths
-    # inherits that row even with no rfc line at all.
+    # inherits that row even with no spec at all.
     place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture spec")
-    source = adopted_ready_run(seeded)  # no rfc line — the document-less lane
+    source = adopted_ready_run(seeded)  # no spec — the document-less lane
     adopted = adopt(seeded.root, source, RunnerConfig())
 
     for task_id in adopted:  # both drafts' scope crosses src/**
@@ -943,7 +943,7 @@ def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
     )
     place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture specs")
-    source = adopted_ready_run(seeded, rfc=f"{SPECS}/S-0099")
+    source = adopted_ready_run(seeded, spec="S-0099")
     adopted = adopt(seeded.root, source, RunnerConfig())
 
     contract = yaml.safe_load(
@@ -1012,7 +1012,7 @@ def test_adopt_of_a_decomposition_sets_parent_and_grows_the_integration_task(see
 def test_adopt_refuses_a_draft_status_document(seeded):
     place(seeded.root / SPECS, "0098", _rfc_doc("0098", "S-0098/D-1", "src/**", status="draft"))
     seeded.commit("draft spec")
-    source = adopted_ready_run(seeded, rfc=f"{SPECS}/S-0098")
+    source = adopted_ready_run(seeded, spec="S-0098")
     with pytest.raises(ValueError, match="not accepted"):
         adopt(seeded.root, source, RunnerConfig())
 
@@ -1028,7 +1028,7 @@ def _write_ready_drafts(seeded, task_id: str, request: str, *drafts: dict) -> No
             {
                 "schema_version": 1,
                 "request": request,
-                "rfc": None,
+                "spec": None,
                 "rationale": "",
                 "drafts": list(drafts),
             }
@@ -1046,7 +1046,7 @@ def test_adopt_refuses_a_scope_crossing_two_documents_locked_ground(seeded):
     seeded.commit("fixture specs")
     config = RunnerConfig()
     task = mint_intake_task(seeded.root, "two docs", config)
-    _write_ready_drafts(seeded, task.id, "two docs", draft_dict())  # no rfc line
+    _write_ready_drafts(seeded, task.id, "two docs", draft_dict())  # no spec
 
     with pytest.raises(ValueError, match="needs its own document") as excinfo:
         adopt(seeded.root, task.id, config)
@@ -1088,7 +1088,7 @@ def test_adopt_refuses_without_a_ready_run(seeded):
             {
                 "schema_version": 1,
                 "request": "req",
-                "rfc": None,
+                "spec": None,
                 "rationale": "",
                 "drafts": [draft_dict()],
             }

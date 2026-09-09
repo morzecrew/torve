@@ -29,7 +29,6 @@ about when someone last imported, and is what the parity test measures.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -695,15 +694,14 @@ def land(
     from torve.config.spec_emit import write_landing
     from torve.domain.spec import Landing
 
-    if not task.rfc:
+    if not task.spec:
         raise ValueError(f"{task.id} names no document — its log stays in git history")
 
-    named = re.search(r"\d{4}", Path(task.rfc).name)
-    directory = spec.document_dirs(spec_dir).get(named.group(0)) if named else None
+    directory = spec.document_dir(spec_dir, task.spec)  # the one lookup (S-0059/D-2)
 
     if directory is None:
         raise ValueError(
-            f"{task.id} names {task.rfc}, which the corpus at {spec_dir} does not hold"
+            f"{task.id} names {task.spec}, which the corpus at {spec_dir} does not hold"
         )
 
     doc = spec.load_document(directory)

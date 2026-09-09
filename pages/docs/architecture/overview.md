@@ -30,7 +30,7 @@ recovery procedure rather than a re-read.
 | `application/` | manager, worker, runner, review, planner, projections, the event log service | depends on ports only, never on adapters |
 | `gates/` | the battery and its context builder | stands alone |
 | `adapters/` | one directory per port: runtime, agent, event store, durable store, vcs, workspace, broker | independent of each other |
-| `config/` | manifest, run configuration, the RFC format | the RFC format terminates at the planner (S-0007/D-17) |
+| `config/` | manifest, run configuration, the specification format | the format terminates at the planner (S-0007/D-17) |
 | `cli/` | Typer verbs, Rich presentation, the composition root | presentation never crosses inward (S-0018/D-2) |
 
 Five import-linter contracts enforce this mechanically and the `layering`

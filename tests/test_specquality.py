@@ -33,7 +33,7 @@ from torve.domain.states import EscalationReason, TaskState
 
 
 def write_contract(
-    root, task_id: str, *, rfc=None, decisions=(), scope_allow=(), acceptance=()
+    root, task_id: str, *, spec=None, decisions=(), scope_allow=(), acceptance=()
 ) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
@@ -42,7 +42,7 @@ def write_contract(
             {
                 "schema_version": 1,
                 "id": task_id,
-                "rfc": rfc,
+                "spec": spec,
                 "phase": 1,
                 "role": "implement",
                 "intent": "test",
@@ -195,9 +195,9 @@ def test_the_grade_compared_is_the_one_copied_at_mint_time(tmp_path):
 
 def test_populations_are_keyed_by_identifier_not_document(tmp_path):
     write_contract(
-        tmp_path, "T-0001", rfc=".torve/specs/S-0001", decisions=[("S-0001/D-1", "ASSUMED", [])]
+        tmp_path, "T-0001", spec="S-0001", decisions=[("S-0001/D-1", "ASSUMED", [])]
     )
-    write_contract(tmp_path, "T-0002", rfc=None, decisions=[("S-0001/D-1", "ASSUMED", [])])
+    write_contract(tmp_path, "T-0002", spec=None, decisions=[("S-0001/D-1", "ASSUMED", [])])
     report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
     pop = next(p for p in report["populations"] if p["identifier"] == "S-0001/D-1")
     assert pop["inherited"] == 2
@@ -486,7 +486,7 @@ def _seed_cli_repo(tmp_path):
         write_contract(
             tmp_path,
             task_id,
-            rfc=".torve/specs/S-0001",
+            spec="S-0001",
             decisions=[("S-0001/D-1", "LOCKED", ["src/a.py"])],
             scope_allow=["src/a.py"],
         )

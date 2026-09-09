@@ -1,5 +1,5 @@
 """`torve migrate` — owner-grouped, forward-only SQL migrations
-(rfcs/0012-migrations.md): torve's own document tables, the substrate tables a
+(S-0012): torve's own document tables, the substrate tables a
 forze version dictates, and telemetry from stage 3 onward.
 
 yoyo is an implementation detail behind this module, imported lazily so a

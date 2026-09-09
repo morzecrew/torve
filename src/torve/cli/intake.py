@@ -42,12 +42,12 @@ def intake_cmd(
     request: Annotated[
         str, typer.Argument(help="The request, in prose — what should exist and why.")
     ],
-    rfc: Annotated[
+    spec: Annotated[
         str | None,
         typer.Option(
-            "--rfc",
-            help="Governing document; its decisions are copied at "
-            "adoption (accepted documents only).",
+            "--spec",
+            help="Governing document, by identifier (`S-NNNN` or its number); its "
+            "decisions are copied at adoption (accepted documents only).",
         ),
     ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
@@ -85,7 +85,7 @@ def intake_cmd(
 
     from torve.base import naming
 
-    task = mint_intake_task(root, request, config, rfc=rfc)
+    task = mint_intake_task(root, request, config, spec=spec)
     workdir = naming.intake_worktree(root, task.id)
     vcs.worktree_at(root, base_sha, workdir)
 

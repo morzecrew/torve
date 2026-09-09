@@ -18,8 +18,8 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 - **S-0059/I-1**: No file under `src/torve` writes or reads a `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config` or `Torve-Decisions` trailer
   - Paths: `src/**`
   - Check: `! grep -rnE --include=*.py "Torve-(Task|Attempt|Agent|Config|Decisions)" src/torve`
-- **S-0059/I-2**: The word `rfc` does not stand in `src/torve`
+- **S-0059/I-2**: The word `rfc` stands in `src/torve` only where the retired key is refused (`domain/task.py`) or folded from a recorded mint (`application/manager.py`)
   - Paths: `src/**`
-  - Check: `! grep -rnw --include=*.py rfc src/torve`
+  - Check: `! grep -rnw --include=*.py rfc src/torve | grep -v 'domain/task.py\|application/manager.py'`
 
 <!-- /torve:managed -->

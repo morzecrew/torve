@@ -29,9 +29,11 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
         # S-0057/D-7, S-0058/D-6: the landing goes beside the rows it cites,
         # in the execution directory of the document the contract names —
-        # written by the engine at landing, so it is the task's own like its log.
-        if ctx.task.rfc:
-            prefixes.add(f"{ctx.task.rfc.rstrip('/')}/execution/")
+        # written by the engine at landing, so it is the task's own like its
+        # log. The directory is the identifier under the corpus the context
+        # names (S-0059/D-2); no lookup.
+        if ctx.task.spec:
+            prefixes.add(f"{ctx.specs.rstrip('/')}/{ctx.task.spec}/execution/")
 
         for prefix in (f"{layout.TORVE_DIR}/", ""):
             implicit.add(f"{prefix}logs/{ctx.task.id}.yaml")

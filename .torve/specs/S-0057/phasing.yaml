@@ -197,9 +197,9 @@ phasing:
     depends_on:
       - 3
 contract_example:
-  schema_version: 1
+  schema_version: 2
   id: T-0307
-  rfc: .torve/specs/0057-the-specification-is-a-directory
+  spec: S-0057
   phase: 4
   role: implement
   title: the links close

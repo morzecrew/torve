@@ -66,7 +66,7 @@ def event(kind, payload, *, at="2026-09-05T10:00:00Z", subject=TASK_ID) -> Event
 
 
 def minted(**overrides) -> EventRecord:
-    contract = Task(**{"id": TASK_ID, "decisions": [], "rfc": "rfcs/0050-x.md", **overrides})
+    contract = Task(**{"id": TASK_ID, "decisions": [], "spec": "S-0050", **overrides})
 
     return event(
         EventKind.TASK_MINTED,
@@ -190,7 +190,7 @@ def test_the_record_answers_the_whole_envelope(tmp_path):
     envelope = why_report(tmp_path, TASK_ID, recorded=rows)
 
     assert envelope["found"] is True
-    assert envelope["rfc"] == "rfcs/0050-x.md"
+    assert envelope["spec"] == "S-0050"
     assert [one["attempt"] for one in envelope["attempts"]] == [1]
     assert [one["event"] for one in envelope["events"]] == ["escalation"]
 
@@ -207,7 +207,7 @@ def _write_contract(root: Path) -> None:
                 "schema_version": 1,
                 "id": TASK_ID,
                 "role": "implement",
-                "rfc": "rfcs/0050-from-the-file.md",
+                "spec": "S-0051",
                 "decisions": [],
             }
         ),
@@ -226,7 +226,7 @@ def test_a_record_without_the_task_falls_back_to_the_files(tmp_path):
     envelope = why_report(tmp_path, TASK_ID, recorded=[])
 
     assert envelope["found"] is True
-    assert envelope["rfc"] == "rfcs/0050-from-the-file.md"
+    assert envelope["spec"] == "S-0051"
 
 
 # ....................... #
@@ -241,7 +241,7 @@ def test_a_mint_with_no_contract_falls_back_too(tmp_path):
     bare = event(EventKind.TASK_MINTED, {"title": "old", "source_id": "0050"})
     envelope = why_report(tmp_path, TASK_ID, recorded=[bare])
 
-    assert envelope["rfc"] == "rfcs/0050-from-the-file.md"
+    assert envelope["spec"] == "S-0051"
 
 
 # ....................... #
@@ -438,7 +438,7 @@ def test_a_board_holding_no_run_falls_back_to_the_files(tmp_path):
 def test_a_task_entry_is_folded_from_its_contract_and_its_facts():
     entries = tasks_from_events(
         [
-            minted(phase=3, rfc="rfcs/0050-x.md"),
+            minted(phase=3, spec="S-0050"),
             event(EventKind.ATTEMPT_STARTED, {"attempt": 1}),
             event(
                 EventKind.ESCALATION_RAISED,
@@ -451,7 +451,7 @@ def test_a_task_entry_is_folded_from_its_contract_and_its_facts():
     assert entries == [
         {
             "id": TASK_ID,
-            "rfc": "rfcs/0050-x.md",
+            "spec": "S-0050",
             "phase": 3,
             "role": "implement",
             "state": "escalated",
@@ -502,7 +502,7 @@ def test_context_falls_back_to_the_files_when_the_record_holds_no_contract(tmp_p
             {
                 "schema_version": 1,
                 "id": TASK_ID,
-                "rfc": "rfcs/0050-x.md",
+                "spec": "S-0050",
                 "intent": "work",
                 "scope": {"allow": ["src/**"]},
                 "acceptance": [],

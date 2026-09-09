@@ -135,7 +135,9 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     console.print()
 
-    programme = make_table("rfc", "title", "status", "impl", "progress", "notes", title="Programme")
+    programme = make_table(
+        "spec", "title", "status", "impl", "progress", "notes", title="Programme"
+    )
     settled: list[str] = []
 
     for doc in report["programme"]:
@@ -153,13 +155,13 @@ def _render_rich(report: dict[str, Any]) -> None:
         if doc["status"] == "accepted" and doc["implementation"] == "complete" and not notes:
             # Finished business earns a dim count, not a row — the JSON
             # report still carries every document.
-            settled.append(str(doc["rfc"]))
+            settled.append(str(doc["spec"]))
             continue
 
         progress = ", ".join(f"P{k}: {v}" for k, v in doc["progress"].items())
 
         programme.add_row(
-            Text(str(doc["rfc"]), STYLE_ID),
+            Text(str(doc["spec"]), STYLE_ID),
             str(doc["title"]),
             Text(str(doc["status"]), STYLE_PASS if doc["status"] == "accepted" else STYLE_DIM),
             str(doc["implementation"]),
@@ -410,7 +412,7 @@ def _render_rich(report: dict[str, Any]) -> None:
 
     if spec_quality:
         table = make_table(
-            "rfc",
+            "spec",
             "minted",
             "attempts→green",
             "drift",
@@ -443,7 +445,7 @@ def _render_rich(report: dict[str, Any]) -> None:
             )
 
             table.add_row(
-                Text(str(doc["rfc"]), STYLE_ID),
+                Text(str(doc["spec"]), STYLE_ID),
                 str(doc["minted"]),
                 attempts,
                 str(doc["drift_count"]),

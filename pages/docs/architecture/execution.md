@@ -6,7 +6,7 @@ A task's life, and what each step writes down.
 
 ## Mint — the task joins a partition
 
-`torve plan <rfc>` turns one accepted, committed specification into task
+`torve plan <spec>` turns one accepted, committed specification into task
 contracts, deterministically: no model is called at any point. The contract
 carries the scope it may touch, the decisions it inherits with the grades
 they had at mint time, the acceptance commands, and the seat it runs on.

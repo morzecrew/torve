@@ -70,7 +70,7 @@ gates:
     run: "uv run torve spec check"
     input: worktree
     state: blocking
-    origin: rfc/0007
+    origin: S-0007
     axis: form
     added: 2026-08-22
     timeout: 20
@@ -80,7 +80,7 @@ gates:
   - name: source-layout
     run: "@source-layout"
     state: shadow
-    origin: rfc/0014
+    origin: S-0014
     axis: form
     added: 2026-08-21
     sabotage: source-layout
@@ -92,7 +92,7 @@ gates:
   - name: user-facing-text
     run: "@user-facing-text"
     state: blocking
-    origin: rfc/0011
+    origin: S-0011
     axis: compliance
     added: 2026-08-22
     sabotage: user-facing-text
@@ -105,7 +105,7 @@ gates:
   - name: layering
     run: "uv run lint-imports"
     state: blocking
-    origin: rfc/0015
+    origin: S-0015
     added: 2026-08-22
     input: worktree
     timeout: 60
@@ -126,7 +126,7 @@ gates:
   - name: coverage-delta
     run: "uv run pytest --cov=src --cov-report=xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
     state: shadow
-    origin: rfc/0036
+    origin: S-0036
     added: 2026-09-03
     input: worktree
     sabotage: coverage-delta
@@ -137,7 +137,7 @@ gates:
     run: "uv run torve spec project --check"
     input: worktree
     state: shadow
-    origin: rfc/0054
+    origin: S-0054
     axis: form
     added: 2026-09-09
     timeout: 30

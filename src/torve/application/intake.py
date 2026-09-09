@@ -52,8 +52,16 @@ from torve.config.runconfig import (
     tier_for,
 )
 from torve.domain.attempt import SizeVerdict
+from torve.domain.spec import document_id
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import SCHEMA_VERSION, Budget, InheritedDecision, Scope, Task
+from torve.domain.task import (
+    CONTRACT_SCHEMA_VERSION,
+    SCHEMA_VERSION,
+    Budget,
+    InheritedDecision,
+    Scope,
+    Task,
+)
 
 # ----------------------- #
 
@@ -62,7 +70,6 @@ DRAFT_REF = re.compile(r"^DRAFT-(\d+)$")
 # Adoption's terminal marker: with state and drafts both consumed, this
 # is what tells a fresh mint from an adopted one.
 ADOPTED_FILE = "adopted.json"
-RFC_LINE = re.compile(r"^rfc:\s*(\S+)\s*$", re.MULTILINE)
 
 
 # ....................... #
@@ -241,7 +248,7 @@ def lint_drafts(
     `planning` is the minting path (S-0052/A-3), where two of these rules do
     not hold. A drafted contract is written against the tree as it stands,
     so a glob matching nothing is a mistake; a *planned* one describes work
-    that does not exist yet, and rfc-check already warns about exactly that
+    that does not exist yet, and `spec check` already warns about exactly that
     as "intended modules awaiting implementation" (S-0001/D-32). And a phase's
     `acceptance` is optional by the RFC schema, where a draft's is not.
     Everything else — the shell parse, the git rule, the T-0113 test-file
@@ -304,7 +311,7 @@ def lint_drafts(
                     "the container never sees, so this can only ever fail (S-0052/A-2). Use the "
                     "commands that judge this work without a repository instead — the tests "
                     "it touches, `uv run lint-imports --config pyproject.toml`, `uv run torve "
-                    "rfc check` — and drop this one: the gate battery runs outside the sandbox "
+                    "spec check` — and drop this one: the gate battery runs outside the sandbox "
                     "on the candidate already"
                 )
 
@@ -805,7 +812,7 @@ def document_threshold_warnings(
 
 # The drafting run.
 def mint_intake_task(
-    root: Path, request: str, config: RunnerConfig, rfc: str | None = None
+    root: Path, request: str, config: RunnerConfig, spec: str | None = None
 ) -> Task:
     """Engine-minted at request time, like a review at gated — the id here
     names the drafting run itself, never its output (S-0020/D-4)."""
@@ -814,7 +821,7 @@ def mint_intake_task(
 
     task = Task(
         id=f"T-{next_task_number(root):04d}",
-        rfc=rfc,
+        spec=document_id(spec) if spec else None,
         role="draft",
         intent=request,
         decisions=[],
@@ -825,7 +832,7 @@ def mint_intake_task(
     contract_dir = root / layout.TORVE_DIR / "tasks" / task.id
     contract_dir.mkdir(parents=True, exist_ok=True)
     document = task.model_dump(exclude_defaults=True)
-    document["schema_version"] = SCHEMA_VERSION
+    document["schema_version"] = CONTRACT_SCHEMA_VERSION
     document["decisions"] = []
 
     (contract_dir / "contract.yaml").write_text(
@@ -898,7 +905,7 @@ def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) ->
 
     task = Task(
         id=f"T-{next_task_number(root):04d}",
-        rfc=parent.rfc,
+        spec=parent.spec,
         role="draft",
         intent=f"Decompose {parent_id}: {parent.intent}",
         targets=[parent_id],
@@ -910,7 +917,7 @@ def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) ->
     contract_dir = root / layout.TORVE_DIR / "tasks" / task.id
     contract_dir.mkdir(parents=True, exist_ok=True)
     document = task.model_dump(exclude_defaults=True)
-    document["schema_version"] = SCHEMA_VERSION
+    document["schema_version"] = CONTRACT_SCHEMA_VERSION
     document["decisions"] = []
 
     (contract_dir / "contract.yaml").write_text(
@@ -1391,7 +1398,7 @@ def _finish_intake_success(
             {
                 "schema_version": 1,
                 "request": task.intent,
-                "rfc": task.rfc,
+                "spec": task.spec,
                 "rationale": document.rationale,
                 "drafts": [d.model_dump() for d in document.drafts],
             },
@@ -1633,27 +1640,28 @@ def _append_intake_record(
 # under the engine lock so nothing races the minting.
 
 
-def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
+def _inherit_decisions(root: Path, config: RunnerConfig, document: str) -> list[dict[str, Any]]:
     """The planner's rows, not a second copy of them (S-0020/D-9, S-0007/A-3): grades
     and paths as they stand at adoption, from an accepted document only —
-    the same admission torve plan enforces (S-0007/D-7)."""
+    the same admission torve plan enforces (S-0007/D-7). *document* is the
+    identifier the drafts file carries (S-0059/D-1), found by the one lookup."""
 
     from torve.application.planner import PlanError, inherit_decisions
     from torve.config import spec
 
-    doc_path = (root / rfc).resolve()
+    doc_path = spec.document_dir(root / config.specs.path, document)
 
-    if not doc_path.is_dir():  # a document is a directory (S-0057/D-1)
-        raise ValueError(f"no document at {rfc}")
+    if doc_path is None:
+        raise ValueError(f"no document {document} under {config.specs.path}")
 
     try:
         doc = spec.load_document(doc_path)
     except spec.SpecError as exc:
-        raise ValueError(f"{rfc} does not load — {'; '.join(exc.problems)}") from None
+        raise ValueError(f"{document} does not load — {'; '.join(exc.problems)}") from None
 
     if doc.status != "accepted":
         raise ValueError(
-            f"{rfc} is not accepted — a draft has no settled decisions to inherit (S-0007/D-7)"
+            f"{document} is not accepted — a draft has no settled decisions to inherit (S-0007/D-7)"
         )
 
     try:
@@ -1740,8 +1748,8 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
 
     record = cast("dict[str, Any]", json.loads(source.read_text(encoding="utf-8")))
     drafts: list[Draft] = [Draft.model_validate(d) for d in record["drafts"]]
-    rfc = record.get("rfc")
-    decisions = _inherit_decisions(root, str(rfc)) if rfc else []
+    cited = record.get("spec")
+    decisions = _inherit_decisions(root, config, str(cited)) if cited else []
 
     # S-0030/D-4: adoption refuses document_required before anything is
     # written — the same check the intake lint already ran, re-run here
@@ -1783,7 +1791,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             contract_dir.mkdir(parents=True, exist_ok=True)
 
             document: dict[str, Any] = {
-                "schema_version": SCHEMA_VERSION,
+                "schema_version": CONTRACT_SCHEMA_VERSION,
                 "id": new_id,
                 "role": "implement",
                 "intent": draft.intent,
@@ -1792,13 +1800,13 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
                 "acceptance": list(draft.acceptance),
                 # S-0030/D-1: adoption always merges the standing rows the
                 # draft's own scope crosses with the cited document's copy,
-                # deduplicated by identifier — never RFC_LINE alone.
+                # deduplicated by identifier — never the cited document alone.
                 "decisions": _merged_decisions(root, config, draft.scope.allow, decisions),
                 "tier": "executor",
             }
 
-            if rfc:
-                document["rfc"] = rfc
+            if cited:
+                document["spec"] = cited
 
             if parent_id:
                 document["parent"] = parent_id

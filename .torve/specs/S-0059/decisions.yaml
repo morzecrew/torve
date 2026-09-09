@@ -215,9 +215,12 @@ invariants:
     check: >-
       ! grep -rnE --include=*.py "Torve-(Task|Attempt|Agent|Config|Decisions)" src/torve
   - id: I-2
-    statement: The word `rfc` does not stand in `src/torve`
+    statement: >-
+      The word `rfc` stands in `src/torve` only where the retired key is refused (`domain/task.py`)
+      or folded from a recorded mint (`application/manager.py`)
     paths: [src/**]
-    check: '! grep -rnw --include=*.py rfc src/torve'
+    check: >-
+      ! grep -rnw --include=*.py rfc src/torve | grep -v 'domain/task.py\|application/manager.py'
   - id: I-3
     statement: >-
       Every property of every schema `torve init` writes carries a description

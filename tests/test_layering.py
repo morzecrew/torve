@@ -40,7 +40,7 @@ MANIFEST = {
             # The scratch package is importable from the repository root.
             "run": "PYTHONPATH=. lint-imports",
             "state": "blocking",
-            "origin": "rfc/0015",
+            "origin": "S-0015",
             "input": "worktree",
             "timeout": 120,
         }
