@@ -2,7 +2,7 @@
 id: "0055"
 title: Standing decisions
 kind: design
-status: draft
+status: accepted
 implementation: complete
 depends_on: []
 informed_by: ["0053"]
