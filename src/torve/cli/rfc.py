@@ -816,6 +816,89 @@ def show(
 # ....................... #
 
 
+@rfc_app.command("schema")
+def schema(
+    check_only: Annotated[
+        bool, typer.Option("--check", help="Compare instead of writing; drift exits 3.")
+    ] = False,
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """Write the model's JSON Schema beside the corpus, where every
+    document's first line points an editor at it. Generated output, like
+    a lockfile: `check` reddens when it lags the model, and `--check`
+    reports without writing."""
+    # D-56.6: the authoring contract, as a file an editor validates against.
+
+    from torve.config.spec import SCHEMA_RELATIVE, schema_file, schema_text
+
+    rfc_dir = corpus_dir(root, config)
+    path = schema_file(rfc_dir)
+    rendered = schema_text()
+    current = path.read_text(encoding="utf-8") if path.is_file() else None
+
+    if check_only:
+        if current == rendered:
+            out().print(f"OK    {SCHEMA_RELATIVE} matches the model")
+            raise typer.Exit(EXIT_OK)
+
+        raise fail(
+            f"{SCHEMA_RELATIVE} {'is missing' if current is None else 'lags the model'} — "
+            "it is generated output; `torve rfc schema` writes it",
+            EXIT_CONFIG,
+        )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(rendered, encoding="utf-8")
+    out().print(f"wrote {path}")
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+@rfc_app.command("render")
+def render(
+    number: Annotated[str, typer.Argument(help="The document to render, e.g. 0056.")],
+    output: Annotated[
+        Path | None, typer.Option("--out", help="Write the page here instead of printing it.")
+    ] = None,
+    root: RootOption = Path("."),
+    config: ConfigOption = None,
+) -> None:
+    """The document as a markdown page for a person: header facts, prose,
+    the rows as a table, invariants, alternatives, questions, phasing and
+    amendments. The one markdown writer, and never the source of anything."""
+    # D-56.7.
+
+    from torve.config.rfc_emit import load_or_fail, render_markdown
+    from torve.config.spec import archive_files, rfc_files
+
+    rfc_dir = corpus_dir(root, config)
+    key = _key(number)
+    files = {**archive_files(rfc_dir), **rfc_files(rfc_dir)}
+
+    if key not in files:
+        raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
+
+    try:
+        page = render_markdown(load_or_fail(files[key]))
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
+
+    if output is None:
+        out().print(page, end="", markup=False, highlight=False)
+        raise typer.Exit(EXIT_OK)
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(page, encoding="utf-8")
+    out().print(f"wrote {output}")
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
 @rfc_app.command("list")
 def list_cmd(
     root: RootOption = Path("."),

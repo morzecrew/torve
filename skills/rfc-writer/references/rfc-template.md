@@ -1,224 +1,155 @@
-# RFC template
+# Document template
 
-Copy the skeleton below into `NNNN-kebab-title.md`. Replace `<placeholders>`, delete the guidance blockquotes, and drop sections the RFC doesn't need (keep numbering contiguous). A minimal design-lock RFC keeps: header block, Design, Non-goals, Decisions.
+`torve rfc new "Title"` writes the smallest document that checks — the
+header keys, one summary section, empty lists — under the next number.
+What follows is the filled shape to grow it into, scaled to the design's
+weight: a small design-lock document keeps the header, a scope section, a
+design section, a non-goals section and the rows. Replace `<placeholders>`;
+delete what the document does not need. Every key is validated against
+`rfcs/schema/document.json`, which the first line names.
 
----
-
-```markdown
----
-id: "NNNN"
+```yaml
+# yaml-language-server: $schema=schema/document.json
+id: 'NNNN'
 title: <Title>
-status: draft
-depends_on: []
-informed_by: []
+kind: design            # or convention
+status: draft           # accepted once reviewed and depended on; superseded only with superseded_by
+implementation: none    # none | partial | complete | abandoned — the author's judgement, checked against the record
+depends_on: []          # documents whose rows this one inherits from; must be accepted
+informed_by: []         # documents read, not inherited from
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: []          # written by `torve rfc amend`
+retired: []             # identifiers this document once defined; never reused
 owner: <name>
 description: >-
   <One sentence, ~200 chars: which design this is, not what it decided.
-  Becomes the generated index's routing line.>
-schema_version: 1
----
+  `torve rfc list` shows it; it is how a reader picks the document to open.>
+schema_version: 2
+sections:
+  - key: scope
+    heading: Scope
+    md: |
+      <One dense paragraph: what this document covers and what it deliberately
+      does not — modules touched, contract changes or "no contract changes",
+      the boundary of the blast radius. The paragraph a reader uses to decide
+      whether to read the rest. Related code and documents by relative path
+      and number; where the design was debated, if anywhere.>
+  - key: summary
+    heading: 1. Summary
+    md: |
+      <What ships, in a few sentences. Write it last.>
+  - key: motivation
+    heading: 2. Motivation
+    md: |
+      <The problem, with evidence: measured numbers, real failure cases, the
+      code paths that hurt. A motivation that cites nothing concrete is a
+      reason to question the document.>
+  - key: current-state
+    heading: 3. Current state
+    md: |
+      <What exists today, verified against the code — not from memory. Name
+      the files, ports and schemas involved; verified surprises belong here.>
+  - key: goals
+    heading: 4. Goals / Non-goals
+    md: |
+      Goals: <...>
 
-# RFC NNNN — <Title>
-
-- **Scope:** <One dense paragraph: what this RFC covers and what it deliberately
-  does not. New packages/modules touched, contract changes (or "no contract
-  changes"), the boundary of the blast radius. This is the paragraph a reader
-  uses to decide whether to read the rest.>
-- **Related:** <Links to the code being touched (relative paths into the repo),
-  other RFCs by number, prior art, external docs.>
-- **Discussion:** <Optional — link to the PR / issue / thread where the design
-  was or is being debated. Delete if none.>
-- **Origin:** <Optional — where the design was ported or generalized from:
-  a sibling project, a spike, a production incident. Delete if none.>
-
----
-
-## 1. Summary
-
-<What ships, in a few sentences. Write it last, once the design has settled.>
-
-## 2. Motivation
-
-<The problem, with evidence: measured numbers, real failure cases, links to the
-code paths that hurt. If the motivation can't cite anything concrete, question
-whether the RFC is needed.>
-
-## 3. Current state
-
-<What exists today, verified against the code — not from memory. Name the
-files, ports, schemas involved. Surprising verified facts ("zero pyproject
-edits needed — confirmed against line ~218") belong here; they save the
-implementer a re-investigation.>
-
-## 4. Goals / Non-goals
-
-**Goals**
-
-- <...>
-
-**Non-goals**
-
-- <Explicit exclusions with a reason each — "not X, that is Y's job". Non-goals
-  prevent scope creep during implementation and re-litigation after.>
-
-## 5. Design
-
-<The core of the document. One subsection per workstream or component
-(### 5.1, ### 5.2, …). Pin the design with real artifacts — signatures,
-schemas, wire formats, config shapes — in code blocks; prose alone drifts.
-State failure semantics explicitly (what raises, what is refused, what fails
-closed). Where a decision was contested, keep one sentence on the rejected
-alternative and why it lost; when the choice shaped the design, give it an
-`### Alternatives considered` subsection that states each alternative's
-trade-off, not just its rejection — that is what stops re-litigation.>
-
-### 5.1 <Component / workstream>
-
-<...>
-
-### Alternatives considered
-
-```yaml alternatives
-- option: <what else could have been built>
-  rejected_because: <the trade-off that lost, so it stays rejected>
-```
-
-## 6. Tests
-
-<How the design is verified: new suites, conformance families, what parity is
-asserted, what is explicitly not tested and why.>
-
-## 7. Docs
-
-<What documentation ships with the change, and any doc claims that must be
-worded carefully (e.g. migration honesty, threat-model caveats).>
-
-## 8. Out of scope
-
-- <Each item: what is excluded, why, and what would change that ("named as the
-  escape hatch, not built"). Different from Non-goals: these are adjacent
-  things a reader might assume are included.>
-
-## 9. Risks
-
-- <Honest failure modes — technical risks, misreading risks ("X read as
-  security theater"), operational risks. Each with the mitigation or the
-  explicit acceptance.>
-
-## 10. Unresolved questions
-
-- <What must be settled before the design counts as locked, vs. what
-  implementation is free to settle. Name each unknown and who/what resolves
-  it. An empty section is a claim — only make it if true.>
-
-## 11. Decisions
-
-| # | Grade | Decision |
-| --- | --- | --- |
-| 1 | `LOCKED` | <One decision per row, self-contained, with the load-bearing rationale compressed in — and, where a decision constrains the future non-obviously, its consequence ("locks us to X; changing later means Y"). This table is the contract: pickup should require reading it, not re-deriving it.> |
-| 2 | `ASSUMED` | <Believed correct but not load-bearing. Execution may depart from it if building proves it wrong, and logs the departure in its task log.> |
-| 3 | `OPEN` | <Deliberately delegated to implementation. Say what the question is and what would settle it; the executor decides and logs the decision. An absent row is not `OPEN` — it is silence, and silence gets filled by whoever arrives first.> |
-| 4 | `ASSUMED` | <A row execution proposed and the author accepted. Ends with its provenance: Added by execution 2026-08-14 — see logs/T-0142.md (D-3, attempt 2).> |
-
-```yaml decision-details
-- id: D-NNNN.1
-  rationale: <why the row exists, in one or two sentences — never repeated from prose>
-  cites: [D-x.y, A-n, "0007"]      # what it descends from; resolves over the archive
-  check: <a command whose exit code judges the row, or omit>
-```
-
-```yaml invariants
-- id: I-NNNN.1
-  statement: <a rule that holds over these paths>
-  paths: ["src/thing/**"]
-  check: "pytest tests/test_thing.py -k invariant"
-```
-
-## 12. Phasing
-
-<What lands first, what is gated on what, what is demand-gated. Prose is fine
-for a document nobody plans to mint; for `torve plan` to consume it, carry a
-fenced YAML block — a list of units, each with a phase number, a title, one
-intent paragraph (what changes and why — never steps), the scope it may
-touch, its acceptance commands, and the phase numbers it waits on. Several
-entries may share a phase number: they run in parallel, so their scopes must
-not intersect. `character` is optional: `structural` or `routine`, copied
-verbatim onto the minted contract; absent means dispatch routes on the seat
-alone.>
-
-```yaml
-- phase: 1
-  title: the-first-unit
-  intent: >-
-    One paragraph: what changes and why.
-  scope: ["src/thing/**", "tests/**"]
-  acceptance: ["make test"]
-  depends_on: []
-  character: structural
-- phase: 2
-  title: the-follow-up
-  intent: >-
-    What this phase changes, and why it waits for phase 1.
-  scope: ["src/other/**"]
-  acceptance: ["make test"]
-  depends_on: [1]
-```
-
-## 13. Contract example
-
-<Optional — delete unless this RFC wants a runnable demonstration of the
-task contract its Decisions and Phasing mint into (RFC 0025 §5.4). A fence
-tagged `yaml contract-example` validates against the live task schema, so
-`torve rfc check` reddens the example the moment the schema moves instead of
-letting it rot silently.>
-
-```yaml contract-example
-id: "T-0142"
-rfc: rfcs/0009-example-subsystem.md
-role: implement
-intent: >-
-  One paragraph: what changes and why.
-scope:
-  allow: ["src/example/**", "tests/**"]
-acceptance:
-  - "pytest"
+      Non-goals: <explicit exclusions with a reason each — "not X, that is
+      Y's job">.
+  - key: design
+    heading: 5. Design
+    md: |
+      <The core. One subsection per workstream (### 5.1, ### 5.2 …) inside
+      this body, pinned with real artifacts — signatures, schemas, config
+      shapes — in fenced blocks; prose alone drifts. State failure semantics:
+      what raises, what is refused, what fails closed. A rejected alternative
+      goes in `alternatives` below, with the trade-off that lost.>
+  - key: tests
+    heading: 6. Tests
+    md: |
+      <How the design is verified; what is explicitly not tested and why.>
+  - key: out-of-scope
+    heading: 7. Out of scope
+    md: |
+      <Named and reasoned: why each item is excluded and what would change that.>
+  - key: risks
+    heading: 8. Risks
+    md: |
+      <Honest failure modes, including the document being misread.>
 decisions:
-  - id: D-9.3
-    grade: LOCKED
-    text: Sessions live in Postgres, not Redis
-    paths: ["src/example/session.py"]
-tier: executor
+  - id: D-NNNN.1
+    grade: LOCKED       # LOCKED | ASSUMED | OPEN — most rows are ASSUMED
+    text: <the rule, as one sentence a contract can carry>
+    paths: [src/example/**]     # every row that governs an area declares it; LOCKED rows must
+    consequence: <what this constrains later, non-obviously>
+    rationale: <why, in one or two sentences>
+    cites: []           # identifiers this row descends from: D-x.y, I-x.y, A-n, a document number
+    check: pytest tests/test_example.py   # optional: a command whose exit code judges the row
+  - id: D-NNNN.2
+    grade: OPEN
+    text: <a decision deliberately delegated to implementation — still a row, never an absence>
+invariants:
+  - id: I-NNNN.1
+    statement: <a rule that holds over these paths>
+    paths: [src/example/**]
+    check: uv run lint-imports
+alternatives:
+  - option: <what else could have been built>
+    rejected_because: <the trade-off that lost, so it stays rejected>
+questions:
+  - id: Q-NNNN.1
+    text: <what must be settled, and by whom>
+    status: open
+phasing:
+  - phase: 1
+    title: <a short unit name>
+    intent: >-
+      One paragraph: what changes and why. This is the contract's intent.
+    scope: [src/example/**, tests/test_example.py]   # a module and its existing test file
+    acceptance: [uv run pytest tests/test_example.py]
+    depends_on: []
+    character: structural   # optional: structural | routine
+  - phase: 2
+    title: <the follow-up>
+    intent: >-
+      What this phase changes, and why it waits for phase 1.
+    scope: [src/other/**]
+    acceptance: [uv run pytest tests/test_other.py]
+    depends_on: [1]
+contract_example:             # optional; validated against the live task schema
+  id: T-0142
+  rfc: rfcs/NNNN-title.yaml
+  role: implement
+  intent: One paragraph: what changes and why.
+  scope:
+    allow: [src/example/**, tests/test_example.py]
+  acceptance: [uv run pytest tests/test_example.py]
+  decisions:
+    - id: D-NNNN.1
+      grade: LOCKED
+      text: <the rule>
+      paths: [src/example/**]
+  tier: executor
 ```
-```
-
----
 
 ## Notes on filling it in
 
-- **An existing corpus outranks this template.** If the project's RFCs already
-  use a different section set or numbering (say, Decisions at §10), match the
-  corpus — `§NN` cross-references must stay unambiguous across the directory.
-  This skeleton is for directories without an established shape.
-- **Header ↔ filename sync:** the `NNNN` in the H1 and the frontmatter `id`
-  must match the filename; the H1 title must equal the frontmatter `title`.
-- **Status lives in frontmatter** (charter D-A.2): `draft` until reviewed and
-  depended on, then `accepted`; `superseded` only alongside `superseded_by`.
-  Nuance ("phases 1–2 shipped; outstanding: …") goes in a body
-  `- **Implementation state:**` line, not into the status value — an annotated
+- **The corpus outranks this template.** If the project's documents already
+  use a different section set, match it — section keys are what a log
+  cites, and `§NN` cross-references in prose must stay unambiguous.
+- **Status lives in the header.** `draft` until reviewed and depended on,
+  then `accepted`; `superseded` only alongside `superseded_by`. Nuance about
+  what shipped goes in a section, not into the status value — an annotated
   true status beats a clean false one, and the queryable field stays clean.
-- **Amendments over rewrites:** once an RFC leaves Draft, the decision table
-  is append-only — a reversed decision gets a new row citing the row it
-  reverses, not an edit. History someone relied on stays readable. A change of
-  mind by the *author* may carry a dated note in the status line or the
-  affected section; what **execution** found does not, since that already lives
-  in the task's log and reaches the RFC as an appended row citing its
-  entry. Restating the log's narrative here guarantees the two disagree later.
-- **Index row:** generated, never written (charter D-A.6) — `torve rfc
-  index` builds INDEX.md from frontmatter, and `torve rfc check` fails CI
-  when it drifts. The frontmatter `description` is the routing line: one sentence
-  saying which design this is, so a reader knows whether to open the file.
-  What it decided belongs in §1 and §11, and the index never carries history.
-  Target 200 characters, ceiling 300.
+- **Amendments over rewrites.** Once a document leaves draft, the rows are
+  append-only — a reversed decision gets a new row citing the row it
+  reverses, through `torve rfc amend`, never an edit. What execution found
+  already lives in the task's log and reaches the document as an appended
+  row citing its entry; restating the log's narrative here guarantees the two
+  disagree later.
+- **No comments but the first line.** A comment is meaning outside the
+  model; `torve rfc check` refuses it. The comments in this template are for
+  reading the template, not for a document.
+- **`fingerprint` is the tool's.** Never write it; `amend` and `fix` stamp it,
+  and `check` reads a hand-changed grade or paths against it.

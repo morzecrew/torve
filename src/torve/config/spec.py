@@ -105,6 +105,41 @@ def slugify(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
 
+def schema_file(rfc_dir: Path) -> Path:
+    """Where `torve rfc schema` writes the model's JSON Schema (D-56.6)."""
+
+    return rfc_dir / SCHEMA_RELATIVE
+
+
+def schema_text() -> str:
+    """The model's JSON Schema as the file carries it."""
+
+    import json
+
+    return json.dumps(Document.model_json_schema(), indent=2, sort_keys=True) + "\n"
+
+
+def check_schema(rfc_dir: Path) -> tuple[list[str], list[str]]:
+    """(problems, warnings): a schema file that lags the model is a
+    problem — an editor would validate against a shape the engine no
+    longer reads; a corpus that has not written one yet is told to."""
+
+    path = schema_file(rfc_dir)
+
+    if not path.is_file():
+        return [], [f"{SCHEMA_RELATIVE}: not written yet — `torve rfc schema` writes it (D-56.6)"]
+
+    if path.read_text(encoding="utf-8") != schema_text():
+        return [
+            (
+                f"{SCHEMA_RELATIVE}: lags the model — it is generated output; "
+                "`torve rfc schema` rewrites it"
+            )
+        ], []
+
+    return [], []
+
+
 def schema_header(archived: bool = False) -> str:
     """The first line of a document: the schema, relative to where the
     document lives."""
@@ -753,5 +788,8 @@ def check_corpus(rfc_dir: Path, root: Path) -> CheckReport:
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
+    schema_problems, schema_warnings = check_schema(rfc_dir)
+    report.problems += schema_problems
+    report.warnings += schema_warnings
 
     return report

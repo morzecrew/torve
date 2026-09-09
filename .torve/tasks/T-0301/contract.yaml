@@ -25,6 +25,7 @@ scope:
   - tests/test_rfc_emit.py
   - tests/test_rfc_check.py
   - tests/test_cli.py
+  - src/torve/config/spec.py
   deny: []
 acceptance:
 - uv run pytest tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_cli.py

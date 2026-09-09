@@ -438,3 +438,127 @@ def load_or_fail(path: Path) -> Document:
         return load_document(path)
     except SpecError as exc:
         raise ValueError("; ".join(exc.problems)) from None
+
+
+# ----------------------- #
+# The human page (D-56.7): the only markdown writer, never the source
+
+
+def render_markdown(doc: Document) -> str:
+    """One document as a page a person reads: the header facts, the prose
+    in order, the rows as a table, then invariants, alternatives,
+    questions, phasing and amendments. Generated; nothing parses it."""
+
+    lines = [f"# RFC {doc.id} — {doc.title}", ""]
+    facts = [
+        f"**{k}:** {v}"
+        for k, v in (
+            ("status", doc.status),
+            ("implementation", doc.implementation),
+            ("kind", doc.kind),
+            ("owner", doc.owner),
+            ("depends on", ", ".join(doc.depends_on) or "—"),
+            ("informed by", ", ".join(doc.informed_by) or "—"),
+            ("superseded by", doc.superseded_by or "—"),
+        )
+    ]
+    lines += [" · ".join(facts), "", doc.description.strip(), ""]
+
+    for section in doc.sections:
+        lines += [f"## {section.heading}", "", section.md.rstrip(), ""]
+
+    if doc.decisions:
+        lines += ["## Decisions", "", "| # | Grade | Decision | Paths | Consequence |"]
+        lines.append("| --- | --- | --- | --- | --- |")
+
+        for row in doc.decisions:
+            paths = " ".join(f"`{p}`" for p in row.paths) or "—"
+            text = row.text.replace("|", "\\|")
+            consequence = row.consequence.replace("|", "\\|") or "—"
+            lines.append(f"| {row.id} | `{row.grade}` | {text} | {paths} | {consequence} |")
+
+        lines.append("")
+
+        for row in doc.decisions:
+            details = [
+                f"- {label}: {value}"
+                for label, value in (
+                    ("rationale", row.rationale),
+                    ("cites", ", ".join(row.cites)),
+                    ("check", f"`{row.check}` ({row.check_state})" if row.check else ""),
+                    ("check twin", row.check_twin or ""),
+                    ("superseded by", row.superseded_by or ""),
+                )
+                if value
+            ]
+
+            if details:
+                lines += [f"**{row.id}**", "", *details, ""]
+
+    if doc.retired:
+        lines += ["Retired identifiers: " + ", ".join(doc.retired), ""]
+
+    if doc.invariants:
+        lines += ["## Invariants", ""]
+        lines += [
+            f"- **{i.id}** {i.statement} — paths {' '.join(f'`{p}`' for p in i.paths) or '—'}; "
+            f"check `{i.check}`"
+            for i in doc.invariants
+        ]
+        lines.append("")
+
+    if doc.alternatives:
+        lines += ["## Alternatives considered", ""]
+        lines += [
+            f"- **{a.option}** — rejected because {a.rejected_because}" for a in doc.alternatives
+        ]
+        lines.append("")
+
+    if doc.questions:
+        lines += ["## Questions", ""]
+        lines += [
+            f"- **{q.id}** ({q.status}{', settled by ' + q.settled_by if q.settled_by else ''}) {q.text}"
+            for q in doc.questions
+        ]
+        lines.append("")
+
+    if doc.phasing:
+        lines += ["## Phasing", ""]
+
+        for phase in doc.phasing:
+            deps = (
+                f" — after phase(s) {', '.join(str(d) for d in phase.depends_on)}"
+                if phase.depends_on
+                else ""
+            )
+            lines += [
+                f"### Phase {phase.phase} — {phase.title}{deps}",
+                "",
+                phase.intent.strip(),
+                "",
+            ]
+            lines += ["Scope: " + " ".join(f"`{p}`" for p in phase.scope), ""]
+
+            if phase.acceptance:
+                lines += ["Acceptance:", "", *(f"- `{a}`" for a in phase.acceptance), ""]
+
+    if doc.amendments:
+        lines += ["## Amendments", ""]
+
+        for amendment in doc.amendments:
+            lines += [
+                f"### {amendment.id} — {amendment.at or ''} — {amendment.title}".rstrip(" —"),
+                "",
+            ]
+
+            if amendment.changes:
+                lines += [
+                    f"- {c.subject} {c.field}: {c.before!r} → {c.after!r}"
+                    for c in amendment.changes
+                ]
+                lines.append("")
+
+            if amendment.md.strip():
+                lines += [amendment.md.rstrip(), ""]
+
+    return "\n".join(lines).rstrip() + "\n"

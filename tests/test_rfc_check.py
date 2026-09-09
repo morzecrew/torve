@@ -766,3 +766,36 @@ def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path)
 
     assert second.exit_code == 0, second.output
     assert invoke(tmp_path, "check").exit_code == 0
+
+
+# ....................... #
+# RFC 0056 phase 2: the schema is the authoring contract (D-56.6)
+
+
+def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -> None:
+    seed(tmp_path, ("0001-widget.yaml", document("0001", [("D-1.1", "OPEN", "x", "—")])))
+
+    checked = invoke(tmp_path, "check")
+    assert checked.exit_code == 0, checked.output
+    assert "not written yet" in checked.output  # a warning, never a problem
+
+    written = invoke(tmp_path, "schema")
+    assert written.exit_code == 0, written.output
+    schema = tmp_path / "rfcs" / "schema" / "document.json"
+    assert schema.is_file()
+    assert json.loads(schema.read_text(encoding="utf-8"))["title"] == "Document"
+    assert invoke(tmp_path, "schema", "--check").exit_code == 0
+    assert "not written yet" not in invoke(tmp_path, "check").output
+
+    schema.write_text("{}\n", encoding="utf-8")
+
+    assert invoke(tmp_path, "schema", "--check").exit_code == EXIT_CONFIG
+    drifted = invoke(tmp_path, "check")
+    assert drifted.exit_code == EXIT_CONFIG
+    assert "lags the model" in drifted.output
+
+
+def test_the_repository_schema_matches_the_model() -> None:
+    repo = Path(__file__).resolve().parent.parent
+    result = invoke(repo, "schema", "--check")
+    assert result.exit_code == 0, result.output

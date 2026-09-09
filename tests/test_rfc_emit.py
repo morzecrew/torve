@@ -14,7 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from test_decisions import archived, corpus, document
+from test_decisions import PHASE, archived, corpus, document
 
 from torve.config.rfc_emit import (
     amend_row,
@@ -302,3 +302,67 @@ def test_the_transaction_writes_a_mutated_document(tmp_path: Path) -> None:
     assert report.ok, report.problems
     assert (rfc_dir / name).read_text(encoding="utf-8") == dump_document(fixed)
     assert (tmp_path / "archive" / "rfcs" / "0000-document-0000.yaml").exists()
+
+
+# ....................... #
+# RFC 0056 phase 2: the human page (D-56.7)
+
+
+def test_render_markdown_is_a_page_of_the_document_and_never_the_source(tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+    from torve.config.rfc_emit import render_markdown
+
+    rfc_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [("D-1.1", "LOCKED", "Rows are typed", "`src/a/**`", "no parser")],
+                details={"D-1.1": {"rationale": "because", "check": "pytest tests/test_a.py"}},
+                sections=[{"key": "summary", "heading": "1. Summary", "md": "What ships.\n"}],
+                alternatives=[
+                    {"option": "keep markdown", "rejected_because": "it is grepped whole"}
+                ],
+                questions=[{"id": "Q-1.1", "text": "when", "status": "open"}],
+                phasing=[PHASE],
+                amendments=[
+                    {
+                        "id": "A-1",
+                        "at": "2026-09-09",
+                        "title": "regraded",
+                        "changes": [
+                            {
+                                "subject": "D-1.1",
+                                "field": "grade",
+                                "before": "OPEN",
+                                "after": "LOCKED",
+                            }
+                        ],
+                        "md": "Words.\n",
+                    }
+                ],
+            )
+        },
+    )
+    page = render_markdown(load_document(rfc_dir / "0001-document-0001.yaml"))
+
+    assert page.startswith("# RFC 0001 — Document 0001\n")
+    assert "## 1. Summary\n\nWhat ships." in page
+    assert "| D-1.1 | `LOCKED` | Rows are typed | `src/a/**` | no parser |" in page
+    assert "- rationale: because" in page and "`pytest tests/test_a.py` (shadow)" in page
+    assert "**keep markdown** — rejected because it is grepped whole" in page
+    assert "**Q-1.1** (open) when" in page
+    assert "### Phase 1 — one" in page
+    assert "### A-1 — 2026-09-09 — regraded" in page and "D-1.1 grade: 'OPEN' → 'LOCKED'" in page
+
+    out = tmp_path / "pages" / "0001.md"
+    result = CliRunner().invoke(
+        app, ["rfc", "render", "0001", "--out", str(out), "--root", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert out.read_text(encoding="utf-8") == page
+    # rendering wrote nothing into the corpus
+    assert sorted(p.name for p in rfc_dir.iterdir()) == ["0001-document-0001.yaml"]

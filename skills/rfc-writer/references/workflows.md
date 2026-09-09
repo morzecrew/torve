@@ -4,99 +4,167 @@
 the format, D-7.12). This file is the procedure a human or an agent follows
 around it.
 
-## Directory and index
+## Directory
 
-**Location.** RFCs live in a single flat directory, `rfcs/` by default — configurable as `rfcs.path` in the runner's `.torve/config.yaml`, one path only, never a list or a glob (D-A.16). Only `NNNN-slug.md` and `INDEX.md` belong there, with no subdirectories (D-A.18); anything else is routed by `torve rfc check` to `pages/` or `ops/`.
+**Location.** Documents live in a single flat directory, `rfcs/` by default —
+configurable as `rfcs.path` in the runner's `.torve/config.yaml`, one path
+only, never a list or a glob (D-A.16). Only `NNNN-slug.yaml` files and the
+`schema/` directory belong there, no subdirectories otherwise; a stray file,
+a leftover markdown document or an `INDEX.md` is a `torve rfc check` problem
+naming what to do with it. The archive is `archive/rfcs/` beside it.
 
-**Gitignore is the user's call, not yours.** Some projects commit RFCs; others gitignore them as local working notes. Never add or remove a `.gitignore` entry for the RFC directory unless explicitly asked. If the directory is gitignored, the `INDEX.md` header should say so (see the template) so readers know why it isn't in the repo history.
+**The schema.** `rfcs/schema/document.json` is generated from the model by
+`torve rfc schema`, and `torve rfc check` reddens when it lags. Every
+document's first line names it, so an editor validates a row as it is typed.
+Write it once per repository and again whenever the engine's model changes.
 
-**INDEX.md is the source of truth for the collection.** It carries three things:
+**Gitignore is the user's call, not yours.** Some projects commit documents;
+others gitignore them as local working notes. Never add or remove a
+`.gitignore` entry for the directory unless explicitly asked.
 
-1. The **next free number**, stated explicitly — numbers collide when minted in parallel, so the index names the next one and every RFC creation updates it in the same change.
-2. The **index table**: `| # | Title | Status | One-line |`, one row per RFC, number linked to the file.
-3. The **status legend**.
-
-If the directory exists but has a `README.md` in this role, treat it as the index. If asked to set up fresh, use `INDEX.md` — copy `references/index-template.md`.
-
-**Where execution's findings live: `logs/<task-id>.md`, outside this directory.** `flag-dont-flip` writes one per task, holding what execution found wherever the code and these designs disagreed. They are not RFCs — no number, no status, no row in the index table — and they never live in the corpus directory (D-A.18). Once any of them exist, the index links to `logs/` in prose above the table, because a reader deciding which RFC to open needs to know the document they are about to trust has a companion recording where it turned out to be wrong. Do not create them here: a task log is written by the task that executed.
+**Where execution's findings live: the task log, outside this directory.**
+Every task's divergence entries record what execution found wherever the
+code and these designs disagreed. They are not documents — no number, no
+status — and they never live in the corpus directory. A row that execution
+proposed reaches the document through Workflow B.
 
 ## Numbering and filenames
 
 - Numbers are 4-digit, zero-padded, monotonically increasing: `0001`, `0002`, …
-- To allocate: `torve rfc new "Title"`. The next number is **derived** — the maximum that exists in the corpus path and the archive beside it, plus one (D-A.17, D-53.10). There is no counter file, and no way to pick a number by hand.
-- Filename: `NNNN-kebab-case-title.md`. Keep the number in the filename and the `# RFC NNNN — Title` H1 in sync — they drift otherwise, and links break both ways.
-- Never renumber existing RFCs. Numbers are identifiers, not an ordering to be tidied.
-- **Never delete a document, never reuse a number** (D-A.19). A document leaves the corpus path through `torve rfc archive NUMBER --superseded-by NNNN` into `archive/rfcs/`, keeping its filename and identifiers; gaps in the numbering are fine, filling one is refused.
+- To allocate: `torve rfc new "Title"`. The next number is **derived** — the
+  maximum that exists in the corpus path and the archive beside it, plus one
+  (D-A.17, D-53.10). There is no counter file, and no way to pick a number by
+  hand.
+- Filename: `NNNN-kebab-case-title.yaml`. The `id` inside must match the
+  number; the check reddens when it does not.
+- Never renumber existing documents. Numbers are identifiers, not an ordering
+  to be tidied.
+- **Never delete a document, never reuse a number** (D-A.19). A document
+  leaves the corpus path through `torve rfc archive NUMBER --superseded-by
+  NNNN` into `archive/rfcs/`, keeping its filename and identifiers; gaps in
+  the numbering are fine, filling one is refused.
 
 ## Statuses
 
-- 📝 **Draft** — proposed, not started (a "design locked, demand-gated" RFC is still Draft)
-- 🚧 **In progress** — partially shipped
-- ✅ **Complete** — fully shipped
-- ❌ **Rejected / withdrawn** — keep the file; a recorded rejection prevents re-litigating
+`status` is one of `draft` (proposed, not depended on — a "design locked,
+demand-gated" document is still a draft), `accepted` (reviewed; contracts
+may inherit from it) and `superseded` (only with `superseded_by`).
+`implementation` is the author's judgement — `none`, `partial`, `complete`,
+`abandoned` — which `torve context` checks against what the record says
+shipped and reports as a disagreement, never corrects.
 
-Status lives in two places that must agree: the `**Status:**` line in the RFC header and the Status column of the index table. Update both in the same change.
-
-The bookkeeping — number allocation, file creation from the template, index regeneration, drift detection — is mechanical, and `torve rfc` does it without the collisions hand-allocation produces:
+The bookkeeping — number allocation, file creation, the serializer, drift
+detection — is mechanical, and `torve rfc` does it without the collisions
+hand-allocation produces:
 
 ```bash
-torve rfc check                    # frontmatter, tables, links, graph, directory, index drift
-torve rfc index                    # regenerate INDEX.md; --check compares without writing
-torve rfc new "Title"              # derive the next number, instantiate the template, regenerate
+torve rfc check                    # every document loads; identifiers, citations, graph, comments, schema drift
+torve rfc list                     # every document with status, implementation and dependencies — the index
+torve rfc new "Title"              # derive the next number and write the smallest document that checks
 torve rfc new "Title" --kind convention
+torve rfc show D-x.y | A-n | NNNN  # one identifier resolved, archived ones marked
 torve rfc graph                    # depends_on edges with statuses, plus inheritance hazards
+torve rfc schema                   # write rfcs/schema/document.json from the model; --check compares
+torve rfc add-decision NNNN        # append a row under the next free identifier, grade OPEN
 torve rfc amend NNNN --title T --row D-x.y --grade G   # the only way a row's grade or paths change
 torve rfc fix D-x.y "…"            # editorial: re-stamp a text-only edit, no amendment number
 torve rfc archive NNNN --superseded-by MMMM            # into archive/rfcs/, under one transaction
 torve rfc check --fix-rot          # retire rows whose paths match nothing in the tree
+torve rfc fmt                      # report documents that differ from the serializer's form; writes nothing
+torve rfc render NNNN [--out PATH] # a markdown page for a person; never the source
 ```
 
-(Read-only except `new` and `index`; add `--root DIR` if the repository isn't the cwd.) The thinking — what the design says, what the one-liner claims, when a status changes — is yours.
+(Add `--root DIR` if the repository isn't the cwd.) The thinking — what the
+design says, what the description claims, when a status changes — is yours.
 
-### A — Create a new RFC
+### A — Create a new document
 
-1. Locate the RFC directory (`rfcs/`, or whatever `rfcs.path` names); if none exists, run Workflow D first.
-2. Allocate the next number and instantiate the file: `torve rfc new "Title"` — it derives the number, writes the template, and regenerates the index. Steps 3 and 4 stay yours: it leaves the template unfilled. Parallel creation on two branches produces the same number twice; that surfaces as a duplicate-id failure at merge, and the one merging second is renamed before anything references it.
-3. Fill the file from `references/rfc-template.md`'s shape, scaled to the design's weight. Investigate the actual code before writing "Current state" — this is most of the work.
-4. Replace the placeholder index one-liner with one sentence that says which design this is — see the one-liner rules above. The summary the RFC deserves goes in the RFC's Summary section.
+1. Locate the directory (`rfcs/`, or whatever `rfcs.path` names); if none
+   exists, run Workflow D first.
+2. Allocate the number and the file: `torve rfc new "Title"`. It writes the
+   header keys, one summary section and empty lists; the rest is yours.
+   Parallel creation on two branches produces the same number twice; that
+   surfaces as a duplicate-id failure at merge, and the one merging second is
+   renamed before anything references it.
+3. Grow the file along `references/rfc-template.md`, scaled to the design's
+   weight. Investigate the actual code before writing the current-state
+   section — this is most of the work. Rows first, prose around them.
+4. Write the `description`: one sentence saying which design this is, so a
+   reader of `torve rfc list` knows whether to open the file. The summary the
+   document deserves goes in its summary section.
+5. `torve rfc check` until green; `torve rfc fmt` if you want the serializer's
+   form (optional — a hand-authored document is legal as it stands).
 
-### B — Update an existing RFC
+### B — Update an existing document
 
-1. When work ships partially or fully, update the `**Status:**` line — and annotate it with what shipped and when ("Shipped 2026-06-29: …; only P5 remains").
-2. If execution diverged from the design, the divergence is already in that task's log; what lands here is the decision row it proposed, appended with `torve rfc add-decision` and graded with `torve rfc amend --row`, citing its entry in `decision-details`. Don't silently rewrite history, and don't hand-edit a row — the check reads a hand-edited grade or paths as a row with no history.
-3. Mirror the status in the index table. Leave the one-liner alone unless the RFC's *subject* changed — shipping, phasing and amendments are the RFC's history, not the index's.
-4. Rejected designs get ❌ and stay in the directory.
+1. When work ships partially or fully, move `implementation`; `torve context`
+   tells you when the assertion and the record disagree.
+2. If execution diverged from the design, the divergence is already in that
+   task's log; what lands here is the row it proposed, appended with `torve
+   rfc add-decision` and graded with `torve rfc amend --row`, citing the task
+   in `rationale` or `cites`. Don't silently rewrite history, and don't
+   hand-edit a row — the check reads a hand-edited grade or paths as a row
+   with no history.
+3. Leave the `description` alone unless the document's *subject* changed —
+   shipping, phasing and amendments are the document's history, not its
+   routing line.
+4. Rejected designs are archived with `superseded_by` naming what stands
+   instead, or kept as `draft` with an `abandoned` implementation; a recorded
+   rejection prevents re-litigating.
 
-### C — Maintain the index
+### C — Maintain the corpus
 
-Run `torve rfc check` — it reports every file without an index row and vice versa, H1-vs-filename mismatches, malformed frontmatter, decision-table problems, dependency-graph hazards, and index drift. Fix what it names (the fixes are judgment: which status is true, what the one-liner should say), then re-run until green. Report what was out of sync.
+Run `torve rfc check` — it reports every document that does not load, a
+duplicate or reused identifier, a citation nothing defines, a dependency on
+a draft, a cycle, a comment, a schema file that lags the model, and rows
+whose paths match nothing in the tree. Fix what it names (the fixes are
+judgment: which status is true, what the description should say), then
+re-run until green. Report what was out of sync.
 
-### D — Initialize an RFC directory
+### D — Initialize a directory
 
-1. Create `rfcs/` (unless the user wants `rfc/` or one already exists).
-2. Create `INDEX.md` from `references/index-template.md`, filling in the project name and setting the next free number to `0001`.
-3. Do not touch `.gitignore` — mention that committing vs. ignoring the directory is the user's choice.
-4. Do not create anything under `logs/`. Task logs are `flag-dont-flip`'s, written by the task that executed; the index gains its pointer once any of them exist.
+1. Create `rfcs/` (unless the user wants another name or one already exists)
+   and name it as `rfcs.path` in `.torve/config.yaml` if it is not the
+   default.
+2. `torve rfc schema` to write the schema the documents' first line names.
+3. Do not touch `.gitignore` — mention that committing vs. ignoring the
+   directory is the user's choice.
 
-## The index one-liner: routing, not summary
+## The description: routing, not summary
 
-**The one-liner exists to tell a reader which RFC to open, not what it decided.** It has one job — discriminate this design from the others in the table — and that takes far less text than summarising it. "Get a backup off the machine that took it" is forty characters and separates its RFC from twenty others; the design, the decisions and the trade-offs belong in the file it points at.
+**The description exists to tell a reader which document to open, not what
+it decided.** It has one job — discriminate this design from the others in
+`torve rfc list` — and that takes far less text than summarising it. "Get a
+backup off the machine that took it" is forty characters and separates its
+document from twenty others; the design, the rows and the trade-offs belong
+in the file it points at.
 
-The rules:
-
-- **One sentence. Aim for 200 characters, and treat 300 as the ceiling.** A table of thirty rows is then a couple of thousand characters, which is what makes the index cheap enough to consult on every lookup.
-- **State the problem and the shape of the answer.** Not the mechanism, not the alternatives, not the numbers.
-- **The index records what an RFC *is*, never what happened to it.** No "shipped 2026-08-04", no phase-by-phase progress, no defects found, no amendment history. Status lives in the Status column; everything else lives in the RFC — its `**Status:**` annotation, its Decisions table, its execution notes. An entry that grows each time work lands has become a changelog, and the whole table is then re-read on every allocation.
-- **Write it once.** Revisit it only when the RFC's *subject* changes — not when its state does.
-
-This is the one place in the skill where completeness is the wrong target. An index entry dense enough to substitute for opening the file has stopped being an index: every future lookup pays for content that belongs to one document.
+- **One sentence. Aim for 200 characters, and treat 300 as the ceiling.**
+- **State the problem and the shape of the answer.** Not the mechanism, not
+  the alternatives, not the numbers.
+- **It records what a document *is*, never what happened to it.** No
+  "shipped 2026-08-04", no phase-by-phase progress, no amendment history.
+- **Write it once.** Revisit it only when the document's *subject* changes.
 
 ## Reconciling what execution learned
 
-Execution finds things the design could not. When it does, the executor **proposes** rows — in its task log, with the evidence that produced them — and the author appends them. Three rails:
+Execution finds things the design could not. When it does, the executor
+**proposes** rows — in its task log, with the evidence that produced them —
+and the author appends them. Three rails:
 
-- **The decision table is append-only.** A superseded row stays, marked superseded, naming the row that replaced it. The history of a decision is the part that stops it being re-litigated.
-- **Never amend the RFC's prose to match what was built.** It reads as tidying, and it destroys the only evidence that a decision changed at all — which is precisely what a later reader needs in order to trust the document. Record the change; don't erase the disagreement.
-- **An accepted row cites the log entry it came from** — `Added by execution 2026-08-14 — see logs/T-0142.md (D-3, attempt 2)` at the end of the row. Task-log entries carry no identifiers of their own, so the handle is the file plus the decision the entry cites plus its attempt; that triple is unique and nothing about it has to be renumbered. The row states the decision; the entry holds what was actually found, what was built instead, and what it cost. Without the link the row reads as something the author thought of, which loses the one fact that makes it credible: it was forced by contact with the code.
+- **The rows are append-only.** A superseded row stays until retired through
+  an amendment, its `superseded_by` naming the row that replaced it. The
+  history of a decision is the part that stops it being re-litigated.
+- **Never amend the prose to match what was built.** It reads as tidying, and
+  it destroys the only evidence that a decision changed at all — which is
+  precisely what a later reader needs in order to trust the document. Record
+  the change; don't erase the disagreement.
+- **An accepted row cites the entry it came from** — the task id and the
+  decision the entry cites, in `cites` or `rationale`. The row states the
+  decision; the entry holds what was actually found, what was built instead,
+  and what it cost. Without the link the row reads as something the author
+  thought of, which loses the one fact that makes it credible: it was forced
+  by contact with the code.
 
-An RFC whose prose has been quietly retrofitted is worse than one that is visibly out of date: the second tells you to check, the first does not.
+A document whose prose has been quietly retrofitted is worse than one that
+is visibly out of date: the second tells you to check, the first does not.
