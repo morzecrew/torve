@@ -99,4 +99,28 @@ A fact is an event of a closed kind vocabulary with an authority table; an agent
 - Consequence: An audit trail that can be edited cannot be trusted; the authority table refuses before any store sees the write
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### D-56.1 — `LOCKED` (RFC 0056 — Structure for everything)
+
+A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's own shape and key order; loading is the model's validator plus the corpus checks; `schema_version` 2, and 1 is refused
+
+- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py`
+- Consequence: The markdown parser, `load_fences`, the heading and table regexes are deleted; every reader of the corpus is unchanged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-56.2 — `LOCKED` (RFC 0056 — Structure for everything)
+
+`DecisionDetail` folds into `Decision`; the fenced kinds are gone; a row carries `rationale`, `cites`, `check`, `check_state`, `check_twin`, `superseded_by` and its `fingerprint` on itself
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/planner.py`
+- Consequence: `inherit_decisions` reads the row; the frontmatter fingerprint map is gone
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-56.3 — `LOCKED` (RFC 0056 — Structure for everything)
+
+Prose is `sections[].md`, a string the engine never parses, with `key` and `heading` beside it; `level` and `order` are dropped
+
+- Paths: `src/torve/domain/spec.py`
+- Consequence: Markdown inside a body is welcome and invisible to every check
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

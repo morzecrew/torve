@@ -113,4 +113,28 @@ A stdio MCP server is image content; a remote MCP endpoint is an egress destinat
 - Paths: `src/torve/config/runconfig.py` `.torve/sandbox/**` `src/torve/cli/mcp.py`
 - Consequence: Files in the worktree carry task context; reach into the record is the planner's alone
 
+### D-56.1 — `LOCKED` (RFC 0056 — Structure for everything)
+
+A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's own shape and key order; loading is the model's validator plus the corpus checks; `schema_version` 2, and 1 is refused
+
+- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py`
+- Consequence: The markdown parser, `load_fences`, the heading and table regexes are deleted; every reader of the corpus is unchanged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-56.4 — `LOCKED` (RFC 0056 — Structure for everything)
+
+Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the model and writes it through one serializer; comments are not preserved and `check` refuses one outside the schema header line; `fmt` survives as `--check` only
+
+- Paths: `src/torve/config/rfc_emit.py` `src/torve/cli/rfc.py`
+- Consequence: There is no second renderer to drop a field; the `character:` defect closes by construction
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-56.9 — `LOCKED` (RFC 0056 — Structure for everything)
+
+With a store configured, `plan` mints into the record and writes no file; dispatch projects `.torve/tasks/<id>/contract.yaml` into the worktree, gitignored; the log written there is imported after the attempt; without a store the files are the record as today
+
+- Paths: `src/torve/application/planner.py` `src/torve/application/session.py` `src/torve/config/layout.py`
+- Consequence: The board is the only place a task is; the file exists for the attempt that reads it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

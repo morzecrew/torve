@@ -375,4 +375,41 @@ Every attempt runs on a worktree seeded with the base sha pinned host-side, the 
 - Paths: `src/torve/application/session.py` `src/torve/adapters/agent/harness.py` `.torve/traces/**`
 - Consequence: What an agent saw is reconstructible; what it reasoned is never an input to another agent
 
+### D-56.2 — `LOCKED` (RFC 0056 — Structure for everything)
+
+`DecisionDetail` folds into `Decision`; the fenced kinds are gone; a row carries `rationale`, `cites`, `check`, `check_state`, `check_twin`, `superseded_by` and its `fingerprint` on itself
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/planner.py`
+- Consequence: `inherit_decisions` reads the row; the frontmatter fingerprint map is gone
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-56.8 — `ASSUMED` (RFC 0056 — Structure for everything)
+
+`SKILL.md`, `AGENTS.md`, the colocated sections and the pack are unchanged: projections rendered from the model, read by harnesses and people
+
+- Paths: `skills/**` `src/torve/application/colocation.py`
+- Consequence: Nothing a harness reads changes shape
+
+### D-56.9 — `LOCKED` (RFC 0056 — Structure for everything)
+
+With a store configured, `plan` mints into the record and writes no file; dispatch projects `.torve/tasks/<id>/contract.yaml` into the worktree, gitignored; the log written there is imported after the attempt; without a store the files are the record as today
+
+- Paths: `src/torve/application/planner.py` `src/torve/application/session.py` `src/torve/config/layout.py`
+- Consequence: The board is the only place a task is; the file exists for the attempt that reads it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-56.11 — `ASSUMED` (RFC 0056 — Structure for everything)
+
+`torve migrate telemetry` reads the file once into the record; every reader that opens `.torve/telemetry.jsonl` goes through one function that reads the record when a store is configured and the file when not
+
+- Paths: `src/torve/application/telemetry.py` `src/torve/application/contextpack.py` `src/torve/application/intake.py` `src/torve/application/specquality.py`
+- Consequence: The file is a carrier and an append target, never what a reader with a record opens
+
+### D-56.13 — `OPEN` (RFC 0056 — Structure for everything)
+
+Whether phase 4 gives `traces/` and `regimes/` a retention window or leaves them to RFC 0039
+
+- Paths: `src/torve/application/reaper.py`
+- Consequence: Decided by whoever executes phase 4, logged
+
 <!-- /torve:managed -->

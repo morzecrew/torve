@@ -54,6 +54,14 @@ Strict typing is a floor over `src/`: `mypy --strict` and `basedpyright` strict 
 - Paths: `src/torve/**` `pyproject.toml`
 - Consequence: A substrate surface change fails at the type check
 
+### D-56.10 — `LOCKED` (RFC 0056 — Structure for everything)
+
+Every task directory whose contract names an archived document is deleted, not archived, in one commit; `.torve/tasks/` leaves the tracked exceptions; the retention leg over task directories goes with them
+
+- Paths: `.torve/tasks/**` `.gitignore`
+- Consequence: Git keeps the history and the record keeps the landings; nothing standing cites a task log
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over the repository root
 
 - **I-55.1** (RFC 0055): The five layer contracts hold over the whole package
@@ -78,7 +86,8 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 - `pages/` — 1 decision(s)
 - `pages/docs/` — 0 decision(s)
 - `pages/docs/architecture/` — 0 decision(s)
-- `skills/` — 1 decision(s)
+- `skills/` — 2 decision(s)
+- `skills/corpus-bootstrap/` — 0 decision(s)
 - `skills/rfc-writer/` — 0 decision(s)
 - `src/torve/` — 3 decision(s)
 - `src/torve/_web/` — 1 decision(s)
@@ -87,10 +96,10 @@ and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
 - `src/torve/adapters/broker/` — 1 decision(s)
 - `src/torve/adapters/runtime/` — 1 decision(s)
 - `src/torve/adapters/vcs/` — 1 decision(s)
-- `src/torve/application/` — 51 decision(s)
-- `src/torve/cli/` — 13 decision(s)
-- `src/torve/config/` — 15 decision(s)
-- `src/torve/domain/` — 13 decision(s)
+- `src/torve/application/` — 56 decision(s)
+- `src/torve/cli/` — 16 decision(s)
+- `src/torve/config/` — 18 decision(s)
+- `src/torve/domain/` — 16 decision(s)
 - `src/torve/gates/` — 17 decision(s)
 - `tests/` — 1 decision(s)
 - `web/` — 1 decision(s)
