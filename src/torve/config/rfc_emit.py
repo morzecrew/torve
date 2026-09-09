@@ -373,8 +373,8 @@ def render_changes(changes: list[dict[str, Any]]) -> str:
     lines = ["```yaml changes"]
 
     for change in changes:
-        lines.append(f"- subject: {_yaml_scalar(change['subject'])}")
-        lines.append(f"  field: {_yaml_scalar(change['field'])}")
+        lines.append(f"- subject: {_one_line(change['subject'])}")
+        lines.append(f"  field: {_one_line(change['field'])}")
 
         for key in ("before", "after"):
             value = change.get(key)
@@ -382,10 +382,25 @@ def render_changes(changes: list[dict[str, Any]]) -> str:
             if isinstance(value, list):
                 lines.append(f"  {key}: {_dump_list(value)}")
             else:
-                lines.append(f"  {key}: {_yaml_scalar(value)}")
+                lines.append(f"  {key}: {_one_line(value)}")
 
     lines.append("```")
     return "\n".join(lines) + "\n"
+
+
+# ....................... #
+
+
+def _one_line(value: Any) -> str:
+    """One scalar on one line, whatever its length: a JSON string is a
+    valid YAML double-quoted scalar and never wraps, where PyYAML's own
+    rendering folds a long plain scalar across lines — which inside a list
+    item is not the YAML it came from (T-0293)."""
+
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+
+    return _yaml_scalar(value)
 
 
 # ....................... #

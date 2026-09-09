@@ -310,7 +310,7 @@ def test_the_diff_rides_beneath_the_amendment_heading_as_a_changes_fence() -> No
 
     assert "### A-2 — 2026-09-09 — the text moved" in amended
     assert "```yaml changes" in amended
-    assert "  before: Something is decided" in amended
+    assert '  before: "Something is decided"' in amended
 
     entry = next(a for a in _loaded(amended).amendments if a.id == "A-2")
 
@@ -341,7 +341,7 @@ def test_fix_records_the_editorial_pair_under_the_table_and_never_an_amendment()
     again, _ = fix_row_text(fixed, "D-T.1", "Something is decided, spelt right twice")
 
     assert again.count("<!-- editorial changes") == 1
-    assert again.count("- subject: D-T.1") == 4  # two fixes, two entries each
+    assert again.count('- subject: "D-T.1"') == 4  # two fixes, two entries each
 
     with pytest.raises(ValueError, match="already reads that way, and it is stamped"):
         fix_row_text(again, "D-T.1", "Something is decided, spelt right twice")
@@ -400,3 +400,17 @@ def test_a_deletion_rides_the_transaction_and_a_red_check_keeps_the_file(tmp_pat
     assert report.ok
     assert not (rfcs / "0002-gadget.md").exists()
     assert "0002-gadget.md" not in (rfcs / "INDEX.md").read_text(encoding="utf-8")
+
+
+def test_a_changes_fence_with_a_long_value_is_still_yaml() -> None:
+    long_text = (
+        "Only `NNNN-slug.md` and `INDEX.md` in the corpus directory, no subdirectories; the "
+        "check routes offenders to `pages/` or `ops/`. A retired document's one legal "
+        "destination is `archive/rfcs/` beside the corpus path: written only by the verb"
+    )
+    mutated, changes = amend_row(DOC, "D-T.1", new_text=long_text)
+    amended = append_amendment(mutated, "A-2", "a long row", "2026-09-09", changes)
+    entry = next(a for a in _loaded(amended).amendments if a.id == "A-2")
+
+    assert entry.changes[0].after == long_text
+    assert emit(amended) == amended

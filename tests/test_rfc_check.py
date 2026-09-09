@@ -612,7 +612,7 @@ def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> No
     text = (tmp_path / "rfcs" / "0001-widget.md").read_text(encoding="utf-8")
 
     assert "D-T.1 was retired" in text and "path rot" in text
-    assert "field: retired" in text
+    assert 'field: "retired"' in text
     assert invoke(tmp_path, "check").exit_code == 0
 
 
