@@ -8,7 +8,7 @@ depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: ["A-153", "A-154", "A-155", "A-156", "A-158", "A-159"]
+amended_by: ["A-153", "A-154", "A-155", "A-156", "A-158", "A-159", "A-160"]
 owner: misery7100
 description: >-
   The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot.
@@ -703,13 +703,15 @@ that (D-A.9); the fence orders only this document's own units.
     - "src/torve/application/session.py"
     - "src/torve/application/runner.py"
     - "src/torve/application/projections.py"
+    - "src/torve/adapters/agent/harness.py"
     - ".gitignore"
     - "tests/test_contextpack.py"
     - "tests/test_session.py"
     - "tests/test_runner.py"
     - "tests/test_context.py"
+    - "tests/test_tiering.py"
   acceptance:
-    - "uv run pytest tests/test_contextpack.py tests/test_session.py tests/test_runner.py tests/test_context.py"
+    - "uv run pytest tests/test_contextpack.py tests/test_session.py tests/test_runner.py tests/test_context.py tests/test_tiering.py"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: [1]
@@ -844,4 +846,19 @@ file too.
   field: scope
   before: "AGENTS.md src/torve/**/AGENTS.md"
   after: "**/AGENTS.md"
+```
+
+### A-160 — 2026-09-09 — phase 3 reaches the working rules
+**Found while planning phase 3.** §5.6 gives the working rules one line
+naming the pack's index; the rules live in the harness, which phase 2
+reached (A-158) before the pack existed and phase 3 did not name.
+
+**Changed:** phase 3's scope and acceptance gain the harness and the
+prompt's tests.
+
+```yaml changes
+- subject: phase 3
+  field: scope
+  before: "… src/torve/application/projections.py .gitignore …; tests … tests/test_context.py"
+  after: "… src/torve/application/projections.py src/torve/adapters/agent/harness.py .gitignore …; tests … tests/test_context.py tests/test_tiering.py"
 ```
