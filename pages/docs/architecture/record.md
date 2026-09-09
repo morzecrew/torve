@@ -142,6 +142,15 @@ creates a way for the two to disagree and buys the mint nothing. That
 changes when tasks are records too, at which point the import stops being an
 extra step and becomes the only one.
 
+### The archive as a source
+
+A document that leaves the corpus path is imported as a source like any
+other, and every row it carries is recorded retired with the archive as
+the reason — `archived in 0044-the-manager-domain.md, superseded by 0055`
+— so an identifier cited from a log written months ago resolves in the
+record exactly as it resolves through `show`. The corpus path is what
+contracts inherit from; the archive is what the record remembers.
+
 ## What is projected from it
 
 | Projection | Answers |

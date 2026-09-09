@@ -67,6 +67,29 @@ And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
 
+## The corpus and its archive
+
+`rfcs/` holds what stands: the documents whose rows contracts inherit.
+`archive/rfcs/` beside it holds what once stood, every filename and
+identifier kept, each document `superseded` and naming what stands for it
+now. `torve rfc archive NUMBER --superseded-by NNNN` is the only way a
+document gets there, and it moves nothing unless the corpus without the
+document checks clean.
+
+Nothing inherits from the archive, and nothing about it is lost: `torve
+rfc show D-44.12` answers from it and says archived, the check resolves a
+citation into it, and the record holds every archived row as retired with
+the archive as the reason. The next document number counts the archive,
+so a number is never reused.
+
+Rows change through the tool. `torve rfc amend NUMBER --title T --row
+D-x.y --grade G` (or `--path`, `--text`, `--retire --reason R`) writes the
+amendment heading, the typed diff with the prior value beneath it, and
+re-stamps the row; a grade or paths edited by hand afterwards is a check
+problem, a text edited by hand is a warning that `torve rfc fix D-x.y
+"…"` re-stamps as editorial. `torve rfc check` also names rows whose
+declared paths match nothing in the tree; `--fix-rot` retires them.
+
 ## Running a pass without spending
 
 ```bash
