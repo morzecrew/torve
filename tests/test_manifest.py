@@ -244,3 +244,20 @@ def test_a_blank_twin_is_refused(tmp_path):
     # one — there is nothing for the resolution to check against.
     with pytest.raises(ValueError, match="non-blank"):
         load_manifest(write_manifest(tmp_path, _gate(sabotage="   ")))
+
+
+def test_this_repositorys_manifest_names_the_projection_gate_and_its_twin():
+    """RFC 0054 D-54.7: the rendered AGENTS.md sections are drift-checked by a
+    manifest gate; it enters at shadow (D-2.18) and names the test file
+    whose drift case reddens it (D-36.3)."""
+
+    from pathlib import Path
+
+    from torve.config.manifest import load_manifest
+
+    manifest = load_manifest(Path(__file__).resolve().parent.parent / ".torve" / "gates.yaml")
+    gate = next(g for g in manifest.resolved_gates() if g.name == "spec-projection")
+
+    assert gate.run == "uv run torve spec project --check"
+    assert gate.state == "shadow" and gate.axis == "form"
+    assert gate.sabotage == "tests/test_colocation.py"

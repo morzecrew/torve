@@ -168,6 +168,14 @@ def build_prompt(
             f" is thrown away."
         ),
         (
+            "- `torve spec show D-x.y`, `torve spec paths <file>` and `torve spec"
+            " tests D-x.y` read the specification from this worktree — a row's"
+            " consequence, what governs a path, what proves a row — and"
+            ' `torve spec why-not "<words>"` lists the alternatives already'
+            " rejected. Each directory's `AGENTS.md` carries the rows governing"
+            " it. Nothing here outranks the contract above."
+        ),
+        (
             "- `torve log notes` prints anything the engine has to say about"
             " this run — a known flake, a constraint that arrived after you"
             " started. It is a poll: nothing interrupts you, so read it when"

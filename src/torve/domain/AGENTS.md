@@ -1,0 +1,102 @@
+<!-- torve:managed src/torve/domain — rendered from the corpus; do not edit by hand -->
+
+## Decisions governing `src/torve/domain/`
+
+### D-53.1 — `LOCKED` (RFC 0053 — The item model and the rebuilt corpus)
+
+The specification the engine reads is one pydantic model in `domain/spec.py`, `extra="forbid"`; every reader — planner, importer, check, health, show, intake lint, standing inheritance — consumes the model and never a parser's rows
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
+- Consequence: Six consumers stop re-shaping rows; a field the author wrote cannot be dropped on the way to the record; D-7.17 stands because the *format* still terminates at `config/` while the model may cross
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-53.3 — `ASSUMED` (RFC 0053 — The item model and the rebuilt corpus)
+
+Five fenced kinds: `decision-details`, `invariants`, `alternatives`, `questions`, `changes`; prose sections become `DesignSection`s keyed by heading slug and are typed no further
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
+- Consequence: Typing an argument fragments it; what is typed is what was already a list
+
+### D-53.5 — `ASSUMED` (RFC 0053 — The item model and the rebuilt corpus)
+
+Every row carries a content fingerprint; a mismatch between a contract's copied row and the row as it stands is reported as *suspect* by `decisions show` and `rfc health`, never as a conviction
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/decisions.py`
+- Consequence: Copy-at-mint becomes checkable; D-31.3's no-retroactive rule is preserved by making the mismatch a reading, not a red
+
+### D-53.14 — `ASSUMED` (RFC 0053 — The item model and the rebuilt corpus)
+
+`domain/spec.py` imports nothing but pydantic and `domain/rfc.py`, so extracting it into its own distribution is a packaging act and never a rewrite
+
+- Paths: `src/torve/domain/spec.py`
+- Consequence: The model is the reusable half; torve's grades, paths and checks are a profile over it
+
+### D-53.15 — `ASSUMED` (RFC 0053 — The item model and the rebuilt corpus)
+
+`check` on a row is authored, never derived; a `LOCKED` row without one is reported *soft* by `rfc health`; nothing runs a check in this document
+
+- Paths: `src/torve/domain/spec.py`
+- Consequence: 15 of 19 derived checks in the probe were guesses; running checks as gates is the next document's design
+
+### D-53.16 — `ASSUMED` (RFC 0053 — The item model and the rebuilt corpus)
+
+The fingerprint covers text, grade and paths; consequence, rationale and check are outside it, since a contract copies the first three at mint and a human reads the rest (Q-53.1, settled in draft)
+
+- Paths: `src/torve/domain/spec.py`
+- Consequence: An edit to a consequence is free; an edit to what an executor is bound by is recorded
+
+### D-54.1 — `LOCKED` (RFC 0054 — Decisions as gates and the projections beside the code)
+
+`InheritedDecision` gains `consequence` and `check`, copied at mint from the model, carried by `decision.recorded`, rendered after each row in the prompt; the fingerprinted set stays text, grade and paths
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py`
+- Consequence: A gate reads the contract and never the corpus (D-7.18 stands); the reason a row exists reaches the executor for the first time
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.1 — `LOCKED` (RFC 0055 — Standing decisions)
+
+Models never decide what work exists or whether it is finished; the runner executes state transitions from facts — exit codes, gate outcomes, approvals — and an agent reports observations that never cause a transition
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/states.py`
+- Consequence: A reviewer's severity is data whose consequence configuration sets; the planner invokes no model at all
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.6 — `ASSUMED` (RFC 0055 — Standing decisions)
+
+Escalation reasons are a closed enum mapped to exit codes; `locked_conflict` and `underspecified` are halts on working judgement, one indicting the code and the other the contract
+
+- Paths: `src/torve/domain/states.py` `src/torve/cli/options.py`
+- Consequence: A new reason is an amendment and a code path, never a free string
+
+### D-55.7 — `LOCKED` (RFC 0055 — Standing decisions)
+
+A task contract is immutable once minted: a changed contract is a new task, a re-mint is a version and never a transition, and a task in flight is never re-minted
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py`
+- Consequence: An executor's contract cannot drift out from under it; `torve plan` refuses to re-mint over minted phases and leaves the decision to a person
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.9 — `LOCKED` (RFC 0055 — Standing decisions)
+
+A contract copies its rows' grade, text and paths at mint time; a grade is never resolved at read time
+
+- Paths: `src/torve/application/planner.py` `src/torve/domain/task.py`
+- Consequence: A regrade never rewrites the judgement of a task that ran under the old grade
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.12 — `ASSUMED` (RFC 0055 — Standing decisions)
+
+An empty decision list on a contract is legal and explicit; "none apply" is distinct from "field forgotten"
+
+- Paths: `src/torve/gates/decisions_reported.py` `src/torve/domain/task.py`
+- Consequence: The document-less lane is governed by standing inheritance, not by silence
+
+### D-55.37 — `LOCKED` (RFC 0055 — Standing decisions)
+
+A fact is an event of a closed kind vocabulary with an authority table; an agent may write only `divergence.recorded` and `message.sent`; no update command exists on the record
+
+- Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py`
+- Consequence: An audit trail that can be edited cannot be trusted; the authority table refuses before any store sees the write
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+<!-- /torve:managed -->

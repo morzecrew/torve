@@ -129,6 +129,18 @@ gates:
     added: 2026-09-03
     input: worktree
     sabotage: coverage-delta
+  # RFC 0054 §5.4 (D-54.7): the managed AGENTS.md sections beside the code
+  # are rendered from the corpus and drift-checked like the index; a hand
+  # edit inside the markers names its file. Entering at shadow per D-2.18.
+  - name: spec-projection
+    run: "uv run torve spec project --check"
+    input: worktree
+    state: shadow
+    origin: rfc/0054
+    axis: form
+    added: 2026-09-09
+    timeout: 30
+    sabotage: tests/test_colocation.py
   - name: acceptance
     run: "@task.acceptance"
     state: blocking

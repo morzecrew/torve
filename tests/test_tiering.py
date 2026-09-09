@@ -1307,3 +1307,17 @@ def test_review_record_carries_reported_token_counts(repo, monkeypatch):
     assert agent_block["cache_read_tokens"] == 5
     assert agent_block["output_tokens"] == 10
     assert "cache_creation_tokens" not in agent_block
+
+
+def test_the_working_rules_name_the_spec_verb_and_the_agents_files():
+    """RFC 0054 §5.5: one line names the sandbox's read verb and the managed
+    AGENTS.md sections, under the contract's authority."""
+
+    from torve.adapters.agent.harness import build_prompt
+    from torve.domain.task import Task
+
+    prompt = build_prompt(Task(id="T-1", decisions=[]))
+
+    assert "`torve spec show D-x.y`" in prompt
+    assert "Each directory's `AGENTS.md` carries the rows governing it" in prompt
+    assert "Nothing here outranks the contract above." in prompt

@@ -10,3 +10,89 @@
 - Never re-run a command to see omitted output; expand the marker instead.
 - For structure-level questions about a large indexed file ("what's in here", "which function handles X"), `get_context(["path"], include=["skeleton"])` returns the file with bodies elided — every signature plus the bodies of the most central symbols — at a fraction of the cost of a full Read.
 <!-- REPOWISE_DISTILL:END -->
+
+<!-- torve:managed root — rendered from the corpus; do not edit by hand -->
+
+## Decisions governing the repository root
+
+### D-55.18 — `LOCKED` (RFC 0055 — Standing decisions)
+
+Secrets never enter the tree; the `secrets` gate reads added lines and is the one gate no bypass trailer can lift
+
+- Paths: `src/torve/gates/secrets.py` `.gitignore`
+- Consequence: The boundary has never been crossed in 745 attempts and the tree holds it as structure
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.23 — `LOCKED` (RFC 0055 — Standing decisions)
+
+Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gates` and `config` — with import directions enforced by import-linter over the whole package; the `layering` gate blocks
+
+- Paths: `src/torve/**` `pyproject.toml`
+- Consequence: The hexagon is visible in the tree and mechanically held
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.24 — `LOCKED` (RFC 0055 — Standing decisions)
+
+`gates` imports only `domain`, `base` and `config`; the gates-only install stands alone
+
+- Paths: `src/torve/gates/**` `pyproject.toml`
+- Consequence: The first shippable increment keeps shipping alone
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.26 — `LOCKED` (RFC 0055 — Standing decisions)
+
+The specification format terminates at the planner: gates, runtime adapters and agent adapters never import its owner
+
+- Paths: `pyproject.toml` `src/torve/gates/**` `src/torve/adapters/**`
+- Consequence: Format containment cannot break quietly; the contract is the only thing a gate reads about a task
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### D-55.59 — `ASSUMED` (RFC 0055 — Standing decisions)
+
+Strict typing is a floor over `src/`: `mypy --strict` and `basedpyright` strict block CI and the acceptance fallback; tests, scripts and skills carry no type floor
+
+- Paths: `src/torve/**` `pyproject.toml`
+- Consequence: A substrate surface change fails at the type check
+
+## Invariants holding over the repository root
+
+- **I-55.1** (RFC 0055): The five layer contracts hold over the whole package
+  - Paths: `src/torve/**` `pyproject.toml`
+  - Check: `uv run lint-imports --config pyproject.toml`
+
+## Contended now
+
+- `unconstrained scope` — 1 blocked dispatch(es) in the last 500 attempts
+
+<!-- /torve:managed -->
+
+<!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
+
+## Governed directories
+
+Each of these carries a managed `AGENTS.md` section listing the decisions
+and invariants that govern it. `torve spec show D-x.y`, `torve spec paths`
+`<file>` and `torve spec tests D-x.y` read the same corpus from the worktree.
+
+- `migrations/` — 1 decision(s)
+- `pages/` — 1 decision(s)
+- `pages/docs/` — 0 decision(s)
+- `pages/docs/architecture/` — 0 decision(s)
+- `skills/` — 1 decision(s)
+- `skills/rfc-writer/` — 0 decision(s)
+- `src/torve/` — 3 decision(s)
+- `src/torve/_web/` — 1 decision(s)
+- `src/torve/adapters/` — 2 decision(s)
+- `src/torve/adapters/agent/` — 2 decision(s)
+- `src/torve/adapters/broker/` — 1 decision(s)
+- `src/torve/adapters/runtime/` — 1 decision(s)
+- `src/torve/adapters/vcs/` — 1 decision(s)
+- `src/torve/application/` — 51 decision(s)
+- `src/torve/cli/` — 13 decision(s)
+- `src/torve/config/` — 15 decision(s)
+- `src/torve/domain/` — 13 decision(s)
+- `src/torve/gates/` — 17 decision(s)
+- `tests/` — 1 decision(s)
+- `web/` — 1 decision(s)
+
+<!-- /torve:managed -->
