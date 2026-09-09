@@ -76,6 +76,10 @@ Every task directory whose contract names an archived document is deleted, not a
   - Paths: `src/torve/**` `pyproject.toml`
   - Check: `uv run lint-imports --config pyproject.toml`
 
+## Contended now
+
+- `unconstrained scope` — 1 blocked dispatch(es) in the last 500 attempts
+
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
