@@ -3,7 +3,7 @@ id: "0054"
 title: Decisions as gates and the projections beside the code
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
