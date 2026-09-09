@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0311
+phase: 3
+base: fc75761158b4e09f661891649e8b5569b1de3093
+commit: ad969c2fa45c8d05722decfdb47747e90716a48f
+at: '2026-09-09T20:42:01Z'
+agent: session/claude-fable-5.1
+entries:
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-09T20:35:43Z'
+    claim: >-
+      a landing carries base, the log's pin, beside commit; the lander reads the pin
+      from the worktree log — empty when the entries come from the record, which carries
+      no pin — and the by-hand verb says to run after the work commit and commit the
+      landing on its own; the eighteen existing landing files were backfilled once:
+      base from the sixteen local logs, commit from the Torve-Task trailer where it
+      was empty
+    evidence: >-
+      src/torve/application/decisions.py:715 - the pin read onto the landing; .torve/specs/S-0058/execution/T-0310-1-20260909T201656Z.yaml:5
+      - base and commit filled
+    action: decided
+    notes: >-
+      the runner's commit field stays empty, the candidate's trailers being the join;
+      the base is what the runner always knows
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-09T20:35:44Z'
+    claim: the instant is untouched; Landing gained a field
+    evidence: src/torve/domain/spec.py:226 - Landing.base
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-09T20:35:44Z'
+    claim: >-
+      the grammar is untouched; a base is a commit, not an identifier
+    evidence: src/torve/domain/spec.py:226 - Landing.base
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-09T20:35:45Z'
+    claim: the anatomy is untouched
+    evidence: >-
+      src/torve/domain/spec.py:250 - the anatomy as phase 2 left it
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-09T20:35:45Z'
+    claim: phasing.yaml is untouched
+    evidence: src/torve/domain/spec.py:531 - PHASING_FILE
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-09T20:35:45Z'
+    claim: >-
+      no identifier changed; the corpus changed by D-12, A-7 and the backfilled landings
+    evidence: .torve/archive/identifiers.yaml:1 - untouched
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-09T20:35:58Z'
+    claim: >-
+      the directory and its files are as phase 3 left them but for one rewrite: the
+      backfill of base and commit, the one a landing ever gets, said so in A-7
+    evidence: >-
+      .torve/specs/S-0058/execution/T-0308-1-20260909T000000Z.yaml:5 - base and commit
+      filled in place
+    action: decided
