@@ -8,7 +8,7 @@ A-22.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.text import Text
@@ -27,7 +27,16 @@ from torve.cli.console import (
     make_table,
     out,
 )
-from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    DsnOption,
+    FormatOption,
+    PartitionOption,
+    RootOption,
+    dsn_for,
+    load_config,
+    read_log,
+)
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 from torve.domain.task import SCHEMA_VERSION
 
@@ -53,12 +62,17 @@ def plan_cmd(
             help="Preview without writing (the default); --no-dry-run mints.",
         ),
     ] = True,
+    partition: PartitionOption = "",
+    dsn: DsnOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Mint task contracts from one accepted, committed specification.
-    Deterministic; no model is called at any point."""
+    Deterministic; no model is called at any point. Naming a partition
+    mints into that repository's record and writes no file; without one
+    the contracts are written under .torve/tasks/."""
+    # D-56.9: the board is the task when a store holds it.
 
     from torve.application.planner import PlanError, plan_document, write_contracts
 
@@ -80,8 +94,15 @@ def plan_cmd(
     if identifier is None:
         raise fail("configuration error: torve plan takes exactly one document", EXIT_CONFIG)
 
+    board = None
+
+    if partition:
+        from torve.application.manager import project
+
+        board = read_log(dsn_for(root, dsn), lambda log: _board(log, partition, project))
+
     try:
-        report = plan_document(root, rfc_dir, identifier)
+        report = plan_document(root, rfc_dir, identifier, board=board)
 
     except PlanError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
@@ -105,8 +126,21 @@ def plan_cmd(
             EXIT_CONFIG,
         )
 
+    minted: list[str] = []
+
     try:
-        written = [] if dry_run else write_contracts(root, report)
+        if dry_run:
+            written: list[Path] = []
+        elif partition:
+            from torve.application.planner import mint_contracts
+
+            written = []
+            minted = read_log(
+                dsn_for(root, dsn),
+                lambda log: mint_contracts(log, report, partition=partition),
+            )
+        else:
+            written = write_contracts(root, report)
 
     except PlanError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
@@ -122,6 +156,8 @@ def plan_cmd(
                     for planned in report.tasks
                 ],
                 "written": [str(path) for path in written],
+                "minted": minted,
+                "partition": partition or None,
             }
         )
     else:
@@ -146,6 +182,15 @@ def plan_cmd(
 
         if dry_run:
             closing(console, "dry run — nothing written; pass --no-dry-run to mint", STYLE_DIM)
+        elif partition:
+            for task_id in minted:
+                console.print(Text(f"  minted {task_id} into {partition}", ""))
+
+            closing(
+                console,
+                f"minted {len(minted)} contract(s) into the record of {partition}; no file written",
+                STYLE_PASS,
+            )
         else:
             for path in written:
                 console.print(Text(f"  minted {path}", ""))
@@ -204,3 +249,10 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
             closing(console, "dry run — nothing written; pass --no-dry-run to escalate", STYLE_DIM)
 
     raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+async def _board(log: Any, partition: str, project: Any) -> Any:
+    return project(await log.since(partition=partition))

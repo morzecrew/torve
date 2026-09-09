@@ -508,3 +508,75 @@ def test_inherit_decisions_refuses_a_blocking_check_without_a_twin(tmp_path):
 
     with pytest.raises(PlanError, match="no check_twin"):
         inherit_decisions(loaded(tmp_path, details=details))
+
+
+# ....................... #
+# RFC 0056 phase 3 (D-56.9): with a store, plan mints into the record and
+# writes no file; dispatch projects the contract into the worktree.
+
+
+def test_minting_into_the_record_writes_no_file_and_numbers_from_the_board(plan_repo):
+    from test_residency import PARTITION, run
+
+    from torve.application.manager import project
+    from torve.application.planner import mint_contracts
+    from torve.application.residency import mint
+    from torve.domain.task import Task
+
+    root, _write_doc, _git = plan_repo
+
+    async def scenario(log):
+        # the board already holds T-0007 from an earlier mint elsewhere
+        await mint(
+            log,
+            {"T-0007": Task(id="T-0007", intent="elsewhere", decisions=[])},
+            partition=PARTITION,
+            actor_id="m",
+        )
+        board = project(await log.since(partition=PARTITION))
+        report = plan_document(root, root / "rfcs", "0090", board=board)
+
+        assert [p.task.id for p in report.tasks] == ["T-0008", "T-0009", "T-0010"]
+
+        minted = await mint_contracts(log, report, partition=PARTITION)
+
+        assert minted == ["T-0008", "T-0009", "T-0010"]
+        assert not (root / ".torve" / "tasks").exists()
+
+        board = project(await log.since(partition=PARTITION))
+
+        assert board.tasks["T-0008"].contract is not None
+        assert board.tasks["T-0008"].contract.intent == "Build the widget core."
+
+        # a second plan sees the board's mints as minted
+        with pytest.raises(PlanError, match="already minted"):
+            plan_document(root, root / "rfcs", "0090", board=board)
+
+    run(scenario)
+
+
+def test_the_contract_is_projected_into_a_worktree_that_lacks_it(tmp_path):
+    from torve.application.planner import project_contract
+    from torve.domain.task import Task
+
+    task = Task(id="T-0042", intent="Hold the line.", decisions=[], title="hold")
+
+    written = project_contract(tmp_path, task)
+
+    assert written == tmp_path / ".torve" / "tasks" / "T-0042" / "contract.yaml"
+    assert written.read_text(encoding="utf-8").startswith("# Projected from the record")
+    assert load_task(written).intent == "Hold the line."
+    # the file mode: a contract already there is the contract
+    assert project_contract(tmp_path, task) is None
+
+
+def test_plan_with_a_partition_mints_into_the_record_and_writes_nothing(plan_repo):
+    root, _write_doc, _git = plan_repo
+
+    result = CliRunner().invoke(
+        app, ["plan", "0090", "--root", str(root), "--no-dry-run", "--partition", "p/q"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "no file written" in result.output
+    assert not (root / ".torve" / "tasks").exists()

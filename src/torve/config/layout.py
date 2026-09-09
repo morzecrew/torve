@@ -3,7 +3,10 @@ one directory per task per charter A-12, D-A.13).
 
 Everything sits under `.torve/` — the root stays clean — and each task owns
 one directory, `.torve/tasks/T-nnnn/`, holding `contract.yaml` and (once
-anything was written) `log.yaml`, so retention is "remove the directory".
+anything was written) `log.yaml`. With a store configured the directory is
+a projection (RFC 0056 D-56.9): the board holds the task, `torve plan`
+writes no file, and dispatch writes the contract into the worktree for the
+attempt that reads it; without a store the files are the record.
 
 One layout, no fallbacks (A-48): the pre-`.torve/` layouts resolved here
 until the package had a released version to be compatible with, and a
@@ -67,7 +70,8 @@ def standing_dir(root: Path) -> Path:
 
 
 def task_dir(root: Path, task_id: str) -> Path:
-    """One directory per task (A-12, D-A.13) — the unit retention removes."""
+    """One directory per task (A-12, D-A.13); a projection when a store holds
+    the task (D-56.9), the record itself when none does."""
 
     return root / TORVE_DIR / "tasks" / task_id
 

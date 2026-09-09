@@ -31,7 +31,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 from pathspec import GitIgnoreSpec
@@ -42,6 +42,12 @@ from torve.domain.attempt import SizeVerdict
 from torve.domain.rfc import GRADES
 from torve.domain.spec import Corpus, Document, Phase
 from torve.domain.task import InheritedDecision, Scope, Task
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from torve.application.eventlog import EventLog
+    from torve.application.manager import Board
 
 # ----------------------- #
 
@@ -228,9 +234,18 @@ def globs_intersect(left: list[str], right: list[str]) -> bool:
 # ....................... #
 
 
-def next_task_number(root: Path) -> int:
+def next_task_number(root: Path, taken: Iterable[str] = ()) -> int:
+    """Max over the task directories and *taken* (the board's ids, when a
+    store holds the tasks — D-56.9), plus one; never reused."""
+
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     numbers = [0]
+
+    for task_id in taken:
+        found = TASK_DIR_NAME.match(task_id)
+
+        if found:
+            numbers.append(int(found.group(1)))
 
     if tasks_dir.is_dir():
         for entry in tasks_dir.iterdir():
@@ -245,21 +260,34 @@ def next_task_number(root: Path) -> int:
 # ....................... #
 
 
-def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
+def _already_minted(
+    root: Path, document: str, phases: set[int], board: Board | None = None
+) -> list[str]:
     """Task ids whose contracts already cite this document and one of these
     phases — minting twice mints duplicate work, and what to do with the
-    first batch is a human decision."""
+    first batch is a human decision. The board's contracts count when a
+    store holds the tasks (D-56.9); the files count either way."""
+
+    clashes: list[str] = []
+    wanted = str(Path(document).with_suffix(""))
+
+    for view in board.tasks.values() if board is not None else []:
+        contract = view.contract
+
+        if contract is None or not contract.rfc or contract.phase not in phases:
+            continue
+
+        if str(Path(contract.rfc).with_suffix("")) == wanted:
+            clashes.append(view.task_id)
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
 
     if not tasks_dir.is_dir():
-        return []
+        return clashes
 
-    clashes: list[str] = []
-
-    for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
+    for path in sorted(tasks_dir.glob("T-*/contract.yaml")):
         try:
-            raw: Any = yaml.safe_load(contract.read_text(encoding="utf-8"))
+            raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
 
         except yaml.YAMLError:
             continue
@@ -271,10 +299,10 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
 
         minted = str(Path(str(record.get("rfc", ""))).with_suffix(""))
 
-        if minted == str(Path(document).with_suffix("")) and record.get("phase") in phases:
-            clashes.append(str(record.get("id", contract.parent.name)))
+        if minted == wanted and record.get("phase") in phases:
+            clashes.append(str(record.get("id", path.parent.name)))
 
-    return clashes
+    return sorted(set(clashes))
 
 
 # ....................... #
@@ -363,9 +391,13 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
 # ....................... #
 
 
-def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
+def plan_document(
+    root: Path, rfc_dir: Path, identifier: str, *, board: Board | None = None
+) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
-    any refusal (§3.1) — each names the offending document or entry."""
+    any refusal (§3.1) — each names the offending document or entry. With
+    a *board* (D-56.9), task numbers and prior mints are read from the
+    record as well as from the task directories."""
 
     files = spec.rfc_files(rfc_dir)
     number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
@@ -421,7 +453,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     decisions = inherit_decisions(doc)
 
     document = str(doc_path.resolve().relative_to(root.resolve()))
-    clashes = _already_minted(root, document, {e.phase for e in entries})
+    clashes = _already_minted(root, document, {e.phase for e in entries}, board)
 
     if clashes:
         raise PlanError(
@@ -430,7 +462,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
         )
 
     ordered = sorted(entries, key=lambda e: e.phase)  # stable: document order within a phase
-    next_number = next_task_number(root)
+    next_number = next_task_number(root, board.tasks if board is not None else ())
     ids_by_phase: dict[int, list[str]] = {}
     planned: list[PlannedTask] = []
 
@@ -481,33 +513,65 @@ def _dump_contract(document: dict[str, object]) -> str:
     )
 
 
+def write_contract(root: Path, task: Task, title: str = "", *, minted_by: str = "") -> Path:
+    """One contract as a file under the task directory: the header names
+    what wrote it, the body is the contract."""
+
+    path = layout.task_file(root, task.id)
+
+    if path.exists():
+        raise PlanError(f"{path} already exists — task ids are never reused")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = (
+        f"# Minted by `torve plan {minted_by}` — phase {task.phase}: {title}\n"
+        if minted_by
+        else "# Projected from the record for this attempt (RFC 0056 D-56.9): the board "
+        "holds the task; this file is what the gates and the log verbs read.\n"
+    )
+    document = task.model_dump()
+    document["title"] = document.get("title") or title.replace("-", " ")
+    path.write_text(header + _dump_contract(document), encoding="utf-8")
+
+    return path
+
+
 def write_contracts(root: Path, report: PlanReport) -> list[Path]:
-    written: list[Path] = []
+    """The file mode (D-56.9): one directory per task under the root."""
 
-    for planned in report.tasks:
-        path = layout.task_dir(root, planned.task.id) / "contract.yaml"
+    return [
+        write_contract(root, planned.task, planned.title, minted_by=report.number)
+        for planned in report.tasks
+    ]
 
-        if path.exists():
-            raise PlanError(f"{path} already exists — task ids are never reused")
 
-        path.parent.mkdir(parents=True, exist_ok=True)
+def project_contract(worktree: Path, task: Task) -> Path | None:
+    """D-56.9: the contract the board holds, written into the worktree for
+    the attempt that reads it — the gates, `torve log owed`, the log
+    beside it. A worktree that already carries the file (the file mode,
+    where the contract is tracked) is left alone; None says so."""
 
-        header = (
-            f"# Minted by `torve plan {report.number}` — phase "
-            f"{planned.task.phase}: {planned.title}\n"
-        )
+    if layout.task_file(worktree, task.id).is_file():
+        return None
 
-        document = planned.task.model_dump()
-        document["title"] = document.get("title") or planned.title.replace("-", " ")
+    return write_contract(worktree, task, task.title or "")
 
-        path.write_text(
-            header + _dump_contract(document),
-            encoding="utf-8",
-        )
 
-        written.append(path)
+async def mint_contracts(
+    log: EventLog, report: PlanReport, *, partition: str, actor_id: str = "plan"
+) -> list[str]:
+    """D-56.9: mint into the record and write no file — the same mint the
+    manager's importer records, so a task planned here and a task scanned
+    from a file are the same row on the board."""
 
-    return written
+    from torve.application.residency import mint
+
+    return await mint(
+        log,
+        {planned.task.id: planned.task for planned in report.tasks},
+        partition=partition,
+        actor_id=actor_id,
+    )
 
 
 # ....................... #

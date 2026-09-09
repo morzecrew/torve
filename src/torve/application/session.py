@@ -326,6 +326,13 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     # RFC 0029 D-29.1/D-29.3: the resolved tier's `skills` — when set —
     # overrides the role-scoped set wholesale, for this role only; the
     # materializer's own resolution and refusals are untouched (D-29.2).
+    # D-56.9: with a store, the contract is the board's; the worktree gets
+    # a projection of it for the gates and the log verbs, beside the
+    # skills and the pack. A tracked contract (the file mode) is left as is.
+    from torve.application.planner import project_contract
+
+    project_contract(worktree, task)
+
     run.meta["skills"] = materialize(
         task.role,
         worktree / ".torve" / "skills",
