@@ -63,3 +63,9 @@ amendments:
         after: 6a281147d0744d9e/cd640ff2ccdc791f
     md: |
       Two things phase 2 could not settle. The log's schema was written by hand in `cli/init.py` because the entry had no model; phase 3 gives it one (`LogEntry`, and `TaskLog` for the file), so `init` joins the phase to derive the schema from it. And the runner cannot name the commit its landing rides in — the candidate commit is made after the file is written and D-10.8 allows one commit per attempt — so the row now says what the field is: the commit when the lander knows it, empty for the runner, whose candidate names the task in its trailers; `torve log land --commit` fills it for a landing made by hand.
+  - id: A-170
+    at: '2026-09-09'
+    title: >-
+      phase 4 reaches the scope gate for the landing file
+    md: |
+      Every landing writes the execution file of the document the contract names (D-57.7), and the scope gate judged that file as any other — the first task landed by hand under phase 3 reddened on its own landing. The gate exempts the task's contract and log already; it exempts that document's `execution.yaml` the same way, and `src/torve/gates/scope.py` with its test join phase 4, as does the corpus, which every phase's landing now touches. Scope only; no row changes.
