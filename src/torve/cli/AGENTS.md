@@ -197,4 +197,42 @@ A landing names its `base` — the commit the attempt built on, read from the lo
 - Consequence: Where an implementation started is on the landing, not only in a log git never carries; the trailer join stays for the runner's commit
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0059/D-1 — `LOCKED` (One word for the document, and the tree as the record)
+
+A contract names its document as `spec: S-NNNN` — the identifier, never a path; a contract carrying `rfc` refuses to load with a hint naming the key; the same word and value stand on the drafts file, `torve intake --spec`, a standing job's `decisions_from`, the plan report, the projections' envelopes, the web tables and the pack; the contract's schema version is 2 and the local contracts are rewritten once
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py` `src/torve/application/intake.py` `src/torve/application/standing.py` `src/torve/application/review.py` `src/torve/application/projections.py` `src/torve/application/specquality.py` `src/torve/cli/**` `web/src/**` `.torve/tasks/**`
+- Consequence: One lookup resolves a document from a contract; nothing regexes a number out of a path
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-6 — `LOCKED` (One word for the document, and the tree as the record)
+
+One shared `ConfigDict` in `torve/base/model.py` — `extra="forbid"`, `use_attribute_docstrings=True` — configures every model that forbids extras; a field's words are its attribute docstring, never a comment beside it and never `Field(description=...)`; a test asserts every property of every schema `init` writes carries a description
+
+- Paths: `src/torve/base/model.py` `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py` `src/torve/cli/init.py` `.torve/schemas/**`
+- Consequence: The schema an editor shows carries the field's meaning; a field added without its words fails the suite
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-7 — `ASSUMED` (One word for the document, and the tree as the record)
+
+`init` mints `standing.json` from `StandingContract` and adds the schema line to every file under `.torve/standing/`; `doctor` reddens when either lags
+
+- Paths: `src/torve/cli/init.py` `src/torve/cli/doctor.py` `.torve/standing/**`
+- Consequence: Every custom YAML document torve reads from a repository names its schema
+
+### S-0059/D-8 — `ASSUMED` (One word for the document, and the tree as the record)
+
+The log's `base_sha` is `base`, the landing's word; the log's schema version is 2 and a log saying `base_sha` reads through a shim; the landing's `commit` stays; `spec new`'s hint and `spec show`'s label name the summary, not a description
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/**` `src/torve/gates/decisions_reported.py` `src/torve/adapters/agent/harness.py` `src/torve/cli/**`
+- Consequence: One word for the commit an attempt built on, in the log and the landing
+
+### S-0059/D-12 — `LOCKED` (One word for the document, and the tree as the record)
+
+Every reader of a landing reads the tree through `landings` and `landed_commits` — `shipped_landings`, `shipped_ids`, `shipped_commit`, the revert leg, `status`, `shadow`, `evals`, the review's defect lookup, the PR review's `landed_tasks` and `spec cites`; no git subprocess reads a trailer or a subject, closing S-0022/A-1's exception and retiring S-0007/D-26's subject spellings; the five local tasks without a landing get one written once from their trailers, by a script not committed
+
+- Paths: `src/torve/application/projections.py` `src/torve/application/specquality.py` `src/torve/application/review.py` `src/torve/application/session.py` `src/torve/application/ports.py` `src/torve/application/residency.py` `src/torve/application/shadow.py` `src/torve/adapters/vcs/git.py` `src/torve/adapters/workspace/git.py` `src/torve/cli/**`
+- Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

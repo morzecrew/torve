@@ -15,5 +15,11 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 - **S-0058/I-1**: Every identifier the corpus defines and every citation the tree carries matches the one grammar, `S-NNNN`, `S-NNNN/<F>-<n>` or `S-NNNN/<key>`; a legacy shape is a check problem
   - Paths: `.torve/specs/**` `src/**` `pages/**`
   - Check: `uv run torve spec check`
+- **S-0059/I-1**: No file under `src/torve` writes or reads a `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config` or `Torve-Decisions` trailer
+  - Paths: `src/**`
+  - Check: `! grep -rnE --include=*.py "Torve-(Task|Attempt|Agent|Config|Decisions)" src/torve`
+- **S-0059/I-2**: The word `rfc` does not stand in `src/torve`
+  - Paths: `src/**`
+  - Check: `! grep -rnw --include=*.py rfc src/torve`
 
 <!-- /torve:managed -->

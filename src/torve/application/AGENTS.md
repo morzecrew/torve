@@ -480,4 +480,89 @@ A landing names its `base` — the commit the attempt built on, read from the lo
 - Consequence: Where an implementation started is on the landing, not only in a log git never carries; the trailer join stays for the runner's commit
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0059/D-1 — `LOCKED` (One word for the document, and the tree as the record)
+
+A contract names its document as `spec: S-NNNN` — the identifier, never a path; a contract carrying `rfc` refuses to load with a hint naming the key; the same word and value stand on the drafts file, `torve intake --spec`, a standing job's `decisions_from`, the plan report, the projections' envelopes, the web tables and the pack; the contract's schema version is 2 and the local contracts are rewritten once
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py` `src/torve/application/intake.py` `src/torve/application/standing.py` `src/torve/application/review.py` `src/torve/application/projections.py` `src/torve/application/specquality.py` `src/torve/cli/**` `web/src/**` `.torve/tasks/**`
+- Consequence: One lookup resolves a document from a contract; nothing regexes a number out of a path
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-2 — `LOCKED` (One word for the document, and the tree as the record)
+
+Every reader resolves a contract's document by `document_dir(spec_dir, identifier)`; the scope gate's exemption and the runner's decision gates come from the identifier, and the gate context carries the corpus path
+
+- Paths: `src/torve/gates/context.py` `src/torve/gates/scope.py` `src/torve/gates/runner.py` `src/torve/application/decisions.py` `src/torve/adapters/agent/harness.py`
+- Consequence: The regexes over the path go; a document that moved is still found
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-3 — `LOCKED` (One word for the document, and the tree as the record)
+
+The record's source id of a task is `spec or "operator"`, the document id; `CORPUS_NAMESPACE` goes; a mint whose contract carries `rfc` folds through one read shim in `minted_contract`, and the record is not rewritten
+
+- Paths: `src/torve/application/residency.py` `src/torve/application/manager.py` `src/torve/domain/source.py`
+- Consequence: A task's source joins the record's source without translation; three hundred recorded mints keep folding
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-5 — `LOCKED` (One word for the document, and the tree as the record)
+
+Every closed vocabulary is defined once in `torve/domain/vocabulary.py` and imported — the corpus words, the entry words, the contract's role, tier and character, the gate words, the finding severity, the source kind — with the tuples the CLI lists; `domain/rfc.py` is deleted; a word two fields share, or the record reads, is never spelled inline; `Phase.character` and `Task.character` share `Character`
+
+- Paths: `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py`
+- Consequence: A word gains a member in one place; the parity test between the log's and the record's copies is deleted with the copies
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-6 — `LOCKED` (One word for the document, and the tree as the record)
+
+One shared `ConfigDict` in `torve/base/model.py` — `extra="forbid"`, `use_attribute_docstrings=True` — configures every model that forbids extras; a field's words are its attribute docstring, never a comment beside it and never `Field(description=...)`; a test asserts every property of every schema `init` writes carries a description
+
+- Paths: `src/torve/base/model.py` `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py` `src/torve/cli/init.py` `.torve/schemas/**`
+- Consequence: The schema an editor shows carries the field's meaning; a field added without its words fails the suite
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-8 — `ASSUMED` (One word for the document, and the tree as the record)
+
+The log's `base_sha` is `base`, the landing's word; the log's schema version is 2 and a log saying `base_sha` reads through a shim; the landing's `commit` stays; `spec new`'s hint and `spec show`'s label name the summary, not a description
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/**` `src/torve/gates/decisions_reported.py` `src/torve/adapters/agent/harness.py` `src/torve/cli/**`
+- Consequence: One word for the commit an attempt built on, in the log and the landing
+
+### S-0059/D-9 — `LOCKED` (One word for the document, and the tree as the record)
+
+The runner commits the work, then writes the landing naming `base` and `commit` and commits it alone as `torve(T-NNNN): landing of attempt N` — two commits per attempt, departing S-0010/D-8; an attempt that changed nothing still lands, with an empty `commit`
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/decisions.py`
+- Consequence: The runner's landing names its commit the way a by-hand landing does; the landing commit is the branch's tip
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-10 — `LOCKED` (One word for the document, and the tree as the record)
+
+The runner writes no `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config` or `Torve-Decisions` trailer, retiring S-0010/D-4; the landing carries `decisions: [{id, grade}]`, the rows the contract carried; `Torve-Bypass`, `Torve-Fixes` and `Torve-Checkpoint` stay
+
+- Paths: `src/torve/application/runner.py` `src/torve/domain/spec.py` `src/torve/config/spec_emit.py`
+- Consequence: One record of a landing; the commit author stays the agent's identity (S-0010/D-2)
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-11 — `LOCKED` (One word for the document, and the tree as the record)
+
+A task naming no document lands under `.torve/execution/` in the same file shape; the loader reads it beside the corpus and the archive, and the scope gate exempts it
+
+- Paths: `src/torve/config/layout.py` `src/torve/config/spec.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
+- Consequence: An operator's ask and a standing job land with a record; the revert leg finds them
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-12 — `LOCKED` (One word for the document, and the tree as the record)
+
+Every reader of a landing reads the tree through `landings` and `landed_commits` — `shipped_landings`, `shipped_ids`, `shipped_commit`, the revert leg, `status`, `shadow`, `evals`, the review's defect lookup, the PR review's `landed_tasks` and `spec cites`; no git subprocess reads a trailer or a subject, closing S-0022/A-1's exception and retiring S-0007/D-26's subject spellings; the five local tasks without a landing get one written once from their trailers, by a script not committed
+
+- Paths: `src/torve/application/projections.py` `src/torve/application/specquality.py` `src/torve/application/review.py` `src/torve/application/session.py` `src/torve/application/ports.py` `src/torve/application/residency.py` `src/torve/application/shadow.py` `src/torve/adapters/vcs/git.py` `src/torve/adapters/workspace/git.py` `src/torve/cli/**`
+- Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+## Invariants holding over `src/torve/application/`
+
+- **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
+  - Paths: `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py`
+  - Check: `uv run pytest tests/test_spec.py -k schema_descriptions`
+
 <!-- /torve:managed -->

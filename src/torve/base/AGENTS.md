@@ -10,4 +10,12 @@ The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.c
 - Consequence: A timeline over amendments, landings and entries sorts on one string
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0059/D-6 — `LOCKED` (One word for the document, and the tree as the record)
+
+One shared `ConfigDict` in `torve/base/model.py` — `extra="forbid"`, `use_attribute_docstrings=True` — configures every model that forbids extras; a field's words are its attribute docstring, never a comment beside it and never `Field(description=...)`; a test asserts every property of every schema `init` writes carries a description
+
+- Paths: `src/torve/base/model.py` `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py` `src/torve/cli/init.py` `.torve/schemas/**`
+- Consequence: The schema an editor shows carries the field's meaning; a field added without its words fails the suite
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

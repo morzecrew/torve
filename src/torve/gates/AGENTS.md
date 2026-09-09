@@ -147,6 +147,37 @@ The `decision:<id>` gate names, the pack's decisions file, the log entry's `deci
 - Paths: `src/torve/gates/runner.py` `src/torve/gates/decisions_reported.py` `src/torve/application/contextpack.py` `src/torve/application/decisions.py`
 - Consequence: The record's history keeps the old ids as retired rows and the new ones as what stands
 
+### S-0059/D-2 — `LOCKED` (One word for the document, and the tree as the record)
+
+Every reader resolves a contract's document by `document_dir(spec_dir, identifier)`; the scope gate's exemption and the runner's decision gates come from the identifier, and the gate context carries the corpus path
+
+- Paths: `src/torve/gates/context.py` `src/torve/gates/scope.py` `src/torve/gates/runner.py` `src/torve/application/decisions.py` `src/torve/adapters/agent/harness.py`
+- Consequence: The regexes over the path go; a document that moved is still found
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-4 — `LOCKED` (One word for the document, and the tree as the record)
+
+A gate's `origin` is `structural`, `leak/<task>` or a citation the grammar accepts; the runner's decision gates carry the row's own id as origin; the manifest's `rfc/NNNN` become `S-NNNN`
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/runner.py` `src/torve/gates/sabotage.py` `.torve/gates.yaml`
+- Consequence: `spec cites S-0054/D-2` finds the gate the row minted
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0059/D-8 — `ASSUMED` (One word for the document, and the tree as the record)
+
+The log's `base_sha` is `base`, the landing's word; the log's schema version is 2 and a log saying `base_sha` reads through a shim; the landing's `commit` stays; `spec new`'s hint and `spec show`'s label name the summary, not a description
+
+- Paths: `src/torve/domain/spec.py` `src/torve/application/**` `src/torve/gates/decisions_reported.py` `src/torve/adapters/agent/harness.py` `src/torve/cli/**`
+- Consequence: One word for the commit an attempt built on, in the log and the landing
+
+### S-0059/D-11 — `LOCKED` (One word for the document, and the tree as the record)
+
+A task naming no document lands under `.torve/execution/` in the same file shape; the loader reads it beside the corpus and the archive, and the scope gate exempts it
+
+- Paths: `src/torve/config/layout.py` `src/torve/config/spec.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
+- Consequence: An operator's ask and a standing job land with a record; the revert leg finds them
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail
