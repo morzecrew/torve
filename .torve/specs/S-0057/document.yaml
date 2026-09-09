@@ -3,7 +3,7 @@ id: '0057'
 title: The specification is a directory
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: ['0056']
 informed_by: ['0053', '0054', '0055']
 supersedes: []
