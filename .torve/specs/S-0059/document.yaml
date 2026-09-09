@@ -1,0 +1,351 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0059
+title: >-
+  One word for the document, and the tree as the record
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0058]
+informed_by: [S-0010, S-0044, S-0047, S-0057]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A contract names its document by identifier, `spec: S-0058`, never by a
+  path, and every envelope, event, gate origin, flag and table that said
+  `rfc` says `spec`. Every closed vocabulary the engine reads is defined
+  once, in `torve/domain/vocabulary.py`; every model `torve init` derives a
+  schema from documents itself field by field, in attribute docstrings the
+  schema carries as descriptions; the standing contract gets its schema; one
+  word names one fact across the contract, the log and the landing. The
+  landing file becomes the record of a landing: the runner commits the work,
+  then the landing in a commit of its own naming `base` and `commit`, and
+  writes no `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config` or
+  `Torve-Decisions` trailer; every reader that grepped a trailer reads the
+  landings from the tree, and a task naming no document lands under
+  `.torve/execution/`. A human's `Torve-Bypass` and `Torve-Fixes` stay.
+motivation: |
+  S-0057 renamed the corpus and S-0058 gave every item one grammar, and the
+  contract still says `rfc: .torve/specs/S-0058` — the old word carrying a
+  path, in the one file every executor opens first. Two readers regex four
+  digits out of that path to find the document and two more parse it, the
+  record's `source_id` of
+  a task is the path itself, and a gate's origin is spelled
+  `rfc/0054#S-0054/D-2` when the row's own id is the origin.
+
+  The schemas `torve init` derives carry the class docstrings and nothing
+  else: the contract's schema has three descriptions for its thirty
+  properties, because every field's meaning sits in a `#` comment beside it that
+  pydantic never sees. Four vocabularies are spelled twice, once for the log
+  and once for the record, with a parity test to keep the copies equal.
+
+  A landing is recorded twice: in the execution file S-0058 introduced and
+  in five trailers on the commit, of which one is read by five `git log`
+  greps, one by `spec cites`, three by nobody. The execution file already carries the task,
+  the attempt, the agent, the base and the entries; what it lacks for the
+  runner's own landings is the commit, because the file is written before
+  the commit exists (S-0058/D-12). Two records of one fact is the defect
+  S-0044 named for the store, back in the tree.
+current_state: |
+  Measured on `9f804c7`:
+
+  - `rfc` stands on 86 lines of 23 files under `src/torve`, 88 lines of 16
+    test files and 4 lines of `web/src/tabs.jsx`. `Task.rfc` is "a path to
+    the document" (`domain/task.py:92`, S-0044/D-8), minted as the
+    directory's relative path (`planner.py:487`); `intake._inherit_decisions`
+    resolves it with `root / rfc` (`intake.py:1644`),
+    `standing._resolve_rfc_path` turns an identifier into a path only to
+    satisfy it; `decisions.land` and `gates/runner.py:99` regex the number out
+    of it, `planner.document_of` parses it and `scope.py:34` builds the
+    exemption prefix from it.
+  - `residency._record_mint` writes `source_id = task.rfc or "operator"`
+    (`residency.py:220`): the record's source id of a task is a path, while
+    `corpus_source_id` answers `S-NNNN` (S-0058) and `CORPUS_NAMESPACE =
+    "rfc"` still says `rfc/0044` (`source.py:25`).
+  - A gate's origin is `structural`, `leak/<task>` or `rfc/<id>`
+    (`manifest.py:76`); the decision gates are minted with
+    `origin=f"rfc/{document}#{row.id}"` (`gates/runner.py:112`) — the
+    number, a hash, then the row's global id which already names the
+    document. `.torve/gates.yaml` carries `rfc/0007`, `rfc/0011`,
+    `rfc/0014`.
+  - 63 models set `model_config = ConfigDict(extra="forbid")` one by one;
+    none sets `use_attribute_docstrings`. The nine schemas carry the class
+    docstrings only: `contract.json` has 3 descriptions, `gates.json` 3,
+    `log.json` 2, `landing.json` 2. The fields are documented in `#`
+    comments — 30 lines in `domain/task.py`, 183 in `config/runconfig.py`,
+    25 in `application/standing.py`, 17 in `config/manifest.py` — that no
+    schema sees. `torve spec new` still tells the author to "write the
+      description" and `spec show` labels the routing line `description`, a
+      field S-0058 removed.
+  - The entry vocabulary is defined at `domain/spec.py:294` and again at
+    `domain/events.py:363`, pinned equal by a test; `CheckState`
+    (`spec.py:36`) is respelled inline at `task.py:57`, `SourceKind`
+    (`source.py:21`) at `events.py:143`; `Phase.character` is
+    `Literal["", "structural", "routine"]` while `Task.character` is
+    `Literal["structural", "routine"] | None`. Nineteen `Literal[...]` are
+    spelled inline in fields, five of them respelling a word defined
+    elsewhere or splitting one; `Grade`, `Status`, `Kind` and
+    `Implementation` live in `domain/rfc.py`, a module named for the word
+    S-0057 retired.
+  - The two standing contracts under `.torve/standing/` have no schema and
+    no schema line; `init` mints nine schemas and adds the line to two
+    files.
+  - The log says `base_sha`; the landing says `base`; the landing event says
+    `sha`; the run state says `landed_sha`; the landing and the bypass
+    record say `commit`. Two facts, five words.
+  - The runner writes five trailers (`runner.py:551`). `Torve-Task` is read
+    by `GitVcs.landed_shas`, `GitVcs.task_trailers`,
+    `workspace.shipped_commit`, `projections.shipped_landings`, the review's
+    defect lookup (`cli/review.py:440`) and, through `shipped_ids`,
+    `specquality` — five `git log` subprocesses, one of which S-0022/A-1
+    departed S-0022/D-5 to allow. `Torve-Decisions` is read by `spec cites`
+    alone, a sixth; `Torve-Attempt`, `Torve-Agent` and `Torve-Config` by nobody.
+    `shipped_landings` also parses three spellings of a landing out of
+    commit subjects — `(T-0019)`, `torve/T-0006`, the trailer — because
+    hand landings never carried the trailer (S-0007/D-26).
+  - The landing file carries task, phase, attempt, base, at, agent and
+    entries; `commit` is empty on the runner's own landings, since the file
+    is written before `commit_all` (S-0058/D-12's consequence). The
+    contract's graded rows travel in the `Torve-Decisions` trailer only, and
+    the task directory that holds the contract is gitignored (S-0057/D-5).
+  - Of the local tasks, T-0288 to T-0292 landed before the execution
+    directory existed and have no landing file; their trailers are their
+    only record in the tree.
+goals: |
+  - One key, one identifier: `spec: S-NNNN` on the contract and `spec`
+    wherever the fact is shown, with the document id as the record's source
+    id and as a gate's origin.
+  - One definition per vocabulary, one shared model configuration, and a
+    schema whose every property carries the words that were beside the
+    field.
+  - One record of a landing, in the tree, complete — base, commit, agent,
+    attempt, entries and the rows the contract carried — read by every
+    reader that used to grep git.
+non_goals: |
+  - The record's payload keys (`decision_id`, `entry_kind`, `sha`): the
+    record is append-only and rebuilt from the tree; Q-1 asks whether they
+    follow the files' words at its next rebuild.
+  - `Torve-Bypass` and `Torve-Fixes`: a human's signature on a commit, which
+    is where a signature belongs. `Torve-Checkpoint`: the mark of a commit
+    that is not a landing.
+  - Rewriting git history or the record: old trailers stay in old commits
+    and old mints keep their paths; the fold reads them through one shim.
+  - The pull-request body, composed from data as before (S-0010/D-6).
+  - Renaming the run state's fields; it is the engine's own file, not a
+    contract anyone writes.
+design:
+  - key: the-key-and-the-identifier
+    md: |
+      `Task.spec: str | None`, an `S-NNNN` identifier the grammar validates
+      (S-0058/D-1). The planner mints `doc.id`; `torve intake --spec`, the
+      drafts file's `spec`, a standing job's `decisions_from` and a review's
+      copy of its target carry the same. A contract carrying `rfc` refuses
+      to load with a hint naming the key it wants, the way the configuration
+      refuses `rfcs` (S-0057). The contract's schema version becomes 2, and
+      the local contracts under `.torve/tasks/` are rewritten once.
+
+      Every reader resolves the document through
+      `spec.document_dir(spec_dir, identifier)` — one lookup, no regex over
+      a path. The scope gate's exemption is that directory's `execution/`,
+      and the gate context carries the corpus path it lacks today. The
+      harness prompt says "inherited from `S-0058`".
+
+      The word follows the fact everywhere it is shown: the projections'
+      envelopes, `torve context`'s programme table, `torve plan --reconcile`,
+      `torve why`, the web tables, the pack. `PlanReport.document` is the
+      identifier.
+  - key: the-source-id-and-the-origin
+    md: |
+      `TaskMinted.source_id` is `task.spec or "operator"` — the document id,
+      which is what `corpus_source_id` already answers — so a task's source
+      joins the record's source without translation. `CORPUS_NAMESPACE` goes
+      with the namespace it named.
+
+      A mint written before this carries a path in its `contract`; the fold
+      reads it through one shim in `manager.minted_contract` — `rfc` becomes
+      `spec` by `document_of` — and nothing rewrites the record. The next
+      residency pass re-mints every local contract that changed (S-0049/D-4),
+      which is all of them, once.
+
+      A gate's `origin` is `structural`, `leak/<task>` or a citation the
+      grammar accepts — `S-0011`, `S-0054/D-2`. The runner's decision gates
+      carry the row's own id as their origin. The manifest's three
+      `rfc/NNNN` become `S-NNNN`.
+  - key: one-vocabulary
+    md: |
+      `torve/domain/vocabulary.py` defines every closed word the engine reads
+      from a file or writes to the record, once: `Grade`, `Status`, `Kind`,
+      `Implementation`, `Coverage`, `CheckState`, `QuestionStatus`,
+      `EntryGrade`, `EntryKind`, `EntryClass`, `EntryAction`, `Role`,
+      `Tier`, `Character`, `GateInput`, `GateState`, `GateOutcome`,
+      `GateAxis`, `FindingSeverity`, `SourceKind`, with the tuples the CLI
+      lists beside them. `domain/rfc.py` is deleted;
+      `domain/events.py` imports the entry words instead of respelling them,
+      and the parity test that kept the copies equal goes with the copies.
+      A word one field alone uses stays with the field; a word two fields
+      share, or the record reads, is never spelled inline. `Phase.character`
+      and `Task.character` are the one `Character | None`.
+  - key: the-documented-schema
+    md: |
+      `torve/base/model.py` holds one `ConfigDict` — `extra="forbid"`,
+      `use_attribute_docstrings=True` — and every model that forbids extras
+      uses it; the two that ignore extras (a drafter's and a reviewer's
+      output) keep their own. A field's meaning moves from the comment
+      beside it to the docstring below it, and pydantic carries that
+      docstring into the schema's `description`. `Field(description=...)`
+      is never written: one text, one place.
+
+      A test derives every schema `init` writes and asserts every property
+      of every model in it carries a description — the check that a field
+      added later without its words fails.
+
+      `init` mints `standing.json` from `StandingContract` and adds the
+      schema line to every file under `.torve/standing/`; `doctor` reddens
+      when either lags, as it does for the others.
+  - key: one-word-per-fact
+    md: |
+      The log's `base_sha` becomes `base`, the landing's word (S-0058/D-12);
+      the log's schema version becomes 2 and a log saying `base_sha` reads
+      through the same one-line shim a contract's `rfc` does. The landing's
+      `commit` stays `commit`. `spec new`'s hint and `spec show`'s
+      label say summary, not description — the field S-0058 removed.
+  - key: the-landing-is-the-record
+    md: |
+      The runner's `land` commits the work first — the same subject as
+      today, composed from the contract (S-0010/D-6), with no trailer — then
+      writes the landing naming `base` from the log's pin and `commit` from
+      the sha it just made, and commits the landing alone:
+      `torve(T-NNNN): landing of attempt N`. Two commits per attempt; the
+      branch and the pull request carry both. An attempt that changed
+      nothing still lands: the landing records the entries and an empty
+      `commit`. The by-hand path is S-0058/D-12's, unchanged.
+
+      The landing gains `decisions: [{id, grade}]`, the rows the contract
+      carried — what `Torve-Decisions` said, in the file that outlives the
+      task directory. `agent` is the identity the trailer named. A landing
+      is the whole of what the five trailers said, in the place the corpus
+      reads.
+
+      A task naming no document — an operator's ask, a standing job with no
+      `decisions_from` — lands under `.torve/execution/` in the same file
+      shape; the scope gate exempts it as it exempts a document's directory,
+      and the loader reads it beside the corpus and the archive. The landing
+      has no rows to be beside, but it is still a record.
+  - key: readers-read-the-tree
+    md: |
+      `decisions.landings(root, spec_dir)` yields every landing in the tree
+      — the corpus, the archive, `.torve/execution/` — and
+      `landed_commits(root, spec_dir, task)` the commits of one task, newest
+      first. `projections.shipped_landings` is that map, `shipped_ids` its
+      keys, `workspace.shipped_commit` its newest; `Vcs.landed_shas` becomes
+      the application's lookup, and the revert leg, `status`, `shadow` and
+      `evals` call it; the review's defect lookup opens the landing rather
+      than grepping the log. `PrVcs.task_trailers` becomes
+      `landed_tasks(root, base, head)`: the landing files the range adds,
+      by name. No git subprocess reads a trailer or a subject, S-0022/D-5's
+      exception (S-0022/A-1) closes, and S-0007/D-26's subject spellings
+      go. `spec cites` lists the landings whose `decisions` carry the row
+      where it listed commits.
+
+      The five local tasks that landed before the execution directory
+      (T-0288 to T-0292) get their landing written once from their log and
+      their commit's trailers — the last time a trailer is read — by a
+      script that is not committed. The residency's bootstrap marks a
+      contract landed from its landing file, as it did from the trailer.
+tests: |
+  - `tests/test_gates.py`, `tests/test_intake.py`, `tests/test_standing.py`:
+    a contract with `rfc` refuses with the hint; `spec` is an identifier and
+    a path refuses; the drafts file and the standing job carry `spec`.
+  - `tests/test_manifest.py`: an origin that is a citation loads and
+    `rfc/0011` refuses; `tests/test_gates.py`: a decision gate's origin is
+    the row's id.
+  - `tests/test_residency.py`, `tests/test_manager.py`: a task's source id
+    is its document id; a mint whose contract carries a path folds.
+  - `tests/test_events.py`: the entry words are the vocabulary's, by
+    identity.
+  - `tests/test_spec.py`: every property of every schema `init` writes
+    carries a description; `standing.json` is written and the standing
+    files get their line; `tests/test_doctor.py`: both redden when they lag.
+  - `tests/test_divergence.py`: the log says `base`; a log saying `base_sha`
+    reads.
+  - `tests/test_provenance.py`, `tests/test_run_loop.py`: two commits per
+    attempt, no `Torve-` trailer but the checkpoint's, the landing naming
+    the work commit and its `decisions`; `tests/test_decisions.py`: a task
+    with no document lands under `.torve/execution/`.
+  - `tests/test_context.py`, `tests/test_shadow.py`,
+    `tests/test_pr_review.py`, `tests/test_review_corpus.py`,
+    `tests/test_session.py`, `tests/test_specquality.py`: every former
+    trailer reader answers from landing files; a commit with a trailer and
+    no landing file counts for nothing.
+  - `tests/test_layering.py`: `torve.base.model` and
+    `torve.domain.vocabulary` sit where the contracts allow.
+docs: |
+  `pages/docs/operating.md` (`torve plan <spec>`, `intake --spec`),
+  `pages/docs/architecture/state.md` (the landing files where the trailer
+  row was), `pages/docs/architecture/record.md` (the source id),
+  `skills/spec-writer/references/spec-template.md` (`spec: S-NNNN`), the
+  `AGENTS.md` projections, `CHANGELOG.md` under Changed and Removed.
+out_of_scope: |
+  The record's payload words (Q-1); the fleet manifest's schema (Q-2); the
+  run state's fields.
+risks: |
+  - **A trailer reader outside this tree** (a CI grep, an operator's alias)
+    goes quiet. Mitigation: the changelog names the five trailers removed
+    and the file that replaces them; the checkpoint trailer stays.
+  - **A field loses its words in the move from comment to docstring.**
+    Mitigation: the schema test fails on the first property without a
+    description.
+  - **Two commits per attempt** double a branch's history. Mitigation: the
+    landing commit is the branch's tip, named for what it is, and a merge
+    takes both as it took one.
+  - **`use_attribute_docstrings` reads the source**: a package shipped
+    without `.py` sources would mint schemas with no descriptions.
+    Mitigation: the wheel ships sources, and the test runs against the
+    installed package.
+  - **An old mint in the record** carries a path the model no longer
+    accepts. Mitigation: the fold's shim, tested with a recorded payload.
+alternatives:
+  - option: keep `rfc` and accept both keys
+    rejected_because: >-
+      two spellings forever, in the file every executor opens first
+  - option: '`spec` carrying the directory path'
+    rejected_because: >-
+      a path moves and an identifier does not — S-0047/D-4's own argument, and the
+      reason four readers regex the number out of it today
+  - option: '`Field(description=...)` beside each field'
+    rejected_because: >-
+      the words would stand twice, once for the reader of the code and once for the
+      schema, and drift
+  - option: keep `Torve-Task` alone as a git-native join
+    rejected_because: >-
+      two records of one fact, and the grep that read it is why the projections parse
+      three subject spellings
+  - option: amend the work commit to include the landing
+    rejected_because: >-
+      the amended commit is a new sha; the file would name one that no longer exists
+  - option: >-
+      derive `commit` from the commit that added the landing file
+    rejected_because: >-
+      a subprocess on every read, and a tree without git — a tarball, an export —
+      cannot answer
+  - option: one `.torve/execution/` for every landing
+    rejected_because: >-
+      S-0058/D-6 put a landing beside the rows it informs, where `cites` reads it;
+      the root directory is for the landing with no rows
+  - option: rewrite the record's mints to the new key
+    rejected_because: >-
+      an append-only log rewritten is not a record; one shim at the fold reads what
+      was written
+  - option: a vocabulary module per family
+    rejected_because: >-
+      four modules to look in for one word; the whole set fits on a page
+questions:
+  - id: Q-1
+    text: >-
+      Whether the record's payload words follow the files' (`decision_id` to `decision`,
+      `sha` to `commit`) at the record's next rebuild
+  - id: Q-2
+    text: >-
+      Whether the fleet manifest, which lives on the operator's machine outside any
+      `init`, gets its schema, and where its line would point

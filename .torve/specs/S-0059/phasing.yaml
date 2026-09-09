@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the contract names its document
+    intent: >-
+      `Task.spec` replaces `Task.rfc`, an identifier the grammar validates, schema
+      version 2, a refusal with a hint for the old key; every minter — the planner,
+      intake, adoption, the standing loop, the review — writes it, and every reader
+      resolves the document by `document_dir`, the gate context carrying the corpus
+      path. The record's source id of a task is the document id and the fold reads
+      an old mint through one shim. A gate's origin is a citation and the decision
+      gates carry the row's id; the manifest's `rfc/NNNN` convert. The word follows
+      the fact through the projections, the CLI tables, the web tables, the pack,
+      the skill's template and the pages; the local contracts are rewritten once;
+      the tests' fixtures write `spec`.
+    scope:
+      - src/**
+      - tests/**
+      - web/src/**
+      - .torve/tasks/**
+      - .torve/gates.yaml
+      - .torve/standing/**
+      - .torve/schemas/**
+      - .torve/specs/**
+      - skills/**
+      - .claude/skills/**
+      - pages/docs/**
+      - '**/AGENTS.md'
+      - README.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run torve spec check
+      - uv run torve spec project --check
+      - uv run lint-imports --config pyproject.toml
+    character: structural
+  - phase: 2
+    title: one vocabulary and a documented schema
+    intent: >-
+      `torve/domain/vocabulary.py` takes every closed word and `domain/rfc.py` goes;
+      `torve/base/model.py` holds the one `ConfigDict`; every model `init` derives
+      a schema from moves its field comments into attribute docstrings, and a test
+      asserts every property of every minted schema carries a description. `init`
+      mints `standing.json` and lines the standing files; `doctor` checks both. The
+      log's `base_sha` becomes `base` at schema version 2 with a shim for the old
+      word; `spec new`'s hint names the summary. The schemas under `.torve/schemas/`
+      are re-minted.
+    scope:
+      - src/**
+      - tests/**
+      - .torve/schemas/**
+      - .torve/standing/**
+      - .torve/tasks/**
+      - .torve/specs/**
+      - pages/docs/**
+      - '**/AGENTS.md'
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run torve spec check
+      - uv run torve init
+      - uv run torve doctor
+      - uv run lint-imports --config pyproject.toml
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: the tree is the record of a landing
+    intent: >-
+      The runner commits the work, then the landing naming `base` and `commit` in
+      a commit of its own, and writes no `Torve-Task`, `Torve-Attempt`, `Torve-Agent`,
+      `Torve-Config` or `Torve-Decisions` trailer; the landing carries the contract's
+      graded rows. A task naming no document lands under `.torve/execution/`. `landings`
+      and `landed_commits` read every landing in the tree and every former trailer
+      reader — the projections, specquality, the revert leg, `status`, `shadow`, `evals`,
+      the review's defect lookup, the PR review's range, `spec cites` — reads them;
+      the subject spellings go. The five local tasks without a landing get one from
+      their trailers by a script not committed. The pages' state table and the changelog
+      say it.
+    scope:
+      - src/**
+      - tests/**
+      - .torve/execution/**
+      - .torve/specs/**
+      - .torve/schemas/**
+      - .torve/tasks/**
+      - pages/docs/**
+      - pages/diagrams/**
+      - '**/AGENTS.md'
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run torve spec check
+      - uv run torve spec project --check
+      - uv run lint-imports --config pyproject.toml
+    depends_on:
+      - 2
+    character: structural
