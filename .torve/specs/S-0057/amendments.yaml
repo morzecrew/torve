@@ -39,3 +39,27 @@ amendments:
     title: phase 2 reaches the schema test phase 1 wrote
     md: |
       Phase 1 wrote the test that drives `torve init` and counts the four document schemas it writes; phase 2 makes it eight, and the count lives in `tests/test_rfc_check.py`, which joins phase 2's scope. Scope only; no row changes.
+  - id: A-169
+    at: '2026-09-09'
+    title: >-
+      phase 3 types the log schema and leaves the runner's commit to the trailers
+    changes:
+      - subject: D-57.7
+        field: text
+        before: >-
+          `execution.yaml` holds landings — task, phase, attempt, commit, time, agent,
+          the log's entries typed as `LogEntry` — appended by one function the runner
+          calls before the merge commit and `torve log land` exposes; a contract naming
+          no document lands nowhere and says so
+        after: >-
+          `execution.yaml` holds landings — task, phase, attempt, time, agent, the
+          commit when the lander knows it, and the log's entries typed as `LogEntry`
+          — appended by one function the runner calls before the candidate commit,
+          whose trailers name the task so the field stays empty there, and `torve
+          log land --commit SHA` exposes for a landing made by hand; a contract naming
+          no document lands nowhere and says so
+      - subject: D-57.7
+        field: fingerprint
+        after: 6a281147d0744d9e/cd640ff2ccdc791f
+    md: |
+      Two things phase 2 could not settle. The log's schema was written by hand in `cli/init.py` because the entry had no model; phase 3 gives it one (`LogEntry`, and `TaskLog` for the file), so `init` joins the phase to derive the schema from it. And the runner cannot name the commit its landing rides in — the candidate commit is made after the file is written and D-10.8 allows one commit per attempt — so the row now says what the field is: the commit when the lander knows it, empty for the runner, whose candidate names the task in its trailers; `torve log land --commit` fills it for a landing made by hand.

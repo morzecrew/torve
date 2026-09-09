@@ -414,7 +414,7 @@ Whether phase 4 gives `traces/` and `regimes/` a retention window or leaves them
 
 ### D-57.7 — `LOCKED` (RFC 0057 — The specification is a directory)
 
-`execution.yaml` holds landings — task, phase, attempt, commit, time, agent, the log's entries typed as `LogEntry` — appended by one function the runner calls before the merge commit and `torve log land` exposes; a contract naming no document lands nowhere and says so
+`execution.yaml` holds landings — task, phase, attempt, time, agent, the commit when the lander knows it, and the log's entries typed as `LogEntry` — appended by one function the runner calls before the candidate commit, whose trailers name the task so the field stays empty there, and `torve log land --commit SHA` exposes for a landing made by hand; a contract naming no document lands nowhere and says so
 
 - Paths: `src/torve/application/divergence.py` `src/torve/application/runner.py` `src/torve/cli/log.py`
 - Consequence: Every clone carries what execution found, beside the rows it informs; the task directory carries nothing git keeps

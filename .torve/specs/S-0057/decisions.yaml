@@ -95,10 +95,12 @@ decisions:
   - id: D-57.7
     grade: LOCKED
     text: >-
-      `execution.yaml` holds landings — task, phase, attempt, commit, time, agent,
-      the log's entries typed as `LogEntry` — appended by one function the runner
-      calls before the merge commit and `torve log land` exposes; a contract naming
-      no document lands nowhere and says so
+      `execution.yaml` holds landings — task, phase, attempt, time, agent, the commit
+      when the lander knows it, and the log's entries typed as `LogEntry` — appended
+      by one function the runner calls before the candidate commit, whose trailers
+      name the task so the field stays empty there, and `torve log land --commit SHA`
+      exposes for a landing made by hand; a contract naming no document lands nowhere
+      and says so
     paths:
       - src/torve/application/divergence.py
       - src/torve/application/runner.py
@@ -107,6 +109,7 @@ decisions:
       Every clone carries what execution found, beside the rows it informs; the task
       directory carries nothing git keeps
     cites: [D-56.9, D-56.10]
+    fingerprint: 6a281147d0744d9e/cd640ff2ccdc791f
   - id: D-57.8
     grade: ASSUMED
     text: >-

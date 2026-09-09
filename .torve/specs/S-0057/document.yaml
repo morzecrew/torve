@@ -576,6 +576,7 @@ phasing:
       - tests/test_spec_load.py
       - tests/test_decisions.py
       - tests/test_spec.py
+      - src/torve/cli/init.py
     acceptance:
       - >-
         uv run pytest tests/test_divergence.py tests/test_runner.py tests/test_decisions_record.py
