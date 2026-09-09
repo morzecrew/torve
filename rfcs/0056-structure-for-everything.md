@@ -1,0 +1,494 @@
+---
+id: "0056"
+title: Structure for everything
+kind: design
+status: draft
+implementation: none
+depends_on: ["0053", "0054"]
+informed_by: ["0049", "0050", "0055"]
+supersedes: []
+superseded_by: null
+amended_by: []
+owner: misery7100
+description: >-
+  A document is one YAML file in the item model's own shape and markdown is only ever rendered from it; the task directory and the telemetry file stop being sources when a store is configured; the task history of archived documents is deleted.
+schema_version: 1
+---
+
+# RFC 0056 — Structure for everything
+
+- **Scope:** The storage of the specification and of the engine's own
+  files. RFC 0053 made the specification a typed model and kept markdown
+  as its source, parsed by a 1,864-line loader through tables, headings
+  and five fenced kinds. This document makes the model's own shape the
+  source — one YAML file per document, loaded by the model's validator
+  and written by its serializer — and deletes the parser, the emitter and
+  the generated index. It then applies the same rule to what `.torve/`
+  holds: the contract and the log are the record's, projected into the
+  worktree at dispatch; the telemetry file is a carrier, not a source;
+  the task history of the fifty-two archived documents is deleted.
+- **Related:** RFC 0053 (the model, the fingerprint, the archive), RFC
+  0054 (every backend renders from the model; the pack ships the model's
+  JSON Schema), RFC 0049 (tasks as records; the task directory is an
+  importer), RFC 0050 (record readers beside file readers, "gated on the
+  migration"), RFC 0055 (the baseline: 344 lines, 60 rows, 75 lines of
+  prose — the shape a document should have).
+- **Origin:** Measured on 2026-09-09 after RFC 0054 landed. The corpus
+  probe under RFC 0053 showed storage secondary for fidelity; it said
+  nothing about cost or query. Cost changed when the model existed:
+  loading YAML into it is one call, and everything that parses markdown
+  into it is deletable. Query is the operator's point: an agent handed a
+  markdown document greps it whole; handed a YAML document it runs
+  `yq`, `jq` or `torve spec` and reads three rows.
+
+## 1. Summary
+
+A document becomes `rfcs/NNNN-slug.yaml`, the `Document` model dumped
+with stable key order: frontmatter keys at the top, prose as a list of
+sections whose bodies are markdown strings the engine never parses, rows
+carrying their rationale, citations and check on themselves, then
+invariants, alternatives, questions, phasing and amendments as the lists
+they already are. Loading is `Document.model_validate(yaml.safe_load(…))`.
+Writing — `amend`, `fix`, `retire`, `archive`, `new` — is a mutation of
+the model and one dump. Comments are not preserved and a document
+carrying one is refused: structure carries the meaning, which is what
+closes the `character:`-dropped-by-`fmt` defect by construction. Every
+live and archived document converts once through the markdown loader on
+its last day. The first line of every document names the JSON Schema the
+pack already ships, so an editor validates what an agent writes.
+
+`INDEX.md` is deleted; `torve rfc list` answers. `SKILL.md`, `AGENTS.md`
+and the human page stay markdown, because they are projections read by
+harnesses and people, rendered from YAML and never the source.
+
+With a store configured, a contract is minted into the record and
+projected into the worktree at dispatch under a gitignored
+`.torve/tasks/<id>/`, and the log is read back from the record. The 280
+task directories under archived documents are deleted, not archived:
+history keeps them, and nothing standing cites them. Readers that open
+`.torve/telemetry.jsonl` today — the pack, the drafter's facts, `rfc
+health` — read the record when there is one, after a one-shot import.
+
+## 2. Motivation
+
+- **The parser is the largest file in the engine and exists to undo a
+  rendering.** `config/spec.py` (1,864 lines) turns a table row back
+  into a `Decision`, a fenced block back into its detail, a heading back
+  into a section key; `rfc_emit.py` (753 lines) does the reverse, and
+  the two disagree at the edges — `fmt` drops `character:` and every
+  comment from the phasing fence, and the fingerprint had to move to the
+  frontmatter because a table cell cannot hold one. A YAML document has
+  no reverse direction.
+- **A markdown document is read whole.** The pack, `torve spec` and the
+  colocated `AGENTS.md` exist because an agent cannot ask a document a
+  question. Given a YAML file it can, with tools it already has, and the
+  schema the pack ships becomes the contract it authors against.
+- **An amendment is unreviewable as a diff.** A row is one line of 200 to
+  400 characters; a change to its text is a whole-line replacement that
+  no reviewer reads. As YAML the same change is three lines.
+- **The task directory is a fossil.** 292 directories, 462 tracked files,
+  3.3 MB; 280 of them under documents archived by RFC 0053. RFC 0049 made
+  the record the source and RFC 0050 left the file readers "gated on the
+  migration"; the migration is this document.
+- **The telemetry file is still the source it was told not to be.** RFC
+  0050 found the record holding 10 attempt rows against the file's 636.
+  Every reader written since, including RFC 0054's pack, reads the file
+  because the file is where the rows are.
+
+## 3. Current state
+
+- Three live documents (0053, 0054, 0055; 754, 864 and 344 lines) and
+  fifty-two archived, all markdown. 0053 and 0054 carry ~200 prose lines
+  each; 0055 carries 75 for 60 rows.
+- `Decision` and `DecisionDetail` are two models joined by id at load
+  because a table cell cannot carry a check command.
+- Eleven callers reach the corpus through `load_corpus`, `load_document`
+  and `load_fences`; `planner.inherit_decisions` is the one caller of
+  `load_fences`, which exists only because details live outside the row.
+- `.torve/tasks/` holds 292 directories; 167 carry a log. `.torve/
+  telemetry.jsonl` holds 756 rows and is gitignored; `traces/` and
+  `regimes/` are derived and gitignored; `review-corpus/` holds twelve
+  tracked test fixtures; `sandbox/` holds the images; `standing/` holds
+  two contracts.
+
+## 4. Goals / Non-goals
+
+Goals: one shape for a document, read and written by the model; the
+markdown parser, the emitter and the index deleted; an editor-validated
+authoring contract; the task directory and the telemetry file demoted to
+carriers; the archived task history gone.
+
+Non-goals: changing what a row means (grade semantics, paths-as-scope,
+check-as-gate, the fingerprint rule and the silence check are RFC 0053
+and 0054, untouched); typing prose (a section body is a string and
+markdown inside it is welcome); changing `SKILL.md`, `AGENTS.md`, the
+colocated projections or the human page (rendered, not sourced);
+the record's event vocabulary; the no-store mode (files stay its carrier).
+
+## 5. Design
+
+### 5.1 The document is the model
+
+One file per document, `rfcs/NNNN-slug.yaml`, archived to
+`archive/rfcs/NNNN-slug.yaml` unchanged in shape. The keys are the
+`Document` model's fields in the model's order; nothing else is legal.
+
+```yml
+# yaml-language-server: $schema=schema/document.json
+id: "0056"
+title: Structure for everything
+kind: design
+status: accepted
+implementation: none
+depends_on: ["0053", "0054"]
+owner: misery7100
+description: A document is one YAML file in the item model's own shape …
+schema_version: 2
+sections:
+  - key: summary
+    heading: Summary
+    md: |
+      A document becomes `rfcs/NNNN-slug.yaml` …
+decisions:
+  - id: D-56.1
+    grade: LOCKED
+    text: A document is one YAML file in the Document model's shape …
+    paths: [src/torve/config/spec.py]
+    consequence: the parser is deleted …
+    rationale: …
+    cites: [D-53.1]
+    check: uv run pytest tests/test_spec_load.py
+    check_state: shadow
+    fingerprint: 3f9a1c…
+invariants: []
+alternatives:
+  - option: keep markdown with fences
+    rejected_because: …
+questions: []
+phasing:
+  - phase: 1
+    title: …
+amendments:
+  - id: A-161
+    at: 2026-09-10
+    title: …
+    changes:
+      - {subject: D-56.4, field: text, before: …, after: …}
+```
+
+`DecisionDetail` folds into `Decision`: `rationale`, `cites`, `check`,
+`check_state`, `check_twin` and `superseded_by` are row fields, which
+they already are in the model — the detail was the table's limitation,
+not the row's. `DesignSection` keeps `key`, `heading` and `md`; `level`
+and `order` are the list's. The fingerprint moves from the frontmatter
+map onto the row it fingerprints, computed over `text`, `grade` and
+`paths` exactly as before. `schema_version` becomes 2 and the loader
+refuses 1: a markdown document is not a document any more.
+
+Loading is `Document.model_validate(yaml.safe_load(text))` plus the
+checks the model cannot express — identifier continuity, dependency
+graph, citations into the archive, path rot, fingerprint drift — which
+`check_corpus` keeps and whose markdown half it loses. `load_fences`
+is deleted; `inherit_decisions` reads the row.
+
+### 5.2 Writing is dump
+
+`amend`, `fix`, `retire`, `archive` and `new` mutate the loaded model
+and write it through one serializer: `yaml.safe_dump` with the model's
+key order, block scalars for any string holding a newline, flow lists
+for short lists of identifiers, quoted document numbers. `fmt` is that
+same dump with no mutation and stays as `--check` only. Comments are
+not preserved, and `check` refuses a document containing one outside
+the schema header line: a comment is prose that escaped the model, and
+a row that needs one needs a `rationale`. This is the whole of the
+`character:` and inline-comment defect: there is no second renderer to
+drop them.
+
+The record importer, `torve spec`, the colocation renderer and the pack
+read the model as they do today; none of them change.
+
+### 5.3 The conversion is one-shot and final
+
+Every document, live and archived, is loaded through the markdown loader
+on its last day and dumped through §5.2; the markdown files are deleted
+in the same commit; the parser, `AMENDMENT_MARK`, the table renderer,
+the heading regexes and `INDEX.md` go with them. A parity test — every
+row, invariant, alternative, question, phase and amendment identical
+before and after — gates the commit and is deleted with the loader after
+it, since nothing it compares against will exist. Prose sections convert
+as they are, heading text and body, numbered headings included; the
+number is text, not structure.
+
+### 5.4 The schema is the authoring contract
+
+`torve rfc schema` writes `rfcs/schema/document.json` from the model,
+drift-checked by `rfc check` the way `INDEX.md` was; every document's
+first line names it, so an editor with a YAML language server validates
+a row as it is typed, and `torve rfc new "Title"` emits a document in
+0055's shape: the frontmatter keys, one `summary` section, empty lists,
+the header line. The rfc-writer skill is rewritten as a YAML authoring
+guide with the schema as its reference. The human page, when wanted, is
+`torve rfc render NNNN`, the only markdown writer left, and it is never
+the source of anything.
+
+### 5.5 The task directory is a projection
+
+With a store configured, `torve plan` mints `task.minted` carrying the
+contract (D-49.1, already true) and writes no file. At dispatch the
+session projects `.torve/tasks/<id>/contract.yaml` into the worktree
+beside the pack, gitignored the same way; the executor's `torve log`
+verbs write through the channel when there is one (already true) and to
+the projected `log.yaml` when there is not, which the engine imports
+after the attempt (already true). The board is the only place a task
+is; the file exists for the attempt that reads it. Without a store the
+files stay the record, as today, so the mode nothing has configured
+loses nothing.
+
+Every `.torve/tasks/T-*` directory whose contract names an archived
+document is deleted in one commit, and `.torve/tasks/` leaves the
+`.gitignore` exception list: git keeps the history, the record keeps the
+landings (204 imported by RFC 0050), and no standing row cites a task
+log — 0055 cites into the archive, not into `.torve/tasks/`. The
+retention leg over task directories is deleted with them.
+
+### 5.6 The telemetry file is a carrier
+
+`torve migrate telemetry` reads `.torve/telemetry.jsonl` once into the
+record, then every reader that opens the file — `attempts_file`,
+`touched_file`, `contended_paths`, `execution_facts`, `rfc health`'s
+conviction counts — reads the record when a store is configured and the
+file when not, through one function that hides the choice. The file
+stays the append target for a run without a store and the carrier the
+importer reads; it stops being what a reader with a record opens.
+`review-corpus/` moves to `tests/fixtures/review-corpus/`, which is what
+it is.
+
+### Alternatives considered
+
+```yaml alternatives
+- option: keep markdown with typed fences, add a query verb over the model
+  rejected_because: the query verb exists (`torve spec`) and the agent still greps the file it can see; the parser and emitter stay and keep disagreeing at the edges; the diff of an amendment stays one long line
+- option: TOML or JSON documents
+  rejected_because: neither holds a paragraph readably; YAML block scalars carry prose without escaping, and every reader here already speaks YAML
+- option: preserve comments through ruamel round-tripping
+  rejected_because: a comment is meaning outside the model; preserving it keeps the class of defect `fmt` had, and a row that needs a note needs a `rationale`
+- option: keep the document's prose as a sidecar markdown file
+  rejected_because: two files per document, one of which nothing checks, is the split this document exists to remove
+- option: archive the task directories under `archive/tasks/` as the documents were
+  rejected_because: no standing row cites a task log, the record holds the landings, and git holds the bytes; an archive nothing reads is a directory
+- option: make the store mandatory and delete the file mode
+  rejected_because: a repository trying torve has no Postgres; the file mode costs one branch in one reader function
+```
+
+## 6. Tests
+
+- **Load and dump.** A document dumps and reloads identical; key order is
+  the model's; a string with a newline is a block scalar; a comment
+  outside the header is refused by `check`; `schema_version: 1` is
+  refused with the conversion named.
+- **Conversion parity.** Every live and archived document converts with
+  every item identical, and the test is deleted with the loader.
+- **Writers.** `amend --row/--grade/--path/--text/--retire`, `fix`,
+  `archive` and `new` produce the dump and nothing else; the fingerprint
+  is stamped on the row; `fmt --check` reports and never writes.
+- **Schema.** `rfc check` reddens when `rfcs/schema/document.json` lags
+  the model; `new` emits the header line.
+- **Projection.** With a store, `plan` writes no file and dispatch
+  projects the contract; the gitignored directory reaches no diff; the
+  log written in the worktree is imported after the attempt; without a
+  store the file paths are unchanged (the existing tests, unchanged).
+- **Carrier.** With a store the pack's attempts and touched files, the
+  drafter's facts and `rfc health` agree with the imported file byte for
+  byte; without one they read the file.
+
+## 7. Docs
+
+`pages/docs/operating.md` describes the YAML document, the schema line,
+`rfc list`, `rfc render` and the projected task directory. The
+rfc-writer skill is rewritten (§5.4). No new page.
+
+## 8. Out of scope
+
+The library extraction (the model, loader, writers, colocation and `torve
+spec` as a package other repositories depend on): it follows this
+document and is smaller for it. Retention of `traces/` and `regimes/`
+(RFC 0039). Any change to the record's event kinds.
+
+## 9. Risks
+
+- **A hand-edited YAML document breaks in ways a table did not** (indent,
+  a stray tab). Mitigation: the schema line and `check`; the loader's
+  error names line and key.
+- **Deleting 280 task directories loses a citation nobody found.**
+  Mitigation: `check_cites` runs over the tree before the commit; git
+  keeps the bytes.
+- **The projection makes a store-configured run depend on the store at
+  dispatch.** It already does: the board is read there (RFC 0049).
+
+## 10. Unresolved questions
+
+```yaml questions
+- id: Q-56.1
+  text: Whether the human page (`rfc render`) ships in phase 2 or waits for someone to want it
+  status: open
+- id: Q-56.2
+  text: Whether `traces/` and `regimes/` get a retention window in this document's phase 4 or stay with RFC 0039
+  status: open
+```
+
+## 11. Decisions
+
+| # | Grade | Decision | Paths | Consequence |
+| --- | --- | --- | --- | --- |
+| D-56.1 | `LOCKED` | A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's own shape and key order; loading is the model's validator plus the corpus checks; `schema_version` 2, and 1 is refused | `src/torve/config/spec.py` `src/torve/domain/spec.py` | The markdown parser, `load_fences`, the heading and table regexes are deleted; every reader of the corpus is unchanged |
+| D-56.2 | `LOCKED` | `DecisionDetail` folds into `Decision`; the fenced kinds are gone; a row carries `rationale`, `cites`, `check`, `check_state`, `check_twin`, `superseded_by` and its `fingerprint` on itself | `src/torve/domain/spec.py` `src/torve/application/planner.py` | `inherit_decisions` reads the row; the frontmatter fingerprint map is gone |
+| D-56.3 | `LOCKED` | Prose is `sections[].md`, a string the engine never parses, with `key` and `heading` beside it; `level` and `order` are dropped | `src/torve/domain/spec.py` | Markdown inside a body is welcome and invisible to every check |
+| D-56.4 | `LOCKED` | Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the model and writes it through one serializer; comments are not preserved and `check` refuses one outside the schema header line; `fmt` survives as `--check` only | `src/torve/config/rfc_emit.py` `src/torve/cli/rfc.py` | There is no second renderer to drop a field; the `character:` defect closes by construction |
+| D-56.5 | `LOCKED` | Every live and archived document converts once through the markdown loader and the dump, the markdown files are deleted in the same commit with the parser, the emitter's table half and `INDEX.md`, and a parity test over every item gates that commit and is deleted with the loader | `rfcs/**` `archive/**` | Fifty-five YAML documents; no markdown source anywhere |
+| D-56.6 | `LOCKED` | `torve rfc schema` writes `rfcs/schema/document.json` from the model, drift-checked by `rfc check`; every document's first line names it; `rfc new` emits 0055's shape with the header line | `rfcs/schema/**` `src/torve/cli/rfc.py` | An editor validates a row as it is typed; a new document starts small |
+| D-56.7 | `ASSUMED` | `torve rfc list` replaces `INDEX.md`; `torve rfc render NNNN` is the only markdown writer and never the source of anything | `src/torve/cli/rfc.py` | The index is a query, not a file |
+| D-56.8 | `ASSUMED` | `SKILL.md`, `AGENTS.md`, the colocated sections and the pack are unchanged: projections rendered from the model, read by harnesses and people | `skills/**` `src/torve/application/colocation.py` | Nothing a harness reads changes shape |
+| D-56.9 | `LOCKED` | With a store configured, `plan` mints into the record and writes no file; dispatch projects `.torve/tasks/<id>/contract.yaml` into the worktree, gitignored; the log written there is imported after the attempt; without a store the files are the record as today | `src/torve/application/planner.py` `src/torve/application/session.py` `src/torve/config/layout.py` | The board is the only place a task is; the file exists for the attempt that reads it |
+| D-56.10 | `LOCKED` | Every task directory whose contract names an archived document is deleted, not archived, in one commit; `.torve/tasks/` leaves the tracked exceptions; the retention leg over task directories goes with them | `.torve/tasks/**` `.gitignore` | Git keeps the history and the record keeps the landings; nothing standing cites a task log |
+| D-56.11 | `ASSUMED` | `torve migrate telemetry` reads the file once into the record; every reader that opens `.torve/telemetry.jsonl` goes through one function that reads the record when a store is configured and the file when not | `src/torve/application/telemetry.py` `src/torve/application/contextpack.py` `src/torve/application/intake.py` `src/torve/application/specquality.py` | The file is a carrier and an append target, never what a reader with a record opens |
+| D-56.12 | `ASSUMED` | `.torve/review-corpus/` moves to `tests/fixtures/review-corpus/` | `tests/fixtures/**` | Test fixtures live with the tests |
+| D-56.13 | `OPEN` | Whether phase 4 gives `traces/` and `regimes/` a retention window or leaves them to RFC 0039 | `src/torve/application/reaper.py` | Decided by whoever executes phase 4, logged |
+
+## 12. Phasing
+
+Phase 1 is one unit on purpose: the loader, the writers and the
+conversion cannot land apart, because a writer over markdown breaks the
+moment the corpus is YAML and a YAML corpus is unreadable until the
+loader is. It is a deletion-heavy structural change; the parity test is
+what makes it safe to land whole.
+
+```yaml
+- phase: 1
+  title: the document is the model
+  intent: >-
+    `DecisionDetail` folds into `Decision`, `DesignSection` loses `level` and `order`, the fingerprint moves onto the row and `schema_version` becomes 2. The loader becomes the model's validator plus the corpus checks; `load_fences` is deleted and `inherit_decisions` reads the row. Every writer mutates the model and dumps it through one serializer with the model's key order, block scalars for multi-line strings and flow lists for identifiers; comments outside the header line are refused by `check`; `fmt` survives as `--check`. Every live and archived document is converted through the markdown loader and the dump in one commit that deletes the markdown files, the parser, the table renderer and `INDEX.md`; a parity test over every item gates that commit and is deleted with the loader. The record importer, `torve spec`, colocation and the pack are untouched and prove it by their existing tests.
+  scope:
+    - "src/torve/domain/spec.py"
+    - "src/torve/config/spec.py"
+    - "src/torve/config/rfc_emit.py"
+    - "src/torve/cli/rfc.py"
+    - "src/torve/application/planner.py"
+    - "src/torve/application/decisions.py"
+    - "src/torve/application/specquality.py"
+    - "rfcs/**"
+    - "archive/**"
+    - "tests/test_spec.py"
+    - "tests/test_spec_load.py"
+    - "tests/test_rfc_emit.py"
+    - "tests/test_rfc_check.py"
+    - "tests/test_rfc_archive.py"
+    - "tests/test_decisions.py"
+    - "tests/test_cli_decisions.py"
+    - "tests/test_specquality.py"
+    - "tests/test_plan.py"
+    - "tests/test_colocation.py"
+    - "tests/test_cli_spec.py"
+    - "tests/test_contextpack.py"
+  acceptance:
+    - "uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_rfc_archive.py tests/test_decisions.py tests/test_cli_decisions.py tests/test_specquality.py tests/test_plan.py tests/test_colocation.py tests/test_cli_spec.py tests/test_contextpack.py"
+    - "uv run torve rfc check"
+    - "uv run lint-imports --config pyproject.toml"
+  depends_on: []
+  character: structural
+- phase: 2
+  title: the schema is the authoring contract
+  intent: >-
+    `torve rfc schema` writes `rfcs/schema/document.json` from the model and `rfc check` reddens when it lags; `rfc new` emits a document in 0055's shape with the header line; `rfc list` replaces the index and `rfc render NNNN` writes the human page; the rfc-writer skill is rewritten as a YAML authoring guide with the schema as its reference; the operating page describes the document, the schema line and the verbs.
+  scope:
+    - "src/torve/cli/rfc.py"
+    - "src/torve/config/rfc_emit.py"
+    - "rfcs/schema/**"
+    - "skills/rfc-writer/**"
+    - ".claude/skills/rfc-writer/**"
+    - "pages/docs/operating.md"
+    - "tests/test_rfc_emit.py"
+    - "tests/test_rfc_check.py"
+    - "tests/test_cli.py"
+  acceptance:
+    - "uv run pytest tests/test_rfc_emit.py tests/test_rfc_check.py tests/test_cli.py"
+    - "uv run torve rfc check"
+  depends_on: [1]
+  character: routine
+- phase: 3
+  title: the task directory is a projection
+  intent: >-
+    Every task directory whose contract names an archived document is deleted in one commit, `.torve/tasks/` leaves the tracked exceptions and the retention leg over task directories goes with them. With a store configured, `plan` mints into the record and writes no file, dispatch projects the contract into the worktree's gitignored `.torve/tasks/<id>/` beside the pack, and the log written there is imported after the attempt; without a store every existing path and test is unchanged.
+  scope:
+    - "src/torve/application/planner.py"
+    - "src/torve/application/session.py"
+    - "src/torve/application/dispatch.py"
+    - "src/torve/application/reaper.py"
+    - "src/torve/config/layout.py"
+    - "src/torve/cli/plan.py"
+    - ".torve/tasks/**"
+    - ".gitignore"
+    - "tests/test_plan.py"
+    - "tests/test_session.py"
+    - "tests/test_dispatch.py"
+    - "tests/test_reaper.py"
+    - "tests/test_task_records.py"
+  acceptance:
+    - "uv run pytest tests/test_plan.py tests/test_session.py tests/test_dispatch.py tests/test_reaper.py tests/test_task_records.py"
+    - "uv run torve rfc check"
+  depends_on: [1]
+  character: structural
+- phase: 4
+  title: the telemetry file is a carrier
+  intent: >-
+    `torve migrate telemetry` reads the file once into the record; one function answers every reader that opened `.torve/telemetry.jsonl` — the pack's attempts, touched and contended files, the drafter's execution facts, `rfc health`'s conviction counts — from the record when a store is configured and from the file when not, and the two agree byte for byte after the import. `.torve/review-corpus/` moves to `tests/fixtures/review-corpus/`. The retention question for traces and regimes is decided and logged.
+  scope:
+    - "src/torve/application/telemetry.py"
+    - "src/torve/application/contextpack.py"
+    - "src/torve/application/intake.py"
+    - "src/torve/application/specquality.py"
+    - "src/torve/application/review.py"
+    - "src/torve/application/reaper.py"
+    - "src/torve/cli/migrate.py"
+    - ".torve/review-corpus/**"
+    - "tests/fixtures/**"
+    - "tests/test_attempt_record.py"
+    - "tests/test_migrate.py"
+    - "tests/test_contextpack.py"
+    - "tests/test_intake.py"
+    - "tests/test_specquality.py"
+    - "tests/test_review_run.py"
+    - "tests/test_reaper.py"
+  acceptance:
+    - "uv run pytest tests/test_attempt_record.py tests/test_migrate.py tests/test_contextpack.py tests/test_intake.py tests/test_specquality.py tests/test_review_run.py tests/test_reaper.py"
+    - "uv run torve rfc check"
+  depends_on: [3]
+  character: routine
+```
+
+## 13. Contract example
+
+```yaml contract-example
+schema_version: 1
+id: T-0300
+rfc: rfcs/0056-structure-for-everything.md
+phase: 1
+role: implement
+title: the document is the model
+intent: The loader becomes the model's validator; every writer dumps the model; every document converts once.
+scope:
+  allow: ["src/torve/domain/spec.py", "src/torve/config/spec.py", "rfcs/**", "archive/**"]
+  deny: []
+acceptance:
+  - "uv run torve rfc check"
+decisions:
+  - id: D-56.1
+    grade: LOCKED
+    text: A document is one YAML file in the Document model's own shape and key order
+    paths: ["src/torve/config/spec.py", "src/torve/domain/spec.py"]
+    consequence: The markdown parser is deleted; every reader of the corpus is unchanged
+    check: null
+```
+
+## Amendments
+
+_None yet._
