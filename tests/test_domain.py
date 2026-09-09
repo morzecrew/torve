@@ -93,3 +93,30 @@ def test_every_escalation_reason_has_an_exit_code():
 
     assert set(EXIT_BY_REASON) == set(EscalationReason)
     assert all(2 <= code <= 5 for code in EXIT_BY_REASON.values())
+
+
+def test_an_inherited_row_carries_its_consequence_and_check_with_shadow_defaults():
+    """RFC 0054 D-54.1, D-54.4: the four new fields default so a contract
+    minted before the document loads unchanged."""
+
+    from torve.domain.task import InheritedDecision
+
+    old = InheritedDecision(id="D-1", grade="LOCKED", text="x", paths=["src/**"])
+    new = InheritedDecision(
+        id="D-1",
+        grade="LOCKED",
+        text="x",
+        paths=["src/**"],
+        consequence="why",
+        check="true",
+        check_state="blocking",
+        check_twin="tests/test_x.py",
+    )
+
+    assert (old.consequence, old.check, old.check_state, old.check_twin) == (
+        "",
+        None,
+        "shadow",
+        None,
+    )
+    assert new.check_state == "blocking" and new.check_twin == "tests/test_x.py"

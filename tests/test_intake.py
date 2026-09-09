@@ -486,7 +486,18 @@ def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path
     assert "scope.allow" in warnings[0]
 
     # Carrying the row silences the advisory.
-    carried = [{"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}]
+    carried = [
+        {
+            "id": "D-99.1",
+            "grade": "LOCKED",
+            "text": "The rule",
+            "paths": ["src/**"],
+            "consequence": "",
+            "check": None,
+            "check_state": "shadow",
+            "check_twin": None,
+        }
+    ]
     assert standing_warnings(tree, contract(carried)) == []
 
     # A scope that does not intersect the standing row hears nothing.
@@ -894,7 +905,16 @@ def test_adopt_copies_decisions_from_an_accepted_document(seeded):
         )
     )
     assert contract["decisions"] == [
-        {"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
+        {
+            "id": "D-99.1",
+            "grade": "LOCKED",
+            "text": "The rule",
+            "paths": ["src/**"],
+            "consequence": "",
+            "check": None,
+            "check_state": "shadow",
+            "check_twin": None,
+        }
     ]
 
 
@@ -934,7 +954,16 @@ def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
             )
         )
         assert contract["decisions"] == [
-            {"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
+            {
+                "id": "D-99.1",
+                "grade": "LOCKED",
+                "text": "The rule",
+                "paths": ["src/**"],
+                "consequence": "",
+                "check": None,
+                "check_state": "shadow",
+                "check_twin": None,
+            }
         ]
 
 
@@ -994,7 +1023,16 @@ def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
         )
     )
     assert contract["decisions"] == [
-        {"id": "D-99.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
+        {
+            "id": "D-99.1",
+            "grade": "LOCKED",
+            "text": "The rule",
+            "paths": ["src/**"],
+            "consequence": "",
+            "check": None,
+            "check_state": "shadow",
+            "check_twin": None,
+        }
     ]
 
 

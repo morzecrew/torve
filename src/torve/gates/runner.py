@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from torve.base.shell import run_command
-from torve.config.manifest import Gate
+from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
 from torve.domain.attempt import BypassRecord, GateOutcome, GateResult
 from torve.gates import BUILTINS
 from torve.gates.context import GateContext
@@ -74,6 +74,44 @@ def _substitute_base(gate: Gate, ctx: GateContext) -> str:
         )
 
     return gate.run.replace("{base}", ctx.merge_base)
+
+
+# ....................... #
+
+
+def decision_gates(ctx: GateContext) -> list[Gate]:
+    """The contract's checkable rows as gates (RFC 0054 D-54.2): one
+    `decision:<id>` shell gate per inherited row with a `check`, under the
+    compliance axis, at the row's `check_state` — `shadow` until an
+    amendment promotes it (D-54.4) — with the row's twin as its sabotage
+    reference. Contract-borne: never written into the manifest, and gone
+    with the contract. Read from the contract alone, never the corpus
+    (D-7.18)."""
+
+    if ctx.task is None:
+        return []
+
+    document = (ctx.task.rfc or "").rsplit("/", 1)[-1][:4] or "task"
+    gates: list[Gate] = []
+
+    for row in ctx.task.decisions:
+        if not row.check:
+            continue
+
+        gates.append(
+            Gate(
+                name=f"decision:{row.id}",
+                run=row.check,
+                state=row.check_state,
+                origin=f"rfc/{document}#{row.id}",
+                axis="compliance",
+                input="worktree",
+                timeout=SHELL_GATE_TIMEOUT,
+                sabotage=row.check_twin,
+            )
+        )
+
+    return gates
 
 
 # ....................... #
@@ -163,7 +201,7 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
 def run_gates(
     ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
 ) -> RunReport:
-    gates = ctx.manifest.resolved_gates()
+    gates = [*ctx.manifest.resolved_gates(), *decision_gates(ctx)]
 
     if only is not None:
         unknown = only - {g.name for g in gates}

@@ -1677,6 +1677,8 @@ def _join_details(
                 rationale=joined.rationale if joined else "",
                 cites=list(joined.cites) if joined else [],
                 check=joined.check if joined else None,
+                check_state=joined.check_state if joined else "shadow",
+                check_twin=joined.check_twin if joined else None,
                 superseded_by=joined.superseded_by if joined else None,
             )
         )

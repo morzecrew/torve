@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
     from torve.application.eventlog import EventLog
     from torve.domain.rfc import Grade
-    from torve.domain.spec import Corpus, Coverage, Document
+    from torve.domain.spec import Corpus, Coverage, Decision, Document
 
 # ----------------------- #
 
@@ -81,6 +81,8 @@ class DecisionState:
     retired: bool = False
     retired_reason: str = ""
     supersedes: str | None = None
+    consequence: str = ""  # D-54.1: carried since RFC 0054
+    check: str | None = None
 
 
 # ....................... #
@@ -180,6 +182,8 @@ def project(events: Iterable[EventRecord]) -> Graph:
                     version=len(history) + 1,
                     at=event.created_at,
                     supersedes=payload.get("supersedes"),
+                    consequence=str(payload.get("consequence") or ""),
+                    check=payload.get("check"),
                 )
             )
 
@@ -217,6 +221,8 @@ def _retired(state: DecisionState, reason: str) -> DecisionState:
         retired=True,
         retired_reason=reason,
         supersedes=state.supersedes,
+        consequence=state.consequence,
+        check=state.check,
     )
 
 
@@ -353,6 +359,8 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
                 and standing.text == row.text.strip()
                 and standing.paths == row.paths
                 and standing.source_id == source.id
+                and standing.consequence == row.consequence.strip()
+                and standing.check == row.check
             ):
                 continue
 
@@ -361,12 +369,7 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
                     kind=EventKind.DECISION_RECORDED,
                     subject_type=SubjectType.DECISION,
                     subject_id=row.id,
-                    payload={
-                        "grade": row.grade,
-                        "text": row.text.strip(),
-                        "paths": list(row.paths),
-                        "source_id": source.id,
-                    },
+                    payload=_row_payload(row, source.id),
                 )
             )
 
@@ -393,12 +396,7 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
                         kind=EventKind.DECISION_RECORDED,
                         subject_type=SubjectType.DECISION,
                         subject_id=row.id,
-                        payload={
-                            "grade": row.grade,
-                            "text": row.text.strip(),
-                            "paths": list(row.paths),
-                            "source_id": source.id,
-                        },
+                        payload=_row_payload(row, source.id),
                     )
                 )
             elif standing.retired:
@@ -446,6 +444,21 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
 
 
 # ....................... #
+
+
+def _row_payload(row: Decision, source_id: str) -> dict[str, Any]:
+    """What `decision.recorded` carries (D-54.1): grade, text and paths as
+    before, and beside them the consequence and the check, so a reader of
+    the record gets the reason and the command the corpus wrote."""
+
+    return {
+        "grade": row.grade,
+        "text": row.text.strip(),
+        "paths": list(row.paths),
+        "source_id": source_id,
+        "consequence": row.consequence.strip(),
+        "check": row.check,
+    }
 
 
 def _source_event(source: Source) -> PendingEvent:

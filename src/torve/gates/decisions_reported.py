@@ -341,6 +341,13 @@ def owed(
         if decision.grade != "LOCKED":
             continue
 
+        # D-54.3: a row with a check is proven by the battery in the same
+        # pass — green or red, the gate's verdict is the finding, and an
+        # attestation would be prose restating an exit code.
+        if decision.check:
+            skipped.append(f"{decision.id}: covered by its check, which runs as a gate")
+            continue
+
         if not decision.paths:
             skipped.append(f"{decision.id}: declares no paths, so its area is unknown")
             continue

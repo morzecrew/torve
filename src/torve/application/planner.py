@@ -299,6 +299,12 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
     """
 
     decisions: list[InheritedDecision] = []
+    fences, fence_problems = spec.load_fences(text, name)
+
+    if fence_problems:
+        raise PlanError(f"{name}: not mintable — {'; '.join(fence_problems)}")
+
+    details = {one.id: one for one in fences["decision-details"]}
 
     for row in spec.decision_table(text):
         if row.grade not in GRADES:
@@ -307,12 +313,26 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
                 "not mintable (run `torve rfc check`)"
             )
 
+        detail = details.get(row.identifier)
+
+        # D-54.4: a row whose check would block must name the test that
+        # proves the check can fail — the manifest's twin rule, one level up.
+        if detail is not None and detail.check_state == "blocking" and not detail.check_twin:
+            raise PlanError(
+                f"{name}: decision {row.identifier} has a blocking check and no check_twin — "
+                "not mintable (D-54.4)"
+            )
+
         decisions.append(
             InheritedDecision(
                 id=row.identifier,
                 grade=row.grade,
                 text=row.text.strip(),
                 paths=row.paths,
+                consequence=row.consequence.strip(),
+                check=detail.check if detail else None,
+                check_state=detail.check_state if detail else "shadow",
+                check_twin=detail.check_twin if detail else None,
             )
         )
 

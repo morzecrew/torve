@@ -353,7 +353,11 @@ def test_standing_decisions_copy_grade_and_paths_at_write_time(plan_repo):
     root, _, _ = plan_repo
     assert standing_decisions(root / "rfcs", ["src/widget/core.py"]) == [
         InheritedDecision(
-            id="D-90.1", grade="LOCKED", text="Widgets are idempotent", paths=["src/widget/**"]
+            id="D-90.1",
+            grade="LOCKED",
+            text="Widgets are idempotent",
+            paths=["src/widget/**"],
+            consequence="Retries double-charge",
         )
     ]
 
@@ -490,3 +494,35 @@ def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
     document = yaml.safe_load(text)
     assert document["title"]
     assert "\n\n  " not in text.split("intent:")[1].split("depends_on:")[0]
+
+
+# ....................... #
+# RFC 0054 phase 1: the row travels whole (D-54.1), and a blocking check
+# needs its twin (D-54.4).
+
+DETAILS = """
+```yaml decision-details
+- id: D-90.1
+  rationale: because
+  check: "pytest tests/test_widget.py"
+  check_state: blocking
+  check_twin: tests/test_widget_sabotage.py
+```
+"""
+
+
+def test_inherit_decisions_carries_consequence_and_check():
+    rows = inherit_decisions(TABLE + DETAILS, "0090-widgets.md")
+    first = rows[0]
+
+    assert first.consequence == "Retries double-charge"
+    assert first.check == "pytest tests/test_widget.py"
+    assert first.check_state == "blocking" and first.check_twin == "tests/test_widget_sabotage.py"
+    assert rows[1].check is None and rows[1].check_state == "shadow"
+
+
+def test_inherit_decisions_refuses_a_blocking_check_without_a_twin():
+    text = TABLE + DETAILS.replace("  check_twin: tests/test_widget_sabotage.py\n", "")
+
+    with pytest.raises(PlanError, match="no check_twin"):
+        inherit_decisions(text, "0090-widgets.md")

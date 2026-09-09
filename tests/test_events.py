@@ -91,3 +91,27 @@ def test_a_payload_is_validated_against_its_kind():
 
     with pytest.raises(ValidationError):
         validate_payload(EventKind.DIVERGENCE_RECORDED, {**payload, "surprise": "extra"})
+
+
+def test_decision_recorded_carries_consequence_and_check_and_defaults_them():
+    """RFC 0054 D-54.1: the payload gains the reason and the command; a
+    record written before carries neither and still loads."""
+
+    from torve.domain.events import DecisionRecorded
+
+    old = DecisionRecorded.model_validate(
+        {"grade": "LOCKED", "text": "x", "paths": [], "source_id": "rfc/0001"}
+    )
+    new = DecisionRecorded.model_validate(
+        {
+            "grade": "LOCKED",
+            "text": "x",
+            "paths": [],
+            "source_id": "rfc/0001",
+            "consequence": "why",
+            "check": "true",
+        }
+    )
+
+    assert old.consequence == "" and old.check is None
+    assert new.consequence == "why" and new.check == "true"

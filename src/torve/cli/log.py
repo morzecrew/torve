@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.text import Text
 
 from torve.application.channel import ChannelRefused, open_channel
 from torve.application.divergence import (
@@ -22,7 +23,7 @@ from torve.application.divergence import (
     open_log,
     payload_of,
 )
-from torve.cli.console import Format, closing, emit_json, err, fail, make_table, out
+from torve.cli.console import STYLE_DIM, Format, closing, emit_json, err, fail, make_table, out
 from torve.cli.options import FormatOption, RootOption
 from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -267,6 +268,9 @@ def owed_cmd(
         raise typer.Exit(EXIT_OK)
 
     console = out(fmt)
+
+    for one in skipped:
+        console.print(Text(f"  {one}", STYLE_DIM))
 
     if not problems:
         closing(console, "nothing owed — every LOCKED decision your changes touch has an entry")

@@ -105,6 +105,8 @@ def test_the_importer_reads_standing_rows_through_the_model(tmp_path: Path) -> N
         "text": "A rule.",
         "paths": ["src/a.py"],
         "source_id": pending[0].subject_id,
+        "consequence": "",
+        "check": None,
     }
 
 
@@ -283,3 +285,68 @@ def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint() -> None:
     full, rule = stamp(row).split("/")
 
     assert len(full) == 16 and len(rule) == 16
+
+
+# ....................... #
+# RFC 0054 phase 1: decision.recorded carries the consequence and the check
+# (D-54.1), and a record written without them is brought level once.
+
+
+def test_the_importer_carries_consequence_and_check(tmp_path: Path) -> None:
+    text = (
+        document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")]).replace(
+            "| `src/a.py` | — |", "| `src/a.py` | because it holds |"
+        )
+        + "\n```yaml decision-details\n- id: D-1.1\n  check: pytest tests/test_a.py\n```\n"
+    )
+    rfc_dir = corpus(tmp_path, **{"0001": text})
+
+    pending = import_corpus(Graph(), rfc_dir)
+    recorded = next(p for p in pending if p.kind is EventKind.DECISION_RECORDED)
+
+    assert recorded.payload["consequence"] == "because it holds"
+    assert recorded.payload["check"] == "pytest tests/test_a.py"
+
+
+def test_a_record_without_the_consequence_is_re_recorded_once(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from torve.application.decisions import DecisionState
+    from torve.domain.source import corpus_source_id
+
+    text = document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")]).replace(
+        "| `src/a.py` | — |", "| `src/a.py` | because it holds |"
+    )
+    rfc_dir = corpus(tmp_path, **{"0001": text})
+    source_id = corpus_source_id("0001")
+    graph = Graph()
+    graph.versions["D-1.1"] = [
+        DecisionState(
+            id="D-1.1",
+            grade="LOCKED",
+            text="A rule.",
+            paths=["src/a.py"],
+            source_id=source_id,
+            version=1,
+            at=datetime.now(UTC),
+        )
+    ]
+
+    first = [p for p in import_corpus(graph, rfc_dir) if p.kind is EventKind.DECISION_RECORDED]
+
+    assert len(first) == 1 and first[0].payload["consequence"] == "because it holds"
+
+    graph.versions["D-1.1"].append(
+        DecisionState(
+            id="D-1.1",
+            grade="LOCKED",
+            text="A rule.",
+            paths=["src/a.py"],
+            source_id=source_id,
+            version=2,
+            at=datetime.now(UTC),
+            consequence="because it holds",
+        )
+    )
+
+    assert [p for p in import_corpus(graph, rfc_dir) if p.kind is EventKind.DECISION_RECORDED] == []

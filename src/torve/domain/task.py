@@ -35,12 +35,24 @@ class Scope(BaseModel):
 
 
 class InheritedDecision(BaseModel):
+    """One row as a contract carries it (charter §3; RFC 0054 D-54.1): grade,
+    text and paths copied at mint and fingerprinted; `consequence` beside
+    them so the executor gets the reason, and `check` — a command whose
+    exit code judges the row — which the runner appends to the battery as
+    a `decision:<id>` gate at `check_state`, with `check_twin` the test
+    that proves the check can fail (D-54.4). A contract minted before
+    RFC 0054 loads with the four defaults, which is the old behaviour."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str
     grade: Grade
     text: str
     paths: list[str] = Field(default_factory=list)  # declared area; enables the silence check
+    consequence: str = ""
+    check: str | None = None
+    check_state: Literal["shadow", "blocking"] = "shadow"
+    check_twin: str | None = None
 
 
 # ....................... #

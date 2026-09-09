@@ -33,6 +33,7 @@ from torve.domain.task import Task
 FENCE_KINDS = ("decision-details", "invariants", "alternatives", "questions", "changes")
 
 Coverage = Literal["governed", "ungoverned", "retired"]
+CheckState = Literal["shadow", "blocking"]
 QuestionStatus = Literal["open", "settled"]
 
 FINGERPRINT_LENGTH = 16
@@ -77,6 +78,8 @@ class Decision(Item):
     rationale: str = ""
     cites: list[str] = Field(default_factory=list)
     check: str | None = None  # authored, never derived (D-53.15)
+    check_state: CheckState = "shadow"  # promoted per row by amendment (D-54.4)
+    check_twin: str | None = None  # the test that proves the check can fail (D-54.4)
     superseded_by: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
@@ -95,6 +98,8 @@ class DecisionDetail(Item):
     rationale: str = ""
     cites: list[str] = Field(default_factory=list)
     check: str | None = None
+    check_state: CheckState = "shadow"
+    check_twin: str | None = None
     superseded_by: str | None = None
 
 

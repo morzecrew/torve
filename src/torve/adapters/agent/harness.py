@@ -119,6 +119,18 @@ def build_prompt(
         for decision in task.decisions:
             paths = f" — paths: {', '.join(decision.paths)}" if decision.paths else ""
             lines.append(f"- `{decision.id}` ({decision.grade}): {decision.text}{paths}")
+
+            # D-54.1: the reason the row exists reaches the executor; a
+            # checkable row says so, because its compliance is the battery's
+            # to prove and no attestation is owed for it (D-54.3).
+            if decision.consequence:
+                lines.append(f"  - why: {decision.consequence}")
+
+            if decision.check:
+                lines.append(
+                    f"  - checked by the battery as `decision:{decision.id}` "
+                    f"({decision.check_state}): `{decision.check}` — no log entry owed"
+                )
     else:
         lines.append("- none apply (explicitly).")
 

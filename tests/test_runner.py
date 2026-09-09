@@ -1955,3 +1955,34 @@ def test_a_cold_run_mounts_nothing_at_all(repo, monkeypatch):
     # Empty (the default) is cold exactly as today (D-35.4).
     assert runtime.specs and all(spec.volumes == {} for spec in runtime.specs)
     assert gate_caches == [{}]
+
+
+def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
+    """RFC 0054 D-54.1, D-54.3: the executor reads the reason after each row,
+    and a checkable row says the battery judges it and no entry is owed."""
+
+    from torve.adapters.agent.harness import build_prompt
+    from torve.domain.task import InheritedDecision, Task
+
+    task = Task(
+        id="T-1",
+        decisions=[
+            InheritedDecision(
+                id="D-1",
+                grade="LOCKED",
+                text="the rule",
+                paths=["src/**"],
+                consequence="because it holds",
+                check="pytest tests/test_x.py",
+            ),
+            InheritedDecision(id="D-2", grade="ASSUMED", text="a plain row"),
+        ],
+    )
+    prompt = build_prompt(task)
+
+    assert "  - why: because it holds" in prompt
+    assert (
+        "checked by the battery as `decision:D-1` (shadow): `pytest tests/test_x.py` — no log entry owed"
+        in prompt
+    )
+    assert "a plain row\n" in prompt and prompt.count("- why:") == 1

@@ -349,7 +349,16 @@ def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
         (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(encoding="utf-8")
     )
     assert contract["decisions"] == [
-        {"id": "D-12.1", "grade": "LOCKED", "text": "The rule", "paths": ["src/**"]}
+        {
+            "id": "D-12.1",
+            "grade": "LOCKED",
+            "text": "The rule",
+            "paths": ["src/**"],
+            "consequence": "",
+            "check": None,
+            "check_state": "shadow",
+            "check_twin": None,
+        }
     ]
 
 

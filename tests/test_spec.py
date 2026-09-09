@@ -158,3 +158,13 @@ def test_an_amendment_may_change_nothing_typed() -> None:
 )
 def test_what_counts_as_a_citation(value: str, expected: bool) -> None:
     assert is_citation(value) is expected
+
+
+def test_a_check_state_is_closed_vocabulary_and_defaults_to_shadow() -> None:
+    with pytest.raises(ValidationError):
+        DecisionDetail(id="D-1.1", check="true", check_state="on")  # type: ignore[arg-type]
+
+    detail = DecisionDetail(id="D-1.1", check="true", check_twin="tests/test_x.py")
+
+    assert detail.check_state == "shadow"
+    assert Decision(id="D-1.1", grade="OPEN", text="x").check_state == "shadow"

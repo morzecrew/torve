@@ -156,6 +156,10 @@ class DecisionRecorded(BaseModel):
     paths: list[str] = Field(default_factory=list)
     source_id: str
     supersedes: str | None = None
+    # RFC 0054 D-54.1: the reason the row exists and the command that
+    # judges it travel with the row; a record written before carries neither.
+    consequence: str = ""
+    check: str | None = None
 
 
 # ....................... #

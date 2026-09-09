@@ -280,3 +280,17 @@ def test_a_document_without_frontmatter_says_so(tmp_path: Path) -> None:
 
     with pytest.raises(SpecError, match="no YAML frontmatter"):
         load_document(path)
+
+
+def test_decision_details_carry_the_check_state_and_twin(tmp_path: Path) -> None:
+    body = (
+        "```yaml decision-details\n"
+        "- id: D-7.1\n  check: pytest tests/test_x.py\n  check_state: blocking\n"
+        "  check_twin: tests/test_x_sabotage.py\n"
+        "```\n\n"
+    )
+    rfc_dir = _corpus(tmp_path, **{"0007": _document("0007", body=body)})
+    row = load_document(rfc_dir / "0007-scratch-0007.md").decision("D-7.1")
+
+    assert row is not None
+    assert row.check_state == "blocking" and row.check_twin == "tests/test_x_sabotage.py"

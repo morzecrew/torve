@@ -341,3 +341,97 @@ def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():
     assert "{base}" in gate.run  # the battery's base, never a shell-resolved ref
     for ref_resolver in ("merge-base", "rev-parse", "origin/", "git diff"):
         assert ref_resolver not in gate.run
+
+
+# ----------------------- #
+# RFC 0054 phase 1: a decision with a check is a gate (D-54.2, D-54.4), and
+# a row a gate covers owes no attestation (D-54.3).
+
+
+def _checked(check: str, state: str = "shadow", twin: str | None = None) -> list[dict]:
+    return [
+        {
+            "id": "D-9.1",
+            "grade": "LOCKED",
+            "text": "the check decides",
+            "paths": ["src/**"],
+            "check": check,
+            "check_state": state,
+            "check_twin": twin,
+        }
+    ]
+
+
+def test_a_checkable_row_runs_as_a_shadow_gate_and_convicts_nothing(repo):
+    from torve.gates.runner import run_gates
+
+    repo.seed()
+    repo.task(base_task(allow=["src/**"], decisions=_checked("sh -c 'exit 1'")), log_document())
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    report = run_gates(context_for(repo))
+    by_name = {r.name: r for r in report.results}
+
+    assert by_name["decision:D-9.1"].outcome == "fail"
+    assert by_name["decision:D-9.1"].state == "shadow"
+    assert by_name["decisions-reported"].outcome == "pass"  # covered by its check, no entry owed
+    assert report.exit_code == 0
+
+
+def test_a_promoted_checkable_row_blocks_when_its_check_is_red(repo):
+    from torve.gates.runner import run_gates
+
+    repo.seed()
+    repo.task(
+        base_task(
+            allow=["src/**"],
+            decisions=_checked("sh -c 'exit 1'", state="blocking", twin="tests/test_gates.py"),
+        ),
+        log_document(),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    report = run_gates(context_for(repo))
+    gate = next(r for r in report.results if r.name == "decision:D-9.1")
+
+    assert gate.outcome == "fail" and gate.state == "blocking"
+    assert report.exit_code == 1
+
+
+def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
+    from torve.gates.runner import decision_gates
+
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=_checked("true", twin="tests/test_x.py"))
+        | {"rfc": "rfcs/0054-something.md"},
+        log_document(),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    (gate,) = decision_gates(context_for(repo))
+
+    assert gate.name == "decision:D-9.1" and gate.run == "true"
+    assert gate.origin == "rfc/0054#D-9.1" and gate.axis == "compliance"
+    assert gate.sabotage == "tests/test_x.py" and gate.input == "worktree"
+
+
+def test_a_row_with_a_check_is_covered_and_owes_no_entry():
+    from torve.domain.task import InheritedDecision
+    from torve.gates.decisions_reported import owed
+
+    checked = InheritedDecision(
+        id="D-9.1", grade="LOCKED", text="x", paths=["src/**"], check="pytest tests/test_x.py"
+    )
+    silent = InheritedDecision(id="D-9.2", grade="LOCKED", text="y", paths=["src/**"])
+
+    problems, skipped = owed([checked, silent], ["src/app.py"], [])
+
+    assert [p.split(":")[1].strip() for p in problems] == [
+        "LOCKED, and the diff touches 1 file(s) it governs (src/app.py), with no entry in the log"
+    ]
+    assert "D-9.2" in problems[0] and "D-9.1" not in problems[0]
+    assert skipped == ["D-9.1: covered by its check, which runs as a gate"]

@@ -989,3 +989,48 @@ def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
         "schema_version: 1\nstore:\n  adapter: mock\n", encoding="utf-8"
     )
     assert dsn_for(tmp_path) == ""
+
+
+def test_owed_reports_a_row_covered_by_its_check(repo):
+    """RFC 0054 D-54.3: `torve log owed` names the three states — owed,
+    pathless, covered by a check — so the executor sees why a row is or is
+    not on its list."""
+
+    repo.seed()
+    decisions = [
+        {
+            "id": "D-9.1",
+            "grade": "LOCKED",
+            "text": "checked",
+            "paths": ["src/**"],
+            "check": "true",
+        },
+        {"id": "D-9.2", "grade": "LOCKED", "text": "silent", "paths": ["src/**"]},
+    ]
+    repo.task(base_task(allow=["src/**"], decisions=decisions), log_document())
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "log",
+            "owed",
+            TASK_ID,
+            "--root",
+            str(repo.root),
+            "--touched",
+            "src/app.py",
+            "--format",
+            "json",
+        ],
+    )
+    reported = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert [p for p in reported["owed"] if "D-9.2" in p]
+    assert reported["skipped"] == ["D-9.1: covered by its check, which runs as a gate"]
+
+    text = CliRunner().invoke(
+        app, ["log", "owed", TASK_ID, "--root", str(repo.root), "--touched", "src/app.py"]
+    )
+
+    assert "covered by its check" in text.output
