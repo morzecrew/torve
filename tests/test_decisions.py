@@ -2,13 +2,20 @@
 as a per-path fact (D-53.6), path rot (D-53.7) and fingerprint drift
 told apart by field (D-53.4) — the application half of RFC 0053 phase 2,
 tested without a record: the importer's comparison against an empty
-graph is the whole of what it would append."""
+graph is the whole of what it would append.
+
+`document`, `corpus` and `archived` are the corpus builders every suite
+shares (RFC 0056 D-56.1): a document is the model's own shape as YAML,
+written from a plain dict so a test can also write what the model
+refuses."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
 from torve.application.decisions import (
     Graph,
@@ -19,54 +26,111 @@ from torve.application.decisions import (
     load_corpus,
     path_rot,
 )
-from torve.config.rfc_emit import amend_row, fix_row_text, stamp
-from torve.config.spec import archive_dir, decision_table
+from torve.config.rfc_emit import amend_row, dump_document, fix_row_text, stamp
+from torve.config.spec import SCHEMA_HEADER, archive_dir, load_document
 from torve.domain.events import EventKind
 
 # ----------------------- #
 
+Row = tuple[str, str, str, str] | tuple[str, str, str, str, str]
+
+
+def paths_of(cell: str | list[str]) -> list[str]:
+    """A paths cell as the old table wrote it (`` `a` `b` `` or `—`), or a
+    list already."""
+
+    if isinstance(cell, list):
+        return cell
+
+    cleaned = cell.replace("`", " ").strip()
+
+    if not cleaned or set(cleaned) <= set("—- "):
+        return []
+
+    return [token for token in (one.strip(",;") for one in cleaned.split()) if token]
+
 
 def document(
     number: str,
-    rows: list[tuple[str, str, str, str]],
+    rows: list[Row],
     *,
     status: str = "accepted",
     implementation: str = "complete",
     superseded_by: str | None = None,
-    phasing: str = "",
-    extra: str = "",
+    phasing: list[dict[str, Any]] | None = None,
+    title: str | None = None,
+    kind: str = "design",
+    owner: str = "tester",
+    depends_on: list[str] | None = None,
+    informed_by: list[str] | None = None,
+    amended_by: list[str] | None = None,
+    retired: list[str] | None = None,
+    details: dict[str, dict[str, Any]] | None = None,
+    sections: list[dict[str, Any]] | None = None,
+    invariants: list[dict[str, Any]] | None = None,
+    alternatives: list[dict[str, Any]] | None = None,
+    questions: list[dict[str, Any]] | None = None,
+    amendments: list[dict[str, Any]] | None = None,
+    contract_example: dict[str, Any] | None = None,
+    schema_version: int = 2,
+    extra: dict[str, Any] | None = None,
 ) -> str:
-    table = "\n".join(
-        f"| {ident} | `{grade}` | {text} | {paths} | — |" for ident, grade, text, paths in rows
-    )
-    superseded = f'superseded_by: "{superseded_by}"' if superseded_by else "superseded_by: null"
+    """One document as text: `rows` as (id, grade, text, paths[, consequence]),
+    `details` merged onto the row by id."""
 
-    return (
-        "---\n"
-        f'id: "{number}"\n'
-        f"title: Document {number}\n"
-        f"status: {status}\n"
-        f"implementation: {implementation}\n"
-        "depends_on: []\n"
-        "informed_by: []\n"
-        "supersedes: []\n"
-        f"{superseded}\n"
-        "amended_by: []\n"
-        "owner: tester\n"
-        "description: >-\n"
-        "  A document.\n"
-        "schema_version: 1\n"
-        f"{extra}"
-        "---\n"
-        "\n"
-        f"# RFC {number} — Document {number}\n"
-        "\n"
-        "## Decisions\n"
-        "\n"
-        "| # | Grade | Decision | Paths | Consequence |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        f"{table}\n"
-        f"{phasing}"
+    decisions: list[dict[str, Any]] = []
+
+    for row in rows:
+        ident, grade, text, cell = row[:4]
+        one: dict[str, Any] = {"id": ident, "grade": grade, "text": text}
+        paths = paths_of(cell)
+
+        if paths:
+            one["paths"] = paths
+
+        if len(row) > 4 and row[4] not in ("", "—"):
+            one["consequence"] = row[4]
+
+        one.update((details or {}).get(ident, {}))
+        decisions.append(one)
+
+    data: dict[str, Any] = {
+        "id": number,
+        "title": title or f"Document {number}",
+        "kind": kind,
+        "status": status,
+        "implementation": implementation,
+        "depends_on": depends_on or [],
+        "informed_by": informed_by or [],
+        "supersedes": [],
+        "superseded_by": superseded_by,
+        "amended_by": amended_by or [a["id"] for a in (amendments or [])],
+        "retired": retired or [],
+        "owner": owner,
+        "description": "A document.",
+        "schema_version": schema_version,
+    }
+
+    if sections:
+        data["sections"] = sections
+
+    data["decisions"] = decisions
+
+    for name, value in (
+        ("invariants", invariants),
+        ("alternatives", alternatives),
+        ("questions", questions),
+        ("phasing", phasing),
+        ("contract_example", contract_example),
+        ("amendments", amendments),
+    ):
+        if value:
+            data[name] = value
+
+    data.update(extra or {})
+
+    return f"{SCHEMA_HEADER}schema/document.json\n" + yaml.safe_dump(
+        data, sort_keys=False, allow_unicode=True, width=1000
     )
 
 
@@ -75,7 +139,7 @@ def corpus(tmp_path: Path, **docs: str) -> Path:
     rfc_dir.mkdir(exist_ok=True)
 
     for number, text in docs.items():
-        (rfc_dir / f"{number}-document-{number}.md").write_text(text, encoding="utf-8")
+        (rfc_dir / f"{number}-document-{number}.yaml").write_text(text, encoding="utf-8")
 
     return rfc_dir
 
@@ -83,10 +147,20 @@ def corpus(tmp_path: Path, **docs: str) -> Path:
 def archived(rfc_dir: Path, number: str, text: str) -> Path:
     target = archive_dir(rfc_dir)
     target.mkdir(parents=True, exist_ok=True)
-    path = target / f"{number}-document-{number}.md"
+    path = target / f"{number}-document-{number}.yaml"
     path.write_text(text, encoding="utf-8")
 
     return path
+
+
+PHASE = {
+    "phase": 1,
+    "title": "one",
+    "intent": "Build it.",
+    "scope": ["src/torve/cli/**"],
+    "acceptance": [],
+    "depends_on": [],
+}
 
 
 # ----------------------- #
@@ -133,7 +207,7 @@ def test_an_archived_document_is_a_source_whose_rows_retire_with_the_archive_nam
 
     retired = next(p for p in pending if p.kind is EventKind.DECISION_RETIRED)
 
-    assert retired.payload["reason"] == "archived in 0001-document-0001.md, superseded by 0002"
+    assert retired.payload["reason"] == "archived in 0001-document-0001.yaml, superseded by 0002"
     assert kinds.index((EventKind.DECISION_RECORDED, "D-1.1")) < kinds.index(
         (EventKind.DECISION_RETIRED, "D-1.1")
     )
@@ -142,27 +216,23 @@ def test_an_archived_document_is_a_source_whose_rows_retire_with_the_archive_nam
 def test_a_grade_outside_the_vocabulary_is_refused_as_not_mintable(tmp_path: Path) -> None:
     rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "MAYBE", "x", "—")])})
 
-    with pytest.raises(PlanError, match="not mintable"):
+    with pytest.raises(PlanError, match=r"decisions\.0\.grade"):
         import_corpus(Graph(), rfc_dir)
 
 
-def test_a_fence_the_model_refuses_is_refused_as_a_plan_error(tmp_path: Path) -> None:
-    text = document("0001", [("D-1.1", "OPEN", "x", "—")]) + (
-        "\n```yaml questions\n- id: Q-1.1\n  text: x\n  state: open\n```\n"
+def test_a_key_the_model_refuses_is_refused_as_a_plan_error(tmp_path: Path) -> None:
+    text = document(
+        "0001",
+        [("D-1.1", "OPEN", "x", "—")],
+        questions=[{"id": "Q-1.1", "text": "x", "state": "open"}],
     )
     rfc_dir = corpus(tmp_path, **{"0001": text})
 
-    with pytest.raises(PlanError, match="state"):
+    with pytest.raises(PlanError, match=r"questions\.0\.state"):
         load_corpus(rfc_dir)
 
 
 # ....................... #
-
-
-PHASING = (
-    "\n## Phasing\n\n```yaml\n- phase: 1\n  title: one\n  intent: >-\n    Build it.\n"
-    '  scope: ["src/torve/cli/**"]\n  acceptance: []\n  depends_on: []\n```\n'
-)
 
 
 def test_coverage_is_governed_by_a_row_or_by_a_phase_scope(tmp_path: Path) -> None:
@@ -170,7 +240,7 @@ def test_coverage_is_governed_by_a_row_or_by_a_phase_scope(tmp_path: Path) -> No
         tmp_path,
         **{
             "0001": document(
-                "0001", [("D-1.1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=PHASING
+                "0001", [("D-1.1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=[PHASE]
             )
         },
     )
@@ -245,31 +315,45 @@ def test_path_rot_names_rows_whose_every_glob_matches_nothing(tmp_path: Path) ->
 # ....................... #
 
 
+def _write(rfc_dir: Path, doc: Any) -> None:
+    (rfc_dir / "0001-document-0001.yaml").write_text(dump_document(doc), encoding="utf-8")
+
+
 def test_fingerprint_drift_tells_a_hand_edited_grade_from_a_hand_edited_text(
     tmp_path: Path,
 ) -> None:
-    text = document("0001", [("D-1.1", "OPEN", "A rule.", "`src/a.py`")]) + "\n## Amendments\n"
-    stamped, _ = amend_row(text, "D-1.1", grade="ASSUMED")
-    rfc_dir = corpus(tmp_path, **{"0001": stamped})
+    rfc_dir = corpus(
+        tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "A rule.", "`src/a.py`")])}
+    )
+    stamped, _ = amend_row(
+        load_document(rfc_dir / "0001-document-0001.yaml"), "D-1.1", grade="ASSUMED"
+    )
+    _write(rfc_dir, stamped)
 
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
 
-    by_hand = stamped.replace("`ASSUMED`", "`LOCKED`")
-    (rfc_dir / "0001-document-0001.md").write_text(by_hand, encoding="utf-8")
+    row = stamped.decision("D-1.1")
+    assert row is not None
+    _write(
+        rfc_dir,
+        stamped.model_copy(update={"decisions": [row.model_copy(update={"grade": "LOCKED"})]}),
+    )
     problems, warnings = fingerprint_drift(load_corpus(rfc_dir))
 
     assert warnings == []
     assert len(problems) == 1 and "grade or paths changed by hand" in problems[0]
 
-    typo = stamped.replace("A rule.", "A rule, reworded.")
-    (rfc_dir / "0001-document-0001.md").write_text(typo, encoding="utf-8")
+    typo = stamped.model_copy(
+        update={"decisions": [row.model_copy(update={"text": "A rule, reworded."})]}
+    )
+    _write(rfc_dir, typo)
     problems, warnings = fingerprint_drift(load_corpus(rfc_dir))
 
     assert problems == []
     assert len(warnings) == 1 and "editorial drift" in warnings[0]
 
-    fixed, _ = fix_row_text(typo, "D-1.1", "A rule, reworded.")
-    (rfc_dir / "0001-document-0001.md").write_text(fixed, encoding="utf-8")
+    fixed, _ = fix_row_text(typo, "D-1.1", "A rule, reworded!")
+    _write(rfc_dir, fixed)
 
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
 
@@ -280,8 +364,9 @@ def test_a_row_never_stamped_is_never_compared(tmp_path: Path) -> None:
     assert fingerprint_drift(load_corpus(rfc_dir)) == ([], [])
 
 
-def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint() -> None:
-    (row,) = decision_table(document("0001", [("D-1.1", "OPEN", "x", "`a`")]))
+def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint(tmp_path: Path) -> None:
+    rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "OPEN", "x", "`a`")])})
+    (row,) = load_document(rfc_dir / "0001-document-0001.yaml").decisions
     full, rule = stamp(row).split("/")
 
     assert len(full) == 16 and len(rule) == 16
@@ -293,11 +378,10 @@ def test_the_stamp_is_the_row_fingerprint_beside_its_rule_fingerprint() -> None:
 
 
 def test_the_importer_carries_consequence_and_check(tmp_path: Path) -> None:
-    text = (
-        document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")]).replace(
-            "| `src/a.py` | — |", "| `src/a.py` | because it holds |"
-        )
-        + "\n```yaml decision-details\n- id: D-1.1\n  check: pytest tests/test_a.py\n```\n"
+    text = document(
+        "0001",
+        [("D-1.1", "LOCKED", "A rule.", "`src/a.py`", "because it holds")],
+        details={"D-1.1": {"check": "pytest tests/test_a.py"}},
     )
     rfc_dir = corpus(tmp_path, **{"0001": text})
 
@@ -314,9 +398,7 @@ def test_a_record_without_the_consequence_is_re_recorded_once(tmp_path: Path) ->
     from torve.application.decisions import DecisionState
     from torve.domain.source import corpus_source_id
 
-    text = document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")]).replace(
-        "| `src/a.py` | — |", "| `src/a.py` | because it holds |"
-    )
+    text = document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`", "because it holds")])
     rfc_dir = corpus(tmp_path, **{"0001": text})
     source_id = corpus_source_id("0001")
     graph = Graph()

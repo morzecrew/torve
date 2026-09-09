@@ -59,7 +59,7 @@ for it would be decoration.
 
 ## Step 5 — place the draft
 
-The draft is one document per adoption, named `NNNN-standing-decisions.md`
+The draft is one document per adoption, named `NNNN-standing-decisions.yaml`
 in the corpus directory (`rfcs/` by default) — the shape this skill records.
 Allocate the number with `torve rfc new "Standing decisions"` when the
 engine is available (the operator ran the survey, so it is): it derives the
@@ -85,7 +85,7 @@ the engine has no surface for the baseline at all.
 
 ## The fixture
 
-`fixtures/survey-report.json` and `fixtures/0001-standing-decisions.md` ride the
+`fixtures/survey-report.json` and `fixtures/0001-standing-decisions.yaml` ride the
 skill as its fixture: the sample report in, the checkable output shape out.
 An extraction run over the sample should reproduce that shape — the report's
 corpus gaps (`no-test-tampering`, `decisions-reported`, `self-audit`) as

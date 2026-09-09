@@ -1,4 +1,4 @@
-"""The parser knows the archive (RFC 0053 A-140): a citation into an
+"""The loader knows the archive (RFC 0053 A-140): a citation into an
 archived document resolves, a reference to an archived number warns
 rather than refuses, the next number derives over both directories, and
 `lookup` answers an archived identifier marked archived. Nothing here
@@ -7,66 +7,33 @@ makes an archived document stand."""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from typer.testing import CliRunner
+from test_decisions import archived, corpus
+from test_decisions import document as _document
 
-from torve.cli import app
-from torve.config.spec import archive_dir, check_corpus, lookup, next_number
-
-runner = CliRunner()
+from torve.config.spec import check_corpus, lookup, next_number
 
 # ----------------------- #
 
 
-def document(
-    number: str,
-    decision: str,
-    *,
-    status: str = "accepted",
-    refs: str = "depends_on: []\ninformed_by: []\n",
-) -> str:
-    return (
-        "---\n"
-        f'id: "{number}"\n'
-        f"title: Doc {number}\n"
-        f"status: {status}\n"
-        "implementation: complete\n"
-        f"{refs}"
-        "supersedes: []\n"
-        "superseded_by: null\n"
-        "amended_by: []\n"
-        "owner: Test Owner\n"
-        "description: >-\n"
-        f"  Scratch document {number}.\n"
-        "schema_version: 1\n"
-        "---\n"
-        "\n"
-        f"# RFC {number} — Doc {number}\n"
-        "\n"
-        "## Decisions\n"
-        "\n"
-        "| # | Grade | Decision | Paths | Consequence |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        f"| {decision} | `ASSUMED` | Something is decided | — | — |\n"
+def document(number: str, decision: str, *, status: str = "accepted", **kw: Any) -> str:
+    """One scratch document: the shared builder with this suite's row."""
+
+    return _document(
+        number,
+        [(decision, "ASSUMED", "Something is decided", "—")],
+        status=status,
+        superseded_by="0002" if status == "superseded" else None,
+        **kw,
     )
 
 
-def seed(tmp_path: Path, corpus: dict[str, str], archived: dict[str, str]) -> Path:
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir()
+def seed(tmp_path: Path, standing: dict[str, str], gone: dict[str, str]) -> Path:
+    rfcs = corpus(tmp_path, **standing)
 
-    for name, text in corpus.items():
-        (rfcs / name).write_text(text, encoding="utf-8")
-
-    if archived:
-        archive = archive_dir(rfcs)
-        archive.mkdir(parents=True)
-
-        for name, text in archived.items():
-            (archive / name).write_text(text, encoding="utf-8")
-
-    generated = runner.invoke(app, ["rfc", "index", "--root", str(tmp_path)])
-    assert generated.exit_code == 0, generated.output
+    for number, text in gone.items():
+        archived(rfcs, number, text)
 
     return rfcs
 
@@ -75,13 +42,19 @@ def seed(tmp_path: Path, corpus: dict[str, str], archived: dict[str, str]) -> Pa
 
 
 def test_a_citation_into_the_archive_resolves(tmp_path: Path) -> None:
-    citing = document("0002", "D-2.1").replace(
-        "## Decisions", "This document builds on D-1.1 and D-1.2.\n\n## Decisions"
+    citing = document(
+        "0002",
+        "D-2.1",
+        sections=[
+            {
+                "key": "design",
+                "heading": "Design",
+                "md": "This document builds on D-1.1 and D-1.2.\n",
+            }
+        ],
     )
     rfcs = seed(
-        tmp_path,
-        {"0002-doc-0002.md": citing},
-        {"0001-doc-0001.md": document("0001", "D-1.1", status="superseded")},
+        tmp_path, {"0002": citing}, {"0001": document("0001", "D-1.1", status="superseded")}
     )
 
     report = check_corpus(rfcs, tmp_path)
@@ -93,11 +66,10 @@ def test_a_citation_into_the_archive_resolves(tmp_path: Path) -> None:
 def test_a_reference_to_an_archived_number_warns_and_an_unknown_one_refuses(
     tmp_path: Path,
 ) -> None:
-    refs = 'depends_on: ["0001"]\ninformed_by: ["0009"]\n'
     rfcs = seed(
         tmp_path,
-        {"0002-doc-0002.md": document("0002", "D-2.1", refs=refs)},
-        {"0001-doc-0001.md": document("0001", "D-1.1", status="superseded")},
+        {"0002": document("0002", "D-2.1", depends_on=["0001"], informed_by=["0009"])},
+        {"0001": document("0001", "D-1.1", status="superseded")},
     )
 
     report = check_corpus(rfcs, tmp_path)
@@ -110,8 +82,8 @@ def test_a_reference_to_an_archived_number_warns_and_an_unknown_one_refuses(
 def test_the_next_number_derives_over_corpus_and_archive(tmp_path: Path) -> None:
     rfcs = seed(
         tmp_path,
-        {"0002-doc-0002.md": document("0002", "D-2.1")},
-        {"0007-doc-0007.md": document("0007", "D-7.1", status="superseded")},
+        {"0002": document("0002", "D-2.1")},
+        {"0007": document("0007", "D-7.1", status="superseded")},
     )
 
     assert next_number(rfcs) == 8  # one derivation, over corpus and archive (D-53.10)
@@ -120,15 +92,15 @@ def test_the_next_number_derives_over_corpus_and_archive(tmp_path: Path) -> None
 def test_lookup_answers_an_archived_identifier_marked_archived(tmp_path: Path) -> None:
     rfcs = seed(
         tmp_path,
-        {"0002-doc-0002.md": document("0002", "D-2.1")},
-        {"0001-doc-0001.md": document("0001", "D-1.1", status="superseded")},
+        {"0002": document("0002", "D-2.1")},
+        {"0001": document("0001", "D-1.1", status="superseded")},
     )
 
     live = lookup(rfcs, "D-2.1")
     gone = lookup(rfcs, "D-1.1")
     doc = lookup(rfcs, "0001")
 
-    assert live is not None and "archived" not in live
+    assert live is not None and live["archived"] is False
     assert gone is not None and gone["archived"] is True
     assert doc is not None and doc["archived"] is True and doc["status"] == "superseded"
     assert lookup(rfcs, "D-9.9") is None
@@ -137,8 +109,8 @@ def test_lookup_answers_an_archived_identifier_marked_archived(tmp_path: Path) -
 def test_an_archived_document_never_counts_as_standing_in_the_check(tmp_path: Path) -> None:
     rfcs = seed(
         tmp_path,
-        {"0002-doc-0002.md": document("0002", "D-2.1")},
-        {"0001-doc-0001.md": document("0001", "D-1.1", status="superseded")},
+        {"0002": document("0002", "D-2.1")},
+        {"0001": document("0001", "D-1.1", status="superseded")},
     )
 
     report = check_corpus(rfcs, tmp_path)

@@ -1,0 +1,529 @@
+# yaml-language-server: $schema=../../rfcs/schema/document.json
+id: '0046'
+title: The dispatch and its steps
+kind: design
+status: superseded
+implementation: complete
+depends_on: []
+informed_by: ['0003', '0015', '0044', '0045']
+supersedes: []
+superseded_by: '0055'
+amended_by: []
+retired: []
+owner: misery7100
+description: >-
+  The runner's 776-line hook factory becomes one typed dispatch object and a handful
+  of steps over it, so a seam is a parameter and a step instead of another closure
+  over another untyped dictionary.
+schema_version: 2
+sections:
+  - key: summary
+    heading: 1. Summary
+    md: |-
+      `real_hooks` is a 776-line factory that returns seven closures sharing four
+      untyped dictionaries. It is where every recent change to the engine has
+      landed, and it is the one part of the runner that cannot be exercised
+      without standing up a whole run.
+
+      This RFC replaces the closure cells with a single typed `Dispatch` object and
+      lifts each hook body to a module-level function over it. Nothing about how a
+      run behaves changes. What changes is that a step becomes a function with
+      arguments — readable alone, testable alone, and extendable by adding a
+      parameter rather than by capturing one more variable in a scope that is
+      already too large to hold in the head.
+  - key: motivation
+    heading: 2. Motivation
+    md: |-
+      The evidence is this week's own diffs.
+
+      **Seams accumulate in one place.** `RunDeps` now carries thirteen ports,
+      seven of them optional; four — `sink`, `facts`, `journal`, `channel` — were
+      added in the last seven days, each with a matching callback threaded into
+      `real_hooks`. The pattern is not wrong in itself; the problem is that there
+      is exactly one place to put anything, and it is already the largest function
+      in the codebase.
+
+      **The shared cells are untyped.** `agent_meta`, `current`, `last_convictions`
+      and `last_pass` are all `dict[str, Any]`, because closures needed mutable
+      cells and a dictionary is the cheapest one. The type checker sees nothing.
+      The landing-sha defect found this week was precisely this shape: a fact
+      travelling as text through an untyped carrier, recovered by parsing a
+      ten-character prefix back out of a display string, until `RunState` grew a
+      typed `landed_sha` and the parser was deleted.
+
+      **Signatures absorb the growth.** `_run_gates_in_worktree` takes thirteen
+      parameters, seven optional and positional at the call site. Two test doubles
+      in the suite read `_args[-1]` to find the cache volumes; both broke silently
+      when the function grew two trailing parameters, and both had to be rewritten
+      to name their arguments. A signature nobody can call by keyword is a
+      signature that will be miscalled.
+
+      **Nothing inside is testable alone.** `tests/test_runner.py` imports
+      `real_hooks` and must construct a workspace, a runtime, an agent, a VCS, an
+      SCM and a store to reach any behaviour inside it — including behaviours,
+      like tier advancement on a gate-red, that touch none of those.
+  - key: current-state
+    heading: 3. Current state
+    md: |-
+      Verified against the tree at `4209e32`:
+
+      - `src/torve/application/runner.py` is 2113 lines. `real_hooks` spans lines
+        1086–1862.
+      - It returns `AttemptHooks(attempt, halted, gates, land, review, close,
+        checkpoint)` — seven closures over `agent_meta`, `current`,
+        `last_convictions`, `last_pass`, `broker`, `broker_handle` and `routing`.
+      - `drive_attempts` and `_attempt_loop` (lines 234–375) are already clean:
+        they read the hooks and own the state machine, and this RFC does not touch
+        them.
+      - `AttemptHooks` is a real seam, not an artefact: `src/torve/application/
+        shadow.py` builds `real_hooks` for a shadow replay and the DST simulation
+        supplies its own, which is the one-loop-two-harnesses property of RFC 0003
+        §6. It stays.
+      - `run_routing` lives in `runner.py` and `src/torve/application/review.py`
+        imports it lazily from inside a function body (line 812). `review.py` is
+        therefore already one module-level import away from a cycle.
+      - The four decisions embedded in `real_hooks` that must survive verbatim:
+        the brokered-tier credential refusal (D-21.1), the unmeasured-image check
+        and its `allow` escape hatch (D-27.7, A-88), conviction-routed tier
+        advancement (D-27.11), and the ordering of the attempt's endings (D-38.1).
+  - key: goals-non-goals
+    heading: 4. Goals / Non-goals
+    md: |-
+      **Goals**
+
+      - One typed object carrying a dispatch's run-scoped facts, replacing four
+        untyped dictionaries.
+      - Each step a module-level function over that object, callable in a test
+        without a runtime, an agent or a store.
+      - `real_hooks` reduced to binding: build the dispatch, choose the attempt
+        variant, choose the review variant, return the hooks.
+      - Byte-identical behaviour. The existing suite is the proof, and it passes
+        unmodified except where a test reaches into an internal that moved.
+
+      **Non-goals**
+
+      - **Not a change to the attempt loop.** `drive_attempts` is already the
+        right shape and is the part of the runner with the most invariants
+        attached to it.
+      - **Not a change to `AttemptHooks`.** Two harnesses drive it; a step
+        vocabulary that only the real hooks speak would break the property that
+        makes the simulation worth running.
+      - **Not a port change.** No port is added, removed or given a new method.
+        Grading whether the four observer ports should be one struct is left as an
+        open row, because collapsing them is a separate diff across fifteen call
+        sites with no behaviour in it.
+      - **Not the naming pass.** Renaming and restructuring in one diff produces a
+        diff nobody can review. §8 says what waits.
+  - key: design
+    heading: 5. Design
+  - key: the-dispatch
+    heading: 5.1 The dispatch
+    md: |-
+      One dispatch is one `torve run` of one task: a worktree, a regime, and up to
+      `poison_ceiling` attempts inside it. That is what the closure cells describe,
+      so it gets a name and a type.
+
+      ```python
+      @dataclass
+      class Dispatch:
+          """One task, one worktree, one regime — the facts every step of a run
+          reads, and the few it advances."""
+
+          # Settled at open, never reassigned.
+          root: Path
+          task: Task
+          config: RunnerConfig
+          deps: RunDeps
+          worktree: Path
+          shadow: bool
+          gates_base: str | None
+          resume: bool
+
+          # The regime in force right now: seeded from the task's own tier,
+          # advanced only by a conviction-routed retry (D-27.11).
+          tier_name: str
+          tier: TierConfig
+          image: str
+          image_digest: str | None
+
+          # The run's broker, opened once at the end of open_dispatch.
+          broker_handle: BrokerHandle | None = None
+          routing: BrokerRouting = field(default_factory=BrokerRouting)
+
+          # The most recent gate pass. `convictions` is what retry selection
+          # reads; `last_pass` is what the review judges.
+          convictions: list[GateResult] = field(default_factory=list)
+          last_pass: GatePass = field(default_factory=GatePass)
+
+          # The denormalised block every record this run appends carries. Stays a
+          # dict because it is a telemetry row under construction — see D-46.6.
+          meta: dict[str, Any] = field(default_factory=dict)
+      ```
+
+      `GatePass` is a three-field dataclass (`results`, `patch`, `digest`)
+      replacing the `last_pass` dictionary, which exists so the reviewer judges
+      exactly what the gates judged.
+
+      `open_dispatch(...) -> Dispatch` performs, in the order `real_hooks` performs
+      them today and for the same reasons: the brokered-tier credential refusal for
+      the task's tier and every retry rung, the unmeasured-image check, the initial
+      regime and the shape of `meta`.
+
+      The broker is deliberately **not** among them. It opens in `open_broker(run)`,
+      a separate call the binder makes after every remaining fallible step of setup
+      — resolving a revert's targets, refusing a review with no reviewer — exactly
+      where `real_hooks` opens it today. Folding the open into `open_dispatch`
+      would move those two refusals to after a live credential route existed, which
+      is the one ordering this design cannot lose (D-46.4). `close_dispatch` is the
+      existing `close` hook body, bound as the close hook.
+
+      `RunDeps` and `run_routing` move into the same module. `RunDeps` because a
+      `Dispatch` holds one and `runner.py` will import `dispatch.py`, not the other
+      way round; `run_routing` because it decides what the broker opens with, which
+      is `open_broker`'s own job — and because moving it lets `review.py` import
+      what it needs at module level instead of deferring the import to dodge a
+      cycle. Their importers are repointed rather than served by a re-export from
+      `runner.py`: the type checker refuses an implicit one anyway, and a shim
+      spelt `RunDeps as RunDeps` buys nothing a one-line import change does not.
+  - key: the-steps
+    heading: 5.2 The steps
+    md: |-
+      Each hook body becomes a module-level function whose first parameter is the
+      dispatch:
+
+      ```python
+      # session.py — the agent leg
+      async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult: ...
+      async def run_revert(run: Dispatch, state: RunState) -> AgentResult: ...
+      def halted(run: Dispatch) -> bool: ...
+      def advance_tier(run: Dispatch, state: RunState) -> Agent: ...
+
+      # dispatch.py — the dispatch's own life and its records
+      def open_dispatch(...) -> Dispatch: ...
+      def close_dispatch(run: Dispatch) -> None: ...
+      def attempt_row(run: Dispatch, verdict: str, *, exit_code, timed_out,
+                      escalation=None) -> dict[str, Any]: ...
+
+      # runner.py — the post-agent legs, beside the loop that calls them
+      async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]: ...
+      async def land(run: Dispatch, state: RunState, digest: str) -> str: ...
+      def checkpoint(run: Dispatch, state: RunState) -> None: ...
+
+      # review.py — beside run_review, which it calls
+      async def review_step(run: Dispatch, state: RunState) -> str | None: ...
+      ```
+
+      The split is by leg, not by size. `session.py` is everything that happens
+      inside or around the sandbox the agent runs in — preparing it, running it,
+      recording how it ended — plus the mechanical revert leg, which is the same
+      leg with no agent in it. The three post-agent steps stay in `runner.py`
+      beside the loop that sequences them. The review step moves to `review.py`
+      because everything it calls already lives there; it is the one step that is
+      mostly a call into another module, and it has been sitting in the wrong file.
+
+      `advance_tier` is called out separately because it is the piece with a
+      decision attached (D-27.11) and no I/O in it: given a dispatch and a state,
+      it resolves the rung the last pass's convictions select, updates the
+      dispatch's regime, and returns the agent to run. That is a unit test with no
+      sandbox in it, which is the shape this whole RFC is trying to make possible.
+  - key: what-real-hooks-becomes
+    heading: 5.3 What `real_hooks` becomes
+    md: |-
+      ```python
+      def real_hooks(root, task, config, deps, worktree, shadow=False,
+                     gates_base=None, resume=False) -> AttemptHooks:
+          run = open_dispatch(root, task, config, deps, worktree, shadow,
+                              gates_base, resume)
+
+          return AttemptHooks(
+              attempt=partial(run_revert if task.role == "revert"
+                              else run_agent_session, run),
+              halted=partial(halted, run),
+              gates=partial(judge, run),
+              land=partial(land, run),
+              review=partial(review_step, run) if review_gated(config, task, shadow) else None,
+              close=partial(close_dispatch, run),
+              checkpoint=partial(checkpoint, run),
+          )
+      ```
+
+      Under eighty lines with the revert-target resolution and the reviewer-agent
+      refusal it still owns. It is a binder, which is what a factory named
+      `real_hooks` should have been.
+  - key: the-gate-pass-takes-a-dispatch
+    heading: 5.4 The gate pass takes a dispatch
+    md: |-
+      `_run_gates_in_worktree`'s thirteen parameters are, with two exceptions,
+      fields of the dispatch. It becomes `run_gate_pass(run, state)` reading them,
+      with the two that are not — the shadow-suppressed cache mount and the base —
+      already dispatch fields by §5.1. The test doubles that read `_args[-1]` stop
+      having anything to index.
+
+      This is where the refactor pays for itself in the suite rather than in the
+      source: a signature that cannot be miscalled positionally is one class of
+      test breakage removed permanently.
+  - key: alternatives-considered
+    heading: Alternatives considered
+    md: |-
+      - **A step protocol and a pipeline that runs them.** A `Step` protocol, a
+        registry, an executor iterating it. It buys ordering-as-data, which
+        nothing needs: the order is `drive_attempts`, it is eleven lines long, and
+        it encodes the state machine's invariants. A pipeline would hide those
+        behind a list.
+      - **Passing the four dictionaries as explicit parameters.** The smallest
+        possible change, and it keeps every problem: still untyped, still four
+        things to thread, still growing by one per seam.
+      - **A class with the steps as methods.** Equivalent in structure and worse
+        in testability — a method reaches `self` for anything, so nothing states
+        what a step actually needs, which is the property this is buying.
+      - **Leaving it alone.** Genuinely on the table: the code works and is well
+        commented. It loses because the next four seams have nowhere else to go,
+        and the two upcoming workstreams — sources and decisions as records, and
+        the naming pass — both land here.
+  - key: tests
+    heading: 6. Tests
+    md: |-
+      The existing suite is the primary check, unmodified: `test_runner.py`,
+      `test_run_loop.py`, `test_review_run.py`, `test_shadow.py`,
+      `test_provenance.py`, `test_broker.py`, `test_state_parity.py` and
+      `test_manager_e2e.py` all drive real runs through these paths, and a
+      refactor that changes behaviour breaks them.
+
+      New, and only what the restructuring makes possible:
+
+      - `advance_tier` over a constructed `Dispatch` and `RunState`: a gate-red
+        with a mapped axis advances the regime and returns the rung's agent; a
+        gate-red with no mapping and a green pass both leave it alone. No runtime,
+        no agent, no store.
+      - `attempt_row` writes one row to the telemetry target and emits one fact
+        carrying the same payload — the A-85 round trip pinned at the step rather
+        than through a whole run.
+      - `open_dispatch` refuses a brokered tier naming a credential, for the task's
+        own tier and for a retry rung, with no broker opened in either case — over
+        a configuration mutated after validation, which is the case the dispatch's
+        own check exists for (the file-read path is already refused by the
+        validator).
+      - `open_dispatch` returns a dispatch holding no broker handle, and
+        `open_broker` is what issues one: the ordering of D-46.4 asserted directly
+        rather than read off the source.
+
+      Explicitly not added: a test asserting the module split. Structure is not
+      behaviour, and a test that pins where a function lives makes the next move
+      harder for no defect caught.
+  - key: docs
+    heading: 7. Docs
+    md: |-
+      `pages/docs/architecture/execution.md` names the legs of an attempt in
+      prose. The step names in §5.2 are chosen to match that page's vocabulary,
+      and the page gets whichever words changed — not a new section. No RFC
+      0003 amendment: the hooks seam and the loop are unchanged, which is the
+      point.
+  - key: out-of-scope
+    heading: 8. Out of scope
+    md: |-
+      - **The naming pass.** `naming.py`, the sandbox definition names, and the
+        `dispatch`/`attempt`/`run` overload across the manager and the runner all
+        want a sweep. It waits because a rename inside a restructuring is a diff
+        nobody can review, and because the manager-side vocabulary is younger than
+        a week and still moving.
+      - **The sandbox rework.** Partly landed already (`torve sandbox stage`, the
+        shared CLI dockerfile); the rest is a different layer.
+      - **Collapsing the observer ports.** Named as D-46.5, deliberately open.
+      - **`meta` as a dataclass.** It is a telemetry row under construction and
+        typing it means typing `build_attempt_row`, `build_record` and the record
+        payload — a change to `telemetry.py`, not to the runner (D-46.6).
+  - key: risks
+    heading: 9. Risks
+    md: |-
+      - **A silent behaviour change inside a step body.** The real risk of any
+        restructuring. Mitigated by moving bodies verbatim — the diff should read
+        as indentation changes and parameter substitutions — and by the suite,
+        which covers these paths through real runs rather than through mocks.
+      - **Ordering.** The setup order must survive exactly: every fallible check
+        before the broker opens. Stated as a decision (D-46.4) rather than left to
+        the diff, and pinned by a test that asserts `open_dispatch` returns a
+        dispatch with no handle and a broker that was never asked.
+      - **A wide mechanical diff.** Repointing `RunDeps` and `run_routing` at
+        their new module touches roughly twenty files without changing a line of
+        behaviour, which is exactly the diff a reviewer skims. Accepted rather
+        than mitigated: the alternative was a re-export shim, and a shim that
+        hides where a symbol lives is a worse thing to leave behind than a wide
+        import diff nobody has to read twice.
+  - key: unresolved-questions
+    heading: 10. Unresolved questions
+    md: |-
+      - Whether `judge`, `land` and `checkpoint` should follow the review step out
+        of `runner.py` once it is smaller. Settled by reading the result, not
+        before: if `runner.py` lands near six hundred lines it is fine as it is.
+      - Whether the four observer ports become one struct (D-46.5). Settled by the
+        fifth observer, if there is one.
+  - key: decisions
+    heading: 11. Decisions
+    md: |-
+      | # | Grade | Decision | Paths | Consequence |
+      | --- | --- | --- | --- | --- |
+      | D-46.1 | `LOCKED` | The refactor changes no observable behaviour: no verdict, no record, no written file, no exit code, and no port | `src/torve/application/runner.py` | The existing suite is the acceptance criterion; a test that must change to stay green is evidence the refactor went wrong, not evidence the test was stale |
+      | D-46.2 | `LOCKED` | `AttemptHooks` and the attempt loop are unchanged, and the steps are bound into hooks rather than replacing them | `src/torve/application/runner.py` `src/torve/application/shadow.py` | The DST simulation keeps driving the code that ships (RFC 0003 §6); a step vocabulary only the real hooks speak would silently retire that property |
+      | D-46.3 | `LOCKED` | A dispatch's run-scoped facts live in one typed `Dispatch`; a step takes it as its first parameter and reads what it needs from it | `src/torve/application/dispatch.py` | The type checker sees the run's facts for the first time; a step states its inputs instead of capturing them |
+      | D-46.4 | `LOCKED` | The broker opens last, in `open_broker`, after every fallible step of setup; `open_dispatch` settles the regime and the checks that guard it and opens nothing | `src/torve/application/dispatch.py` | A setup failure can never leak a live credential route; keeping the open a separate call is what lets the refusals that follow it stay before it |
+      | D-46.5 | `OPEN` | Whether `sink`, `facts`, `journal` and `channel` collapse into one observer struct on `RunDeps`. Settled by the fifth observer, not by argument | `src/torve/application/dispatch.py` | — |
+      | D-46.6 | `ASSUMED` | `meta` stays a `dict[str, Any]` on the dispatch: it is a telemetry row under construction, and typing it is a change to `telemetry.py` rather than to the runner | `src/torve/application/dispatch.py` `src/torve/application/telemetry.py` | One untyped carrier survives this pass, named rather than overlooked |
+      | D-46.7 | `ASSUMED` | `run_routing` and `RunDeps` move to the dispatch module and their importers are repointed there; no re-export shim stands in `runner.py` | `src/torve/application/dispatch.py` `src/torve/application/review.py` | A wide mechanical import diff once, instead of a shim that outlives its reason; `review.py` stops deferring an import to dodge a cycle |
+      | D-46.8 | `ASSUMED` | Step bodies move verbatim; a change of behaviour found necessary mid-move is a separate commit with its own reason | `src/torve/application/session.py` | The diff stays reviewable as a move, which is the only way a restructuring of this size can be checked at all |
+  - key: phasing
+    heading: 12. Phasing
+    md: |-
+      ```yaml
+      - phase: 1
+        title: the dispatch object
+        intent: >-
+          `RunDeps`, `run_routing` and a new typed `Dispatch` move into `src/torve/application/dispatch.py`, together with `open_dispatch` — which performs the brokered-tier credential refusal for the task's tier and every retry rung, the unmeasured-image check with its `allow` escape hatch, the initial regime, the shape of the denormalised record block, and last of all the broker open — and `close_dispatch` and `attempt_row`. `runner.py` re-exports `RunDeps` and `run_routing` so no caller changes, and `real_hooks` builds a `Dispatch` and reads its fields where it read closure cells, with the four dictionaries gone. Behaviour is unchanged and the suite is the proof.
+        scope:
+          - "src/torve/application/dispatch.py"
+          - "src/torve/application/runner.py"
+          - "src/torve/application/review.py"
+          - "tests/test_dispatch.py"
+          - "tests/test_runner.py"  # A-133: a module in scope brings its test file
+        acceptance:
+          - "uv run pytest"
+          - "uv run lint-imports --config pyproject.toml"
+          - "uv run mypy src/torve/application"
+        depends_on: []
+      - phase: 2
+        title: the steps
+        intent: >-
+          Each hook body becomes a module-level function over the dispatch: the agent leg, the mechanical revert leg, the halted check and conviction-routed tier advancement move to `src/torve/application/session.py`; the review step moves to `review.py` beside the reviewer machinery it calls; the gate pass, the landing and the checkpoint stay in `runner.py` beside the loop that sequences them, and the gate pass takes the dispatch instead of thirteen positional parameters. `real_hooks` becomes a binder under eighty lines returning the same `AttemptHooks` it returns today. Bodies move verbatim — a behaviour change found necessary is a separate commit.
+        scope:
+          - "src/torve/application/session.py"
+          - "src/torve/application/runner.py"
+          - "src/torve/application/review.py"
+          - "tests/test_runner.py"
+          - "tests/test_session.py"
+        acceptance:
+          - "uv run pytest"
+          - "uv run mypy src/torve/application"
+        depends_on: [1]
+      ```
+
+      The two phases are sequential and both are all-or-nothing: a half-moved
+      dispatch is worse than either end state. Neither is demand-gated — the work
+      that follows (sources and decisions as records, then the naming pass) lands
+      in exactly these files.
+
+      *Archived 2026-09-09: superseded by 0055 (RFC 0053 D-53.8).*
+decisions:
+  - id: D-46.1
+    grade: LOCKED
+    text: >-
+      The refactor changes no observable behaviour: no verdict, no record, no written
+      file, no exit code, and no port
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      The existing suite is the acceptance criterion; a test that must change to stay
+      green is evidence the refactor went wrong, not evidence the test was stale
+  - id: D-46.2
+    grade: LOCKED
+    text: >-
+      `AttemptHooks` and the attempt loop are unchanged, and the steps are bound into
+      hooks rather than replacing them
+    paths: [src/torve/application/runner.py, src/torve/application/shadow.py]
+    consequence: >-
+      The DST simulation keeps driving the code that ships (RFC 0003 §6); a step vocabulary
+      only the real hooks speak would silently retire that property
+  - id: D-46.3
+    grade: LOCKED
+    text: >-
+      A dispatch's run-scoped facts live in one typed `Dispatch`; a step takes it
+      as its first parameter and reads what it needs from it
+    paths: [src/torve/application/dispatch.py]
+    consequence: >-
+      The type checker sees the run's facts for the first time; a step states its
+      inputs instead of capturing them
+  - id: D-46.4
+    grade: LOCKED
+    text: >-
+      The broker opens last, in `open_broker`, after every fallible step of setup;
+      `open_dispatch` settles the regime and the checks that guard it and opens nothing
+    paths: [src/torve/application/dispatch.py]
+    consequence: >-
+      A setup failure can never leak a live credential route; keeping the open a separate
+      call is what lets the refusals that follow it stay before it
+  - id: D-46.5
+    grade: OPEN
+    text: >-
+      Whether `sink`, `facts`, `journal` and `channel` collapse into one observer
+      struct on `RunDeps`. Settled by the fifth observer, not by argument
+    paths: [src/torve/application/dispatch.py]
+  - id: D-46.6
+    grade: ASSUMED
+    text: >-
+      `meta` stays a `dict[str, Any]` on the dispatch: it is a telemetry row under
+      construction, and typing it is a change to `telemetry.py` rather than to the
+      runner
+    paths: [src/torve/application/dispatch.py, src/torve/application/telemetry.py]
+    consequence: >-
+      One untyped carrier survives this pass, named rather than overlooked
+  - id: D-46.7
+    grade: ASSUMED
+    text: >-
+      `run_routing` and `RunDeps` move to the dispatch module and their importers
+      are repointed there; no re-export shim stands in `runner.py`
+    paths: [src/torve/application/dispatch.py, src/torve/application/review.py]
+    consequence: >-
+      A wide mechanical import diff once, instead of a shim that outlives its reason;
+      `review.py` stops deferring an import to dodge a cycle
+  - id: D-46.8
+    grade: ASSUMED
+    text: >-
+      Step bodies move verbatim; a change of behaviour found necessary mid-move is
+      a separate commit with its own reason
+    paths: [src/torve/application/session.py]
+    consequence: >-
+      The diff stays reviewable as a move, which is the only way a restructuring of
+      this size can be checked at all
+phasing:
+  - phase: 1
+    title: the dispatch object
+    intent: >-
+      `RunDeps`, `run_routing` and a new typed `Dispatch` move into `src/torve/application/dispatch.py`,
+      together with `open_dispatch` — which performs the brokered-tier credential
+      refusal for the task's tier and every retry rung, the unmeasured-image check
+      with its `allow` escape hatch, the initial regime, the shape of the denormalised
+      record block, and last of all the broker open — and `close_dispatch` and `attempt_row`.
+      `runner.py` re-exports `RunDeps` and `run_routing` so no caller changes, and
+      `real_hooks` builds a `Dispatch` and reads its fields where it read closure
+      cells, with the four dictionaries gone. Behaviour is unchanged and the suite
+      is the proof.
+    scope:
+      - src/torve/application/dispatch.py
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - tests/test_dispatch.py
+      - tests/test_runner.py
+    acceptance:
+      - uv run pytest
+      - uv run lint-imports --config pyproject.toml
+      - uv run mypy src/torve/application
+  - phase: 2
+    title: the steps
+    intent: >-
+      Each hook body becomes a module-level function over the dispatch: the agent
+      leg, the mechanical revert leg, the halted check and conviction-routed tier
+      advancement move to `src/torve/application/session.py`; the review step moves
+      to `review.py` beside the reviewer machinery it calls; the gate pass, the landing
+      and the checkpoint stay in `runner.py` beside the loop that sequences them,
+      and the gate pass takes the dispatch instead of thirteen positional parameters.
+      `real_hooks` becomes a binder under eighty lines returning the same `AttemptHooks`
+      it returns today. Bodies move verbatim — a behaviour change found necessary
+      is a separate commit.
+    scope:
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - tests/test_runner.py
+      - tests/test_session.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src/torve/application
+    depends_on:
+      - 1

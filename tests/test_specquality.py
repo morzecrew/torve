@@ -12,6 +12,7 @@ import subprocess
 
 import pytest
 import yaml
+from test_decisions import corpus, document
 from typer.testing import CliRunner
 
 from torve.application.runstate import RunState
@@ -193,7 +194,7 @@ def test_the_grade_compared_is_the_one_copied_at_mint_time(tmp_path):
 
 
 def test_populations_are_keyed_by_identifier_not_document(tmp_path):
-    write_contract(tmp_path, "T-0001", rfc="rfcs/0001-a.md", decisions=[("D-1.1", "ASSUMED", [])])
+    write_contract(tmp_path, "T-0001", rfc="rfcs/0001-a.yaml", decisions=[("D-1.1", "ASSUMED", [])])
     write_contract(tmp_path, "T-0002", rfc=None, decisions=[("D-1.1", "ASSUMED", [])])
     report = decision_report(tmp_path, tmp_path / "rfcs")
     pop = next(p for p in report["populations"] if p["identifier"] == "D-1.1")
@@ -345,14 +346,20 @@ def test_open_decided_claims_are_surfaced_without_asserting_identical(tmp_path):
 def test_locked_halted_and_amended_reads_as_over_grade(tmp_path):
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
-    (rfcs / "0001-a.md").write_text(
-        '---\nid: "0001"\ntitle: A\nstatus: accepted\nimplementation: none\n'
-        "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
-        'amended_by: ["A-1"]\nowner: t\ndescription: d\nschema_version: 1\n---\n\n'
-        "# RFC 0001 — A\n\n## Decisions\n\n"
-        "| # | Grade | Decision | Paths | Consequence |\n| --- | --- | --- | --- | --- |\n"
-        "| D-1.1 | `LOCKED` | x | `src/a.py` | — |\n\n"
-        "## Amendments\n\n### A-1 — regrading D-1.1 after repeated halts\n\nSee D-1.1.\n",
+    (rfcs / "0001-a.yaml").write_text(
+        document(
+            "0001",
+            [("D-1.1", "LOCKED", "x", "`src/a.py`")],
+            title="A",
+            implementation="none",
+            amendments=[
+                {
+                    "id": "A-1",
+                    "title": "regrading D-1.1 after repeated halts",
+                    "md": "See D-1.1.",
+                }
+            ],
+        ),
         encoding="utf-8",
     )
     for i in range(1, 4):
@@ -439,13 +446,8 @@ def test_an_unlisted_entry_is_never_attributed_to_a_declared_row(tmp_path):
 def test_identifiers_for_document_filters_by_rfc_number(tmp_path):
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
-    (rfcs / "0001-a.md").write_text(
-        '---\nid: "0001"\ntitle: A\nstatus: accepted\nimplementation: none\n'
-        "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
-        "amended_by: []\nowner: t\ndescription: d\nschema_version: 1\n---\n\n"
-        "# RFC 0001 — A\n\n## Decisions\n\n"
-        "| # | Grade | Decision | Paths | Consequence |\n| --- | --- | --- | --- | --- |\n"
-        "| D-1.1 | `ASSUMED` | x | — | — |\n",
+    (rfcs / "0001-a.yaml").write_text(
+        document("0001", [("D-1.1", "ASSUMED", "x", "—")], title="A", implementation="none"),
         encoding="utf-8",
     )
     assert identifiers_for_document(rfcs, "0001") == {"D-1.1"}
@@ -459,13 +461,10 @@ def test_identifiers_for_document_filters_by_rfc_number(tmp_path):
 def _seed_cli_repo(tmp_path):
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir()
-    (rfcs / "0001-a.md").write_text(
-        '---\nid: "0001"\ntitle: A\nstatus: accepted\nimplementation: none\n'
-        "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
-        "amended_by: []\nowner: t\ndescription: d\nschema_version: 1\n---\n\n"
-        "# RFC 0001 — A\n\n## Decisions\n\n"
-        "| # | Grade | Decision | Paths | Consequence |\n| --- | --- | --- | --- | --- |\n"
-        "| D-1.1 | `LOCKED` | x | `src/a.py` | — |\n",
+    (rfcs / "0001-a.yaml").write_text(
+        document(
+            "0001", [("D-1.1", "LOCKED", "x", "`src/a.py`")], title="A", implementation="none"
+        ),
         encoding="utf-8",
     )
     for i in range(1, 4):
@@ -473,7 +472,7 @@ def _seed_cli_repo(tmp_path):
         write_contract(
             tmp_path,
             task_id,
-            rfc="rfcs/0001-a.md",
+            rfc="rfcs/0001-a.yaml",
             decisions=[("D-1.1", "LOCKED", ["src/a.py"])],
             scope_allow=["src/a.py"],
         )
@@ -917,8 +916,6 @@ def test_health_cli_document_filter_has_no_operator_attention(tmp_path):
 
 
 def test_the_report_carries_path_rot_and_the_coverage_frontier(tmp_path):
-    from test_decisions import corpus, document
-
     src = tmp_path / "src" / "torve" / "cli"
     src.mkdir(parents=True)
     (src / "rfc.py").write_text("", encoding="utf-8")

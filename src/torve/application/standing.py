@@ -321,7 +321,7 @@ def _resolve_rfc_path(root: Path, config: RunnerConfig, identifier: str) -> str:
     from torve.config import spec
 
     files = spec.rfc_files(root / config.rfcs.path)
-    number = identifier.strip().removesuffix(".md")
+    number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
     found = files.get(number)
 
     if found is None:

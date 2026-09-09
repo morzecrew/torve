@@ -376,7 +376,7 @@ def _amendment_cited_ids(rfc_dir: Path) -> set[str]:
 
     for doc in _corpus(rfc_dir).documents:
         for amendment in doc.amendments:
-            cited.update(spec.DECISION_CITE.findall(spec.strip_fences(amendment.body_md)))
+            cited.update(spec.DECISION_CITE.findall(spec.FENCED_BLOCK.sub("", amendment.md)))
             cited.update(change.subject for change in amendment.changes)
 
     return cited

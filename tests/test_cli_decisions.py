@@ -8,17 +8,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from test_decisions import archived, corpus, document
+from test_decisions import PHASE, archived, corpus, document
 from typer.testing import CliRunner
 
 from torve.cli import app
 
 runner = CliRunner()
-
-PHASING = (
-    "\n## Phasing\n\n```yaml\n- phase: 1\n  title: one\n  intent: >-\n    Build it.\n"
-    '  scope: ["src/torve/cli/**"]\n  acceptance: []\n  depends_on: []\n```\n'
-)
 
 # ----------------------- #
 
@@ -28,7 +23,7 @@ def test_paths_prints_coverage_per_glob(tmp_path: Path) -> None:
         tmp_path,
         **{
             "0001": document(
-                "0001", [("D-1.1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=PHASING
+                "0001", [("D-1.1", "LOCKED", "x", "`src/torve/domain/**`")], phasing=[PHASE]
             )
         },
     )

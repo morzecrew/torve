@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 from forze.application.execution import DepsRegistry, ExecutionRuntime
+from test_decisions import document as spec_document
 
 from torve.adapters.eventstore.document import mock_module
 from torve.application import decisions
@@ -53,43 +54,26 @@ def document(
     status: str = "accepted",
     title: str = "A document",
     retired: list[str] | None = None,
+    superseded_by: str | None = None,
 ) -> Path:
-    """One corpus document with the table the case needs. Written by hand
-    rather than through the emitter: what the importer must read is the
-    rendered markdown, and a test that produced it from the same model would
-    not be reading anything."""
+    """One corpus document with the rows the case needs, through the corpus
+    builder every suite shares (RFC 0056 D-56.1), and the corpus directory
+    it was written into."""
 
-    table = "\n".join(
-        f"| {ident} | `{grade}` | {text} | {paths} | — |" for ident, grade, text, paths in rows
-    )
-    retired_line = f"retired: {retired!r}\n" if retired else ""
-    body = f"""---
-id: "{number}"
-title: {title}
-status: {status}
-depends_on: []
-informed_by: []
-supersedes: []
-superseded_by: null
-amended_by: []
-{retired_line}owner: tester
-description: >-
-  A document.
-schema_version: 1
----
-
-# RFC {number} — {title}
-
-## Decisions
-
-| # | Grade | Decision | Paths | Consequence |
-| --- | --- | --- | --- | --- |
-{table}
-"""
     rfc_dir = tmp_path / "rfcs"
     rfc_dir.mkdir(exist_ok=True)
-    path = rfc_dir / f"{number}-a-document.md"
-    path.write_text(body, encoding="utf-8")
+    (rfc_dir / f"{number}-a-document.yaml").write_text(
+        spec_document(
+            number,
+            rows,
+            status=status,
+            title=title,
+            retired=retired,
+            superseded_by=superseded_by,
+            implementation="none",
+        ),
+        encoding="utf-8",
+    )
 
     return rfc_dir
 
@@ -192,7 +176,7 @@ def test_a_row_leaving_an_accepted_table_is_recorded_as_retired(tmp_path):
         assert [one.id for one in graph.current()] == ["D-1.1"]
         assert graph.get("D-1.2").retired
         assert len(graph.history("D-1.2")) == 1  # retirement is not a version
-        assert "0001-a-document.md" in graph.get("D-1.2").retired_reason
+        assert "0001-a-document.yaml" in graph.get("D-1.2").retired_reason
 
     run(scenario)
 
@@ -258,10 +242,12 @@ def test_a_draft_imports_nothing_and_the_same_document_accepted_imports_at_versi
 
 
 def test_a_superseded_document_is_never_imported(tmp_path):
-    rfc_dir = tmp_path / "rfcs"
-    document(tmp_path, "0001", [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")])
-    path = rfc_dir / "0001-a-document.md"
-    path.write_text(path.read_text().replace("superseded_by: null", 'superseded_by: "0002"'))
+    rfc_dir = document(
+        tmp_path,
+        "0001",
+        [("D-1.1", "LOCKED", "A rule.", "`src/a.py`")],
+        superseded_by="0002",
+    )
 
     async def scenario(log):
         assert await sync(log, rfc_dir) == []
@@ -280,8 +266,8 @@ def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
 
     async def scenario(log):
         await sync(log, rfc_dir)
-        old = rfc_dir / "0001-a-document.md"
-        old.rename(rfc_dir / "0001-a-renamed-document.md")
+        old = rfc_dir / "0001-a-document.yaml"
+        old.rename(rfc_dir / "0001-a-renamed-document.yaml")
 
         pending = await sync(log, rfc_dir)
 
@@ -289,7 +275,7 @@ def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
 
         graph = await decisions.load(log, partition=PARTITION)
 
-        assert graph.sources["rfc/0001"].ref == "0001-a-renamed-document.md"
+        assert graph.sources["rfc/0001"].ref == "0001-a-renamed-document.yaml"
         assert [one.id for one in graph.by_source("rfc/0001")] == ["D-1.1"]
 
     run(scenario)
@@ -298,16 +284,17 @@ def test_a_source_is_identified_by_number_not_by_filename(tmp_path):
 # ....................... #
 
 
-def test_a_table_the_corpus_checker_would_refuse_is_never_imported(tmp_path):
+def test_a_row_the_corpus_checker_would_refuse_is_never_imported(tmp_path):
     """An import must not record a grade `torve rfc check` would not accept:
-    the record would then hold a vocabulary the corpus does not have."""
+    the record would then hold a vocabulary the corpus does not have. The
+    loader refuses it by field now, before the importer sees a row."""
 
     rfc_dir = document(tmp_path, "0001", [("D-1.1", "PROBABLY", "A rule.", "`src/a.py`")])
 
     async def scenario(log):
         graph = await decisions.load(log, partition=PARTITION)
 
-        with pytest.raises(PlanError, match="not mintable"):
+        with pytest.raises(PlanError, match=r"decisions\.0\.grade"):
             decisions.import_corpus(graph, rfc_dir)
 
     run(scenario)

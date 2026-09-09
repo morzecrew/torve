@@ -16,15 +16,29 @@ from torve.cli import app
 
 runner = CliRunner()
 
-FENCES = (
-    "\n```yaml decision-details\n- id: D-1.1\n  rationale: because\n  cites: [D-1.2]\n"
-    "  check: pytest tests/test_cli.py\n  check_twin: tests/test_cli_sabotage.py\n```\n"
-    "\n```yaml invariants\n- id: I-1.1\n  statement: one lander\n  paths: [src/torve/cli/**]\n"
-    "  check: pytest tests/test_lane.py\n```\n"
-    "\n```yaml alternatives\n- option: land one candidate per pass\n"
-    "  rejected_because: buys nothing while the lane serialises\n```\n"
-    "\n```yaml questions\n- id: Q-1.1\n  text: how long a pass holds the base\n  status: open\n```\n"
-)
+DETAILS = {
+    "D-1.1": {
+        "rationale": "because",
+        "cites": ["D-1.2"],
+        "check": "pytest tests/test_cli.py",
+        "check_twin": "tests/test_cli_sabotage.py",
+    }
+}
+INVARIANTS = [
+    {
+        "id": "I-1.1",
+        "statement": "one lander",
+        "paths": ["src/torve/cli/**"],
+        "check": "pytest tests/test_lane.py",
+    }
+]
+ALTERNATIVES = [
+    {
+        "option": "land one candidate per pass",
+        "rejected_because": "buys nothing while the lane serialises",
+    }
+]
+QUESTIONS = [{"id": "Q-1.1", "text": "how long a pass holds the base", "status": "open"}]
 
 
 def _seed(tmp_path: Path) -> Path:
@@ -38,8 +52,11 @@ def _seed(tmp_path: Path) -> Path:
                     ("D-1.1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`"),
                     ("D-1.2", "ASSUMED", "A plain row", "—"),
                 ],
+                details=DETAILS,
+                invariants=INVARIANTS,
+                alternatives=ALTERNATIVES,
+                questions=QUESTIONS,
             )
-            + FENCES
         },
     )
     archived(
@@ -137,6 +154,6 @@ def test_why_not_finds_the_rejected_alternative(tmp_path: Path) -> None:
 def test_a_corpus_that_does_not_load_is_a_configuration_error(tmp_path: Path) -> None:
     corpus(tmp_path, **{"0001": document("0001", [("D-1.1", "MAYBE", "x", "—")])})
 
-    code, output = _spec(tmp_path, "show", "D-1.1")
+    code, _ = _spec(tmp_path, "show", "D-1.1")
 
     assert code == 3

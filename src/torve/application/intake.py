@@ -660,23 +660,21 @@ def _document_owners(rfc_dir: Path) -> dict[str, str]:
     would overcount that single document as several — the mistake this
     resolution exists to rule out."""
 
-    from torve.application.planner import inherit_decisions
-    from torve.config import spec
+    from torve.application.planner import PlanError, inherit_decisions, load_corpus
 
     owners: dict[str, str] = {}
 
-    for path in spec.rfc_files(rfc_dir).values():
-        text = path.read_text(encoding="utf-8")
-        frontmatter = spec.parse_frontmatter(text)
+    try:
+        corpus = load_corpus(rfc_dir)
+    except PlanError:
+        return owners
 
-        if frontmatter is None:
+    for doc in corpus.standing():
+        if doc.superseded_by:
             continue
 
-        if str(frontmatter.get("status", "")) != "accepted" or frontmatter.get("superseded_by"):
-            continue
-
-        for row in inherit_decisions(text, path.name):
-            owners[row.id] = path.name
+        for row in inherit_decisions(doc):
+            owners[row.id] = Path(doc.path).name
 
     return owners
 
@@ -1646,16 +1644,18 @@ def _inherit_decisions(root: Path, rfc: str) -> list[dict[str, Any]]:
     if not doc_path.is_file():
         raise ValueError(f"no document at {rfc}")
 
-    text = doc_path.read_text(encoding="utf-8")
-    frontmatter = spec.parse_frontmatter(text)
+    try:
+        doc = spec.load_document(doc_path)
+    except spec.SpecError as exc:
+        raise ValueError(f"{rfc} does not load — {'; '.join(exc.problems)}") from None
 
-    if not frontmatter or frontmatter.get("status") != "accepted":
+    if doc.status != "accepted":
         raise ValueError(
             f"{rfc} is not accepted — a draft has no settled decisions to inherit (D-7.7)"
         )
 
     try:
-        rows = inherit_decisions(text, doc_path.name)
+        rows = inherit_decisions(doc)
 
     except PlanError as exc:
         raise ValueError(str(exc)) from exc

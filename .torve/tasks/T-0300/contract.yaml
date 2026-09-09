@@ -1,7 +1,7 @@
 # Minted by `torve plan 0056` — phase 1: the document is the model
 schema_version: 1
 id: T-0300
-rfc: rfcs/0056-structure-for-everything.md
+rfc: rfcs/0056-structure-for-everything.yaml
 phase: 1
 role: implement
 title: the document is the model
@@ -58,6 +58,9 @@ scope:
   - tests/test_skills.py
   - tests/test_cli.py
   - tests/test_mcp.py
+  - src/torve/application/projections.py
+  - skills/corpus-bootstrap/**
+  - tests/test_context.py
   deny: []
 acceptance:
 - uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py tests/test_rfc_check.py
@@ -65,6 +68,7 @@ acceptance:
   tests/test_plan.py tests/test_colocation.py tests/test_cli_spec.py tests/test_contextpack.py
   tests/test_rfc_fmt.py tests/test_rfc_show.py tests/test_rfc_verbs.py tests/test_intake.py
   tests/test_standing.py tests/test_decisions_record.py tests/test_skills.py tests/test_cli.py
+  tests/test_context.py
 - uv run torve rfc check
 - uv run lint-imports --config pyproject.toml
 decisions:

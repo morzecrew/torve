@@ -28,17 +28,22 @@ from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
 
-AMENDED = (
-    "\n```yaml decision-details\n- id: D-1.1\n  rationale: because\n  check: pytest tests/test_a.py\n```\n"
-    "\n## Amendments\n\n### A-9 — 2026-09-09 — regraded\n\nwords\n\n"
-    "```yaml changes\n- subject: D-1.1\n  field: grade\n  before: ASSUMED\n  after: LOCKED\n```\n"
-)
+DETAILS = {"D-1.1": {"rationale": "because", "check": "pytest tests/test_a.py"}}
+AMENDMENTS = [
+    {
+        "id": "A-9",
+        "at": "2026-09-09",
+        "title": "regraded",
+        "changes": [{"subject": "D-1.1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
+        "md": "words",
+    }
+]
 
 
 def _task(**extra: object) -> Task:
     return Task(
         id="T-0500",
-        rfc="rfcs/0001-document-0001.md",
+        rfc="rfcs/0001-document-0001.yaml",
         decisions=[
             InheritedDecision(
                 id="D-1.1",
@@ -59,11 +64,11 @@ def _seed(tmp_path: Path) -> Path:
     (tmp_path / "src" / "a" / "thing.py").write_text("", encoding="utf-8")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_thing.py").write_text("", encoding="utf-8")
-    text = (
-        document("0001", [("D-1.1", "LOCKED", "A rule.", "`src/a/**`")])
-        .replace("amended_by: []", 'amended_by: ["A-9"]')
-        .replace("| `src/a/**` | — |", "| `src/a/**` | it holds |")
-        + AMENDED
+    text = document(
+        "0001",
+        [("D-1.1", "LOCKED", "A rule.", "`src/a/**`", "it holds")],
+        details=DETAILS,
+        amendments=AMENDMENTS,
     )
     other = document("0002", [("D-2.1", "ASSUMED", "Another rule over a.", "`src/a/thing.py`")])
 

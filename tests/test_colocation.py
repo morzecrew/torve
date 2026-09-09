@@ -36,15 +36,23 @@ def _tree(tmp_path: Path) -> Path:
     return tmp_path
 
 
-PHASING = (
-    "\n## Phasing\n\n```yaml\n- phase: 1\n  title: one\n  intent: >-\n    Build it.\n"
-    '  scope: ["src/torve/domain/**"]\n  acceptance: []\n  depends_on: []\n```\n'
-)
-DETAILS = (
-    "\n```yaml decision-details\n- id: D-1.1\n  check: pytest tests/test_cli.py\n```\n"
-    "\n```yaml invariants\n- id: I-1.1\n  statement: one lander\n"
-    "  paths: [src/torve/cli/**]\n  check: pytest tests/test_lane.py\n```\n"
-)
+PHASE = {
+    "phase": 1,
+    "title": "one",
+    "intent": "Build it.",
+    "scope": ["src/torve/domain/**"],
+    "acceptance": [],
+    "depends_on": [],
+}
+DETAILS = {"D-1.1": {"check": "pytest tests/test_cli.py"}}
+INVARIANTS = [
+    {
+        "id": "I-1.1",
+        "statement": "one lander",
+        "paths": ["src/torve/cli/**"],
+        "check": "pytest tests/test_lane.py",
+    }
+]
 
 
 def _seed(tmp_path: Path) -> Path:
@@ -56,12 +64,19 @@ def _seed(tmp_path: Path) -> Path:
             "0001": document(
                 "0001",
                 [
-                    ("D-1.1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`"),
+                    (
+                        "D-1.1",
+                        "LOCKED",
+                        "Verbs parse and render only",
+                        "`src/torve/cli/**`",
+                        "because",
+                    ),
                     ("D-1.2", "ASSUMED", "Gates stand alone", "`src/torve/gates/**`"),
                 ],
-                phasing=PHASING,
-            ).replace("| `src/torve/cli/**` | — |", "| `src/torve/cli/**` | because |")
-            + DETAILS
+                phasing=[PHASE],
+                details=DETAILS,
+                invariants=INVARIANTS,
+            )
         },
     )
 
@@ -165,7 +180,7 @@ def test_removing_the_last_governing_row_removes_the_section_and_an_empty_file(
     slim = document(
         "0001", [("D-1.1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`")]
     )
-    (rfc_dir / "0001-document-0001.md").write_text(slim, encoding="utf-8")
+    (rfc_dir / "0001-document-0001.yaml").write_text(slim, encoding="utf-8")
 
     projection = project(tmp_path, rfc_dir)
 

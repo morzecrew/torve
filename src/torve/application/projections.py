@@ -982,36 +982,31 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
 
     for task in tasks:
         if task["rfc"]:
-            by_document.setdefault(str(task["rfc"]), []).append(task)
+            # keyed without the suffix: a contract minted before RFC 0056
+            # names the markdown file the document converted from
+            by_document.setdefault(str(Path(str(task["rfc"])).with_suffix("")), []).append(task)
 
     view: list[dict[str, Any]] = []
-    files = spec.rfc_files(rfc_dir)
-    statuses: dict[str, str] = {}
-    frontmatter: dict[str, dict[str, Any]] = {}
 
-    for number, path in sorted(files.items()):
-        fm = spec.parse_frontmatter(path.read_text(encoding="utf-8"))
+    try:
+        corpus = spec.load_corpus(rfc_dir)
+    except spec.SpecError:
+        return view
 
-        if fm is not None:
-            frontmatter[number] = fm
-            statuses[number] = str(fm.get("status", ""))
+    documents = {doc.id: doc for doc in corpus.documents if not doc.archived}
+    statuses = {number: doc.status for number, doc in documents.items()}
 
-    for number, path in sorted(files.items()):
-        fm = frontmatter.get(number)
-
-        if fm is None:
-            continue
-
-        text = path.read_text(encoding="utf-8")
-
-        try:
-            phasing = spec.parse_phasing(text)
-
-        except ValueError:
-            phasing = None
-
+    for number, doc in sorted(documents.items()):
+        path = Path(doc.path)
+        fm = {
+            "title": doc.title,
+            "kind": doc.kind,
+            "implementation": doc.implementation,
+            "depends_on": list(doc.depends_on),
+        }
+        phasing = doc.phasing
         document = str(path.resolve().relative_to(root.resolve()))
-        minted = by_document.get(document, [])
+        minted = by_document.get(str(Path(document).with_suffix("")), [])
         phases: dict[int, list[str]] = {}
 
         for task in minted:

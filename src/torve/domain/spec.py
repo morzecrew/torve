@@ -1,19 +1,18 @@
-"""The specification as a model (RFC 0053 §5.1, D-53.1): one pydantic
-`Document` every reader consumes — planner, importer, check, health, show,
-the intake lint, standing inheritance — and never a parser's rows.
+"""The specification as a model (RFC 0053 §5.1, D-53.1; RFC 0056 D-56.1):
+one pydantic `Document` every reader consumes — planner, importer, check,
+health, show, the intake lint, standing inheritance — and, since RFC
+0056, the shape of the file itself: a document is this model dumped as
+YAML, and nothing parses anything else into it.
 
 This module owns the shape and nothing about the storage: `config/spec.py`
-loads it from the markdown corpus, and `domain/rfc.py` still owns the
-vocabularies. It imports pydantic, the vocabularies and the task contract
-only (D-53.14), so extracting it into its own distribution is a packaging
-act and never a rewrite.
+loads and checks it, `config/rfc_emit.py` writes it, and `domain/rfc.py`
+still owns the vocabularies. It imports pydantic, the vocabularies and the
+task contract only (D-53.14), so extracting it into its own distribution
+is a packaging act and never a rewrite.
 
-The typed additions to a document are the five fenced kinds of RFC 0053
-§5.2 — `decision-details`, `invariants`, `alternatives`, `questions`,
-`changes` — each a list of one model below with `extra="forbid"`: an
-unknown key is refused with the key named, never ignored (D-53.3). Prose
-sections become `DesignSection`s keyed by heading slug and are typed no
-further.
+Every list below is a list of one model with `extra="forbid"`: an unknown
+key is refused with the key named, never ignored (D-53.3). Prose is
+`DesignSection.md`, a string the engine never parses (D-56.3).
 """
 
 from __future__ import annotations
@@ -23,14 +22,14 @@ import re
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field
 
 from torve.domain.rfc import Grade, Implementation, Kind, Status
 from torve.domain.task import Task
 
 # ----------------------- #
 
-FENCE_KINDS = ("decision-details", "invariants", "alternatives", "questions", "changes")
+SCHEMA_VERSION = 2  # D-56.1: the YAML document; 1 was the markdown document
 
 Coverage = Literal["governed", "ungoverned", "retired"]
 CheckState = Literal["shadow", "blocking"]
@@ -55,6 +54,15 @@ def fingerprint(text: str, grade: str, paths: list[str]) -> str:
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:FINGERPRINT_LENGTH]
 
 
+def rule_fingerprint(grade: str, paths: list[str]) -> str:
+    """The half of the stamp that moves only when the rule moves: grade and
+    paths, never text — what tells editorial drift from a hand-edited rule."""
+
+    material = "\n".join([grade, " ".join(sorted(paths))])
+
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:FINGERPRINT_LENGTH]
+
+
 # ----------------------- #
 
 
@@ -66,9 +74,9 @@ class Item(BaseModel):
 
 
 class Decision(Item):
-    """One decision-table row, joined with its `decision-details` entry
-    when the document carries one. `consequence` is the table's fifth cell;
-    `rationale`, `cites`, `check` and `superseded_by` come from the fence."""
+    """One decision row, whole (D-56.2): grade, text and paths — the three
+    fields a contract copies at mint — with its consequence, rationale,
+    citations, check and the stamp the tool last wrote on it."""
 
     id: str
     grade: Grade
@@ -81,34 +89,25 @@ class Decision(Item):
     check_state: CheckState = "shadow"  # promoted per row by amendment (D-54.4)
     check_twin: str | None = None  # the test that proves the check can fail (D-54.4)
     superseded_by: str | None = None
+    # `<content>/<rule>` as `stamp` writes it, empty until the tool has
+    # changed the row once; `fingerprint_drift` reads it (D-53.5).
+    fingerprint: str = ""
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def fingerprint(self) -> str:
+    def content_fingerprint(self) -> str:
         return fingerprint(self.text, self.grade, self.paths)
 
+    def stamp(self) -> str:
+        """The value the tool records on a row it just changed."""
 
-# ....................... #
-
-
-class DecisionDetail(Item):
-    """One entry of a `yaml decision-details` fence (RFC 0053 §5.2)."""
-
-    id: str
-    rationale: str = ""
-    cites: list[str] = Field(default_factory=list)
-    check: str | None = None
-    check_state: CheckState = "shadow"
-    check_twin: str | None = None
-    superseded_by: str | None = None
+        return f"{self.content_fingerprint()}/{rule_fingerprint(self.grade, self.paths)}"
 
 
 # ....................... #
 
 
 class Invariant(Item):
-    """One entry of a `yaml invariants` fence: a statement with the paths it
-    holds over and the command that proves it."""
+    """A statement with the paths it holds over and the command that proves
+    it."""
 
     id: str
     statement: str
@@ -120,8 +119,8 @@ class Invariant(Item):
 
 
 class Alternative(Item):
-    """One entry of a `yaml alternatives` fence: the negative space every
-    executor re-proposes when nobody told it the option was closed."""
+    """One rejected option: the negative space every executor re-proposes
+    when nobody told it the option was closed."""
 
     option: str
     rejected_because: str
@@ -157,28 +156,26 @@ class Change(Item):
 
 
 class Amendment(Item):
-    """One `### A-n` entry of the Amendments section: heading, the typed
-    diff from its `yaml changes` fence (empty for an execution finding that
-    changed nothing typed), and the words, untouched."""
+    """One amendment: its number and date, the typed diff (empty for an
+    execution finding that changed nothing typed), and the words."""
 
     id: str
     at: date | None = None
     title: str = ""
     changes: list[Change] = Field(default_factory=list)
-    body_md: str = ""
+    md: str = ""
 
 
 # ....................... #
 
 
 class DesignSection(Item):
-    """One prose section, keyed by heading slug — the anchor a log cites —
-    and typed no further (D-53.3)."""
+    """One prose section: the key a log cites, the heading a reader sees,
+    and a markdown body the engine never parses (D-53.3, D-56.3). Order is
+    the list's."""
 
     key: str
     heading: str
-    level: int = Field(ge=2, le=3)
-    order: int = 0
     md: str = ""
 
 
@@ -186,9 +183,8 @@ class DesignSection(Item):
 
 
 class Phase(Item):
-    """One mintable unit of the Phasing fence, field for field the loader's
-    `PhasingEntry` (unchanged by RFC 0053) so a contract minted from either
-    is the same contract."""
+    """One mintable unit of the phasing: what `torve plan` derives a
+    contract from."""
 
     phase: int = Field(ge=1)
     title: str = Field(min_length=1)
@@ -204,10 +200,11 @@ class Phase(Item):
 
 
 class Document(Item):
-    """One specification document: the frontmatter as fields, the typed
-    sections as lists, the prose as keyed sections. `archived` marks a
-    document loaded from the archive (D-53.8): every identifier it defines
-    still resolves, and nothing inherits from it."""
+    """One specification document, and the shape of its file (D-56.1): the
+    header fields, the prose as keyed sections, the typed lists. `path` and
+    `archived` are the loader's, never written; `archived` marks a document
+    loaded from the archive (D-53.8): every identifier it defines still
+    resolves, and nothing inherits from it."""
 
     id: str
     title: str
@@ -222,18 +219,21 @@ class Document(Item):
     retired: list[str] = Field(default_factory=list)
     owner: str
     description: str
-    schema_version: int
-    path: str = ""
-    archived: bool = False
+    schema_version: int = SCHEMA_VERSION
+    path: str = Field(default="", exclude=True)
+    archived: bool = Field(default=False, exclude=True)
 
+    sections: list[DesignSection] = Field(default_factory=list)
     decisions: list[Decision] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
     alternatives: list[Alternative] = Field(default_factory=list)
     questions: list[Question] = Field(default_factory=list)
     phasing: list[Phase] = Field(default_factory=list)
     contract_example: Task | None = None
-    sections: list[DesignSection] = Field(default_factory=list)
     amendments: list[Amendment] = Field(default_factory=list)
+    # The editorial lane's record (D-53.4): `torve rfc fix` appends the
+    # before and after here, never an amendment number.
+    editorial: list[Change] = Field(default_factory=list)
 
     def decision(self, identifier: str) -> Decision | None:
         return next((d for d in self.decisions if d.id == identifier), None)

@@ -1,478 +1,210 @@
-"""The canonical emitter beside `torve.config.spec` (RFC 0025 §5.1,
-D-25.1): renders a parsed document's model back to text. Frontmatter,
-the decision table, the phasing fence and dated amendment headings are the
-structures the parser models, so those are the only ones this module
-touches — every other byte, every word of prose, passes through untouched.
-That is what makes `emit` a structure-preserving rewrite rather than a
-renderer, and what makes idempotence a property worth pinning by test:
-formatting an already-canonical document must write nothing.
+"""The one writer of a document (RFC 0025 §5.1, D-25.1; RFC 0056 D-56.4):
+every verb that changes a document — `amend`, `fix`, `retire`,
+`archive`, `add-decision`, `relocate-paths`, `new` — mutates the loaded
+model and writes it through `dump_document`, one serializer with the
+model's key order, block scalars for anything holding a newline, folded
+scalars for long lines and flow lists for short lists of identifiers.
+Comments are not preserved: there is no second renderer to drop a field,
+and a row that needs a note needs a `rationale`.
 
-`emit` raises `ValueError` on anything the parser itself would reject —
-the same failure `torve rfc fmt` uses to refuse a document rather than
-laundering its breakage into a diff that looks deliberate.
-
-The transactional verbs (RFC 0025 §5.3, D-25.2) live here too: each mutate
-function takes a document's text and an identifier already derived by
-`rfc_parse`, and returns the emitted result of one structural edit —
-`append_amendment`, `append_decision`, `retire_decision`,
-`relocate_paths_text`. None of them write to disk; `write_transaction` is
-the one function that does, and only after the whole mutated corpus checks
-clean in a scratch copy (D-25.2's "abort the whole write on any problem,
-leaving the tree untouched").
+Every verb is a parse-mutate-dump-check transaction (D-25.2): the
+mutated corpus is checked whole in a scratch copy with the archive in
+view, and only a clean check is copied back.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
-import re
 import shutil
 import tempfile
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
 import yaml
 
 from torve.config.spec import (
-    AMENDMENTS_SECTION,
-    FRONTMATTER,
-    PHASING_HEADING,
-    TABLE_HEADER,
-    YAML_FENCE,
     CheckReport,
-    DecisionRow,
-    PhasingEntry,
+    SpecError,
     archive_dir,
-    build_index,
     check_corpus,
-    decision_table,
-    fm_list,
-    parse_frontmatter,
-    parse_phasing,
-    rfc_files,
+    load_document,
+    schema_header,
 )
-from torve.domain.spec import fingerprint
+from torve.domain.spec import SCHEMA_VERSION, Amendment, Change, Decision, Document
 
 # ----------------------- #
+# The serializer
 
-# The order every emitted document's frontmatter keys land in (D-25.1). A
-# key this tuple does not name keeps whatever position it already had,
-# appended after the known ones — the corpus has never needed one, but a
-# formatter that drops a field it does not recognise is a data-loss bug.
-FRONTMATTER_ORDER: tuple[str, ...] = (
-    "id",
-    "title",
-    "kind",
-    "status",
-    "implementation",
-    "depends_on",
-    "informed_by",
-    "supersedes",
-    "superseded_by",
-    "amended_by",
-    "retired",
-    "owner",
-    "description",
-    "schema_version",
-)
-
-# `fingerprints:` in frontmatter (RFC 0053 D-53.4, D-53.5): identifier ->
-# "<full>/<rule>", full over text, grade and paths, rule over grade and
-# paths alone. Written by every mutating verb, read by `rfc check` to tell
-# a hand-edited grade or paths (a problem) from a hand-edited text (a
-# warning that `rfc fix` re-stamps).
-FINGERPRINTS_KEY = "fingerprints"
+# A string longer than this is written folded (`>-`) so no line exceeds
+# WIDTH; a shorter one stays plain, and stays on one line at any depth
+# the model reaches, so a phrase is grep-able as written.
+FOLD_AT = 48
+WIDTH = 80
 
 
-def rule_fingerprint(grade: str, paths: list[str]) -> str:
-    material = "\n".join([grade, " ".join(sorted(paths))])
+class _Dumper(yaml.SafeDumper):
+    """PyYAML's safe dumper with the document's three conventions: a
+    string holding a newline is a literal block, a long string is folded,
+    and a short list of short scalars is a flow list. Indentation is two
+    spaces at every level, list items indented under their key."""
 
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
-
-
-def stamp(row: DecisionRow) -> str:
-    """The value the tool records for a row it just changed."""
-
-    return f"{fingerprint(row.text, row.grade, row.paths)}/{rule_fingerprint(row.grade, row.paths)}"
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        return super().increase_indent(flow, False)
 
 
-def _stamps(fm: dict[str, Any]) -> dict[str, str]:
-    raw = fm.get(FINGERPRINTS_KEY)
+def _represent_str(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
 
-    if not isinstance(raw, dict):
-        return {}
+    if len(data) > FOLD_AT and " " in data and not data.startswith((" ", "\t")):
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=">")
 
-    return {str(k): str(v) for k, v in cast("dict[object, object]", raw).items()}
-
-
-def _stamped(fm: dict[str, Any], row: DecisionRow) -> dict[str, Any]:
-    stamps = {**_stamps(fm), row.identifier: stamp(row)}
-
-    return {**fm, FINGERPRINTS_KEY: stamps}
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
-# `### A-n — YYYY-MM-DD — title` (D-A.5's dated form): the separator is
-# matched loosely (a hand-typed "-" is the exact trap this normalises) and
-# rewritten with the corpus's own em dash either side.
-_DATED_HEADING = re.compile(
-    r"^### (A-\d+)\s*(?:-{1,2}|—)\s*(\d{4}-\d{2}-\d{2})\s*(?:-{1,2}|—)\s*(.+?)\s*$", re.M
-)
+def _represent_list(dumper: yaml.SafeDumper, data: list[Any]) -> yaml.SequenceNode:
+    short = all(isinstance(item, str) and " " not in item and "\n" not in item for item in data)
+    flow = bool(data) and short and len(data) <= 8 and sum(len(cast("str", i)) for i in data) < 70
 
-# ....................... #
+    return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=flow or None)
 
 
-def _yaml_scalar(value: Any) -> str:
-    """One value, quoted exactly when YAML would otherwise misread it — a
-    bare `on`, a leading-zero id parsed as octal, a colon or a ` #` inside a
-    plain scalar. PyYAML's own analysis decides *whether* to quote, since it
-    resolves scalars with the same rules `parse_frontmatter`'s loader does;
-    only the quote character is ours, to match the corpus's double quotes
-    rather than PyYAML's single quotes."""
-
-    dumped = yaml.safe_dump(
-        {"v": value}, default_flow_style=False, sort_keys=False, allow_unicode=True
-    ).rstrip("\n")
-    body = dumped[len("v: ") :]
-
-    if len(body) >= 2 and body[0] == "'" and body[-1] == "'":
-        inner = body[1:-1].replace("''", "'").replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{inner}"'
-
-    return body
+_Dumper.add_representer(str, _represent_str)
+_Dumper.add_representer(list, _represent_list)
 
 
-# ....................... #
+def _payload(doc: Document) -> dict[str, Any]:
+    """The document as the file carries it: header fields always, lists
+    only when non-empty, and inside every list entry only what differs
+    from the model's default — so a row reads as its author wrote it."""
 
+    head = doc.model_dump(
+        mode="json",
+        include={
+            "id",
+            "title",
+            "kind",
+            "status",
+            "implementation",
+            "depends_on",
+            "informed_by",
+            "supersedes",
+            "superseded_by",
+            "amended_by",
+            "retired",
+            "owner",
+            "description",
+            "schema_version",
+        },
+    )
+    body: dict[str, Any] = {}
 
-def _dump_list(items: Any) -> str:
-    if not items:
-        return "[]"
+    for name in (
+        "sections",
+        "decisions",
+        "invariants",
+        "alternatives",
+        "questions",
+        "phasing",
+        "contract_example",
+        "amendments",
+        "editorial",
+    ):
+        value = getattr(doc, name)
 
-    return "[" + ", ".join(json.dumps(item) for item in items) + "]"
+        if value is None or value == []:
+            continue
 
-
-# ....................... #
-
-
-def _render_field(key: str, value: Any) -> str:
-    if key == "description" and isinstance(value, str):
-        # Folded, one line: `parse_frontmatter` already collapsed the
-        # source's newlines to spaces (YAML folding), so this is the
-        # fixed point re-emitting reaches regardless of how the source
-        # happened to be wrapped.
-        return f"description: >-\n  {' '.join(value.split())}"
-
-    if isinstance(value, list):
-        return f"{key}: {_dump_list(value)}"
-
-    if isinstance(value, dict):
-        entries = "\n".join(
-            f"  {_yaml_scalar(k)}: {_yaml_scalar(v)}"
-            for k, v in sorted(cast("dict[str, Any]", value).items())
-        )
-        return f"{key}:\n{entries}" if entries else f"{key}: {{}}"
-
-    return f"{key}: {_yaml_scalar(value)}"
-
-
-# ....................... #
-
-
-def render_frontmatter(fm: dict[str, Any]) -> str:
-    ordered = {key: fm[key] for key in FRONTMATTER_ORDER if key in fm}
-
-    for key, value in fm.items():
-        ordered.setdefault(key, value)
-
-    lines = ["---", *(_render_field(key, value) for key, value in ordered.items()), "---"]
-    return "\n".join(lines) + "\n"
-
-
-# ....................... #
-
-
-def _render_decision_table(rows: list[DecisionRow]) -> str:
-    lines = [TABLE_HEADER, "| --- | --- | --- | --- | --- |"]
-
-    for row in rows:
-        paths = " ".join(f"`{p}`" for p in row.paths) if row.paths else "—"
-        consequence = row.consequence or "—"
-        lines.append(f"| {row.identifier} | `{row.grade}` | {row.text} | {paths} | {consequence} |")
-
-    return "\n".join(lines) + "\n"
-
-
-# ....................... #
-
-
-def _rewrite_table(rest: str) -> str:
-    rows = decision_table(rest)
-
-    if not rows:
-        return rest
-
-    start = rest.find(TABLE_HEADER)
-
-    if start == -1:
-        return rest
-
-    pos = start
-
-    for _ in range(2 + len(rows)):  # the header line, the separator, one line per row
-        newline = rest.find("\n", pos)
-        pos = newline + 1 if newline != -1 else len(rest)
-
-    return rest[:start] + _render_decision_table(rows) + rest[pos:]
-
-
-# ....................... #
-
-
-def _render_phasing(entries: list[PhasingEntry]) -> str:
-    lines = ["```yaml"]
-
-    for entry in entries:
-        lines.append(f"- phase: {entry.phase}")
-        lines.append(f"  title: {_yaml_scalar(entry.title)}")
-        lines.append("  intent: >-")
-        lines.append(f"    {' '.join(entry.intent.split())}")
-        lines.append("  scope:")
-        lines += [f"    - {json.dumps(item)}" for item in entry.scope]
-
-        if entry.acceptance:
-            lines.append("  acceptance:")
-            lines += [f"    - {json.dumps(item)}" for item in entry.acceptance]
+        if name == "contract_example":
+            body[name] = value.model_dump(mode="json", exclude_none=True)
         else:
-            lines.append("  acceptance: []")
+            body[name] = [
+                item.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
+                for item in value
+            ]
 
-        if entry.tier_variant:
-            lines.append(f"  tier_variant: {_yaml_scalar(entry.tier_variant)}")
+    return {**head, **body}
 
-        lines.append(f"  depends_on: [{', '.join(str(d) for d in entry.depends_on)}]")
 
-    lines.append("```")
-    # No trailing newline: `YAML_FENCE`'s closing `$` is zero-width, so the
-    # splice site in `_rewrite_phasing` already keeps the source's own
-    # newline after the fence — adding one here would double it.
-    return "\n".join(lines)
+def dump_document(doc: Document) -> str:
+    """The document as text: the schema header line, then the model."""
 
+    text = yaml.dump(
+        _payload(doc),
+        Dumper=_Dumper,
+        sort_keys=False,
+        allow_unicode=True,
+        width=WIDTH,
+        default_flow_style=False,
+    )
 
-# ....................... #
+    return f"{schema_header(doc.archived)}\n{text}"
 
 
-def _rewrite_phasing(rest: str) -> str:
-    entries = parse_phasing(rest)  # raises ValueError on a fence that does not mint
+def canonical(text: str, path: Path) -> str:
+    """What the serializer would write for a document as loaded from
+    *text* — what `fmt --check` compares against."""
 
-    if not entries:
-        return rest
+    with tempfile.TemporaryDirectory() as scratch:
+        probe = Path(scratch) / path.name
+        probe.write_text(text, encoding="utf-8")
+        doc = load_document(probe, archived=path.parent == archive_dir(path.parent.parent))
 
-    heading = PHASING_HEADING.search(rest)
+    return dump_document(doc)
 
-    if heading is None:  # pragma: no cover - parse_phasing found entries, so a heading exists
-        return rest
 
-    section_start = heading.end()
-    following = re.search(r"^##\s", rest[section_start:], re.M)
-    section_end = section_start + following.start() if following else len(rest)
-    fence = YAML_FENCE.search(rest[section_start:section_end])
+# ----------------------- #
+# The stamp
 
-    if fence is None:  # pragma: no cover - parse_phasing found entries, so a fence exists
-        return rest
 
-    start, end = section_start + fence.start(), section_start + fence.end()
-    return rest[:start] + _render_phasing(entries) + rest[end:]
+def stamp(row: Decision) -> str:
+    return row.stamp()
 
 
-# ....................... #
+# ----------------------- #
+# The mutations (each returns a new Document; nothing here writes)
 
 
-def _rewrite_amendment_headings(rest: str) -> str:
-    section = AMENDMENTS_SECTION.search(rest)
+def _row(doc: Document, identifier: str) -> Decision:
+    row = doc.decision(identifier)
 
-    if section is None:
-        return rest
+    if row is None:
+        raise ValueError(f"no decision {identifier!r} in this document")
 
-    head, tail = rest[: section.end()], rest[section.end() :]
-    tail = _DATED_HEADING.sub(lambda m: f"### {m[1]} — {m[2]} — {m[3]}", tail)
-    return head + tail
+    return row
 
 
-# ....................... #
-
-
-def emit(text: str) -> str:
-    """The parsed model, rendered back to text (D-25.1): frontmatter, the
-    decision table, the phasing fence and dated amendment headings
-    normalised; everything else passed through byte-for-byte. Raises
-    `ValueError` on anything the parser itself would reject."""
-
-    fm = parse_frontmatter(text)
-
-    if fm is None:
-        raise ValueError("no parseable YAML frontmatter")
-
-    match = FRONTMATTER.match(text)
-
-    if match is None:  # pragma: no cover - parse_frontmatter already matched this
-        raise ValueError("no parseable YAML frontmatter")
-
-    rest = text[match.end() :]
-    rest = _rewrite_table(rest)
-    rest = _rewrite_phasing(rest)
-    rest = _rewrite_amendment_headings(rest)
-    return render_frontmatter(fm) + rest
-
-
-# ....................... #
-
-
-def _split(text: str) -> tuple[dict[str, Any], str]:
-    """One document's frontmatter and everything after it — the split every
-    mutate function starts from, matching what `emit` itself parses."""
-
-    match = FRONTMATTER.match(text)
-    fm = parse_frontmatter(text)
-
-    if match is None or fm is None:
-        raise ValueError("no parseable YAML frontmatter")
-
-    return fm, text[match.end() :]
-
-
-# ....................... #
-
-
-def _replace_table(rest: str, new_rows: list[DecisionRow]) -> str:
-    """*rest*'s decision table, replaced whole by *new_rows* rendered
-    canonically — the span-finding half of `_rewrite_table`, generalised to
-    a caller-supplied row list so a mutate function can add, drop or edit a
-    row before the table is re-rendered."""
-
-    original = decision_table(rest)
-    start = rest.find(TABLE_HEADER)
-
-    if start == -1:
-        raise ValueError("no Decisions table found")
-
-    pos = start
-
-    for _ in range(2 + len(original)):  # the header line, the separator, one line per row
-        newline = rest.find("\n", pos)
-        pos = newline + 1 if newline != -1 else len(rest)
-
-    return rest[:start] + _render_decision_table(new_rows) + rest[pos:]
-
-
-# ....................... #
-
-
-def render_changes(changes: list[dict[str, Any]]) -> str:
-    """A `yaml changes` fence (RFC 0053 §5.2): one entry per typed edit,
-    `before` read from the document as it stood."""
-
-    lines = ["```yaml changes"]
-
-    for change in changes:
-        lines.append(f"- subject: {_one_line(change['subject'])}")
-        lines.append(f"  field: {_one_line(change['field'])}")
-
-        for key in ("before", "after"):
-            value = change.get(key)
-
-            if isinstance(value, list):
-                lines.append(f"  {key}: {_dump_list(value)}")
-            else:
-                lines.append(f"  {key}: {_one_line(value)}")
-
-    lines.append("```")
-    return "\n".join(lines) + "\n"
-
-
-# ....................... #
-
-
-def _one_line(value: Any) -> str:
-    """One scalar on one line, whatever its length: a JSON string is a
-    valid YAML double-quoted scalar and never wraps, where PyYAML's own
-    rendering folds a long plain scalar across lines — which inside a list
-    item is not the YAML it came from (T-0293)."""
-
-    if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
-
-    return _yaml_scalar(value)
-
-
-# ....................... #
-
-
-def append_amendment(
-    text: str,
-    amendment: str,
-    title: str,
-    today: str,
-    changes: list[dict[str, Any]] | None = None,
-) -> str:
-    """`rfc amend` (D-25.4): appends the dated `### A-nn — date — title`
-    skeleton to the end of the document's `## Amendments` container — the
-    section runs to end of file by the same convention `check_amendments`
-    already assumes — and records *amendment* in `amended_by`. The entry's
-    own words are left for the author to write; the typed diff of any row
-    the same verb changed rides beneath the heading as a `changes` fence
-    (D-53.4), which is the only moment the prior value still exists."""
-
-    fm, rest = _split(text)
-
-    if AMENDMENTS_SECTION.search(rest) is None:
-        raise ValueError("no '## Amendments' section to append to")
-
-    fm = {**fm, "amended_by": [*fm_list(fm, "amended_by"), amendment]}
-    rest = rest.rstrip("\n") + f"\n\n### {amendment} — {today} — {title}\n"
-
-    if changes:
-        rest += "\n" + render_changes(changes)
-
-    return emit(render_frontmatter(fm) + rest)
-
-
-# ....................... #
+def _with_rows(doc: Document, rows: list[Decision]) -> Document:
+    return doc.model_copy(update={"decisions": rows})
 
 
 def amend_row(
-    text: str,
+    doc: Document,
     identifier: str,
     *,
     grade: str | None = None,
     paths: list[str] | None = None,
     new_text: str | None = None,
-) -> tuple[str, list[dict[str, Any]]]:
+) -> tuple[Document, list[dict[str, Any]]]:
     """One row changed by the tool (D-53.4): grade, paths or text replaced,
-    the row re-stamped in `fingerprints:`, and the typed diff returned for
-    the amendment heading that records it. Raises `ValueError` when the
-    row is unknown or nothing was asked to change."""
+    the row re-stamped, and the typed diff returned for the amendment that
+    records it. Raises `ValueError` when the row is unknown or nothing was
+    asked to change."""
 
-    fm, rest = _split(text)
-    rows = decision_table(rest)
-    current = next((row for row in rows if row.identifier == identifier), None)
-
-    if current is None:
-        raise ValueError(f"no decision {identifier!r} in this document's table")
-
+    current = _row(doc, identifier)
     changes: list[dict[str, Any]] = []
-    updated = current
+    update: dict[str, Any] = {}
 
     if grade is not None and grade != current.grade:
         changes.append(
             {"subject": identifier, "field": "grade", "before": current.grade, "after": grade}
         )
-        updated = replace(updated, grade=grade)
+        update["grade"] = grade
 
     if paths is not None and paths != current.paths:
         changes.append(
-            {"subject": identifier, "field": "paths", "before": current.paths, "after": paths}
+            {"subject": identifier, "field": "paths", "before": list(current.paths), "after": paths}
         )
-        updated = replace(updated, paths=paths)
+        update["paths"] = paths
 
     if new_text is not None and new_text.strip() != current.text.strip():
         changes.append(
@@ -483,251 +215,214 @@ def amend_row(
                 "after": new_text.strip(),
             }
         )
-        updated = replace(updated, text=new_text.strip())
+        update["text"] = new_text.strip()
 
     if not changes:
         raise ValueError(f"nothing to change on {identifier}")
 
+    updated = Decision.model_validate({**current.model_dump(), **update})
+    updated = updated.model_copy(update={"fingerprint": updated.stamp()})
     changes.append(
         {
             "subject": identifier,
             "field": "fingerprint",
-            "before": _stamps(fm).get(identifier),
-            "after": stamp(updated),
+            "before": current.fingerprint or None,
+            "after": updated.fingerprint,
         }
     )
-    rest = _replace_table(rest, [updated if row.identifier == identifier else row for row in rows])
-    return emit(render_frontmatter(_stamped(fm, updated)) + rest), changes
+    rows = [updated if row.id == identifier else row for row in doc.decisions]
+
+    return _with_rows(doc, rows), changes
 
 
-# ....................... #
+def fix_row_text(
+    doc: Document, identifier: str, new_text: str
+) -> tuple[Document, list[dict[str, Any]]]:
+    """The editorial lane (D-53.4): the text replaced, the row re-stamped,
+    the before and after recorded under `editorial` — never an amendment
+    number. A rewording that changes the rule is an amendment."""
 
+    current = _row(doc, identifier)
+    text = new_text.strip()
 
-def fix_row_text(text: str, identifier: str, new_text: str) -> tuple[str, list[dict[str, Any]]]:
-    """`rfc fix` (D-53.4's editorial lane): the row's text replaced and the
-    row re-stamped, with the before and after recorded in a `changes`
-    fence directly under the decision table — never an amendment number.
-    A typo costs one command and loses nothing; a rewording that changes
-    the rule's meaning is the author's judgement to raise to an amendment,
-    and the recorded pair is what lets a reviewer say so."""
-
-    fm, rest = _split(text)
-    rows = decision_table(rest)
-    current = next((row for row in rows if row.identifier == identifier), None)
-
-    if current is None:
-        raise ValueError(f"no decision {identifier!r} in this document's table")
-
-    updated = replace(current, text=new_text.strip())
-    already = _stamps(fm).get(identifier)
-
-    if updated.text == current.text and already == stamp(updated):
+    # The text as it now reads, hand-edited and unstamped, is exactly what
+    # this lane accepts: the refusal is for a row already stamped as it is.
+    if text == current.text.strip() and current.fingerprint == current.stamp():
         raise ValueError(f"{identifier}'s text already reads that way, and it is stamped")
 
-    changes: list[dict[str, Any]] = []
+    updated = current.model_copy(update={"text": text})
+    updated = updated.model_copy(update={"fingerprint": updated.stamp()})
+    changes: list[dict[str, Any]] = [
+        {"subject": identifier, "field": "text", "before": current.text, "after": text},
+        {
+            "subject": identifier,
+            "field": "fingerprint",
+            "before": current.fingerprint or None,
+            "after": updated.fingerprint,
+        },
+    ]
+    rows = [updated if row.id == identifier else row for row in doc.decisions]
+    editorial = [*doc.editorial, *(Change.model_validate(c) for c in changes)]
 
-    if updated.text != current.text:
-        changes.append(
-            {"subject": identifier, "field": "text", "before": current.text, "after": updated.text}
-        )
+    return doc.model_copy(update={"decisions": rows, "editorial": editorial}), changes
 
-    # The same text, re-stamped: the row was edited by hand and the author
-    # is accepting the edit as editorial — the pair recorded is the stamped
-    # fingerprint against the one the row now carries.
-    changes.append(
-        {"subject": identifier, "field": "fingerprint", "before": already, "after": stamp(updated)}
+
+def append_amendment(
+    doc: Document,
+    amendment: str,
+    title: str,
+    today: str,
+    changes: list[dict[str, Any]] | None = None,
+) -> Document:
+    """`rfc amend` (D-25.4): the next amendment appended with its typed
+    diff (D-53.4) and recorded in `amended_by`; the words are the
+    author's to write."""
+
+    if any(a.id == amendment for a in doc.amendments):
+        raise ValueError(f"{amendment} already exists on this document")
+
+    entry = Amendment.model_validate(
+        {"id": amendment, "at": today, "title": title, "changes": changes or []}
     )
-    rest = _replace_table(rest, [updated if row.identifier == identifier else row for row in rows])
-    rest = _append_editorial(rest, changes)
-    return emit(render_frontmatter(_stamped(fm, updated)) + rest), changes
 
-
-# ....................... #
-
-_EDITORIAL_MARK = "<!-- editorial changes, recorded by `torve rfc fix` -->"
-
-
-def _append_editorial(rest: str, changes: list[dict[str, Any]]) -> str:
-    """The editorial fence lives right after the decision table, one fence
-    per document, entries appended in order."""
-
-    fence_lines = render_changes(changes).splitlines()[1:-1]  # entries only
-    marker = rest.find(_EDITORIAL_MARK)
-
-    if marker != -1:
-        fence_start = rest.find("```yaml changes", marker)
-        fence_end = rest.find("```", fence_start + len("```yaml changes"))
-
-        if fence_start != -1 and fence_end != -1:
-            body = rest[fence_start:fence_end].rstrip("\n")
-            return (
-                rest[:fence_start] + body + "\n" + "\n".join(fence_lines) + "\n" + rest[fence_end:]
-            )
-
-    start = rest.find(TABLE_HEADER)
-    rows = decision_table(rest)
-    pos = start
-
-    for _ in range(2 + len(rows)):
-        newline = rest.find("\n", pos)
-        pos = newline + 1 if newline != -1 else len(rest)
-
-    block = "\n" + _EDITORIAL_MARK + "\n" + render_changes(changes)
-    return rest[:pos] + block + rest[pos:]
-
-
-# ....................... #
-
-
-def append_decision(text: str, identifier: str) -> str:
-    """`rfc add-decision` (D-25.4): appends a row skeleton under *identifier*
-    — the next free id in the document's own family, derived by
-    `spec.next_decision` before this is called. The grade is written as
-    `OPEN`, the vocabulary's own "not yet decided" value (D-25.3 LOCKED: no
-    verb chooses a grade) — Paths and the decision text are left blank for
-    the author."""
-
-    fm, rest = _split(text)
-    rows = decision_table(rest)
-
-    if not rows:
-        raise ValueError("no Decisions table to append to")
-
-    new_row = DecisionRow(identifier=identifier, grade="OPEN", text="<decision>", paths=[])
-    rest = _replace_table(rest, [*rows, new_row])
-    return emit(render_frontmatter(fm) + rest)
-
-
-# ....................... #
-
-
-def retire_decision(text: str, identifier: str, today: str, reason: str = "") -> str:
-    """`rfc retire` (D-25.6): executes D-16.1 whole — removes *identifier*'s
-    row, records it in `retired:`, and leaves a tombstone stub immediately
-    after the table for the author to complete. Whether the result still
-    checks clean — in particular, whether every remaining citation of
-    *identifier* still resolves — is left to the transaction's check
-    (D-25.2); this function only rewrites the text."""
-
-    fm, rest = _split(text)
-    rows = decision_table(rest)
-    remaining = [row for row in rows if row.identifier != identifier]
-
-    if len(remaining) == len(rows):
-        raise ValueError(f"no decision {identifier!r} in this document's table")
-
-    start = rest.find(TABLE_HEADER)
-
-    if start == -1:
-        raise ValueError("no Decisions table found")
-
-    pos = start
-
-    for _ in range(2 + len(rows)):
-        newline = rest.find("\n", pos)
-        pos = newline + 1 if newline != -1 else len(rest)
-
-    # No citation of the "never reused" rule itself: which decision states it
-    # (D-A.4 in this repository's own corpus) is a fact about one corpus, not
-    # something this generic verb may assume of the corpus it is run against.
-    why = reason or "<why>"
-    tombstone = f"\n{identifier} was retired {today}; {why}. The identifier is never reused.\n"
-    rest = rest[:start] + _render_decision_table(remaining) + tombstone + rest[pos:]
-    stamps = {k: v for k, v in _stamps(fm).items() if k != identifier}
-    fm = {**fm, "retired": [*fm_list(fm, "retired"), identifier]}
-    fm = (
-        {**fm, FINGERPRINTS_KEY: stamps}
-        if stamps
-        else {k: v for k, v in fm.items() if k != FINGERPRINTS_KEY}
+    return doc.model_copy(
+        update={
+            "amended_by": [*doc.amended_by, amendment],
+            "amendments": [*doc.amendments, entry],
+        }
     )
-    return emit(render_frontmatter(fm) + rest)
 
 
-# ....................... #
+def append_decision(doc: Document, identifier: str) -> Document:
+    """`rfc add-decision` (D-25.3): a row under the next free identifier,
+    grade OPEN — the vocabulary's own "not yet decided" — and the text
+    left for the author."""
+
+    if doc.decision(identifier) is not None:
+        raise ValueError(f"{identifier} already exists on this document")
+
+    row = Decision(id=identifier, grade="OPEN", text="<decision>")
+
+    return _with_rows(doc, [*doc.decisions, row])
 
 
-def relocate_paths_text(text: str, old: str, new: str) -> tuple[str, list[str]] | None:
-    """`rfc relocate-paths` (D-25.7): rewrites every Paths cell carrying the
-    exact glob *old* to *new* — an exact token match, never a substring,
-    since a partial match risks rewriting an unrelated glob that merely
-    shares a path segment. Returns `None` when nothing in this document
-    matched. Decision text is never touched, per D-25.7."""
+def retire_decision(doc: Document, identifier: str, today: str, reason: str = "") -> Document:
+    """`rfc retire` (D-25.6, D-16.1): the row removed and its identifier
+    recorded in `retired`, never reused. The reason rides the amendment's
+    diff that records the retirement."""
 
-    fm, rest = _split(text)
-    rows = decision_table(rest)
+    _row(doc, identifier)
+    rows = [row for row in doc.decisions if row.id != identifier]
+
+    return doc.model_copy(update={"decisions": rows, "retired": [*doc.retired, identifier]})
+
+
+def relocate_paths(doc: Document, old: str, new: str) -> tuple[Document, list[str]]:
+    """`rfc relocate-paths` (D-25.7): every row carrying the exact glob
+    *old* carries *new*; the rows touched are returned. Text is never
+    touched."""
+
     touched: list[str] = []
-    updated: list[DecisionRow] = []
+    rows: list[Decision] = []
 
-    for row in rows:
+    for row in doc.decisions:
         if old in row.paths:
-            touched.append(row.identifier)
-            row = replace(row, paths=[new if p == old else p for p in row.paths])
+            touched.append(row.id)
+            row = row.model_copy(update={"paths": [new if p == old else p for p in row.paths]})
 
-        updated.append(row)
+        rows.append(row)
 
-    if not touched:
-        return None
-
-    rest = _replace_table(rest, updated)
-    return emit(render_frontmatter(fm) + rest), touched
+    return _with_rows(doc, rows), touched
 
 
-# ....................... #
+def archive_document(doc: Document, superseded_by: str) -> Document:
+    """What a retired document carries in the archive (D-53.8): `status:
+    superseded`, `superseded_by` naming the baseline. Every identifier
+    stays and still resolves."""
+
+    if doc.status == "superseded" and doc.superseded_by:
+        raise ValueError(f"RFC {doc.id} is already superseded by {doc.superseded_by}")
+
+    return doc.model_copy(
+        update={"status": "superseded", "superseded_by": superseded_by, "archived": True}
+    )
+
+
+def new_document(number: str, title: str, owner: str, kind: str = "design") -> Document:
+    """`rfc new`: the smallest document that checks — 0055's shape."""
+
+    return Document.model_validate(
+        {
+            "id": number,
+            "title": title,
+            "kind": kind,
+            "status": "draft",
+            "owner": owner,
+            "description": f"{title}.",
+            "schema_version": SCHEMA_VERSION,
+            "sections": [
+                {"key": "summary", "heading": "Summary", "md": "What this document decides.\n"}
+            ],
+        }
+    )
+
+
+# ----------------------- #
+# The transaction
+
+
+def _materialize(target: Path, mutated: Document | str) -> None:
+    target.write_text(
+        mutated if isinstance(mutated, str) else dump_document(mutated), encoding="utf-8"
+    )
 
 
 def write_transaction(
     rfc_dir: Path,
     root: Path,
-    mutations: dict[str, str],
+    mutations: dict[str, Document | str],
     deletions: tuple[str, ...] = (),
-    archived: dict[str, str] | None = None,
+    archived: dict[str, Document | str] | None = None,
 ) -> CheckReport:
-    """One parse-mutate-emit-check cycle (D-25.2): *mutations* (filename ->
-    new text) is applied and *deletions* removed in a scratch copy of the
-    corpus, *archived* (filename -> text) is placed in a scratch copy of
-    the archive beside it, the index is regenerated there, and the scratch
-    corpus is checked whole with the archive in view — what `check` sees
-    is what the transaction sees (A-140). Only a clean check is copied
-    back to *rfc_dir* and the real archive; a red check leaves both
-    untouched. A deletion paired with an archived copy is what `rfc
-    archive` does (D-53.8); nothing else deletes."""
+    """One parse-mutate-dump-check cycle (D-25.2): *mutations* (filename ->
+    document or text) is applied and *deletions* removed in a scratch copy
+    of the corpus, *archived* is placed in a scratch copy of the archive
+    beside it, and the scratch corpus is checked whole with the archive in
+    view (A-140). Only a clean check is copied back; a red check leaves
+    the tree untouched."""
 
     real_archive = archive_dir(rfc_dir)
 
     with tempfile.TemporaryDirectory() as scratch_name:
-        scratch_root = Path(scratch_name)
-        scratch = scratch_root / rfc_dir.name
+        scratch = Path(scratch_name) / rfc_dir.name
         scratch.mkdir()
         scratch_archive = archive_dir(scratch)
 
         if real_archive.is_dir():
             shutil.copytree(real_archive, scratch_archive)
 
-        for name, text in (archived or {}).items():
+        for name, doc in (archived or {}).items():
             scratch_archive.mkdir(parents=True, exist_ok=True)
-            (scratch_archive / name).write_text(text, encoding="utf-8")
+            _materialize(scratch_archive / name, doc)
 
-        for path in rfc_dir.glob("*.md"):
-            if path.name not in deletions:
+        for path in rfc_dir.iterdir():
+            if path.is_file() and path.name not in deletions:
                 shutil.copy2(path, scratch / path.name)
 
-        for name, mutated in mutations.items():
-            (scratch / name).write_text(mutated, encoding="utf-8")
+        for name, doc in mutations.items():
+            _materialize(scratch / name, doc)
 
-        (scratch / "INDEX.md").write_text(build_index(rfc_files(scratch)), encoding="utf-8")
         report = check_corpus(scratch, root)
 
         if not report.ok:
             return report
 
-        for name in (*mutations, "INDEX.md"):
-            (rfc_dir / name).write_text(
-                (scratch / name).read_text(encoding="utf-8"), encoding="utf-8"
-            )
+        for name in mutations:
+            shutil.copy2(scratch / name, rfc_dir / name)
 
-        for name, text in (archived or {}).items():
+        for name in archived or {}:
             real_archive.mkdir(parents=True, exist_ok=True)
-            (real_archive / name).write_text(text, encoding="utf-8")
+            shutil.copy2(scratch_archive / name, real_archive / name)
 
         for name in deletions:
             (rfc_dir / name).unlink(missing_ok=True)
@@ -735,19 +430,11 @@ def write_transaction(
     return report
 
 
-# ....................... #
+def load_or_fail(path: Path) -> Document:
+    """A verb's entry: the document, or the loader's refusal as `ValueError`
+    for the verb to name."""
 
-
-def archive_document(text: str, superseded_by: str, today: str) -> str:
-    """The frontmatter a retired document carries in the archive (D-53.8):
-    `status: superseded`, `superseded_by` naming the baseline. Every other
-    byte, every identifier, stays — an archived identifier still resolves."""
-
-    fm, rest = _split(text)
-
-    if str(fm.get("status")) == "superseded" and fm.get("superseded_by"):
-        raise ValueError(f"RFC {fm.get('id')} is already superseded by {fm.get('superseded_by')}")
-
-    fm = {**fm, "status": "superseded", "superseded_by": superseded_by}
-    marker = f"\n*Archived {today}: superseded by {superseded_by} (RFC 0053 D-53.8).*\n"
-    return render_frontmatter(fm) + rest.rstrip("\n") + "\n" + marker
+    try:
+        return load_document(path)
+    except SpecError as exc:
+        raise ValueError("; ".join(exc.problems)) from None

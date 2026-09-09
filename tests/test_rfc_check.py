@@ -1,13 +1,15 @@
 """`torve rfc` — the corpus checks of RFC 0007 §3a and charter A-15, each
-observed to fail (D-2.2 discipline): format sabotage (ungraded row, LOCKED
-without paths, duplicate identifier, cycle, hand-edited index), directory
-contents with routing messages (D-A.18), derived numbering over a hole
-(D-A.17/D-A.19), staleness against the generated index, and line-cite rot.
+observed to fail (D-2.2 discipline): sabotage the model refuses (ungraded
+row, unknown vocabulary, a key outside the schema), sabotage only the
+corpus can see (LOCKED without paths, duplicate identifier, cycle, a
+comment), directory contents with routing messages (D-A.18), derived
+numbering over a hole and over the archive (D-A.17/D-A.19), and line-cite
+rot.
 
 Inheriting from a non-accepted document is a problem (D-A.10, hardened once
 the corpus's one violation was resolved). Citation resolution is a problem
-too: retired identifiers resolve through `retired:` frontmatter (D-16.1), so
-an unresolvable citation is a typo, and a retired identifier can never be
+too: retired identifiers resolve through `retired:` (D-16.1), so an
+unresolvable citation is a typo, and a retired identifier can never be
 redefined.
 """
 
@@ -15,10 +17,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
+from test_decisions import document
 from typer.testing import CliRunner
 
 from torve.cli import app
+from torve.config.spec import load_document
 
 runner = CliRunner()
 
@@ -28,40 +33,28 @@ EXIT_CONFIG = 3
 def rfc_text(
     number: str,
     title: str,
-    decision: str,
+    decision: str = "D-T.1",
     status: str = "draft",
     implementation: str = "none",
-    depends: str = "[]",
-    extra_front: str = "",
-    body_extra: str = "",
+    *,
+    rows: list[Any] | None = None,
+    **kw: Any,
 ) -> str:
-    return (
-        "---\n"
-        f'id: "{number}"\n'
-        f"title: {title}\n"
-        f"status: {status}\n"
-        f"implementation: {implementation}\n"
-        f"{extra_front}"
-        f"depends_on: {depends}\n"
-        "informed_by: []\n"
-        "supersedes: []\n"
-        "superseded_by: null\n"
-        "amended_by: []\n"
-        "owner: Test Owner\n"
-        "description: >-\n"
-        f"  Scratch document {title}.\n"
-        "schema_version: 1\n"
-        "---\n"
-        "\n"
-        f"# RFC {number} — {title}\n"
-        f"{body_extra}"
-        "\n"
-        "## Decisions\n"
-        "\n"
-        "| # | Grade | Decision | Paths | Consequence |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        f"| {decision} | `ASSUMED` | Something is decided | — | — |\n"
+    """One scratch document as YAML: the shared builder with this suite's
+    defaults — a draft nobody has built, carrying one ungoverned row."""
+
+    return document(
+        number,
+        rows or [(decision, "ASSUMED", "Something is decided", "—")],
+        title=title,
+        status=status,
+        implementation=implementation,
+        **kw,
     )
+
+
+def prose(md: str) -> list[dict[str, str]]:
+    return [{"key": "design", "heading": "Design", "md": md}]
 
 
 def invoke(root: Path, *args: str):
@@ -69,14 +62,20 @@ def invoke(root: Path, *args: str):
 
 
 def seed(tmp_path: Path, *docs: tuple[str, str]) -> Path:
-    """Write (filename, text) docs, generate the index, return the corpus dir."""
+    """Write (filename, text) documents and return the corpus dir. There is
+    no index to generate any more (D-56.7)."""
+
     rfcs = tmp_path / "rfcs"
     rfcs.mkdir(exist_ok=True)
-    for name, text in docs or (("0001-widget.md", rfc_text("0001", "Widget", "D-T.1")),):
+
+    for name, text in docs or (("0001-widget.yaml", rfc_text("0001", "Widget")),):
         (rfcs / name).write_text(text, encoding="utf-8")
-    generated = invoke(tmp_path, "index")
-    assert generated.exit_code == 0, generated.output
+
     return rfcs
+
+
+def loaded(rfcs: Path, name: str):
+    return load_document(rfcs / name)
 
 
 # ....................... #
@@ -90,24 +89,27 @@ def test_a_conforming_corpus_passes(tmp_path: Path) -> None:
 
 
 def test_an_ungraded_row_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1").replace("`ASSUMED`", "`PROBABLY`")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", rows=[("D-T.1", "PROBABLY", "Something is decided", "—")])
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "PROBABLY" in result.output
+    assert "decisions.0.grade" in result.output
 
 
 def test_a_locked_row_without_paths_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1").replace("`ASSUMED`", "`LOCKED`")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", rows=[("D-T.1", "LOCKED", "Something is decided", "—")])
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "declares no Paths" in result.output
+    assert "declares no paths" in result.output
 
 
 def test_a_duplicate_identifier_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1") + "| D-T.1 | `ASSUMED` | A twin | — | — |\n"
-    seed(tmp_path, ("0001-widget.md", doc))
+    seed(
+        tmp_path,
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.1")),
+    )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "already used" in result.output
@@ -116,74 +118,87 @@ def test_a_duplicate_identifier_reddens(tmp_path: Path) -> None:
 def test_a_two_document_cycle_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1", depends='["0002"]')),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2", depends='["0001"]')),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1", depends_on=["0002"])),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.2", depends_on=["0001"])),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "cycle" in result.output
 
 
-def test_a_hand_edited_index_reddens(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path)
-    index = rfcs / "INDEX.md"
-    index.write_text(index.read_text(encoding="utf-8") + "| a row |\n", encoding="utf-8")
+def test_a_comment_reddens_naming_the_line(tmp_path: Path) -> None:
+    # D-56.4: the schema header is the one legal comment; anything else is
+    # meaning outside the model.
+    text = rfc_text("0001", "Widget")
+    head, rest = text.split("\n", 1)
+    seed(tmp_path, ("0001-widget.yaml", f"{head}\n# a note nobody can read\n{rest}"))
+
     result = invoke(tmp_path, "check")
+
     assert result.exit_code == EXIT_CONFIG
-    assert "generated" in result.output
+    assert "0001-widget.yaml:2: a comment" in result.output
+
+
+def test_schema_version_one_is_refused_naming_the_conversion(tmp_path: Path) -> None:
+    seed(tmp_path, ("0001-widget.yaml", rfc_text("0001", "Widget", schema_version=1)))
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "RFC 0056 phase 1" in result.output
 
 
 def test_inheriting_from_a_draft_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
         (
-            "0001-alpha.md",
-            rfc_text("0001", "Alpha", "D-T.1", status="accepted", depends='["0002"]'),
+            "0001-alpha.yaml",
+            rfc_text("0001", "Alpha", "D-T.1", status="accepted", depends_on=["0002"]),
         ),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2")),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.2")),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "D-A.10" in result.output
 
 
+def test_check_reports_a_key_the_model_refuses(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", questions=[{"id": "Q-1.1", "text": "x", "state": "open"}])
+    seed(tmp_path, ("0001-widget.yaml", doc))
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "questions.0.state" in result.output
+
+
 # ....................... #
-# the Contract example fence (RFC 0025 §5.4, D-25.10): typed, so a schema
-# change reddens the example rather than letting it rot
-
-
-CONTRACT_EXAMPLE_OK = (
-    "\n## Contract example\n\n```yaml contract-example\nid: T-9999\ndecisions: []\n```\n"
-)
-
-CONTRACT_EXAMPLE_BROKEN = (
-    "\n## Contract example\n\n"
-    "```yaml contract-example\n"
-    "id: T-9999\n"
-    "decisions: []\n"
-    "extra_unknown_field: true\n"
-    "```\n"
-)
+# the contract example (RFC 0025 §5.4, D-25.10): typed, so a schema change
+# reddens the example rather than letting it rot
 
 
 def test_a_valid_contract_example_passes(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", body_extra=CONTRACT_EXAMPLE_OK)
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", contract_example={"id": "T-9999", "decisions": []})
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
 
 
 def test_an_invalid_contract_example_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", body_extra=CONTRACT_EXAMPLE_BROKEN)
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text(
+        "0001",
+        "Widget",
+        contract_example={"id": "T-9999", "decisions": [], "extra_unknown_field": True},
+    )
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "Contract example does not validate" in result.output
+    assert "contract_example.extra_unknown_field" in result.output
 
 
-def test_a_prose_only_contract_example_passes(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\n## Contract example\n\nSee above.\n")
-    seed(tmp_path, ("0001-widget.md", doc))
+def test_a_document_without_a_contract_example_passes(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", sections=prose("The contract example lives in 0001.\n"))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
 
@@ -192,20 +207,14 @@ def test_a_prose_only_contract_example_passes(tmp_path: Path) -> None:
 # directory contents (charter A-15, D-A.18): refusals that route
 
 
-def test_a_stray_document_is_routed(tmp_path: Path) -> None:
+def test_a_stray_file_reddens(tmp_path: Path) -> None:
     rfcs = seed(tmp_path)
-    (rfcs / "notes.md").write_text("scratch\n", encoding="utf-8")
+    (rfcs / "notes.txt").write_text("scratch\n", encoding="utf-8")
+    (rfcs / "0016.yaml").write_text(rfc_text("0016", "Slugless"), encoding="utf-8")
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "pages/" in result.output and "ops/" in result.output
-
-
-def test_a_slugless_filename_reddens(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path)
-    (rfcs / "0016.md").write_text(rfc_text("0016", "Widget", "D-T.9"), encoding="utf-8")
-    result = invoke(tmp_path, "check")
-    assert result.exit_code == EXIT_CONFIG
-    assert "NNNN-slug.md" in result.output
+    assert "notes.txt: not NNNN-slug.yaml" in result.output
+    assert "0016.yaml: not NNNN-slug.yaml" in result.output
 
 
 def test_a_subdirectory_reddens(tmp_path: Path) -> None:
@@ -213,62 +222,50 @@ def test_a_subdirectory_reddens(tmp_path: Path) -> None:
     (rfcs / "draft").mkdir()
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "no subdirectories" in result.output
+    assert "a subdirectory in the corpus path" in result.output
 
 
 def test_a_backup_file_is_told_to_die(tmp_path: Path) -> None:
     rfcs = seed(tmp_path)
-    (rfcs / "old-0004.md.bak").write_text("x\n", encoding="utf-8")
+    (rfcs / "old-0004.yaml.bak").write_text("x\n", encoding="utf-8")
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "git is the archive" in result.output
+    assert "a stray file in the corpus path" in result.output
+
+
+def test_a_markdown_document_is_told_to_convert(tmp_path: Path) -> None:
+    rfcs = seed(tmp_path)
+    (rfcs / "0002-legacy.md").write_text("---\nid: '0002'\n---\n", encoding="utf-8")
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == EXIT_CONFIG
+    assert "a markdown document — convert it" in result.output
 
 
 def test_an_id_disagreeing_with_the_filename_reddens(tmp_path: Path) -> None:
-    seed(tmp_path, ("0002-widget.md", rfc_text("0001", "Widget", "D-T.1")))
+    seed(tmp_path, ("0002-widget.yaml", rfc_text("0001", "Widget")))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "frontmatter id" in result.output
+    assert "disagrees with the filename" in result.output
 
 
 # ....................... #
-# staleness against the generated index, and vocabularies
-
-
-def test_a_document_missing_from_the_index_reddens(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path)
-    (rfcs / "0002-beta.md").write_text(rfc_text("0002", "Beta", "D-T.2"), encoding="utf-8")
-    result = invoke(tmp_path, "check")
-    assert result.exit_code == EXIT_CONFIG
-    assert "INDEX.md differs" in result.output
-
-
-def test_a_stale_implementation_value_reddens(tmp_path: Path) -> None:
-    rfcs = seed(tmp_path)
-    doc = rfcs / "0001-widget.md"
-    doc.write_text(
-        doc.read_text(encoding="utf-8").replace("implementation: none", "implementation: partial"),
-        encoding="utf-8",
-    )
-    result = invoke(tmp_path, "check")
-    assert result.exit_code == EXIT_CONFIG
-    assert "INDEX.md differs" in result.output
+# vocabularies: refused by the model, through the loader
 
 
 def test_an_unknown_implementation_value_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", implementation="in_progress")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", implementation="in_progress")
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "not one of none, partial, complete, abandoned" in result.output
+    assert "implementation: Input should be" in result.output and "abandoned" in result.output
 
 
 def test_an_unknown_kind_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", extra_front="kind: policy\n")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", kind="policy")
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "not one of design, convention" in result.output
+    assert "kind: Input should be" in result.output and "convention" in result.output
 
 
 # ....................... #
@@ -277,29 +274,31 @@ def test_an_unknown_kind_reddens(tmp_path: Path) -> None:
 
 
 def locked_doc(implementation: str) -> str:
-    doc = rfc_text("0001", "Widget", "D-T.1", status="accepted", implementation=implementation)
-    return doc.replace(
-        "| D-T.1 | `ASSUMED` | Something is decided | — | — |",
-        "| D-T.1 | `LOCKED` | Something is decided | `src/ghost/**` | — |",
+    return rfc_text(
+        "0001",
+        "Widget",
+        status="accepted",
+        implementation=implementation,
+        rows=[("D-T.1", "LOCKED", "Something is decided", "`src/ghost/**`")],
     )
 
 
 def test_a_complete_rfc_citing_a_missing_area_reddens(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.md", locked_doc("complete")))
+    seed(tmp_path, ("0001-widget.yaml", locked_doc("complete")))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "matches nothing" in result.output
 
 
 def test_a_partial_rfc_warns_once_about_unbuilt_areas(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.md", locked_doc("partial")))
+    seed(tmp_path, ("0001-widget.yaml", locked_doc("partial")))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
     assert "unbuilt areas" in result.output
 
 
 def test_an_accepted_but_unbuilt_rfc_may_name_intended_modules(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.md", locked_doc("none")))
+    seed(tmp_path, ("0001-widget.yaml", locked_doc("none")))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
 
@@ -311,8 +310,8 @@ def test_an_accepted_but_unbuilt_rfc_may_name_intended_modules(tmp_path: Path) -
 def test_citing_a_real_path_with_a_line_number_reddens(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "mod.py").write_text("x = 1\n", encoding="utf-8")
-    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\nSee `src/mod.py:12` for the loop.\n")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", sections=prose("See `src/mod.py:12` for the loop.\n"))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "line numbers rot" in result.output
@@ -320,9 +319,9 @@ def test_citing_a_real_path_with_a_line_number_reddens(tmp_path: Path) -> None:
 
 def test_an_illustrative_location_passes(tmp_path: Path) -> None:
     doc = rfc_text(
-        "0001", "Widget", "D-T.1", body_extra="\nA model can cite a real `file.py:42` and lie.\n"
+        "0001", "Widget", sections=prose("A model can cite a real `file.py:42` and lie.\n")
     )
-    seed(tmp_path, ("0001-widget.md", doc))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
 
@@ -334,58 +333,64 @@ def test_an_illustrative_location_passes(tmp_path: Path) -> None:
 def test_new_derives_max_plus_one_over_a_hole(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3")),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0003-gamma.yaml", rfc_text("0003", "Gamma", "D-T.3")),
     )
     result = invoke(tmp_path, "new", "Delta thing")
     assert result.exit_code == 0, result.output
-    created = tmp_path / "rfcs" / "0004-delta-thing.md"
+    created = tmp_path / "rfcs" / "0004-delta-thing.yaml"
     assert created.is_file()  # the 0002 hole stays a hole
-    assert 'id: "0004"' in created.read_text(encoding="utf-8")
-    assert "0004" in (tmp_path / "rfcs" / "INDEX.md").read_text(encoding="utf-8")
+    text = created.read_text(encoding="utf-8")
+    assert text.startswith("# yaml-language-server: $schema=schema/document.json\n")
+    assert "id: '0004'" in text
+    assert invoke(tmp_path, "check").exit_code == 0
 
 
-def test_new_with_convention_kind_lands_in_the_conventions_group(tmp_path: Path) -> None:
+def test_new_with_convention_kind_lands_in_the_documents_kind(tmp_path: Path) -> None:
     seed(tmp_path)
     result = invoke(tmp_path, "new", "House style", "--kind", "convention")
     assert result.exit_code == 0, result.output
-    created = tmp_path / "rfcs" / "0002-house-style.md"
+    created = tmp_path / "rfcs" / "0002-house-style.yaml"
     assert "kind: convention" in created.read_text(encoding="utf-8")
-    assert "## Conventions" in (tmp_path / "rfcs" / "INDEX.md").read_text(encoding="utf-8")
+    assert loaded(tmp_path / "rfcs", "0002-house-style.yaml").kind == "convention"
 
 
 # ....................... #
-# duplicate headings and identifier resolution (charter-decomposition patch §6)
+# section keys and identifier resolution
 
 
-def test_two_identically_named_sections_redden(tmp_path: Path) -> None:
+def test_two_sections_keyed_the_same_redden(tmp_path: Path) -> None:
     doc = rfc_text(
-        "0001", "Widget", "D-T.1", body_extra="\n## Parts\n\nprose\n\n## 2. Parts\n\nmore\n"
+        "0001",
+        "Widget",
+        sections=[
+            {"key": "parts", "heading": "Parts", "md": "prose\n"},
+            {"key": "parts", "heading": "Parts, again", "md": "more\n"},
+        ],
     )
-    seed(tmp_path, ("0001-widget.md", doc))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
-    assert "name the same section twice" in result.output
+    assert "two sections keyed 'parts'" in result.output
 
 
 def test_an_unresolvable_citation_reddens(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\nSee D-9.9 for details.\n")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", sections=prose("See D-9.9 for details.\n"))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
     assert "cites D-9.9" in result.output
 
 
 def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
-    # D-16.1: the tombstone's citation is history, not a typo.
+    # D-16.1: a citation of a retired identifier is history, not a typo.
     doc = rfc_text(
         "0001",
         "Widget",
-        "D-T.1",
-        extra_front='retired: ["D-T.9"]\n',
-        body_extra="\nD-T.9 was removed 2026-08-22; the identifier is retired.\n",
+        retired=["D-T.9"],
+        sections=prose("D-T.9 was removed; the identifier is retired.\n"),
     )
-    seed(tmp_path, ("0001-widget.md", doc))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
 
@@ -393,8 +398,8 @@ def test_a_retired_identifier_resolves(tmp_path: Path) -> None:
 def test_redefining_a_retired_identifier_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1", extra_front='retired: ["D-T.9"]\n')),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.9")),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1", retired=["D-T.9"])),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.9")),
     )
     result = invoke(tmp_path, "check")
     assert result.exit_code == EXIT_CONFIG
@@ -404,10 +409,10 @@ def test_redefining_a_retired_identifier_reddens(tmp_path: Path) -> None:
 def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1")),
         (
-            "0002-beta.md",
-            rfc_text("0002", "Beta", "D-T.2", body_extra="\nInherits D-T.1 from Alpha.\n"),
+            "0002-beta.yaml",
+            rfc_text("0002", "Beta", "D-T.2", sections=prose("Inherits D-T.1 from Alpha.\n")),
         ),
     )
     result = invoke(tmp_path, "check")
@@ -416,8 +421,8 @@ def test_a_citation_resolves_across_documents(tmp_path: Path) -> None:
 
 
 def test_a_citation_inside_a_code_fence_is_illustration(tmp_path: Path) -> None:
-    doc = rfc_text("0001", "Widget", "D-T.1", body_extra="\n```yaml\ndecision: D-9.9\n```\n")
-    seed(tmp_path, ("0001-widget.md", doc))
+    doc = rfc_text("0001", "Widget", sections=prose("```yaml\ndecision: D-9.9\n```\n"))
+    seed(tmp_path, ("0001-widget.yaml", doc))
     result = invoke(tmp_path, "check")
     assert result.exit_code == 0, result.output
     assert "cites" not in result.output
@@ -431,16 +436,16 @@ def test_check_json_is_one_parseable_document(tmp_path: Path) -> None:
     seed(tmp_path)
     result = invoke(tmp_path, "check", "--format", "json")
     assert result.exit_code == 0, result.output
-    document = json.loads(result.output)
-    assert document["ok"] is True
-    assert document["schema_version"] == 1
+    payload = json.loads(result.output)
+    assert payload["ok"] is True
+    assert payload["schema_version"] == 1
 
 
 def test_graph_lists_edges_with_statuses(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2", depends='["0001"]')),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.2", depends_on=["0001"])),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -455,9 +460,9 @@ def test_graph_shows_standalone_documents(tmp_path: Path) -> None:
     # tree renders it as a bare root.
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2", depends='["0001"]')),
-        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3")),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.2", depends_on=["0001"])),
+        ("0003-gamma.yaml", rfc_text("0003", "Gamma", "D-T.3")),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -468,21 +473,21 @@ def test_graph_shows_implementation_state_and_omits_finished_documents(tmp_path:
     seed(
         tmp_path,
         (
-            "0001-alpha.md",
+            "0001-alpha.yaml",
             rfc_text("0001", "Alpha", "D-T.1", status="accepted", implementation="partial"),
         ),
         (
-            "0002-beta.md",
+            "0002-beta.yaml",
             rfc_text(
                 "0002",
                 "Beta",
                 "D-T.2",
-                depends='["0001"]',
                 status="accepted",
                 implementation="complete",
+                depends_on=["0001"],
             ),
         ),
-        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3", depends='["0002"]')),
+        ("0003-gamma.yaml", rfc_text("0003", "Gamma", "D-T.3", depends_on=["0002"])),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -497,9 +502,12 @@ def test_graph_shows_implementation_state_and_omits_finished_documents(tmp_path:
 def test_graph_renders_a_multi_parent_document_once(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-alpha.md", rfc_text("0001", "Alpha", "D-T.1")),
-        ("0002-beta.md", rfc_text("0002", "Beta", "D-T.2")),
-        ("0003-gamma.md", rfc_text("0003", "Gamma", "D-T.3", depends='["0001", "0002"]')),
+        ("0001-alpha.yaml", rfc_text("0001", "Alpha", "D-T.1")),
+        ("0002-beta.yaml", rfc_text("0002", "Beta", "D-T.2")),
+        (
+            "0003-gamma.yaml",
+            rfc_text("0003", "Gamma", "D-T.3", depends_on=["0001", "0002"]),
+        ),
     )
     result = invoke(tmp_path, "graph")
     assert result.exit_code == 0, result.output
@@ -516,46 +524,34 @@ def test_the_corpus_of_this_repository_is_clean() -> None:
 
 
 # ----------------------- #
-# RFC 0053 phase 2: what the model adds to `check`, `--fix-rot`, `archive`
-# and `show` over the archive
+# What the model adds to `check`, `--fix-rot`, `archive` and `show` over
+# the archive (RFC 0053 phase 2)
 
 
-def _accepted(number: str, decision: str, paths: str, body_extra: str = "") -> str:
+def _accepted(number: str, decision: str, paths: str, sections: Any = None) -> str:
     family = decision.rsplit(".", 1)[0]
-    text = rfc_text(
+
+    return document(
         number,
-        f"Doc {number}",
-        decision,
+        [
+            (decision, "ASSUMED", "Something is decided", paths),
+            (f"{family}.9", "OPEN", "A second row, so a retirement leaves one", "—"),
+        ],
+        title=f"Doc {number}",
         status="accepted",
         implementation="complete",
-        body_extra=body_extra,
-    )
-    row = f"| {decision} | `ASSUMED` | Something is decided | — | — |"
-
-    return text.replace(
-        row,
-        f"| {decision} | `ASSUMED` | Something is decided | {paths} | — |\n"
-        f"| {family}.9 | `OPEN` | A second row, so a retirement leaves one | — | — |",
+        sections=sections,
     )
 
 
-def test_check_reports_a_fence_the_model_refuses(tmp_path: Path) -> None:
-    body = "\n```yaml questions\n- id: Q-1.1\n  text: x\n  state: open\n```\n"
-    seed(tmp_path, ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1", body_extra=body)))
-
-    result = invoke(tmp_path, "check")
-
-    assert result.exit_code == EXIT_CONFIG
-    assert "`yaml questions` entry 1, state" in result.output
+def _name(number: str) -> str:
+    return f"{number}-doc-{number}.yaml"
 
 
 def test_check_reports_a_hand_edited_grade_and_warns_on_a_hand_edited_text(
     tmp_path: Path,
 ) -> None:
-    seed(
-        tmp_path,
-        ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1", body_extra="\n## Amendments\n")),
-    )
+    rfcs = seed(tmp_path)
     amended = invoke(
         tmp_path,
         "amend",
@@ -573,9 +569,9 @@ def test_check_reports_a_hand_edited_grade_and_warns_on_a_hand_edited_text(
     assert amended.exit_code == 0, amended.output
     assert invoke(tmp_path, "check").exit_code == 0
 
-    path = tmp_path / "rfcs" / "0001-widget.md"
+    path = rfcs / "0001-widget.yaml"
     text = path.read_text(encoding="utf-8")
-    path.write_text(text.replace("`LOCKED`", "`OPEN`"), encoding="utf-8")
+    path.write_text(text.replace("grade: LOCKED", "grade: OPEN"), encoding="utf-8")
     result = invoke(tmp_path, "check")
 
     assert result.exit_code == EXIT_CONFIG
@@ -587,14 +583,14 @@ def test_check_reports_a_hand_edited_grade_and_warns_on_a_hand_edited_text(
     assert result.exit_code == 0, result.output
     assert "editorial drift" in result.output
 
-    fixed = invoke(tmp_path, "fix", "D-T.1", "Something is decided!")
+    fixed = invoke(tmp_path, "fix", "D-T.1", "Something is decided, once.")
 
     assert fixed.exit_code == 0, fixed.output
     assert "editorial drift" not in invoke(tmp_path, "check").output
 
 
 def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.md", _accepted("0001", "D-T.1", "—", "\n## Amendments\n")))
+    rfcs = seed(tmp_path, (_name("0001"), _accepted("0001", "D-T.1", "—")))
     result = invoke(
         tmp_path,
         "amend",
@@ -609,20 +605,21 @@ def test_amend_with_retire_records_the_reason_and_the_diff(tmp_path: Path) -> No
     )
 
     assert result.exit_code == 0, result.output
-    text = (tmp_path / "rfcs" / "0001-widget.md").read_text(encoding="utf-8")
+    doc = loaded(rfcs, _name("0001"))
 
-    assert "D-T.1 was retired" in text and "path rot" in text
-    assert 'field: "retired"' in text
+    assert doc.retired == ["D-T.1"] and doc.decision("D-T.1") is None
+    (change,) = [c for c in doc.amendments[-1].changes if c.field == "retired"]
+    assert change.subject == "D-T.1" and change.after == "path rot"
     assert invoke(tmp_path, "check").exit_code == 0
 
 
 def test_check_warns_on_path_rot_and_fix_rot_retires_it(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "alive.py").write_text("", encoding="utf-8")
-    seed(
+    rfcs = seed(
         tmp_path,
-        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/gone/**`", "\n## Amendments\n")),
-        ("0002-gadget.md", _accepted("0002", "D-G.1", "`src/alive.py`")),
+        (_name("0001"), _accepted("0001", "D-T.1", "`src/gone/**`")),
+        (_name("0002"), _accepted("0002", "D-G.1", "`src/alive.py`")),
     )
 
     result = invoke(tmp_path, "check")
@@ -636,29 +633,29 @@ def test_check_warns_on_path_rot_and_fix_rot_retires_it(tmp_path: Path) -> None:
     assert fixed.exit_code == 0, fixed.output
     assert "retired D-T.1 (path rot)" in fixed.output
 
-    text = (tmp_path / "rfcs" / "0001-widget.md").read_text(encoding="utf-8")
+    doc = loaded(rfcs, _name("0001"))
 
-    assert "D-T.1 was retired" in text
-    assert "path-rotted row(s) retired by `torve rfc check --fix-rot`" in text
+    assert doc.retired == ["D-T.1"]
+    assert "path-rotted row(s) retired by `torve rfc check --fix-rot`" in doc.amendments[-1].title
     assert "nothing in the tree matches" not in invoke(tmp_path, "check").output
 
 
 def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
-        ("0002-gadget.md", _accepted("0002", "D-G.1", "`src/y/**`")),
+        (_name("0001"), _accepted("0001", "D-T.1", "`src/x/**`")),
+        (_name("0002"), _accepted("0002", "D-G.1", "`src/y/**`")),
     )
 
     result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
 
     assert result.exit_code == 0, result.output
-    assert not (tmp_path / "rfcs" / "0001-widget.md").exists()
+    assert not (tmp_path / "rfcs" / _name("0001")).exists()
 
-    archived = tmp_path / "archive" / "rfcs" / "0001-widget.md"
+    archived = tmp_path / "archive" / "rfcs" / _name("0001")
 
     assert archived.exists()
-    assert 'superseded_by: "0002"' in archived.read_text(encoding="utf-8")
+    assert "superseded_by: '0002'" in archived.read_text(encoding="utf-8")
     assert invoke(tmp_path, "check").exit_code == 0
 
     shown = invoke(tmp_path, "show", "D-T.1", "--format", "json")
@@ -666,7 +663,7 @@ def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Pa
     assert shown.exit_code == 0, shown.output
     payload = json.loads(shown.output)
 
-    assert payload["archived"] is True and payload["defined_in"] == "0001-widget.md"
+    assert payload["archived"] is True and payload["defined_in"] == _name("0001")
 
     doc = invoke(tmp_path, "show", "0001", "--format", "json")
 
@@ -677,11 +674,11 @@ def test_archive_moves_the_document_and_show_still_resolves_its_row(tmp_path: Pa
 def test_archive_refuses_when_the_corpus_without_it_does_not_check(tmp_path: Path) -> None:
     seed(
         tmp_path,
-        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
+        (_name("0001"), _accepted("0001", "D-T.1", "`src/x/**`")),
         (
-            "0002-gadget.md",
-            _accepted("0002", "D-G.1", "`src/y/**`").replace(
-                "## Decisions", "Built on D-Z.9, which nothing defines.\n\n## Decisions"
+            _name("0002"),
+            _accepted(
+                "0002", "D-G.1", "`src/y/**`", prose("Built on D-Z.9, which nothing defines.\n")
             ),
         ),
     )
@@ -689,30 +686,39 @@ def test_archive_refuses_when_the_corpus_without_it_does_not_check(tmp_path: Pat
     result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
 
     assert result.exit_code == EXIT_CONFIG
-    assert (tmp_path / "rfcs" / "0001-widget.md").exists()
+    assert (tmp_path / "rfcs" / _name("0001")).exists()
     assert not (tmp_path / "archive").exists()
 
 
 def test_new_derives_its_number_over_the_archive(tmp_path: Path) -> None:
-    seed(tmp_path, ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1")))
+    seed(tmp_path)
     archive = tmp_path / "archive" / "rfcs"
     archive.mkdir(parents=True)
-    (archive / "0007-old.md").write_text(
-        rfc_text("0007", "Old", "D-O.1", status="superseded"), encoding="utf-8"
+    (archive / "0007-old.yaml").write_text(
+        rfc_text("0007", "Old", "D-O.1", status="superseded", superseded_by="0001"),
+        encoding="utf-8",
     )
 
     result = invoke(tmp_path, "new", "Fresh")
 
     assert result.exit_code == 0, result.output
-    assert (tmp_path / "rfcs" / "0008-fresh.md").exists()
+    assert (tmp_path / "rfcs" / "0008-fresh.yaml").exists()
 
 
 def test_show_enriches_a_row_with_its_details(tmp_path: Path) -> None:
-    body = (
-        "\n```yaml decision-details\n- id: D-T.1\n  rationale: because\n  cites: [D-T.1]\n"
-        "  check: pytest tests/test_x.py\n```\n"
+    doc = rfc_text(
+        "0001",
+        "Widget",
+        details={
+            "D-T.1": {
+                "rationale": "because",
+                "cites": ["D-T.1"],
+                "check": "pytest tests/test_x.py",
+                "fingerprint": "0123456789abcdef/fedcba9876543210",
+            }
+        },
     )
-    seed(tmp_path, ("0001-widget.md", rfc_text("0001", "Widget", "D-T.1", body_extra=body)))
+    seed(tmp_path, ("0001-widget.yaml", doc))
 
     shown = invoke(tmp_path, "show", "D-T.1", "--format", "json")
 
@@ -721,25 +727,32 @@ def test_show_enriches_a_row_with_its_details(tmp_path: Path) -> None:
 
     assert payload["rationale"] == "because"
     assert payload["check"] == "pytest tests/test_x.py"
-    assert len(payload["fingerprint"]) == 16
+    assert payload["fingerprint"] == "0123456789abcdef/fedcba9876543210"
 
 
 def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path) -> None:
-    citing = (
-        _accepted("0002", "D-G.1", "`src/y/**`")
-        .replace("depends_on: []", 'depends_on: ["0001"]')
-        .replace("## Decisions", "Built on D-T.1.\n\n## Decisions")
+    citing = document(
+        "0002",
+        [
+            ("D-G.1", "ASSUMED", "Something is decided", "`src/y/**`"),
+            ("D-G.9", "OPEN", "A second row", "—"),
+        ],
+        title="Doc 0002",
+        status="accepted",
+        implementation="complete",
+        depends_on=["0001"],
+        sections=prose("Built on D-T.1.\n"),
     )
-    seed(
+    rfcs = seed(
         tmp_path,
-        ("0001-widget.md", _accepted("0001", "D-T.1", "`src/x/**`")),
-        ("0002-gadget.md", citing),
+        (_name("0001"), _accepted("0001", "D-T.1", "`src/x/**`")),
+        (_name("0002"), citing),
     )
 
     result = invoke(tmp_path, "archive", "0001", "--superseded-by", "0002")
 
     assert result.exit_code == 0, result.output
-    assert (tmp_path / "archive" / "rfcs" / "0001-widget.md").exists()
+    assert (tmp_path / "archive" / "rfcs" / _name("0001")).exists()
 
     checked = invoke(tmp_path, "check")
 
@@ -747,10 +760,7 @@ def test_archive_moves_a_document_that_others_cite_and_depend_on(tmp_path: Path)
     assert "depends_on names 0001, which is archived" in checked.output
 
     # a second document may leave while the first is already archived
-    (tmp_path / "rfcs" / "0003-thing.md").write_text(
-        _accepted("0003", "D-H.1", "`src/z/**`"), encoding="utf-8"
-    )
-    assert invoke(tmp_path, "index").exit_code == 0
+    (rfcs / _name("0003")).write_text(_accepted("0003", "D-H.1", "`src/z/**`"), encoding="utf-8")
 
     second = invoke(tmp_path, "archive", "0003", "--superseded-by", "0002")
 

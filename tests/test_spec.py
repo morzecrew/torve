@@ -1,6 +1,7 @@
-"""The specification model (RFC 0053 §5.1): the fenced kinds validate and
-refuse unknown keys by name (D-53.3); the fingerprint covers text, grade
-and paths and nothing a human reads beside them (D-53.5, D-53.16); the
+"""The specification model (RFC 0053 §5.1, RFC 0056 D-56.1): every typed
+list refuses unknown keys by name (D-53.3); the fingerprint covers text,
+grade and paths and nothing a human reads beside them (D-53.5, D-53.16);
+the stamp is the content fingerprint beside the rule fingerprint; the
 document tells what it defines; the corpus joins across documents and
 knows which documents may be inherited from."""
 
@@ -15,12 +16,12 @@ from torve.domain.spec import (
     Change,
     Corpus,
     Decision,
-    DecisionDetail,
     Document,
     Invariant,
     Question,
     fingerprint,
     is_citation,
+    rule_fingerprint,
 )
 
 # ----------------------- #
@@ -33,7 +34,6 @@ def _doc(number: str, status: str = "accepted", **extra: object) -> Document:
         status=status,  # type: ignore[arg-type]
         owner="Test Owner",
         description="A scratch document.",
-        schema_version=1,
         **extra,  # type: ignore[arg-type]
     )
 
@@ -46,12 +46,34 @@ def test_the_fingerprint_covers_text_grade_and_paths_only() -> None:
     same_with_consequence = base.model_copy(update={"consequence": "reopening is expensive"})
     same_with_check = base.model_copy(update={"check": "pytest tests/test_a.py"})
 
-    assert same_with_consequence.fingerprint == base.fingerprint
-    assert same_with_check.fingerprint == base.fingerprint
+    assert same_with_consequence.content_fingerprint() == base.content_fingerprint()
+    assert same_with_check.content_fingerprint() == base.content_fingerprint()
 
-    assert base.model_copy(update={"text": "Sessions in Postgres"}).fingerprint != base.fingerprint
-    assert base.model_copy(update={"grade": "ASSUMED"}).fingerprint != base.fingerprint
-    assert base.model_copy(update={"paths": ["b/**"]}).fingerprint != base.fingerprint
+    assert (
+        base.model_copy(update={"text": "Sessions in Postgres"}).content_fingerprint()
+        != base.content_fingerprint()
+    )
+    assert (
+        base.model_copy(update={"grade": "ASSUMED"}).content_fingerprint()
+        != base.content_fingerprint()
+    )
+    assert (
+        base.model_copy(update={"paths": ["b/**"]}).content_fingerprint()
+        != base.content_fingerprint()
+    )
+    # the stored stamp is empty until the tool writes it, and never computed
+    assert base.fingerprint == ""
+
+
+def test_the_stamp_pairs_the_content_with_the_rule() -> None:
+    row = Decision(id="D-1.1", grade="LOCKED", text="x", paths=["a/**"])
+    content, rule = row.stamp().split("/")
+
+    assert content == row.content_fingerprint()
+    assert rule == rule_fingerprint("LOCKED", ["a/**"])
+    # a text change moves the content half only; a grade change moves both
+    assert row.model_copy(update={"text": "y"}).stamp().split("/")[1] == rule
+    assert row.model_copy(update={"grade": "OPEN"}).stamp().split("/")[1] != rule
 
 
 def test_the_fingerprint_is_order_and_whitespace_stable() -> None:
@@ -65,7 +87,7 @@ def test_the_fingerprint_is_order_and_whitespace_stable() -> None:
 @pytest.mark.parametrize(
     ("model", "entry"),
     [
-        (DecisionDetail, {"id": "D-1.1", "rationale": "because", "why": "not a field"}),
+        (Decision, {"id": "D-1.1", "grade": "OPEN", "text": "x", "why": "not a field"}),
         (
             Invariant,
             {"id": "I-1.1", "statement": "one lander", "check": "x", "paths": [], "cmd": "y"},
@@ -75,7 +97,7 @@ def test_the_fingerprint_is_order_and_whitespace_stable() -> None:
         (Change, {"subject": "D-1.1", "field": "grade", "from": "OPEN", "after": "LOCKED"}),
     ],
 )
-def test_an_unknown_key_in_a_fenced_entry_is_refused_by_name(
+def test_an_unknown_key_in_a_typed_entry_is_refused_by_name(
     model: type[object], entry: dict[str, object]
 ) -> None:
     with pytest.raises(ValidationError) as caught:
@@ -162,9 +184,17 @@ def test_what_counts_as_a_citation(value: str, expected: bool) -> None:
 
 def test_a_check_state_is_closed_vocabulary_and_defaults_to_shadow() -> None:
     with pytest.raises(ValidationError):
-        DecisionDetail(id="D-1.1", check="true", check_state="on")  # type: ignore[arg-type]
+        Decision(id="D-1.1", grade="OPEN", text="x", check="true", check_state="on")  # type: ignore[arg-type]
 
-    detail = DecisionDetail(id="D-1.1", check="true", check_twin="tests/test_x.py")
+    row = Decision(id="D-1.1", grade="OPEN", text="x", check="true", check_twin="tests/test_x.py")
 
-    assert detail.check_state == "shadow"
+    assert row.check_state == "shadow"
     assert Decision(id="D-1.1", grade="OPEN", text="x").check_state == "shadow"
+
+
+def test_the_loaders_fields_are_never_part_of_the_dump() -> None:
+    doc = _doc("0001", path="rfcs/0001-x.yaml", archived=True)
+    dumped = doc.model_dump()
+
+    assert "path" not in dumped and "archived" not in dumped
+    assert doc.schema_version == 2

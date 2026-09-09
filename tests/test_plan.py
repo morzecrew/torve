@@ -1,13 +1,16 @@
 """RFC 0007 §3: the deterministic minter. Admission refuses by name with
-exit 3; the Phasing YAML becomes contracts inheriting the document's table
-grade-and-paths intact; dry-run is the default and minted contracts load
-back through the same Task model the gates read."""
+exit 3; the document's `phasing` list becomes contracts inheriting its
+decisions grade-and-paths intact; dry-run is the default and minted
+contracts load back through the same Task model the gates read."""
 
 from __future__ import annotations
 
+import copy
 import subprocess
+from pathlib import Path
 
 import pytest
+from test_decisions import document
 from typer.testing import CliRunner
 
 from torve.application.planner import (
@@ -19,61 +22,65 @@ from torve.application.planner import (
     write_contracts,
 )
 from torve.cli import app
-from torve.config.spec import parse_phasing
+from torve.config.spec import SpecError, load_document
+from torve.domain.spec import Document
 from torve.domain.task import InheritedDecision
 from torve.gates.context import load_task
 
 # ----------------------- #
 
-TABLE = (
-    "## 7. Decisions\n\n"
-    "| # | Grade | Decision | Paths | Consequence |\n"
-    "| --- | --- | --- | --- | --- |\n"
-    "| D-90.1 | `LOCKED` | Widgets are idempotent | `src/widget/**` | Retries double-charge |\n"
-    "| D-90.2 | `ASSUMED` | Frobnication is lazy | — | Cheap to revisit |\n"
-)
+TABLE = [
+    ("D-90.1", "LOCKED", "Widgets are idempotent", "`src/widget/**`", "Retries double-charge"),
+    ("D-90.2", "ASSUMED", "Frobnication is lazy", "—", "Cheap to revisit"),
+]
 
-PHASING = (
-    "## 8. Phasing\n\n"
-    "```yaml\n"
-    "- phase: 1\n"
-    "  title: widget-core\n"
-    "  intent: >-\n"
-    "    Build the widget core.\n"
-    '  scope: ["src/widget/**", "tests/widget/**"]\n'
-    '  acceptance: ["make test"]\n'
-    "- phase: 1\n"
-    "  title: frob-side\n"
-    "  intent: >-\n"
-    "    Build the frobnicator beside it.\n"
-    '  scope: ["src/frob/**"]\n'
-    "- phase: 2\n"
-    "  title: wire-together\n"
-    "  intent: >-\n"
-    "    Wire core and frobnicator together.\n"
-    '  scope: ["src/app.py"]\n'
-    "  depends_on: [1]\n"
-    "```\n"
-)
+PHASING = [
+    {
+        "phase": 1,
+        "title": "widget-core",
+        "intent": "Build the widget core.",
+        "scope": ["src/widget/**", "tests/widget/**"],
+        "acceptance": ["make test"],
+    },
+    {
+        "phase": 1,
+        "title": "frob-side",
+        "intent": "Build the frobnicator beside it.",
+        "scope": ["src/frob/**"],
+    },
+    {
+        "phase": 2,
+        "title": "wire-together",
+        "intent": "Wire core and frobnicator together.",
+        "scope": ["src/app.py"],
+        "depends_on": [1],
+    },
+]
 
 
-def rfc_doc(
-    number: str,
-    title: str,
-    status: str = "accepted",
-    *,
-    depends: str = "[]",
-    superseded_by: str = "null",
-    body: str = "",
-) -> str:
+def phasing(**overrides) -> list[dict]:
+    """The three entries above, with keys merged onto the first one."""
+
+    entries = copy.deepcopy(PHASING)
+    entries[0].update(overrides)
+
+    return entries
+
+
+def written(tmp_path: Path, number: str = "0090", title: str = "Widgets", **kwargs) -> Path:
     slug = title.lower().replace(" ", "-")
-    return (
-        f'---\nid: "{number}"\ntitle: {title}\nstatus: {status}\n'
-        f"implementation: none\ndepends_on: {depends}\ninformed_by: []\n"
-        f"supersedes: []\nsuperseded_by: {superseded_by}\namended_by: []\n"
-        f"owner: Test\ndescription: {slug}\nschema_version: 1\n---\n\n"
-        f"# RFC {number} — {title}\n\nProse.\n\n" + body
-    )
+    path = tmp_path / f"{number}-{slug}.yaml"
+    kwargs.setdefault("rows", TABLE)
+    kwargs.setdefault("implementation", "none")
+    path.write_text(document(number, title=title, **kwargs), encoding="utf-8")
+
+    return path
+
+
+def loaded(tmp_path: Path, **kwargs) -> Document:
+    """One document through the loader — every refusal here is a SpecError."""
+
+    return load_document(written(tmp_path, **kwargs))
 
 
 @pytest.fixture
@@ -90,12 +97,10 @@ def plan_repo(tmp_path):
     git("config", "user.name", "t")
 
     def write_doc(number: str, title: str, **kwargs) -> None:
-        slug = title.lower().replace(" ", "-")
-        (root / "rfcs" / f"{number}-{slug}.md").write_text(
-            rfc_doc(number, title, **kwargs), encoding="utf-8"
-        )
+        kwargs.setdefault("phasing", PHASING)
+        written(root / "rfcs", number, title, **kwargs)
 
-    write_doc("0090", "Widgets", body=TABLE + PHASING)
+    write_doc("0090", "Widgets")
     (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
     git("add", "-A")
     git("commit", "-qm", "corpus")
@@ -121,9 +126,9 @@ def test_minting_inherits_the_table_at_write_time(plan_repo):
 def test_written_contracts_load_through_the_gates_model(plan_repo):
     root, _, _ = plan_repo
     report = plan_document(root, root / "rfcs", "0090")
-    written = write_contracts(root, report)
-    assert len(written) == 3
-    task = load_task(written[0])
+    written_paths = write_contracts(root, report)
+    assert len(written_paths) == 3
+    task = load_task(written_paths[0])
     assert task.id == "T-0001" and task.decisions[0].grade == "LOCKED"
 
 
@@ -136,7 +141,7 @@ def test_replanning_a_minted_phase_is_refused(plan_repo):
 
 def test_draft_documents_are_refused(plan_repo):
     root, write_doc, git = plan_repo
-    write_doc("0091", "Sketch", status="draft", body=TABLE + PHASING)
+    write_doc("0091", "Sketch", status="draft")
     git("add", "-A")
     git("commit", "-qm", "draft")
     with pytest.raises(PlanError, match="0091 is draft"):
@@ -145,8 +150,8 @@ def test_draft_documents_are_refused(plan_repo):
 
 def test_a_draft_dependency_is_refused(plan_repo):
     root, write_doc, git = plan_repo
-    write_doc("0091", "Sketch", status="draft")
-    write_doc("0092", "Leaning", depends='["0091"]', body=TABLE + PHASING)
+    write_doc("0091", "Sketch", status="draft", phasing=None)
+    write_doc("0092", "Leaning", depends_on=["0091"])
     git("add", "-A")
     git("commit", "-qm", "docs")
     with pytest.raises(PlanError, match="depends on 0091, which is draft"):
@@ -155,7 +160,7 @@ def test_a_draft_dependency_is_refused(plan_repo):
 
 def test_supersession_is_refused(plan_repo):
     root, write_doc, git = plan_repo
-    write_doc("0093", "Old", status="superseded", superseded_by='"0090"', body=TABLE + PHASING)
+    write_doc("0093", "Old", status="superseded", superseded_by="0090")
     git("add", "-A")
     git("commit", "-qm", "superseded")
     with pytest.raises(PlanError, match="superseded"):
@@ -164,8 +169,8 @@ def test_supersession_is_refused(plan_repo):
 
 def test_a_dependency_cycle_is_refused(plan_repo):
     root, write_doc, git = plan_repo
-    write_doc("0094", "Chicken", depends='["0095"]', body=TABLE + PHASING)
-    write_doc("0095", "Egg", depends='["0094"]')
+    write_doc("0094", "Chicken", depends_on=["0095"])
+    write_doc("0095", "Egg", depends_on=["0094"], phasing=None)
     git("add", "-A")
     git("commit", "-qm", "cycle")
     with pytest.raises(PlanError, match="cycle"):
@@ -174,8 +179,8 @@ def test_a_dependency_cycle_is_refused(plan_repo):
 
 def test_uncommitted_changes_are_refused(plan_repo):
     root, _, _ = plan_repo
-    doc = next((root / "rfcs").glob("0090-*.md"))
-    doc.write_text(doc.read_text(encoding="utf-8") + "\nEdited.\n", encoding="utf-8")
+    doc = next((root / "rfcs").glob("0090-*.yaml"))
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nowner: edited\n", encoding="utf-8")
     with pytest.raises(PlanError, match="uncommitted changes"):
         plan_document(root, root / "rfcs", "0090")
 
@@ -195,9 +200,15 @@ def test_plan_refuses_a_document_whose_contracts_do_not_lint(plan_repo):
     write_doc(
         "0097",
         "Ungitable",
-        body=TABLE
-        + "## Phasing\n\n```yaml\n- phase: 1\n  title: t\n  intent: i\n"
-        + '  scope: ["src/widget/**"]\n  acceptance: ["uv run torve gates run"]\n```\n',
+        phasing=[
+            {
+                "phase": 1,
+                "title": "t",
+                "intent": "i",
+                "scope": ["src/widget/**"],
+                "acceptance": ["uv run torve gates run"],
+            }
+        ],
     )
 
     git("add", "-A")
@@ -214,53 +225,67 @@ def test_plan_refuses_a_document_whose_contracts_do_not_lint(plan_repo):
 
 def test_intersecting_same_phase_scopes_are_refused(plan_repo):
     root, write_doc, git = plan_repo
-    clash = PHASING.replace('scope: ["src/frob/**"]', 'scope: ["src/widget/core.py"]')
-    write_doc("0096", "Clashing", body=TABLE + clash)
+    clash = copy.deepcopy(PHASING)
+    clash[1]["scope"] = ["src/widget/core.py"]
+    write_doc("0096", "Clashing", phasing=clash)
     git("add", "-A")
     git("commit", "-qm", "clash")
     with pytest.raises(PlanError, match="intersect"):
         plan_document(root, root / "rfcs", "0096")
 
 
-def test_prose_only_phasing_is_not_mintable(plan_repo):
+def test_a_document_without_phasing_is_not_mintable(plan_repo):
     root, write_doc, git = plan_repo
-    write_doc("0097", "Prosey", body=TABLE + "## 8. Phasing\n\nFirst A, then B.\n")
+    write_doc("0097", "Prosey", phasing=None)
     git("add", "-A")
-    git("commit", "-qm", "prose")
-    with pytest.raises(PlanError, match="no mintable Phasing"):
+    git("commit", "-qm", "no phasing")
+    with pytest.raises(PlanError, match="no phasing"):
         plan_document(root, root / "rfcs", "0097")
 
 
 # ....................... #
-# The Phasing format itself
+# The phasing list itself
 
 
-def test_parse_phasing_absent_and_prose_are_none():
-    assert parse_phasing("# Doc\n\nNo phasing here.\n") is None
-    assert parse_phasing("## Phasing\n\nProse only.\n") is None
-
-
-def test_parse_phasing_rejects_undefined_phase_dependency():
-    text = (
-        "## Phasing\n\n```yaml\n- phase: 2\n  title: t\n  intent: i\n"
-        '  scope: ["src/**"]\n  depends_on: [1]\n```\n'
+def test_a_phase_depending_on_an_undefined_phase_is_refused(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc(
+        "0097",
+        "Dangling",
+        phasing=[
+            {
+                "phase": 2,
+                "title": "t",
+                "intent": "i",
+                "scope": ["src/**"],
+                "depends_on": [1],
+            }
+        ],
     )
-    with pytest.raises(ValueError, match="undefined phase"):
-        parse_phasing(text)
+    git("add", "-A")
+    git("commit", "-qm", "dangling")
+    with pytest.raises(PlanError, match="which no entry defines"):
+        plan_document(root, root / "rfcs", "0097")
 
 
-def test_parse_phasing_rejects_missing_intent():
-    text = '## Phasing\n\n```yaml\n- phase: 1\n  title: t\n  scope: ["src/**"]\n```\n'
-    with pytest.raises(ValueError):
-        parse_phasing(text)
+def test_the_loader_refuses_a_phase_without_an_intent(tmp_path):
+    with pytest.raises(SpecError, match=r"phasing\.0\.intent"):
+        loaded(tmp_path, phasing=[{"phase": 1, "title": "t", "scope": ["src/**"]}])
 
 
-def test_rfc_check_reddens_on_a_broken_phasing_fence(plan_repo):
+def test_the_loader_refuses_a_grade_outside_the_vocabulary(tmp_path):
+    ungraded = [("D-90.1", "MAYBE", "Widgets are idempotent", "`src/widget/**`")]
+
+    with pytest.raises(SpecError, match=r"decisions\.0\.grade"):
+        loaded(tmp_path, rows=ungraded)
+
+
+def test_rfc_check_reddens_on_a_phasing_entry_the_model_refuses(plan_repo):
     root, write_doc, _git = plan_repo
-    write_doc("0098", "Broken", body=TABLE + "## 8. Phasing\n\n```yaml\n- phase: 0\n```\n")
+    write_doc("0098", "Broken", phasing=[{"phase": 0}])
     result = CliRunner().invoke(app, ["rfc", "check", "--root", str(root)])
     assert result.exit_code == 3
-    assert "Phasing section does not mint" in result.output
+    assert "phasing.0" in result.output
 
 
 def test_globs_intersect_is_conservative():
@@ -292,7 +317,7 @@ def test_plan_cli_mints_and_refuses_drafts_with_exit_3(plan_repo):
     assert result.exit_code == 0, result.output
     assert (root / ".torve" / "tasks" / "T-0001" / "contract.yaml").is_file()
 
-    write_doc("0091", "Sketch", status="draft", body=TABLE + PHASING)
+    write_doc("0091", "Sketch", status="draft")
     git("add", "-A")
     git("commit", "-qm", "draft")
     refused = CliRunner().invoke(app, ["plan", "0091", "--root", str(root)])
@@ -300,20 +325,14 @@ def test_plan_cli_mints_and_refuses_drafts_with_exit_3(plan_repo):
     assert "no settled decisions" in refused.stderr
 
 
-def test_inherit_decisions_copies_the_table_intact():
+def test_inherit_decisions_copies_the_rows_intact(tmp_path):
     # One helper mints for both `torve plan` and adoption (A-47): grade, text
     # and paths as the row stands, pathless rows included.
-    rows = inherit_decisions(TABLE, "0090-widgets.md")
+    rows = inherit_decisions(loaded(tmp_path))
     assert [(r.id, r.grade, r.paths) for r in rows] == [
         ("D-90.1", "LOCKED", ["src/widget/**"]),
         ("D-90.2", "ASSUMED", []),
     ]
-
-
-def test_inherit_decisions_refuses_an_ungraded_row():
-    ungraded = TABLE.replace("`ASSUMED`", "`MAYBE`")
-    with pytest.raises(PlanError, match="not mintable"):
-        inherit_decisions(ungraded, "0090-widgets.md")
 
 
 # ....................... #
@@ -325,13 +344,11 @@ def test_standing_decisions_intersect_in_and_out(plan_repo):
     write_doc(
         "0091",
         "Frobs",
-        body=(
-            "## 7. Decisions\n\n"
-            "| # | Grade | Decision | Paths | Consequence |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            "| D-91.1 | `LOCKED` | Frobs are idempotent | `src/frob/**` | Retries double-charge |\n"
-            "| D-91.2 | `ASSUMED` | Frob names are short | `tests/frob/**` | Cheap to revisit |\n"
-        ),
+        phasing=None,
+        rows=[
+            ("D-91.1", "LOCKED", "Frobs are idempotent", "`src/frob/**`", "Retries double-charge"),
+            ("D-91.2", "ASSUMED", "Frob names are short", "`tests/frob/**`", "Cheap to revisit"),
+        ],
     )
     git("add", "-A")
     git("commit", "-qm", "frobs")
@@ -377,24 +394,16 @@ def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
         "0092",
         "Sketch",
         status="draft",
-        body=(
-            "## 7. Decisions\n\n"
-            "| # | Grade | Decision | Paths | Consequence |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            "| D-92.1 | `LOCKED` | A draft's rule | `src/widget/**` | — |\n"
-        ),
+        phasing=None,
+        rows=[("D-92.1", "LOCKED", "A draft's rule", "`src/widget/**`")],
     )
     write_doc(
         "0093",
         "Old",
         status="accepted",
-        superseded_by='"0090"',
-        body=(
-            "## 7. Decisions\n\n"
-            "| # | Grade | Decision | Paths | Consequence |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            "| D-93.1 | `LOCKED` | A superseded rule | `src/widget/**` | — |\n"
-        ),
+        superseded_by="0090",
+        phasing=None,
+        rows=[("D-93.1", "LOCKED", "A superseded rule", "`src/widget/**`")],
     )
     git("add", "-A")
     git("commit", "-qm", "non-standing docs")
@@ -403,28 +412,24 @@ def test_standing_decisions_never_read_draft_or_superseded_documents(plan_repo):
     assert [d.id for d in rows] == ["D-90.1"]
 
 
-def test_parse_phasing_defaults_tier_variant_empty():
-    entries = parse_phasing(PHASING)
-    assert entries is not None
-    assert all(e.tier_variant == "" for e in entries)
+def test_a_phase_defaults_tier_variant_and_character_to_empty(tmp_path):
+    """RFC 0034 D-34.2: absent means no character, the same
+    absent-means-default shape tier_variant carries."""
+
+    doc = loaded(tmp_path, phasing=PHASING)
+    assert [e.tier_variant for e in doc.phasing] == ["", "", ""]
+    assert [e.character for e in doc.phasing] == ["", "", ""]
 
 
-def test_parse_phasing_accepts_tier_variant():
-    text = PHASING.replace(
-        "  title: widget-core\n", "  title: widget-core\n  tier_variant: copywriter\n"
-    )
-    entries = parse_phasing(text)
-    assert entries is not None
-    assert entries[0].tier_variant == "copywriter"
-    assert entries[1].tier_variant == ""
+def test_the_loader_accepts_a_tier_variant(tmp_path):
+    doc = loaded(tmp_path, phasing=phasing(tier_variant="copywriter"))
+    assert doc.phasing[0].tier_variant == "copywriter"
+    assert doc.phasing[1].tier_variant == ""
 
 
 def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
     root, write_doc, git = plan_repo
-    variant_phasing = PHASING.replace(
-        "  title: widget-core\n", "  title: widget-core\n  tier_variant: copywriter\n"
-    )
-    write_doc("0099", "Personas", body=TABLE + variant_phasing)
+    write_doc("0099", "Personas", phasing=phasing(tier_variant="copywriter"))
     git("add", "-A")
     git("commit", "-qm", "personas")
     report = plan_document(root, root / "rfcs", "0099")
@@ -433,46 +438,24 @@ def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
     assert plain.tier_variant is None
 
 
-# ....................... #
+@pytest.mark.parametrize("character", ["structural", "routine"])
+def test_the_loader_accepts_the_closed_character_vocabulary(tmp_path, character):
+    doc = loaded(tmp_path, phasing=phasing(character=character))
+    assert doc.phasing[0].character == character
+    assert doc.phasing[1].character == ""
 
 
-def test_parse_phasing_defaults_character_empty():
-    """RFC 0034 D-34.2: absent means no character, same absent-means-default
-    shape tier_variant already carries."""
-
-    entries = parse_phasing(PHASING)
-    assert entries is not None
-    assert all(e.character == "" for e in entries)
-
-
-def test_parse_phasing_accepts_the_closed_character_vocabulary():
-    text = PHASING.replace(
-        "  title: widget-core\n", "  title: widget-core\n  character: structural\n"
-    )
-    entries = parse_phasing(text)
-    assert entries is not None
-    assert entries[0].character == "structural"
-    assert entries[1].character == ""
-
-
-def test_parse_phasing_refuses_a_character_outside_the_vocabulary():
+def test_the_loader_refuses_a_character_outside_the_vocabulary(tmp_path):
     """D-34.1: structural|routine is a closed vocabulary — compliance is
     measured, never declarable, and a typo is not a third option."""
 
-    text = PHASING.replace(
-        "  title: widget-core\n", "  title: widget-core\n  character: compliance\n"
-    )
-
-    with pytest.raises(ValueError):
-        parse_phasing(text)
+    with pytest.raises(SpecError, match=r"phasing\.0\.character"):
+        loaded(tmp_path, phasing=phasing(character="compliance"))
 
 
 def test_minting_copies_character_onto_the_contract(plan_repo):
     root, write_doc, git = plan_repo
-    character_phasing = PHASING.replace(
-        "  title: widget-core\n", "  title: widget-core\n  character: routine\n"
-    )
-    write_doc("0098", "Characters", body=TABLE + character_phasing)
+    write_doc("0098", "Characters", phasing=phasing(character="routine"))
     git("add", "-A")
     git("commit", "-qm", "characters")
     report = plan_document(root, root / "rfcs", "0098")
@@ -491,8 +474,8 @@ def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
     write_contracts(root, plan_document(root, root / "rfcs", "0090"))
     contract = next((root / ".torve" / "tasks").glob("T-*/contract.yaml"))
     text = contract.read_text(encoding="utf-8")
-    document = yaml.safe_load(text)
-    assert document["title"]
+    minted = yaml.safe_load(text)
+    assert minted["title"]
     assert "\n\n  " not in text.split("intent:")[1].split("depends_on:")[0]
 
 
@@ -500,19 +483,18 @@ def test_minted_contract_carries_a_title_and_block_intent(plan_repo):
 # RFC 0054 phase 1: the row travels whole (D-54.1), and a blocking check
 # needs its twin (D-54.4).
 
-DETAILS = """
-```yaml decision-details
-- id: D-90.1
-  rationale: because
-  check: "pytest tests/test_widget.py"
-  check_state: blocking
-  check_twin: tests/test_widget_sabotage.py
-```
-"""
+DETAILS = {
+    "D-90.1": {
+        "rationale": "because",
+        "check": "pytest tests/test_widget.py",
+        "check_state": "blocking",
+        "check_twin": "tests/test_widget_sabotage.py",
+    }
+}
 
 
-def test_inherit_decisions_carries_consequence_and_check():
-    rows = inherit_decisions(TABLE + DETAILS, "0090-widgets.md")
+def test_inherit_decisions_carries_consequence_and_check(tmp_path):
+    rows = inherit_decisions(loaded(tmp_path, details=DETAILS))
     first = rows[0]
 
     assert first.consequence == "Retries double-charge"
@@ -521,8 +503,8 @@ def test_inherit_decisions_carries_consequence_and_check():
     assert rows[1].check is None and rows[1].check_state == "shadow"
 
 
-def test_inherit_decisions_refuses_a_blocking_check_without_a_twin():
-    text = TABLE + DETAILS.replace("  check_twin: tests/test_widget_sabotage.py\n", "")
+def test_inherit_decisions_refuses_a_blocking_check_without_a_twin(tmp_path):
+    details = {"D-90.1": {k: v for k, v in DETAILS["D-90.1"].items() if k != "check_twin"}}
 
     with pytest.raises(PlanError, match="no check_twin"):
-        inherit_decisions(text, "0090-widgets.md")
+        inherit_decisions(loaded(tmp_path, details=details))

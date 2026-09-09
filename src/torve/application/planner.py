@@ -40,6 +40,7 @@ from torve.application import sizing
 from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
 from torve.domain.rfc import GRADES
+from torve.domain.spec import Corpus, Document, Phase
 from torve.domain.task import InheritedDecision, Scope, Task
 
 # ----------------------- #
@@ -93,43 +94,32 @@ def _require_committed(root: Path, doc: Path) -> None:
 # ....................... #
 
 
-def _admit(files: dict[str, Path], number: str) -> None:
-    frontmatter: dict[str, dict[str, object]] = {}
+def _admit(corpus: Corpus, number: str) -> None:
+    doc = corpus.document(number)
 
-    for num, path in files.items():
-        fm = spec.parse_frontmatter(path.read_text(encoding="utf-8"))
+    if doc is None or doc.archived:
+        raise PlanError(f"RFC {number} is not in the corpus path")
 
-        if fm is not None:
-            frontmatter[num] = fm
-
-    doc = frontmatter.get(number)
-
-    if doc is None:
-        raise PlanError(f"RFC {number} has no readable frontmatter")
-
-    status = str(doc.get("status", ""))
-
-    if status != "accepted":
+    if doc.status != "accepted":
         raise PlanError(
-            f"RFC {number} is {status or 'unreadable'} — a {status or 'malformed'} document "
+            f"RFC {number} is {doc.status} — a {doc.status} document "
             "has no settled decisions to inherit (§3.1)"
         )
 
-    if doc.get("superseded_by"):
+    if doc.superseded_by:
         raise PlanError(
-            f"RFC {number} is superseded by {doc.get('superseded_by')} — its decisions "
-            "no longer stand"
+            f"RFC {number} is superseded by {doc.superseded_by} — its decisions no longer stand"
         )
 
-    for dep in _depends(frontmatter, number):
-        target = frontmatter.get(dep)
+    for dep in doc.depends_on:
+        target = corpus.document(dep)
 
         if target is None:
             raise PlanError(f"RFC {number} depends on {dep}, which does not exist")
 
-        if str(target.get("status", "")) != "accepted":
+        if target.status != "accepted":
             raise PlanError(
-                f"RFC {number} depends on {dep}, which is {target.get('status')} — "
+                f"RFC {number} depends on {dep}, which is {target.status} — "
                 "inheriting a grade from an unsettled document breaks the "
                 "copy-at-write-time guarantee (D-7.7)"
             )
@@ -140,12 +130,12 @@ def _admit(files: dict[str, Path], number: str) -> None:
     def visit(num: str, trail: list[str]) -> None:
         state[num] = 1
 
-        for dep in _depends(frontmatter, num):
+        for dep in _depends(corpus, num):
             if state.get(dep) == 1:
                 cycle = " -> ".join([*trail, num, dep])
                 raise PlanError(f"depends_on cycle reachable from {number}: {cycle}")
 
-            if state.get(dep) != 2 and dep in frontmatter:
+            if state.get(dep) != 2 and corpus.document(dep) is not None:
                 visit(dep, [*trail, num])
 
         state[num] = 2
@@ -156,13 +146,10 @@ def _admit(files: dict[str, Path], number: str) -> None:
 # ....................... #
 
 
-def _depends(frontmatter: dict[str, dict[str, object]], number: str) -> list[str]:
-    raw = frontmatter.get(number, {}).get("depends_on")
+def _depends(corpus: Corpus, number: str) -> list[str]:
+    doc = corpus.document(number)
 
-    if not isinstance(raw, list):
-        return []
-
-    return [str(dep) for dep in cast("list[object]", raw)]
+    return list(doc.depends_on) if doc is not None else []
 
 
 # ....................... #
@@ -282,7 +269,9 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
 
         record = cast("dict[str, Any]", raw)
 
-        if str(record.get("rfc", "")) == document and record.get("phase") in phases:
+        minted = str(Path(str(record.get("rfc", ""))).with_suffix(""))
+
+        if minted == str(Path(document).with_suffix("")) and record.get("phase") in phases:
             clashes.append(str(record.get("id", contract.parent.name)))
 
     return clashes
@@ -291,48 +280,40 @@ def _already_minted(root: Path, document: str, phases: set[int]) -> list[str]:
 # ....................... #
 
 
-def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
-    """The document's decision table as a contract inherits it (§3.1): grade
-    and paths copied at write time, so the executor sees what stood when the
-    task was minted. One implementation — `torve plan` and adoption mint the
-    same rows or the two drift (A-47).
-    """
+def inherit_decisions(doc: Document) -> list[InheritedDecision]:
+    """The document's rows as a contract inherits them (§3.1): grade and
+    paths copied at write time, so the executor sees what stood when the
+    task was minted. One implementation — `torve plan` and adoption mint
+    the same rows or the two drift (A-47)."""
 
+    name = Path(doc.path).name if doc.path else doc.id
     decisions: list[InheritedDecision] = []
-    fences, fence_problems = spec.load_fences(text, name)
 
-    if fence_problems:
-        raise PlanError(f"{name}: not mintable — {'; '.join(fence_problems)}")
-
-    details = {one.id: one for one in fences["decision-details"]}
-
-    for row in spec.decision_table(text):
+    for row in doc.decisions:
         if row.grade not in GRADES:
             raise PlanError(
-                f"{name}: decision {row.identifier} has grade {row.grade!r} — "
+                f"{name}: decision {row.id} has grade {row.grade!r} — "
                 "not mintable (run `torve rfc check`)"
             )
 
-        detail = details.get(row.identifier)
-
         # D-54.4: a row whose check would block must name the test that
         # proves the check can fail — the manifest's twin rule, one level up.
-        if detail is not None and detail.check_state == "blocking" and not detail.check_twin:
+        if row.check_state == "blocking" and not row.check_twin:
             raise PlanError(
-                f"{name}: decision {row.identifier} has a blocking check and no check_twin — "
+                f"{name}: decision {row.id} has a blocking check and no check_twin — "
                 "not mintable (D-54.4)"
             )
 
         decisions.append(
             InheritedDecision(
-                id=row.identifier,
+                id=row.id,
                 grade=row.grade,
                 text=row.text.strip(),
-                paths=row.paths,
+                paths=list(row.paths),
                 consequence=row.consequence.strip(),
-                check=detail.check if detail else None,
-                check_state=detail.check_state if detail else "shadow",
-                check_twin=detail.check_twin if detail else None,
+                check=row.check,
+                check_state=row.check_state,
+                check_twin=row.check_twin,
             )
         )
 
@@ -342,35 +323,38 @@ def inherit_decisions(text: str, name: str) -> list[InheritedDecision]:
 # ....................... #
 
 
+def load_corpus(rfc_dir: Path) -> Corpus:
+    """The corpus as the planner reads it: the loader's refusals as
+    `PlanError`, so nothing mints from a document `rfc check` refuses."""
+
+    try:
+        return spec.load_corpus(rfc_dir)
+    except spec.SpecError as exc:
+        raise PlanError("; ".join(exc.problems)) from exc
+
+
+# ....................... #
+
+
 def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedDecision]:
     """The document-less lane's inheritance (RFC 0030 §5.1): every accepted
-    document's table is read through the same one reader `inherit_decisions`
+    document's rows are read through the same one reader `inherit_decisions`
     is (A-47), and a row is inherited when any of its declared paths
     intersects `scope_allow` (`globs_intersect`, conservative — a false
     inclusion costs a few contract lines, a false exclusion costs the
-    silence check). Grade and paths are copied at write time, the same
-    discipline as D-7.22; rows without declared paths are never standing —
-    they govern their own document's work only (D-30.1). Draft and
-    superseded documents are never read: their decisions do not stand.
-    Deterministic: corpus order, then document order within a table."""
+    silence check). Rows without declared paths are never standing — they
+    govern their own document's work only (D-30.1). Draft, superseded and
+    archived documents are never read: their decisions do not stand.
+    Deterministic: corpus order, then document order."""
 
     standing: list[InheritedDecision] = []
 
-    for path in spec.rfc_files(rfc_dir).values():
-        text = path.read_text(encoding="utf-8")
-        frontmatter = spec.parse_frontmatter(text)
-
-        if frontmatter is None:
+    for doc in load_corpus(rfc_dir).standing():
+        if doc.superseded_by:
             continue
 
-        if str(frontmatter.get("status", "")) != "accepted" or frontmatter.get("superseded_by"):
-            continue
-
-        for row in inherit_decisions(text, path.name):
-            if not row.paths:
-                continue
-
-            if globs_intersect(row.paths, scope_allow):
+        for row in inherit_decisions(doc):
+            if row.paths and globs_intersect(row.paths, scope_allow):
                 standing.append(row)
 
     return standing
@@ -384,7 +368,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     any refusal (§3.1) — each names the offending document or entry."""
 
     files = spec.rfc_files(rfc_dir)
-    number = identifier.strip().removesuffix(".md")
+    number = identifier.strip().removesuffix(".yaml").removesuffix(".md")
 
     if number not in files:
         matches = [n for n, p in files.items() if p.name == identifier or p.stem == number]
@@ -397,25 +381,30 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
     doc_path = files[number]
 
     _require_committed(root, doc_path)
-    _admit(files, number)
-
-    text = doc_path.read_text(encoding="utf-8")
-
-    try:
-        entries = spec.parse_phasing(text)
-
-    except ValueError as exc:
-        raise PlanError(f"{doc_path.name}: Phasing section does not mint — {exc}") from exc
+    corpus = load_corpus(rfc_dir)
+    _admit(corpus, number)
+    doc = corpus.document(number)
+    assert doc is not None
+    entries = doc.phasing
 
     if not entries:
         raise PlanError(
-            f"{doc_path.name} has no mintable Phasing section — a fenced YAML block "
-            "under `## Phasing` is what `torve plan` consumes (rfc-writer rule 2)"
+            f"{doc_path.name} has no phasing — a `phasing` list is what `torve plan` "
+            "consumes (rfc-writer rule 2)"
         )
+
+    known = {e.phase for e in entries}
+
+    for entry in entries:
+        for dep in entry.depends_on:
+            if dep not in known:
+                raise PlanError(
+                    f"{doc_path.name}: phase {entry.phase} depends_on {dep}, which no entry defines"
+                )
 
     # Same-phase scopes must not intersect (§3): overlapping tasks cannot run
     # in parallel and the plan silently serialises.
-    by_phase: dict[int, list[spec.PhasingEntry]] = {}
+    by_phase: dict[int, list[Phase]] = {}
 
     for entry in entries:
         by_phase.setdefault(entry.phase, []).append(entry)
@@ -429,7 +418,7 @@ def plan_document(root: Path, rfc_dir: Path, identifier: str) -> PlanReport:
                         "intersect — same-phase tasks must be disjoint (§3)"
                     )
 
-    decisions = inherit_decisions(text, doc_path.name)
+    decisions = inherit_decisions(doc)
 
     document = str(doc_path.resolve().relative_to(root.resolve()))
     clashes = _already_minted(root, document, {e.phase for e in entries})
@@ -555,16 +544,13 @@ def reconcile(root: Path, rfc_dir: Path, dry_run: bool = True) -> list[StaleTask
 
     superseded: dict[str, str | None] = {}
 
-    for _number, path in spec.rfc_files(rfc_dir).items():
-        fm = spec.parse_frontmatter(path.read_text(encoding="utf-8"))
-
-        if fm is None:
+    for doc in load_corpus(rfc_dir).documents:
+        if doc.archived:
             continue
 
-        if str(fm.get("status", "")) == "superseded" or fm.get("superseded_by"):
-            document = str(path.resolve().relative_to(root.resolve()))
-            by = fm.get("superseded_by")
-            superseded[document] = str(by) if by else None
+        if doc.status == "superseded" or doc.superseded_by:
+            document = str(Path(doc.path).resolve().relative_to(root.resolve()))
+            superseded[document] = doc.superseded_by or None
 
     found: list[StaleTask] = []
     tasks_dir = root / layout.TORVE_DIR / "tasks"

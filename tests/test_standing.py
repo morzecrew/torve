@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 from pydantic import ValidationError
+from test_decisions import document
 
 from torve.application.ports import ExecResult, SandboxHandle
 from torve.application.runstate import RunState
@@ -321,24 +322,12 @@ def test_instantiate_mints_through_adoption_and_records_origin(seeded):
 
 def test_instantiate_resolves_decisions_from_a_bare_rfc_id(seeded):
     seeded.write(
-        "rfcs/0012-fixture.md",
-        "\n".join(
-            [
-                "---",
-                'id: "0012"',
-                "title: Fixture",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-12.1 | `LOCKED` | The rule | `src/**` | — |",
-                "",
-            ]
+        "rfcs/0012-fixture.yaml",
+        document(
+            "0012",
+            [("D-12.1", "LOCKED", "The rule", "`src/**`")],
+            title="Fixture",
+            implementation="none",
         ),
     )
     seeded.commit("fixture rfc")

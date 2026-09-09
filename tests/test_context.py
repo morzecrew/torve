@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 
 import yaml
-from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
+from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
 from torve.application.planner import plan_document, write_contracts
@@ -117,7 +117,7 @@ def test_context_report_projects_the_facts(plan_repo):  # noqa: F811
 def test_disagreement_is_flagged(plan_repo):  # noqa: F811
     root, _write_doc, _git = plan_repo
     seed_facts(root)
-    doc = next((root / "rfcs").glob("0090-*.md"))
+    doc = next((root / "rfcs").glob("0090-*.yaml"))
     doc.write_text(
         doc.read_text(encoding="utf-8").replace("implementation: none", "implementation: complete"),
         encoding="utf-8",
@@ -134,7 +134,7 @@ def test_partial_is_falsifiable_once_every_declared_phase_ships(plan_repo):  # n
 
     root, _write_doc, _git = plan_repo
     seed_facts(root)
-    doc = next((root / "rfcs").glob("0090-*.md"))
+    doc = next((root / "rfcs").glob("0090-*.yaml"))
     body = doc.read_text(encoding="utf-8").replace(
         "implementation: none", "implementation: partial"
     )
@@ -213,8 +213,8 @@ def test_markdown_json_and_rich_render_one_report(plan_repo):  # noqa: F811
 def test_settled_documents_leave_the_programme_table_for_a_count(plan_repo):  # noqa: F811
     root, write_doc, git = plan_repo
     seed_facts(root)
-    write_doc("0091", "Doneware", status="accepted")
-    path = root / "rfcs" / "0091-doneware.md"
+    write_doc("0091", "Doneware", status="accepted", phasing=[])
+    path = root / "rfcs" / "0091-doneware.yaml"
     path.write_text(
         path.read_text().replace("implementation: none", "implementation: complete"),
         encoding="utf-8",
@@ -1316,7 +1316,7 @@ def test_why_groups_attempts_by_the_attempt_stamp(plan_repo):  # noqa: F811
 
     assert envelope["found"] is True
     assert envelope["task"] == "T-0001"
-    assert envelope["rfc"] == "rfcs/0090-widgets.md"
+    assert envelope["rfc"] == "rfcs/0090-widgets.yaml"
 
     attempts = envelope["attempts"]
     assert [a["attempt"] for a in attempts] == [None, 1, 2]  # chronological

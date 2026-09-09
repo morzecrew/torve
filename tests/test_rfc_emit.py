@@ -1,10 +1,12 @@
-"""`torve.config.rfc_emit` — the canonical emitter (RFC 0025 §5.1, D-25.1):
-frontmatter re-rendered in fixed key order with trap scalars quoted, the
-decision table and phasing fence re-serialised from their parsed models,
-dated amendment headings normalised, prose untouched. Idempotence is the
-property that matters most: `emit(emit(text)) == emit(text)`, pinned here
-against fixtures and against every document already committed to the
-corpus.
+"""`torve.config.rfc_emit` — the one writer of a document (RFC 0025 §5.1,
+D-25.1; RFC 0056 D-56.4): the model dumped as YAML in the model's own key
+order, block scalars for prose, flow lists for short identifier lists and
+folded scalars for long lines. Identity is the property the design leans
+on — `load(dump(doc)) == doc` and `canonical(dump) == dump` — and every
+document committed to the corpus is already its own canonical form. The
+verbs beneath it mutate the loaded model and nothing else: they take a
+`Document`, return a `Document`, and only `write_transaction` touches the
+tree, and only when the whole corpus checks clean.
 """
 
 from __future__ import annotations
@@ -12,440 +14,291 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from test_decisions import archived, corpus, document
 
-from torve.config.rfc_emit import emit, render_frontmatter
-from torve.config.spec import (
-    decision_table,
-    load_document,
-    parse_frontmatter,
-    parse_phasing,
-    paths_globs,
-    rfc_files,
-)
-
-DOC = """---
-id: "0001"
-title: Widget
-status: draft
-depends_on: []
-informed_by: []
-supersedes: []
-superseded_by: null
-amended_by: ["A-1"]
-owner: Test Owner
-description: >-
-  Scratch document for emitter tests.
-schema_version: 1
----
-
-# RFC 0001 — Widget
-
-## Decisions
-
-| # | Grade | Decision | Paths | Consequence |
-| --- | --- | --- | --- | --- |
-| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` | Nothing yet |
-
-## Phasing
-
-```yaml
-- phase: 1
-  title: the-only-phase
-  intent: >-
-    Build the thing.
-  scope: ["src/thing/**"]
-  acceptance: ["make test"]
-  depends_on: []
-```
-
-## Amendments
-
-### A-1 - 2026-01-01 - first amendment
-
-Prose that stays exactly as written.
-"""
-
-
-# ....................... #
-# idempotence (RFC 0025 §5.1, §6): the property the whole design leans on
-
-
-def test_emit_is_a_fixed_point() -> None:
-    once = emit(DOC)
-    twice = emit(once)
-    assert once == twice
-
-
-def test_emit_on_an_already_canonical_document_writes_nothing_new() -> None:
-    canonical = emit(DOC)
-    assert emit(canonical) == canonical
-
-
-def test_the_live_corpus_round_trips_idempotently() -> None:
-    repo = Path(__file__).resolve().parent.parent
-    files = rfc_files(repo / "rfcs")
-    assert files  # the corpus is not empty in this checkout
-
-    for path in files.values():
-        text = path.read_text(encoding="utf-8")
-        once = emit(text)
-        twice = emit(once)
-        assert once == twice, f"{path.name}: emit() is not a fixed point"
-
-
-# ....................... #
-# prose passes through byte-for-byte (D-25.1)
-
-
-def test_body_prose_is_untouched() -> None:
-    once = emit(DOC)
-    assert "Prose that stays exactly as written." in once
-    assert "Something is decided" in once
-    assert "Build the thing." in once
-
-
-# ....................... #
-# the Contract example fence (RFC 0025 §5.4, D-25.10) is not one of the
-# structures D-25.1 lists — it stays body prose, byte-for-byte
-
-
-CONTRACT_EXAMPLE_FENCE = (
-    "## Contract example\n\n```yaml contract-example\nid: T-9999\ndecisions: []\n```\n\n"
-)
-
-DOC_WITH_CONTRACT_EXAMPLE = DOC.replace("## Phasing", CONTRACT_EXAMPLE_FENCE + "## Phasing")
-
-
-def test_contract_example_fence_is_untouched_body_prose() -> None:
-    once = emit(DOC_WITH_CONTRACT_EXAMPLE)
-    assert CONTRACT_EXAMPLE_FENCE in once
-
-
-# ....................... #
-# the emitter refuses what the parser would refuse
-
-
-def test_emit_raises_on_unparseable_frontmatter() -> None:
-    with pytest.raises(ValueError, match="frontmatter"):
-        emit("no frontmatter here\n")
-
-
-def test_emit_raises_on_a_phasing_fence_that_does_not_mint() -> None:
-    broken = DOC.replace("- phase: 1", "- phase: 1\n  extra_unknown_field: true")
-
-    with pytest.raises(ValueError):
-        emit(broken)
-
-
-# ....................... #
-# trap scalars (RFC 0025 §2): quoted exactly when YAML would misread them
-
-
-def base_frontmatter(**overrides: object) -> dict[str, object]:
-    fm: dict[str, object] = {
-        "id": "0001",
-        "title": "Widget",
-        "status": "draft",
-        "depends_on": [],
-        "informed_by": [],
-        "supersedes": [],
-        "superseded_by": None,
-        "amended_by": [],
-        "owner": "Test Owner",
-        "description": "A description.",
-        "schema_version": 1,
-    }
-    fm.update(overrides)
-    return fm
-
-
-@pytest.mark.parametrize(
-    ("value", "must_appear"),
-    [
-        ("on", 'owner: "on"'),  # a bare `on:` reads as boolean unquoted (YAML 1.1)
-        ("key: value", 'owner: "key: value"'),  # a colon-space starts a mapping unquoted
-        ("trailing # hash", 'owner: "trailing # hash"'),  # ` #` starts a comment unquoted
-    ],
-)
-def test_trap_scalars_are_quoted(value: str, must_appear: str) -> None:
-    rendered = render_frontmatter(base_frontmatter(owner=value))
-    assert must_appear in rendered
-
-    reparsed = parse_frontmatter(rendered)
-    assert reparsed is not None
-    assert reparsed["owner"] == value
-
-
-def test_a_leading_zero_id_does_not_parse_as_octal() -> None:
-    rendered = render_frontmatter(base_frontmatter(id="0010"))
-    assert 'id: "0010"' in rendered
-
-    reparsed = parse_frontmatter(rendered)
-    assert reparsed is not None
-    assert reparsed["id"] == "0010"  # unquoted, PyYAML's octal resolver reads this as 8
-
-
-def test_a_plain_safe_value_stays_unquoted() -> None:
-    rendered = render_frontmatter(base_frontmatter(owner="Lev Litvinov"))
-    assert "owner: Lev Litvinov\n" in rendered
-    assert "'" not in rendered.split("owner:")[1].splitlines()[0]
-
-
-# ....................... #
-# fixed frontmatter key order (D-25.1)
-
-
-def test_frontmatter_key_order_is_fixed_regardless_of_input_order() -> None:
-    fm = {
-        "schema_version": 1,
-        "description": "A description.",
-        "id": "0001",
-        "owner": "Test Owner",
-        "title": "Widget",
-        "status": "draft",
-    }
-    rendered = render_frontmatter(fm)
-    body = rendered.splitlines()[1:-1]
-    keys_in_order = [line.split(":", 1)[0] for line in body if not line.startswith(" ")]
-    assert keys_in_order == ["id", "title", "status", "owner", "description", "schema_version"]
-
-
-# ....................... #
-# amendment headings: normalised to the em-dash dated form (D-A.5)
-
-
-def test_amendment_heading_dashes_are_normalised() -> None:
-    once = emit(DOC)
-    assert "### A-1 — 2026-01-01 — first amendment" in once
-    assert "### A-1 - 2026-01-01 - first amendment" not in once
-
-
-# ....................... #
-# the decision table and phasing fence re-serialise from the parsed model
-
-
-def test_decision_row_paths_are_backtick_wrapped_and_consequence_dashed() -> None:
-    doc = DOC.replace(
-        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` | Nothing yet |",
-        "| D-T.1 | `ASSUMED` | Something is decided | src/thing/** src/other/** | — |",
-    )
-    once = emit(doc)
-    assert (
-        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` `src/other/**` | — |" in once
-    )
-
-
-def test_phasing_scope_renders_as_a_block_list() -> None:
-    once = emit(DOC)
-    assert '  scope:\n    - "src/thing/**"' in once
-
-
-def test_phasing_tier_variant_survives_parse_emit_parse() -> None:
-    doc = DOC.replace("  depends_on: []\n```", "  tier_variant: copywriter\n  depends_on: []\n```")
-    once = emit(doc)
-    assert "  tier_variant: copywriter\n  depends_on: []" in once
-
-    entries = parse_phasing(once)
-    assert entries is not None
-    assert entries[0].tier_variant == "copywriter"
-
-
-def test_a_comma_between_paths_is_a_separator_not_a_path() -> None:
-    # `a`, `b` leaves the comma standing alone once the backticks become
-    # spaces. Read as a path it gives the decoration check a glob matching
-    # nothing, and the emitter writes the comma back as its own path.
-    doc = DOC.replace(
-        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**` | Nothing yet |",
-        "| D-T.1 | `ASSUMED` | Something is decided | `src/thing/**`, `src/other/**` | — |",
-    )
-
-    assert paths_globs("`src/thing/**`, `src/other/**`") == ["src/thing/**", "src/other/**"]
-    assert "`,`" not in emit(doc)
-
-
-# ----------------------- #
-# RFC 0053 phase 2: the amend forms write the diff, the editorial lane
-# re-stamps, the archive keeps every byte, deletions ride the transaction
-
-
-from torve.config.rfc_emit import (  # noqa: E402
-    FINGERPRINTS_KEY,
+from torve.config.rfc_emit import (
     amend_row,
     append_amendment,
     archive_document,
+    canonical,
+    dump_document,
     fix_row_text,
+    relocate_paths,
     retire_decision,
     stamp,
     write_transaction,
 )
+from torve.config.spec import archive_files, load_document, rfc_files
+from torve.domain.spec import Document
+
+REPO = Path(__file__).resolve().parent.parent
+RFCS = REPO / "rfcs"
+
+ROWS = [("D-1.1", "ASSUMED", "Something is decided.", "`src/torve/cli/**`", "Nothing yet.")]
+SECTIONS = [
+    {"key": "summary", "heading": "1. Summary", "md": "A first line.\n\nA second paragraph."}
+]
+LONG = (
+    "The rule holds over every verb of the surface, and the reason it holds is "
+    "written here rather than in a comment nobody can act on."
+)
+DETAILS = {"D-1.1": {"rationale": LONG, "cites": ["D-1.1"]}}
 
 
-def test_amend_row_replaces_the_field_stamps_the_row_and_returns_the_diff() -> None:
-    mutated, changes = amend_row(DOC, "D-T.1", grade="LOCKED", paths=["src/thing/**", "tests/**"])
-    (row,) = decision_table(mutated)
+def loaded(tmp_path: Path, text: str, number: str = "0001") -> Document:
+    rfc_dir = corpus(tmp_path, **{number: text})
 
-    assert row.grade == "LOCKED" and row.paths == ["src/thing/**", "tests/**"]
+    return load_document(rfc_dir / f"{number}-document-{number}.yaml")
+
+
+def widget(tmp_path: Path) -> Document:
+    return loaded(tmp_path, document("0001", ROWS, sections=SECTIONS, details=DETAILS))
+
+
+# ----------------------- #
+# identity and idempotence
+
+
+def test_dump_then_load_is_identity_and_the_dump_is_its_own_canonical_form(
+    tmp_path: Path,
+) -> None:
+    doc = widget(tmp_path)
+    text = dump_document(doc)
+    path = tmp_path / "rfcs" / "0001-document-0001.yaml"
+    path.write_text(text, encoding="utf-8")
+    reloaded = load_document(path)
+
+    assert reloaded.model_dump() == doc.model_dump()
+    assert dump_document(reloaded) == text
+    assert canonical(text, path) == text
+
+
+LIVE = sorted({**rfc_files(RFCS), **archive_files(RFCS)}.items()) if RFCS.is_dir() else []
+
+
+@pytest.mark.parametrize(("number", "path"), LIVE, ids=[n for n, _ in LIVE])
+def test_every_live_document_is_its_own_canonical_form(number: str, path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    doc = load_document(path, archived=path.parent != RFCS)
+
+    assert doc.id == number
+    assert dump_document(doc) == text
+    assert canonical(text, path) == text
+
+
+def test_the_serializer_writes_blocks_flow_lists_and_folded_lines(tmp_path: Path) -> None:
+    text = dump_document(widget(tmp_path))
+
+    assert "    md: |-\n      A first line.\n" in text  # prose keeps its own newlines
+    assert "paths: [src/torve/cli/**]" in text  # a short identifier list rides one line
+    assert "rationale: >-\n" in text  # a long single line is folded
+    assert max(len(line) for line in text.splitlines()) <= 88
+
+
+# ----------------------- #
+# the verbs: each takes a Document and returns one
+
+
+def test_amend_row_replaces_the_field_stamps_the_row_and_returns_the_diff(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+    mutated, changes = amend_row(
+        doc, "D-1.1", grade="LOCKED", paths=["src/torve/cli/**", "tests/**"]
+    )
+    row = mutated.decision("D-1.1")
+
+    assert row is not None
+    assert row.grade == "LOCKED" and row.paths == ["src/torve/cli/**", "tests/**"]
     assert [c["field"] for c in changes] == ["grade", "paths", "fingerprint"]
     assert changes[0] == {
-        "subject": "D-T.1",
+        "subject": "D-1.1",
         "field": "grade",
         "before": "ASSUMED",
         "after": "LOCKED",
     }
-    assert changes[1]["before"] == ["src/thing/**"]
+    assert changes[1]["before"] == ["src/torve/cli/**"]
     assert changes[2]["before"] is None and changes[2]["after"] == stamp(row)
-
-    fm = parse_frontmatter(mutated) or {}
-
-    assert fm[FINGERPRINTS_KEY] == {"D-T.1": stamp(row)}
-    assert emit(mutated) == mutated
+    assert row.fingerprint == stamp(row)
+    assert doc.decision("D-1.1").grade == "ASSUMED"  # type: ignore[union-attr]
 
 
-def test_amend_row_with_nothing_to_change_is_refused() -> None:
+def test_amend_row_with_nothing_to_change_is_refused(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+
     with pytest.raises(ValueError, match="nothing to change"):
-        amend_row(DOC, "D-T.1", grade="ASSUMED")
+        amend_row(doc, "D-1.1", grade="ASSUMED")
 
     with pytest.raises(ValueError, match="no decision"):
-        amend_row(DOC, "D-T.9", grade="OPEN")
+        amend_row(doc, "D-1.9", grade="OPEN")
 
 
-def test_the_diff_rides_beneath_the_amendment_heading_as_a_changes_fence() -> None:
-    mutated, changes = amend_row(DOC, "D-T.1", new_text="Something else is decided")
+def test_the_diff_rides_the_amendment_through_dump_and_load(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+    mutated, changes = amend_row(doc, "D-1.1", new_text="Something else is decided.")
     amended = append_amendment(mutated, "A-2", "the text moved", "2026-09-09", changes)
+    path = tmp_path / "rfcs" / "0001-document-0001.yaml"
+    path.write_text(dump_document(amended), encoding="utf-8")
+    entry = next(a for a in load_document(path).amendments if a.id == "A-2")
 
-    assert "### A-2 — 2026-09-09 — the text moved" in amended
-    assert "```yaml changes" in amended
-    assert '  before: "Something is decided"' in amended
-
-    entry = next(a for a in _loaded(amended).amendments if a.id == "A-2")
-
+    assert amended.amended_by == ["A-2"]
+    assert str(entry.at) == "2026-09-09" and entry.title == "the text moved"
     assert [c.field for c in entry.changes] == ["text", "fingerprint"]
-    assert entry.changes[0].before == "Something is decided"
+    assert entry.changes[0].before == "Something is decided."
+
+    with pytest.raises(ValueError, match="already exists"):
+        append_amendment(amended, "A-2", "again", "2026-09-10", [])
 
 
-def _loaded(text: str):
-    import tempfile
+def test_fix_row_text_appends_to_the_editorial_lane_and_restamps(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+    fixed, changes = fix_row_text(doc, "D-1.1", "Something is decided, spelt right.")
+    row = fixed.decision("D-1.1")
 
-    path = Path(tempfile.mkdtemp()) / "0001-widget.md"
-    path.write_text(text, encoding="utf-8")
-
-    return load_document(path)
-
-
-def test_fix_records_the_editorial_pair_under_the_table_and_never_an_amendment() -> None:
-    fixed, changes = fix_row_text(DOC, "D-T.1", "Something is decided, spelt right")
-    (row,) = decision_table(fixed)
-
-    assert row.text == "Something is decided, spelt right"
+    assert row is not None and row.text == "Something is decided, spelt right."
     assert [c["field"] for c in changes] == ["text", "fingerprint"]
-    assert "<!-- editorial changes, recorded by `torve rfc fix` -->" in fixed
-    assert fixed.index("```yaml changes") < fixed.index("## Phasing")
-    assert (parse_frontmatter(fixed) or {})["amended_by"] == ["A-1"]  # unchanged
-    assert emit(fixed) == fixed
+    assert row.fingerprint == stamp(row)
+    assert [c.field for c in fixed.editorial] == ["text", "fingerprint"]
+    assert fixed.amended_by == doc.amended_by  # the editorial lane is never an amendment
 
-    again, _ = fix_row_text(fixed, "D-T.1", "Something is decided, spelt right twice")
+    again, _ = fix_row_text(fixed, "D-1.1", "Something is decided, spelt right twice.")
 
-    assert again.count("<!-- editorial changes") == 1
-    assert again.count('- subject: "D-T.1"') == 4  # two fixes, two entries each
+    assert [c.field for c in again.editorial] == ["text", "fingerprint"] * 2
 
     with pytest.raises(ValueError, match="already reads that way, and it is stamped"):
-        fix_row_text(again, "D-T.1", "Something is decided, spelt right twice")
+        fix_row_text(again, "D-1.1", "Something is decided, spelt right twice.")
 
-    by_hand = again.replace("spelt right twice", "spelt right thrice")
-    restamped, changes = fix_row_text(by_hand, "D-T.1", "Something is decided, spelt right thrice")
+    # the hand-edited text, as it now reads, is exactly what the lane accepts
+    row = again.decision("D-1.1")
+    assert row is not None
+    by_hand = again.model_copy(
+        update={"decisions": [row.model_copy(update={"text": "Edited by hand."})]}
+    )
+    restamped, changes = fix_row_text(by_hand, "D-1.1", "Edited by hand.")
 
-    assert [c["field"] for c in changes] == ["fingerprint"]  # the text stood; the stamp moved
-    assert emit(restamped) == restamped
-
-
-def test_retire_with_a_reason_writes_it_at_the_tombstone_and_drops_the_stamp() -> None:
-    stamped, _ = amend_row(DOC, "D-T.1", grade="OPEN")
-    retired = retire_decision(stamped, "D-T.1", "2026-09-09", reason="path rot")
-
-    assert "D-T.1 was retired 2026-09-09; path rot." in retired
-    assert FINGERPRINTS_KEY not in (parse_frontmatter(retired) or {})
+    assert [c["field"] for c in changes] == ["text", "fingerprint"]
+    assert restamped.decision("D-1.1").fingerprint == restamped.decision("D-1.1").stamp()  # type: ignore[union-attr]
 
 
-def test_archive_document_supersedes_and_keeps_every_other_byte() -> None:
-    archived = archive_document(DOC, "0054", "2026-09-09")
-    fm = parse_frontmatter(archived) or {}
+def test_retire_decision_removes_the_row_and_records_the_identifier(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+    retired = retire_decision(doc, "D-1.1", "2026-09-09", reason="path rot")
 
-    assert fm["status"] == "superseded" and fm["superseded_by"] == "0054"
-    assert "Prose that stays exactly as written." in archived
-    assert "*Archived 2026-09-09: superseded by 0054" in archived
+    assert retired.decision("D-1.1") is None
+    assert retired.retired == ["D-1.1"]
+    assert "D-1.1" in retired.defined_identifiers()  # never reused (D-16.1)
+    assert "D-1.1" in dump_document(retired)
+
+    with pytest.raises(ValueError, match="no decision"):
+        retire_decision(retired, "D-1.1", "2026-09-09")
+
+
+def test_relocate_paths_moves_the_exact_glob_and_names_the_rows(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+    moved, touched = relocate_paths(doc, "src/torve/cli/**", "src/torve/surface/**")
+    row = moved.decision("D-1.1")
+
+    assert touched == ["D-1.1"]
+    assert row is not None and row.paths == ["src/torve/surface/**"]
+    assert row.text == doc.decision("D-1.1").text  # type: ignore[union-attr]
+    assert relocate_paths(doc, "src/nowhere/**", "src/elsewhere/**")[1] == []
+
+
+def test_archive_document_supersedes_and_refuses_a_second_time(tmp_path: Path) -> None:
+    doc = widget(tmp_path)
+    gone = archive_document(doc, "0054")
+
+    assert gone.status == "superseded" and gone.superseded_by == "0054"
+    assert gone.archived
+    assert gone.decisions == doc.decisions  # every identifier still resolves (D-53.8)
+    assert dump_document(gone).startswith("# yaml-language-server: $schema=../../rfcs/")
 
     with pytest.raises(ValueError, match="already superseded"):
-        archive_document(archived, "0055", "2026-09-10")
+        archive_document(gone, "0055")
 
 
-def test_a_deletion_rides_the_transaction_and_a_red_check_keeps_the_file(tmp_path: Path) -> None:
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir()
-    (rfcs / "0001-widget.md").write_text(DOC, encoding="utf-8")
-    dependent = (
-        DOC.replace('id: "0001"', 'id: "0002"')
-        .replace("Widget", "Gadget")
-        .replace("depends_on: []", 'depends_on: ["0001"]')
-        .replace("D-T.1", "D-G.1")
-        .replace("# RFC 0001", "# RFC 0002")
+# ----------------------- #
+# the transaction (D-25.2)
+
+
+def _pair(tmp_path: Path) -> Path:
+    """0001 and 0002, where 0002 depends on 0001."""
+
+    return corpus(
+        tmp_path,
+        **{
+            "0001": document("0001", ROWS, sections=SECTIONS),
+            "0002": document(
+                "0002", [("D-2.1", "ASSUMED", "Another decision.", "—")], depends_on=["0001"]
+            ),
+        },
     )
-    (rfcs / "0002-gadget.md").write_text(dependent, encoding="utf-8")
-
-    from torve.config.spec import build_index, rfc_files
-
-    (rfcs / "INDEX.md").write_text(build_index(rfc_files(rfcs)), encoding="utf-8")
-
-    report = write_transaction(rfcs, tmp_path, {}, deletions=("0001-widget.md",))
-
-    assert not report.ok  # 0002 depends on the deleted document
-    assert (rfcs / "0001-widget.md").exists()
-
-    report = write_transaction(rfcs, tmp_path, {}, deletions=("0002-gadget.md",))
-
-    assert report.ok
-    assert not (rfcs / "0002-gadget.md").exists()
-    assert "0002-gadget.md" not in (rfcs / "INDEX.md").read_text(encoding="utf-8")
 
 
-def test_a_changes_fence_with_a_long_value_is_still_yaml() -> None:
-    long_text = (
-        "Only `NNNN-slug.md` and `INDEX.md` in the corpus directory, no subdirectories; the "
-        "check routes offenders to `pages/` or `ops/`. A retired document's one legal "
-        "destination is `archive/rfcs/` beside the corpus path: written only by the verb"
-    )
-    mutated, changes = amend_row(DOC, "D-T.1", new_text=long_text)
-    amended = append_amendment(mutated, "A-2", "a long row", "2026-09-09", changes)
-    entry = next(a for a in _loaded(amended).amendments if a.id == "A-2")
+def test_a_red_check_leaves_the_tree_untouched(tmp_path: Path) -> None:
+    rfc_dir = _pair(tmp_path)
+    doomed = rfc_dir / "0001-document-0001.yaml"
+    before = doomed.read_text(encoding="utf-8")
 
-    assert entry.changes[0].after == long_text
-    assert emit(amended) == amended
+    report = write_transaction(rfc_dir, tmp_path, {}, deletions=("0001-document-0001.yaml",))
+
+    assert not report.ok  # 0002 depends_on the deleted document
+    assert any("no such RFC" in problem for problem in report.problems)
+    assert doomed.read_text(encoding="utf-8") == before
+
+
+def test_a_deletion_rides_the_transaction(tmp_path: Path) -> None:
+    rfc_dir = _pair(tmp_path)
+
+    report = write_transaction(rfc_dir, tmp_path, {}, deletions=("0002-document-0002.yaml",))
+
+    assert report.ok, report.problems
+    assert not (rfc_dir / "0002-document-0002.yaml").exists()
+    assert (rfc_dir / "0001-document-0001.yaml").exists()
 
 
 def test_the_transaction_checks_with_the_archive_in_view(tmp_path: Path) -> None:
-    rfcs = tmp_path / "rfcs"
-    rfcs.mkdir()
-    citing = (
-        DOC.replace('id: "0001"', 'id: "0002"')
-        .replace("Widget", "Gadget")
-        .replace("D-T.1", "D-G.1")
-        .replace("# RFC 0001", "# RFC 0002")
-        .replace("## Decisions", "Built on D-T.1.\n\n## Decisions")
+    rfc_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document("0001", ROWS),
+            "0002": document(
+                "0002",
+                [("D-2.1", "ASSUMED", "Another decision.", "—")],
+                sections=[{"key": "summary", "heading": "1. Summary", "md": "Built on D-1.1."}],
+            ),
+        },
     )
-    (rfcs / "0001-widget.md").write_text(DOC, encoding="utf-8")
-    (rfcs / "0002-gadget.md").write_text(citing, encoding="utf-8")
+    name = "0001-document-0001.yaml"
+    doc = load_document(rfc_dir / name)
 
-    from torve.config.spec import build_index, rfc_files
+    without = write_transaction(rfc_dir, tmp_path, {}, deletions=(name,))
 
-    (rfcs / "INDEX.md").write_text(build_index(rfc_files(rfcs)), encoding="utf-8")
-
-    without = write_transaction(rfcs, tmp_path, {}, deletions=("0001-widget.md",))
-
-    assert not without.ok  # 0002 cites D-T.1 and nothing would define it
+    assert not without.ok  # 0002 cites D-1.1 and nothing would define it
+    assert (rfc_dir / name).exists()
 
     moved = write_transaction(
-        rfcs, tmp_path, {}, deletions=("0001-widget.md",), archived={"0001-widget.md": DOC}
+        rfc_dir,
+        tmp_path,
+        {},
+        deletions=(name,),
+        archived={name: archive_document(doc, "0002")},
     )
 
     assert moved.ok, moved.problems
-    assert (tmp_path / "archive" / "rfcs" / "0001-widget.md").read_text(encoding="utf-8") == DOC
-    assert not (rfcs / "0001-widget.md").exists()
+    assert not (rfc_dir / name).exists()
+
+    kept = load_document(tmp_path / "archive" / "rfcs" / name, archived=True)
+
+    assert kept.decision("D-1.1") is not None and kept.status == "superseded"
+
+
+def test_the_transaction_writes_a_mutated_document(tmp_path: Path) -> None:
+    rfc_dir = corpus(tmp_path, **{"0001": document("0001", ROWS, sections=SECTIONS)})
+    archived(rfc_dir, "0000", document("0000", [], status="superseded", superseded_by="0001"))
+    name = "0001-document-0001.yaml"
+    fixed, _ = fix_row_text(load_document(rfc_dir / name), "D-1.1", "Something is decided, twice.")
+
+    report = write_transaction(rfc_dir, tmp_path, {name: fixed})
+
+    assert report.ok, report.problems
+    assert (rfc_dir / name).read_text(encoding="utf-8") == dump_document(fixed)
+    assert (tmp_path / "archive" / "rfcs" / "0000-document-0000.yaml").exists()

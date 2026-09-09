@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from test_decisions import document as spec_document
 
 from torve.application.intake import (
     DraftsDocument,
@@ -446,25 +447,8 @@ def test_lint_contract_standalone_and_role_guard(tree: Path):
 
 def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path):
     (tree / "rfcs").mkdir()
-    (tree / "rfcs" / "0099-stand.md").write_text(
-        "\n".join(
-            [
-                "---",
-                'id: "0099"',
-                "title: Stand",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
-                "",
-            ]
-        ),
+    (tree / "rfcs" / "0099-stand.yaml").write_text(
+        _rfc_doc("0099", "D-99.1", "src/**"),
         encoding="utf-8",
     )
 
@@ -543,24 +527,25 @@ def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path
     assert standing_warnings(tree, review) == []
 
 
-def _rfc_doc(number: str, decision_id: str, path: str, *, grade: str = "LOCKED") -> str:
-    return "\n".join(
-        [
-            "---",
-            f'id: "{number}"',
-            "title: Fixture",
-            "status: accepted",
-            "owner: t",
-            "schema_version: 1",
-            "---",
-            "",
-            "## Decisions",
-            "",
-            "| # | Grade | Decision | Paths | Consequence |",
-            "| --- | --- | --- | --- | --- |",
-            f"| {decision_id} | `{grade}` | The rule | `{path}` | — |",
-            "",
-        ]
+def _rfc_doc(
+    number: str,
+    decision_id: str,
+    path: str,
+    *,
+    grade: str = "LOCKED",
+    text: str = "The rule",
+    status: str = "accepted",
+    title: str = "Fixture",
+) -> str:
+    """One fixture document: a single row over one path, as the corpus
+    builder writes it (RFC 0056 D-56.1)."""
+
+    return spec_document(
+        number,
+        [(decision_id, grade, text, f"`{path}`")],
+        status=status,
+        title=title,
+        implementation="none",
     )
 
 
@@ -575,17 +560,17 @@ def _locked(decision_id: str, paths: list[str] | None = None) -> InheritedDecisi
 
 def test_document_threshold_rides_one_documents_locked_ground():
     standing = [_locked("D-1.1"), _locked("D-1.2")]
-    documents = {"D-1.1": "0001-a.md", "D-1.2": "0001-a.md"}
+    documents = {"D-1.1": "0001-a.yaml", "D-1.2": "0001-a.yaml"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict == ThresholdVerdict(verdict="rides", reasons=[])
 
 
 def test_document_threshold_fires_when_locked_rows_cross_two_documents():
     standing = [_locked("D-1.1"), _locked("D-2.1")]
-    documents = {"D-1.1": "0001-a.md", "D-2.1": "0002-b.md"}
+    documents = {"D-1.1": "0001-a.yaml", "D-2.1": "0002-b.yaml"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict.verdict == "document_required"
-    assert "0001-a.md" in verdict.reasons[0] and "0002-b.md" in verdict.reasons[0]
+    assert "0001-a.yaml" in verdict.reasons[0] and "0002-b.yaml" in verdict.reasons[0]
     assert "D-1.1" in verdict.reasons[0] and "D-2.1" in verdict.reasons[0]
 
 
@@ -594,7 +579,7 @@ def test_document_threshold_ignores_non_locked_rows_across_documents():
         InheritedDecision(id="D-1.1", grade="ASSUMED", text="r", paths=["src/**"]),
         InheritedDecision(id="D-2.1", grade="OPEN", text="r", paths=["src/**"]),
     ]
-    documents = {"D-1.1": "0001-a.md", "D-2.1": "0002-b.md"}
+    documents = {"D-1.1": "0001-a.yaml", "D-2.1": "0002-b.yaml"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict.verdict == "rides"
 
@@ -608,7 +593,7 @@ def test_document_threshold_fires_on_too_large_alone():
 
 def test_document_threshold_honours_a_lower_configured_minimum():
     standing = [_locked("D-1.1")]
-    verdict = document_threshold(standing, SizeVerdict(size="ok"), {"D-1.1": "0001-a.md"}, 1)
+    verdict = document_threshold(standing, SizeVerdict(size="ok"), {"D-1.1": "0001-a.yaml"}, 1)
     assert verdict.verdict == "document_required"
 
 
@@ -618,7 +603,7 @@ def test_document_threshold_counts_documents_not_id_families():
     # overcount this single document as three, which is the bug this
     # resolution exists to rule out.
     standing = [_locked("D-2.1"), _locked("D-25.3"), _locked("D-A.7")]
-    documents = {"D-2.1": "0001.md", "D-25.3": "0001.md", "D-A.7": "0001.md"}
+    documents = {"D-2.1": "0001.yaml", "D-25.3": "0001.yaml", "D-A.7": "0001.yaml"}
     verdict = document_threshold(standing, SizeVerdict(size="ok"), documents, 2)
     assert verdict.verdict == "rides"
 
@@ -630,7 +615,7 @@ def test_document_threshold_counts_documents_not_id_families():
 
 def test_lint_document_threshold_rides_one_documents_locked_ground(tree: Path):
     (tree / "rfcs").mkdir()
-    (tree / "rfcs" / "0099-fixture.md").write_text(
+    (tree / "rfcs" / "0099-fixture.yaml").write_text(
         _rfc_doc("0099", "D-99.1", "src/**"), encoding="utf-8"
     )
     errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
@@ -639,17 +624,17 @@ def test_lint_document_threshold_rides_one_documents_locked_ground(tree: Path):
 
 def test_lint_document_threshold_fires_when_scope_crosses_two_documents(tree: Path):
     (tree / "rfcs").mkdir()
-    (tree / "rfcs" / "0097-other.md").write_text(
+    (tree / "rfcs" / "0097-other.yaml").write_text(
         _rfc_doc("0097", "D-97.1", "src/newmod.py"), encoding="utf-8"
     )
-    (tree / "rfcs" / "0099-fixture.md").write_text(
+    (tree / "rfcs" / "0099-fixture.yaml").write_text(
         _rfc_doc("0099", "D-99.1", "src/newmod.py"), encoding="utf-8"
     )
     errors = lint_document_threshold(tree, document(draft_dict("DRAFT-1")), RunnerConfig())
     assert len(errors) == 1
     assert "DRAFT-1" in errors[0]
     assert "D-97.1" in errors[0] and "D-99.1" in errors[0]
-    assert "0097-other.md" in errors[0] and "0099-fixture.md" in errors[0]
+    assert "0097-other.yaml" in errors[0] and "0099-fixture.yaml" in errors[0]
     for coordinate in ("RFC 0030", "D-30."):
         assert coordinate not in errors[0]
 
@@ -666,26 +651,16 @@ def test_lint_document_threshold_fires_on_too_large_alone(tree: Path):
 
 def test_lint_document_threshold_counts_documents_not_id_families(tree: Path):
     (tree / "rfcs").mkdir()
-    (tree / "rfcs" / "0001-engine.md").write_text(
-        "\n".join(
+    (tree / "rfcs" / "0001-engine.yaml").write_text(
+        spec_document(
+            "0001",
             [
-                "---",
-                'id: "0001"',
-                "title: Engine",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-2.1 | `LOCKED` | Rule one | `src/**` | — |",
-                "| D-25.3 | `LOCKED` | Rule two | `src/**` | — |",
-                "| D-A.7 | `LOCKED` | Rule three | `src/**` | — |",
-                "",
-            ]
+                ("D-2.1", "LOCKED", "Rule one", "`src/**`"),
+                ("D-25.3", "LOCKED", "Rule two", "`src/**`"),
+                ("D-A.7", "LOCKED", "Rule three", "`src/**`"),
+            ],
+            title="Engine",
+            implementation="none",
         ),
         encoding="utf-8",
     )
@@ -695,10 +670,10 @@ def test_lint_document_threshold_counts_documents_not_id_families(tree: Path):
 
 def test_document_threshold_warnings_advise_without_failing_the_contract_lint(tree: Path):
     (tree / "rfcs").mkdir()
-    (tree / "rfcs" / "0097-other.md").write_text(
+    (tree / "rfcs" / "0097-other.yaml").write_text(
         _rfc_doc("0097", "D-97.1", "src/app.py"), encoding="utf-8"
     )
-    (tree / "rfcs" / "0099-fixture.md").write_text(
+    (tree / "rfcs" / "0099-fixture.yaml").write_text(
         _rfc_doc("0099", "D-99.1", "src/app.py"), encoding="utf-8"
     )
     contract = tree / "contract.yaml"
@@ -920,28 +895,11 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
 
 def test_adopt_copies_decisions_from_an_accepted_document(seeded):
     seeded.write(
-        "rfcs/0099-fixture.md",
-        "\n".join(
-            [
-                "---",
-                'id: "0099"',
-                "title: Fixture",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
-                "",
-            ]
-        ),
+        "rfcs/0099-fixture.yaml",
+        _rfc_doc("0099", "D-99.1", "src/**"),
     )
     seeded.commit("fixture rfc")
-    source = adopted_ready_run(seeded, rfc="rfcs/0099-fixture.md")
+    source = adopted_ready_run(seeded, rfc="rfcs/0099-fixture.yaml")
     adopted = adopt(seeded.root, source, RunnerConfig())
 
     contract = yaml.safe_load(
@@ -968,25 +926,8 @@ def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
     # is not the only lane; a scope crossing another document's paths
     # inherits that row even with no rfc line at all.
     seeded.write(
-        "rfcs/0099-fixture.md",
-        "\n".join(
-            [
-                "---",
-                'id: "0099"',
-                "title: Fixture",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
-                "",
-            ]
-        ),
+        "rfcs/0099-fixture.yaml",
+        _rfc_doc("0099", "D-99.1", "src/**"),
     )
     seeded.commit("fixture rfc")
     source = adopted_ready_run(seeded)  # no rfc line — the document-less lane
@@ -1017,49 +958,15 @@ def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
     # standing row is the same identifier as 0099's, and the request was
     # written against 0099 — its grade and text stand.
     seeded.write(
-        "rfcs/0097-other.md",
-        "\n".join(
-            [
-                "---",
-                'id: "0097"',
-                "title: Other",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-99.1 | `ASSUMED` | A weaker copy | `src/**` | — |",
-                "",
-            ]
-        ),
+        "rfcs/0097-other.yaml",
+        _rfc_doc("0097", "D-99.1", "src/**", grade="ASSUMED", text="A weaker copy"),
     )
     seeded.write(
-        "rfcs/0099-fixture.md",
-        "\n".join(
-            [
-                "---",
-                'id: "0099"',
-                "title: Fixture",
-                "status: accepted",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-99.1 | `LOCKED` | The rule | `src/**` | — |",
-                "",
-            ]
-        ),
+        "rfcs/0099-fixture.yaml",
+        _rfc_doc("0099", "D-99.1", "src/**"),
     )
     seeded.commit("fixture rfcs")
-    source = adopted_ready_run(seeded, rfc="rfcs/0099-fixture.md")
+    source = adopted_ready_run(seeded, rfc="rfcs/0099-fixture.yaml")
     adopted = adopt(seeded.root, source, RunnerConfig())
 
     contract = yaml.safe_load(
@@ -1127,28 +1034,11 @@ def test_adopt_of_a_decomposition_sets_parent_and_grows_the_integration_task(see
 
 def test_adopt_refuses_a_draft_status_document(seeded):
     seeded.write(
-        "rfcs/0098-fixture.md",
-        "\n".join(
-            [
-                "---",
-                'id: "0098"',
-                "title: Fixture",
-                "status: draft",
-                "owner: t",
-                "schema_version: 1",
-                "---",
-                "",
-                "## Decisions",
-                "",
-                "| # | Grade | Decision | Paths | Consequence |",
-                "| --- | --- | --- | --- | --- |",
-                "| D-98.1 | `LOCKED` | The rule | `src/**` | — |",
-                "",
-            ]
-        ),
+        "rfcs/0098-fixture.yaml",
+        _rfc_doc("0098", "D-98.1", "src/**", status="draft"),
     )
     seeded.commit("draft rfc")
-    source = adopted_ready_run(seeded, rfc="rfcs/0098-fixture.md")
+    source = adopted_ready_run(seeded, rfc="rfcs/0098-fixture.yaml")
     with pytest.raises(ValueError, match="not accepted"):
         adopt(seeded.root, source, RunnerConfig())
 
@@ -1177,8 +1067,8 @@ def test_adopt_refuses_a_scope_crossing_two_documents_locked_ground(seeded):
     # RFC 0030 D-30.4: refused before anything is written — no lock, no
     # minted id, no commit — since adoption is the signature and a
     # signature over two documents' settled ground belongs on one.
-    seeded.write("rfcs/0097-other.md", _rfc_doc("0097", "D-97.1", "src/newmod.py"))
-    seeded.write("rfcs/0099-fixture.md", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    seeded.write("rfcs/0097-other.yaml", _rfc_doc("0097", "D-97.1", "src/newmod.py"))
+    seeded.write("rfcs/0099-fixture.yaml", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
     seeded.commit("fixture rfcs")
     config = RunnerConfig()
     task = mint_intake_task(seeded.root, "two docs", config)
@@ -1205,7 +1095,7 @@ def test_adopt_refuses_a_too_large_draft(seeded):
 
 
 def test_adopt_rides_one_documents_locked_ground_with_bounded_size(seeded):
-    seeded.write("rfcs/0099-fixture.md", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
+    seeded.write("rfcs/0099-fixture.yaml", _rfc_doc("0099", "D-99.1", "src/newmod.py"))
     seeded.commit("fixture rfc")
     source = adopted_ready_run(seeded)
     adopted = adopt(seeded.root, source, RunnerConfig())

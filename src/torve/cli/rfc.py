@@ -5,26 +5,25 @@ the whole `rfc-valid` gate and needs no store (D-7.16). The corpus location is
 `rfcs.path` from the runner's configuration — one path, never a list (D-13.7,
 D-A.16) — defaulting to `rfcs/`.
 
-`new` derives its number as the maximum plus one (D-A.17); there is no way to
-create a document in a numbering hole (D-A.19) and no counter file to merge.
-INDEX.md is generated output, like a lockfile (D-A.6).
+A document is one YAML file in the model's own shape (RFC 0056 D-56.1).
+`new` derives its number as the maximum over the corpus and the archive
+plus one (D-A.17, D-53.10); there is no way to create a document in a
+numbering hole and no counter file to merge. `list` is the index as a
+query (D-56.7).
 
-`fmt` is the authoring surface's other half (RFC 0025 §5.2, D-25.1): the
-canonical emitter in `torve.config.rfc_emit` renders a document's structural
-surfaces back to text and `fmt` writes the result when it differs, refusing
-a document its own check already reddens.
-
-`amend`, `add-decision`, `retire` and `relocate-paths` are the transactional
-verbs (RFC 0025 §5.3, D-25.2): each derives an identifier, mutates one
-document's model through `torve.config.rfc_emit`, and writes only when the
-mutated corpus checks clean — a red check leaves the tree untouched.
+`amend`, `fix`, `archive`, `add-decision`, `retire` and `relocate-paths`
+are the transactional verbs (RFC 0025 §5.3, D-25.2): each mutates one
+document's model through `torve.config.rfc_emit`, writes it through the
+one serializer (D-56.4), and only when the mutated corpus checks clean —
+a red check leaves the tree untouched. `fmt` reports what differs from
+the serializer's output and writes nothing.
 """
 
 from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 from rich.text import Text
@@ -153,11 +152,12 @@ def check(
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Validate the corpus: directory contents, frontmatter, decision tables,
-    links, the dependency graph, and INDEX.md drift; then the typed fences,
-    citations into the archive, a row changed by hand since the tool last
-    stamped it, and rows whose declared paths match nothing in the tree.
-    A malformed corpus is a configuration error — exit 3."""
+    """Validate the corpus: every document loads as the model, identifiers
+    are unique and never reused, citations resolve into the corpus or the
+    archive, the dependency graph is acyclic, no document carries a
+    comment, a row changed by hand since the tool last stamped it, and
+    rows whose declared paths match nothing in the tree. A malformed
+    corpus is a configuration error — exit 3."""
 
     from torve.config.spec import check_corpus
 
@@ -212,22 +212,17 @@ def check(
 
 
 def _model_findings(rfc_dir: Path, root: Path) -> tuple[list[str], list[str], list[Any]]:
-    """What the model sees that the parser does not: fence problems and
-    unresolvable citations (problems), fingerprint drift by field (a
-    hand-edited grade or paths is a problem, a hand-edited text a
+    """What the application layer adds to the check: fingerprint drift by
+    field (a hand-edited grade or paths is a problem, a hand-edited text a
     warning), and path rot (a warning naming the retiring verb)."""
-
-    from pydantic import ValidationError
 
     from torve.application.decisions import fingerprint_drift, path_rot
     from torve.config.spec import SpecError, load_corpus
 
     try:
         corpus = load_corpus(rfc_dir)
-    except SpecError as exc:
-        return list(exc.problems), [], []
-    except ValidationError as exc:
-        return [f"{rfc_dir}: {exc.errors()[0]['msg']}"], [], []
+    except SpecError:
+        return [], [], []  # the check already reported the load
 
     problems, warnings = fingerprint_drift(corpus)
     rotted = path_rot(corpus, root)
@@ -244,7 +239,12 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
     own transaction; a red check on one leaves that document untouched and
     is reported, never silently skipped."""
 
-    from torve.config.rfc_emit import append_amendment, retire_decision, write_transaction
+    from torve.config.rfc_emit import (
+        append_amendment,
+        load_or_fail,
+        retire_decision,
+        write_transaction,
+    )
     from torve.config.spec import archive_files, next_amendment, rfc_files
 
     lines: list[str] = []
@@ -255,13 +255,14 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
 
     for name, rows in sorted(by_document.items()):
         files = rfc_files(rfc_dir)
-        text = (rfc_dir / name).read_text(encoding="utf-8")
         today = date.today().isoformat()
         changes: list[dict[str, Any]] = []
 
         try:
+            doc = load_or_fail(rfc_dir / name)
+
             for one in rows:
-                text = retire_decision(text, one.identifier, today, reason="path rot")
+                doc = retire_decision(doc, one.identifier, today, reason="path rot")
                 changes.append(
                     {
                         "subject": one.identifier,
@@ -271,8 +272,8 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
                     }
                 )
 
-            text = append_amendment(
-                text,
+            doc = append_amendment(
+                doc,
                 next_amendment(files, archive_files(rfc_dir)),
                 f"{len(rows)} path-rotted row(s) retired by `torve rfc check --fix-rot`",
                 today,
@@ -282,7 +283,7 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
             lines.append(f"{name}: fix-rot refused — {exc}")
             continue
 
-        report = write_transaction(rfc_dir, root, {name: text})
+        report = write_transaction(rfc_dir, root, {name: doc})
 
         if report.ok:
             lines.append(f"{name}: retired {', '.join(r.identifier for r in rows)} (path rot)")
@@ -299,24 +300,22 @@ def _retire_rotted(rfc_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
 def fmt(
     number: Annotated[
         str | None,
-        typer.Argument(help="One document's number (e.g. 0025); omitted formats the whole corpus."),
+        typer.Argument(help="One document's number (e.g. 0025); omitted checks the whole corpus."),
     ] = None,
     check_only: Annotated[
-        bool, typer.Option("--check", help="Report drift without writing.")
-    ] = False,
+        bool, typer.Option("--check", help="Report drift (the default and only mode).")
+    ] = True,
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Normalise a document's frontmatter, decision table, phasing fence and
-    amendment headings to their canonical rendering; every word of prose is
-    left alone. A document whose own check already reports a problem is
-    refused rather than formatted, and `--check` reports without writing."""
-    # The canonical rendering lives in `torve.config.rfc_emit.emit` (D-25.1);
-    # refusing an already-broken document is what stops its breakage from
-    # being laundered into a diff that looks deliberate (D-25.2).
+    """Report every document whose text differs from what the serializer
+    would write for it. Nothing is written: a hand-authored document is
+    legal as it stands, and every verb that changes one writes the
+    canonical form."""
+    # The one-serializer rule is D-56.4; the docstring is help text.
 
-    from torve.config.rfc_emit import emit
-    from torve.config.spec import build_index, check_corpus, rfc_files
+    from torve.config.rfc_emit import canonical
+    from torve.config.spec import rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
@@ -324,63 +323,34 @@ def fmt(
     if number is None:
         targets = files
     else:
-        key = number.strip().removesuffix(".md").zfill(4)
+        key = _key(number)
 
         if key not in files:
             raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
 
         targets = {key: files[key]}
 
-    problems = check_corpus(rfc_dir, root).problems
     console = out()
-    changed = written = refused = 0
+    drifting = refused = 0
 
     for key in sorted(targets):
         path = targets[key]
-        own = _own_problems(problems, path.name)
-
-        if own:
-            refused += 1
-            console.print(Text(f"REFUSE  {path.name}: {len(own)} check problem(s)", STYLE_FAIL))
-            continue
-
         original = path.read_text(encoding="utf-8")
 
         try:
-            canonical = emit(original)
-        except ValueError as exc:
+            if canonical(original, path) != original:
+                drifting += 1
+                console.print(Text(f"DRIFT   {path.name}", STYLE_WARN))
+        except Exception as exc:  # the loader's refusal, named
             refused += 1
             console.print(Text(f"REFUSE  {path.name}: {exc}", STYLE_FAIL))
-            continue
 
-        if canonical == original:
-            continue
-
-        changed += 1
-
-        if check_only:
-            console.print(Text(f"DRIFT   {path.name}", STYLE_WARN))
-        else:
-            path.write_text(canonical, encoding="utf-8")
-            written += 1
-            console.print(Text(f"WROTE   {path.name}", STYLE_PASS))
-
-    if written and not check_only:
-        # D-25.2: the transaction regenerates the index too — a no-op in
-        # practice, since `emit` only reformats a value's YAML, never its
-        # content, but the cycle stays whole rather than relying on that.
-        index_path = rfc_dir / "INDEX.md"
-        rendered_index = build_index(rfc_files(rfc_dir))
-
-        if index_path.read_text(encoding="utf-8") != rendered_index:
-            index_path.write_text(rendered_index, encoding="utf-8")
-
-    ok = refused == 0 and (not check_only or changed == 0)
-    tail = f"{changed} drifting" if check_only else f"{written} written"
+    ok = refused == 0
 
     closing(
         console,
-        f"{'OK   ' if ok else 'FAIL '} {len(targets)} checked, {tail}, {refused} refused",
+        f"{'OK   ' if ok else 'FAIL '} {len(targets)} checked, {drifting} drifting, "
+        f"{refused} refused",
         STYLE_PASS if ok else STYLE_FAIL,
     )
 
@@ -390,11 +360,13 @@ def fmt(
 # ....................... #
 
 
+def _key(number: str) -> str:
+    return number.strip().removesuffix(".yaml").removesuffix(".md").zfill(4)
+
+
 def _finish_transaction(report: CheckReport, success: str) -> None:
     """The shared tail of every transactional verb (D-25.2): print the
-    problems and exit non-zero on a red check, or the success line and exit
-    clean. Either way the caller's `write_transaction` has already decided
-    whether the tree was touched."""
+    check's refusals and exit 3, or the success line and exit 0."""
 
     console = out()
 
@@ -402,15 +374,29 @@ def _finish_transaction(report: CheckReport, success: str) -> None:
         for problem in report.problems:
             console.print(Text(f"PROBLEM {problem}", STYLE_FAIL))
 
-        closing(
-            console,
-            f"FAIL  transaction aborted, {len(report.problems)} problem(s), tree unchanged",
-            STYLE_FAIL,
+        raise fail(
+            f"configuration error: the mutated corpus does not check clean "
+            f"({len(report.problems)} problem(s)) — nothing written",
+            EXIT_CONFIG,
         )
-        raise typer.Exit(EXIT_CONFIG)
 
-    closing(console, success, STYLE_PASS)
+    console.print(success)
     raise typer.Exit(EXIT_OK)
+
+
+def _defining(rfc_dir: Path, identifier: str) -> Path | None:
+    """The corpus document defining a decision identifier, or None."""
+
+    from torve.config.spec import SpecError, load_document, rfc_files
+
+    for path in rfc_files(rfc_dir).values():
+        try:
+            if load_document(path).decision(identifier) is not None:
+                return path
+        except SpecError:
+            continue
+
+    return None
 
 
 # ....................... #
@@ -419,7 +405,7 @@ def _finish_transaction(report: CheckReport, success: str) -> None:
 @rfc_app.command("amend")
 def amend(
     number: Annotated[str, typer.Argument(help="The document being amended, e.g. 0016.")],
-    title: Annotated[str, typer.Option("--title", help="The new amendment heading's title.")],
+    title: Annotated[str, typer.Option("--title", help="The new amendment's title.")],
     row: Annotated[
         str | None, typer.Option("--row", help="The decision row this amendment changes.")
     ] = None,
@@ -437,27 +423,27 @@ def amend(
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Append the next amendment number as a dated heading to NUMBER's
-    Amendments section and record it in amended_by — one parse-mutate-emit-
-    check transaction; a red check leaves the tree untouched. With --row,
-    the same transaction changes that row's grade, paths or text (or
-    retires it) and records the typed diff with the prior value beneath the
-    heading; the row is re-stamped so a later hand edit is caught. The
-    entry's own words are left for the author to write."""
+    """Append the next amendment to NUMBER and record it in amended_by — one
+    load-mutate-dump-check transaction; a red check leaves the tree
+    untouched. With --row, the same transaction changes that row's grade,
+    paths or text (or retires it) and records the typed diff with the
+    prior value on the amendment; the row is re-stamped so a later hand
+    edit is caught. The entry's own words are the author's to write."""
     # D-25.4: the number is derived via next_amendment, never chosen. D-53.4:
     # a row's grade or paths change only here, and the diff is written now.
 
     from torve.config.rfc_emit import (
         amend_row,
         append_amendment,
+        load_or_fail,
         retire_decision,
         write_transaction,
     )
-    from torve.config.spec import archive_files, decision_table, next_amendment, rfc_files
+    from torve.config.spec import archive_files, next_amendment, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
-    key = number.strip().removesuffix(".md").zfill(4)
+    key = _key(number)
 
     if key not in files:
         raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
@@ -470,13 +456,14 @@ def amend(
     path = files[key]
     amendment = next_amendment(files, archive_files(rfc_dir))
     today = date.today().isoformat()
-    source = path.read_text(encoding="utf-8")
     changes: list[dict[str, Any]] = []
 
     try:
+        doc = load_or_fail(path)
+
         if row is not None and retire:
-            before = next((r for r in decision_table(source) if r.identifier == row), None)
-            source = retire_decision(source, row, today, reason=reason)
+            before = doc.decision(row)
+            doc = retire_decision(doc, row, today, reason=reason)
             changes.append(
                 {
                     "subject": row,
@@ -486,13 +473,13 @@ def amend(
                 }
             )
         elif row is not None:
-            source, changes = amend_row(source, row, grade=grade, paths=paths, new_text=text)
+            doc, changes = amend_row(doc, row, grade=grade, paths=paths, new_text=text)
 
-        mutated = append_amendment(source, amendment, title, today, changes)
+        doc = append_amendment(doc, amendment, title, today, changes)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
-    report = write_transaction(rfc_dir, root, {path.name: mutated})
+    report = write_transaction(rfc_dir, root, {path.name: doc})
     what = f" ({row} {'retired' if retire else 'changed'})" if row else ""
     _finish_transaction(
         report, f"appended {amendment} to {path.name}{what} — write the entry's own words"
@@ -510,25 +497,15 @@ def fix(
     config: ConfigOption = None,
 ) -> None:
     """Editorial: replace IDENTIFIER's text and re-stamp the row, recording
-    the before and after under the table — never an amendment number. For
-    a typo; a rewording that changes the rule's meaning is an amendment."""
+    the before and after under the document's editorial list — never an
+    amendment number. For a typo; a rewording that changes the rule's
+    meaning is an amendment."""
     # D-53.4's editorial lane.
 
-    from torve.config.rfc_emit import fix_row_text, write_transaction
-    from torve.config.spec import decision_table, rfc_files
+    from torve.config.rfc_emit import fix_row_text, load_or_fail, write_transaction
 
     rfc_dir = corpus_dir(root, config)
-    defining = next(
-        (
-            path
-            for path in rfc_files(rfc_dir).values()
-            if any(
-                one.identifier == identifier
-                for one in decision_table(path.read_text(encoding="utf-8"))
-            )
-        ),
-        None,
-    )
+    defining = _defining(rfc_dir, identifier)
 
     if defining is None:
         raise fail(
@@ -536,11 +513,11 @@ def fix(
         )
 
     try:
-        mutated, _ = fix_row_text(defining.read_text(encoding="utf-8"), identifier, text)
+        doc, _ = fix_row_text(load_or_fail(defining), identifier, text)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
-    report = write_transaction(rfc_dir, root, {defining.name: mutated})
+    report = write_transaction(rfc_dir, root, {defining.name: doc})
     _finish_transaction(report, f"fixed {identifier}'s text in {defining.name} (editorial)")
 
 
@@ -563,12 +540,12 @@ def archive(
     # D-53.8. Deletion from the corpus path is the one thing this verb does
     # that no other verb may.
 
-    from torve.config.rfc_emit import archive_document, write_transaction
+    from torve.config.rfc_emit import archive_document, load_or_fail, write_transaction
     from torve.config.spec import archive_dir, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
-    key = number.strip().removesuffix(".md").zfill(4)
+    key = _key(number)
 
     if key not in files:
         raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
@@ -580,9 +557,7 @@ def archive(
         raise fail(f"configuration error: {target} already exists", EXIT_CONFIG)
 
     try:
-        archived = archive_document(
-            path.read_text(encoding="utf-8"), superseded_by, date.today().isoformat()
-        )
+        archived = archive_document(load_or_fail(path), superseded_by)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
@@ -603,19 +578,19 @@ def add_decision(
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Append a decision row skeleton to NUMBER's table under the next free
-    identifier in its own family, and print that identifier. The grade,
-    Paths and decision text are left for the author — one parse-mutate-
-    emit-check transaction; a red check leaves the tree untouched."""
+    """Append a decision row under the next free identifier in NUMBER's own
+    family, and print that identifier. The grade, paths and text are left
+    for the author — one transaction; a red check leaves the tree
+    untouched."""
     # D-25.3 LOCKED: the row's grade is written as OPEN, the vocabulary's own
     # "not yet decided" value — never a chosen judgement.
 
-    from torve.config.rfc_emit import append_decision, write_transaction
+    from torve.config.rfc_emit import append_decision, load_or_fail, write_transaction
     from torve.config.spec import next_decision, rfc_files
 
     rfc_dir = corpus_dir(root, config)
     files = rfc_files(rfc_dir)
-    key = number.strip().removesuffix(".md").zfill(4)
+    key = _key(number)
 
     if key not in files:
         raise fail(f"configuration error: no RFC {number!r} under {rfc_dir}", EXIT_CONFIG)
@@ -624,13 +599,13 @@ def add_decision(
     identifier = next_decision(files, key)
 
     try:
-        mutated = append_decision(path.read_text(encoding="utf-8"), identifier)
+        doc = append_decision(load_or_fail(path), identifier)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
-    report = write_transaction(rfc_dir, root, {path.name: mutated})
+    report = write_transaction(rfc_dir, root, {path.name: doc})
     _finish_transaction(
-        report, f"added {identifier} to {path.name} — write its grade, Paths and text"
+        report, f"added {identifier} to {path.name} — write its grade, paths and text"
     )
 
 
@@ -643,29 +618,17 @@ def retire(
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Retire IDENTIFIER: remove its row, record it in retired: frontmatter,
-    and leave a tombstone stub in its former place for the author to
-    complete — one parse-mutate-emit-check transaction; a red check leaves
-    the tree untouched."""
+    """Retire IDENTIFIER: remove its row and record it in the document's
+    retired list, never reused — one transaction; a red check leaves the
+    tree untouched. Prefer `amend --row X --retire --reason …`, which
+    records why."""
     # D-25.6: executes D-16.1 whole. Whether every remaining citation still
     # resolves is the transaction's own check, not a separate pre-check.
 
-    from torve.config.rfc_emit import retire_decision, write_transaction
-    from torve.config.spec import decision_table, rfc_files
+    from torve.config.rfc_emit import load_or_fail, retire_decision, write_transaction
 
     rfc_dir = corpus_dir(root, config)
-    files = rfc_files(rfc_dir)
-    defining = next(
-        (
-            path
-            for path in files.values()
-            if any(
-                row.identifier == identifier
-                for row in decision_table(path.read_text(encoding="utf-8"))
-            )
-        ),
-        None,
-    )
+    defining = _defining(rfc_dir, identifier)
 
     if defining is None:
         raise fail(
@@ -673,16 +636,12 @@ def retire(
         )
 
     try:
-        mutated = retire_decision(
-            defining.read_text(encoding="utf-8"), identifier, date.today().isoformat()
-        )
+        doc = retire_decision(load_or_fail(defining), identifier, date.today().isoformat())
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
-    report = write_transaction(rfc_dir, root, {defining.name: mutated})
-    _finish_transaction(
-        report, f"retired {identifier} in {defining.name} — write why at the tombstone"
-    )
+    report = write_transaction(rfc_dir, root, {defining.name: doc})
+    _finish_transaction(report, f"retired {identifier} in {defining.name}")
 
 
 # ....................... #
@@ -690,34 +649,38 @@ def retire(
 
 @rfc_app.command("relocate-paths")
 def relocate_paths(
-    old: Annotated[str, typer.Argument(help="The exact Paths glob being relocated.")],
+    old: Annotated[str, typer.Argument(help="The exact paths glob being relocated.")],
     new: Annotated[str, typer.Argument(help="Its replacement.")],
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Sweep every decision table in the corpus, replacing OLD with NEW
-    wherever a Paths cell carries it exactly, and print the touched rows —
-    one parse-mutate-emit-check transaction; a red check leaves the tree
-    untouched. Decision text is never touched."""
-    # D-25.7: the cell is mechanical; an in-row marker naming the
-    # superseded location stays hand-written where the text itself names it.
+    """Sweep every document in the corpus, replacing OLD with NEW wherever
+    a row's paths carry it exactly, and print the touched rows — one
+    transaction; a red check leaves the tree untouched. Decision text is
+    never touched."""
+    # D-25.7: the paths are mechanical; text naming the old location stays
+    # hand-written where the text itself names it.
 
-    from torve.config.rfc_emit import relocate_paths_text, write_transaction
+    from torve.config.rfc_emit import load_or_fail, write_transaction
+    from torve.config.rfc_emit import relocate_paths as relocate
     from torve.config.spec import rfc_files
+    from torve.domain.spec import Document
 
     rfc_dir = corpus_dir(root, config)
-    files = rfc_files(rfc_dir)
-    mutations: dict[str, str] = {}
+    mutations: dict[str, Document | str] = {}
     touched: dict[str, list[str]] = {}
 
-    for path in files.values():
-        result = relocate_paths_text(path.read_text(encoding="utf-8"), old, new)
+    for path in rfc_files(rfc_dir).values():
+        try:
+            doc, rows = relocate(load_or_fail(path), old, new)
+        except ValueError:
+            continue
 
-        if result is not None:
-            mutations[path.name], touched[path.name] = result
+        if rows:
+            mutations[path.name], touched[path.name] = doc, rows
 
     if not mutations:
-        raise fail(f"configuration error: no Paths cell carries {old!r}", EXIT_CONFIG)
+        raise fail(f"configuration error: no row's paths carry {old!r}", EXIT_CONFIG)
 
     report = write_transaction(rfc_dir, root, mutations)
 
@@ -727,9 +690,9 @@ def relocate_paths(
         for name, ids in sorted(touched.items()):
             console.print(f"{name}: {', '.join(sorted(ids))}")
 
-    rows = sum(len(ids) for ids in touched.values())
+    count = sum(len(ids) for ids in touched.values())
     _finish_transaction(
-        report, f"relocated {old!r} to {new!r} in {rows} row(s) across {len(mutations)} file(s)"
+        report, f"relocated {old!r} to {new!r} in {count} row(s) across {len(mutations)} file(s)"
     )
 
 
@@ -780,7 +743,7 @@ def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
             ("defined in", str(found["defined_in"])),
             ("heading", str(found["heading"])),
             ("rows citing it", joined("rows")),
-            ("next free", str(found["next_free"])),
+            ("archived", "yes" if found.get("archived") else ""),
         ]
     else:
         phases: list[dict[str, Any]] = found.get("phases") or []
@@ -791,102 +754,12 @@ def _show_lines(found: dict[str, Any]) -> list[tuple[str, str]]:
             ("depends on", joined("depends_on")),
             ("amended by", joined("amended_by")),
             ("description", str(found["description"])),
-            ("state", str(found["implementation_state"])),
+            ("sections", joined("sections")),
             ("phases", ", ".join(f"{e['phase']}: {e['title']}" for e in phases)),
+            ("archived", "yes" if found.get("archived") else ""),
         ]
 
     return [(label, value) for label, value in rows if value]
-
-
-# ....................... #
-
-
-def _from_model(
-    rfc_dir: Path, identifier: str, found: dict[str, Any] | None
-) -> dict[str, Any] | None:
-    """What the model adds to a lookup (D-53.1, D-53.9): a row's rationale,
-    cites, check and fingerprint; an archived identifier that the parser no
-    longer sees, answered and marked archived; an invariant or a question."""
-
-    from pydantic import ValidationError
-
-    from torve.config.spec import SpecError, load_corpus
-
-    try:
-        corpus = load_corpus(rfc_dir)
-    except (SpecError, ValidationError):
-        return found
-
-    hit = corpus.decision(identifier)
-
-    if hit is not None:
-        doc, row = hit
-        extra = {
-            "rationale": row.rationale,
-            "cites": list(row.cites),
-            "check": row.check,
-            "fingerprint": row.fingerprint,
-            "archived": doc.archived,
-        }
-
-        if found is not None:
-            return {**found, **extra}
-
-        return {
-            "kind": "decision",
-            "identifier": row.id,
-            "grade": row.grade,
-            "text": row.text,
-            "paths": list(row.paths),
-            "consequence": row.consequence,
-            "defined_in": Path(doc.path).name if doc.path else doc.id,
-            **extra,
-        }
-
-    if found is not None:
-        return found
-
-    for doc in corpus.documents:
-        for invariant in doc.invariants:
-            if invariant.id == identifier:
-                return {
-                    "kind": "invariant",
-                    "identifier": invariant.id,
-                    "statement": invariant.statement,
-                    "paths": list(invariant.paths),
-                    "check": invariant.check,
-                    "defined_in": Path(doc.path).name if doc.path else doc.id,
-                    "archived": doc.archived,
-                }
-
-        for question in doc.questions:
-            if question.id == identifier:
-                return {
-                    "kind": "question",
-                    "identifier": question.id,
-                    "text": question.text,
-                    "status": question.status,
-                    "settled_by": question.settled_by,
-                    "defined_in": Path(doc.path).name if doc.path else doc.id,
-                    "archived": doc.archived,
-                }
-
-        if doc.archived and doc.id == identifier.strip().removesuffix(".md").zfill(4):
-            return {
-                "kind": "document",
-                "title": doc.title,
-                "status": doc.status,
-                "implementation": doc.implementation,
-                "depends_on": list(doc.depends_on),
-                "amended_by": list(doc.amended_by),
-                "description": doc.description,
-                "implementation_state": "",
-                "phases": [{"phase": p.phase, "title": p.title} for p in doc.phasing],
-                "superseded_by": doc.superseded_by,
-                "archived": True,
-            }
-
-    return None
 
 
 # ....................... #
@@ -902,9 +775,9 @@ def show(
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Resolve one corpus identifier from the same parse `check` runs:
-    no cache, no store — an undefined identifier is a configuration
-    error naming the nearest family."""
+    """Resolve one corpus identifier from the same load `check` runs: no
+    cache, no store — an undefined identifier is a configuration error
+    naming the nearest family. An archived identifier answers, marked."""
     # The one-parse rule is D-7.28; the docstring is `show`'s help text
     # and stays free of corpus coordinates.
 
@@ -912,7 +785,6 @@ def show(
 
     rfc_dir = corpus_dir(root, config)
     found = lookup(rfc_dir, identifier)
-    found = _from_model(rfc_dir, identifier, found)
 
     if found is None:
         files = rfc_files(rfc_dir)
@@ -921,7 +793,7 @@ def show(
             if identifier.startswith("A-")
             else f"the next free document number is {int(max(files, default='0000')) + 1:04d}"
             if identifier.isdigit()
-            else "decision identifiers are listed in each document's Decisions table"
+            else "decision identifiers are listed in each document's decisions"
         )
 
         raise fail(f"configuration error: nothing defines {identifier!r} — {family}", EXIT_CONFIG)
@@ -944,39 +816,75 @@ def show(
 # ....................... #
 
 
-@rfc_app.command("index")
-def index(
-    check_only: Annotated[
-        bool, typer.Option("--check", help="Compare instead of writing; drift exits 3.")
-    ] = False,
+@rfc_app.command("list")
+def list_cmd(
     root: RootOption = Path("."),
     config: ConfigOption = None,
+    fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Regenerate INDEX.md from frontmatter. The index is output,
-    like a lockfile — with `--check`, drift is reported and nothing is
-    written."""
+    """Every document in the corpus path with its status, implementation
+    and dependencies — the index as a query, never a file."""
+    # D-56.7: what INDEX.md was, answered instead of generated.
 
-    from torve.config.spec import build_index, rfc_files
+    from torve.config.spec import SpecError, archive_files, load_corpus, next_number, rfc_files
 
     rfc_dir = corpus_dir(root, config)
-    files = rfc_files(rfc_dir)
-    index_path = rfc_dir / "INDEX.md"
-    rendered = build_index(files)
-    current = index_path.read_text(encoding="utf-8") if index_path.is_file() else None
 
-    if check_only:
-        if current == rendered:
-            out().print(f"OK    INDEX.md matches {len(files)} RFC(s)")
-            raise typer.Exit(EXIT_OK)
+    try:
+        corpus = load_corpus(rfc_dir)
+    except SpecError as exc:
+        raise fail("configuration error: " + "; ".join(exc.problems), EXIT_CONFIG) from None
 
-        raise fail(
-            "INDEX.md differs from what `torve rfc index` writes — it is "
-            "generated output; regenerate it instead of editing it",
-            EXIT_CONFIG,
+    rows = [
+        {
+            "number": doc.id,
+            "title": doc.title,
+            "kind": doc.kind,
+            "status": doc.status,
+            "implementation": doc.implementation,
+            "depends_on": list(doc.depends_on),
+            "amended_by": list(doc.amended_by),
+            "description": doc.description.strip(),
+            "file": Path(doc.path).name,
+        }
+        for doc in corpus.documents
+        if not doc.archived
+    ]
+    allocated = next_number(rfc_dir)
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "documents": rows,
+                "archived": len(archive_files(rfc_dir)),
+                "next_number": f"{allocated:04d}",
+            }
         )
+        raise typer.Exit(EXIT_OK)
 
-    index_path.write_text(rendered, encoding="utf-8")
-    out().print(f"generated {index_path} ({len(files)} RFC(s))")
+    console = out(fmt)
+    header(console, "rfc list", f"{len(rows)} document(s), {len(rfc_files(rfc_dir))} file(s)")
+
+    for one in rows:
+        status, implementation = str(one["status"]), str(one["implementation"])
+        line = Text(f"  {one['number']}  ", STYLE_ID)
+        line.append(f"{status:<10}", _STATUS_STYLES.get(status, STYLE_FAIL))
+        line.append(f"{implementation:<10}", STYLE_DIM)
+        line.append(str(one["title"]))
+        depends = cast("list[str]", one["depends_on"])
+
+        if depends:
+            line.append(f"  ← {', '.join(depends)}", STYLE_DIM)
+
+        console.print(line)
+
+    closing(
+        console,
+        f"{len(archive_files(rfc_dir))} archived; the next number is {allocated:04d}",
+        STYLE_DIM,
+    )
+    raise typer.Exit(EXIT_OK)
 
 
 # ....................... #
@@ -986,15 +894,17 @@ def index(
 def new(
     title: Annotated[str, typer.Argument(help="Document title; the slug derives from it.")],
     kind: Annotated[str, typer.Option("--kind", help="design (default) or convention.")] = "design",
+    owner: Annotated[str, typer.Option("--owner", help="The document's owner.")] = "",
     root: RootOption = Path("."),
     config: ConfigOption = None,
 ) -> None:
-    """Create the next document from the rfc-writer template: the number is
-    derived as the maximum plus one — never chosen, never reused — and the
-    index is regenerated."""
+    """Create the next document: the number is derived as the maximum over
+    the corpus and the archive plus one — never chosen, never reused — and
+    the file is the smallest document that checks, written by the one
+    serializer with the schema header line."""
 
-    from torve.application.skills import skills_root
-    from torve.config.spec import build_index, next_number, rfc_files, slugify
+    from torve.config.rfc_emit import dump_document, new_document
+    from torve.config.spec import next_number, slugify
 
     if kind not in KINDS:
         raise fail(
@@ -1007,30 +917,14 @@ def new(
     if not slug:
         raise fail("configuration error: title produces an empty slug", EXIT_CONFIG)
 
-    template_path = skills_root() / "rfc-writer" / "references" / "rfc-template.md"
-    template_text = template_path.read_text(encoding="utf-8")
-    block = template_text.split("```markdown\n", 1)
-
-    if len(block) < 2 or TEMPLATE_TITLE not in block[1]:
-        raise fail(f"configuration error: no usable skeleton in {template_path}", EXIT_CONFIG)
-
-    body = block[1].split("\n```", 1)[0]
-
     allocated = next_number(rfc_dir)
-    path = rfc_dir / f"{allocated:04d}-{slug}.md"
-
-    body = (
-        body.replace(TEMPLATE_TITLE, f"RFC {allocated:04d} — {title}")
-        .replace('id: "NNNN"', f'id: "{allocated:04d}"')
-        .replace("title: <Title>", f"title: {title}")
-    )
-
-    if kind == "convention":
-        body = body.replace("status: draft", "kind: convention\nstatus: draft", 1)
+    number = f"{allocated:04d}"
+    path = rfc_dir / f"{number}-{slug}.yaml"
+    doc = new_document(number, title, owner or _git_user(root) or "owner", kind)
 
     try:
         with path.open("x", encoding="utf-8") as handle:
-            handle.write(body + "\n")
+            handle.write(dump_document(doc))
 
     except FileExistsError:
         raise fail(
@@ -1039,10 +933,25 @@ def new(
             EXIT_CONFIG,
         ) from None
 
-    (rfc_dir / "INDEX.md").write_text(build_index(rfc_files(rfc_dir)), encoding="utf-8")
     console = out()
     console.print(f"created {path}")
-    console.print("next: fill the frontmatter description and the Scope paragraph")
+    console.print("next: write the description, the summary section and the first rows")
+
+
+def _git_user(root: Path) -> str:
+    import subprocess
+
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), "config", "user.name"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return ""
+
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 # ....................... #
@@ -1063,17 +972,21 @@ def graph(
 
     from rich.tree import Tree
 
-    from torve.config.spec import check_graph, fm_list, parse_frontmatter, rfc_files
+    from torve.config.spec import SpecError, check_graph, load_corpus
 
     rfc_dir = corpus_dir(root, config)
-    files = rfc_files(rfc_dir)
 
+    try:
+        corpus = load_corpus(rfc_dir)
+    except SpecError as exc:
+        raise fail("configuration error: " + "; ".join(exc.problems), EXIT_CONFIG) from None
+
+    documents = {doc.id: doc for doc in corpus.documents if not doc.archived}
     frontmatter = {
-        number: parse_frontmatter(path.read_text(encoding="utf-8")) or {}
-        for number, path in files.items()
+        number: {"status": doc.status, "implementation": doc.implementation}
+        for number, doc in documents.items()
     }
-
-    depends = {number: fm_list(frontmatter[number], "depends_on") for number in frontmatter}
+    depends = {number: list(doc.depends_on) for number, doc in documents.items()}
 
     edges = [
         {
@@ -1086,14 +999,14 @@ def graph(
         for target in depends[number]
     ]
 
-    problems, warnings = check_graph(files, frontmatter)
+    problems, warnings = check_graph(documents)
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "edges": edges, "problems": problems, "warnings": warnings})
         return
 
     console = out(fmt)
-    header(console, "rfc graph", f"{len(files)} RFC(s), {len(edges)} edge(s)")
+    header(console, "rfc graph", f"{len(documents)} RFC(s), {len(edges)} edge(s)")
     console.print()
     dependents: dict[str, list[str]] = {}
 

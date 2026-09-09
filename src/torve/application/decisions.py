@@ -31,16 +31,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from pathspec import GitIgnoreSpec
-from pydantic import ValidationError
 
 from torve.application.planner import PlanError, globs_intersect
 from torve.config import spec
-from torve.config.rfc_emit import FINGERPRINTS_KEY, rule_fingerprint
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.source import Source, corpus_source_id
+from torve.domain.spec import rule_fingerprint
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -250,35 +249,19 @@ class PendingEvent:
 # ....................... #
 
 
-def corpus_sources(rfc_dir: Path) -> dict[str, tuple[Source, str]]:
-    """Every importable document as (source, text), keyed by source id.
+def corpus_sources(rfc_dir: Path) -> dict[str, Source]:
+    """Every importable document as a source, keyed by source id.
 
     Importable is accepted and not superseded — the same admission
     `standing_decisions` applies, because a draft's rows were never in force
     and recording them would date them wrongly (D-47.6).
     """
 
-    found: dict[str, tuple[Source, str]] = {}
-
-    for number, path in spec.rfc_files(rfc_dir).items():
-        text = path.read_text(encoding="utf-8")
-        frontmatter = spec.parse_frontmatter(text)
-
-        if frontmatter is None:
-            continue
-
-        if str(frontmatter.get("status", "")) != ACCEPTED or frontmatter.get("superseded_by"):
-            continue
-
-        source = Source(
-            id=corpus_source_id(number),
-            kind="specification",
-            ref=str(path.name),
-            title=str(frontmatter.get("title", "")),
-        )
-        found[source.id] = (source, text)
-
-    return found
+    return {
+        corpus_source_id(doc.id): _source_of(doc)
+        for doc in load_corpus(rfc_dir).standing()
+        if not doc.superseded_by
+    }
 
 
 # ....................... #
@@ -294,14 +277,6 @@ def load_corpus(rfc_dir: Path) -> Corpus:
         return spec.load_corpus(rfc_dir)
     except spec.SpecError as exc:
         raise PlanError("; ".join(exc.problems)) from exc
-    except ValidationError as exc:
-        # A row the model refuses outright (a grade outside the vocabulary):
-        # the parser's own check names it too, and the loader is owed a
-        # collected refusal for it in RFC 0053 phase 5.
-        raise PlanError(
-            f"{rfc_dir}: a decision row is not mintable — {exc.errors()[0]['msg']} "
-            "(run `torve rfc check`)"
-        ) from exc
 
 
 # ....................... #
@@ -311,7 +286,7 @@ def _source_of(doc: Document) -> Source:
     return Source(
         id=corpus_source_id(doc.id),
         kind="specification",
-        ref=str(Path(doc.path).name) if doc.path else f"{doc.id}.md",
+        ref=str(Path(doc.path).name) if doc.path else f"{doc.id}.yaml",
         title=doc.title,
     )
 
@@ -592,26 +567,18 @@ def fingerprint_drift(corpus: Corpus) -> tuple[list[str], list[str]]:
     warnings: list[str] = []
 
     for doc in corpus.documents:
-        if doc.archived or not doc.path:
+        if doc.archived:
             continue
 
-        fm = spec.parse_frontmatter(Path(doc.path).read_text(encoding="utf-8")) or {}
-        stamped = fm.get(FINGERPRINTS_KEY)
+        where = Path(doc.path).name if doc.path else doc.id
 
-        if not isinstance(stamped, dict):
-            continue
+        for row in doc.decisions:
+            if not row.fingerprint:
+                continue  # never stamped: no recorded change to differ from
 
-        where = Path(doc.path).name
+            full, _, rule = row.fingerprint.partition("/")
 
-        for identifier, recorded in cast("dict[object, object]", stamped).items():
-            row = doc.decision(str(identifier))
-
-            if row is None:
-                continue  # retired since; the tombstone and `retired:` carry it
-
-            full, _, rule = str(recorded).partition("/")
-
-            if row.fingerprint == full:
+            if row.content_fingerprint() == full:
                 continue
 
             if rule and rule_fingerprint(row.grade, row.paths) == rule:

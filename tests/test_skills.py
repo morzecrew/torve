@@ -15,15 +15,7 @@ import pytest
 
 from torve.application.skills import available, materialize, skills_root
 from torve.config.runconfig import RunnerConfig
-from torve.config.spec import (
-    PHASING_HEADING,
-    REQUIRED_FIELDS,
-    RFC_FILENAME,
-    check_contract_example,
-    decision_table,
-    parse_contract_example,
-    parse_frontmatter,
-)
+from torve.config.spec import RFC_FILENAME, load_document
 from torve.domain.rfc import GRADES, STATUSES
 
 
@@ -53,17 +45,6 @@ def test_no_shipped_skill_is_byte_identical_to_upstream():
         theirs_path = upstream / name / "SKILL.md"
         if theirs_path.is_file():
             assert ours != theirs_path.read_bytes(), f"{name}: unspecialised copy"
-
-
-def test_the_rfc_templates_contract_example_validates_against_the_task_schema():
-    """The template's own demonstration (D-25.10) must track the schema it
-    demonstrates — this catches a schema change breaking it in CI, not only
-    the moment an author copies it into a real RFC."""
-    text = (skills_root() / "rfc-writer" / "references" / "rfc-template.md").read_text(
-        encoding="utf-8"
-    )
-    assert check_contract_example(Path("rfc-template.md"), text) == []
-    assert parse_contract_example(text) is not None
 
 
 def test_materialize_writes_the_role_set_and_nothing_else(tmp_path):
@@ -139,35 +120,31 @@ def test_the_bootstrap_fixture_survey_report_is_a_wellformed_survey():
 
 def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
     """The output fixture is one draft document in this corpus's format —
-    the shape the skill teaches: frontmatter parses, a decision table where
-    every row declares paths and a legal grade, no Phasing section. The
-    fixture stays a draft, because acceptance is the human's edit, never the
-    skill's."""
+    the shape the skill teaches: the loader accepts it, every row declares
+    paths and a legal grade in the document's own family, and there is no
+    phasing. The fixture stays a draft, because acceptance is the human's
+    edit, never the skill's."""
 
-    text = (
-        skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.md"
-    ).read_text(encoding="utf-8")
+    doc = load_document(
+        skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.yaml"
+    )
 
-    fm = parse_frontmatter(text)
-    assert fm is not None
-    for fname in REQUIRED_FIELDS:
-        assert fname in fm, fname
-    assert fm["status"] in STATUSES
+    assert doc.status in STATUSES
+    assert doc.status == "draft"
+    assert doc.decisions
 
-    rows = decision_table(text)
-    assert rows
-
-    family = f"D-{int(fm['id'])}."
-    for row in rows:
-        assert row.grade in GRADES, row.identifier
-        assert row.paths, f"{row.identifier} declares no paths"
-        assert row.identifier.startswith(family), row.identifier
+    family = f"D-{int(doc.id)}."
+    for row in doc.decisions:
+        assert row.grade in GRADES, row.id
+        assert row.paths, f"{row.id} declares no paths"
+        assert row.id.startswith(family), row.id
 
     # The doctrine in checkable form: mostly ASSUMED, LOCKED only on the
     # boundary the sample history defended, never any phasing.
-    assert sum(r.grade == "ASSUMED" for r in rows) > sum(r.grade == "LOCKED" for r in rows)
-    assert any(r.grade == "LOCKED" for r in rows)
-    assert PHASING_HEADING.search(text) is None
+    grades = [row.grade for row in doc.decisions]
+    assert grades.count("ASSUMED") > grades.count("LOCKED")
+    assert "LOCKED" in grades
+    assert doc.phasing == []
 
 
 def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
@@ -181,7 +158,7 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
         )
     )
     draft = (
-        skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.md"
+        skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.yaml"
     ).read_text(encoding="utf-8")
 
     for gate in report["summary"]["corpus_adds"]:
@@ -200,13 +177,13 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
 
 def test_the_bootstrap_skill_records_the_shape_it_chose():
     """The recorded shape (the open question the skill is charged with): one
-    document per adoption, NNNN-standing-decisions.md — the skill names the
+    document per adoption, NNNN-standing-decisions.yaml — the skill names the
     convention, and the output fixture's filename is that shape concrete."""
 
     skill = (skills_root() / "corpus-bootstrap" / "SKILL.md").read_text(encoding="utf-8")
-    assert "NNNN-standing-decisions.md" in skill
+    assert "NNNN-standing-decisions.yaml" in skill
 
-    fixture = skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.md"
+    fixture = skills_root() / "corpus-bootstrap" / "fixtures" / "0001-standing-decisions.yaml"
     assert RFC_FILENAME.match(fixture.name)
 
 

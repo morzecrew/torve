@@ -1,0 +1,132 @@
+schema_version: 1
+task: T-0300
+repo: morzecrew/torve
+base_sha: 77ceee30366cff81ccb7e5d493c9cb5efa95f026
+drift_count: 0
+entries:
+- decision: D-56.1
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:32:01Z'
+  attempt: 1
+  claim: a document is one YAML file NNNN-slug.yaml in the Document model's own field order,
+    loaded by Document.model_validate over yaml.safe_load plus the corpus checks the model
+    cannot express; schema_version 2, and 1 is refused naming the conversion; the markdown
+    parser, load_fences, the heading and table regexes and the fenced kinds are deleted and
+    every reader of the corpus reaches the model through the same load_corpus
+  evidence: src/torve/config/spec.py:121 - the loader is the validator; a version other than
+    2 is refused before validation
+  action: decided
+- decision: D-56.2
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:32:01Z'
+  attempt: 1
+  claim: DecisionDetail is gone; a row carries rationale, cites, check, check_state, check_twin,
+    superseded_by and a stored fingerprint stamp; inherit_decisions takes the Document and
+    reads the row; the frontmatter fingerprint map is gone and fingerprint_drift compares
+    the row's stamp to the row
+  evidence: src/torve/application/planner.py:283 - inherit_decisions over the model's rows
+  action: decided
+- decision: D-56.3
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:32:02Z'
+  attempt: 1
+  claim: DesignSection is key, heading and md; level and order are dropped and the list's
+    order is the order; markdown inside md is never parsed, only searched for citations, links
+    and line numbers with fenced blocks stripped
+  evidence: src/torve/domain/spec.py:171 - the section model
+  action: decided
+- decision: D-56.4
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:32:02Z'
+  attempt: 1
+  claim: every writer mutates the loaded model and writes it through dump_document, one SafeDumper
+    with the model's key order, literal blocks for strings holding a newline, folded blocks
+    for strings over 48 characters so no plain scalar wraps, flow lists for short identifier
+    lists; comments are not preserved and check refuses one outside the header line, found
+    by probing each candidate line — dropping it leaves the loaded document unchanged, which
+    a hash line inside a block scalar never does; fmt is --check only and reports drift without
+    failing on it
+  evidence: src/torve/config/spec.py:424 - the comment probe; src/torve/config/rfc_emit.py:128
+    - the one serializer
+  action: decided
+  notes: 'fmt --check exits 0 on drift and 3 only on a document the loader refuses: a hand-authored
+    document is legal as it stands, so drift is information, not a failure; fix_row_text keeps
+    the markdown-era guard and accepts the hand-edited text as it now reads when the row is
+    unstamped, refusing only a row already stamped as it is'
+- decision: D-56.5
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:32:02Z'
+  attempt: 1
+  claim: 'every document converted once: the old loader dumped all 56 documents as JSON, the
+    new model dumped them as YAML, the markdown files, the parser, the table emitter and INDEX.md
+    were deleted in the same change, and a parity script compared every item of every document
+    — 2,786 items, 0 mismatches — before anything was committed; the corpus-bootstrap fixture
+    converted the same way'
+  evidence: src/torve/config/spec.py:468 - the directory check names a leftover markdown file
+    and INDEX.md as problems
+  action: decided
+  notes: 'the parity test ran as a pre-commit script from a scratch directory rather than
+    as a committed pytest, because the loader it needs is deleted by the same commit it gates;
+    its result is recorded here and the live-corpus canonical-form test in tests/test_rfc_emit.py
+    is what stays. One defect: the JSON dump was taken before A-162 was written, so the converted
+    0056 lacked it and the first YAML amend appended a duplicate A-162 — restored by hand
+    in A-163'
+- decision: D-56.7
+  grade: ASSUMED
+  kind: resolved
+  at: '2026-09-09T15:32:03Z'
+  attempt: 1
+  claim: INDEX.md is deleted and torve rfc list answers in phase 1, since a corpus without
+    the index has no other listing; rfc render waits for phase 2 as the row's phasing places
+    it
+  evidence: src/torve/cli/rfc.py:818 - the list verb
+  action: decided
+- decision: D-56.8
+  grade: ASSUMED
+  kind: resolved
+  at: '2026-09-09T15:32:03Z'
+  attempt: 1
+  claim: SKILL.md, AGENTS.md, the colocated sections and the pack are untouched; the projection
+    renders from the same model and its tests pass unchanged except for the document filename
+    suffix in one expectation
+  evidence: src/torve/application/colocation.py:202 - the section renders from the model's
+    row and document
+  action: decided
+- decision: D-56.6
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:38:37Z'
+  attempt: 1
+  claim: the schema header line is already written on every document by the serializer and
+    refused nowhere; rfcs/schema/document.json, the rfc schema verb, its drift check and rfc
+    new's 0055 shape are phase 2's unit as the phasing places them; cli/rfc.py changed here
+    only for the verbs over the model
+  evidence: src/torve/config/spec.py:106 - schema_header names the file phase 2 writes
+  action: decided
+- decision: D-56.9
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:38:38Z'
+  attempt: 1
+  claim: 'the planner still writes contracts to files: it changed here only to admit, plan
+    and reconcile over the loaded model instead of the frontmatter; minting into the record
+    and projecting at dispatch is phase 3''s unit'
+  evidence: src/torve/application/planner.py:283 - inherit_decisions over the model; write_contracts
+    unchanged
+  action: decided
+- decision: D-56.10
+  grade: LOCKED
+  kind: resolved
+  at: '2026-09-09T15:38:38Z'
+  attempt: 1
+  claim: no task directory is deleted here; the only task files this change touches are T-0300's
+    own contract, re-minted over the scope A-162 and A-163 widened, and its log; the deletion
+    of every archived document's task directory is phase 3's unit
+  evidence: .torve/tasks/T-0300/contract.yaml:1 - the re-minted contract, minted by the phase-1
+    header
+  action: decided
