@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       the request surface left with the tracker (amends §5.4, cites S-0008/A-5)
     md: |-
@@ -27,7 +27,7 @@ amendments:
       Implementation is `partial` rather than `complete` for exactly that reason:
       the document describes a delivery path that no longer has a delivery.
   - id: A-2
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       Two settled rows still graded OPEN, and the board half that left
     md: |-
@@ -59,7 +59,7 @@ amendments:
       **Changed:** `implementation: partial` stands, with the drafting run and
       the lint intact, the board half gone, and two grades owed a regrade.
   - id: A-3
-    at: '2026-09-07'
+    at: '2026-09-07T00:00:00Z'
     title: >-
       the corpus carried a contract lint it had never been run through
     md: |-

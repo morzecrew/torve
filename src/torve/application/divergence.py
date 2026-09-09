@@ -26,12 +26,12 @@ from __future__ import annotations
 import json
 import subprocess
 from asyncio import run_coroutine_threadsafe
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
+from torve.base.clock import stamp
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.gates.decisions_reported import check_entry, check_pin
@@ -256,7 +256,7 @@ def compose(
     entry: dict[str, Any] = {
         "decision": decision,
         "grade": grade,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "attempt": attempt,
         "claim": claim,
         "evidence": evidence,

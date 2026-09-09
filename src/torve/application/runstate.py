@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from torve.base.clock import parse, stamp
 from torve.base.naming import WORKTREE_DIR
 from torve.domain.states import EscalationReason, TaskState, check_transition
 from torve.domain.task import SCHEMA_VERSION
@@ -26,7 +27,7 @@ from torve.domain.task import SCHEMA_VERSION
 
 
 def _now() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return stamp()
 
 
 # ....................... #
@@ -164,7 +165,7 @@ class RunState:
     # ....................... #
 
     def heartbeat_age_s(self, now: datetime | None = None) -> float:
-        stamp = datetime.strptime(self.heartbeat, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+        stamp = parse(self.heartbeat)
         return ((now or datetime.now(UTC)) - stamp).total_seconds()
 
     # ....................... #

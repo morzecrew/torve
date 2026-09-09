@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       execution's readings fold into the rows (amends S-0027/D-5, S-0027/D-6, S-0027/D-7,
       S-0027/D-10; records the restricted-scope CLI doctrine)
@@ -32,7 +32,7 @@ amendments:
         argument surface; a genuinely new top-level command must carry
         `main.py` in its scope.allow.
   - id: A-2
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       the rebuild hatch for the paired-verdict rule (amends S-0027/D-7)
     md: |-

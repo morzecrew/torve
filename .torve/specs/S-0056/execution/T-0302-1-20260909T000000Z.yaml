@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0302
+phase: 3
+commit: 978ebb535bc7ad1f45e10dba1a21e35002794849
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-9
+  grade: LOCKED
+  at: '2026-09-09T16:08:46Z'
+  claim: torve plan --partition P mints the planned contracts into P's record through the
+    same mint the manager's importer records and writes no file; task numbers and prior mints
+    are read from the board as well as the task directories; dispatch projects the board's
+    contract into the worktree beside the skills and the pack, leaving a tracked contract
+    alone, and the log written there is imported after the attempt as before; without a partition
+    every path is unchanged
+  evidence: src/torve/application/planner.py:560 - mint_contracts over residency.mint; src/torve/application/session.py:334
+    - the projection before the skills
+  action: decided
+  notes: the single-task fence in runner.py reads other active tasks' contracts from the root's
+    task directory and skips a task with no file; under a store that fence is the board's
+    overlaps check at dispatch, and torve run of one task loses the file fence for record-only
+    siblings — runner.py is outside this phase's scope, noted for the operator
+- decision: D-10
+  grade: LOCKED
+  at: '2026-09-09T16:08:46Z'
+  claim: the gitignore ignores .torve/tasks/ whole and the three exception rules go with it;
+    every task directory whose contract names an archived document — 280 of 296 — is deleted
+    and the sixteen under standing documents (T-0288 to T-0303, with the three document-less
+    fixes of 0053's own machinery) leave tracking; there is no retention leg over task directories
+    in the reaper to delete — its sweeps are run state, worktrees and traces
+  evidence: .gitignore:225 - the task directory ignored whole
+  action: decided
+  notes: the deletion itself and the untracking are the one destructive step of this phase
+    and are done as a separate commit by hand
+- decision: D-2
+  grade: LOCKED
+  at: '2026-09-09T16:12:27Z'
+  claim: inherit_decisions is untouched; the planner changed for the board-aware numbering
+    and the contract writer only
+  evidence: src/torve/application/planner.py:283 - inherit_decisions as phase 1 left it
+  action: decided

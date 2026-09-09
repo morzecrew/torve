@@ -1,0 +1,100 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0310
+phase: 3
+at: '2026-09-09T20:16:56Z'
+agent: session/claude-fable-5.1
+entries:
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-09T20:06:19Z'
+    claim: >-
+      execution is a directory: one landing per execution/<task>-<attempt>-<instant>.yaml,
+      written by write_landing once and never rewritten, read sorted by instant into
+      landings; an identical replay — same task, attempt and entries — returns the
+      file it finds and writes nothing, a restarted attempt lands under a new instant;
+      the scope gate exempts the directory by prefix; execution.yaml is refused by
+      the directory check naming the conversion; the 18 landings converted into files
+      and the five execution files left the tree
+    evidence: >-
+      src/torve/config/spec_emit.py:200 - write_landing; src/torve/gates/scope.py:29
+      - the prefix exemption
+    action: decided
+    notes: >-
+      the landing's schema is landing.json three levels up; execution.json is gone
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-09T20:06:20Z'
+    claim: >-
+      torve.base.clock.stamp() is the instant, YYYY-MM-DDTHH:MM:SSZ in UTC; Amendment.at
+      and Landing.at are instants by pattern, the 174 amendment dates and 18 landing
+      dates converted once to their midnight with the loss stated; the writers named
+      by the row call stamp — decisions, telemetry, run state, projections, the display
+      in spec and decisions, divergence — and the run state and the heartbeat display
+      lost their microseconds
+    evidence: >-
+      src/torve/base/clock.py:1 - the clock; src/torve/domain/spec.py:170 - Amendment.at
+    action: decided
+    notes: >-
+      nine other writers already spelled the instant by the same format string and
+      are outside this phase's scope — standing, shadow, evals, intake, lane, review,
+      session, the gates runner; they write the same string and a follow-up moves
+      them to the helper
+  - decision: D-8
+    grade: ASSUMED
+    at: '2026-09-09T20:06:20Z'
+    claim: >-
+      check warns for a LOCKED row of a standing document whose declared paths match
+      scanned files none of which cites it; a row over files the scan never reads
+      is silent; fifteen such rows on this tree today
+    evidence: src/torve/config/spec.py:900 - check_backlinks
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-09T20:06:20Z'
+    claim: >-
+      the grammar is untouched; a landing file is named by the task, attempt and instant,
+      none of them an identifier of the corpus
+    evidence: src/torve/domain/spec.py:520 - LANDING_FILE
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-09T20:06:21Z'
+    claim: >-
+      no identifier changed; the corpus changed by the landing files and the amendment
+      instants only
+    evidence: .torve/archive/identifiers.yaml:1 - untouched
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-09T20:06:21Z'
+    claim: >-
+      the checks read the landing files for comments as they read the four; nothing
+      of the citation reading changed
+    evidence: >-
+      src/torve/config/spec.py:1040 - the comment scan over landing files
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-09T20:06:21Z'
+    claim: >-
+      the anatomy is untouched by this phase; domain/spec.py changed for the instant
+      and the landing's file name only
+    evidence: >-
+      src/torve/domain/spec.py:250 - the anatomy as phase 2 left it
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-09T20:06:22Z'
+    claim: phasing.yaml is untouched
+    evidence: >-
+      src/torve/domain/spec.py:531 - PHASING_FILE as phase 2 left it
+    action: decided
+  - decision: D-10
+    grade: ASSUMED
+    at: '2026-09-09T20:06:22Z'
+    claim: >-
+      the skill and its template, the schemas, the operating page and the changelog
+      say the directory and the instant
+    evidence: >-
+      skills/spec-writer/SKILL.md:31 - the execution directory
+    action: decided

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 from rich.text import Text
 
+from torve.base.clock import parse
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_FAIL,
@@ -72,7 +73,7 @@ def _age(heartbeat: Any) -> str:
     run that just checked in."""
 
     try:
-        stamp = datetime.strptime(str(heartbeat), "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+        stamp = parse(str(heartbeat))
 
     except ValueError:
         return "unknown"

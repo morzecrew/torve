@@ -20,11 +20,11 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from torve.base.clock import INSTANT_PATTERN
 from torve.domain.rfc import Grade, Implementation, Kind, Status
 from torve.domain.task import Task
 
@@ -220,7 +220,7 @@ class Amendment(Item):
     execution finding that changed nothing typed), and the words."""
 
     id: str
-    at: date | None = None
+    at: str = Field(default="", pattern=f"^$|{INSTANT_PATTERN}")  # the instant (S-0058/D-7)
     title: str = ""
     changes: list[Change] = Field(default_factory=list)
     md: str = ""
@@ -328,9 +328,15 @@ class Landing(Item):
     phase: int = 0
     attempt: int = Field(default=1, ge=1)
     commit: str = ""
-    at: date | None = None
+    at: str = Field(pattern=INSTANT_PATTERN)  # the instant (S-0058/D-7)
     agent: str = ""
     entries: list[LogEntry] = Field(default_factory=list)
+
+    def file_name(self) -> str:
+        """`<task>-<attempt>-<instant>.yaml`, the landing's own file under
+        `execution/` (S-0058/D-6)."""
+
+        return f"{self.task}-{self.attempt}-{self.at.replace('-', '').replace(':', '')}.yaml"
 
 
 class TaskLog(Item):
@@ -524,8 +530,11 @@ DOCUMENT_FILE = "document.yaml"
 DECISIONS_FILE = "decisions.yaml"
 PHASING_FILE = "phasing.yaml"
 AMENDMENTS_FILE = "amendments.yaml"
-EXECUTION_FILE = "execution.yaml"
-FILES = (DOCUMENT_FILE, DECISIONS_FILE, PHASING_FILE, AMENDMENTS_FILE, EXECUTION_FILE)
+FILES = (DOCUMENT_FILE, DECISIONS_FILE, PHASING_FILE, AMENDMENTS_FILE)
+# Execution is a directory (S-0058/D-6): one landing per file, written
+# once, named by task, attempt and instant, read sorted by instant.
+EXECUTION_DIR = "execution"
+LANDING_FILE = re.compile(r"^(T-\d{4})-(\d+)-(\d{8}T\d{6}Z)(?:-\d+)?\.yaml$")
 FILE_FIELDS: dict[str, tuple[str, ...]] = {
     DOCUMENT_FILE: (
         "id",
@@ -549,7 +558,6 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
     DECISIONS_FILE: ("decisions", "invariants", "retired"),
     PHASING_FILE: ("phasing", "contract_example"),
     AMENDMENTS_FILE: ("amendments", "editorial"),
-    EXECUTION_FILE: ("landings",),
 }
 
 

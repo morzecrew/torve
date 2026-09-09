@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0296
+phase: 1
+commit: 32240b22338593a35cf196607b03d7427c5ff873
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-1
+  grade: LOCKED
+  at: '2026-09-09T13:50:42Z'
+  claim: InheritedDecision gains consequence and check as the row says, and beside them check_state
+    and check_twin, because the runner reads the contract alone and the promotion state and
+    twin S-0054/D-4 puts on the row have to travel with it; all four default so every committed
+    contract loads unchanged and no schema number moved; inherit_decisions copies them from
+    the model through the same load_fences the loader uses, decision.recorded carries consequence
+    and check, and the prompt renders the consequence after each row
+  evidence: src/torve/domain/task.py:55 - the four fields with defaults; src/torve/adapters/agent/harness.py:131
+    - the rendered lines; tests/test_intake.py adoption expectations carry the four
+  action: decided
+  notes: the record re-records every standing row once on the next import, because a version
+    without a consequence differs from one with it — a one-time version 2 across the corpus,
+    not a regrade
+- decision: D-2
+  grade: LOCKED
+  at: '2026-09-09T13:50:43Z'
+  claim: run_gates appends one decision:<id> shell gate per inherited row with a check, axis
+    compliance, origin rfc/<doc>#<id>, input worktree, at the row's check_state; built from
+    the contract in the runner and never written into the manifest
+  evidence: src/torve/gates/runner.py:82 - decision_gates over ctx.task.decisions; tests/test_gates.py
+    pins shadow-convicts-nothing and blocking-reds-the-pass
+  action: decided
+- decision: D-3
+  grade: LOCKED
+  at: '2026-09-09T13:50:43Z'
+  claim: owed() skips a row that carries a check and reports it as covered, whether the check
+    will run green or red; a row with no check keeps the silence check; torve log owed prints
+    the covered and pathless states beside what is owed
+  evidence: src/torve/gates/decisions_reported.py:348 - the covered branch; tests/test_cli.py
+    pins the three states
+  action: decided
+- decision: D-4
+  grade: LOCKED
+  at: '2026-09-09T13:50:43Z'
+  claim: a decision gate is shadow unless the row's check_state says blocking, and a blocking
+    row without a check_twin is refused at mint by inherit_decisions; the twin rides the gate
+    as its sabotage reference; torve gates check does not run decision twins in this phase
+    — no row carries a check yet, and the twin's existence is the planner's refusal, not the
+    battery's
+  evidence: src/torve/application/planner.py:322 - the refusal; src/torve/gates/runner.py:82
+    - state and sabotage from the row
+  action: decided
+  proposal: when the first row is promoted, extend torve gates check to run the promoted rows'
+    twins over the contracts in .torve/tasks; until then the rule is enforced where the row
+    is minted

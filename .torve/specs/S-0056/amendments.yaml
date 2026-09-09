@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 3 brings the layout test
   - id: A-2
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       phase 1 reaches every reader and every markdown-shaped test
     md: |
@@ -17,7 +17,7 @@ amendments:
       and its battery; a reader that stays on the parser would have no parser
       to stay on. Scope only; no row changes.
   - id: A-3
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       phase 1 reaches the programme projection and the bootstrap fixture
     md: |
@@ -33,7 +33,7 @@ amendments:
       restored here by hand and this one takes the next number. Scope only;
       no row changes.
   - id: A-4
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       phase 2 reaches the loader for the schema drift check
     md: |

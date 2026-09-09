@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-21'
+    at: '2026-08-21T00:00:00Z'
     title: >-
       gate implementations belong to the package (amends §4)
     md: |-
@@ -11,7 +11,7 @@ amendments:
 
       **A skill is not replaced by its gate.** The gate reports that an entry is missing; it cannot say when one should have been written. `flag-dont-flip` retains the plan gate, the readiness gate, the unlisted-decision rule, and how to phrase `claim` and `evidence`. Per S-0009/D-5: the gate is the source of truth, the skill is how it is passed on the first attempt.
   - id: A-2
-    at: '2026-08-21'
+    at: '2026-08-21T00:00:00Z'
     title: >-
       gate lifecycle (adds §7, S-0002/D-18 – S-0002/D-23)
     md: |-
@@ -25,7 +25,7 @@ amendments:
 
       **Also edits:** S-0004/telemetry-staged (per-gate health metrics among the telemetry fields), S-0009 S-0009/D-5 (retiring a gate shrinks or removes its paired skill in the same change), S-0011/where-ux-effort-actually-pays (cross-referenced from filter 5).
   - id: A-3
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       the size estimate is a function (amends §6b, S-0002/D-9)
     md: |-
@@ -35,7 +35,7 @@ amendments:
 
       **S-0002/D-9 stands** — the estimate is still pre-dispatch, still advisory, still the thing `torve size` reports. Only its shape changed.
   - id: A-4
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       CI runs the gate, not the battery twice (amends §5, §7.3)
     md: |-
@@ -47,7 +47,7 @@ amendments:
 
       **This is a §7.3 promotion without the §7.7 soak,** on the D-15.8/T-0014 precedent: `torve rfc check` is deterministic over committed documents and has no false-positive rate to measure. It had served a shadow tenure since 2026-08-22 with the blocking dedicated step beside it.
   - id: A-5
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The two-week window closed
     md: |-
       **Judged in the pass S-0007/A-4's new flag started.** This document's own header
@@ -72,7 +72,7 @@ amendments:
       **Changed:** `implementation: complete`. Nothing normative — this records
       that the last criterion was time, and the time passed.
   - id: A-6
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       the battery runs every gate, so the ladder can read every axis
     md: |-

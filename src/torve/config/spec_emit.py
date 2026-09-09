@@ -28,18 +28,23 @@ from torve.config.spec import (
     SpecError,
     archive_dir,
     check_corpus,
+    landing_files,
+    landing_header,
     load_document,
     schema_header,
 )
 from torve.domain.spec import (
     DECISIONS_FILE,
     DOCUMENT_FILE,
+    EXECUTION_DIR,
     FILE_FIELDS,
+    LANDING_FILE,
     SCHEMA_VERSION,
     Amendment,
     Change,
     Decision,
     Document,
+    Landing,
     document_id,
     heading_of,
     qualify,
@@ -217,6 +222,54 @@ def write_document(directory: Path, doc: Document) -> list[str]:
         (directory / file_name).write_text(text, encoding="utf-8")
 
     return list(texts)
+
+
+def write_landing(directory: Path, doc: Document, landing: Landing) -> tuple[Path, bool]:
+    """One landing as its own file under `execution/` (S-0058/D-6): named
+    by task, attempt and instant, written once. A file already there for
+    the same task and attempt with the same entries is the same landing —
+    returned, not rewritten; anything else is a new file. The path and
+    whether it was written."""
+
+    execution = directory / EXECUTION_DIR
+    execution.mkdir(parents=True, exist_ok=True)
+    payload = _localize(
+        doc, landing.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
+    )
+
+    for existing in landing_files(directory):
+        match = LANDING_FILE.match(existing.name)
+
+        if (
+            match is None
+            or match.group(1) != landing.task
+            or int(match.group(2)) != landing.attempt
+        ):
+            continue
+
+        carried: Any = yaml.safe_load(existing.read_text(encoding="utf-8")) or {}
+
+        if cast("dict[str, Any]", carried).get("entries", []) == payload.get("entries", []):
+            return existing, False
+
+    path = execution / landing.file_name()
+    ordinal = 1
+
+    while path.exists():  # two landings of one task and attempt within one second
+        ordinal += 1
+        path = execution / landing.file_name().replace(".yaml", f"-{ordinal}.yaml")
+
+    text = yaml.dump(
+        payload,
+        Dumper=_Dumper,
+        sort_keys=False,
+        allow_unicode=True,
+        width=WIDTH,
+        default_flow_style=False,
+    )
+    path.write_text(f"{landing_header()}\n{text}", encoding="utf-8")
+
+    return path, True
 
 
 def canonical(directory: Path) -> dict[str, str]:

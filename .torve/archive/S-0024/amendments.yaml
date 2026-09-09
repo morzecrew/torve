@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       trust-class granularity is settled where it stands (amends §5.3)
     md: |-
@@ -13,7 +13,7 @@ amendments:
       (a non-empty `providers.repositories` entry keyed to the root's own name,
       say) amends §5.3; it is never a re-interpretation at the enforcement site.
   - id: A-2
-    at: '2026-08-30'
+    at: '2026-08-30T00:00:00Z'
     title: >-
       phase 1's scope admits the tick it passes the decision to (amends §Phasing)
     md: |-
@@ -32,7 +32,7 @@ amendments:
       **Deliberately unchanged:** the scope gate; and phase 2's scope, which
       consumes the fleet modules only.
   - id: A-3
-    at: '2026-08-30'
+    at: '2026-08-30T00:00:00Z'
     title: >-
       phase 1's scope admits the subcommand registration (amends §Phasing)
     md: |-
@@ -51,7 +51,7 @@ amendments:
       the fleet modules and registers nothing new; and the scope gate itself,
       which did exactly its job.
   - id: A-4
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The pause gates a manager pass now
     md: |-
       **Found retiring the standing loop (S-0019 S-0019/A-8).** S-0024/D-2's Paths named
@@ -68,7 +68,7 @@ amendments:
 
       **Changed:** S-0024/D-2's Paths only.
   - id: A-5
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       1 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:

@@ -35,6 +35,7 @@ from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
+from torve.base.clock import stamp
 from torve.config import layout, spec
 from torve.config.manifest import GATE_AXES, UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
@@ -1286,7 +1287,7 @@ def context_report(
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         # Which carrier answered, per block, and how much it had to answer
         # with (S-0050/A-3). A record that was not watching a run holds nothing
         # about it, and every count below is then correct about the record
@@ -1360,7 +1361,7 @@ def run_from_view(view: TaskView) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "state": str(view.state),
         "attempts": view.attempts,
-        "heartbeat": (heartbeat or datetime.now(UTC)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "heartbeat": stamp(heartbeat),
         "escalation": ({"reason": view.escalation, "detail": ""} if view.escalation else None),
         "history": [],
         "approvals": [],

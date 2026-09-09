@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       the intake has two halves (amends S-0044/D-10, cites S-0045 S-0045/D-1)
     md: |-
@@ -38,7 +38,7 @@ amendments:
       the file, not the store. Settled by S-0044/A-3, which found the same boundary on
       the reading side and answers it with a projection.
   - id: A-2
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       message.sent admits the manager and the operator (amends S-0044/D-4, required
       by S-0045 S-0045/D-7)
@@ -56,7 +56,7 @@ amendments:
       every inter-agent influence is still a reviewable record or it did not
       happen.
   - id: A-3
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       the gate judges the record through a projection (amends S-0044/D-10, completes
       phase 2, extends S-0044/A-1)
@@ -96,7 +96,7 @@ amendments:
       file survives at all once nothing but the engine writes it — belongs to the
       projection set, not here.
   - id: A-4
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       phases 4 to 6 — one record, one state, one dispatch rule (phases S-0044/D-1,
       S-0044/D-3, S-0044/D-5)
@@ -130,7 +130,7 @@ amendments:
       for the exit criterion; both are prerequisites for multi-repo being real
       rather than designed.
   - id: A-5
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       phases 5 and 6 land as one rule, not one reader (amends S-0044/A-4, cites S-0044/D-6)
     md: |-
@@ -175,7 +175,7 @@ amendments:
       dead code — and deleting them then is a smaller change than it would be
       now, because the rules they implement will already be shared.
   - id: A-6
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       the vocabulary admits a retirement (adds decision.retired, amends §5.2)
     md: |-
@@ -205,7 +205,7 @@ amendments:
       added since acceptance; it should read as evidence that the price was paid,
       not that it is small.
   - id: A-7
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       three of the five unphased pieces landed; two are gated on tasks as records
     md: |-
@@ -233,7 +233,7 @@ amendments:
       **Changed:** nothing normative. This records which of §12's tail is done and
       why the remainder is one prerequisite rather than three separate ones.
   - id: A-8
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       the mint carries its contract (amends §5.3, required by S-0049 S-0049/D-1)
     md: |-
@@ -264,7 +264,7 @@ amendments:
       contract as a view with no contract, because 192 of them are already in the
       lab log and every one of them predates this.
   - id: A-9
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: Every read of the log pages
     md: |-
       **Found taking stock after S-0050 phase 3.** Every read on the log took a
@@ -294,7 +294,7 @@ amendments:
 
       Measured after: `since` returns 1,995 events and the board 273 rows.
   - id: A-10
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: 'Phase 6 closes: the scan is deleted'
     md: |-
       **Phase 6 as written, finished.** S-0044/A-5 kept both dispatch carriers after
@@ -322,7 +322,7 @@ amendments:
       from was missing a third of its tasks. Deleting the alternative carrier
       raises the price of a defect in this one.
   - id: A-11
-    at: '2026-09-06'
+    at: '2026-09-06T00:00:00Z'
     title: >-
       A leg's failure is recorded, never fatal — found by the first live dispatch
     md: |-
@@ -370,7 +370,7 @@ amendments:
       wired, and fatal the first time it is exercised. The only check that finds
       either is running it.
   - id: A-12
-    at: '2026-09-06'
+    at: '2026-09-06T00:00:00Z'
     title: >-
       S-0044/A-11's rule reaches a leg's construction, not only its call
     md: |-
@@ -408,7 +408,7 @@ amendments:
       `major` should be able to hold a defect of this class is S-0005's
       question, and it is open.
   - id: A-13
-    at: '2026-09-07'
+    at: '2026-09-07T00:00:00Z'
     title: >-
       a reviewed candidate can be sent back (adds `task.returned`)
     md: |-

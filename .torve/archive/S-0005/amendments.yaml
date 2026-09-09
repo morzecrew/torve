@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-01'
+    at: '2026-09-01T00:00:00Z'
     title: the findings ledger (adds S-0005/D-15)
     md: |-
       **Found in the first capable-reviewer week.** With opus on the review seat
@@ -28,7 +28,7 @@ amendments:
       promoting majors to blocking would hand the reviewer a veto the corpus
       never graded. Reopen against ledger evidence, not incident memory.
   - id: A-2
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       the revision loop (adds §4a, S-0005/D-12–S-0005/D-13)
     md: |-
@@ -55,7 +55,7 @@ amendments:
       human act gating all spend — nothing auto-retries because a bot
       commented.
   - id: A-3
-    at: '2026-08-25'
+    at: '2026-08-25T00:00:00Z'
     title: >-
       the engine answers its reviewers (adds S-0005/D-14)
     md: |-
@@ -84,7 +84,7 @@ amendments:
       this outbound record; and the human acts — approve, revise — that
       create the relationship the reply reports.
   - id: A-4
-    at: '2026-09-01'
+    at: '2026-09-01T00:00:00Z'
     title: >-
       The reviewer may execute — in a copy nothing survives
     md: |-
@@ -115,7 +115,7 @@ amendments:
       evidence discarded), the runner-posts-comments half of S-0005/D-2, and the
       reviewer's lack of any forge credential.
   - id: A-5
-    at: '2026-09-02'
+    at: '2026-09-02T00:00:00Z'
     title: >-
       The staged diff — the reviewer reads, the prompt points
     md: |-
@@ -141,7 +141,7 @@ amendments:
       do not locate are discarded, and the reviewer measurement corpus
       watches for empty-handed reviews of substantial diffs.
   - id: A-6
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       What phases 1-3 left, and what the loop's retirement took
     md: |-
@@ -181,7 +181,7 @@ amendments:
       **Changed:** `implementation: partial` stands, now with three things owed
       rather than one.
   - id: A-7
-    at: '2026-09-08'
+    at: '2026-09-08T00:00:00Z'
     title: >-
       the ledger hid the severity it most needed to show (amends S-0005/D-15)
     md: |-
@@ -217,7 +217,7 @@ amendments:
       stops sat above every severity the reviewer actually assigns. Same hole,
       two different halves of the same mechanism.
   - id: A-8
-    at: '2026-09-08'
+    at: '2026-09-08T00:00:00Z'
     title: >-
       what stops a promotion is configuration's, not the reviewer's (adds S-0005/D-17)
     md: |-
@@ -251,7 +251,7 @@ amendments:
       `promotion.auto_merge` armed, an unattended pass would have landed all
       three.
   - id: A-9
-    at: '2026-09-08'
+    at: '2026-09-08T00:00:00Z'
     title: >-
       S-0005/A-7 was wrong about what it had found (corrects S-0005/A-7, amends S-0005/D-15)
     md: |-
@@ -292,7 +292,7 @@ amendments:
       and `major` is not** — which is the case for S-0005/D-17 far better than the
       sentence S-0005/A-7 gave it.
   - id: A-10
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       the reviewer is promised only what its copy can run (narrows S-0005/D-16)
     md: |-

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-06'
+    at: '2026-09-06T00:00:00Z'
     title: §7's documentation was owed by no phase
     md: |-
       **Found by the reviewer of T-0281.** §7 assigns the switch's operator
@@ -19,7 +19,7 @@ amendments:
       deliverable whose paths fall outside every phase's scope is the same
       mistake one level up, and the check that catches it does not exist yet.
   - id: A-2
-    at: '2026-09-07'
+    at: '2026-09-07T00:00:00Z'
     title: >-
       phase 2's acceptance named a command no sandbox can run
     md: |-
@@ -52,7 +52,7 @@ amendments:
       a phasing table that mints something unsatisfiable, and no check reading
       it.
   - id: A-3
-    at: '2026-09-07'
+    at: '2026-09-07T00:00:00Z'
     title: >-
       the phasing block's third defect, and why none of them was caught
     md: |-

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       the contract carries a title; the intent dumps as a block
     md: |-
@@ -17,7 +17,7 @@ amendments:
       literal blocks. Contracts minted before this carry no title and land
       under the old fallback.
   - id: A-2
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       the identifier lookup: `torve rfc show` and its MCP face (amends §3a, §5)
     md: |-
@@ -47,7 +47,7 @@ amendments:
       what a sandbox sees. Full-text search is refused: grep exists, and the verb
       answers identifiers, not questions.
   - id: A-3
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       one decision-table reader, one inheritance helper (amends §6a, retires S-0007/D-6's
       adapter)
@@ -60,7 +60,7 @@ amendments:
 
       **The port is retired,** not replaced. §6a's requirement stands — standing decisions are read deterministically from committed documents, and model-assisted extraction stays outside the engine — but it is met by a function, not by a seam with one side.
   - id: A-4
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The assertion nothing could contradict
     md: |-
       **Found asking which documents still owe work.** S-0007/D-15 puts the asserted
@@ -87,7 +87,7 @@ amendments:
       "the phases are done and the assertion says otherwise — settle it", and a
       person settles it by reading the document, not by trusting this count.
   - id: A-5
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: the format's owner is the loader
     changes:
       - subject: D-12

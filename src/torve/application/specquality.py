@@ -56,7 +56,6 @@ from __future__ import annotations
 import json
 import statistics
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -66,6 +65,7 @@ from torve.application.planner import globs_intersect
 from torve.application.runstate import RunState
 from torve.application.sizing import estimate_scope
 from torve.base import naming
+from torve.base.clock import parse
 from torve.config import layout, spec
 from torve.domain.spec import Corpus, qualify
 from torve.domain.states import TaskState
@@ -737,8 +737,6 @@ def _task_cost_usd(root: Path) -> dict[str, float]:
 
 # ....................... #
 
-_HEARTBEAT_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
-
 
 def _wall_minutes(task: TaskFacts) -> float | None:
     """First transition to last transition, in minutes — the same `history`
@@ -750,8 +748,8 @@ def _wall_minutes(task: TaskFacts) -> float | None:
         return None
 
     try:
-        start = datetime.strptime(task.history[0]["at"], _HEARTBEAT_FORMAT)
-        end = datetime.strptime(task.history[-1]["at"], _HEARTBEAT_FORMAT)
+        start = parse(task.history[0]["at"])
+        end = parse(task.history[-1]["at"])
 
     except (KeyError, ValueError):
         return None

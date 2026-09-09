@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -678,20 +678,22 @@ def land(
     commit: str = "",
     entries: list[dict[str, Any]] | None = None,
 ) -> Path:
-    """The landing appended to the execution file of the document the
-    contract names (S-0057 S-0057/D-7) — here rather than in `divergence`,
-    which the agent harness imports and which therefore may not reach the
-    corpus (the planner-boundary contract, 0015 S-0015/A-1): the task, its phase and attempt,
-    when and by whom, the commit when the lander knows it, and the log's
-    entries — the worktree's log by default, or the entries given (the
-    record's, read by `torve log land --partition`). Staged, so the commit
-    that lands the task carries it. Refuses, with the reason, a contract
-    that names no document or a document the corpus does not hold, and a
-    landing already written for this task and attempt."""
+    """The landing written into the execution directory of the document
+    the contract names (S-0057/D-7, S-0058/D-6) — here rather than in
+    `divergence`, which the agent harness imports and which therefore may
+    not reach the corpus (the planner-boundary contract, S-0015/A-1): the
+    task, its phase and attempt, when and by whom, the commit when the
+    lander knows it, and the log's entries — the worktree's log by default,
+    or the entries given (the record's, read by `torve log land
+    --partition`). One file per landing, staged, so the commit that lands
+    the task carries it. Refuses, with the reason, a contract that names no
+    document or a document the corpus does not hold; an identical replay
+    is a no-op."""
 
     from torve.application.divergence import open_log, stage
-    from torve.config.spec_emit import write_document
-    from torve.domain.spec import EXECUTION_FILE, Landing
+    from torve.base.clock import stamp
+    from torve.config.spec_emit import write_landing
+    from torve.domain.spec import Landing
 
     if not task.rfc:
         raise ValueError(f"{task.id} names no document — its log stays in git history")
@@ -705,10 +707,6 @@ def land(
         )
 
     doc = spec.load_document(directory)
-
-    if any(one.task == task.id and one.attempt == attempt for one in doc.landings):
-        raise ValueError(f"{task.id} attempt {attempt} already landed in {directory.name}")
-
     carried = open_log(root, task.id)["entries"] if entries is None else entries
     landing = Landing.model_validate(
         {
@@ -716,14 +714,17 @@ def land(
             "phase": task.phase,
             "attempt": attempt,
             "commit": commit,
-            "at": at or datetime.now(UTC).date().isoformat(),
+            "at": at or stamp(),
             "agent": agent,
             "entries": carried,
         }
     )
-    write_document(directory, doc.model_copy(update={"landings": [*doc.landings, landing]}))
-    path = directory / EXECUTION_FILE
-    stage(root, path)
+    # S-0058/D-6: one file per landing, written once; the same task, attempt
+    # and entries again is the same landing and writes nothing.
+    path, written = write_landing(directory, doc, landing)
+
+    if written:
+        stage(root, path)
 
     return path
 

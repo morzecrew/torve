@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       the regime preimage recorded (amends §6a, adds S-0004/D-19)
     md: |-
@@ -27,7 +27,7 @@ amendments:
       regime is a telemetry concern, and the preimage belongs beside the stream
       whose rows cite it.
   - id: A-2
-    at: '2026-08-28'
+    at: '2026-08-28T00:00:00Z'
     title: >-
       the reaper consults host truth for shadow sandboxes (amends §5, adds S-0004/D-18)
     md: |-
@@ -58,7 +58,7 @@ amendments:
       on a root with a scheduled tick pauses the schedule for the campaign's
       duration — the 2026-08-28 clean campaign ran that way.
   - id: A-3
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       Two criteria met, and the third is a reading nobody did
     md: |-
@@ -82,7 +82,7 @@ amendments:
       **Changed:** `implementation: partial` stands, with exactly one criterion
       outstanding and the evidence for it already collected.
   - id: A-4
-    at: '2026-09-06'
+    at: '2026-09-06T00:00:00Z'
     title: >-
       The gate set read against the replays: one change, and the rest stand
     md: |-

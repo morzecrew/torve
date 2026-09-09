@@ -13,12 +13,12 @@ import hashlib
 import json
 import threading
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import torve
 from torve.application.ports import AgentResult, BrokerUsage
+from torve.base.clock import stamp
 from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
@@ -328,7 +328,7 @@ def build_record(
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "config_hash": config_hash,
         "torve_version": torve.__version__,  # toolchain, recorded beside the regime hash
         "base": ctx.base,
@@ -387,7 +387,7 @@ def build_attempt_row(
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "config_hash": None,  # gates never ran; no manifest pass
         "torve_version": torve.__version__,
         "task_id": task.id,
@@ -467,8 +467,6 @@ def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
     and lane outcomes land here so contention and triage lag are queries,
     not hunches."""
 
-    from datetime import UTC, datetime
-
     from torve.config import layout
     from torve.config.manifest import Manifest, load_manifest
 
@@ -486,7 +484,7 @@ def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
             "schema_version": SCHEMA_VERSION,
             "kind": "engine",
             "event": event,
-            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "at": stamp(),
             **details,
         },
     )
@@ -502,7 +500,7 @@ def feedback_record(task_id: str, human_minutes: int, rework_after_review: bool)
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "task_id": task_id,
         "human_minutes": human_minutes,
         "rework_after_review": rework_after_review,

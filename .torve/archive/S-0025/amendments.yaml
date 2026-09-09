@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       execution's readings approved (amends S-0025/D-3; records the emitter and sweep
       readings)

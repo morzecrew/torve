@@ -35,7 +35,7 @@ def state_at(tmp_path, task_id, state, age_s=0.0):
     run.state = state
     if age_s:
         stamp = datetime.now(UTC) - timedelta(seconds=age_s)
-        run.heartbeat = stamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        run.heartbeat = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
     run.save()
     return run
 

@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (RFC 0058):** execution is a directory — one file per
+  landing, `execution/<task>-<attempt>-<instant>.yaml`, written once — and
+  every time the engine writes is the one instant `YYYY-MM-DDTHH:MM:SSZ`
+  (amendments and landings carried a date; they carry the midnight of it
+  now). `spec check` warns for a LOCKED row whose governed files carry no
+  citation of it.
 - **Breaking (RFC 0058):** the anatomy is typed. `document.yaml` carries
   `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`,
   `docs`, `out_of_scope` and `risks` as keys, the design as a keyed list

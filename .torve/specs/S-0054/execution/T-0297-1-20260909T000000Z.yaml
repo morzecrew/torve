@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0297
+phase: 2
+commit: e1d883abf273b6d9c48588d678e34c0b4685b80f
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-6
+  grade: LOCKED
+  at: '2026-09-09T14:08:34Z'
+  claim: torve spec project renders one managed section per governed directory — rows with
+    grade, text, paths, consequence, check and state, the invariants over it, the contended
+    paths from the telemetry window — and a root index; the corpus path, the archive and every
+    hidden directory are skipped because S-0016/D-25 admits nothing else in the corpus directory
+    and the engine's own state is not where an agent works; twenty-one directories of this
+    repository carry a section now
+  evidence: src/torve/application/colocation.py:186 - render_section; src/torve/application/colocation.py:81
+    - the projectable rule; src/torve/cli/AGENTS.md:1 - a rendered section
+  action: decided
+- decision: D-7
+  grade: LOCKED
+  at: '2026-09-09T14:08:34Z'
+  claim: the sections are committed with the code and the spec-projection shell gate runs
+    torve spec project --check at shadow (S-0002/D-18) with tests/test_colocation.py as its
+    twin; a hand edit inside the markers is drift naming the file, exit 3
+  evidence: .torve/gates.yaml:135 - the gate entry; src/torve/application/colocation.py:388
+    - project with check; tests/test_colocation.py pins the drift case
+  action: decided
+- decision: D-9
+  grade: LOCKED
+  at: '2026-09-09T14:08:34Z'
+  claim: torve spec show, paths, tests and why-not read the worktree's corpus and archive
+    through the loader and nothing else; there is no form that opens the record, and a corpus
+    that does not load is a configuration error
+  evidence: src/torve/cli/spec.py:167 - show over the loaded corpus; tests/test_cli_spec.py
+    pins each verb over a corpus with an archive
+  action: decided
+- decision: D-8
+  grade: ASSUMED
+  at: '2026-09-09T14:08:35Z'
+  claim: a section carries rows, invariants, checks, the owed-entry reminder on a LOCKED row
+    without a check, and contention; no overview and no prose beyond the row's own text and
+    consequence
+  evidence: src/torve/application/colocation.py:186 - the section's lines
+  action: decided

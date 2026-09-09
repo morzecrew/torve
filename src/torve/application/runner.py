@@ -76,6 +76,7 @@ from torve.application.telemetry import (
     record_row,
 )
 from torve.base import naming
+from torve.base.clock import parse
 from torve.config import layout
 from torve.config.manifest import load_manifest
 from torve.config.runconfig import RunnerConfig
@@ -140,7 +141,7 @@ def _continuable(escalation: Escalation) -> bool:
 
 
 def _elapsed_minutes(state: RunState) -> float:
-    started = datetime.strptime(state.history[0]["at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+    started = parse(state.history[0]["at"])
 
     return (datetime.now(UTC) - started).total_seconds() / 60
 

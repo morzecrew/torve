@@ -1,7 +1,7 @@
 """The specification's storage, owned by the package (S-0007/format-validation,
 S-0007/D-12; S-0057 S-0057/D-1): a document is a directory of four YAML files
 split by who writes each — `document.yaml` and `decisions.yaml` the
-author's, `amendments.yaml` the tool's, `execution.yaml` the landing's —
+author's, `amendments.yaml` the tool's, `execution/` the landings' —
 joined here into the `Document` model by the model's validator and checked
 for what the model cannot say: identifier continuity, the dependency
 graph, citations into the archive, path rot, fingerprint drift, a section
@@ -28,16 +28,18 @@ from torve.domain.spec import (
     AMENDMENTS_FILE,
     DECISIONS_FILE,
     DOCUMENT_FILE,
-    EXECUTION_FILE,
+    EXECUTION_DIR,
     EXTRAS_CAP,
     FILE_FIELDS,
     FILES,
+    LANDING_FILE,
     PROSE_FIELDS,
     REQUIRED_PROSE,
     SCHEMA_VERSION,
     SECTION_KEY,
     Corpus,
     Document,
+    Landing,
     document_id,
     file_of,
     is_citation,
@@ -254,6 +256,21 @@ def schema_header(file_name: str) -> str:
     return f"{SCHEMA_HEADER}../../schemas/{schema_name(file_name)}.json"
 
 
+LANDING_SCHEMA = "landing"
+
+
+def landing_schema_text() -> str:
+    """One landing's JSON Schema (S-0058/D-6): the file under `execution/`."""
+
+    return json.dumps(Landing.model_json_schema(), indent=2, sort_keys=True) + "\n"
+
+
+def landing_header() -> str:
+    """The first line of a landing file: its schema, three levels up."""
+
+    return f"{SCHEMA_HEADER}../../../schemas/{LANDING_SCHEMA}.json"
+
+
 def check_schema(spec_dir: Path) -> tuple[list[str], list[str]]:
     """(problems, warnings): a schema file that lags the model is a
     problem — an editor would validate against a shape the engine no
@@ -262,13 +279,15 @@ def check_schema(spec_dir: Path) -> tuple[list[str], list[str]]:
     problems: list[str] = []
     warnings: list[str] = []
 
-    for file_name in FILES:
-        path = schema_file(spec_dir, file_name)
+    expected = {schema_file(spec_dir, name): schema_text(name) for name in FILES}
+    expected[schemas_dir(spec_dir) / f"{LANDING_SCHEMA}.json"] = landing_schema_text()
+
+    for path, text in expected.items():
         where = f"schemas/{path.name}"
 
         if not path.is_file():
             warnings.append(f"{where}: not written yet — `torve init` writes it (S-0057/D-5)")
-        elif path.read_text(encoding="utf-8") != schema_text(file_name):
+        elif path.read_text(encoding="utf-8") != text:
             problems.append(
                 f"{where}: lags the model — it is generated output; `torve init` rewrites it"
             )
@@ -315,6 +334,50 @@ def _read_file(directory: Path, file_name: str) -> dict[str, Any]:
     return data
 
 
+def landing_files(directory: Path) -> list[Path]:
+    """The landing files of one document, sorted by instant, task and
+    attempt — the order `landings` reads in (S-0058/D-6)."""
+
+    execution = directory / EXECUTION_DIR
+
+    if not execution.is_dir():
+        return []
+
+    named = [(m, p) for p in execution.iterdir() if (m := LANDING_FILE.match(p.name))]
+
+    return [
+        p
+        for _, p in sorted(
+            named, key=lambda one: (one[0].group(3), one[0].group(1), int(one[0].group(2)))
+        )
+    ]
+
+
+def _read_landings(directory: Path) -> list[dict[str, Any]]:
+    landings: list[dict[str, Any]] = []
+    problems: list[str] = []
+
+    for path in landing_files(directory):
+        where = f"{directory.name}/{EXECUTION_DIR}/{path.name}"
+
+        try:
+            raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            problems.append(f"{where}: not YAML — {str(exc).splitlines()[0]}")
+            continue
+
+        if not isinstance(raw, dict):
+            problems.append(f"{where}: not a mapping")
+            continue
+
+        landings.append(cast("dict[str, Any]", raw))
+
+    if problems:
+        raise SpecError(problems)
+
+    return landings
+
+
 def load_document(directory: Path, *, archived: bool = False) -> Document:
     """One document from its directory: the four files joined and validated
     as the model, every refusal named by directory, file, entry and field
@@ -332,6 +395,7 @@ def load_document(directory: Path, *, archived: bool = False) -> Document:
         if (directory / file_name).is_file():
             data.update(_read_file(directory, file_name))
 
+    data["landings"] = _read_landings(directory)
     version = data.get("schema_version")
 
     if version != SCHEMA_VERSION:
@@ -352,6 +416,10 @@ def load_document(directory: Path, *, archived: bool = False) -> Document:
         for error in exc.errors():
             loc = [str(p) for p in error["loc"]]
             owner = file_of(loc[0]) if loc else None
+
+            if loc and loc[0] == "landings":
+                owner = EXECUTION_DIR
+
             spot = f"{where}/{owner}" if owner else where
             problems.append(f"{spot}: {'.'.join(loc) or 'document'}: {error['msg']}")
 
@@ -718,10 +786,28 @@ def check_directory(spec_dir: Path) -> list[str]:
             numbers.setdefault(match.group(1), []).append(entry.name)
 
             for inner in sorted(entry.iterdir()):
+                if inner.is_dir() and inner.name == EXECUTION_DIR:
+                    for landing in sorted(inner.iterdir()):
+                        if not LANDING_FILE.match(landing.name):
+                            problems.append(
+                                f"{name}/{EXECUTION_DIR}/{landing.name}: not "
+                                "<task>-<attempt>-<instant>.yaml — a landing is named by what "
+                                "landed and when (S-0058/D-6)"
+                            )
+
+                    continue
+
+                if inner.name == "execution.yaml":
+                    problems.append(
+                        f"{name}/execution.yaml: execution is a directory of landings "
+                        "(S-0058/D-6); convert it"
+                    )
+                    continue
+
                 if inner.name not in FILES:
                     problems.append(
-                        f"{name}/{inner.name}: not one of {', '.join(FILES)} — a document "
-                        "directory holds nothing else (S-0057/I-1)"
+                        f"{name}/{inner.name}: not one of {', '.join(FILES)} or "
+                        f"{EXECUTION_DIR}/ — a document directory holds nothing else (S-0057/I-1)"
                     )
 
         for number, names in sorted(numbers.items()):
@@ -1011,8 +1097,55 @@ def tree_citations(root: Path) -> list[tuple[str, int, str, bool]]:
     return found
 
 
+def check_backlinks(
+    root: Path, corpus: Corpus, citations: list[tuple[str, int, str, bool]]
+) -> list[str]:
+    """S-0058/D-8: a LOCKED row of a standing document whose declared paths
+    match scanned files, none of which cites it, is a warning — the comment
+    an agent deleted is heard; a row over files the scan never reads is
+    silent, having nowhere to be cited from."""
+
+    from fnmatch import fnmatch
+
+    scanned = tracked_files(root)
+    citing: dict[str, set[str]] = {}
+
+    for name, _line, ident, legacy in citations:
+        if not legacy:
+            citing.setdefault(ident, set()).add(name)
+
+    warnings: list[str] = []
+
+    for doc in corpus.standing():
+        if doc.superseded_by:
+            continue
+
+        for row in doc.decisions:
+            if row.grade != "LOCKED":
+                continue
+
+            governed = {
+                name
+                for name in scanned
+                if any(
+                    fnmatch(name, glob) or name.startswith(glob.rstrip("*")) for glob in row.paths
+                )
+            }
+
+            if governed and not (governed & citing.get(row.id, set())):
+                warnings.append(
+                    f"{_name(doc)}: {row.id} (LOCKED) governs {len(governed)} scanned file(s) and "
+                    "none cites it — the backlink is silent (S-0058/D-8)"
+                )
+
+    return warnings
+
+
 def check_tree(
-    root: Path, corpus: Corpus, spec_dir: Path | None = None
+    root: Path,
+    corpus: Corpus,
+    spec_dir: Path | None = None,
+    citations: list[tuple[str, int, str, bool]] | None = None,
 ) -> tuple[list[str], list[str]]:
     """S-0057 S-0057/D-9: every identifier the code and the docs cite resolves
     over the corpus and the archive — an identifier nothing defines is a
@@ -1027,7 +1160,7 @@ def check_tree(
     warnings: list[str] = []
     seen: set[tuple[str, str]] = set()
 
-    for name, line, ident, legacy in tree_citations(root):
+    for name, line, ident, legacy in citations if citations is not None else tree_citations(root):
         if (name, ident) in seen or (ident in defined and ident not in retired):
             continue
 
@@ -1066,8 +1199,8 @@ def check_landings(doc: Document) -> list[str]:
 
         return [
             (
-                f"{where}: implementation complete, but phase(s) {missing} have no landing in "
-                f"{EXECUTION_FILE} (S-0057/D-11)"
+                f"{where}: implementation complete, but phase(s) {missing} have no landing under "
+                f"{EXECUTION_DIR}/ (S-0057/D-11)"
             )
         ]
 
@@ -1147,13 +1280,14 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
         for number, path in sorted(document_dirs(source).items()):
             number = document_id(number)
 
-            for file_name in FILES:
-                if not (path / file_name).is_file():
-                    continue
+            carried = [path / f for f in FILES if (path / f).is_file()] + landing_files(path)
 
-                for line in find_comments((path / file_name).read_text(encoding="utf-8")):
+            for file in carried:
+                spot = str(file.relative_to(path.parent))
+
+                for line in find_comments(file.read_text(encoding="utf-8")):
                     report.problems.append(
-                        f"{path.name}/{file_name}:{line}: a comment — meaning outside the "
+                        f"{spot}:{line}: a comment — meaning outside the "
                         "model; a row that needs a note needs a rationale (S-0056/D-4)"
                     )
 
@@ -1212,9 +1346,11 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
-    tree_problems, tree_warnings = check_tree(root, corpus, spec_dir)
+    citations = tree_citations(root)
+    tree_problems, tree_warnings = check_tree(root, corpus, spec_dir, citations)
     report.problems += tree_problems
     report.warnings += tree_warnings
+    report.warnings += check_backlinks(root, corpus, citations)
     schema_problems, schema_warnings = check_schema(spec_dir)
     report.problems += schema_problems
     report.warnings += schema_warnings

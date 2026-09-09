@@ -28,7 +28,7 @@ files split by who writes each (S-0057, S-0057/D-1):
 | `phasing.yaml` | you; the planner reads it | `phasing`, `contract_example` |
 | `decisions.yaml` | you; the tool stamps it | `decisions`, `invariants`, `retired` |
 | `amendments.yaml` | `torve spec amend` and `spec fix` | `amendments`, `editorial` |
-| `execution.yaml` | the landing | what each task found, entry by entry |
+| `execution/` | the landing | one file per landing — `<task>-<attempt>-<instant>.yaml` — what each task found, entry by entry |
 
 A file that is absent is an empty list; `spec new` writes the first two. Each
 file's first line names its schema under `.torve/schemas/`, written by

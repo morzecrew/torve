@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0299
+phase: 4
+commit: a152e60dcc00cd06fd4e31b4bdeeb5b4d24e2cfb
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-13
+  grade: LOCKED
+  at: '2026-09-09T14:33:47Z'
+  claim: 'the reviewer''s copy receives the target''s pack built as a replay — decisions,
+    gates, tests and the schemas, no attempts and no contention, so no model-authored entry
+    enters — plus touched.json: the contract rows whose paths the diff intersects, the last
+    battery''s coverage of the changed lines, and the findings prior reviews recorded on this
+    target; the review role''s own skill set replaces the executor''s in the copy; the prompt
+    names the pack and the schema file instead of restating the shape'
+  evidence: src/torve/application/review.py:656 - touched.json joins the replay pack before
+    the copy is sealed
+  action: decided
+  notes: prior findings are listed as recorded; whether each was addressed is not computed
+    — the engine has no cheap ground truth for it, and a heuristic over the diff would be
+    a claim the reviewer should make, not read
+- decision: D-14
+  grade: ASSUMED
+  kind: departed
+  at: '2026-09-09T14:33:47Z'
+  claim: 'the default review skill set is [ratchet-what-you-build] alone: reading-isnt-proof
+    is vendored in this repository''s .torve/skills-vendor, not shipped as package data, and
+    a package default naming it would refuse every adopter''s review at materialisation'
+  evidence: src/torve/config/runconfig.py:888 - the shipped skill declaring the role is the
+    default; the vendored one is added per repository through skills.sets or tier.skills
+  action: departed
+  proposal: 'S-0054/D-14 should read: the default review skill set names the shipped skills
+    declaring the role; a repository adds its vendored ones'
+- decision: D-15
+  grade: ASSUMED
+  at: '2026-09-09T14:33:48Z'
+  claim: a findings or drafts document the engine finds but the model refuses raises SchemaRefusal
+    naming the first failing field and the count of others; the drafter sees it on the next
+    attempt as a lint refusal, the reviewer's single attempt escalates naming it; neither
+    is recorded as unparseable, which stays the word for no document at all; the schemas ride
+    the pack under schema/
+  evidence: src/torve/application/review.py:358 - the refusal names the field; src/torve/application/intake.py:1538
+    - the drafter's retry carries it
+  action: decided
+- decision: D-16
+  grade: ASSUMED
+  at: '2026-09-09T14:33:48Z'
+  claim: the drafter's prompt carries the pack's index.md and tells the drafter to run torve
+    spec paths over each directory a draft would touch; the 400-path listing is gone; the
+    pack is materialised into the drafter's read-only tree before the sandbox is created;
+    composed without a pack the prompt names only the top-level entries
+  evidence: src/torve/application/intake.py:1062 - the index stands where the listing stood
+  action: decided

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-21'
+    at: '2026-08-21T00:00:00Z'
     title: log serialization (amends S-0001/D-17, §6)
     md: |-
       **Found in implementation.** Extracting entries from markdown required a regular expression — a reliable sign the data was in the wrong container. Task contracts were already YAML; the log being markdown was an inconsistency with no reason behind it.
@@ -14,7 +14,7 @@ amendments:
 
       **Also edits:** S-0003/storage (example), the shipped `flag-dont-flip` skill (format section).
   - id: A-2
-    at: '2026-08-21'
+    at: '2026-08-21T00:00:00Z'
     title: >-
       git and store: a boundary, not a prohibition (amends S-0001/D-24)
     md: |-
@@ -24,7 +24,7 @@ amendments:
 
       **Also clarified — task contracts are derived artefacts**, lockfile-grade: `torve plan` mints them mechanically. They belong in git for reproducibility (an attempt is pinned to a sha; six months later the contract the agent saw is retrievable) and refusability (a human can see it in a diff and refuse it). The store holds only `task_id` plus sha.
   - id: A-3
-    at: '2026-08-21'
+    at: '2026-08-21T00:00:00Z'
     title: >-
       agents do not communicate; the runner coordinates (records S-0001/D-29)
     md: |-
@@ -32,7 +32,7 @@ amendments:
 
       **Falsifiable prediction:** if this model is wrong, tasks escalate with "insufficient context about adjacent work". Until that appears in telemetry, no change.
   - id: A-4
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       task intent, and removal of the Inference port (amends §3, §5)
     md: |-
@@ -48,7 +48,7 @@ amendments:
 
       **Also edits:** S-0002/starting-set (acceptance skipped for `role: review`), S-0003/context-assembly and S-0003/D-19 (context assembly), 0005 §1.1/§3/decisions, 0007 §3.
   - id: A-5
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: task directories and retention (amends §6)
     md: |-
       **Found in use.** `tasks/` and `logs/` grew as parallel trees with only a matching filename relating them, so retention would have had to delete from two places and sharding would have had to be decided twice. *(The source patch numbered this S-0016/A-3; that was taken, so it lands as S-0001/A-5 per S-0016/D-16.)*
@@ -63,7 +63,7 @@ amendments:
 
       **Also edits:** 0003 (amendment S-0003/A-2, logs created by writing), S-0013/layout (layout diagram note).
   - id: A-6
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       corpus conventions extracted to S-0016 (amends §7, §10)
     md: |-
@@ -77,7 +77,7 @@ amendments:
 
       **Also edits:** 0007, 0011, 0013, 0015 gain `depends_on: ["0016"]`.
   - id: A-7
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       `underspecified` joins the escalation vocabulary (amends §4, S-0001/D-27)
     md: |-
@@ -89,7 +89,7 @@ amendments:
 
       **Also edits:** 0011 S-0011/D-9 (the projection row).
   - id: A-8
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       `stale_inheritance` joins the escalation vocabulary (amends §4, S-0001/D-27)
     md: |-
@@ -101,7 +101,7 @@ amendments:
 
       **Also edits:** 0011 S-0011/D-9 (the projection row).
   - id: A-9
-    at: '2026-08-23'
+    at: '2026-08-23T00:00:00Z'
     title: >-
       `ready → escalated` on a conflicted landing (amends §4)
     md: |-

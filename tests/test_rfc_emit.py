@@ -56,7 +56,9 @@ def widget(tmp_path: Path) -> Document:
 
 
 def on_disk(directory: Path) -> Doc:
-    return {p.name: p.read_text(encoding="utf-8") for p in sorted(directory.iterdir())}
+    return {
+        p.name: p.read_text(encoding="utf-8") for p in sorted(directory.iterdir()) if p.is_file()
+    }
 
 
 # ----------------------- #
@@ -112,7 +114,7 @@ def test_the_authors_two_files_are_always_written_and_the_tools_only_with_conten
 
     assert "decisions: []" in dump_document(bare)["decisions.yaml"]
 
-    amended = append_amendment(doc, "A-1", "a title", "2026-09-09", [])
+    amended = append_amendment(doc, "A-1", "a title", "2026-09-09T00:00:00Z", [])
 
     assert sorted(dump_document(amended)) == [
         "amendments.yaml",
@@ -160,13 +162,13 @@ def test_amend_row_with_nothing_to_change_is_refused(tmp_path: Path) -> None:
 def test_the_diff_rides_the_amendment_through_dump_and_load(tmp_path: Path) -> None:
     doc = widget(tmp_path)
     mutated, changes = amend_row(doc, "S-0001/D-1", new_text="Something else is decided.")
-    amended = append_amendment(mutated, "A-1", "the text moved", "2026-09-09", changes)
+    amended = append_amendment(mutated, "A-1", "the text moved", "2026-09-09T00:00:00Z", changes)
     directory = tmp_path / ".torve" / "specs" / "S-0001"
     write_document(directory, amended)
     entry = next(a for a in load_document(directory).amendments if a.id == "S-0001/A-1")
 
     assert amended.amended_by() == ["S-0001/A-1"]
-    assert str(entry.at) == "2026-09-09" and entry.title == "the text moved"
+    assert entry.at == "2026-09-09T00:00:00Z" and entry.title == "the text moved"
     assert [c.field for c in entry.changes] == ["text", "fingerprint"]
     assert entry.changes[0].before == "Something is decided."
 
@@ -390,7 +392,7 @@ def test_render_markdown_is_a_page_of_the_document_and_never_the_source(tmp_path
     assert "**S-0001/Q-1** (open) when" in page
     assert "### Phase 1 — one" in page
     assert (
-        "### S-0001/A-1 — 2026-09-09 — regraded" in page
+        "### S-0001/A-1 — 2026-09-09T00:00:00Z — regraded" in page
         and "S-0001/D-1 grade: 'OPEN' → 'LOCKED'" in page
     )
 

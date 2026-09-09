@@ -143,13 +143,26 @@ phasing:
       - tests/test_telemetry.py
       - tests/test_runstate.py
       - tests/test_context.py
+      - src/torve/cli/doctor.py
+      - tests/test_cli.py
+      - tests/test_doctor.py
+      - skills/**
+      - CHANGELOG.md
+      - src/torve/application/runner.py
+      - src/torve/application/specquality.py
+      - src/torve/cli/status.py
+      - tests/test_reaper.py
+      - tests/test_contextpack.py
+      - tests/test_domain.py
+      - tests/test_attempt_record.py
     acceptance:
       - >-
         uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_rfc_emit.py
         tests/test_rfc_check.py tests/test_decisions.py tests/test_decisions_record.py
         tests/test_divergence.py tests/test_runner.py tests/test_gates.py tests/test_cli_spec.py
-        tests/test_cli_decisions.py tests/test_telemetry.py tests/test_runstate.py
-        tests/test_context.py
+        tests/test_cli_decisions.py tests/test_attempt_record.py tests/test_domain.py
+        tests/test_reaper.py tests/test_contextpack.py tests/test_context.py tests/test_cli.py
+        tests/test_doctor.py
       - uv run torve spec check
     depends_on:
       - 1

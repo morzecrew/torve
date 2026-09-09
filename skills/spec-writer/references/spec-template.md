@@ -135,7 +135,9 @@ retired: []             # identifiers this document once defined; never reused
 ```
 
 `amendments.yaml` appears with the first `torve spec amend` and
-`execution.yaml` with the first landing; neither is written by hand.
+`execution/` with the first landing, one file per landing; neither is
+written by hand. Every time the engine writes is the instant
+`YYYY-MM-DDTHH:MM:SSZ`.
 
 ## Notes on filling it in
 

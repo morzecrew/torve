@@ -62,7 +62,9 @@ def _seed(tmp_path: Path) -> Path:
     archived(
         rfc_dir,
         "0000",
-        document("0000", [("S-0000/D-1", "LOCKED", "An old rule", "`src/old/**`")], status="superseded"),
+        document(
+            "0000", [("S-0000/D-1", "LOCKED", "An old rule", "`src/old/**`")], status="superseded"
+        ),
     )
 
     return rfc_dir
@@ -185,7 +187,9 @@ def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> N
         "id": "A-1",
         "at": "2026-09-09",
         "title": "regraded",
-        "changes": [{"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
+        "changes": [
+            {"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}
+        ],
     }
     corpus(
         tmp_path,

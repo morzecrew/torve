@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: A run, over a board that also holds history
     md: |-
       **Found executing phase 2.** §5.4 called `status` the easy one — "the board
@@ -39,7 +39,7 @@ amendments:
       Phases 1 and 2 have landed. Phase 3 remains, and its first block —
       `context`'s tasks and programme — is the one S-0049 already made a fold.
   - id: A-2
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       Phase 3's first block, and what the other two still owe
     md: |-
@@ -69,7 +69,7 @@ amendments:
       reads files, which for the corpus and the programme is not a limitation —
       the corpus *is* files.
   - id: A-3
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       The last two blocks, and the two that stay on files
     md: |-

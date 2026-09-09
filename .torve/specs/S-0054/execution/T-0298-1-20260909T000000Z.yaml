@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0298
+phase: 3
+commit: c9502453902acc5d6afd9c263b791ddf504f83dd
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-10
+  grade: LOCKED
+  at: '2026-09-09T14:18:44Z'
+  claim: the pack is built host-side from the record and the tree by pure builders and materialised
+    into the worktree's .torve/context before the prompt is written, beside the skills; it
+    ignores itself in git so it reaches no diff, scope verdict or landing in any repository;
+    a shadow run receives the time-invariant files only — attempts and contention read the
+    stream as it stands now — so a replay reads what the live attempt could have read
+  evidence: src/torve/application/session.py:344 - materialised beside the skills; src/torve/application/contextpack.py:422
+    - the self-ignoring write; src/torve/application/contextpack.py:350 - the replay rule
+  action: decided
+  notes: byte-identical for a shadow run is delivered by omission of the two time-varying
+    files rather than by freezing them per attempt; freezing would need the pack stored with
+    the trace, which S-0039's retention would then govern
+- decision: D-12
+  grade: ASSUMED
+  kind: departed
+  at: '2026-09-09T14:18:45Z'
+  claim: 'the red reaches the retry without a runner change: the runner already writes every
+    gate result with its output into the telemetry row, and the pack''s attempts.json reads
+    the last red row for this task back — output tail, the decision ids a decisions-reported
+    or scope output names, the failed test ids a pytest tail lists; JUnit is not wired, since
+    the acceptance commands live in the manifest this phase does not touch, and the byte-loss
+    marker is a heuristic over the shell layer''s own ''… truncated …'' text rather than a
+    count the row carries'
+  evidence: src/torve/application/contextpack.py:262 - _red_gates over the telemetry rows;
+    tests/test_contextpack.py pins governing ids and failed tests from a red row
+  action: departed
+  proposal: the evidence document types the gate result with the bytes dropped and the JUnit
+    ids; until then the pack reads the row the runner writes and runner.py stays untouched
+- decision: D-11
+  grade: ASSUMED
+  at: '2026-09-09T14:18:45Z'
+  claim: the files are index.md, decisions.json, gates.json, tests.json, attempts.json, contended.json
+    and schema/; tests.json carries per-file coverage under the scope from coverage.xml and
+    the test modules that name each module, because the battery records no per-test contexts
+    yet; every file ships in this phase and the per-file config-eval that keeps or removes
+    each is the operator's run after it, as the phase intent says
+  evidence: src/torve/application/contextpack.py:190 - tests_file over coverage.xml and the
+    T-0113 rule; tests/test_contextpack.py pins the coverage read
+  action: decided

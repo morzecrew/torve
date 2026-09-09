@@ -34,7 +34,9 @@ AMENDMENTS = [
         "id": "A-9",
         "at": "2026-09-09",
         "title": "regraded",
-        "changes": [{"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}],
+        "changes": [
+            {"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}
+        ],
         "md": "words",
     }
 ]
@@ -70,7 +72,9 @@ def _seed(tmp_path: Path) -> Path:
         details=DETAILS,
         amendments=AMENDMENTS,
     )
-    other = document("0002", [("S-0002/D-1", "ASSUMED", "Another rule over a.", "`src/a/thing.py`")])
+    other = document(
+        "0002", [("S-0002/D-1", "ASSUMED", "Another rule over a.", "`src/a/thing.py`")]
+    )
 
     return corpus(tmp_path, **{"0001": text, "0002": other})
 
@@ -90,7 +94,7 @@ def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
     assert row["amended_by"] == [
         {
             "amendment": "S-0001/A-9",
-            "at": "2026-09-09",
+            "at": "2026-09-09T00:00:00Z",
             "field": "grade",
             "before": "ASSUMED",
             "after": "LOCKED",

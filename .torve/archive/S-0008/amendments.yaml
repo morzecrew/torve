@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       a revisited state is a new fact (amends S-0008/D-2)
     md: |-
@@ -26,7 +26,7 @@ amendments:
       re-reflected once under the new key form — idempotent at the
       destination, a label re-set and nothing more.
   - id: A-2
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       the board is for humans (amends S-0008/D-14, retires S-0008/D-15, adds S-0008/D-16)
     md: |-
@@ -53,7 +53,7 @@ amendments:
       tidies the legacy review issues out of the board; and the review
       machinery itself — what runs is untouched, only what is shown.
   - id: A-3
-    at: '2026-08-25'
+    at: '2026-08-25T00:00:00Z'
     title: >-
       the label follows the gap (amends S-0008/D-13, adds S-0008/D-17)
     md: |-
@@ -80,7 +80,7 @@ amendments:
       working — `state:*` staleness during a busy drain is delivery lag that
       self-corrects, not a defect; and the outbox's at-least-once contract.
   - id: A-4
-    at: '2026-08-25'
+    at: '2026-08-25T00:00:00Z'
     title: >-
       revise: the commander's re-queue of a ready candidate (adds S-0008/D-18; the
       S-0008/D-3 vocabulary grows)
@@ -112,7 +112,7 @@ amendments:
       advisory grade — `revise` is a human judgement about a finding, never
       an automatic consequence of one.
   - id: A-5
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       the projection is deleted, not deprecated (retires the implementation)
     md: |-
@@ -157,7 +157,7 @@ amendments:
       name where the build was and where a rebuild would go, and stripping them to
       silence the warning would delete the one thing that says where.
   - id: A-6
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       12 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:

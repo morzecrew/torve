@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0292
+phase: 2
+commit: 260d1d94aeffd0600dc8d682344d6620a1d1a2a6
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-10
+  grade: LOCKED
+  at: '2026-09-09T09:58:58Z'
+  claim: the row is satisfied by the loader's derivation, which torve rfc new already calls;
+    the parser's own next_number stays corpus-only because phase 1's parity test pins that
+    difference and phase 5 deletes the parser — S-0053/A-1's wording named the parser's derivation,
+    and this entry records that the loader's is the one in force
+  evidence: src/torve/config/rfc_parse.py:168 - the docstring names the loader's derivation
+    as the verb's; tests/test_rfc_archive.py pins 8 from the loader and 3 from the parser
+    over the same tree
+  action: decided
+- decision: unlisted
+  grade: UNLISTED
+  at: '2026-09-09T09:58:58Z'
+  claim: check_corpus resolves citations against what the archive defines and its retired
+    lists, and a depends_on, informed_by or supersedes reference to an archived number is
+    a warning naming the archive rather than a refusal; lookup falls back to the archive and
+    marks the answer archived, so the MCP show face resolves what the CLI does
+  evidence: src/torve/config/rfc_parse.py:1322 - the resolvable set gains the archive; src/torve/config/rfc_parse.py:1018
+    - _lookup_in over corpus then archive
+  action: decided
+  proposal: 'no row needed: this is S-0053/A-1''s unit executed as written; phase 5 carries
+    the archive-aware resolution into the loader''s check when the parser is deleted'

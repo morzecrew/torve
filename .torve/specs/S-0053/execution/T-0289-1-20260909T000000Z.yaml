@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0289
+phase: 2
+commit: e54fe13dfcf85132f40504b0111fe46415d12fe9
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-4
+  grade: LOCKED
+  at: '2026-09-09T09:47:18Z'
+  claim: a row's grade, paths or text change through torve rfc amend --row, which replaces
+    the row, re-stamps it in a fingerprints frontmatter map (full fingerprint beside a grade-and-paths
+    fingerprint) and writes the typed diff with the prior value as a changes fence under the
+    new heading; torve rfc fix re-stamps a text-only edit and records the pair under the table
+    with no amendment number; rfc check reads a grade-or-paths mismatch as a problem and a
+    text mismatch as a warning naming fix. The stamp lives in frontmatter rather than a model
+    field because the model's file is outside this phase's scope and S-0016/D-13 already puts
+    structured facts there; the standalone retire verb stays beside amend --retire until phase
+    5 deletes it
+  evidence: src/torve/config/rfc_emit.py:426 - amend_row replaces the field, stamps and returns
+    the diff; src/torve/config/rfc_emit.py:490 - fix_row_text re-stamps and records under
+    the table; src/torve/application/decisions.py:571 - fingerprint_drift tells the two mismatches
+    apart; tests/test_rfc_check.py pins problem versus warning versus fix
+  action: decided
+  notes: 'the settle form for questions named in §5.4 is not built: questions live in a prose
+    fence and nothing reads a settlement yet; recorded as its own entry'
+- decision: D-6
+  grade: LOCKED
+  at: '2026-09-09T09:47:18Z'
+  claim: coverage(corpus, path) answers governed, ungoverned or retired over standing rows'
+    paths and accepted documents' phase scopes, with a glob reaching a directory when it names
+    something under it; ungoverned is a value, never a problem; torve decisions paths prints
+    it per glob and rfc health carries a frontier by top-level source directory
+  evidence: src/torve/application/decisions.py:480 - coverage over rows then phases then the
+    archive; tests/test_decisions.py pins a phase-only governed path and a retired one
+  action: decided
+- decision: D-9
+  grade: LOCKED
+  at: '2026-09-09T09:47:18Z'
+  claim: the importer reads the corpus through the model and records every archived document
+    as a source and every row it carries as decision.retired with 'archived in <file>, superseded
+    by <n>' as the reason, recording the row first when the record never held it so the retirement
+    has a subject; torve rfc show falls back to the model for an archived identifier and says
+    archived
+  evidence: src/torve/application/decisions.py:316 - import_corpus over standing and archived
+    documents; src/torve/cli/rfc.py:807 - _from_model answers archived rows, invariants, questions
+    and archived documents; tests/test_rfc_check.py archives a document and shows its row
+  action: decided
+- decision: D-7
+  grade: ASSUMED
+  at: '2026-09-09T09:47:19Z'
+  claim: path rot is reported by rfc check as a warning naming the retiring command, and check
+    --fix-rot retires every rotted row through one amendment per document with the reason
+    recorded; never automatic on load, never a red
+  evidence: src/torve/application/decisions.py:537 - path_rot over accepted implemented documents;
+    src/torve/cli/rfc.py:214 - _model_findings adds it to check; the live corpus reports 25
+    such rows today
+  action: decided
+- decision: D-13
+  grade: ASSUMED
+  at: '2026-09-09T09:47:19Z'
+  claim: 'check, show, health, the importer and decisions paths read the model beside the
+    parser: check runs both and merges findings, show enriches the parser''s answer and falls
+    back to the model, health and the importer read the model only, decisions paths adds coverage
+    from it; index stays on the parser because its output is a byte-exact lockfile and the
+    parity test in phase 1 already proves the frontmatter equal'
+  evidence: src/torve/application/decisions.py:281 - load_corpus wraps the loader's refusals
+    as PlanError; src/torve/cli/rfc.py:214 - the check merges model findings with the parser's
+    report
+  action: decided
+  notes: 'index is a departure from the phase intent, not from a row: switching a lockfile
+    renderer buys nothing until the parser is deleted in phase 5, when the renderer moves
+    whole'
+- decision: unlisted
+  grade: UNLISTED
+  kind: contradicted
+  class: spec-gap
+  at: '2026-09-09T09:47:19Z'
+  claim: the loader raises pydantic's ValidationError rather than SpecError when a row's grade
+    is outside the vocabulary, because the row is built from the parser's table without a
+    guard; every reader in this phase catches both, and the importer wraps it as the same
+    'not mintable' PlanError the parser path raised, but the loader's own promise of one collected
+    refusal is not kept for this case
+  evidence: src/torve/application/decisions.py:281 - the ValidationError branch; tests/test_decisions.py
+    pins the not-mintable wording
+  action: decided
+  proposal: phase 5 (or a maintenance task on src/torve/config/spec.py) converts row validation
+    errors into SpecError problems naming the row, which phase 1's scope did not reach after
+    the fact and this phase's scope excludes
+- decision: unlisted
+  grade: UNLISTED
+  kind: contradicted
+  class: spec-gap
+  at: '2026-09-09T09:47:20Z'
+  claim: 'the settle form of amend (settling a question by a task or amendment) named in S-0053/the-tool-writes-the-diff
+    is not built: questions live in a prose-side yaml fence the emitter does not model, and
+    no reader consumes a settlement yet; the fence can be hand-edited and the loader validates
+    it'
+  evidence: src/torve/config/rfc_emit.py:426 - the forms built are grade, paths, text and
+    retire
+  action: decided
+  proposal: add a questions fence rewriter to the emitter when a reader of settlements exists
+    (rfc health or the pack of S-0054); until then the fence is authored like any other typed
+    section

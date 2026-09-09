@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       phase 1 reaches every tracked file the grammar touches
     md: |
       The mapping rewrites every citation git tracks, and the phase named the roots it expected — `src/`, `pages/`, `skills/`, the tests, the README — while the manifest's comments, the standing contracts, `pyproject.toml`, the migrations' READMEs and the web README cite rows too. They join phase 1's scope. Scope only; no row changes.
   - id: A-2
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       a convention owes its summary; a design owes the anatomy
     changes:
@@ -34,8 +34,25 @@ amendments:
     md: |
       Phase 2 met the baseline: S-0055 has sixty rows, a summary and no design, because a convention is its rows. Asking it for a motivation and a design would make it write prose about prose. The row now distinguishes the kinds: a design owes the anatomy, a convention its summary; S-0055 says `kind: convention`, as it is.
   - id: A-3
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       phase 2 re-renders the projections its row change touches
     md: |
       Amending a row's text re-renders the colocated sections that carry it, and phase 2 amends D-4 (A-2); the projections join its scope, as every phase that changes a row must expect. Scope only; no row changes.
+  - id: A-4
+    at: '2026-09-09T20:05:28Z'
+    title: >-
+      phase 3 reaches the doctor, the skill and the changelog
+    md: |
+      The schemas `torve init` writes change shape in this phase — a landing has its own — and the doctor counts them in a sentence, the skill and the operating page describe the execution file, the changelog carries the break. `cli/doctor.py`, the two tests that drive them, `skills/**` and `CHANGELOG.md` join phase 3's scope. Scope only; no row changes.
+  - id: A-5
+    at: '2026-09-09T20:13:14Z'
+    title: >-
+      phase 3 reaches every reader of the run state's clock
+    md: |
+      The run state wrote a microsecond form and four readers parsed exactly that; once it writes the instant, the readers must read both, or every state file written before this phase is refused. `clock.parse` reads either, and the runner, the spec-quality report and `torve status` call it; they join phase 3's scope with the reaper's test, which writes a heartbeat by hand. Scope only; no row changes.
+  - id: A-6
+    at: '2026-09-09T20:23:36Z'
+    title: phase 3 names the tests that exist
+    md: |
+      The phase's acceptance named `tests/test_telemetry.py` and `tests/test_runstate.py`, and neither exists: telemetry is tested in `tests/test_attempt_record.py`, the run state in `tests/test_domain.py` and `tests/test_reaper.py`. The acceptance names what exists, and the context-pack test, whose amendment carries an instant now, joins the scope. Scope and acceptance only; no row changes.

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       a conflicted landing re-queues through the revision loop (amends S-0006/D-10,
       adds S-0006/D-12)
@@ -28,7 +28,7 @@ amendments:
       the rebase before requesting approvals, so a doomed tip is never
       offered for approval at all — is left to a future amendment.
   - id: A-2
-    at: '2026-08-25'
+    at: '2026-08-25T00:00:00Z'
     title: the probe precedes the prompt (adds S-0006/D-13)
     md: |-
       **Found in operation** — the deferred half of S-0006/A-1, promised in its
@@ -56,7 +56,7 @@ amendments:
       cannot see; and the manual lane, which never probes — an operator
       running `torve merge` by hand is present to read the refusal.
   - id: A-3
-    at: '2026-08-26'
+    at: '2026-08-26T00:00:00Z'
     title: >-
       the review verdict becomes a landing predicate (adds S-0006/D-14)
     md: |-
@@ -90,7 +90,7 @@ amendments:
       §7's ladder, not this knob; and the pull-request-triggered reviews stay
       report-only — task state is never mutated on that path.
   - id: A-4
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       Four decisions lost their carrier to two retirements
     md: |-
@@ -132,7 +132,7 @@ amendments:
       carriers were removed by documents that did not name them, and §7's exit
       criteria on top.
   - id: A-5
-    at: '2026-09-06'
+    at: '2026-09-06T00:00:00Z'
     title: >-
       S-0006/D-11's rule is satisfied; its mechanism is not the one it named
     md: |-
@@ -168,7 +168,7 @@ amendments:
       decisions S-0006/A-4 listed beside it — S-0006/D-2, S-0006/D-12, S-0006/D-13 — are still
       unimplemented, and still for the reason it gave.
   - id: A-6
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       1 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:

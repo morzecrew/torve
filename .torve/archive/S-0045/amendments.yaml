@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       phase 3 lands as surfacing, not stopping (records S-0045/D-7, defers S-0045/D-8)
     md: |-
@@ -34,7 +34,7 @@ amendments:
       **Changed:** nothing in the decision table. §12's note that phase 3 waits on
       the manager is spent; what replaces it is this entry.
   - id: A-2
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The judgement this document never carried
     md: |-
       **Found taking stock.** Accepted with no `implementation` field, so no

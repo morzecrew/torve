@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-21'
+    at: '2026-08-21T00:00:00Z'
     title: >-
       document conventions (adds S-0016/D-9 – S-0016/D-18)
     md: |-
@@ -19,7 +19,7 @@ amendments:
 
       *Note 2026-08-21 — documentation is not derived.* S-0016/D-10 was reworded from "links to decisions and never restates them" to state what it always meant: a page must not contradict an accepted decision and must not restate rationale that belongs under a number. Documentation and the corpus answer different questions ("how do I use this" against "why was this decided"), are read by different people, and move on different axes — pages are versioned with releases and carry no history, while RFCs accumulate amendments and delete nothing (new row S-0016/D-12). The relationship is **consistency, not derivation**: a constraint, not a generation mechanism. The derived-like-`INDEX.md` analogy was misapplied to `pages/`; the index itself stays generated (S-0016/D-17). Where reasoning would genuinely help a reader, a page links to the RFC rather than summarising it.
   - id: A-2
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       implementation status (amends the document conventions)
     md: |-
@@ -31,7 +31,7 @@ amendments:
 
       **Also edits:** S-0007/torve-context (the projection), 0007 decisions D-7.15/D-7.16.
   - id: A-3
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       what the frontmatter edges mean (adds S-0016/D-19, S-0016/D-20)
     md: |-
@@ -45,7 +45,7 @@ amendments:
 
       **Also edits:** S-0007/admission–§3.3 and decisions S-0007/D-7–S-0007/D-11.
   - id: A-4
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       the index carries the whole frontmatter (amends S-0016/D-22)
     md: |-
@@ -55,7 +55,7 @@ amendments:
 
       **Unchanged:** no store-derived data in the index. Progress remains a projection in `torve context` and is never committed. `--check` stays deterministic, which was the whole point of the original restriction.
   - id: A-5
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       corpus location, numbering, and contents (amends the document conventions)
     md: |-
@@ -72,7 +72,7 @@ amendments:
 
       **Also edits:** 0013 (S-0013/A-1).
   - id: A-6
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       how an identifier retires (adds S-0016/D-1, amends §3, §4)
     md: |-
@@ -86,7 +86,7 @@ amendments:
 
       Retirement should stay rare: one identifier in sixteen documents so far. The list scales at a line per id, not a row per corpse.
   - id: A-7
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       `ops/` and `pages/` are conventions, not standing directories (amends S-0016/D-9,
       S-0016/D-10, S-0016/D-12)
@@ -99,7 +99,7 @@ amendments:
 
       **A directory is created when it has something in it.** A Paths cell names a governed area for the silence check; a decision about where files will go, when no such files exist, governs nothing, and pinning an empty directory open with a placeholder to satisfy a glob is the scaffolding this document's own §2 argues against. The routing message in the corpus check (S-0016/D-25) still names both destinations, which is where the convention is visible to whoever trips over it.
   - id: A-8
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: the archive is where a retired document goes
     changes:
       - subject: D-25
@@ -137,7 +137,7 @@ amendments:
         after: "b3e0b83d1881d805/bcecc04abf43a1cb"
       ```
   - id: A-9
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: moved is not deleted
     changes:
       - subject: D-26
@@ -173,7 +173,7 @@ amendments:
         after: "b3c7cde278428747/a0d73f2ad31523c3"
       ```
   - id: A-10
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: the next number counts the archive
     changes:
       - subject: D-24

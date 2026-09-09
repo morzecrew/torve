@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       docker inside the sandbox (adds §2a, S-0017/D-9–S-0017/D-11)
     md: |-
@@ -18,7 +18,7 @@ amendments:
       outside the reaper's convention. One exit criterion added: a Torve task
       replayed green inside a socket-mode sandbox.
   - id: A-2
-    at: '2026-09-04'
+    at: '2026-09-04T00:00:00Z'
     title: >-
       the engine's CLI is part of the base, not the task (amends S-0017/D-8, S-0017/D-2)
     md: |-
@@ -59,7 +59,7 @@ amendments:
       what removes it, and belongs to the sandbox rework rather than to the change
       that found the gap.
   - id: A-3
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       1 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:

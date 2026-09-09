@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The tick's consumer is the manager's
     md: |-
       **Found retiring the standing loop (S-0019 S-0019/A-8).** S-0042/D-1's Paths named
@@ -16,7 +16,7 @@ amendments:
 
       **Changed:** S-0042/D-1's Paths only.
   - id: A-2
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       2 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:

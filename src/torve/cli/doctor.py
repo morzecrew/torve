@@ -584,7 +584,7 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
             ("schemas", True, f"schemas: {len(missing)} not written yet — `torve init` writes them")
         )
     else:
-        checks.append(("schemas", True, "schemas: eight match their models"))
+        checks.append(("schemas", True, "schemas: every one matches its model"))
 
     ignore = ignore_file(root)
     lacking = missing_patterns(ignore)

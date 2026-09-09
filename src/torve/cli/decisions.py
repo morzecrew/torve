@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from rich.text import Text
 
+from torve.base.clock import stamp
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_WARN,
@@ -345,7 +346,7 @@ def show_cmd(
     table = make_table("version", "grade", "recorded (UTC)")
     add_rows_truncated(
         table,
-        [(str(one.version), one.grade, one.at.strftime("%Y-%m-%d %H:%M")) for one in history],
+        [(str(one.version), one.grade, stamp(one.at)) for one in history],
     )
     console.print(table)
     footer(console, ", ".join(standing.paths) or "no declared paths")

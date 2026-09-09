@@ -32,13 +32,13 @@ and the loader.
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 from rich.text import Text
 
+from torve.base.clock import stamp
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_FAIL,
@@ -294,7 +294,7 @@ def _retire_rotted(spec_dir: Path, root: Path, rotted: list[Any]) -> list[str]:
         by_document.setdefault(one.document, []).append(one)
 
     for name, rows in sorted(by_document.items()):
-        today = date.today().isoformat()
+        today = stamp()
         changes: list[dict[str, Any]] = []
 
         try:
@@ -489,7 +489,7 @@ def amend(
             "configuration error: --grade, --path, --text and --retire need --row", EXIT_CONFIG
         )
 
-    today = date.today().isoformat()
+    today = stamp()
     changes: list[dict[str, Any]] = []
 
     try:
@@ -662,7 +662,7 @@ def retire(
         )
 
     try:
-        doc = retire_decision(load_or_fail(defining), identifier, date.today().isoformat())
+        doc = retire_decision(load_or_fail(defining), identifier, stamp())
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 

@@ -77,8 +77,10 @@ plus at most eight extra sections, then alternatives and questions),
 `phasing.yaml` (the author, read by the planner: the phasing and the
 contract example), `decisions.yaml` (the author, stamped by the tool: the rows,
 the invariants, the retired identifiers), `amendments.yaml` (written by
-`torve spec amend` and `spec fix`, never by hand) and `execution.yaml`
-(written at landing: what each task found). A file that is absent is an
+`torve spec amend` and `spec fix`, never by hand) and `execution/` (one
+file per landing, `<task>-<attempt>-<instant>.yaml`, written once: what
+each task found, so two candidates of one document never write the same
+line). Every time the engine writes is one instant, `YYYY-MM-DDTHH:MM:SSZ`. A file that is absent is an
 empty list; a section's heading is its key. Each file's first line names
 its schema under `.torve/schemas/`, which `torve init` writes from the
 models — with the contract's, the log's, the configuration's and the

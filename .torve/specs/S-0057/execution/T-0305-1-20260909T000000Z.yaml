@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0305
+phase: 2
+commit: d4a4d90f33ec1e92b4aef67d2f9e9ef999f15169
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-5
+  grade: LOCKED
+  at: '2026-09-09T17:36:52Z'
+  claim: torve init writes eight schemas into .torve/schemas — the four document files from
+    the loader, the contract from Task, the run configuration from RunnerConfig, the gate
+    manifest from Manifest, and the log from a schema written by hand in init.py from the
+    entry shape payload_of produces, which phase 3 replaces with the typed entry — and .torve/.gitignore
+    with the eight patterns for what torve alone writes, appending a missing one below the
+    operator's own lines and never removing one; the schema line is added once to config.yaml
+    and gates.yaml where other comments stay legal, and a projected contract opens with its
+    own; the root .gitignore lost its torve block; doctor reddens when a present schema lags
+    its model or the ignore file lacks a minted pattern, and only hints when neither was written
+    yet, as spec check only warns
+  evidence: src/torve/cli/init.py:96 - expected_schemas; src/torve/cli/doctor.py:551 - _init_checks
+  action: decided
+  notes: 'the contract''s schema line assumes the default layout (../../schemas from the task
+    directory): the planner reads no configuration, so a relocated specs.path leaves the editor''s
+    pointer dangling and nothing else; the review-corpus trace-log glob rides .torve/.gitignore
+    as an operator line until S-0056 phase 4 moves the corpus'
+- decision: D-4
+  grade: LOCKED
+  at: '2026-09-09T17:40:38Z'
+  claim: the manifest changed by its first line only — the schema line torve init adds once
+    — and every gate keeps its name; spec-valid and the spec namespace are as phase 1 left
+    them
+  evidence: .torve/gates.yaml:1 - the schema line, the rest byte-identical
+  action: decided

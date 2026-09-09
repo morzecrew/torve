@@ -634,11 +634,11 @@ def test_land_appends_the_worktree_log_to_the_documents_execution_file(tmp_path)
         yaml.safe_dump({"schema_version": 1, "task": task.id, "entries": [ENTRY]}), encoding="utf-8"
     )
 
-    path = land(tmp_path, spec_dir, task, attempt=1, agent="session/x", at="2026-09-09")
+    path = land(tmp_path, spec_dir, task, attempt=1, agent="session/x", at="2026-09-09T00:00:00Z")
 
-    assert path == spec_dir / "S-0001" / "execution.yaml"
+    assert path == spec_dir / "S-0001" / "execution" / "T-0001-1-20260909T000000Z.yaml"
     assert path.read_text(encoding="utf-8").startswith(
-        "# yaml-language-server: $schema=../../schemas/execution.json\n"
+        "# yaml-language-server: $schema=../../../schemas/landing.json\n"
     )
     landings = load_document(spec_dir / "S-0001").landings
     assert [(one.task, one.phase, one.attempt, one.commit, one.agent) for one in landings] == [
@@ -655,7 +655,7 @@ def test_land_appends_the_worktree_log_to_the_documents_execution_file(tmp_path)
     ]
 
 
-def test_land_refuses_no_document_an_unknown_one_and_a_repeat(tmp_path):
+def test_land_refuses_no_document_and_an_unknown_one_and_replays_idempotently(tmp_path):
     from torve.application.decisions import land
     from torve.domain.task import Task
 
@@ -669,10 +669,15 @@ def test_land_refuses_no_document_an_unknown_one_and_a_repeat(tmp_path):
     with pytest.raises(ValueError, match="does not hold"):
         land(tmp_path, spec_dir, stranger, attempt=1, entries=[])
 
-    land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY])
+    first = land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY])
+    # an identical replay is the same landing: nothing written (S-0058/D-6)
+    assert land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY]) == first
+    assert len(list((spec_dir / "S-0001" / "execution").iterdir())) == 1
 
-    with pytest.raises(ValueError, match="already landed"):
-        land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY])
+    # the same attempt with other entries — a restarted attempt — is a new file
+    again = land(tmp_path, spec_dir, task, attempt=1, entries=[{**ENTRY, "claim": "restarted"}])
+
+    assert again != first and len(list((spec_dir / "S-0001" / "execution").iterdir())) == 2
 
 
 def test_the_log_land_verb_lands_the_contracts_task_with_the_commit_named(tmp_path):

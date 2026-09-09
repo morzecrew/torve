@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-01'
+    at: '2026-09-01T00:00:00Z'
     title: the buildless surface (amends §5.3)
     md: |-
       **Found the day the first bundle shipped.** The React build produced an
@@ -24,7 +24,7 @@ amendments:
       projections-verbatim, wheel-shipped — the doctrine held; only the
       toolchain died.
   - id: A-2
-    at: '2026-09-01'
+    at: '2026-09-01T00:00:00Z'
     title: >-
       the glass dashboard (amends §5.3 again, supersedes S-0032/A-1's toolchain call)
     md: |-
@@ -48,7 +48,7 @@ amendments:
       stands as history: the framework was never the problem, and the vanilla
       page was the right bridge to knowing what the surface needed.
   - id: A-3
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       The surfaces that re-expose the readers get their source
     md: |-

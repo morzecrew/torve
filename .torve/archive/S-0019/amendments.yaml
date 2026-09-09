@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       the lane precedes the reaper inside the tick (amends §3, S-0019/D-3)
     md: |-
@@ -32,7 +32,7 @@ amendments:
       is explicit operator surgery, recorded as such, and the next tick lands
       it through the normal path.
   - id: A-2
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       the loop publishes, the reaper waits, the lane adopts (adds S-0019/D-9–S-0019/D-11;
       also edits S-0003 S-0003/D-23)
@@ -71,7 +71,7 @@ amendments:
       including the new base push; the tick order (S-0019/A-1) stands; the reaper's
       treatment of escalated runs (keep everything for triage) stands.
   - id: A-3
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       landings are repo truth, run records are host truth (amends §4, S-0019/D-4)
     md: |-
@@ -102,7 +102,7 @@ amendments:
       over it — a landed task's re-entry is a revert and a new contract,
       never a re-run; and the tick still creates nothing (S-0019/D-8).
   - id: A-4
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       a dependency is satisfied only by its landing (amends §4, S-0019/D-4)
     md: |-
@@ -132,7 +132,7 @@ amendments:
       this defect exactly as designed; and the QUEUED re-entry path — a
       re-queued dependent re-checks its dependencies like everything else.
   - id: A-5
-    at: '2026-08-24'
+    at: '2026-08-24T00:00:00Z'
     title: >-
       the forge sees the landing (adds D-19.12/D-19.13; scopes S-0010 S-0010/D-5)
     md: |-
@@ -163,7 +163,7 @@ amendments:
       have concluded the review that row protects, and is precisely what keeps
       its line comments anchored to the landed history.
   - id: A-6
-    at: '2026-08-25'
+    at: '2026-08-25T00:00:00Z'
     title: >-
       the loop dispatches what cannot collide (amends S-0019/D-4, adds S-0019/D-14)
     md: |-
@@ -195,7 +195,7 @@ amendments:
       every existing deployment on S-0019/D-4's original regime until its owner
       raises the knob deliberately.
   - id: A-7
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       the poll and sync legs left with the tracker (amends §5, cites S-0008/A-5)
     md: |-
@@ -219,7 +219,7 @@ amendments:
       S-0019/D-3's own text names the legs in order and is left as written: the
       document says what the loop was, and this amendment says what it is.
   - id: A-8
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       The loop is retired; what it carried, and what left with it
     md: |-
@@ -274,7 +274,7 @@ amendments:
       The document stays. S-0019/D-5's rule — a queue may drain during a pause and
       may not grow — survives as S-0048/D-4 and now covers the standing leg too.
   - id: A-9
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: >-
       7 path-rotted row(s) retired by `torve rfc check --fix-rot`
     changes:

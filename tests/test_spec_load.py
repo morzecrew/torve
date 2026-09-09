@@ -230,7 +230,7 @@ def test_an_amendment_carries_its_typed_diff_and_its_words(tmp_path: Path) -> No
     loaded = load_document(_only(spec_dir))
     first, second = loaded.amendments
 
-    assert first.id == "S-0007/A-1" and str(first.at) == "2026-09-09"
+    assert first.id == "S-0007/A-1" and first.at == "2026-09-09T00:00:00Z"
     assert first.title == "the grade moved"
     assert first.changes[0].model_dump() == {
         "subject": "S-0007/D-1",
@@ -239,7 +239,7 @@ def test_an_amendment_carries_its_typed_diff_and_its_words(tmp_path: Path) -> No
         "after": "ASSUMED",
     }
     assert first.md == "Words a person wrote."
-    assert second.id == "S-0007/A-2" and second.at is None and second.changes == []
+    assert second.id == "S-0007/A-2" and second.at == "" and second.changes == []
     # derived, never a field (S-0057/D-1), and global in memory (S-0058/D-1)
     assert loaded.amended_by() == ["S-0007/A-1", "S-0007/A-2"]
 
@@ -255,7 +255,7 @@ def test_the_execution_file_loads_as_landings_and_belongs_to_no_other_file(tmp_p
         "task": "T-0001",
         "phase": 1,
         "commit": "abc",
-        "at": "2026-09-09",
+        "at": "2026-09-09T00:00:00Z",
         "agent": "session/x",
         "entries": [
             {
@@ -281,13 +281,14 @@ def test_the_execution_file_loads_as_landings_and_belongs_to_no_other_file(tmp_p
 
     assert [one.task for one in doc.landings] == ["T-0001"]
     assert doc.landings[0].entries[0].entry_class == "drift"
-    assert doc.landings[0].at is not None and doc.landings[0].at.isoformat() == "2026-09-09"
+    assert doc.landings[0].at == "2026-09-09T00:00:00Z"
 
     misplaced = document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/**`")])
-    misplaced["document.yaml"] += as_text("execution.yaml", {"landings": [landing]}).split("\n", 1)[
+    misplaced["document.yaml"] += as_text("document.yaml", {"landings": [landing]}).split("\n", 1)[
         1
     ]
     place(rfc_dir, "0001", misplaced)
 
-    with pytest.raises(SpecError, match=r"landings belongs in execution\.yaml"):
+    # a landing is a file of its own under execution/ (S-0058/D-6), never a key
+    with pytest.raises(SpecError, match=r"landings: no file carries it"):
         load_document(rfc_dir / "S-0001")

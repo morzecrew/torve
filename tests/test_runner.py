@@ -2117,8 +2117,8 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
 
     class _Vcs:
         def commit_all(self, where, message, author, key):
-            # the execution file is on disk before the candidate is cut
-            assert (spec_dir / "S-0001" / "execution.yaml").is_file()
+            # the landing file is on disk before the candidate is cut
+            assert any((spec_dir / "S-0001" / "execution").glob("T-0001-1-*.yaml"))
             committed.append((message.splitlines()[0], author))
             return "a" * 40
 
@@ -2150,7 +2150,7 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
 
     fact = asyncio.run(land(run, state, "digest"))
 
-    assert "execution .torve/specs/S-0001/execution.yaml" in fact
+    assert "execution .torve/specs/S-0001/execution/T-0001-1-" in fact
     assert len(committed) == 1
     landing = load_document(spec_dir / "S-0001").landings[0]
     assert (landing.task, landing.attempt, landing.commit) == ("T-0001", 1, "")

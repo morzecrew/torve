@@ -168,7 +168,7 @@ def test_an_amendment_may_change_nothing_typed() -> None:
     entry = Amendment(id="A-86", title="an execution finding")
 
     assert entry.changes == []
-    assert entry.at is None
+    assert entry.at == ""
 
 
 # ....................... #
@@ -241,9 +241,14 @@ def test_a_log_entry_reads_and_writes_the_logs_class_key():
     assert "entry_class" not in entry.model_dump(mode="json")
 
     landing = Landing.model_validate(
-        {"task": "T-0001", "commit": "abc", "at": "2026-09-09", "entries": [entry.model_dump()]}
+        {
+            "task": "T-0001",
+            "commit": "abc",
+            "at": "2026-09-09T00:00:00Z",
+            "entries": [entry.model_dump()],
+        }
     )
 
-    assert landing.at.isoformat() == "2026-09-09" and landing.attempt == 1 and landing.phase == 0
+    assert landing.at == "2026-09-09T00:00:00Z" and landing.attempt == 1 and landing.phase == 0
     assert landing.entries[0].entry_class == "drift"
     assert "class" in TaskLog.model_json_schema()["$defs"]["LogEntry"]["properties"]

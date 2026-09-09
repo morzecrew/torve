@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: the survey landed, and confirms the reading
     changes:
       - subject: the-evidence
@@ -32,7 +32,7 @@ amendments:
         after: "40 landings; 6 gates clean 40/40; coverage-delta fired 8 (shadow); acceptance fired 2 (both corrected); 3 no-task skips = corpus_adds"
       ```
   - id: A-2
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: the standing baseline is a convention
     md: |
       The baseline is its rows and always was: sixty standing decisions, a summary and the departure it declared, with no design to describe. `kind` says so now — `convention` — so the anatomy phase 2 of S-0058 requires of a design is not asked of it; a convention owes its summary. No row changes.

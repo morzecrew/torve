@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       internal identifiers do not appear in user-facing text (adds §5a, S-0011/D-11–S-0011/D-12)
     md: |-

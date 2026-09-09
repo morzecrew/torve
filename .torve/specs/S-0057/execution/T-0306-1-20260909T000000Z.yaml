@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0306
+phase: 3
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-7
+  grade: LOCKED
+  at: '2026-09-09T17:54:51Z'
+  claim: execution.yaml holds landings — task, phase, attempt, time, agent, the commit when
+    the lander knows it, the log's entries typed as LogEntry with the log's own class key
+    — appended by decisions.land, which the runner calls before the candidate commit with
+    the commit field empty and torve log land --commit exposes for a landing made by hand,
+    reading the worktree log or the record's entries under --partition; a contract naming
+    no document, a document the corpus does not hold and a repeated task-attempt are refused
+    with the reason; the fourteen surviving logs folded through the verb into S-0053, S-0054,
+    S-0056 and S-0057, and T-0293 and T-0294 stayed in git history as the verb said
+  evidence: src/torve/application/decisions.py:660 - land, beside the importer because the
+    agent harness imports divergence and may not reach the corpus; src/torve/application/runner.py:620
+    - the runner's call before commit_all
+  action: decided
+  notes: the runner's landing rides in the candidate commit, so its commit field is empty
+    and the candidate's trailers are the join (S-0057/A-5); the entry's defaults — kind resolved,
+    class discovery, attempt 1 — are not written, as every other list's defaults are not
+- decision: D-8
+  grade: ASSUMED
+  at: '2026-09-09T17:54:52Z'
+  claim: 'decisions import reads every execution file, live and archived, and appends the
+    divergence and landing events the task''s history lacks — an entry known by attempt, row
+    and claim, a landing by its commit — under the actor each kind''s authority names: an
+    agent for the entries, named by the landing''s agent, the manager for the landing; the
+    attempt-time ingest is unchanged'
+  evidence: src/torve/application/decisions.py:648 - landing_events; src/torve/cli/decisions.py:136
+    - the import's replay
+  action: decided
+  notes: the authority table admits no operator for these kinds and events.py is outside this
+    phase; the import replays the carrier under the actors the kinds name and says so in actor_id
+- decision: D-1
+  grade: LOCKED
+  at: '2026-09-09T17:54:52Z'
+  claim: the model grew Landing, LogEntry and TaskLog and execution.yaml carries landings;
+    the loader, the files and every reader are as phase 1 left them
+  evidence: src/torve/domain/spec.py:222 - LogEntry
+  action: decided
+- decision: D-2
+  grade: LOCKED
+  at: '2026-09-09T17:54:52Z'
+  claim: sections and their checks are untouched by this phase; domain/spec.py changed for
+    the landing models only
+  evidence: src/torve/domain/spec.py:180 - DesignSection as phase 1 left it
+  action: decided
+- decision: D-5
+  grade: LOCKED
+  at: '2026-09-09T17:54:53Z'
+  claim: torve init derives the log's schema from TaskLog instead of the hand-written shape
+    phase 2 carried, and the eight schemas were rewritten because the shared definitions now
+    include the landing models
+  evidence: src/torve/cli/init.py:60 - TaskLog.model_json_schema
+  action: decided
+- decision: D-6
+  grade: LOCKED
+  at: '2026-09-09T17:54:53Z'
+  claim: the corpus changed by four execution files only, written through the verb; no document
+    was converted or edited by hand
+  evidence: .torve/specs/S-0057/execution.yaml:1 - the folded landings
+  action: decided
+- decision: D-3
+  grade: LOCKED
+  at: '2026-09-09T17:58:48Z'
+  claim: the corpus path and its siblings are unchanged; the corpus changed by four execution
+    files written through the verb under the same .torve/specs
+  evidence: .torve/specs/S-0057/execution.yaml:1 - the file the verb wrote
+  action: decided

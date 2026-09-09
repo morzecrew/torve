@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       The importer takes every role; dispatch is what filters
     md: |-
@@ -44,7 +44,7 @@ amendments:
       level down. Measured after the change: 273 rows, 184 implement, 85 review,
       4 draft, 40 of them dispatchable.
   - id: A-2
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: >-
       One landing oracle, and the landing a mint could not see
     md: |-

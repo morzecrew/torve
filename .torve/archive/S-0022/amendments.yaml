@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       the landedness exception to stage-1 storage (amends S-0022/D-5, cites T-0133)
     md: |-
@@ -20,7 +20,7 @@ amendments:
       other reader in the module stays YAML/JSONL-only. The code already
       carries this scoping as of T-0133; only the row was unamended.
   - id: A-2
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: the phase-3 close-out reviewed (cites T-0112)
     md: |-
       T-0112's execution log closes out S-0022/D-1 compliant as built, no
@@ -28,7 +28,7 @@ amendments:
       is the disposition — an uncited no-change close-out otherwise waits in
       the proposals queue forever.
   - id: A-3
-    at: '2026-08-30'
+    at: '2026-08-30T00:00:00Z'
     title: the dispatch envelope (adds S-0022/D-11)
     md: |-
       **Found watching the 0022–0024 campaign.** Six tasks ran 13–19 minutes on
@@ -48,7 +48,7 @@ amendments:
       the operator does. §Phasing gains phase 3 (dispatch-envelope) carrying
       exactly this.
   - id: A-4
-    at: '2026-08-29'
+    at: '2026-08-29T00:00:00Z'
     title: >-
       execution's proposals from T-0099/T-0100 approved (amends §5.3, S-0022/D-4,
       S-0022/D-6, S-0022/D-7)
@@ -86,7 +86,7 @@ amendments:
       is the reporting default T-0100 shipped, not the weighting answer; the
       distribution still decides.
   - id: A-5
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: the operator-attention line (adds S-0022/D-12)
     md: |-
       **Found in the adoption research of 2026-08-31.** The documented first
@@ -107,7 +107,7 @@ amendments:
       (operator-attention-line) carrying exactly this; `implementation` returns
       to `partial` until it ships.
   - id: A-6
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: What the two retirements took from the readings
     md: |-
       **Judged in the pass S-0007/A-4's new flag started.** All four declared phases

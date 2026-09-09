@@ -53,11 +53,13 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
 
     from torve.config.manifest import Manifest
     from torve.config.runconfig import RunnerConfig
+    from torve.config.spec import LANDING_SCHEMA, landing_schema_text
     from torve.domain.spec import TaskLog
     from torve.domain.task import Task
 
     texts = {schema_file(corpus, file_name): schema_text(file_name) for file_name in FILES}
     where = schemas_dir(corpus)
+    texts[where / f"{LANDING_SCHEMA}.json"] = landing_schema_text()
     texts[where / "contract.json"] = _json(Task.model_json_schema())
     texts[where / "log.json"] = _json(TaskLog.model_json_schema())
     texts[where / "config.json"] = _json(RunnerConfig.model_json_schema())

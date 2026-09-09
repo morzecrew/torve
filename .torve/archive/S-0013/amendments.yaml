@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: corpus path (amends §1, §3)
     md: |-
       **Found in use.** `config.yaml` had no setting for where the specification corpus lives, so `rfcs/` was effectively hard-coded. A repository keeping specifications for `torve plan` may reasonably put them elsewhere. *(The source patch numbered this S-0016/A-4; that was taken, so it lands as S-0013/A-1 per charter S-0016/D-16. The patch's citation for the resolution rule named a `D-F.*` decision, a family that does not exist in this corpus — the rule here is S-0013/D-3.)*
@@ -19,7 +19,7 @@ amendments:
 
       **Also edits:** 0001 (S-0016/A-5).
   - id: A-2
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: one location per lookup (amends §3, S-0013/D-1)
     md: |-
       **Found in a whole-repository audit for over-engineering.** Every lookup searched a candidate list before answering: the gate manifest tried `.torve/gates.yaml` then a root `gates.yaml`; the runner configuration tried `.torve/config.yaml` then a root `torve.yaml`; a task's contract and log each tried three locations, from the per-task directory back through a flat `.torve/tasks/T-nnnn.yaml` to a root `tasks/`.
@@ -32,7 +32,7 @@ amendments:
 
       **S-0013/D-1 is amended** to state one canonical location per file rather than a resolution order. The locations themselves are unchanged.
   - id: A-3
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The CLI reads .env, and the shell still wins
     md: |-
       **Found operating the engine.** S-0001/D-13 keeps secrets out of committed files

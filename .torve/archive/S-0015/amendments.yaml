@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-22'
+    at: '2026-08-22T00:00:00Z'
     title: >-
       the RFC format stays at the planner (amends §6.1, §6.2)
     md: |-
@@ -21,7 +21,7 @@ amendments:
 
       **Unchanged:** everything else about the layering gate. The `rfc-valid` gate keeps calling `torve rfc check` — that is the CLI consuming the format at the planner's side of the line, not a gate parsing documents.
   - id: A-2
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       the front door was protecting nothing (amends §5, retires S-0015/D-7)
     md: |-
@@ -33,7 +33,7 @@ amendments:
 
       **Changed:** §5 is retired as a mechanism. There is no re-export surface; names resolve from their canonical modules. S-0015/D-7 goes with it.
   - id: A-3
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       the layering sabotage tests the gate, not import-linter (amends §6.2)
     md: |-

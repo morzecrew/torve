@@ -19,6 +19,7 @@ from torve.gates.contract import BuiltinOutcome, spec
 def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     scope = ctx.task.scope if ctx.task is not None else ctx.manifest.scope
     implicit: set[str] = set()
+    prefixes: set[str] = set()
 
     if ctx.task is not None:
         # Canonical and legacy locations alike (S-0013, S-0001/A-5): the gate
@@ -26,11 +27,11 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/contract.yaml")
         implicit.add(f"{layout.TORVE_DIR}/tasks/{ctx.task.id}/log.yaml")
 
-        # S-0057 S-0057/D-7: the landing goes beside the rows it cites, in
-        # the execution file of the document the contract names — written
-        # by the engine at landing, so it is the task's own like its log.
+        # S-0057/D-7, S-0058/D-6: the landing goes beside the rows it cites,
+        # in the execution directory of the document the contract names —
+        # written by the engine at landing, so it is the task's own like its log.
         if ctx.task.rfc:
-            implicit.add(f"{ctx.task.rfc.rstrip('/')}/execution.yaml")
+            prefixes.add(f"{ctx.task.rfc.rstrip('/')}/execution/")
 
         for prefix in (f"{layout.TORVE_DIR}/", ""):
             implicit.add(f"{prefix}logs/{ctx.task.id}.yaml")
@@ -44,7 +45,7 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
     for entry in ctx.diff:
         for path in filter(None, (entry.path, entry.old_path)):
-            if path in implicit:
+            if path in implicit or any(path.startswith(prefix) for prefix in prefixes):
                 continue
 
             if deny is not None and deny.match_file(path):

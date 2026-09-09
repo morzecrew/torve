@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-31'
+    at: '2026-08-31T00:00:00Z'
     title: >-
       the third predicate kind arrives with its job (amends S-0023/D-8)
     md: |-
@@ -17,7 +17,7 @@ amendments:
       the engine does not own; the doctrine that a kind arrives only with its
       job is what this amendment obeys, not what it revises.
   - id: A-2
-    at: '2026-09-05'
+    at: '2026-09-05T00:00:00Z'
     title: The leg runs in the manager's pass
     md: |-
       **Found retiring the standing loop (S-0019/A-8).** §5.4 gives this leg its turn

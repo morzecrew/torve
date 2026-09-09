@@ -32,17 +32,10 @@
       "description": "One amendment: its number and date, the typed diff (empty for an\nexecution finding that changed nothing typed), and the words.",
       "properties": {
         "at": {
-          "anyOf": [
-            {
-              "format": "date",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "At"
+          "default": "",
+          "pattern": "^$|^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "At",
+          "type": "string"
         },
         "changes": {
           "items": {
@@ -384,17 +377,9 @@
           "type": "string"
         },
         "at": {
-          "anyOf": [
-            {
-              "format": "date",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "At"
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "At",
+          "type": "string"
         },
         "attempt": {
           "default": 1,
@@ -425,7 +410,8 @@
         }
       },
       "required": [
-        "task"
+        "task",
+        "at"
       ],
       "title": "Landing",
       "type": "object"

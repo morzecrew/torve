@@ -27,7 +27,8 @@ from torve.application.decisions import (
     load_corpus,
     path_rot,
 )
-from torve.config.spec import archive_dir, load_document, schema_header
+from torve.base.clock import for_name, from_day
+from torve.config.spec import archive_dir, landing_header, load_document, schema_header
 from torve.config.spec_emit import amend_row, dump_document, fix_row_text, stamp
 from torve.domain.events import EventKind
 from torve.domain.spec import PROSE_FIELDS
@@ -190,11 +191,20 @@ def document(
         if value:
             tool_file[name] = value
 
+    for entry in tool_file.get("amendments", []):
+        if entry.get("at"):
+            entry["at"] = from_day(str(entry["at"]))  # a day written by a test is its midnight
+
     if tool_file:
         files["amendments.yaml"] = as_text("amendments.yaml", tool_file)
 
-    if landings:
-        files["execution.yaml"] = as_text("execution.yaml", {"landings": landings})
+    for landing in landings or []:
+        # S-0058/D-6: one file per landing, named by task, attempt and instant
+        landing = {**landing, "at": from_day(str(landing.get("at") or "2026-01-01"))}
+        name = f"execution/{landing['task']}-{landing.get('attempt', 1)}-{for_name(landing['at'])}.yaml"
+        files[name] = f"{landing_header()}\n" + yaml.safe_dump(
+            landing, sort_keys=False, allow_unicode=True, width=1000
+        )
 
     return files
 
@@ -207,11 +217,12 @@ def place(spec_dir: Path, number: str, doc: Doc) -> Path:
     directory = spec_dir / sid(number)
     directory.mkdir(parents=True, exist_ok=True)
 
-    for stale in directory.iterdir():
-        if stale.name not in doc:
+    for stale in directory.rglob("*"):
+        if stale.is_file() and str(stale.relative_to(directory)) not in doc:
             stale.unlink()
 
     for file_name, text in doc.items():
+        (directory / file_name).parent.mkdir(parents=True, exist_ok=True)
         (directory / file_name).write_text(text, encoding="utf-8")
 
     return directory

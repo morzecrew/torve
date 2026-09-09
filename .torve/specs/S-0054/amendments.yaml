@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 1 brings the runner's test file
     changes:
       - subject: phase 1
@@ -24,7 +24,7 @@ amendments:
         after: "… tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
       ```
   - id: A-2
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 1 reaches the event payload
     changes:
       - subject: phase 1
@@ -50,7 +50,7 @@ amendments:
         after: "… src/torve/application/decisions.py src/torve/domain/events.py src/torve/gates/runner.py …"
       ```
   - id: A-3
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 1 reaches the adoption tests
     changes:
       - subject: phase 1
@@ -73,7 +73,7 @@ amendments:
         after: "… tests/test_events.py tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
       ```
   - id: A-4
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 1 reaches the standing tests
     changes:
       - subject: phase 1
@@ -95,7 +95,7 @@ amendments:
         after: "… tests/test_intake.py tests/test_standing.py tests/test_gates.py …"
       ```
   - id: A-5
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 2 reaches the working rules
     changes:
       - subject: phase 2
@@ -120,7 +120,7 @@ amendments:
         after: "… src/torve/cli/main.py src/torve/adapters/agent/harness.py .torve/gates.yaml …; tests … tests/test_manifest.py tests/test_tiering.py"
       ```
   - id: A-6
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 2 renders into every governed directory
     changes:
       - subject: phase 2
@@ -144,7 +144,7 @@ amendments:
         after: "**/AGENTS.md"
       ```
   - id: A-7
-    at: '2026-09-09'
+    at: '2026-09-09T00:00:00Z'
     title: phase 3 reaches the working rules
     changes:
       - subject: phase 3

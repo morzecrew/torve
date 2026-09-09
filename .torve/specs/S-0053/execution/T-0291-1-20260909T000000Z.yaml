@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0291
+phase: 5
+commit: 91d56d5a0223e0b83b640988423ce7ff2103739f
+at: '2026-09-09T00:00:00Z'
+agent: session/claude-fable-5.1
+entries:
+- decision: D-1
+  grade: LOCKED
+  at: '2026-09-09T13:26:01Z'
+  claim: 'one module owns the format: the parser''s functions moved whole into config/spec.py
+    beside the loader, rfc_parse.py is deleted, every importer in src and tests names spec,
+    and the import-linter contract that keeps the format out of gates and adapters names spec
+    now; no reader''s behaviour changed'
+  evidence: src/torve/config/spec.py:1 - the merged module's docstring; src/torve/config/spec.py:1310
+    - check_corpus, unchanged in what it checks; pyproject.toml:115 - the contract names the
+    new owner
+  action: decided
+- decision: D-2
+  grade: LOCKED
+  at: '2026-09-09T13:26:01Z'
+  claim: markdown and the table are read exactly as before by the same functions under their
+    new home; the five fenced kinds load as they did in phase 1
+  evidence: src/torve/config/spec.py:1690 - load_document over the parser's readers in the
+    same module
+  action: decided
+- decision: D-4
+  grade: LOCKED
+  at: '2026-09-09T13:26:01Z'
+  claim: the amend forms are untouched; the emitter imports the format from spec now, and
+    the amendment number the verb derives counts the archive's headings, which the corpus-only
+    derivation did not — S-0053/A-2 was numbered by hand because of it
+  evidence: src/torve/config/spec.py:956 - next_amendment over corpus and archive; tests/test_rfc_show.py
+    pins the derivation
+  action: decided
+- decision: D-9
+  grade: LOCKED
+  at: '2026-09-09T13:26:02Z'
+  claim: the importer and show read the same module they did in phase 2 under its new name;
+    archived identifiers resolve as before
+  evidence: src/torve/application/decisions.py:41 - the import from spec; tests/test_rfc_archive.py
+    pins lookup over the archive
+  action: decided
+- decision: D-10
+  grade: LOCKED
+  at: '2026-09-09T13:26:02Z'
+  claim: there is one next_number and it derives over corpus and archive; the parser's corpus-only
+    derivation is gone with the parser, and the tests that pinned the difference now pin the
+    one derivation
+  evidence: src/torve/config/spec.py:1785 - next_number; tests/test_rfc_archive.py asserts
+    8 over a corpus of one and an archive of one
+  action: decided
+- decision: D-13
+  grade: ASSUMED
+  at: '2026-09-09T13:26:03Z'
+  claim: 'the bounded window with two owners of the format closes: the parser is deleted after
+    the archive landed, as the row says, and the parity test that licensed the switch now
+    pins the merged module against the loader it contains'
+  evidence: tests/test_spec_load.py:83 - parity over corpus and archive through one module
+  action: decided
+- decision: unlisted
+  grade: UNLISTED
+  at: '2026-09-09T13:26:03Z'
+  claim: 'colliding names between the parser and the loader were resolved by renaming the
+    loader''s: section_key (was slugify, which the parser keeps for filenames), AMENDMENT_MARK
+    (was AMENDMENT_HEADING, whose two groups would have broken the parser''s findall callers),
+    check_cites (was check_citations); the merged module keeps the parser''s names for everything
+    the corpus verbs call'
+  evidence: src/torve/config/spec.py:956 - the parser's names stand; tests/test_spec_load.py:163
+    - section_key
+  action: decided
+  proposal: 'no row: a naming choice inside one module; the skill''s references name none
+    of these functions'
+- decision: D-6
+  grade: LOCKED
+  at: '2026-09-09T13:31:57Z'
+  claim: coverage is unchanged in what it answers; the module's import of the format moved
+    from the parser to spec and nothing else in the file changed
+  evidence: src/torve/application/decisions.py:480 - coverage over standing rows, phase scopes
+    and the archive, as landed in phase 2
+  action: decided

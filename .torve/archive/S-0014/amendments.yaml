@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/amendments.json
 amendments:
   - id: A-1
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: >-
       the separator half stops being a gate (amends §9, S-0014/D-11, retires S-0014/D-13)
     md: |-
@@ -13,7 +13,7 @@ amendments:
 
       **S-0014/D-13 is retired,** not reworded: the dash-placement check no longer exists. S-0014/D-11 stands with its scope reduced to the naming rule.
   - id: A-2
-    at: '2026-08-27'
+    at: '2026-08-27T00:00:00Z'
     title: one type checker of record (amends S-0014/D-14)
     md: |-
       **Found in the same audit.** `mypy src` and `basedpyright src` both ran strict over the same tree, in CI and in the acceptance battery. Two strict checkers over one codebase buy disagreement to arbitrate, not depth: where they differ, someone writes a suppression for whichever one is louder.
