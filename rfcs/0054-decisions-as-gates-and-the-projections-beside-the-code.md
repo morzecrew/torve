@@ -8,7 +8,7 @@ depends_on: ["0053"]
 informed_by: ["0002", "0007", "0017", "0029", "0031", "0034", "0035", "0036", "0043"]
 supersedes: []
 superseded_by: null
-amended_by: []
+amended_by: ["A-153"]
 owner: misery7100
 description: >-
   The backends over RFC 0053's model: a decision with a check runs as a gate and owes no attestation; the rows governing a directory are rendered beside it; a sandbox reads the specification through a verb; and a deterministic context pack carries the facts the corpus cannot.
@@ -660,10 +660,11 @@ that (D-A.9); the fence orders only this document's own units.
     - "tests/test_plan.py"
     - "tests/test_decisions.py"
     - "tests/test_gates.py"
+    - "tests/test_runner.py"  # A-153: the T-0113 rule
     - "tests/test_sabotage.py"
     - "tests/test_cli.py"
   acceptance:
-    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
+    - "uv run pytest tests/test_domain.py tests/test_spec.py tests/test_spec_load.py tests/test_plan.py tests/test_decisions.py tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
     - "uv run lint-imports --config pyproject.toml"
     - "uv run torve rfc check"
   depends_on: []
@@ -746,4 +747,20 @@ decisions:
     text: A row whose check ran in the same pass, green or red, is not owed a divergence entry; a row with no check keeps the silence check
     paths: ["src/torve/gates/decisions_reported.py"]
 tier: executor
+```
+
+## Amendments
+
+### A-153 — 2026-09-09 — phase 1 brings the runner's test file
+**Found by `torve plan`.** Phase 1 allows `src/torve/gates/runner.py` and
+not `tests/test_runner.py`, which the lint the planner now runs (A-132)
+refuses under the T-0113 rule: a module in scope brings its test file.
+
+**Changed:** phase 1's scope and acceptance gain `tests/test_runner.py`.
+
+```yaml changes
+- subject: phase 1
+  field: scope
+  before: "… tests/test_gates.py tests/test_sabotage.py tests/test_cli.py"
+  after: "… tests/test_gates.py tests/test_runner.py tests/test_sabotage.py tests/test_cli.py"
 ```
