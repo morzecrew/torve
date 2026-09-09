@@ -548,6 +548,65 @@ def _equipment_checks(root: Path, config_path: Path | None) -> list[tuple[str, b
 # ....................... #
 
 
+def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """RFC 0057 D-57.5: every schema `torve init` writes matches its model,
+    and the ignore file carries every minted pattern — a lagging schema
+    has an editor validating against a shape the engine no longer reads,
+    a missing pattern has torve's own output reaching a diff."""
+
+    from torve.cli.init import expected_schemas, ignore_file, missing_patterns
+    from torve.cli.options import load_config
+
+    try:
+        corpus = root / load_config(root, config_path).specs.path
+    except Exception as exc:  # the configuration's own checks name this elsewhere
+        return [("schemas", False, f"schemas: configuration unreadable — {exc}")]
+
+    expected = expected_schemas(corpus)
+    present = {path: text for path, text in expected.items() if path.is_file()}
+    stale = [p.name for p, text in present.items() if p.read_text(encoding="utf-8") != text]
+    missing = [p.name for p in expected if p not in present]
+    checks: list[tuple[str, bool, str]] = []
+
+    # Absent is not yet initialised — a hint, as `spec check` warns; present
+    # and lagging is the editor validating against a shape the engine no
+    # longer reads, and that is red.
+    if stale:
+        checks.append(
+            (
+                "schemas",
+                False,
+                f"schemas: {', '.join(stale)} lag the model — `torve init` rewrites them",
+            )
+        )
+    elif missing:
+        checks.append(
+            ("schemas", True, f"schemas: {len(missing)} not written yet — `torve init` writes them")
+        )
+    else:
+        checks.append(("schemas", True, "schemas: eight match their models"))
+
+    ignore = ignore_file(root)
+    lacking = missing_patterns(ignore)
+
+    if not ignore.is_file():
+        checks.append(
+            ("ignore", True, ".torve/.gitignore: not written yet — `torve init` writes it")
+        )
+    elif lacking:
+        checks.append(
+            (
+                "ignore",
+                False,
+                f".torve/.gitignore: {', '.join(lacking)} not ignored — `torve init` appends them",
+            )
+        )
+    else:
+        checks.append(("ignore", True, ".torve/.gitignore: every minted pattern present"))
+
+    return checks
+
+
 def doctor(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -570,6 +629,7 @@ def doctor(
     checks += _profile_checks(root, config_path)
     checks += _equipment_checks(root, config_path)
     checks += _image_checks(root, config_path)
+    checks += _init_checks(root, config_path)
     healthy = all(passed for _, passed, _ in checks)
 
     if fmt is Format.JSON:

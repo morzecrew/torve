@@ -1,0 +1,14 @@
+# Written by `torve init` (RFC 0057 D-57.5): what torve alone writes under
+# this directory. The manifest, the configuration, the standing contracts,
+# the specifications and the schemas are reviewed artefacts and stay
+# tracked. Lines of your own go above the minted patterns; `torve init`
+# appends a pattern it finds missing and never removes one.
+review-corpus/*/*.trace.log
+tasks/
+context/
+telemetry.jsonl
+feedback.jsonl
+regimes/
+traces/
+skills/
+tmp/

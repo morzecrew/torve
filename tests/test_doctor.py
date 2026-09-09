@@ -132,3 +132,36 @@ def test_doctor_json_carries_the_profile_line_and_stays_green(monkeypatch, tmp_p
     checks = {c["name"]: c for c in document["checks"]}
     assert checks["profile executor"]["ok"] is True
     assert result.exit_code == 0
+
+
+# ----------------------- #
+# RFC 0057 D-57.5: doctor reddens when a schema lags its model or the ignore
+# file lacks a minted pattern
+
+
+def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Path):
+    from torve.cli.doctor import _init_checks
+
+    root = _doctor_repo(tmp_path, {})
+    write(root / ".torve" / "gates.yaml", "schema_version: 1\ngates: []\n")
+
+    before = _init_checks(root, None)
+
+    # never initialised: a hint, not a red — as `spec check` only warns
+    assert [(name, ok) for name, ok, _ in before] == [("schemas", True), ("ignore", True)]
+    assert "not written yet" in before[0][2] and "not written yet" in before[1][2]
+
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+    after = _init_checks(root, None)
+
+    assert [(name, ok) for name, ok, _ in after] == [("schemas", True), ("ignore", True)]
+
+    write(root / ".torve" / "schemas" / "gates.json", "{}\n")
+    ignore = root / ".torve" / ".gitignore"
+    ignore.write_text(ignore.read_text(encoding="utf-8").replace("traces/\n", ""), encoding="utf-8")
+
+    tampered = _init_checks(root, None)
+
+    assert tampered[0][1] is False and "gates.json" in tampered[0][2]
+    assert tampered[1][1] is False and "traces/" in tampered[1][2]
+    assert "tasks/" not in tampered[1][2]

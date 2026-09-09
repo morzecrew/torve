@@ -533,7 +533,10 @@ def write_contract(root: Path, task: Task, title: str = "", *, minted_by: str = 
         raise PlanError(f"{path} already exists — task ids are never reused")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    header = (
+    # D-57.5: the first line names the schema `torve init` writes, two
+    # levels up from the task directory in the default layout.
+    header = f"{spec.SCHEMA_HEADER}../../schemas/contract.json\n"
+    header += (
         f"# Minted by `torve plan {minted_by}` — phase {task.phase}: {title}\n"
         if minted_by
         else "# Projected from the record for this attempt (RFC 0056 D-56.9): the board "

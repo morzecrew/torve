@@ -820,9 +820,13 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
     schemas = tmp_path / ".torve" / "schemas"
     assert sorted(p.name for p in schemas.iterdir()) == [
         "amendments.json",
+        "config.json",
+        "contract.json",
         "decisions.json",
         "document.json",
         "execution.json",
+        "gates.json",
+        "log.json",
     ]
     assert (
         json.loads((schemas / "document.json").read_text(encoding="utf-8"))["title"] == "document"

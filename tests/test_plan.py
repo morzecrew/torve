@@ -563,7 +563,9 @@ def test_the_contract_is_projected_into_a_worktree_that_lacks_it(tmp_path):
     written = project_contract(tmp_path, task)
 
     assert written == tmp_path / ".torve" / "tasks" / "T-0042" / "contract.yaml"
-    assert written.read_text(encoding="utf-8").startswith("# Projected from the record")
+    first, second = written.read_text(encoding="utf-8").splitlines()[:2]
+    assert first == "# yaml-language-server: $schema=../../schemas/contract.json"  # D-57.5
+    assert second.startswith("# Projected from the record")
     assert load_task(written).intent == "Hold the line."
     # the file mode: a contract already there is the contract
     assert project_contract(tmp_path, task) is None

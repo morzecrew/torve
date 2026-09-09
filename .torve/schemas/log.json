@@ -1,0 +1,96 @@
+{
+  "additionalProperties": false,
+  "description": "A task's divergence log, .torve/tasks/T-NNNN/log.yaml.",
+  "properties": {
+    "base_sha": {
+      "type": "string"
+    },
+    "drift_count": {
+      "type": "integer"
+    },
+    "entries": {
+      "items": {
+        "properties": {
+          "action": {
+            "enum": [
+              "halted",
+              "departed",
+              "decided"
+            ]
+          },
+          "at": {
+            "type": "string"
+          },
+          "attempt": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "claim": {
+            "type": "string"
+          },
+          "class": {
+            "enum": [
+              "discovery",
+              "spec-gap",
+              "drift",
+              "irreducible"
+            ]
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "LOCKED",
+              "ASSUMED",
+              "OPEN",
+              "UNLISTED"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "contradicted",
+              "departed",
+              "resolved",
+              "blocked"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "proposal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "grade",
+          "claim",
+          "evidence",
+          "action"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer"
+    },
+    "task": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "task",
+    "entries"
+  ],
+  "title": "log",
+  "type": "object"
+}

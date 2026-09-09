@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=schemas/config.json
 # Runner configuration (D-3.7; located per RFC 0013 — runner knobs live here,
 # the gate manifest stays in gates.yaml beside this file). This file is read
 # from where the runner was launched, never from the repository under work

@@ -217,21 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Torve — only what the engine generates; the manifest, config and standing
-# contracts under .torve/ are reviewed artefacts and stay tracked (RFC 0013).
-# The task directory is the record's (RFC 0056 D-56.9, D-56.10): a store
-# holds every task, `torve plan --partition` mints into it, and dispatch
-# projects the contract into the worktree for the attempt that reads it.
-.torve/tasks/
-.torve/telemetry.jsonl
-.torve/feedback.jsonl
-.torve/regimes/
-.torve/skills/
-.torve/tmp/
-# RFC 0054 D-54.10: the context pack is derived state, rebuilt per attempt.
-.torve/context/
 .wt/
-.torve/review-corpus/*/*.trace.log
 .repowise/
 .claude/CLAUDE.md
 pages/site/

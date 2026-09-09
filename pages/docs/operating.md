@@ -79,8 +79,14 @@ the invariants, the retired identifiers), `amendments.yaml` (written by
 (written at landing: what each task found). A file that is absent is an
 empty list; a section's heading is its key. Each file's first line names
 its schema under `.torve/schemas/`, which `torve init` writes from the
-models and `torve spec check` reddens when one lags, so an editor with a
-YAML language server validates a row as it is typed. That line is the only
+models — with the contract's, the log's, the configuration's and the
+manifest's beside them, and the schema line added once to `config.yaml`
+and `gates.yaml` — so an editor with a YAML language server validates a
+row as it is typed; `torve spec check` and `torve doctor` redden when one
+lags. `torve init` also writes `.torve/.gitignore` with the patterns for
+what torve alone writes (the task directory, the pack, the streams, run
+state), appending a missing one below your own lines, so an adopting
+repository ignores the right files without copying a block. That line is the only
 comment a file may carry; any other is a check problem — a row that needs
 a note needs a `rationale`. So is a section restating a typed list as a
 fence or a table: the list exists once.

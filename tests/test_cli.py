@@ -1034,3 +1034,91 @@ def test_owed_reports_a_row_covered_by_its_check(repo):
     )
 
     assert "covered by its check" in text.output
+
+
+# ----------------------- #
+# RFC 0057 D-57.5: `torve init` writes what the code derives, and only that
+
+
+def _bare_repo(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    (root / ".torve").mkdir(parents=True)
+    (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+    (root / ".torve" / "gates.yaml").write_text(
+        "# the manifest\nschema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+    return root
+
+
+def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_path):
+    root = _bare_repo(tmp_path)
+
+    first = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert first.exit_code == 0, first.output
+    schemas = root / ".torve" / "schemas"
+    assert sorted(p.name for p in schemas.iterdir()) == [
+        "amendments.json",
+        "config.json",
+        "contract.json",
+        "decisions.json",
+        "document.json",
+        "execution.json",
+        "gates.json",
+        "log.json",
+    ]
+    assert json.loads((schemas / "contract.json").read_text(encoding="utf-8"))["title"] == "Task"
+    assert (root / ".torve" / "specs").is_dir()  # an empty corpus checks clean
+    ignore = (root / ".torve" / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert ignore == [
+        "tasks/",
+        "context/",
+        "telemetry.jsonl",
+        "feedback.jsonl",
+        "regimes/",
+        "traces/",
+        "skills/",
+        "tmp/",
+    ]
+    config_lines = (root / ".torve" / "config.yaml").read_text(encoding="utf-8").splitlines()
+    gates_lines = (root / ".torve" / "gates.yaml").read_text(encoding="utf-8").splitlines()
+    assert config_lines[0] == "# yaml-language-server: $schema=schemas/config.json"
+    assert gates_lines[:2] == [
+        "# yaml-language-server: $schema=schemas/gates.json",
+        "# the manifest",
+    ]
+
+    before = {p: p.read_text(encoding="utf-8") for p in root.rglob("*") if p.is_file()}
+    second = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert second.exit_code == 0, second.output
+    assert "0 file(s) written" in second.output
+    assert {p: p.read_text(encoding="utf-8") for p in root.rglob("*") if p.is_file()} == before
+
+
+def test_init_appends_a_missing_pattern_below_the_operators_lines_and_rewrites_a_stale_schema(
+    tmp_path,
+):
+    root = _bare_repo(tmp_path)
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+    ignore = root / ".torve" / ".gitignore"
+    ignore.write_text("# mine\nscratch/\ntasks/\ncontext/\n", encoding="utf-8")
+    stale = root / ".torve" / "schemas" / "log.json"
+    stale.write_text("{}\n", encoding="utf-8")
+
+    again = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert again.exit_code == 0, again.output
+    assert "log.json  written" in again.output
+    assert "6 pattern(s) added" in again.output
+    assert stale.read_text(encoding="utf-8") != "{}\n"
+    lines = ignore.read_text(encoding="utf-8").splitlines()
+    assert lines[:4] == ["# mine", "scratch/", "tasks/", "context/"]  # the operator's, untouched
+    assert lines[4:] == [
+        "telemetry.jsonl",
+        "feedback.jsonl",
+        "regimes/",
+        "traces/",
+        "skills/",
+        "tmp/",
+    ]
