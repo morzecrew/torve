@@ -1,0 +1,171 @@
+# Minted by `torve plan 0053` — phase 2: the readers, the amend forms, coverage and the archive verb
+schema_version: 1
+id: T-0289
+rfc: rfcs/0053-the-item-model-and-the-rebuilt-corpus.md
+phase: 2
+role: implement
+title: the readers, the amend forms, coverage and the archive verb
+intent: 'Every reader switches to the model beside its old path with a parity assertion (D-53.13):
+  `rfc check`, `show`, `index`, `health`, the importer, `decisions paths`. `torve rfc amend`
+  gains the mutating forms of §5.4 and writes the `changes` fence with the prior value; `retire`
+  becomes one of them; `torve rfc fix` re-stamps a text-only edit as editorial; a hand-edited
+  grade or paths fails the check. Coverage (D-53.6) and rot (D-53.7) land in the importer''s
+  module and surface through `decisions paths` and `rfc health`. `torve rfc archive NUMBER`
+  moves a document to `archive/rfcs/` with the frontmatter of D-53.8, and the importer records
+  archived documents and rows as retired (D-53.9). `rfc_parse.py` is untouched in this phase
+  so the parity assertions have something to assert against.'
+depends_on:
+- T-0288
+parent: null
+targets: []
+scope:
+  allow:
+  - src/torve/config/rfc_emit.py
+  - src/torve/application/decisions.py
+  - src/torve/application/specquality.py
+  - src/torve/cli/rfc.py
+  - src/torve/cli/decisions.py
+  - tests/test_rfc_emit.py
+  - tests/test_decisions.py
+  - tests/test_specquality.py
+  - tests/test_rfc_check.py
+  - tests/test_cli_decisions.py
+  deny: []
+acceptance:
+- uv run pytest tests/test_rfc_emit.py tests/test_decisions.py tests/test_specquality.py tests/test_rfc_check.py
+  tests/test_cli_decisions.py
+- uv run lint-imports --config pyproject.toml
+- uv run torve rfc check
+decisions:
+- id: D-53.1
+  grade: LOCKED
+  text: The specification the engine reads is one pydantic model in `domain/spec.py`, `extra="forbid"`;
+    every reader — planner, importer, check, health, show, intake lint, standing inheritance
+    — consumes the model and never a parser's rows
+  paths:
+  - src/torve/domain/spec.py
+  - src/torve/config/spec.py
+- id: D-53.2
+  grade: LOCKED
+  text: Markdown stays the authoring surface and the decision table stays a table (D-A.3);
+    typed additions are fenced YAML blocks the model validates, unknown keys refused
+  paths:
+  - rfcs/**
+  - src/torve/config/spec.py
+- id: D-53.3
+  grade: ASSUMED
+  text: 'Five fenced kinds: `decision-details`, `invariants`, `alternatives`, `questions`,
+    `changes`; prose sections become `DesignSection`s keyed by heading slug and are typed
+    no further'
+  paths:
+  - src/torve/domain/spec.py
+  - src/torve/config/spec.py
+- id: D-53.4
+  grade: LOCKED
+  text: 'A row''s grade or paths change only through `torve rfc amend`, which records the
+    typed diff with the prior value in a `changes` fence under the amendment heading; a grade
+    or paths mismatch against the last recorded change fails `rfc check`. A text-only mismatch
+    is editorial drift: a warning, re-stamped by `torve rfc fix` with the before and after
+    recorded, never an `A-n`'
+  paths:
+  - src/torve/config/rfc_emit.py
+  - src/torve/config/spec.py
+- id: D-53.5
+  grade: ASSUMED
+  text: Every row carries a content fingerprint; a mismatch between a contract's copied row
+    and the row as it stands is reported as *suspect* by `decisions show` and `rfc health`,
+    never as a conviction
+  paths:
+  - src/torve/domain/spec.py
+  - src/torve/application/decisions.py
+- id: D-53.6
+  grade: LOCKED
+  text: Coverage is a per-path fact with three values — governed, ungoverned, retired — computed
+    over decision paths and accepted documents' phase scopes together; ungoverned is never
+    a check failure
+  paths:
+  - src/torve/application/decisions.py
+- id: D-53.7
+  grade: ASSUMED
+  text: 'A row whose every glob matches nothing on an accepted, implemented document is path
+    rot: reported by `rfc check`, retired by `amend --retire --reason path-rot` (or `check
+    --fix-rot`), recorded as `decision.retired` on import; never automatic on load, never
+    a red on the document'
+  paths:
+  - src/torve/application/decisions.py
+  - src/torve/config/rfc_emit.py
+- id: D-53.8
+  grade: LOCKED
+  text: 'A retired document moves to `archive/rfcs/` outside the corpus path, keeping filename
+    and identifier, `status: superseded`, `superseded_by` naming the baseline; nothing reads
+    the archive but the importer and `show`'
+  paths:
+  - archive/**
+  - rfcs/**
+- id: D-53.9
+  grade: LOCKED
+  text: The importer records every archived document as a source and every archived row as
+    retired; `torve why` and `show` resolve archived identifiers and say they are archived
+  paths:
+  - src/torve/application/decisions.py
+  - src/torve/cli/rfc.py
+- id: D-53.10
+  grade: LOCKED
+  text: The next document number derives as the maximum plus one over the corpus path **and**
+    the archive (D-A.17 extended); identifiers are never reused (D-A.19 unchanged)
+  paths:
+  - src/torve/config/spec.py
+- id: D-53.11
+  grade: LOCKED
+  text: The baseline is produced by `torve survey` and the corpus-bootstrap skill in a supervised
+    session, never by the engine (D-31.2 unchanged), mostly `ASSUMED`, paths from the tree,
+    no phasing; it is the first document accepted after the archive and governs only contracts
+    minted after (D-31.3 unchanged)
+  paths:
+  - rfcs/**
+- id: D-53.12
+  grade: ASSUMED
+  text: 'The rebuild moves `rfcs/` and nothing else: the engine, the record, the task directory,
+    the skills and `gates.yaml` are untouched by the archive'
+  paths:
+  - rfcs/**
+  - archive/**
+- id: D-53.13
+  grade: ASSUMED
+  text: Each reader switches from `rfc_parse` to the model beside its old path with a parity
+    assertion, one at a time, in phase 2; `rfc_parse.py` is deleted in phase 5 only after
+    the archive lands
+  paths:
+  - src/torve/application/decisions.py
+  - src/torve/cli/rfc.py
+- id: D-53.14
+  grade: ASSUMED
+  text: '`domain/spec.py` imports nothing but pydantic and `domain/rfc.py`, so extracting
+    it into its own distribution is a packaging act and never a rewrite'
+  paths:
+  - src/torve/domain/spec.py
+- id: D-53.15
+  grade: ASSUMED
+  text: '`check` on a row is authored, never derived; a `LOCKED` row without one is reported
+    *soft* by `rfc health`; nothing runs a check in this document'
+  paths:
+  - src/torve/domain/spec.py
+- id: D-53.16
+  grade: ASSUMED
+  text: The fingerprint covers text, grade and paths; consequence, rationale and check are
+    outside it, since a contract copies the first three at mint and a human reads the rest
+    (Q-53.1, settled in draft)
+  paths:
+  - src/torve/domain/spec.py
+- id: D-53.17
+  grade: OPEN
+  text: Whether the baseline is one document or several by area (D-31.6, Q-53.2); settled
+    by the grading pass in §5.8
+  paths: []
+budget:
+  iterations: null
+  wallclock_minutes: null
+  tokens: null
+tier: executor
+tier_variant: null
+character: structural
