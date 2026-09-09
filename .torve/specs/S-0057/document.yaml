@@ -539,6 +539,7 @@ phasing:
       - tests/test_plan.py
       - .gitignore
       - .torve/.gitignore
+      - tests/test_rfc_check.py
     acceptance:
       - >-
         uv run pytest tests/test_doctor.py tests/test_cli.py tests/test_plan.py

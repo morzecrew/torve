@@ -34,3 +34,8 @@ amendments:
       phase 1 reaches every reader of the corpus key and the gate runner
     md: |
       Five CLI modules read the corpus location through the configuration key (`context`, `decisions`, `intake`, `plan`, `serve`) and rename with it; the gate runner derives a decision gate's origin from the contract's document path and read `S-00` where it wanted four digits — the same reading `planner.document_number` does, applied there; the README names the corpus. All join phase 1's scope. Scope only; no row changes.
+  - id: A-168
+    at: '2026-09-09'
+    title: phase 2 reaches the schema test phase 1 wrote
+    md: |
+      Phase 1 wrote the test that drives `torve init` and counts the four document schemas it writes; phase 2 makes it eight, and the count lives in `tests/test_rfc_check.py`, which joins phase 2's scope. Scope only; no row changes.
