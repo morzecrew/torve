@@ -236,7 +236,15 @@ class DockerRuntime:
             # ownership of the mount once, from inside, as root; the chown
             # is idempotent, and it lands on the volume, so every later
             # sandbox over the same slot finds it writable.
-            self._run(
+            #
+            # Its failure is the one this adapter used to swallow — the
+            # single docker call whose result went unread, which is exactly
+            # the condition the paragraph above says must not stand. A
+            # root-owned cache then surfaced as `uv sync` and mypy failing
+            # under the battery, which the runner books as gate-red
+            # convictions feeding rung selection and the poison ceiling,
+            # rather than as the infrastructure failure it is (T-0243).
+            chown = self._run(
                 "exec",
                 "-u",
                 "root",
@@ -244,7 +252,14 @@ class DockerRuntime:
                 "chown",
                 f"{os.getuid()}:{os.getgid()}",
                 CACHE_MOUNT,
+                timeout=60,
             )
+
+            if chown.returncode != 0:
+                raise DockerError(
+                    chown.stderr.strip()
+                    or f"could not take ownership of the derived cache at {CACHE_MOUNT}"
+                )
 
         return handle
 

@@ -55,6 +55,15 @@ _BUNDLE_HINT = (
 # ....................... #
 
 
+# The names a request may address this server by. It binds loopback, so
+# these are the only hosts that can honestly reach it; anything else in a
+# Host header is a request that arrived by a route we did not intend.
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "[::1]", "::1")
+
+
+# ....................... #
+
+
 def _http() -> SimpleNamespace:
     """The starlette surface behind the serve extra (D-32.3): imported
     lazily so a gates-only install never pays for the dashboard's stack,
@@ -66,6 +75,7 @@ def _http() -> SimpleNamespace:
         responses = import_module("starlette.responses")
         routing = import_module("starlette.routing")
         staticfiles = import_module("starlette.staticfiles")
+        trustedhost = import_module("starlette.middleware.trustedhost")
 
     except ModuleNotFoundError as exc:
         raise RuntimeError(_IMPORT_HINT) from exc
@@ -77,6 +87,7 @@ def _http() -> SimpleNamespace:
         JSONResponse=responses.JSONResponse,
         PlainTextResponse=responses.PlainTextResponse,
         StaticFiles=staticfiles.StaticFiles,
+        TrustedHostMiddleware=trustedhost.TrustedHostMiddleware,
     )
 
 
@@ -207,7 +218,19 @@ def build_app(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") 
 
         routes.append(http.Route("/{path:path}", missing, methods=["GET"]))
 
-    return http.Starlette(routes=routes)
+    # A loopback bind is not a reachability guarantee (T-0206): a page the
+    # operator visits while this runs can resolve its own name to 127.0.0.1
+    # and read the whole projection — task ids, escalation text, costs.
+    # Binding decides who can connect; the Host header is what decides
+    # whether the request was addressed to us.
+    from starlette.middleware import Middleware
+
+    return http.Starlette(
+        routes=routes,
+        middleware=[
+            Middleware(http.TrustedHostMiddleware, allowed_hosts=list(LOOPBACK_HOSTS)),
+        ],
+    )
 
 
 # ....................... #

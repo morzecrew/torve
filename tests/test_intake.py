@@ -1363,7 +1363,9 @@ def test_configuration_lint_refuses_when_a_configured_image_is_missing(tree):
     doc = document(draft_dict(allow=[".torve/config.yaml"]))
     runtime = StubRuntime(image_digest=None)
     errors = lint_configuration_change(tree, doc, RunnerConfig(), runtime)
-    assert any("not present in the runtime" in e for e in errors)
+    assert any("not present in this runtime" in e for e in errors)
+    # T-0194: and it no longer asserts a verdict it did not ask for.
+    assert not any("torve doctor is red — image" in e for e in errors)
 
 
 def test_run_intake_runs_the_configuration_lint_for_a_config_scoped_batch(seeded):
@@ -1375,4 +1377,4 @@ def test_run_intake_runs_the_configuration_lint_for_a_config_scoped_batch(seeded
     outcome = run_intake(seeded.root, seeded.root, task, config, runtime, agent, "digest")
 
     assert not outcome.drafts
-    assert any("not present in the runtime" in e for e in outcome.lint_errors)
+    assert any("not present in this runtime" in e for e in outcome.lint_errors)

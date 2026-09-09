@@ -431,8 +431,13 @@ def _defective_landing(
         fixing_sha,
         "-1",
         "--format=%H",
-        "--fixed-strings",
-        f"--grep=Torve-Task: {defect_id}",
+        # Anchored, and a regex rather than a fixed string: `--grep` is a
+        # substring match, and TASK_ID admits `T-\\d{4,}`, so asking for
+        # T-0142 matched a landing trailered `Torve-Task: T-01429` and
+        # scaffolded a corpus entry against an unrelated commit instead of
+        # refusing as D-36.5 requires (T-0265).
+        "--extended-regexp",
+        f"--grep=^Torve-Task: {defect_id}$",
     )
 
     if not landing:

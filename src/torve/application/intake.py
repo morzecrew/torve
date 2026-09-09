@@ -452,7 +452,14 @@ def lint_configuration_change(
     application code in one draft), then grounds the proposal in a *working*
     baseline: the committed configuration parses under its schema, every
     sandbox definition a draft names still builds clean, and every
-    configured image still resolves (`torve doctor`'s image check, D-17.2).
+    configured image resolves *in this runtime*.
+
+    Narrower than `torve doctor`'s image check, which it used to claim to
+    be (D-17.2): doctor falls back to the registry for a reference this host
+    has not pulled, and this gate cannot — the fallback is network I/O
+    belonging to an adapter, and nothing here may reach one. So the two
+    answer different questions, and the refusal below says which one it
+    asked instead of asserting doctor's verdict (T-0194).
     Building here is the drafting gate's own deterministic check — the same
     act as an operator running `torve sandbox build` before adopting, never
     a mid-run build on the dispatch path (D-17.3 untouched)."""
@@ -519,8 +526,11 @@ def lint_configuration_change(
     for image in configured_images(config):
         if runtime.resolve_image(image) is None:
             errors.append(
-                f"configuration-change lint: torve doctor is red — image {image!r} "
-                "is configured but not present in the runtime"
+                f"configuration-change lint: image {image!r} is configured but not "
+                "present in this runtime — a drafting run grounds its proposal in a "
+                "baseline this host can actually run, so pull or build it first "
+                "(`torve doctor` may still pass: it can ask the registry, and this "
+                "cannot)"
             )
 
     return errors
@@ -771,7 +781,14 @@ def document_threshold_warnings(
         return []
 
     verdict = _threshold_for_scope(
-        rfc_dir or tree / "rfcs", task.scope, task.acceptance, config.intake.document_threshold
+        # The configuration names where the corpus lives; hardcoding it made
+        # this advisory glob a directory that need not exist, silently drop
+        # the crossings clause, and disagree with the two surfaces that do
+        # read `rfcs.path` — the drafting lint and adopt (T-0209).
+        rfc_dir or tree / config.rfcs.path,
+        task.scope,
+        task.acceptance,
+        config.intake.document_threshold,
     )
 
     if verdict.verdict != "document_required":

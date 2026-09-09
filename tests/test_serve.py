@@ -21,18 +21,53 @@ from torve.cli import app
 from torve.cli import mcp as mcp_cli
 from torve.cli import serve as serve_cli
 
+
 # ----------------------- #
+def loopback(app) -> TestClient:
+    """A client that addresses the server the way a browser on this host
+    does. TestClient's default `Host: testserver` is precisely what the
+    Host check refuses (T-0206), so a test using it would be exercising a
+    configuration no real caller has."""
+
+    return TestClient(app, base_url="http://127.0.0.1")
+
+
+def test_a_request_addressed_to_another_host_is_refused(tmp_path):
+    """T-0206: binding loopback decides who can *connect*; the Host header
+    is what says the request was addressed here. Without the check, any
+    page the operator has open while `torve serve` runs can resolve its own
+    name to 127.0.0.1 and read the whole projection — task ids, escalation
+    text, costs."""
+
+    server = serve_cli.build_app(tmp_path, tmp_path / "rfcs")
+
+    with TestClient(server, base_url="http://attacker.example") as client:
+        assert client.get("/api/context").status_code == 400
+
+    # And the names a real caller uses still answer.
+    for host in ("127.0.0.1", "localhost"):
+        with TestClient(server, base_url=f"http://{host}") as client:
+            assert client.get("/api/context").status_code == 200
 
 
 def test_api_context_re_exposes_the_projection_verbatim(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         response = client.get("/api/context")
 
     assert response.status_code == 200
-    assert response.json() == context_report(root, root / "rfcs")
+
+    # `at` is stamped at call time, so comparing two independent reports
+    # failed whenever they straddled a wall-clock second — a flake baked
+    # into the suite (T-0206). What the case is about is that the endpoint
+    # re-exposes the projection rather than re-deriving it; the timestamp
+    # is the one field that cannot be equal by construction.
+    served, direct = response.json(), context_report(root, root / "rfcs")
+
+    assert served.pop("at") and direct.pop("at")
+    assert served == direct
 
 
 def test_api_status_re_exposes_the_projection_verbatim(plan_repo):  # noqa: F811
@@ -40,7 +75,7 @@ def test_api_status_re_exposes_the_projection_verbatim(plan_repo):  # noqa: F811
     seed_facts(root)
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         response = client.get("/api/status")
 
     assert response.status_code == 200
@@ -51,7 +86,7 @@ def test_api_is_read_only(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         response = client.post("/api/context")
 
     assert response.status_code == 405
@@ -62,7 +97,7 @@ def test_no_bundle_is_an_instructive_404(plan_repo, monkeypatch):  # noqa: F811
     monkeypatch.setattr(serve_cli, "_bundle_root", lambda: None)
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         response = client.get("/")
         api = client.get("/api/status")
 
@@ -84,7 +119,7 @@ def test_bundle_is_served_from_package_data(plan_repo, monkeypatch, tmp_path):  
     monkeypatch.setattr(serve_cli, "_bundle_root", lambda: bundle)
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         index = client.get("/")
         asset = client.get("/assets/app.js")
         missing = client.get("/assets/nope.js")
@@ -145,7 +180,7 @@ def test_api_why_re_exposes_the_projection_verbatim(plan_repo):  # noqa: F811
     seed_why_facts(root)
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         response = client.get("/api/why/T-0001")
 
     assert response.status_code == 200
@@ -159,7 +194,7 @@ def test_api_why_answers_an_unknown_id_with_its_envelope(plan_repo):  # noqa: F8
     seed_why_facts(root)
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         response = client.get("/api/why/T-9999")
 
     assert response.status_code == 200
@@ -180,7 +215,7 @@ def test_the_three_surfaces_render_one_envelope_byte_identical(plan_repo):  # no
         asyncio.run(server.call_tool("why", {"task_id": "T-0001"})).content[0].text
     )
 
-    with TestClient(serve_cli.build_app(root, root / "rfcs")) as client:
+    with loopback(serve_cli.build_app(root, root / "rfcs")) as client:
         serve_doc = client.get("/api/why/T-0001").json()
 
     canonical = [json.dumps(doc, sort_keys=True) for doc in (envelope, cli_doc, mcp_doc, serve_doc)]
@@ -215,7 +250,7 @@ def test_the_served_endpoints_read_the_record_when_a_partition_is_named(plan_rep
     monkeypatch.setattr(serve_cli, "_records_for", lambda _dsn, _partition: recorded)
     server = serve_cli.build_app(root, root / "rfcs", partition="acme/one")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         context = client.get("/api/context").json()
         status = client.get("/api/status").json()
         why = client.get("/api/why/T-0900").json()
@@ -236,7 +271,7 @@ def test_the_served_endpoints_read_the_files_when_no_partition_is_named(plan_rep
     seed_facts(root)
     server = serve_cli.build_app(root, root / "rfcs")
 
-    with TestClient(server) as client:
+    with loopback(server) as client:
         context = client.get("/api/context").json()
 
     assert context["sources"]["tasks"] == "files"

@@ -810,6 +810,18 @@ class BrokerConfig(BaseModel):
 
                 _validate_host_port_shape(self.advertise, f"broker.advertise {self.advertise!r}")
 
+                # The bind guard above exists because an in-sandbox client
+                # dialing 0.0.0.0 dials itself. Advertising the wildcard
+                # publishes exactly that address to every provider route,
+                # so copying bind into advertise walked straight past the
+                # refusal it satisfies (T-0277).
+                if split_host_port(self.advertise)[0] == WILDCARD_BIND_HOST:
+                    raise ValueError(
+                        "broker.advertise '0.0.0.0' is the address sandboxes cannot "
+                        "reach — it is where the broker listens, not somewhere to "
+                        "dial; name the host or IP a sandbox reaches the broker on"
+                    )
+
         return self
 
 

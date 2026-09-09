@@ -148,7 +148,7 @@ provider: anthropic
 model: claude-sonnet-5
 image: torve-agent:claude
 command: >-
-  cp -r /opt/torve/seed/. "$HOME/.claude/" && claude -p --model {model}
+  cp -r /opt/torve/seed/. "$HOME/" && claude -p --model {model}
   "$(cat {prompt})" --output-format json
 ```
 
@@ -171,7 +171,7 @@ provider: anthropic
 model: claude-sonnet-5
 image: ghcr.io/morzecrew/torve-agent-claude:2.1.252-r1
 command: >-
-  cp -r /opt/torve/seed/. "$HOME/.claude/" && claude -p --model {model}
+  cp -r /opt/torve/seed/. "$HOME/" && claude -p --model {model}
   "$(cat {prompt})" --output-format json
 ```
 
