@@ -115,6 +115,35 @@ decisions:
     rationale: >-
       every consuming repository's tiers are the flat shape, and STRICT already refuses
       unknown keys — the only question is whether the refusal teaches
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      The profile and the harness manifest are committed files of the operating repository
+      under `.torve/`, not files on the operator's machine.
+    paths: [src/torve/config/agents.py, src/torve/cli/init.py]
+    consequence: >-
+      a regime is reconstructable from a checkout, and two operators running one repository
+      cannot silently run different equipment
+    rationale: >-
+      D-7 puts both bodies into the regime hash, and a hash over a file that exists
+      on one laptop reproduces nowhere — the defect this document removes from skills-lock.json;
+      S-0013/D-3 is untouched because these sit beside config.yaml in the operating
+      repository, never in the one under work
+    cites: [S-0013/D-3, S-0009/D-2]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A seat naming no profile resolves the profile named for the task's role, and
+      SkillsConfig.sets retires.
+    paths: [src/torve/config/runconfig.py, src/torve/config/agents.py]
+    consequence: >-
+      the default equipment for a role and a named set stop being two mechanisms answering
+      one question in two files
+    rationale: >-
+      the role-keyed default and a tier's own skills list already override each other
+      wholesale through effective_skill_sets, which is a merge rule existing only
+      because the two live apart
+    cites: [S-0009/D-1, S-0029/D-1]
 invariants:
   - id: I-1
     statement: >-

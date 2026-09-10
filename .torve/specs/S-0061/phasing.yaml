@@ -8,16 +8,25 @@ phasing:
       name, and the seat learns to name one of each. The charter's base working rules
       stay unaddressable — a profile naming a prompt key is refused with the reason.
       The old flat tier body is refused key by key, each refusal naming the file the
-      key moved to. Nothing about how a skill name resolves changes; only where the
-      set is declared.
+      key moved to. A seat naming no profile resolves the profile named for the task's
+      role, so this repository's three role defaults arrive as three profile files
+      and SkillsConfig.sets retires. `torve init` mints a schema for each of the two
+      new file families, so an editor validates them as it does every other file under
+      .torve. Nothing about how a skill name resolves changes; only where the set
+      is declared.
     scope:
       - src/torve/config/agents.py
       - src/torve/config/runconfig.py
+      - src/torve/cli/init.py
+      - .torve/agents/**
+      - .torve/harnesses/**
+      - .torve/schemas/**
+      - .torve/config.yaml
       - tests/test_agents.py
       - tests/test_runconfig.py
+      - tests/test_cli.py
     acceptance:
-      - >-
-        uv run pytest tests/test_agents.py tests/test_runconfig.py
+      - uv run pytest
       - uv run mypy src
       - uv run lint-imports
     character: structural
@@ -32,7 +41,7 @@ phasing:
       a fetch at dispatch would put the network inside every attempt.
     scope: [src/torve/adapters/runtime/**, .torve/sandbox/**, tests/test_runtime.py]
     acceptance:
-      - uv run pytest tests/test_runtime.py
+      - uv run pytest
       - uv run mypy src
     depends_on:
       - 1
@@ -47,7 +56,7 @@ phasing:
       it.
     scope: [src/torve/application/telemetry.py, tests/test_manifest.py]
     acceptance:
-      - uv run pytest tests/test_manifest.py
+      - uv run pytest
       - uv run mypy src
     depends_on:
       - 1

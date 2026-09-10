@@ -3,7 +3,7 @@ id: S-0061
 title: >-
   The agent profile, the harness manifest, and the seat that names them
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0004, S-0028, S-0029]
 informed_by: [S-0009, S-0017, S-0034, S-0035, S-0027]
@@ -18,7 +18,8 @@ summary: |
   says what the agent is — its extra working rules, its skills, its plugins; a
   **harness manifest** says how a model is reached — adapter, command, image, how auth
   arrives; and the **seat** in `config.yaml` names one of each and holds what varies
-  per run — the model, the routing, the clocks.
+  per run — the model, the routing, the clocks. All three are committed files of the
+  operating repository, so a regime is reproducible from a checkout.
 
   Plugins get a declaration for the first time. Today they are three hand-kept JSON
   files whose paths and version strings must agree with a `git checkout` in a
@@ -104,7 +105,8 @@ goals: |
 non_goals: |
   Not a change to what a skill is or how it is materialized — S-0009's package-data
   resolution, its vendored directory and its both-present refusal are untouched. This
-  document moves where a skill set is *declared*, never how a name resolves.
+  document moves where a skill set is *declared* — including the role default, which
+  becomes a profile named for the role — never how a name resolves.
 
   Not a change to the retry ladder — S-0034's axis mapping and S-0027's rungs keep
   their meaning and their reader; they move from the tier body to the seat, which is
@@ -122,7 +124,7 @@ design:
       The split follows the questions an operator actually asks, one file each:
 
       ```yaml
-      # ~/.config/torve/agents/careful.yaml — what the agent is
+      # .torve/agents/careful.yaml — what the agent is
       skills: [flag-dont-flip, ratchet-what-you-build]
       plugins:
         - source: github:JuliusBrussee/caveman
@@ -134,7 +136,7 @@ design:
       ```
 
       ```yaml
-      # ~/.config/torve/harnesses/claude-code.yaml — how a model is reached
+      # .torve/harnesses/claude-code.yaml — how a model is reached
       adapter: subscription
       command: 'claude -p "$(cat {prompt})" --output-format json'
       image: torve-agent:claude
@@ -161,6 +163,26 @@ design:
       harness identity *is* the image (S-0017/D-4) — a harness manifest naming no image
       is a manifest that cannot say what it is. `model` is the seat's because one image
       runs several models, and choosing among them is what a seat does.
+
+      All three are committed files under `.torve/`, not files on the operator's
+      machine, because a regime nobody else can reconstruct is not a regime. Today's
+      profiles live in `~/.config/torve/agents/`, and D-7 puts a profile's body into
+      the regime hash: a hash over a file that exists on one laptop reproduces nowhere,
+      which is the same defect this document removes from `skills-lock.json`. Two
+      operators running one repository would otherwise get different equipment with
+      nothing in the record able to say so — S-0009/D-2's telemetry-lies failure, one
+      level up.
+
+      This does not reopen S-0013/D-3. The engine still reads its configuration from
+      where the runner was launched and never from the repository under work; these
+      files sit beside `config.yaml` and `gates.yaml` in that same *operating*
+      repository. What stays on the machine is what genuinely varies by machine: the
+      fleet manifest, which says which workers this box runs.
+
+      A seat naming no profile resolves the profile named for the task's role —
+      `implement`, `review`, `revert`. That is where `SkillsConfig.sets`' role-keyed
+      default goes (D-11): a default set and a named set stop being two mechanisms
+      that answer the same question in two files.
   - key: what-a-profile-may-not-say
     md: |
       A profile carries three keys and the loader refuses a fourth by name. This is the
@@ -171,17 +193,17 @@ design:
       `decisions-reported` convicts on — that gates run outside the session against the
       tree it leaves behind, and that user-facing strings carry no corpus coordinates,
       which `user-facing-text` convicts on. A profile that could replace those rules
-      could disarm two blocking gates from a file on the operator's machine that never
-      appears in a diff of the repository under work.
+      could disarm two blocking gates from a file that never had to survive review of
+      the repository it gates.
 
       So `prompt_extras` stays what it is: bullets appended after the base rules, never
       before, never replacing. A profile that names a `prompt` key is refused with the
       reason, not ignored:
 
       ```
-      ~/.config/torve/agents/careful.yaml: `prompt` is not a profile key — the working
-      rules an attempt is gated against are the engine's, and a profile appends to them
-      with `prompt_extras`
+      .torve/agents/careful.yaml: `prompt` is not a profile key — the working rules an
+      attempt is gated against are the engine's, and a profile appends to them with
+      `prompt_extras`
       ```
   - key: plugins-declared-once
     md: |
@@ -287,8 +309,12 @@ questions:
       or in the repository beside `gates.yaml`? It describes how a repository's contents
       reach a provider, which is closer to the provider policy in `config.yaml` than
       to a persona.
+    status: settled
+    settled_by: D-10
   - id: Q-2
     text: >-
       Should `SkillsConfig.sets` — the role-keyed default set — survive at all once
       a profile carries skills, or does the role default become a profile named for
       the role?
+    status: settled
+    settled_by: D-11
