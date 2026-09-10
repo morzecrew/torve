@@ -20,10 +20,11 @@ decisions:
   - id: D-2
     grade: LOCKED
     text: >-
-      A harness manifest declares which equipment kinds it accepts and the flag template
-      that carries each into its command; a kind a profile declares and the manifest
-      does not is refused at load, unless the engine can deliver it itself — package-data
-      skills alone, which `materialize` writes into the worktree.
+      A harness manifest declares which equipment kinds it accepts, and a kind a profile
+      declares and the manifest does not is refused at load, unless the engine can
+      deliver it itself — package-data skills alone, which `materialize` writes into
+      the worktree. Which flag carries each kind is the image's own `/opt/torve/equip`
+      (S-0063/D-3), not a template here.
     paths: [src/torve/config/agents.py, .torve/harnesses/**]
     consequence: >-
       a harness that cannot be given something says so once, in its own file, rather
@@ -32,7 +33,7 @@ decisions:
       S-0061/D-6's refusal already exists for plugins and for the same reason — an
       attempt quietly missing its equipment measures a regime nobody configured
     cites: [S-0061/D-2, S-0061/D-6, S-0009/D-2]
-    fingerprint: 17dcbd9fb4c5c9d4/0f914ec0385a62d4
+    fingerprint: 4fa4762a34b39585/0f914ec0385a62d4
   - id: D-3
     grade: LOCKED
     text: >-
@@ -62,8 +63,9 @@ decisions:
   - id: D-5
     grade: ASSUMED
     text: >-
-      The cache mounts read-only into the sandbox, one directory per item, and the
-      harness's flag templates are composed against those paths.
+      The equipment cache mounts read-only into the sandbox, one directory per item,
+      and the image's own `/opt/torve/equip` composes whatever its harness needs from
+      the manifest at the mount root (S-0063/D-3, S-0063/D-12).
     paths: [src/torve/adapters/runtime/**, src/torve/application/ports.py]
     consequence: >-
       nothing inside an attempt can edit what it was equipped with, and the cache
@@ -72,6 +74,7 @@ decisions:
       the mounted derived cache is S-0035/D-4's shape, already carried by the docker
       adapter; read-only is why the plugin seed is written as root today
     cites: [S-0035/D-4, S-0035/D-1]
+    fingerprint: 325a795ff1532b8b/c13bcb2414ce38df
   - id: D-6
     grade: LOCKED
     text: >-

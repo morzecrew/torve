@@ -76,6 +76,10 @@ phasing:
       - tests/test_intake.py
       - tests/test_cli.py
       - tests/test_sandbox_images.py
+      - tests/conftest.py
+      - src/torve/config/AGENTS.md
+      - src/torve/application/AGENTS.md
+      - src/torve/adapters/runtime/AGENTS.md
       - CHANGELOG.md
     acceptance:
       - uv run pytest
