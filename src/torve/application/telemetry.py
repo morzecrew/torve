@@ -22,7 +22,8 @@ from torve.base.clock import stamp
 from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
-from torve.domain.task import SCHEMA_VERSION, Task
+from torve.domain.attempt import GateResult
+from torve.domain.task import SCHEMA_VERSION, InheritedDecision, Task
 from torve.gates.context import GateContext
 from torve.gates.runner import RunReport
 
@@ -317,6 +318,40 @@ def _drain_transfer(task_id: str | None) -> dict[str, Any]:
 
 # ....................... #
 
+# What the stream keeps of a gate's output and a contract's rows. Both are
+# already written down once — the gate's own output rides the attempt to the
+# operator's terminal and the task log, the row is in the contract — and a
+# second copy in a record nobody reads it from is the duplication S-0059/D-10
+# removed from commit trailers, unfixed here. So: a passing gate's output is
+# dropped (the one reader, the retry's feedback pack, takes only a red gate's
+# tail), a red gate's is kept to a bound comfortably over what that reader
+# asks for, and a row is recorded as what identifies and governs it.
+RECORDED_OUTPUT = 4000
+_RED = ("fail", "error")
+
+
+def _recorded_result(result: GateResult) -> dict[str, Any]:
+    row = result.model_dump()
+    output = str(row.get("output") or "")
+
+    if result.outcome not in _RED:
+        row["output"] = ""
+    elif len(output) > RECORDED_OUTPUT:
+        row["output"] = output[-RECORDED_OUTPUT:]
+
+    return row
+
+
+def _recorded_decision(row: InheritedDecision) -> dict[str, Any]:
+    """The row as the stream keeps it: what names it, what grade it carries
+    and what it governs — the three fields every reader of this stream asks
+    for. Its text is the contract's and the corpus's."""
+
+    return {"id": row.id, "grade": row.grade, "paths": list(row.paths)}
+
+
+# ....................... #
+
 
 def build_record(
     ctx: GateContext,
@@ -344,8 +379,8 @@ def build_record(
         # this attempt (S-0041/the-transfer-measured) — a sibling of the agent block because
         # it is the runtime's measurement, not the agent's self-report.
         **({} if not transfer else {"transfer": transfer}),
-        "decisions": [d.model_dump() for d in ctx.task.decisions] if ctx.task else [],
-        "results": [r.model_dump() for r in report.results],
+        "decisions": [_recorded_decision(d) for d in ctx.task.decisions] if ctx.task else [],
+        "results": [_recorded_result(r) for r in report.results],
         "exit_code": report.exit_code,
         # The engine's one-word ending beside the gate report's exit code
         # (S-0038/D-2, S-0038/D-3) — present only on rows that recorded an agent: a
@@ -396,7 +431,7 @@ def build_attempt_row(
         # exactly as on the gate-pass row (S-0041/the-transfer-measured): the spend on
         # moving the workspace happened even if nothing else did.
         **({} if not transfer else {"transfer": transfer}),
-        "decisions": [d.model_dump() for d in task.decisions],
+        "decisions": [_recorded_decision(d) for d in task.decisions],
         "results": [],
         "exit_code": exit_code,
         "gates_run": False,

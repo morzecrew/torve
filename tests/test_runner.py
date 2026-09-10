@@ -152,7 +152,7 @@ def test_telemetry_record_shape(repo, tmp_path):
     repo.task(
         base_task(
             allow=["src/**"],
-            decisions=[{"id": "D-1", "grade": "LOCKED", "text": "settled", "paths": []}],
+            decisions=[{"id": "D-1", "grade": "LOCKED", "text": "settled", "paths": ["src/**"]}],
         ),
         log_document(),
     )
@@ -165,9 +165,15 @@ def test_telemetry_record_shape(repo, tmp_path):
     assert record["schema_version"] == 1
     assert record["config_hash"]
     assert record["task_id"] == TASK_ID
-    # Denormalised, not referenced: the decision rides inside the record.
-    assert record["decisions"][0]["id"] == "D-1"
-    assert record["decisions"][0]["text"] == "settled"
+    # Denormalised, not referenced: what identifies and governs the row rides
+    # inside the record. Its text does not — that is the contract's, and a
+    # second copy here is one nothing reads.
+    assert record["decisions"][0] == {"id": "D-1", "grade": "LOCKED", "paths": ["src/**"]}
+
+    # A gate that passed leaves no output behind; only a red gate's tail is
+    # kept, because only a red gate's tail is read (the retry's feedback).
+    assert [r["outcome"] for r in record["results"]] == ["pass"]
+    assert record["results"][0]["output"] == ""
 
     target = tmp_path / "telemetry.jsonl"
     append_record(target, record)
@@ -175,6 +181,30 @@ def test_telemetry_record_shape(repo, tmp_path):
     lines = target.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert json.loads(lines[0])["config_hash"] == record["config_hash"]
+
+
+# ....................... #
+
+
+def test_a_red_gate_s_output_is_kept_to_the_bound_the_retry_reads(repo, tmp_path):
+    """The stream keeps a red gate's tail, not its transcript: the one reader
+    is the retry's feedback pack, which takes the last 2000 characters, so a
+    bound comfortably over that loses the reader nothing."""
+
+    from torve.application.telemetry import RECORDED_OUTPUT, _recorded_result
+    from torve.domain.attempt import GateResult
+
+    long = "x" * (RECORDED_OUTPUT * 3)
+    red = _recorded_result(
+        GateResult(name="acceptance", outcome="fail", state="blocking", output=long)
+    )
+    green = _recorded_result(
+        GateResult(name="scope", outcome="pass", state="blocking", output=long)
+    )
+
+    assert len(red["output"]) == RECORDED_OUTPUT
+    assert red["output"] == long[-RECORDED_OUTPUT:]  # the tail, where the failure is
+    assert green["output"] == ""
 
 
 # ....................... #

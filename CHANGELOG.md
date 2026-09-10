@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The telemetry stream stops carrying what nothing reads it for: a passing
+  gate's output is dropped, a red gate's is kept to 4000 characters, and a
+  contract row is recorded as its id, grade and paths. On this repository
+  that is 3.4 MB of 5.9 MB, and every reader tolerates an absent key.
+
 - **Breaking:** a gate entry no longer accepts `added:`. Nothing ever read
   it, and the date the entry landed is what `git log` answers. Remove the
   key from `gates.yaml`; the manifest refuses unknown keys.
