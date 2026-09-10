@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0322
+phase: 1
+base: eb03d56c98f4e389796f3d5f01d606b716dc1254
+commit: f2118edce806cf0141a89605914066d455a95109
+at: '2026-09-10T12:12:59Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T12:01:02Z'
+    claim: >-
+      An agent profile carries skills, plugins and prompt_extras, and the loader refuses
+      every seat and harness key by name
+    evidence: >-
+      src/torve/config/agents.py:71 - AgentProfile carries exactly those three fields;
+      PROFILE_KEYS derives from the model and HOME names where every other key lives
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-10T12:01:03Z'
+    claim: >-
+      A harness manifest carries the adapter, the command, the image and how auth
+      arrives, and names no model
+    evidence: >-
+      src/torve/config/agents.py:92 - HarnessManifest has no model field; `model`
+      is in SEAT_KEYS and a manifest naming it is refused
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T12:01:03Z'
+    claim: >-
+      The seat names one harness and at most one profile; the resolved TierConfig
+      keeps every field so no reader changed
+    evidence: >-
+      src/torve/config/runconfig.py:112 - harness and profile are names on TierConfig;
+      resolve_seats merges both bodies onto the raw mapping before validation
+    action: decided
+    notes: >-
+      Departure from the design's implication that three files means three objects:
+      nine modules read tier.adapter, tier.skills and the rest, and none is in this
+      phase's scope. The split is of the declaration; the resolved seat is one object
+      because three at every call site would be the split leaking out of the files
+      it belongs in.
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-10T12:01:15Z'
+    claim: >-
+      A profile naming a prompt key is refused with the reason, so no file outside
+      the repository's diff can reach the rules two blocking gates convict on
+    evidence: >-
+      src/torve/config/agents.py:169 - _refuse_foreign raises on `prompt` before any
+      key-home check, naming prompt_extras as where working rules go
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-10T12:01:16Z'
+    claim: >-
+      Both files are committed under .torve/ and torve init mints their schemas; the
+      operator-machine profile directory is deleted
+    evidence: >-
+      src/torve/config/agents.py:159 - agents_dir and harnesses_dir resolve under
+      layout.TORVE_DIR; profiles_dir, _load_profile_body and _resolve_profiles are
+      gone from runconfig.py
+    action: decided
+  - decision: D-11
+    grade: ASSUMED
+    at: '2026-09-10T12:01:16Z'
+    claim: >-
+      The role default is a profile named for the role, but SkillsConfig survives
+      as the resolved view rather than being deleted
+    evidence: >-
+      src/torve/config/runconfig.py:946 - ROLE_SKILLS is what init mints the three
+      profiles from; the loader fills skills.sets from role_profiles(root) and nobody
+      writes the key
+    action: departed
+    notes: >-
+      D-11 says SkillsConfig.sets retires. Its declaration does: nothing writes it
+      and the defaults are gone from code. The attribute stays because effective_skill_sets
+      is called from session.py and review.py and config.skills.sets is read in evals.py,
+      none of which this phase's scope reaches — the same shape as D-3, where the
+      declaration splits and the resolved object keeps its surface.
