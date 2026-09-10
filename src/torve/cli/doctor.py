@@ -628,6 +628,19 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
     else:
         checks.append(("standing", True, "standing: every contract names its schema"))
 
+    # S-0060/D-1: a source file that does not load is an identifier a
+    # contract could name and nobody could open.
+    from torve.config.sources import check_sources
+
+    problems, source_warnings = check_sources(root)
+
+    if problems:
+        checks.append(("sources", False, f"sources: {problems[0]}"))
+    elif source_warnings:
+        checks.append(("sources", True, f"sources: {source_warnings[0]}"))
+    else:
+        checks.append(("sources", True, "sources: every filed source loads"))
+
     return checks
 
 

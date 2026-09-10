@@ -78,3 +78,4 @@ FindingSeverity = Literal["blocker", "major", "minor", "nit"]
 # Provenance (S-0044/D-8): the shapes a source may have.
 
 SourceKind = Literal["specification", "incident", "audit", "review", "operator"]
+SOURCE_KINDS: tuple[SourceKind, ...] = get_args(SourceKind)

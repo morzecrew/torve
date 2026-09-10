@@ -24,7 +24,7 @@ from torve.application.decisions import (
     PlanError,
     coverage,
     fingerprint_drift,
-    import_corpus,
+    import_sources,
     load_corpus,
     path_rot,
 )
@@ -314,7 +314,7 @@ def test_the_importer_reads_standing_rows_through_the_model(tmp_path: Path) -> N
         tmp_path, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])}
     )
 
-    pending = import_corpus(Graph(), rfc_dir)
+    pending = import_sources(Graph(), rfc_dir.parent.parent, rfc_dir)
 
     assert [p.kind for p in pending] == [EventKind.SOURCE_IMPORTED, EventKind.DECISION_RECORDED]
     assert pending[1].payload == {
@@ -344,7 +344,7 @@ def test_an_archived_document_is_a_source_whose_rows_retire_with_the_archive_nam
         ),
     )
 
-    pending = import_corpus(Graph(), rfc_dir)
+    pending = import_sources(Graph(), rfc_dir.parent.parent, rfc_dir)
     kinds = [(p.kind, p.subject_id) for p in pending]
 
     assert (EventKind.DECISION_RECORDED, "S-0001/D-1") in kinds
@@ -362,7 +362,7 @@ def test_a_grade_outside_the_vocabulary_is_refused_as_not_mintable(tmp_path: Pat
     rfc_dir = corpus(tmp_path, **{"0001": document("0001", [("S-0001/D-1", "MAYBE", "x", "—")])})
 
     with pytest.raises(PlanError, match=r"decisions\.0\.grade"):
-        import_corpus(Graph(), rfc_dir)
+        import_sources(Graph(), rfc_dir.parent.parent, rfc_dir)
 
 
 def test_a_key_the_model_refuses_is_refused_as_a_plan_error(tmp_path: Path) -> None:
@@ -530,7 +530,7 @@ def test_the_importer_carries_consequence_and_check(tmp_path: Path) -> None:
     )
     rfc_dir = corpus(tmp_path, **{"0001": text})
 
-    pending = import_corpus(Graph(), rfc_dir)
+    pending = import_sources(Graph(), rfc_dir.parent.parent, rfc_dir)
     recorded = next(p for p in pending if p.kind is EventKind.DECISION_RECORDED)
 
     assert recorded.payload["consequence"] == "because it holds"
@@ -559,7 +559,11 @@ def test_a_record_without_the_consequence_is_re_recorded_once(tmp_path: Path) ->
         )
     ]
 
-    first = [p for p in import_corpus(graph, rfc_dir) if p.kind is EventKind.DECISION_RECORDED]
+    first = [
+        p
+        for p in import_sources(graph, rfc_dir.parent.parent, rfc_dir)
+        if p.kind is EventKind.DECISION_RECORDED
+    ]
 
     assert len(first) == 1 and first[0].payload["consequence"] == "because it holds"
 
@@ -576,4 +580,8 @@ def test_a_record_without_the_consequence_is_re_recorded_once(tmp_path: Path) ->
         )
     )
 
-    assert [p for p in import_corpus(graph, rfc_dir) if p.kind is EventKind.DECISION_RECORDED] == []
+    assert [
+        p
+        for p in import_sources(graph, rfc_dir.parent.parent, rfc_dir)
+        if p.kind is EventKind.DECISION_RECORDED
+    ] == []

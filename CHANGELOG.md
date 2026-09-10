@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `torve source` files the provenance that is not a document: one file per
+  source at `.torve/sources/<kind>/<slug>.yaml`, identified by that path,
+  carrying what it is, where it lives and what it said, and no decisions.
+  `new`, `list` and `show` write and read them; the importer records each
+  with its own kind.
+
 - Cross-model review is live: review triggers on gated tasks, the lane
   refuses a candidate without a concluded review, and `torve doctor`
   warns when the reviewer runs the executor's own model — a model

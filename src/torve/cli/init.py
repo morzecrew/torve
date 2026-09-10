@@ -21,6 +21,8 @@ from torve.application.standing import StandingContract
 from torve.cli.console import STYLE_DIM, STYLE_PASS, closing, out
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.config import layout
+from torve.config.sources import SOURCE_SCHEMA, source_files
+from torve.config.sources import schema_text as source_schema_text
 from torve.config.spec import SCHEMA_HEADER, schema_file, schema_text, schemas_dir
 from torve.domain.spec import FILES
 from torve.domain.states import EXIT_OK
@@ -66,6 +68,7 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     texts[where / "config.json"] = _json(RunnerConfig.model_json_schema())
     texts[where / "gates.json"] = _json(Manifest.model_json_schema())
     texts[where / "standing.json"] = _json(StandingContract.model_json_schema())  # S-0059/D-7
+    texts[where / f"{SOURCE_SCHEMA}.json"] = source_schema_text()  # S-0060/D-1
 
     return texts
 
@@ -162,6 +165,8 @@ def init_cmd(
     lined += [
         (path, where / "standing.json") for path in sorted(layout.standing_dir(root).glob("*.yaml"))
     ]
+    # S-0060/D-1: every filed source names its schema too.
+    lined += [(path, where / f"{SOURCE_SCHEMA}.json") for path in source_files(root)]
 
     for target, schema in lined:
         if _add_header(target, schema):

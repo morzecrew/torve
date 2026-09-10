@@ -85,11 +85,63 @@ async def sync(log: EventLog, rfc_dir: Path) -> list[decisions.PendingEvent]:
     was appended."""
 
     graph = await decisions.load(log, partition=PARTITION)
-    pending = decisions.import_corpus(graph, rfc_dir)
+    pending = decisions.import_sources(graph, rfc_dir.parent.parent, rfc_dir)
 
     await decisions.record_all(log, pending, partition=PARTITION, actor_id="tester")
 
     return pending
+
+
+# ....................... #
+
+
+def test_every_filed_source_is_recorded_with_its_own_kind(tmp_path):
+    """S-0060/D-7: the four kinds beside `specification` finally have a
+    producer, and a second import over an unchanged tree records nothing.
+    A source whose file is deleted keeps what was recorded — the record holds
+    what was true, and deleting the file is how a source stops being offered."""
+
+    import yaml
+
+    from torve.config.sources import schema_header
+
+    rfc_dir = document(tmp_path, "0001", [("S-0001/D-1", "LOCKED", "A rule.", "`src/a.py`")])
+    filed = tmp_path / ".torve" / "sources" / "audit" / "soc2-2026.yaml"
+    filed.parent.mkdir(parents=True, exist_ok=True)
+    filed.write_text(
+        f"{schema_header()}\n"
+        + yaml.safe_dump(
+            {
+                "id": "audit/soc2-2026",
+                "kind": "audit",
+                "title": "A gap",
+                "ref": "https://example.invalid/42",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    async def scenario(log: EventLog) -> None:
+        pending = await sync(log, rfc_dir)
+        filed_events = [
+            p
+            for p in pending
+            if p.kind is EventKind.SOURCE_IMPORTED and p.subject_id == "audit/soc2-2026"
+        ]
+
+        assert len(filed_events) == 1
+        assert filed_events[0].payload["source_kind"] == "audit"
+        assert filed_events[0].payload["title"] == "A gap"
+
+        assert await sync(log, rfc_dir) == []
+
+        filed.unlink()
+
+        # The record keeps what was recorded: nothing retires a source.
+        assert await sync(log, rfc_dir) == []
+
+    run(scenario)
 
 
 # ....................... #
@@ -304,7 +356,7 @@ def test_a_row_the_corpus_checker_would_refuse_is_never_imported(tmp_path):
         graph = await decisions.load(log, partition=PARTITION)
 
         with pytest.raises(PlanError, match=r"decisions\.0\.grade"):
-            decisions.import_corpus(graph, rfc_dir)
+            decisions.import_sources(graph, rfc_dir.parent.parent, rfc_dir)
 
     run(scenario)
 
@@ -320,7 +372,7 @@ def test_an_agent_may_not_import(tmp_path):
 
     async def scenario(log):
         graph = await decisions.load(log, partition=PARTITION)
-        pending = decisions.import_corpus(graph, rfc_dir)
+        pending = decisions.import_sources(graph, rfc_dir.parent.parent, rfc_dir)
 
         with pytest.raises(UnauthorizedWrite):
             await decisions.record_all(

@@ -152,6 +152,7 @@ def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Pa
         ("schemas", True),
         ("ignore", True),
         ("standing", True),
+        ("sources", True),
     ]
     assert "not written yet" in before[0][2] and "not written yet" in before[1][2]
 
@@ -162,6 +163,7 @@ def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Pa
         ("schemas", True),
         ("ignore", True),
         ("standing", True),
+        ("sources", True),
     ]
 
     write(root / ".torve" / "schemas" / "gates.json", "{}\n")

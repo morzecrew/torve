@@ -2,7 +2,7 @@
 
 Two halves that meet at a fold. `project` turns the record's source and
 decision events into current state, version history and supersession edges;
-`import_corpus` compares an accepted document's table to that state and says
+`import_sources` compares an accepted document's table to that state and says
 which events the difference calls for. Nothing here writes: the importer
 returns the events and the caller appends them, so a dry run is the same
 comparison with the write skipped and `--check` cannot drift from what a
@@ -40,6 +40,7 @@ from pydantic import ValidationError
 
 from torve.application.planner import PlanError, globs_intersect
 from torve.config import spec
+from torve.config.sources import load_sources as filed_sources
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.source import Source, corpus_source_id
 from torve.domain.spec import Landing, rule_fingerprint
@@ -302,10 +303,10 @@ def _source_of(doc: Document) -> Source:
 # ....................... #
 
 
-def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
-    """The events that would bring the record level with the corpus.
+def import_sources(graph: Graph, root: Path, rfc_dir: Path) -> list[PendingEvent]:
+    """The events that would bring the record level with the tree.
 
-    An unchanged corpus returns an empty list — the idempotence that makes
+    An unchanged tree returns an empty list — the idempotence that makes
     running this on a schedule safe, and the headline property of the tests.
     Raises `PlanError` on a table the corpus's own checker would refuse, so
     an import never records a grade `torve spec check` would not accept.
@@ -315,10 +316,28 @@ def import_corpus(graph: Graph, rfc_dir: Path) -> list[PendingEvent]:
     source and every row it carries is retired with the archive named as
     the reason (S-0053/D-9), so an identifier cited from the archive still
     resolves in the record.
+
+    Every filed source is recorded with its own kind (S-0060/D-7), so the
+    four kinds the vocabulary admits beside `specification` finally have a
+    producer. A source whose file was deleted keeps what was recorded and is
+    not retired: the record holds what was true, and deleting the file is
+    how a source stops being offered rather than how it stops having been.
     """
 
     corpus = load_corpus(rfc_dir)
     pending: list[PendingEvent] = []
+
+    for source in filed_sources(root).values():
+        known = graph.sources.get(source.id)
+
+        if (
+            known is None
+            or known.kind != source.kind
+            or known.ref != source.ref
+            or known.title != source.title
+        ):
+            pending.append(_source_event(source))
+
     standing_docs = {corpus_source_id(d.id): d for d in corpus.standing() if not d.superseded_by}
     archived_docs = {corpus_source_id(d.id): d for d in corpus.documents if d.archived}
     seen: set[str] = set()
@@ -921,7 +940,7 @@ __all__ = [
     "corpus_sources",
     "coverage",
     "fingerprint_drift",
-    "import_corpus",
+    "import_sources",
     "land",
     "landed_by_task",
     "landed_commit",

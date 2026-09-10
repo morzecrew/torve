@@ -111,7 +111,15 @@ before the record existed, an incident that settled something had to become
 a document first or the settlement was lost. A source is identified by a
 stable id — the corpus's is the document identifier, `S-0044` — so a
 document renamed on disk keeps its identity and the decisions stay attached
-to it; a task's source is the `spec` its contract names (S-0059/D-3).
+to it.
+
+Everything that is not a document is a file of its own,
+`.torve/sources/<kind>/<slug>.yaml`, whose identifier is that path
+(S-0060/D-1): `audit/soc2-2026`, `incident/2026-09-04-lease-storm`. It says
+what it is, where it lives and what it said, and it carries no decisions —
+rows that stand are the corpus's alone, and a source that settled some names
+the document holding them (S-0060/D-2). `torve source new`, `list` and
+`show` write and read them, and the importer records each with its own kind.
 
 A **decision** is a subject, and this is the one distinction worth reading
 twice, because getting it backwards makes every count wrong and the error

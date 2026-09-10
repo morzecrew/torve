@@ -130,7 +130,7 @@ async def _import(
     dsn: str | None, partition: str, root: Path, rfc_dir: Path, *, actor: str, write: bool
 ) -> list[PendingEvent]:
     from torve.application.decisions import (
-        import_corpus,
+        import_sources,
         landing_events,
         landings,
         load,
@@ -140,7 +140,7 @@ async def _import(
 
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
-        pending = import_corpus(await load(log, partition=partition), rfc_dir)
+        pending = import_sources(await load(log, partition=partition), root, rfc_dir)
         # S-0057 S-0057/D-8: what every execution file holds and the record
         # lacks — an agent's entries and the manager's landing, replayed
         # under the actor each kind names.

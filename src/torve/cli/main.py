@@ -41,6 +41,7 @@ from torve.cli import (
     sandbox,
     serve,
     shadow,
+    sources,
     spec,
     status,
     survey,
@@ -65,6 +66,7 @@ app.add_typer(log.log_app, name="log")
 app.add_typer(manager.manager_app, name="manager")
 app.add_typer(decisions.decisions_app, name="decisions")
 app.add_typer(spec.spec_app, name="spec")
+app.add_typer(sources.source_app, name="source")
 app.command("init")(init.init_cmd)
 
 
