@@ -264,3 +264,12 @@ def test_show_resolves_a_document_because_the_grammar_admits_one(tmp_path):
 
     assert missing.exit_code != 0
     assert "nothing in this tree is the source 'S-9999'" in missing.output
+
+    # A corpus that does not load is a refusal too, not a traceback.
+    (tmp_path / ".torve" / "specs" / "S-0059" / "document.yaml").write_text(
+        "status: nonsense\n", encoding="utf-8"
+    )
+    broken = runner.invoke(app, ["source", "show", "S-0059", "--root", str(tmp_path)])
+
+    assert broken.exit_code != 0
+    assert "configuration error" in broken.output

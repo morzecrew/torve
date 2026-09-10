@@ -67,7 +67,7 @@ def test_json_is_exactly_one_document_on_stdout(repo):
     json.loads(result.stdout)  # would raise on any stray line
 
 
-def test_gates_list_shows_the_resolved_battery_and_the_contract_s_own(repo):
+def test_gates_list_shows_the_resolved_battery_and_the_contract_s_own(repo, tmp_path):
     """The view the manifest cannot give: input, timeout and axis resolved,
     and the gates that exist only for the length of one contract."""
 
@@ -109,10 +109,21 @@ def test_gates_list_shows_the_resolved_battery_and_the_contract_s_own(repo):
     assert listed["decision:S-0002/D-1"]["run"] == "true"
     assert listed["decision:S-0002/D-1"]["origin"] == "S-0002/D-1"
 
-    bare = CliRunner().invoke(
-        app, ["gates", "list", "--root", str(repo.root), "--format", "json"]
-    )
+    bare = CliRunner().invoke(app, ["gates", "list", "--root", str(repo.root), "--format", "json"])
     assert "decision:S-0002/D-1" not in bare.stdout
+
+    # The table is the point of the verb, so it is exercised too: the derived
+    # columns show, the running order holds, and the closing counts both states.
+    shown = CliRunner().invoke(
+        app, ["gates", "list", "--root", str(repo.root), "--task", str(task_file)]
+    )
+    assert shown.exit_code == 0, shown.output
+    assert "compliance" in shown.output  # derived nowhere in the manifest
+    assert "shadow" in shown.output and "blocking" in shown.output
+
+    missing = CliRunner().invoke(app, ["gates", "list", "--root", str(tmp_path)])
+    assert missing.exit_code != 0
+    assert "no gate manifest" in missing.output
 
 
 def test_gates_check_json_is_schema_versioned():
