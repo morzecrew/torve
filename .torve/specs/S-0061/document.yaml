@@ -1,0 +1,284 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0061
+title: The agent profile, the harness manifest, and the seat that names them
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0004, S-0028, S-0029]
+informed_by: [S-0009, S-0017, S-0034, S-0035, S-0027]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A tier entry today carries seventeen fields across five unrelated concerns, and the
+  profile file meant to name a persona is shaped like the whole tier, so a "profile"
+  can carry a retry rung. This splits the three questions apart: an **agent profile**
+  says what the agent is — its extra working rules, its skills, its plugins; a
+  **harness manifest** says how a model is reached — adapter, command, image, how auth
+  arrives; and the **seat** in `config.yaml` names one of each and holds what varies
+  per run — the model, the routing, the clocks.
+
+  Plugins get a declaration for the first time. Today they are three hand-kept JSON
+  files whose paths and version strings must agree with a `git checkout` in a
+  Dockerfile, and only Claude Code can read them. They become a list on the profile,
+  rendered into whatever seeding format the harness wants at dispatch.
+
+  The base working rules stay unaddressable from configuration, which is the one thing
+  this document refuses to move. A profile appends; it never replaces.
+motivation: |
+  `TierConfig` is 1584 lines of `src/torve/config/runconfig.py`'s home to seventeen
+  fields, and reading one does not tell you what the other sixteen are for:
+
+  - identity — `adapter`, `command`, `model`, `provider`, `image`
+  - auth — `api_key_env`, `auth_volume`, `auth_mount`
+  - clocks and caches — `agent_timeout`, `sandbox_timeout`, `cache_volume`
+  - routing — `retry_variant`, `retry_variants`, `character_routing`
+  - equipment — `skills`, `prompt_extras`
+  - provenance — `profile`
+
+  The profile file (S-0028) was the right instinct and the wrong shape: a profile body
+  is validated against `TierConfig.model_fields`, so `~/.config/torve/agents/heavy.yaml`
+  may legally declare `retry_variants`. A file named for a persona can therefore decide
+  where a conviction routes — which is a property of the fleet, not of the agent — and
+  the merge that produced it is recorded as a string, `profile: "a -> b"`, kept only so
+  `config_hash` and `doctor` can see where the tier came from.
+
+  Plugins have no declaration at all. `.torve/sandbox/claude/Dockerfile` clones two
+  marketplaces at pinned refs, copies them into a cache path, and three JSON files
+  repeat those paths and version strings by hand:
+
+  ```json
+  "caveman@caveman": [{"installPath": "/tmp/.claude/plugins/cache/caveman/caveman/81536f57b330",
+                       "version": "81536f57b330"}]
+  ```
+
+  `81536f57b330` is a git ref written into a Dockerfile `ARG`, into a `cp` target and
+  into a JSON string; nothing checks that the three agree, and the whole arrangement is
+  legible only to one harness. Meanwhile the skills lockfile that does exist,
+  `skills-lock.json`, is not read by this engine at all: its single reader is
+  `config_hash`, which digests the file's bytes. The engine hashes another tool's
+  lockfile and installs nothing from it, so a hash the operator cannot influence gates
+  a regime the operator did choose.
+current_state: |
+  Verified against the tree at `1336f48`.
+
+  `TierConfig` (`src/torve/config/runconfig.py`) holds the seventeen fields above
+  under `STRICT`. `_resolve_profiles` merges `~/.config/torve/agents/<name>.yaml`
+  bodies into the raw `tiers:` mapping before `RunnerConfig.model_validate` runs, one
+  level deep, list fields replacing wholesale (S-0028/D-4); a body's keys are checked
+  against `TierConfig.model_fields`, which is what admits routing into a profile.
+
+  Skills resolve twice over: `SkillsConfig.sets` is role-keyed,
+  `effective_skill_sets` lets a tier's own `skills` override its role's entry
+  wholesale, and `materialize` (`src/torve/application/skills.py`) copies from
+  package data or `.torve/skills-vendor`, refusing a name present in both. No hashes
+  are involved: "the skill version is the Torve version by construction".
+
+  `prompt_extras` reaches `build_prompt` (`src/torve/adapters/agent/harness.py`) and
+  is appended as bullets *after* the charter's base working rules — the rules
+  that tell an executor to log divergences before committing, that gates run outside the
+  session, that user-facing strings carry no corpus coordinates. Those rules are
+  literals in the adapter and no configuration reaches them.
+
+  `config_hash` (`src/torve/application/telemetry.py`) digests, among other things,
+  the raw text of `skills-lock.json` and a digest of `.torve/skills-vendor`. The
+  regime records for this repository (`.torve/regimes/*.json`) show the resulting
+  parts: the whole of `gates.yaml` as one string, the serialised `tiers` mapping with
+  every default spelled out, and that lockfile verbatim.
+
+  Every tier in this repository is `adapter: fake`, so none of the real paths above are
+  currently exercised by a live run.
+goals: |
+  A person asking "what does this agent do differently" reads one file, and it contains
+  nothing else. A person asking "how does this repository reach that model" reads one
+  file, and it contains nothing else. A person asking "which agent runs the reviewer
+  seat, and what happens when it convicts" reads `config.yaml` and finds both named.
+
+  Plugins are declared once, in the same place as skills, and the harness's seeding
+  format is rendered from that declaration rather than hand-kept beside it.
+
+  The regime hash reads what was resolved, so it changes when the equipment changes and
+  not when another tool reformats its lockfile.
+non_goals: |
+  Not a change to what a skill is or how it is materialized — S-0009's package-data
+  resolution, its vendored directory and its both-present refusal are untouched. This
+  document moves where a skill set is *declared*, never how a name resolves.
+
+  Not a change to the retry ladder — S-0034's axis mapping and S-0027's rungs keep
+  their meaning and their reader; they move from the tier body to the seat, which is
+  the same mapping under a name that says what it is.
+
+  Not a new prompt system. The charter's base working rules are not made configurable,
+  and a profile does not gain a `prompt` key that replaces them (D-4). Composing the
+  prompt from parts is a different document if anyone ever wants it.
+
+  Not a plugin installer. Torve renders what the harness's own installer already reads;
+  it does not fetch, resolve or verify a plugin itself.
+design:
+  - key: three-files-three-questions
+    md: |
+      The split follows the questions an operator actually asks, one file each:
+
+      ```yaml
+      # ~/.config/torve/agents/careful.yaml — what the agent is
+      skills: [flag-dont-flip, ratchet-what-you-build]
+      plugins:
+        - source: github:JuliusBrussee/caveman
+          ref: 81536f57b330
+        - source: github:DietrichGebert/ponytail
+          ref: 4.9.0
+      prompt_extras:
+        - Prefer the smallest change that makes the acceptance command pass.
+      ```
+
+      ```yaml
+      # ~/.config/torve/harnesses/claude-code.yaml — how a model is reached
+      adapter: subscription
+      command: 'claude -p "$(cat {prompt})" --output-format json'
+      image: torve-agent:claude
+      api_key_env: []
+      auth_volume: torve-auth
+      auth_mount: /auth
+      ```
+
+      ```yaml
+      # .torve/config.yaml — which run gets which
+      tiers:
+        executor:
+          harness: claude-code
+          profile: careful
+          model: claude-opus-5
+          provider: anthropic
+          agent_timeout: 1800
+          retry_variants: {functional: executor.heavy}
+          character_routing: {structural: heavy}
+      ```
+
+      Nothing is duplicated between the three: a key belongs to exactly one file, and
+      the loader refuses it in the other two by name. `image` is the harness's because
+      harness identity *is* the image (S-0017/D-4) — a harness manifest naming no image
+      is a manifest that cannot say what it is. `model` is the seat's because one image
+      runs several models, and choosing among them is what a seat does.
+  - key: what-a-profile-may-not-say
+    md: |
+      A profile carries three keys and the loader refuses a fourth by name. This is the
+      document's one real refusal, and it is worth stating why.
+
+      The charter's base working rules are not decoration. They tell an executor to log
+      every divergence over a governed file before committing — which is exactly what
+      `decisions-reported` convicts on — that gates run outside the session against the
+      tree it leaves behind, and that user-facing strings carry no corpus coordinates,
+      which `user-facing-text` convicts on. A profile that could replace those rules
+      could disarm two blocking gates from a file on the operator's machine that never
+      appears in a diff of the repository under work.
+
+      So `prompt_extras` stays what it is: bullets appended after the base rules, never
+      before, never replacing. A profile that names a `prompt` key is refused with the
+      reason, not ignored:
+
+      ```
+      ~/.config/torve/agents/careful.yaml: `prompt` is not a profile key — the working
+      rules an attempt is gated against are the engine's, and a profile appends to them
+      with `prompt_extras`
+      ```
+  - key: plugins-declared-once
+    md: |
+      A plugin entry is a source and a ref, and nothing else:
+
+      ```yaml
+      plugins:
+        - source: github:JuliusBrussee/caveman
+          ref: 81536f57b330
+      ```
+
+      `ref` is whatever the source's own vocabulary pins with — a tag, a branch, a
+      commit — and torve neither resolves nor verifies it. This is deliberate: pinning
+      is the source's job, torve's job is to stop three files disagreeing about what
+      was pinned.
+
+      At dispatch the runtime adapter renders the declaration into the seeding format
+      the tier's harness reads, from one function per harness. For Claude Code that is
+      the three JSON files the image seeds today, written from the list instead of kept
+      beside it; a harness with no renderer refuses a non-empty `plugins` list rather
+      than silently running without them — an agent quietly missing its plugins makes
+      the telemetry lie, which is S-0009/D-2's rule for skills read for plugins.
+
+      The Dockerfile keeps the clone, because fetching at dispatch would put a network
+      fetch inside every attempt. What it stops carrying is the cache paths and version
+      strings that the JSON repeats: those are rendered from the same list the image
+      was built from.
+  - key: the-hash-reads-what-was-resolved
+    md: |
+      `config_hash` digests `skills-lock.json`'s bytes today — a file this engine never
+      reads for anything else, written by a tool torve does not run. Two consequences,
+      both wrong: reformatting that file changes the regime, and changing a profile's
+      skill list does not, because the resolved set is not in the hash at all.
+
+      The parts become what was resolved for each seat: the harness manifest's body,
+      the profile's body, the seat's own keys, and the vendored-skills digest that
+      already exists. The lockfile leaves the hash entirely. `torve doctor` gains a
+      line naming each seat's resolved harness and profile, which is what the `profile:
+      "a -> b"` provenance string was for, so that field goes with it.
+tests: |
+  The loaders' refusals are the surface worth testing, and each is one case: a key in
+  the wrong file, a profile naming `prompt`, a seat naming a harness or profile that
+  does not exist, a plugin list against a harness with no renderer, and the old flat
+  tier shape.
+
+  The rendering is tested by round-trip: a plugin list renders to the three JSON files,
+  and the files parse back to the same list. The seeded image is not rebuilt in a test.
+
+  The regime hash is tested for what it now reacts to — a changed profile skill list —
+  and what it no longer reacts to — a reformatted `skills-lock.json`.
+
+  Not tested: that a real harness actually loads a rendered plugin file. Every tier in
+  this repository is `fake`, so that is a live-run observation, not a unit test.
+risks: |
+  The largest risk is that the split is read as three times the configuration rather
+  than one question per file. It is more files and fewer things per file, and a
+  single-seat repository with one harness and no profile writes strictly less than
+  today: a seat with `adapter` and `command` inline stays legal, because a repository
+  that has one of each should not have to name them.
+
+  The second is that `plugins` invites torve into being a package manager. D-6 draws
+  the line at rendering, and the refusal for an unrendered harness is what keeps it
+  there; if a later document wants resolution or verification, that is a decision to
+  take deliberately and not to arrive at by accretion.
+
+  The third is migration. Every existing `tiers:` entry in every consuming repository
+  is the flat shape, and this repository's own three are `fake` with almost nothing
+  set. The refusal names the three files and the key that moved, so the error is the
+  migration guide.
+alternatives:
+  - option: Keep one tier body and group the fields with nested keys — `tier.equipment.skills`,
+      `tier.harness.command`.
+    rejected_because: The nesting names the concerns but keeps them in one file, so the
+      profile file stays TierConfig-shaped and can still carry a retry rung. The problem
+      is not that the fields are unsorted, it is that a persona file may decide fleet
+      routing.
+  - option: Let a profile replace the base working rules, so a harness with different
+      conventions can be driven properly.
+    rejected_because: Those rules are what two blocking gates convict on. A file on the
+      operator's machine that never appears in the repository's diff must not be able to
+      disarm them. A harness needing different phrasing needs a different adapter, which
+      is a code change that gets reviewed.
+  - option: Have torve fetch and pin plugins itself, with a lockfile of its own.
+    rejected_because: A second lockfile in a tree that already has one nobody reads is
+      the problem restated. The source's own vocabulary pins; torve's contribution is
+      that three files stop disagreeing about what was pinned.
+  - option: Drop `skills-lock.json` from the tree entirely rather than from the hash.
+    rejected_because: The file is the `skills` CLI's, written and read by that tool for
+      the operator's own use. Torve's mistake was hashing it, not its existence.
+questions:
+  - id: Q-1
+    text: Does a harness manifest belong on the operator's machine beside the profile,
+      or in the repository beside `gates.yaml`? It describes how a repository's contents
+      reach a provider, which is closer to the provider policy in `config.yaml` than to
+      a persona.
+    status: open
+  - id: Q-2
+    text: Should `SkillsConfig.sets` — the role-keyed default set — survive at all once
+      a profile carries skills, or does the role default become a profile named for the
+      role?
+    status: open
