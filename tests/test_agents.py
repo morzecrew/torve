@@ -20,7 +20,7 @@ from torve.config.agents import (
     harnesses_dir,
     load_harness,
     load_profile,
-    role_profiles,
+    role_equipment,
 )
 from torve.config.runconfig import effective_skill_sets, load_runner_config
 
@@ -33,10 +33,19 @@ def write(path: Path, text: str) -> Path:
     return path
 
 
+SKILL = "equipment: [{kind: skill, source: torve:%s}]\n"
+
+
 @pytest.fixture
 def root(tmp_path: Path) -> Path:
     where = tmp_path / "repo"
     write(harnesses_dir(where) / "fake.yaml", "adapter: fake\n")
+    # A harness that takes a plugin, for the seats whose profile declares one:
+    # `fake` names no kind, which is what a harness that takes nothing looks like.
+    write(
+        harnesses_dir(where) / "plugged.yaml",
+        "adapter: fake\nequips:\n  plugin: --plugin-dir {path}\n",
+    )
     return where
 
 
@@ -55,7 +64,8 @@ def test_a_seat_resolves_its_harness_and_its_profile(root: Path):
     )
     write(
         agents_dir(root) / "careful.yaml",
-        "skills: [flag-dont-flip]\nprompt_extras: [Prefer the smallest change.]\n",
+        "equipment: [{kind: skill, source: torve:flag-dont-flip}]\n"
+        "prompt_extras: [Prefer the smallest change.]\n",
     )
     config = load(
         root,
@@ -86,9 +96,10 @@ def test_a_seat_naming_no_harness_is_refused(root: Path):
 def test_a_plugin_is_a_source_and_a_ref(root: Path):
     write(
         agents_dir(root) / "equipped.yaml",
-        "plugins:\n  - source: github:JuliusBrussee/caveman\n    ref: 81536f57b330\n",
+        "equipment:\n  - kind: plugin\n    source: github:JuliusBrussee/caveman\n"
+        "    ref: 81536f57b330\n",
     )
-    config = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: equipped\n")
+    config = load(root, "tiers:\n  executor:\n    harness: plugged\n    profile: equipped\n")
     (plugin,) = config.tiers["executor"].plugins
 
     assert (plugin.source, plugin.ref) == ("github:JuliusBrussee/caveman", "81536f57b330")
@@ -105,8 +116,8 @@ def test_a_plugin_is_a_source_and_a_ref(root: Path):
         ("command", "run {model}", "harness manifest"),
         ("image", "img:1", "harness manifest"),
         ("api_key_env", "[FOO]", "harness manifest"),
-        ("skills", "[flag-dont-flip]", "agent profile"),
-        ("plugins", "[]", "agent profile"),
+        ("equipment", "[]", "agent profile"),
+        ("prepare", "index --yes", "agent profile"),
         ("prompt_extras", "[be brief]", "agent profile"),
     ],
 )
@@ -138,7 +149,7 @@ def test_a_harness_key_in_a_profile_is_refused(root: Path):
 
 
 def test_a_profile_key_in_a_harness_is_refused(root: Path):
-    write(harnesses_dir(root) / "mixed.yaml", "adapter: fake\nskills: [flag-dont-flip]\n")
+    write(harnesses_dir(root) / "mixed.yaml", "adapter: fake\nprompt_extras: [be brief]\n")
 
     with pytest.raises(AgentError, match="agent profile"):
         load_harness(root, "mixed")
@@ -168,7 +179,7 @@ def test_a_profile_may_not_name_a_prompt(root: Path):
 
 
 def test_a_missing_file_names_its_path_and_what_is_present(root: Path):
-    write(agents_dir(root) / "existing.yaml", "skills: []\n")
+    write(agents_dir(root) / "existing.yaml", "equipment: []\n")
 
     with pytest.raises(AgentError, match=r"missing\.yaml") as excinfo:
         load_profile(root, "missing")
@@ -211,7 +222,7 @@ def test_one_merge_level_a_profile_naming_a_profile_is_refused(root: Path):
     """S-0061/D-8: neither file references another of its kind, so the file a
     refusal names is the file carrying the bad key."""
 
-    write(agents_dir(root) / "wrapper.yaml", "profile: base\nskills: []\n")
+    write(agents_dir(root) / "wrapper.yaml", "profile: base\nequipment: []\n")
 
     with pytest.raises(AgentError, match="seat"):
         load_profile(root, "wrapper")
@@ -224,12 +235,14 @@ def test_one_merge_level_a_profile_naming_a_profile_is_refused(root: Path):
 
 
 def test_the_role_default_is_a_profile_named_for_the_role(root: Path):
-    write(agents_dir(root) / "implement.yaml", "skills: [flag-dont-flip]\n")
-    write(agents_dir(root) / "review.yaml", "skills: [ratchet-what-you-build]\n")
+    write(agents_dir(root) / "implement.yaml", SKILL % "flag-dont-flip")
+    write(agents_dir(root) / "review.yaml", SKILL % "ratchet-what-you-build")
 
-    assert role_profiles(root) == {
-        "implement": ["flag-dont-flip"],
-        "review": ["ratchet-what-you-build"],
+    assert {
+        role: [item.source for item in items] for role, items in role_equipment(root).items()
+    } == {
+        "implement": ["torve:flag-dont-flip"],
+        "review": ["torve:ratchet-what-you-build"],
     }
 
     config = load(root, "tiers:\n  executor:\n    harness: fake\n")
@@ -261,7 +274,7 @@ def test_two_checkouts_of_one_tree_hash_one_regime(tmp_path: Path):
     for name in ("first", "second"):
         where = tmp_path / name
         write(harnesses_dir(where) / "fake.yaml", "adapter: fake\n")
-        write(agents_dir(where) / "shared.yaml", "skills: [flag-dont-flip]\n")
+        write(agents_dir(where) / "shared.yaml", SKILL % "flag-dont-flip")
         gates = write(where / ".torve" / "gates.yaml", "schema_version: 1\ngates: []\n")
         digests.append(config_hash(gates, where, load(where, text)))
 
@@ -270,11 +283,11 @@ def test_two_checkouts_of_one_tree_hash_one_regime(tmp_path: Path):
 
 def test_editing_a_profile_changes_the_regime(root: Path):
     write(root / ".torve" / "gates.yaml", "schema_version: 1\ngates: []\n")
-    profile = write(agents_dir(root) / "shared.yaml", "skills: [flag-dont-flip]\n")
+    profile = write(agents_dir(root) / "shared.yaml", SKILL % "flag-dont-flip")
     text = "tiers:\n  executor:\n    harness: fake\n    profile: shared\n"
 
     before = config_hash(root / ".torve" / "gates.yaml", root, load(root, text))
-    write(profile, "skills: [ratchet-what-you-build]\n")
+    write(profile, SKILL % "ratchet-what-you-build")
     after = config_hash(root / ".torve" / "gates.yaml", root, load(root, text))
 
     assert before != after
@@ -286,12 +299,12 @@ def test_a_profile_contributes_what_it_wrote_and_not_its_model_s_defaults(root: 
     model dump cannot tell a key the file omitted from one it set to the
     default — the ambiguity S-0028/D-2 mandated a raw-mapping merge to avoid."""
 
-    write(agents_dir(root) / "implement.yaml", "skills: [flag-dont-flip]\n")
+    write(agents_dir(root) / "implement.yaml", SKILL % "flag-dont-flip")
     write(
         agents_dir(root) / "equipped.yaml",
-        "plugins:\n  - source: github:JuliusBrussee/caveman\n    ref: abc\n",
+        "equipment:\n  - kind: plugin\n    source: github:JuliusBrussee/caveman\n    ref: abc\n",
     )
-    config = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: equipped\n")
+    config = load(root, "tiers:\n  executor:\n    harness: plugged\n    profile: equipped\n")
     seat = config.tiers["executor"]
 
     assert seat.skills is None  # not written, so the role's profile answers
@@ -301,10 +314,10 @@ def test_a_profile_contributes_what_it_wrote_and_not_its_model_s_defaults(root: 
     assert [p.source for p in seat.plugins] == ["github:JuliusBrussee/caveman"]
 
     # An empty list written *is* a declaration: this agent equips nothing.
-    write(agents_dir(root) / "bare.yaml", "skills: []\n")
+    write(agents_dir(root) / "bare.yaml", "equipment: []\n")
     bare = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: bare\n")
 
-    assert bare.tiers["executor"].skills == []
+    assert bare.tiers["executor"].skills is None
 
 
 def test_a_harness_contributes_what_it_wrote_too(root: Path):
@@ -324,7 +337,7 @@ def test_only_a_name_the_engine_has_a_role_for_is_a_role_profile(root: Path):
     nothing dispatches into the role sets and into the regime hash, and that is
     what makes `torve eval` refuse a skill as being in no role set."""
 
-    write(agents_dir(root) / "review.yaml", "skills: [ratchet-what-you-build]\n")
-    write(agents_dir(root) / "careful.yaml", "skills: [flag-dont-flip]\n")
+    write(agents_dir(root) / "review.yaml", SKILL % "ratchet-what-you-build")
+    write(agents_dir(root) / "careful.yaml", SKILL % "flag-dont-flip")
 
-    assert role_profiles(root) == {"review": ["ratchet-what-you-build"]}
+    assert list(role_equipment(root)) == ["review"]

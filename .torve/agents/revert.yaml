@@ -1,3 +1,4 @@
 # yaml-language-server: $schema=../schemas/agent.json
-skills:
-- flag-dont-flip
+equipment:
+- kind: skill
+  source: torve:flag-dont-flip

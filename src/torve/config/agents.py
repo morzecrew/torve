@@ -30,10 +30,11 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from torve.base.model import STRICT
 from torve.config import layout
+from torve.config.equipment import KINDS, Equipment, skill_names
 from torve.domain.vocabulary import ROLES
 
 # ----------------------- #
@@ -46,7 +47,14 @@ HARNESSES_DIR = "harnesses"
 
 
 class Plugin(BaseModel):
-    """One plugin the harness loads (S-0061/D-5).
+    """One plugin on a resolved seat, derived from the profile's equipment.
+
+    S-0062/D-1 folded plugins into `equipment`, so nothing declares this shape
+    any more — `resolve_seats` builds it from the items of kind `plugin` so the
+    renderer and the sandbox spec keep the shape they had. Both retire with the
+    renderer in S-0062 phase 4.
+
+    Was (S-0061/D-5):
 
     A source and a ref, and nothing else: the ref is whatever the source's own
     vocabulary pins with — a tag, a branch, a commit — and torve neither
@@ -73,13 +81,15 @@ class AgentProfile(BaseModel):
     model_config = STRICT
     schema_version: int = SCHEMA_VERSION
     """The profile's own shape version."""
-    skills: list[str] = Field(default_factory=list)
-    """The skills materialized into this agent's sandbox, by name (S-0009/D-1). Names
-    resolve against package data and the vendored directory exactly as before; only
-    where the set is declared has moved."""
-    plugins: list[Plugin] = Field(default_factory=list)
-    """The plugins the harness loads, rendered into its own seeding format at dispatch
-    (S-0061/D-6)."""
+    equipment: list[Equipment] = Field(default_factory=list)
+    """Everything this agent is given, one item per thing (S-0062/D-1). A kind the
+    seat's harness does not accept is refused when the seat resolves (S-0062/D-2);
+    the role's own profile contributes a layer under this one (S-0062/D-12)."""
+    prepare: str = ""
+    """A command run in the sandbox before the agent, on its own clock — an index
+    built, a cache warmed. Its failure is an infrastructure failure and convicts
+    nothing (S-0062/D-7); chained into the harness command it would be booked as a
+    gate-red conviction instead."""
     prompt_extras: list[str] = Field(default_factory=list)
     """Working rules appended after the charter's base rules — never before, never
     replacing them (S-0061/D-4)."""
@@ -98,6 +108,11 @@ class HarnessManifest(BaseModel):
     """The manifest's own shape version."""
     adapter: str = "fake"
     """Which agent adapter this harness drives: fake, api, harness or subscription."""
+    equips: dict[str, str] = Field(default_factory=dict)
+    """Which equipment kinds this harness accepts, and the flag that carries each into
+    its command — `{"plugin": "--plugin-dir {path}"}` (S-0062/D-2). One flag is emitted
+    per item, in declaration order. A harness naming no kind takes no equipment, which
+    is what `fake` is."""
     command: str = ""
     """The command line run inside the sandbox; `{prompt}` and `{model}` are
     substituted. The engine never links a harness SDK — it shells a line into a
@@ -112,6 +127,27 @@ class HarnessManifest(BaseModel):
     """The subscription route's volume; one per worker slot, `-<slot>` appended."""
     auth_mount: str = "/auth"
     """Where that volume is mounted, read-write because token refresh writes."""
+
+    @model_validator(mode="after")
+    def _templates(self) -> HarnessManifest:
+        """A kind the engine has no name for, or a flag with nowhere to put the
+        path, is wrong in one visible line rather than in an attempt that ran
+        without its equipment (S-0062/D-2)."""
+
+        for kind, template in sorted(self.equips.items()):
+            if kind not in KINDS:
+                raise ValueError(
+                    f"`equips` names {kind!r}, which is no equipment kind — "
+                    f"the kinds are {', '.join(KINDS)}"
+                )
+
+            if "{path}" not in template:
+                raise ValueError(
+                    f"`equips.{kind}` is {template!r} and carries no `{{path}}`, so "
+                    "nothing would tell the harness where the item was mounted"
+                )
+
+        return self
 
 
 # ....................... #
@@ -161,13 +197,26 @@ def harnesses_dir(root: Path) -> Path:
 # ....................... #
 
 
+# The keys equipment replaced (S-0062/D-1), each named with what to write instead.
+# They were profile keys, so a list of valid keys would read as a typo rather
+# than as a shape that moved.
+FOLDED: dict[str, str] = {
+    "skills": "`equipment` as items of kind `skill` — `{kind: skill, source: torve:<name>}`",
+    "plugins": "`equipment` as items of kind `plugin` — the source and the ref unchanged",
+}
+
+
 def _refuse_foreign(path: Path, body: dict[str, Any], own: frozenset[str]) -> None:
     """Every key that belongs somewhere else, named with where (S-0061/I-2).
 
     `prompt` gets its own refusal (S-0061/D-4): it is not a key of any file,
     and a reader who tried it deserves the reason rather than a list of
-    valid keys.
+    valid keys. So do `skills` and `plugins`, which are not gone but folded
+    (S-0062/D-1).
     """
+
+    for folded in sorted(set(body) & set(FOLDED)):
+        raise AgentError(f"{path}: `{folded}` is now {FOLDED[folded]}")
 
     if "prompt" in body:
         raise AgentError(
@@ -208,7 +257,9 @@ def _body(path: Path, label: str) -> dict[str, Any]:
 # ....................... #
 
 
-def _declared(path: Path, label: str, own: frozenset[str], model: type[BaseModel]) -> dict[str, Any]:
+def _declared(
+    path: Path, label: str, own: frozenset[str], model: type[BaseModel]
+) -> dict[str, Any]:
     """The keys this file actually wrote, after the same validation and the
     same refusals its model performs.
 
@@ -248,16 +299,19 @@ def load_harness(root: Path, name: str) -> HarnessManifest:
 # ....................... #
 
 
-def role_profiles(root: Path) -> dict[str, list[str]]:
-    """The skill set each role's own profile declares (S-0061/D-11).
+def role_equipment(root: Path) -> dict[str, list[Equipment]]:
+    """The equipment each role's own profile declares (S-0061/D-11, S-0062/D-12).
 
     The role default is a profile named for the role, so a repository writes
     its defaults where every other piece of equipment is written instead of in
     a second mapping under `skills:`. A role with no profile file contributes
     nothing — this is a lookup, not a requirement.
+
+    This is the lower of the two layers: `merge_equipment` puts the seat's
+    profile on top of it, per task, because the role varies within a seat.
     """
 
-    found: dict[str, list[str]] = {}
+    found: dict[str, list[Equipment]] = {}
     directory = agents_dir(root)
 
     if not directory.is_dir():
@@ -269,9 +323,17 @@ def role_profiles(root: Path) -> dict[str, list[str]]:
         # the role sets and into the regime hash — which is what makes
         # `torve eval` refuse a skill as "in no role set" (S-0009/A-5).
         if path.stem in ROLES:
-            found[path.stem] = list(load_profile(root, path.stem).skills)
+            found[path.stem] = list(load_profile(root, path.stem).equipment)
 
     return found
+
+
+def role_skills(root: Path) -> dict[str, list[str]]:
+    """The package-data skill names each role loads, which is what `materialize`
+    resolves (S-0009/D-1) and what `skills.sets` carries for every reader that
+    had it before equipment existed."""
+
+    return {role: skill_names(items) for role, items in role_equipment(root).items()}
 
 
 # ....................... #
@@ -336,7 +398,58 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
             )
 
         merged.update(entry)
+        _equipped(key, harness_name, profile_name, merged)
         tiers[key] = merged
         named[key] = (harness_name, profile_name)
 
     return named
+
+
+def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str, Any]) -> None:
+    """Refuse a kind this harness cannot be given, then derive the shapes the
+    readers still have (S-0062/D-2).
+
+    The refusal is S-0061/D-6's generalised from plugins to every kind, and it
+    exists for the same reason: an attempt quietly missing its equipment
+    measures a regime nobody configured, and the record would say it ran with
+    equipment it never had. Both files are named, because which of them is
+    wrong is the reader's call — the profile asked for something, the manifest
+    says it cannot take it, and either could be the one to change.
+
+    `plugins` and `skills` are then written from the same list. Nothing declares
+    them any more; the sandbox spec and the materializer still read them, and
+    they retire with the renderer in phase 4.
+    """
+
+    try:
+        items = [Equipment.model_validate(raw) for raw in merged.get("equipment", [])]
+
+    except ValueError as exc:
+        raise AgentError(f"tier {seat!r} via profile {profile_name!r}: {exc}") from None
+
+    equips: dict[str, str] = merged.get("equips", {})
+
+    for item in items:
+        # A package-data skill has a second channel every harness has: `materialize`
+        # writes it into the worktree and the prompt names it (S-0062/D-10, which
+        # only stands if a harness with no `skill` flag still receives skills). So
+        # the refusal is "no way to deliver it", not "no flag for it" — every other
+        # kind, and a skill that has to be fetched, has only the flag.
+        if item.kind in equips or (item.kind == "skill" and item.scheme == "torve"):
+            continue
+
+        takes = ", ".join(sorted(equips)) or "no equipment at all"
+        raise AgentError(
+            f"tier {seat!r}: profile {profile_name!r} declares {item.source} of kind "
+            f"{item.kind!r}, and harness {harness_name!r} takes {takes} — a kind the "
+            "harness cannot be told about would go missing from an attempt that "
+            "still ran"
+        )
+
+    merged["plugins"] = [
+        {"source": item.source, "ref": item.ref} for item in items if item.kind == "plugin"
+    ]
+    names = skill_names(items)
+
+    if names:
+        merged["skills"] = names

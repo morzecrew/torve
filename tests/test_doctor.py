@@ -50,7 +50,7 @@ def test_seat_check_names_the_harness_and_the_profile(tmp_path: Path):
     root = _seat_repo(
         tmp_path,
         {"tiers": {"executor": {"harness": "fake", "profile": "careful"}}},
-        careful="skills: [flag-dont-flip]\n",
+        careful="equipment: [{kind: skill, source: torve:flag-dont-flip}]\n",
     )
 
     checks = _profile_checks(root, None)
@@ -92,7 +92,7 @@ def test_equipment_check_names_an_override_tier(tmp_path: Path):
         tmp_path,
         {"tiers": {"executor.copywriter": {"harness": "fake", "profile": "copywriter"}}},
         copywriter=(
-            "skills: [prose-voice]\n"
+            "equipment: [{kind: skill, source: torve:prose-voice}]\n"
             "prompt_extras: [Docstrings follow the house voice.]\n"
         ),
     )
@@ -120,7 +120,7 @@ def test_doctor_json_carries_the_seat_line_and_stays_green(tmp_path: Path):
             "runtime": {"adapter": "opensandbox"},
             "tiers": {"executor": {"harness": "fake", "profile": "careful"}},
         },
-        careful="skills: [flag-dont-flip]\n",
+        careful="equipment: [{kind: skill, source: torve:flag-dont-flip}]\n",
     )
 
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])

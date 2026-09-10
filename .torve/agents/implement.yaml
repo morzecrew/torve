@@ -1,4 +1,6 @@
 # yaml-language-server: $schema=../schemas/agent.json
-skills:
-- flag-dont-flip
-- ratchet-what-you-build
+equipment:
+- kind: skill
+  source: torve:flag-dont-flip
+- kind: skill
+  source: torve:ratchet-what-you-build

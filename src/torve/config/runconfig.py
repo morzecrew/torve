@@ -25,8 +25,9 @@ from torve.config.agents import (
     AgentError,
     Plugin,
     resolve_seats,
-    role_profiles,
+    role_skills,
 )
+from torve.config.equipment import Equipment
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
 
@@ -126,15 +127,31 @@ class TierConfig(BaseModel):
     `.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty
     resolves the profile named for the task's role (S-0061/D-11)."""
 
+    equipment: list[Equipment] = Field(default_factory=list)
+    """S-0062/D-1: everything the seat's profile gives its agent, one item per thing.
+    The role's own profile contributes a layer under this one, merged per task
+    (S-0062/D-12), because the role varies within a seat."""
+
+    equips: dict[str, str] = Field(default_factory=dict)
+    """S-0062/D-2: the kinds this seat's harness accepts and the flag that carries each,
+    merged off the manifest. A kind the profile declares and this does not name is
+    refused when the seat resolves."""
+
+    prepare: str = ""
+    """S-0062/D-7: the command run in the sandbox before the agent, on its own clock —
+    a non-zero exit is an infrastructure failure and convicts nothing."""
+
     plugins: list[Plugin] = Field(default_factory=list)
-    """S-0061/D-5: the plugins the profile declares, carried onto the resolved seat so
-    dispatch can render them into the harness's own seeding format (S-0061/D-6)."""
+    """Derived from `equipment`, not declared (S-0062/D-1): the items of kind `plugin`,
+    in the shape the sandbox spec and the renderer already read. Retires with the
+    renderer in S-0062 phase 4."""
 
     skills: list[str] | None = None
-    """S-0029/equipment-on-the-tier, S-0029/D-1: the skills this seat's agent loads, merged
-    from its profile (S-0061/D-1) — `None` is a seat whose profile named none, which falls
-    through to the profile named for the task's role (S-0061/D-11). Names resolve through
-    the same `materialize` path with the same refusals (S-0029/D-2)."""
+    """S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's
+    agent materializes, derived from `equipment` (S-0062/D-1) — `None` is a seat whose
+    profile named none, which falls through to the profile named for the task's role
+    (S-0061/D-11). Names resolve through the same `materialize` path with the same
+    refusals (S-0029/D-2)."""
 
     prompt_extras: list[str] = Field(default_factory=list)
     """S-0029/equipment-on-the-tier, S-0029/D-1: lines appended to the built prompt after
@@ -939,10 +956,13 @@ class StoreConfig(BaseModel):
 # ....................... #
 
 
-# The role defaults `torve init` mints as profiles (S-0061/D-11) — a role a run can
-# actually have, since an entry for a role nothing dispatches promises a
-# materialization that never happens and `torve eval` then refuses the skill it names
-# as "in no role set" (S-0009/A-5).
+# The two skills this engine ships, against the roles that would load them — a
+# sample the suite builds a `SkillsConfig` from, and nothing a repository gets.
+# `torve init` mints no profile any more (S-0062/A-6): equipment is what a
+# repository asked for, never what the engine assumed.
+#
+# ponytail: lives here because four test modules import it; it belongs in
+# tests/conftest.py, and moves the next time those files are in scope.
 ROLE_SKILLS: dict[str, list[str]] = {
     "implement": ["flag-dont-flip", "ratchet-what-you-build"],
     "review": ["ratchet-what-you-build"],
@@ -1469,7 +1489,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     # S-0061/D-11: the role default is a profile named for the role, so the sets a
     # repository once wrote under `skills:` are read off `.torve/agents/`. A
     # `skills:` key in the configuration is refused by `SkillsConfig` itself.
-    roles = role_profiles(root)
+    roles = role_skills(root)
 
     if roles:
         config.setdefault("skills", {})["sets"] = roles
@@ -1486,7 +1506,9 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
             {
                 str(error["loc"][1])
                 for error in exc.errors()
-                if len(error["loc"]) >= 2 and error["loc"][0] == "tiers" and error["loc"][1] in named
+                if len(error["loc"]) >= 2
+                and error["loc"][0] == "tiers"
+                and error["loc"][1] in named
             }
         )
 

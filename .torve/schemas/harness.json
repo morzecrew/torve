@@ -34,6 +34,14 @@
       "title": "Command",
       "type": "string"
     },
+    "equips": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Which equipment kinds this harness accepts, and the flag that carries each into\nits command \u2014 `{\"plugin\": \"--plugin-dir {path}\"}` (S-0062/D-2). One flag is emitted\nper item, in declaration order. A harness naming no kind takes no equipment, which\nis what `fake` is.",
+      "title": "Equips",
+      "type": "object"
+    },
     "image": {
       "default": "",
       "description": "The sandbox image, which is what harness identity actually is (S-0017/D-4).\nEmpty falls back to `runtime.image`.",

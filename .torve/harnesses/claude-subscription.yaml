@@ -11,7 +11,10 @@
 #      writes; linking it into HOME is what keeps a refreshed token for the
 #      next attempt on this slot.
 #   2. The plugins. `--plugin-dir` loads a plugin directory for the session, so
-#      the image's clones are named directly and no HOME seed is copied.
+#      the image's clones are named directly and no HOME seed is copied. Phase 2
+#      of S-0062 composes those flags from `equips` against the mounted cache;
+#      until then the image's own paths stand, and `equips` is what the profile's
+#      declaration is checked against (S-0062/D-2).
 #
 # `--permission-mode bypassPermissions`, not `acceptEdits`: acceptEdits
 # auto-approves file writes and a handful of filesystem commands, and *denies*
@@ -20,6 +23,11 @@
 # work rather than a seat that was not permitted to. The sandbox is disposable
 # and runs as the invoking uid, which is what the bypass asks for.
 adapter: subscription
+equips:
+  skill: --add-dir {path}
+  plugin: --plugin-dir {path}
+  mcp: --mcp-config {path}
+  hook: --settings {path}
 image: torve-agent:claude
 command: >-
   mkdir -p "$HOME/.claude" &&

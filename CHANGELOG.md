@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A profile says what its agent has in one list. `equipment:` carries a kind
+  (`skill`, `plugin`, `mcp` or `hook`), a source and a ref, so a skill can name
+  a version and a repository other than this one for the first time.
+
+- A source is `torve:<name>`, `local:<path>` or `github:<owner>/<repo>`. The
+  fetched one needs a ref; the other two refuse one, because package data and a
+  tracked path are versioned already.
+
+- A harness manifest says what it can be given. `equips:` maps a kind to the
+  flag that carries it — `plugin: --plugin-dir {path}` — and a profile
+  declaring a kind the manifest does not name is refused at load, naming both
+  files, instead of being discovered by an attempt that ran without it.
+
+- A subagent is an equipment kind. `agent` sits beside `skill`, `plugin`, `mcp`
+  and `hook`, because a harness that takes `--agents <json>` has a channel for
+  one like it has a channel for the rest.
+
+- A profile may declare `prepare:`, a command torve runs before the agent on
+  its own clock. Chained into the harness command an index build is untimed and
+  its failure is booked as a failing gate; declared, it is an infrastructure
+  failure that convicts nothing.
+
+### Changed
+
+- **Breaking:** `skills:` and `plugins:` are no longer profile keys — both are
+  `equipment` items now, and a profile still naming either is refused with the
+  item that replaces it. A role profile written by `torve init` carries
+  `{kind: skill, source: torve:<name>}` per skill.
+
+- **Breaking:** `torve init` mints no role profile. A repository used to start
+  with three, pre-filled with the two skills this engine ships — two skills
+  nobody asked for, in the trigger-matching set and the regime hash.
+
+- A seat with no profile, in a repository with no role profile, runs the bare
+  harness with nothing attached. Equipment is what a repository asked for.
+
+- A profile's equipment is layered on the role's rather than replacing it: the
+  profile named for the task's role contributes first, the seat's profile on
+  top, deduplicated by kind and source. A seat profile that adds one plugin no
+  longer costs its role's skills.
+
 - A profile's plugins are rendered into the harness's own seeding format when
   the sandbox is created, from one renderer per harness. Claude Code's three
   hand-kept JSON files are gone; a harness with no renderer refuses a

@@ -83,26 +83,21 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     return texts
 
 
-# S-0061/D-11: the role default is a profile named for the role, so the mapping
-# that used to carry these in code is gone.
+# S-0062/A-6: equipment is what a repository asked for, never what the engine
+# assumed, so this mints nothing — the collision cost of a skill nobody wanted
+# is S-0009's own argument against a default.
 def expected_profiles(root: Path) -> dict[Path, str]:
-    """The role profiles a repository starts with.
+    """No profile: a repository names the equipment it wants.
 
-    A repository with no `implement.yaml` loads no skills for an implement
-    task, so `init` writes one per role — once, and never again: they are the
-    operator's from the moment they exist, exactly like a standing contract or
-    a gate manifest.
+    `init` used to mint one profile per role, pre-filled with the two skills
+    this engine ships, so a repository that had asked for nothing got two
+    skills in its trigger-matching set and two entries in its regime hash.
+    A role with no profile contributes no layer, a seat naming no profile
+    contributes none either, and a seat with neither runs the bare harness
+    with nothing attached.
     """
 
-    import yaml
-
-    from torve.config.agents import agents_dir
-    from torve.config.runconfig import ROLE_SKILLS
-
-    return {
-        agents_dir(root) / f"{role}.yaml": yaml.safe_dump({"skills": skills}, sort_keys=False)
-        for role, skills in ROLE_SKILLS.items()
-    }
+    return {}
 
 
 # ....................... #
@@ -214,9 +209,7 @@ def init_cmd(
     lined += [(path, where / f"{SOURCE_SCHEMA}.json") for path in source_files(root)]
     # S-0061/D-1, S-0061/D-2: so do both files a seat names.
     lined += [(path, where / "agent.json") for path in sorted(agents_dir(root).glob("*.yaml"))]
-    lined += [
-        (path, where / "harness.json") for path in sorted(harnesses_dir(root).glob("*.yaml"))
-    ]
+    lined += [(path, where / "harness.json") for path in sorted(harnesses_dir(root).glob("*.yaml"))]
 
     for target, schema in lined:
         if _add_header(target, schema):
