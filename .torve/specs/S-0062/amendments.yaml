@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-10T14:53:04Z'
+    title: >-
+      The phases take the test files of the modules they touch
+    md: |-
+      `torve plan` refused to mint: three phases allowed a module whose existing test file was outside their scope, which is the T-0113 rule — a phase that can change a module and cannot change what tests it either leaves the suite red or edits a test it was not scoped to edit.
+
+      Phase 1 gains `tests/test_runconfig.py` because the fold of `skills` and `plugins` into equipment reaches the loader that fills them. Phase 2 gains `tests/test_session.py` because the seat that fills a `SandboxSpec` is the one that mounts the cache. Phase 3 gains both `tests/test_session.py` and `tests/test_runner.py`, which is where an infrastructure failure is told apart from a conviction.
+
+      No decision row changes and no scope widens beyond a module's own tests.

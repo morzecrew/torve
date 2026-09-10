@@ -20,6 +20,7 @@ phasing:
       - src/torve/cli/init.py
       - tests/test_equipment.py
       - tests/test_agents.py
+      - tests/test_runconfig.py
     acceptance:
       - uv run pytest
       - uv run mypy src
@@ -44,6 +45,7 @@ phasing:
       - src/torve/cli/main.py
       - tests/test_equipment.py
       - tests/test_manifest.py
+      - tests/test_session.py
     acceptance:
       - uv run pytest
       - uv run mypy src
@@ -64,6 +66,8 @@ phasing:
       - src/torve/application/runner.py
       - src/torve/domain/states.py
       - tests/test_run_loop.py
+      - tests/test_session.py
+      - tests/test_runner.py
     acceptance:
       - uv run pytest
       - uv run mypy src
