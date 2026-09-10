@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0325
+base: c3d7e0a3c756e1eea9fc331fceec75f13f212817
+commit: 3fe17205a6b4c96d0abbf788823118eb8c158240
+at: '2026-09-10T14:06:11Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T14:00:36Z'
+    claim: >-
+      A profile contributes the keys it wrote; a key it omitted leaves the seat's
+      value unset
+    evidence: >-
+      src/torve/config/agents.py:205 - _declared validates through the model and returns
+      the body's own keys, so the merge never writes a model default
+    action: decided
+  - decision: D-11
+    grade: ASSUMED
+    at: '2026-09-10T14:00:36Z'
+    claim: >-
+      Only a name the engine has a role for is a role profile
+    evidence: >-
+      src/torve/config/agents.py:250 - role_profiles keys on ROLES, so a seat's profile
+      no longer enters the role sets
+    action: decided
