@@ -4,6 +4,7 @@ read by the verb that owns it, and recorded with its own kind."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -238,3 +239,28 @@ def test_list_check_resolves_every_source_a_contract_names(tmp_path):
     resolved = runner.invoke(app, ["source", "list", "--check", "--root", str(tmp_path)])
 
     assert resolved.exit_code == 0, resolved.output
+
+
+def test_show_resolves_a_document_because_the_grammar_admits_one(tmp_path):
+    """S-0060/D-1: `S-NNNN` and `<kind>/<slug>` are one grammar, so they have
+    one resolver — a document is a source that is not filed as one, and asking
+    `show` for it answers rather than redirecting."""
+
+    from test_decisions import corpus, document
+
+    corpus(tmp_path, **{"0059": document("0059", [("S-0059/D-1", "LOCKED", "A rule.", "`src/**`")])})
+
+    shown = runner.invoke(
+        app, ["source", "show", "S-0059", "--root", str(tmp_path), "--format", "json"]
+    )
+
+    assert shown.exit_code == 0, shown.output
+    body = json.loads(shown.stdout)
+    assert body["id"] == "S-0059"
+    assert body["kind"] == "specification"
+
+    # A number the corpus does not hold is a refusal, not a traceback.
+    missing = runner.invoke(app, ["source", "show", "S-9999", "--root", str(tmp_path)])
+
+    assert missing.exit_code != 0
+    assert "nothing in this tree is the source 'S-9999'" in missing.output

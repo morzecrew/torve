@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contract carries for its own length. `--format json` gives the whole
   command where the table truncates it.
 
+- `torve source show` takes any source identifier a contract may carry.
+  `S-NNNN` resolves to the document, which is a source that is not filed as
+  one; `torve spec show` is still where its decisions are.
+
 - A contract names what asked for the work: `source` beside `spec`, where
   `spec` says whose rows it inherits. `torve intake --source` records it and
   adoption copies it onto every contract it mints. The record reads source,

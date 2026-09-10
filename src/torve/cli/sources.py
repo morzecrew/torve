@@ -1,8 +1,10 @@
-"""`torve source` — mint and read the filed sources (S-0060/D-6).
+"""`torve source` — mint and read the sources (S-0060/D-6).
 
-A source that is a document is read with `torve spec show`; everything else
-is a file this verb writes and reads, so an identifier on a contract always
-resolves to something a person can open.
+A document is a source without being filed as one, so `new` refuses its kind
+and only `.torve/sources/` is written here. Reading is the other way round:
+one grammar has one resolver, so `show` takes any source identifier a
+contract may carry and answers for a document too, deferring to the corpus
+for the rows themselves.
 """
 
 from __future__ import annotations
@@ -181,26 +183,41 @@ def list_cmd(
 
 @source_app.command("show")
 def show_cmd(
-    identifier: Annotated[str, typer.Argument(help="A source id, `<kind>/<slug>`.")],
+    identifier: Annotated[
+        str, typer.Argument(help="A source id: `S-NNNN` or `<kind>/<slug>`.")
+    ],
     root: RootOption = Path("."),
+    config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """One source whole, with the tasks whose contracts name it."""
+    """One source whole, with the tasks whose contracts name it. An `S-NNNN`
+    identifier resolves to the document, which is a source that is not filed
+    as one — the grammar admits both, so this verb does too; `torve spec show`
+    is where its decisions are."""
 
+    from torve.application.decisions import PlanError, corpus_sources
     from torve.config.sources import cited_sources, load_sources
     from torve.config.spec import SpecError
+    from torve.domain.source import FILED_ID
 
     try:
-        found = load_sources(root)
+        found = load_sources(root) if FILED_ID.match(identifier) else {}
     except SpecError as exc:
         raise fail(f"configuration error: {'; '.join(exc.problems)}", EXIT_CONFIG) from None
+
+    if not FILED_ID.match(identifier):
+        try:
+            found = corpus_sources(root / load_config(root, config).specs.path)
+        except PlanError as exc:
+            raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
     source = found.get(identifier)
 
     if source is None:
         raise fail(
-            f"configuration error: no source {identifier!r} under "
-            f"{root / '.torve' / 'sources'} — a document is read with `torve spec show`",
+            f"configuration error: nothing in this tree is the source {identifier!r} — "
+            f"filed sources live under {root / '.torve' / 'sources'}, "
+            "and a document is one when the corpus holds it",
             EXIT_CONFIG,
         )
 
