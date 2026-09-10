@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0313
+phase: 2
+base: d7daf884b11e1e5dfd4ba45ed26958561e1406ca
+commit: 37f1bf68e66d64945a6e33c7265cf69483f95394
+at: '2026-09-10T04:02:40Z'
+agent: session/claude-fable-5.1
+entries:
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-09T21:54:15Z'
+    claim: >-
+      `torve/domain/vocabulary.py` defines the corpus words, the entry words, role,
+      tier, character, the gate words, the finding severity and the source kind once,
+      with their tuples; `domain/rfc.py` is deleted; events.py, attempt.py, source.py,
+      manifest.py and task.py import instead of respelling; `decisions_reported` builds
+      its sets from the tuples and the parity test went with the copies; single-use
+      literals (a trigger's kind, a config knob) stay with their field
+    evidence: >-
+      src/torve/domain/vocabulary.py:37 - the entry words, the log's and the record's
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-09T21:54:16Z'
+    claim: >-
+      `torve/base/model.py` holds `STRICT`; the 63 `extra="forbid"` configs use it
+      (LogEntry spells it with its alias options); every field of the contract, the
+      log, the landing and the document families carries an attribute docstring; `test_schema_descriptions_cover_every_property`
+      walks every schema `init` writes and refuses a property without one
+    evidence: >-
+      src/torve/base/model.py:14 - the one configuration
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-09T21:54:16Z'
+    claim: >-
+      `init` mints `standing.json` from `StandingContract` and lines every file under
+      `.torve/standing/`; `doctor` adds a `standing` check that reddens on a file
+      without its line
+    evidence: >-
+      src/torve/cli/init.py:68 - the schema, minted beside the others
+    action: decided
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-09T21:54:16Z'
+    claim: >-
+      the log says `base` at schema version 2: `DOCUMENT_ORDER`, the pin, `seed`,
+      `land`'s read and the gate's `check_pin` follow, and a dropped pin still carrying
+      `base_sha` is read as `base`; `spec new`'s hint and `spec show`'s label say
+      summary
+    evidence: >-
+      src/torve/application/divergence.py:64 - the log's keys, in order
+    action: decided
+    notes: >-
+      the engine's shared SCHEMA_VERSION still lives in domain/task.py beside CONTRACT_SCHEMA_VERSION;
+      each shape owning its own version is the alignment left for a later row
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-09T21:54:17Z'
+    claim: >-
+      phase 1's row (the contract's key), landed in T-0312; this phase moves words
+      and docstrings under its paths and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled, documented here
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-09T21:54:17Z'
+    claim: >-
+      phase 1's row (the document lookup), landed in T-0312; this phase moves words
+      and docstrings under its paths and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled, documented here
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-09T21:54:17Z'
+    claim: >-
+      phase 1's row (the source id and the fold), landed in T-0312; this phase moves
+      words and docstrings under its paths and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled, documented here
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-09T21:54:18Z'
+    claim: >-
+      phase 1's row (the gate origin), landed in T-0312; this phase moves words and
+      docstrings under its paths and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled, documented here
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-09T21:54:18Z'
+    claim: >-
+      phase 3's row (the two commits): untouched; this phase documents the landing's
+      fields and renames the log's `base_sha` under its paths
+    evidence: >-
+      src/torve/application/divergence.py:64 - the log's keys this phase renamed
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-09T21:54:18Z'
+    claim: >-
+      phase 3's row (the trailers): untouched; this phase documents the landing's
+      fields and renames the log's `base_sha` under its paths
+    evidence: >-
+      src/torve/application/divergence.py:64 - the log's keys this phase renamed
+    action: decided
+  - decision: D-11
+    grade: LOCKED
+    at: '2026-09-09T21:54:19Z'
+    claim: >-
+      phase 3's row (`.torve/execution/`): untouched; this phase documents the landing's
+      fields and renames the log's `base_sha` under its paths
+    evidence: >-
+      src/torve/application/divergence.py:64 - the log's keys this phase renamed
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-09T21:54:19Z'
+    claim: >-
+      phase 3's row (the readers): untouched; this phase documents the landing's fields
+      and renames the log's `base_sha` under its paths
+    evidence: >-
+      src/torve/application/divergence.py:64 - the log's keys this phase renamed
+    action: decided
