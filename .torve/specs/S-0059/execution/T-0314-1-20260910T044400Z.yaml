@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0314
+phase: 3
+base: c56377b3ba8808567b49c60bc10db5c187552d8c
+commit: 62b24f63c89d1ec00771dd14e80bf18dc484c789
+at: '2026-09-10T04:44:00Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-10T04:26:05Z'
+    claim: >-
+      `runner.land` commits the work first with `_work_message`, then writes the landing
+      naming that sha and commits it alone as `torve(T-NNNN): landing of attempt N`;
+      `commit_all` returns None on an unchanged tree, so an attempt that changed nothing
+      still lands with an empty commit
+    evidence: >-
+      src/torve/application/runner.py:641 - the landing commit, after the work
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-10T04:26:05Z'
+    claim: >-
+      `_provenance_message` is `_work_message` and writes no trailer; `Landing.decisions`
+      carries the contract's rows as `{id, grade}`, localized inside its own document
+      like the entries; `Torve-Bypass`, `Torve-Fixes` and `Torve-Checkpoint` stay
+    evidence: >-
+      src/torve/application/runner.py:533 - the message with no trailers
+    action: decided
+    notes: >-
+      the 22 landings written before this carry no `decisions`; nothing backfills
+      them, so `spec cites` answers `inherited` only for work landed from here on
+  - decision: D-11
+    grade: LOCKED
+    at: '2026-09-10T04:26:06Z'
+    claim: >-
+      `layout.execution_dir` names `.torve/execution/`; `land` writes there when the
+      contract names no document, `write_landing` takes the execution directory and
+      an optional document (None writes global identifiers and a one-level schema
+      line), and the scope gate exempts the directory
+    evidence: >-
+      src/torve/config/layout.py:77 - the document-less directory
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-10T04:26:06Z'
+    claim: >-
+      `landings`, `landed_commits`, `landed_by_task`, `landed_task_ids` and `landed_commit`
+      read the corpus, the archive and `.torve/execution/`; `shipped_landings`/`shipped_ids`,
+      `workspace.shipped_commit`, the revert leg, the reap oracle, the review's defect
+      lookup and `spec cites` all read them; `Vcs.landed_shas` is deleted, `PrVcs.task_trailers`
+      is `landed_tasks` over the landing files a range adds, and the subject spellings
+      go with S-0007/D-26
+    evidence: >-
+      src/torve/application/decisions.py:747 - the one reader over the tree
+    action: decided
+    notes: >-
+      the backfill clause was already satisfied: T-0288 to T-0292 have had landings
+      since S-0057/D-8 folded their logs, and S-0058/D-12 gave them base and commit;
+      the script wrote nothing but one duplicate, which was deleted, so no trailer
+      was read
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T04:26:07Z'
+    claim: >-
+      phase 1's row (the contract's key), landed in T-0312; this phase reads `task.spec`
+      and resolves through `document_dir` as it settled, and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-10T04:26:07Z'
+    claim: >-
+      phase 1's row (the document lookup), landed in T-0312; this phase reads `task.spec`
+      and resolves through `document_dir` as it settled, and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T04:26:07Z'
+    claim: >-
+      phase 1's row (the source id), landed in T-0312; this phase reads `task.spec`
+      and resolves through `document_dir` as it settled, and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-10T04:26:08Z'
+    claim: >-
+      phase 1's row (the gate origin), landed in T-0312; this phase reads `task.spec`
+      and resolves through `document_dir` as it settled, and changes nothing it decides
+    evidence: >-
+      src/torve/domain/task.py:120 - the field phase 1 settled
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-10T04:26:08Z'
+    claim: >-
+      phase 2's row (the vocabulary), landed in T-0313; the new `GradedRow` takes
+      its `Grade` from the vocabulary and its docstrings from the shared configuration,
+      and `land` reads the log's `base` with a fallback to `base_sha` for a log written
+      before it
+    evidence: >-
+      src/torve/application/decisions.py:747 - the reader written under phase 2's
+      rules
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-10T04:26:09Z'
+    claim: >-
+      phase 2's row (the shared configuration and the docstrings), landed in T-0313;
+      the new `GradedRow` takes its `Grade` from the vocabulary and its docstrings
+      from the shared configuration, and `land` reads the log's `base` with a fallback
+      to `base_sha` for a log written before it
+    evidence: >-
+      src/torve/application/decisions.py:747 - the reader written under phase 2's
+      rules
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-10T04:26:09Z'
+    claim: >-
+      phase 2's row (the standing schema), landed in T-0313; the new `GradedRow` takes
+      its `Grade` from the vocabulary and its docstrings from the shared configuration,
+      and `land` reads the log's `base` with a fallback to `base_sha` for a log written
+      before it
+    evidence: >-
+      src/torve/application/decisions.py:747 - the reader written under phase 2's
+      rules
+    action: decided
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-10T04:26:10Z'
+    claim: >-
+      phase 2's row (the log's `base`), landed in T-0313; the new `GradedRow` takes
+      its `Grade` from the vocabulary and its docstrings from the shared configuration,
+      and `land` reads the log's `base` with a fallback to `base_sha` for a log written
+      before it
+    evidence: >-
+      src/torve/application/decisions.py:747 - the reader written under phase 2's
+      rules
+    action: decided
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-10T04:34:55Z'
+    claim: >-
+      I-1's own check found the one writer phase 3 left standing: the checkpoint commit
+      carried `Torve-Checkpoint` and `Torve-Attempt` both (S-0026/D-9's mark that
+      a commit is not a landing). The attempt now rides the checkpoint's own trailer,
+      so D-10's list holds to the letter and the mark stays; I-1 reads a written trailer
+      only, refusing a backtick before the name, so the docstrings that record what
+      the five used to say are kept (S-0059/A-2)
+    evidence: >-
+      src/torve/application/runner.py:712 - the checkpoint's one trailer
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-10T04:34:56Z'
+    claim: >-
+      I-2's check found a reference phase 2 left behind: `domain/spec.py`'s module
+      docstring still said `domain/rfc.py` owns the vocabularies, a module that phase
+      deleted. It names `domain/vocabulary.py` now
+    evidence: >-
+      src/torve/domain/spec.py:9 - the module that owns the words
+    action: decided
