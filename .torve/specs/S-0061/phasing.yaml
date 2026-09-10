@@ -25,6 +25,15 @@ phasing:
       - tests/test_agents.py
       - tests/test_runconfig.py
       - tests/test_cli.py
+      - src/torve/cli/doctor.py
+      - tests/conftest.py
+      - tests/test_doctor.py
+      - tests/test_evals.py
+      - tests/test_review_run.py
+      - tests/test_rfc_check.py
+      - tests/test_run_integration.py
+      - tests/test_skills.py
+      - tests/test_tiering.py
     acceptance:
       - uv run pytest
       - uv run mypy src
