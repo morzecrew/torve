@@ -1,0 +1,340 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0063
+title: The image knows how to equip itself
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0062]
+informed_by: [S-0017, S-0004, S-0055, S-0021, S-0035]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A harness manifest carries a shell line, and that line is doing three jobs at once:
+  wiring auth, invoking the harness, and naming equipment. S-0062 then added a second
+  declaration of the third — a flag template per equipment kind. Measurement against
+  the three harnesses this repository actually builds says the template cannot be
+  written for two of them.
+
+  So the seam moves. The image gets two scripts, `/opt/torve/run` and
+  `/opt/torve/equip`, and the engine talks to every harness through one set of
+  environment variables. A manifest stops carrying shell: it names an image, how auth
+  arrives, which equipment kinds the harness accepts, and the knobs the image reads.
+
+  The definitions move out of `.torve/` to `sandboxes/` at the repository root and
+  publish under their own names, because they are torve's source rather than what
+  torve owns in a consuming repository. One base image carries the engine's CLI that
+  five definitions duplicate today, `bake.hcl` makes that a real dependency, and a
+  justfile recipe is the build.
+
+  Claude first. `dsh` and `mimo` follow, and their scripts are what prove the seam is
+  not claude-shaped a second time.
+motivation: |
+  Measured in the built images, not from documentation:
+
+  - **claude 2.1.252** takes session flags for every kind: `--plugin-dir`,
+    `--mcp-config`, `--settings`, `--agents`, `--add-dir`.
+  - **dsh 0.1.1-rc.2** takes three options in total — `--profile`, `--patch <path>`
+    (repeatable YAML overlay), `--dump-config`. Every kind of configuration it has
+    arrives through one channel, and a plugin is `dsh plugin add <package>`, which
+    installs through pnpm into the profile directory.
+  - **mimo 0.1.13** has no session channel at all. `mimo mcp add` registers an MCP
+    server, `mimo plugin <module>` installs from npm and rewrites the config,
+    `mimo agent` manages agents. Its equipment is state, established before the run.
+
+  S-0062/D-2 says a manifest names a flag template per kind. For dsh that template
+  would have to be a YAML document torve generates; for mimo it would have to be a
+  sequence of commands. Both are renderers, and a renderer against a harness's own
+  internals is what S-0062/D-9 retired three hours before this was measured.
+
+  The tier command is the same problem one level up. This repository's claude seat
+  carries:
+
+  ```
+  mkdir -p "$HOME/.claude" && ln -sf /auth/.credentials.json "$HOME/.claude/.credentials.json" &&
+  claude -p "$(cat {prompt})" --model {model} --output-format json
+  --permission-mode bypassPermissions --plugin-dir … --plugin-dir …
+  ```
+
+  Auth wiring, invocation and equipment in one string, with `{prompt}`, `{model}`,
+  `{broker_url}` and `{broker_token}` substituted by `str.replace` because the string
+  is shell and may carry braces of its own. Nothing checks it before it runs. A seat
+  whose flags are wrong reads as a model that would not work.
+
+  And the build has its own version of the duplication: the block that installs the
+  engine's CLI is byte-identical in all five definitions, kept in step by
+  `tests/test_sandbox_defs.py` pinning each copy against `_torve-cli.dockerfile`. That
+  is a test standing in for a base image.
+current_state: |
+  Verified against the tree at `ba3a16a`.
+
+  `TierConfig.command` is a shell template; `HarnessAgent._command`
+  (`src/torve/adapters/agent/harness.py`) substitutes `{prompt}`, `{model}`,
+  `{broker_url}` and `{broker_token}` into it and the runtime adapter runs the result
+  through a shell inside the sandbox. `TierConfig.equips` is the capability map
+  S-0062 landed. `SandboxSpec` (`src/torve/application/ports.py`) carries `env`,
+  `env_passthrough`, `volumes` and `plugins`; the runtime adapters already set
+  environment variables, so the channel this document needs exists.
+
+  Five definitions live under `.torve/sandbox/<name>/` — `battery`, `claude`, `codex`,
+  `dsh`, `mimo`, `opencode` — and build to `torve-agent:<name>` through
+  `torve sandbox build`, which stages `pyproject.toml`, `uv.lock`, `README.md` and
+  `LICENSE` into each context so the CLI layer can install. `_torve-cli.dockerfile` is
+  the fragment the five copies are pinned against.
+
+  `S-0017` is archived, so `S-0017/D-2` — definitions under `.torve/sandbox/<name>/` —
+  no longer stands as a live row. `S-0055/D-30` says everything torve owns *in a
+  consuming repository* lives under `.torve/`, and its paths are the configuration
+  files, not the definitions; the images this repository builds are its own source.
+
+  Nothing reads a harness capability off an image. `torve doctor` checks that a
+  configured image exists and reports its digest.
+goals: |
+  One contract between the engine and every sandbox image, in environment variables,
+  so a new harness is a new image and not a new template language.
+
+  A manifest a person can read in ten seconds and a schema can check: an image, an
+  auth arrangement, the kinds this harness accepts, and the knobs its image reads.
+
+  Equipment reaches each harness the way that harness takes it, decided by the image
+  that knows, not by a renderer in the engine that has to keep up with three harnesses
+  across versions.
+
+  A build that expresses its own dependencies, so the CLI layer is inherited rather
+  than copied and pinned by a test.
+non_goals: |
+  Not a harness abstraction. The engine still does not model what a flag means; it
+  hands the image a manifest and an environment and runs one entrypoint. What changes
+  is which side of the boundary the translation lives on.
+
+  Not a change to what equipment is. S-0062/D-1's typed items, S-0062/D-3's sources,
+  S-0062/D-4's host-side cache, S-0062/D-7's `prepare` and S-0062/D-12's two layers all
+  stand unchanged; this document changes only how the mounted result reaches a harness.
+
+  Not a registry migration. The images gain names worth publishing and a bake file
+  that could push them; whether they are published, and to where, is an operator's
+  decision this document does not take.
+
+  Not a rewrite of the runtime adapters. `SandboxSpec` already carries an environment;
+  this fills it differently.
+design:
+  - key: the-manifest-writes-shell-that-belongs-in-the-image
+    md: |
+      Three concerns are braided into one string today, and only one of them is the
+      operator's:
+
+      | in the command | whose | belongs |
+      |---|---|---|
+      | `mkdir -p "$HOME/.claude" && ln -sf /auth/…` | the harness's | the image |
+      | `claude -p … --output-format json` | the harness's | the image |
+      | `--permission-mode bypassPermissions` | the operator's | the manifest |
+      | `--plugin-dir …` | the profile's | derived, never written |
+
+      The first two are facts about claude that never vary between seats. The third is
+      a knob. The fourth is S-0062's equipment, already declared once on the profile.
+
+      A manifest keeps the third. The image takes the first two, because the image is
+      the only thing in the system that already knows what harness it contains — that
+      is what S-0017/D-4 meant by identity in the image, applied to the one field it
+      had not reached.
+  - key: three-harnesses-three-shapes
+    md: |
+      What a flag template per kind would have to be, per harness:
+
+      | kind | claude | dsh | mimo |
+      |---|---|---|---|
+      | plugin | `--plugin-dir {path}` | `dsh plugin add` — installs | `mimo plugin` — installs |
+      | mcp | `--mcp-config {path}` | a generated `--patch` overlay | `mimo mcp add` |
+      | hook | `--settings {path}` | a generated `--patch` overlay | config file |
+      | agent | `--agents {path}` | a generated `--patch` overlay | `mimo agent` |
+      | skill | `--add-dir {path}` | a bundle | — |
+
+      One column is flags. One is a YAML document torve would have to generate. One is
+      a sequence of commands torve would have to run in order. A single string with
+      `{path}` in it expresses the first column and nothing else, which is what makes
+      S-0062/D-2's map claude-shaped: it was written from the one harness that had
+      been measured.
+
+      The general statement is weaker and truer. **Torve says what the equipment is
+      and where it is mounted. The image says what to do about it.**
+  - key: the-env-seam
+    md: |
+      Two scripts, present in every sandbox image:
+
+      ```
+      /opt/torve/equip   translate the equipment manifest into whatever this harness needs
+      /opt/torve/run     invoke the harness, write the result where the engine reads it
+      ```
+
+      And one set of variables the engine sets, identical for every image:
+
+      | variable | what it carries |
+      |---|---|
+      | `TORVE_PROMPT` | path to the staged prompt, in the workspace |
+      | `TORVE_MODEL` | the seat's model, verbatim |
+      | `TORVE_EQUIPMENT` | path to the mounted equipment root |
+      | `TORVE_EQUIPMENT_MANIFEST` | path to the JSON listing every item: kind, source, ref, path |
+      | `TORVE_OUTPUT` | where `run` writes the result the engine parses |
+      | `TORVE_BROKER_URL`, `TORVE_BROKER_TOKEN` | set when a broker handle reached the agent, absent otherwise |
+
+      The engine runs `equip` and then `run`. `equip` is where claude composes flags
+      into a file `run` sources, dsh writes one `--patch` overlay, and mimo runs its
+      install commands — the same script name, three answers, each one written beside
+      the harness it knows about.
+
+      Broker placeholders retire into `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`. The
+      refusal S-0021 built stays: a seat whose provider the broker does not route is
+      still refused before dispatch, and the check moves from *does the string contain
+      a placeholder* to *does this seat need a broker*.
+  - key: what-stays-in-the-manifest
+    md: |
+      ```yaml
+      # .torve/harnesses/claude-subscription.yaml
+      adapter: subscription
+      image: claude-sandbox:2.1.252
+      auth_volume: torve-auth
+      auth_mount: /auth
+      kinds: [skill, plugin, mcp, hook, agent]
+      env:
+        CLAUDE_PERMISSION_MODE: bypassPermissions
+      ```
+
+      `command` goes and `equips` loses its templates. `kinds` is what survives of
+      S-0062/D-2, and it survives because the refusal it buys happens at load, in
+      configuration a person reviewed, without pulling an image: a profile declaring a
+      kind this harness has no channel for is refused naming both files, exactly as it
+      is today.
+
+      `env` is the knob surface. A value here reaches the image's environment and
+      nothing else reads it — torve does not know what `CLAUDE_PERMISSION_MODE` means,
+      which is the property the non-goal is protecting.
+
+      What this costs, stated where it cannot be missed: **changing a flag becomes a
+      rebuild.** That is a real loss of turnaround and I think it is the right trade —
+      the image is already harness identity, and a flag that changes what an agent may
+      do is a regime change that ought to move the digest. Today `--permission-mode`
+      can change under a fixed digest and the telemetry says nothing happened.
+  - key: one-base-image-and-a-bake-file
+    md: |
+      The definitions move to `sandboxes/<name>/` at the repository root and take
+      names of their own: `claude-sandbox`, `dsh-sandbox`, `mimo-sandbox`. The
+      `torve-agent:` prefix says who built the image, which a registry path already
+      says.
+
+      This is not a tidiness argument. `.torve/` is what torve owns in a repository
+      it is working on (S-0055/D-30) — configuration, manifests, task state. These
+      images are torve's own source, built here and published for other repositories
+      to pull. `.torve/sandbox/` stays as the hook for a consuming repository that
+      defines an image of its own; it stops being where torve keeps its.
+
+      One base image, `sandbox-base`, carries what every definition needs: `git`,
+      `uv`, and the engine's CLI in an environment of its own. That block is
+      byte-identical in five definitions today and held in step by a test that pins
+      each copy against a fragment. A base image makes it inheritance, and both the
+      fragment and its pin test retire.
+
+      `bake.hcl` expresses the dependency (`contexts = { base = "target:base" }`) and
+      a justfile recipe is the build, the way `morzecrew/platform-images` does it.
+      `torve sandbox build` stays the operator's verb and shells `docker buildx bake`
+      rather than assembling contexts by hand.
+  - key: claude-first
+    md: |
+      Phase 2 writes `equip` and `run` for claude alone, against a seat this
+      repository can actually reach. That proves the contract carries a real harness.
+
+      It does not prove the contract is not claude-shaped — the same mistake, made
+      once already in S-0062/D-2. Only dsh and mimo prove that, because they are the
+      two whose equipment is not flags. So phase 3 is not optional polish; it is the
+      test of phases 1 and 2, and a contract that has to change to admit them is a
+      contract that was wrong.
+
+      The order is the owner's: claude first, expand after. What phase 2 must not do
+      is let claude's shape into the variable names. `TORVE_EQUIPMENT_MANIFEST` says
+      what the equipment is, not where to put it.
+tests: |
+  The seam is testable without an image. A fake harness image that echoes its
+  environment is enough to assert that `equip` and `run` receive the six variables,
+  that `TORVE_BROKER_*` are absent with no broker, and that a seat needing a broker it
+  does not have is refused before dispatch.
+
+  The manifest's refusals are one case each: a `command` key named by a manifest is
+  refused with what replaced it, a kind outside the enumeration is refused, and a
+  profile declaring a kind the manifest's `kinds` does not carry is refused naming
+  both files — the case S-0062 already has, kept working.
+
+  The build is tested by shape, not by building: `bake.hcl` names a target per
+  definition, every target inherits the base, and `sandboxes/` holds no copy of the
+  CLI fragment. Whether an image builds is `just images`, an operator action.
+
+  Not tested here: that claude, dsh or mimo actually load what `equip` gave them.
+  Every tier in this repository is `fake`; that is a live-run observation for the
+  first operator report.
+docs: ''
+out_of_scope: ''
+risks: |
+  The largest is that the environment contract becomes claude's vocabulary with
+  neutral names. `TORVE_EQUIPMENT_MANIFEST` is a JSON file of typed items, which every
+  harness can read differently; a variable called `TORVE_PLUGIN_DIRS` would already be
+  the mistake. Phase 3 is where this is caught, and catching it late is expensive
+  because two images will have been written against the wrong shape.
+
+  The second is the rebuild cost. A knob that lives in `env` costs nothing to change;
+  a flag that does not costs an image build. Whether the split between them is drawn
+  right is only discoverable in use, and drawing it wrong shows up as an operator
+  editing a Dockerfile to change one word.
+
+  The third is that `torve sandbox build` becomes a wrapper around bake and earns its
+  keep only through the staging it no longer has to do. If bake does the whole job the
+  verb should retire rather than survive as indirection — Q-1.
+
+  The fourth is scope creep into publishing. A named image invites a registry, a
+  registry invites a tag policy, and neither is decided here.
+alternatives:
+  - option: >-
+      Keep the flag templates and add a renderer per harness for the kinds that need
+      one — a YAML overlay writer for dsh, a command sequence for mimo.
+    rejected_because: >-
+      That is S-0061/D-6's renderer, retired by S-0062/D-9 for reverse-engineering
+      a harness's internals, arriving a third time under a third name. It also puts
+      three harnesses' release notes on the engine's maintenance path.
+  - option: >-
+      Keep the tier command and let the manifest call the image's script itself —
+      `command: /opt/torve/run`.
+    rejected_because: >-
+      It keeps a shell template nothing checks, for the sake of a string every manifest
+      would write identically. A field whose only correct value is one literal is
+      not configuration.
+  - option: >-
+      Pass the equipment as environment variables directly, one per kind, instead
+      of a manifest file.
+    rejected_because: >-
+      A variable per kind is the flag map again — it decides at the engine that equipment
+      is grouped by kind, when dsh groups by overlay and mimo by install order. A
+      file of typed items lets each image group it the way its harness does.
+  - option: >-
+      Leave the definitions under `.torve/sandbox/` and only add the base image and
+      bake file.
+    rejected_because: >-
+      It keeps torve's own source in the directory torve creates inside repositories
+      it works on, which is what makes `torve init` and `torve sandbox` read as the
+      same concern when they are not. The base image is the cheap half; the location
+      is what makes the split legible.
+  - option: >-
+      Build all three images' scripts at once rather than claude first.
+    rejected_because: >-
+      Only claude has a seat this repository can reach, so dsh and mimo would be written
+      against no measurement and land unexercised. The owner's order — claude, then
+      expand — keeps the first landing honest, at the cost of finding a claude-shaped
+      contract one phase later than the alternative would.
+questions:
+  - id: Q-1
+    text: >-
+      Does `torve sandbox build` survive as a wrapper around `docker buildx bake`,
+      or does it retire in favour of `just images` with the verb keeping only `list`
+      and `digest`? The staging it exists for is what the base image removes.
+  - id: Q-2
+    text: >-
+      Should the equipment manifest be mounted beside the equipment, or written into
+      the workspace where the agent could read it too? Beside the equipment keeps
+      the workspace the repository's alone; in the workspace lets a prompt name it.

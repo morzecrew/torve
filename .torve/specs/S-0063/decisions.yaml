@@ -1,0 +1,160 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A sandbox image carries `/opt/torve/run`, which invokes its harness; a manifest
+      carries no command template and `command` is refused by name.
+    paths: [src/torve/adapters/agent/harness.py, src/torve/config/agents.py]
+    consequence: >-
+      the shell that knows how to start a harness lives beside the harness, and a
+      seat cannot be misconfigured into a model that silently would not work
+    rationale: >-
+      the line braids auth wiring, invocation and equipment, and only the knobs among
+      them are the operator's; nothing checks the string before it runs, and a wrong
+      flag reads as a failing model rather than a failing configuration
+    cites: [S-0017/D-4, S-0004/D-1]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The engine speaks to every image through one set of environment variables —
+      `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIPMENT_MANIFEST`,
+      `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is
+      in force.
+    paths: [src/torve/application/ports.py, src/torve/adapters/agent/harness.py]
+    consequence: >-
+      a new harness is a new image and never a new template language, and every adapter
+      fills one shape
+    rationale: >-
+      `SandboxSpec` already carries an environment and both runtimes already set it,
+      so the channel exists; what a template bought was substitution the environment
+      does without `str.replace` over shell
+    cites: [S-0021/D-9]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      A sandbox image carries `/opt/torve/equip`, which translates the equipment manifest
+      into whatever its harness needs; S-0062/D-2's flag templates retire and `kinds`
+      is what remains of the capability map.
+    paths: [src/torve/config/agents.py, sandboxes/**]
+    consequence: >-
+      equipment reaches a harness the way that harness takes it, decided beside the
+      harness rather than by a renderer keeping up with three of them across versions
+    rationale: >-
+      measured — claude takes flags, dsh takes one repeatable YAML overlay, mimo takes
+      install commands; a string with `{path}` in it expresses the first and neither
+      of the others, so the map was written from the one harness that had been measured
+    cites: [S-0062/D-2, S-0062/D-9]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      `kinds` on a manifest is the enumeration this harness accepts; a profile declaring
+      a kind outside it is refused at load, naming both files, with the package-data
+      skill exception S-0062/A-3 already carries.
+    paths: [src/torve/config/agents.py]
+    consequence: >-
+      the refusal survives the templates, in reviewed configuration, without pulling
+      an image to learn what a harness can take
+    rationale: >-
+      an attempt quietly missing its equipment measures a regime nobody configured,
+      which is why the refusal existed; nothing about that argument depended on the
+      template
+    cites: [S-0062/D-2, S-0062/A-3]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Broker placeholders retire into `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`;
+      the refusal moves from "the string names a placeholder" to "this seat needs
+      a broker".
+    paths: [src/torve/adapters/agent/harness.py]
+    consequence: >-
+      a run-scoped token stops being spliced into a shell string, and a seat whose
+      provider the broker does not route is still refused before dispatch
+    rationale: >-
+      the placeholder check reads the template, so retiring the template would retire
+      the check; the thing being protected is that a brokered seat never reaches a
+      provider directly, which the environment states more plainly than a substitution
+    cites: [S-0021/D-9, S-0055/D-4]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      Image definitions live at `sandboxes/<name>/` in the repository root and build
+      to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming repository's
+      own.
+    paths: [sandboxes/**, src/torve/cli/sandbox.py]
+    consequence: >-
+      torve's own source stops living in the directory torve creates inside repositories
+      it works on, and an image gets a name worth publishing
+    rationale: >-
+      S-0055/D-30 is about what torve owns in a consuming repository — configuration,
+      manifests, task state; these images are torve's own source, built here and pulled
+      elsewhere, and S-0017/D-2 that put them under `.torve/` is archived
+    cites: [S-0055/D-30, S-0017/D-2]
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      One base image carries `git`, `uv` and the engine's CLI; every definition inherits
+      it, and `_torve-cli.dockerfile` with the test pinning five copies against it
+      retires.
+    paths: [sandboxes/base/**, tests/test_sandbox_defs.py]
+    consequence: >-
+      the layer five images duplicate is built once and inherited, and the test that
+      stood in for inheritance goes with it
+    rationale: >-
+      the block is byte-identical in every definition and kept in step by a pin test,
+      which is a test doing a base image's job
+    cites: [S-0017/D-8]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `bake.hcl` declares a target per definition with the base as a named context,
+      and a justfile recipe is the build; `torve sandbox build` shells `docker buildx
+      bake`.
+    paths: [bake.hcl, justfile, src/torve/cli/sandbox.py]
+    consequence: >-
+      the build expresses its own dependency graph, and the context staging the verb
+      does by hand becomes the base image's inheritance
+    rationale: >-
+      buildx 0.36.1 is present and the arrangement is the one `morzecrew/platform-images`
+      already runs; a dependency a build tool understands beats one a Python verb
+      assembles
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      Claude's `equip` and `run` land first; dsh's and mimo's land after, and they
+      are the proof that the contract is not claude-shaped.
+    paths: [sandboxes/claude/**, sandboxes/dsh/**, sandboxes/mimo/**]
+    consequence: >-
+      the first landing is written against a harness this repository can reach, and
+      the contract's generality is tested rather than asserted
+    rationale: >-
+      only claude has a seat to measure against, so writing all three at once lands
+      two unexercised; the cost is that a claude-shaped contract is found one phase
+      later, which is the trade the owner chose
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A manifest's `env` mapping reaches the image's environment and nothing else
+      reads it; a knob that is not there is a rebuild.
+    paths: [src/torve/config/agents.py, src/torve/application/session.py]
+    consequence: >-
+      an operator changes a permission mode in configuration, and a change to how
+      the harness is invoked moves the image digest the telemetry already records
+    rationale: >-
+      the image is harness identity, so a flag that changes what an agent may do is
+      a regime change that ought to be visible; today `--permission-mode` can change
+      under a fixed digest and nothing says so
+    cites: [S-0017/D-4]
+invariants:
+  - id: I-1
+    statement: >-
+      No harness manifest carries a shell line, and no engine code substitutes into
+      one.
+    paths: [src/torve/config/agents.py, src/torve/adapters/agent/harness.py]
+    check: uv run pytest tests/test_agents.py -k no_shell
+  - id: I-2
+    statement: >-
+      Every image definition answers `/opt/torve/equip` and `/opt/torve/run`, and
+      none carries its own copy of the CLI layer.
+    paths: [sandboxes/**]
+    check: uv run pytest tests/test_sandbox_defs.py -k seam
