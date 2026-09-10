@@ -10,3 +10,44 @@ amendments:
       Phase 1 gains `tests/test_runconfig.py` because the fold of `skills` and `plugins` into equipment reaches the loader that fills them. Phase 2 gains `tests/test_session.py` because the seat that fills a `SandboxSpec` is the one that mounts the cache. Phase 3 gains both `tests/test_session.py` and `tests/test_runner.py`, which is where an infrastructure failure is told apart from a conviction.
 
       No decision row changes and no scope widens beyond a module's own tests.
+  - id: A-2
+    at: '2026-09-10T15:03:30Z'
+    title: Phase 1 takes the doctor's seat fixtures
+    md: |-
+      D-1 folds `skills` and `plugins` into `equipment` and refuses the old keys by name, which is the migration this phase exists to force. The migration's reach was three profile bodies written as fixtures in `tests/test_doctor.py` — the seat line and the equipment line are what `torve doctor` says a seat is made of, so they carry a profile body like any repository does.
+
+      They are ported here rather than in a follow-up, because a phase that leaves the suite red has not landed. No source file outside the phase changes: `doctor.py` reads `tier.skills`, which is derived from the same list.
+  - id: A-3
+    at: '2026-09-10T15:07:12Z'
+    title: >-
+      D-2's refusal is no way to deliver it, not no flag for it
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          A harness manifest declares which equipment kinds it accepts and the flag
+          template that carries each into its command; a kind a profile declares and
+          the manifest does not is refused at load.
+        after: >-
+          A harness manifest declares which equipment kinds it accepts and the flag
+          template that carries each into its command; a kind a profile declares and
+          the manifest does not is refused at load, unless the engine can deliver
+          it itself — package-data skills alone, which `materialize` writes into the
+          worktree.
+      - subject: D-2
+        field: fingerprint
+        after: 17dcbd9fb4c5c9d4/0f914ec0385a62d4
+    md: |-
+      D-2 and D-10 contradicted, and building phase 1 made it visible in the first minute: D-10 says a harness that takes no `skill` kind keeps `materialize` and the prompt's paragraph, and D-2 as written refused exactly that configuration — a role profile declaring a package-data skill names a kind the `fake` harness does not equip, so every seat in this repository would have been refused before it resolved.
+
+      The rule is what D-2 always meant: an attempt must not run missing its equipment. A package-data skill has a second channel every harness has, so refusing it protects nothing and costs D-10. Every other kind, and a skill that has to be fetched, has only the flag and is refused as before.
+
+      The exception narrows on its own. Once a real harness gives the `skill` kind a flag it fires only for a harness with no skill channel at all, which is the case D-10 exists for. Proposed from T-0326 (S-0062/D-2, halted).
+  - id: A-4
+    at: '2026-09-10T15:08:00Z'
+    title: >-
+      Every phase writes the changelog entry for what it changed
+    md: |-
+      Four phases changed what a repository writes and none of them could say so: `CHANGELOG.md` was in no scope, so an entry would have reddened the scope gate and its absence would have left four landings undocumented.
+
+      Every phase gains it. An entry is not documentation of the work — it is the user-facing half of the change, and a phase that ships a new declaration and cannot write down that it did has not shipped it.

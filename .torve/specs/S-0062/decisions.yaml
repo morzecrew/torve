@@ -22,7 +22,8 @@ decisions:
     text: >-
       A harness manifest declares which equipment kinds it accepts and the flag template
       that carries each into its command; a kind a profile declares and the manifest
-      does not is refused at load.
+      does not is refused at load, unless the engine can deliver it itself — package-data
+      skills alone, which `materialize` writes into the worktree.
     paths: [src/torve/config/agents.py, .torve/harnesses/**]
     consequence: >-
       a harness that cannot be given something says so once, in its own file, rather
@@ -31,6 +32,7 @@ decisions:
       S-0061/D-6's refusal already exists for plugins and for the same reason — an
       attempt quietly missing its equipment measures a regime nobody configured
     cites: [S-0061/D-2, S-0061/D-6, S-0009/D-2]
+    fingerprint: 17dcbd9fb4c5c9d4/0f914ec0385a62d4
   - id: D-3
     grade: LOCKED
     text: >-
