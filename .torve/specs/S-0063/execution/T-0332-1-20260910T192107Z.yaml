@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0332
+phase: 2
+base: 40a8859474fa3eb8a40d943910cefa73d4bec722
+commit: dbf64b48d83475684c30c155fad82bb2306e40c5
+at: '2026-09-10T19:21:07Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T19:10:46Z'
+    claim: >-
+      A manifest carries no command and the image carries the shell. What building
+      decided, because the row does not say: a seat naming no image is still legal
+      — the runtime's default one answers through image_for, and doctor reds on an
+      image the runtime cannot resolve. The old validator refused a real adapter with
+      no command; requiring an image in its place would have refused thirty fixtures
+      that legitimately inherit the runtime default.
+    evidence: >-
+      src/torve/config/agents.py:112 — a manifest names an image, the kinds it accepts
+      and the env its scripts read; the FOLDED map refuses command and equips by name
+      with what replaced each.
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T19:10:47Z'
+    claim: >-
+      Claude's equip composes flags from the manifest and writes them shell-quoted
+      to a file run sources. It exits 0 with nothing to do, which is the state phase
+      1 and 2 leave it in: no cache is mounted until S-0062 phase 2, so the manifest
+      is absent and equipping is a no-op that must not fail.
+    evidence: >-
+      sandboxes/claude/Dockerfile:15 — COPY run equip /opt/torve/, and equip's python3
+      leg reads manifest.json only when the mount carries one.
+    action: decided
+    notes: >-
+      The flag map lives in equip, so a kind claude cannot take never reaches it —
+      the profile was refused at load against the manifest's kinds.
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-10T19:10:47Z'
+    claim: >-
+      The broker's two names are mapped onto ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN
+      inside the image, which is the translation the seam exists for. The refusal
+      that survives is the routing one: a brokered run whose routing is missing the
+      seat's provider is still refused before dispatch. The two that do not survive
+      are the placeholder checks — there is no placeholder to promise a broker that
+      is not there.
+    evidence: >-
+      sandboxes/claude/run:29 — the mapping, guarded on the variable being set, so
+      a seat with no broker reaches its provider directly.
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-10T19:10:48Z'
+    claim: >-
+      kinds is a list and the refusal it buys is unchanged, including the package-data
+      skill exception S-0062/A-3 carries. What went with the templates is the second
+      validator: there is no {path} to check for any more, so a manifest is wrong
+      in one visible way rather than two.
+    evidence: >-
+      src/torve/config/agents.py:433 — the refusal reads the merged kinds list and
+      names both files.
+    action: decided
+  - decision: D-10
+    grade: ASSUMED
+    at: '2026-09-10T19:10:48Z'
+    claim: >-
+      env reaches the image and torve never reads it. CLAUDE_PERMISSION_MODE is the
+      first knob and the image defaults it to bypassPermissions, so a manifest that
+      omits it still gets a working seat rather than a silent refusal of every Bash
+      call.
+    evidence: >-
+      sandboxes/claude/run:48 — the default lives in the script, so the manifest states
+      an override and never a requirement.
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-10T19:11:02Z'
+    claim: >-
+      The five variables are exported in the exec command rather than set on the SandboxSpec
+      at create. The row says the engine speaks through environment variables and
+      leaves the route open; the spec was the obvious one and is wrong here, because
+      five construction sites build a spec and only session.py's is the agent's —
+      the reviewer's sandbox, built in a different phase's file, would have got no
+      variables at all. The adapter is the one place that knows it is running the
+      seam.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:662 — _env builds the five and _command
+      exports them, so every caller of HarnessAgent is equipped whichever spec built
+      its sandbox.
+    action: decided
+    notes: >-
+      The broker token was already spliced into the exec string, so its exposure is
+      unchanged; a spec-carried env would have improved that and cost the reviewer's
+      seat.
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-10T19:16:14Z'
+    claim: >-
+      The claude definition gains two files beside its Dockerfile, which is the first
+      time a definition directory holds anything but a Dockerfile and dsh's overlays.
+      They are the image's contract with the engine, so they belong with the image
+      and not with the engine's source.
+    evidence: >-
+      sandboxes/claude/Dockerfile:15 — COPY run equip /opt/torve/, the only place
+      either path is written.
+    action: decided
+    notes: >-
+      The manifest's image is claude-sandbox:2.1.252 now, closing the dangling torve-agent:claude
+      pointer phase 1 left.
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-10T19:16:14Z'
+    claim: >-
+      Claude only, as the row orders. dsh, mimo, codex, opencode and battery inherit
+      the base and carry neither script, so no seat can run them until phase 3 — which
+      costs nothing here, since this repository writes a manifest for claude and for
+      fake alone.
+    evidence: >-
+      sandboxes/claude/equip:1 — the flag map is claude's; the two harnesses whose
+      equipment is not flags are what phase 3 exists to prove the contract against.
+    action: decided
+  - decision: D-11
+    grade: LOCKED
+    at: '2026-09-10T19:16:15Z'
+    claim: >-
+      Untouched by this phase. The runtime adapters' projection re-renders because
+      amending S-0062/D-2 and S-0062/D-5 changed the text of rows governing that directory,
+      not because anything under it changed.
+    evidence: >-
+      src/torve/adapters/runtime/AGENTS.md:37 — the rendered section, rewritten by
+      torve spec project from the amended rows.
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-10T19:16:15Z'
+    claim: >-
+      The equipment mount is phase 2 of S-0062, not this one. What this phase fixes
+      in place for it is the address: TORVE_EQUIPMENT names the mount root and the
+      image reads manifest.json inside it, so nothing is left to decide when the cache
+      arrives.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:662 — EQUIPMENT_MOUNT is named to the image
+      rather than assumed by it.
+    action: decided
