@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0330
+base: 969fb043b0f5a011c92f133c043abcce3692b12f
+commit: 969fb043b0f5a011c92f133c043abcce3692b12f
+at: '2026-09-10T15:55:09Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-4
+    grade: LOCKED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-10T15:49:30Z'
+    claim: >-
+      D-4's refusal is untouched and its key changed shape. The row names prompt_extras
+      and never said what shape it is; the list of strings it had rendered one bullet
+      per entry, so a profile could add a rule and never a paragraph. It is one block
+      scalar now, appended after the base rules verbatim — the operator writes the
+      bullets when bullets are what they want.
+    evidence: >-
+      src/torve/config/agents.py:96 — one string, and the builder inserts it stripped
+      rather than bulleting each line.
+    action: decided
+    notes: >-
+      Amended as S-0061/A-5 before the work, at the owner's request. The base rules
+      stay unaddressable and 'prompt' is still refused by name.
