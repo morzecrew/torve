@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0324
+phase: 3
+base: afec93682da875ff076c31358981382c94e8f033
+commit: e93def360cbb7e794c7cd275f0233432d88411ae
+at: '2026-09-10T13:43:42Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    at: '2026-09-10T13:37:51Z'
+    claim: >-
+      The hash reads each seat's resolved body and the role equipment, and skills-lock.json
+      leaves it
+    evidence: >-
+      src/torve/application/telemetry.py:87 - parts carries skills beside tiers; the
+      lockfile block is gone and the comment says why
+    action: decided
+    notes: >-
+      The first half was already true when phase 1 landed: resolve_seats merges the
+      harness and profile onto the seat before validation, so parts['tiers'] has been
+      the resolved bodies since T-0322. What phase 1 opened and this closes is the
+      role equipment — it rode the torve version while it was a default written in
+      code, and became a file with nothing hashing it. Doctor's seat line also landed
+      in T-0322, with the doctor fix the split forced.
