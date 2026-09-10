@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-10T07:55:58Z'
+    title: >-
+      The superseded dependencies are read, not inherited from
+    md: |-
+      `depends_on` named S-0004, S-0028 and S-0029 — every one of them superseded by S-0055 in the corpus rebuild, so `torve plan` refused to mint: a grade inherited from a document that no longer stands breaks the copy-at-write-time guarantee (S-0007/D-7).
+
+      They move to `informed_by`, which is what they always were. This document reads them for the shapes it is splitting apart; it inherits no row from any of them, and every rule it needs it states itself. Nothing else changes.
