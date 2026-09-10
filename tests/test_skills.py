@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from torve.application.skills import available, materialize, skills_root
-from torve.config.runconfig import RunnerConfig
+from torve.config.runconfig import ROLE_SKILLS
 from torve.config.spec import DOCUMENT_DIRNAME, load_document
 from torve.domain.vocabulary import GRADES, STATUSES
 
@@ -48,7 +48,9 @@ def test_no_shipped_skill_is_byte_identical_to_upstream():
 
 
 def test_materialize_writes_the_role_set_and_nothing_else(tmp_path):
-    sets = RunnerConfig().skills.sets
+    # S-0061/D-11: the role default is `.torve/agents/implement.yaml`, minted from
+    # this table — a bare RunnerConfig carries no sets because nobody writes them.
+    sets = dict(ROLE_SKILLS)
     written = materialize("implement", tmp_path, sets)
     assert written == ["flag-dont-flip", "ratchet-what-you-build"]
     on_disk = sorted(p.name for p in tmp_path.iterdir())

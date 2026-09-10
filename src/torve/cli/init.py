@@ -21,6 +21,7 @@ from torve.application.standing import StandingContract
 from torve.cli.console import STYLE_DIM, STYLE_PASS, closing, out
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.config import layout
+from torve.config.agents import agents_dir, harnesses_dir
 from torve.config.sources import SOURCE_SCHEMA, source_files
 from torve.config.sources import schema_text as source_schema_text
 from torve.config.spec import SCHEMA_HEADER, schema_file, schema_text, schemas_dir
@@ -55,6 +56,7 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     contract, the log, the run configuration, the gate manifest, a standing
     contract, a source and the fleet manifest."""
 
+    from torve.config.agents import AgentProfile, HarnessManifest
     from torve.config.fleet import FleetManifest
     from torve.config.manifest import Manifest
     from torve.config.runconfig import RunnerConfig
@@ -74,8 +76,36 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     # The fleet manifest lives on the operator's machine (S-0024), so its schema is
     # minted here for an editor to be pointed at — every other model has one (T-0321).
     texts[where / "fleet.json"] = _json(FleetManifest.model_json_schema())
+    # S-0061/D-1, S-0061/D-2: the two files a seat names.
+    texts[where / "agent.json"] = _json(AgentProfile.model_json_schema())
+    texts[where / "harness.json"] = _json(HarnessManifest.model_json_schema())
 
     return texts
+
+
+# S-0061/D-11: the role default is a profile named for the role, so the mapping
+# that used to carry these in code is gone.
+def expected_profiles(root: Path) -> dict[Path, str]:
+    """The role profiles a repository starts with.
+
+    A repository with no `implement.yaml` loads no skills for an implement
+    task, so `init` writes one per role — once, and never again: they are the
+    operator's from the moment they exist, exactly like a standing contract or
+    a gate manifest.
+    """
+
+    import yaml
+
+    from torve.config.agents import agents_dir
+    from torve.config.runconfig import ROLE_SKILLS
+
+    return {
+        agents_dir(root) / f"{role}.yaml": yaml.safe_dump({"skills": skills}, sort_keys=False)
+        for role, skills in ROLE_SKILLS.items()
+    }
+
+
+# ....................... #
 
 
 def ignore_file(root: Path) -> Path:
@@ -147,6 +177,16 @@ def init_cmd(
         console.print(f"  {path.name}  written", style=STYLE_PASS)
         written.append(path.name)
 
+    for path, text in expected_profiles(root).items():
+        if path.is_file():
+            console.print(f"  {path.parent.name}/{path.name}", style=STYLE_DIM)
+            continue
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        console.print(f"  {path.parent.name}/{path.name}  written", style=STYLE_PASS)
+        written.append(path.name)
+
     ignore = ignore_file(root)
     lacking = missing_patterns(ignore)
 
@@ -172,6 +212,11 @@ def init_cmd(
     ]
     # S-0060/D-1: every filed source names its schema too.
     lined += [(path, where / f"{SOURCE_SCHEMA}.json") for path in source_files(root)]
+    # S-0061/D-1, S-0061/D-2: so do both files a seat names.
+    lined += [(path, where / "agent.json") for path in sorted(agents_dir(root).glob("*.yaml"))]
+    lined += [
+        (path, where / "harness.json") for path in sorted(harnesses_dir(root).glob("*.yaml"))
+    ]
 
     for target, schema in lined:
         if _add_header(target, schema):

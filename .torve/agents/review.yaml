@@ -1,0 +1,3 @@
+# yaml-language-server: $schema=../schemas/agent.json
+skills:
+- ratchet-what-you-build

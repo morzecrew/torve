@@ -1,6 +1,5 @@
-"""S-0028 S-0028/D-7: `torve doctor` names, per tier, the profile it resolved
-through — informational only, so it can never turn doctor red, and a tier
-or profile file nobody referenced gets no line.
+"""S-0028/D-7, S-0061/D-10: `torve doctor` names, per seat, the two files it
+was resolved from — informational only, so it can never turn doctor red.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from typer.testing import CliRunner
 
 from torve.cli import app
 from torve.cli.doctor import _equipment_checks, _profile_checks
-from torve.config.runconfig import profiles_dir
+from torve.config.agents import agents_dir, harnesses_dir
 
 # ----------------------- #
 
@@ -31,71 +30,71 @@ def _doctor_repo(tmp_path: Path, config: dict) -> Path:
     return root
 
 
-def _write_profile(monkeypatch, tmp_path: Path, name: str, body: str) -> None:
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    write(profiles_dir() / f"{name}.yaml", body)
+def _seat_repo(tmp_path: Path, config: dict, **profiles: str) -> Path:
+    """A repository with the fake harness present and any named profiles
+    written, since both files are the repository's now (S-0061/D-10)."""
+
+    root = _doctor_repo(tmp_path, config)
+    write(harnesses_dir(root) / "fake.yaml", "adapter: fake\n")
+
+    for name, body in profiles.items():
+        write(agents_dir(root) / f"{name}.yaml", body)
+
+    return root
 
 
 # ....................... #
 
 
-def test_profile_check_names_the_resolved_tier(monkeypatch, tmp_path: Path):
-    _write_profile(
-        monkeypatch, tmp_path, "claude-sonnet", "adapter: harness\nprovider: p\ncommand: c\n"
+def test_seat_check_names_the_harness_and_the_profile(tmp_path: Path):
+    root = _seat_repo(
+        tmp_path,
+        {"tiers": {"executor": {"harness": "fake", "profile": "careful"}}},
+        careful="skills: [flag-dont-flip]\n",
     )
-    root = _doctor_repo(tmp_path, {"tiers": {"executor": {"profile": "claude-sonnet"}}})
 
     checks = _profile_checks(root, None)
 
     assert len(checks) == 1
     name, ok, detail = checks[0]
-    assert name == "profile executor"
+    assert name == "seat executor"
     assert ok is True
-    assert "executor" in detail and "claude-sonnet" in detail
+    assert "harness 'fake'" in detail and "profile 'careful'" in detail
 
 
-def test_profile_check_names_the_chain_in_order_for_a_composed_tier(monkeypatch, tmp_path: Path):
-    """A-74: a tier composed from a list of profiles gets one provenance
-    line naming the chain in order, wiring before equipment."""
+def test_seat_check_says_when_the_role_s_own_profile_answers(tmp_path: Path):
+    """S-0061/D-11: a seat naming no profile is not a seat with no equipment —
+    it is one whose role's profile answers, and the line says so rather than
+    going silent."""
 
-    _write_profile(monkeypatch, tmp_path, "wiring", "adapter: harness\nprovider: p\ncommand: c\n")
-    _write_profile(monkeypatch, tmp_path, "equipment", "model: m\n")
-    root = _doctor_repo(tmp_path, {"tiers": {"executor": {"profile": ["wiring", "equipment"]}}})
+    root = _seat_repo(tmp_path, {"tiers": {"executor": {"harness": "fake"}}})
 
-    checks = _profile_checks(root, None)
+    (_, _, detail) = _profile_checks(root, None)[0]
 
-    assert len(checks) == 1
-    name, ok, detail = checks[0]
-    assert name == "profile executor"
-    assert ok is True
-    assert "wiring -> equipment" in detail
+    assert "the role's own profile" in detail
 
 
-def test_profile_check_is_silent_with_no_profile_referenced(tmp_path: Path):
-    root = _doctor_repo(tmp_path, {})
+def test_seat_check_is_silent_with_no_tiers_configured(tmp_path: Path):
+    root = _doctor_repo(tmp_path, {"tiers": {}})
 
     assert _profile_checks(root, None) == []
 
 
-def test_profile_check_ignores_an_unreferenced_profile_file(monkeypatch, tmp_path: Path):
+def test_seat_check_ignores_an_unreferenced_profile_file(tmp_path: Path):
     # S-0028/D-7: unreferenced profiles are not warned about.
-    _write_profile(monkeypatch, tmp_path, "unused", "adapter: harness\nprovider: p\ncommand: c\n")
-    root = _doctor_repo(tmp_path, {})
+    root = _seat_repo(tmp_path, {"tiers": {}}, unused="skills: []\n")
 
     assert _profile_checks(root, None) == []
 
 
 def test_equipment_check_names_an_override_tier(tmp_path: Path):
-    root = _doctor_repo(
+    root = _seat_repo(
         tmp_path,
-        {
-            "tiers": {
-                "executor.copywriter": {
-                    "skills": ["prose-voice"],
-                    "prompt_extras": ["Docstrings follow the house voice."],
-                }
-            }
-        },
+        {"tiers": {"executor.copywriter": {"harness": "fake", "profile": "copywriter"}}},
+        copywriter=(
+            "skills: [prose-voice]\n"
+            "prompt_extras: [Docstrings follow the house voice.]\n"
+        ),
     )
 
     checks = _equipment_checks(root, None)
@@ -109,28 +108,26 @@ def test_equipment_check_names_an_override_tier(tmp_path: Path):
 
 
 def test_equipment_check_is_silent_with_no_override(tmp_path: Path):
-    root = _doctor_repo(tmp_path, {"tiers": {"executor": {}}})
+    root = _seat_repo(tmp_path, {"tiers": {"executor": {"harness": "fake"}}})
 
     assert _equipment_checks(root, None) == []
 
 
-def test_doctor_json_carries_the_profile_line_and_stays_green(monkeypatch, tmp_path: Path):
-    _write_profile(
-        monkeypatch, tmp_path, "claude-sonnet", "adapter: harness\nprovider: p\ncommand: c\n"
-    )
-    root = _doctor_repo(
+def test_doctor_json_carries_the_seat_line_and_stays_green(tmp_path: Path):
+    root = _seat_repo(
         tmp_path,
         {
             "runtime": {"adapter": "opensandbox"},
-            "tiers": {"executor": {"profile": "claude-sonnet"}},
+            "tiers": {"executor": {"harness": "fake", "profile": "careful"}},
         },
+        careful="skills: [flag-dont-flip]\n",
     )
 
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
 
     document = json.loads(result.stdout)
     checks = {c["name"]: c for c in document["checks"]}
-    assert checks["profile executor"]["ok"] is True
+    assert checks["seat executor"]["ok"] is True
     assert result.exit_code == 0
 
 

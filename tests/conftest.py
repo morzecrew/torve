@@ -25,6 +25,19 @@ def repo(tmp_path: Path) -> Repo:
     return Repo(root)
 
 
+def harness(root: Path, name: str = "fake", body: str = "adapter: fake\n") -> Path:
+    """A harness manifest under `.torve/harnesses/` (S-0061/D-2).
+
+    A seat names the harness that reaches its model, so a fixture writing
+    `tiers:` writes one of these too — the inline adapter it used to carry is
+    refused, by name, with this file named in the refusal."""
+
+    path = root / ".torve" / "harnesses" / f"{name}.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
 def context_for(repo: Repo, base: str = "main"):
     manifest = load_manifest(layout.gates_file(repo.root))
     return build_context(repo.root, manifest, base=base)

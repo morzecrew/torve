@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import harness
 from test_context import seed_why_facts
 from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
@@ -422,13 +423,15 @@ def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
     from torve.cli.doctor import _review_bias_check
 
     (tmp_path / ".torve").mkdir()
+    harness(tmp_path)
+    harness(tmp_path, "h", "adapter: harness\ncommand: c\n")
     (tmp_path / ".torve" / "config.yaml").write_text(
         "schema_version: 1\n"
         'review: {"on": [task_gated]}\n'
         "tiers:\n"
-        "  planner: {adapter: fake}\n"
-        "  executor: {adapter: harness, command: c, provider: p, model: m-1}\n"
-        "  reviewer: {adapter: harness, command: c, provider: p, model: m-1}\n",
+        "  planner: {harness: fake}\n"
+        "  executor: {harness: h, provider: p, model: m-1}\n"
+        "  reviewer: {harness: h, provider: p, model: m-1}\n",
         encoding="utf-8",
     )
     checks = _review_bias_check(tmp_path, None)
@@ -439,9 +442,9 @@ def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
         "schema_version: 1\n"
         'review: {"on": [task_gated]}\n'
         "tiers:\n"
-        "  planner: {adapter: fake}\n"
-        "  executor: {adapter: harness, command: c, provider: p, model: m-1}\n"
-        "  reviewer: {adapter: harness, command: c, provider: q, model: m-2}\n",
+        "  planner: {harness: fake}\n"
+        "  executor: {harness: h, provider: p, model: m-1}\n"
+        "  reviewer: {harness: h, provider: q, model: m-2}\n",
         encoding="utf-8",
     )
     assert _review_bias_check(tmp_path, None) == []
@@ -453,12 +456,18 @@ def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
 # the full mapping, not only the scalar's functional mirror.
 
 
-def _rung_routing_config(rungs: str, providers: str) -> str:
+def _rung_routing_config(root, rungs: str, providers: str) -> str:
+    """The two harnesses these seats are reached through, written beside the
+    configuration that names them (S-0061/D-2)."""
+
+    harness(root)
+    harness(root, "deep", "adapter: harness\ncommand: c\n")
+
     return (
         "schema_version: 1\n"
         "tiers:\n"
-        f"  executor: {{retry_variants: {{{rungs}}}}}\n"
-        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        f"  executor: {{harness: fake, retry_variants: {{{rungs}}}}}\n"
+        "  executor.deep: {harness: deep, provider: deepseek, model: m}\n"
         f"{providers}\n"
     )
 
@@ -471,7 +480,7 @@ def test_run_refuses_a_provider_only_a_compliance_rung_needs_with_exit_3(repo):
     repo.task(base_task(allow=["src/**"]), None)
     repo.write(
         ".torve/config.yaml",
-        _rung_routing_config("compliance: executor.deep", "providers: {default: []}"),
+        _rung_routing_config(repo.root, "compliance: executor.deep", "providers: {default: []}"),
     )
 
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
@@ -485,7 +494,9 @@ def test_run_dispatches_when_a_nonfunctional_rungs_provider_is_allowed(repo):
     repo.task(base_task(allow=["src/**"]), None)
     repo.write(
         ".torve/config.yaml",
-        _rung_routing_config("compliance: executor.deep", "providers: {default: [deepseek]}"),
+        _rung_routing_config(
+            repo.root, "compliance: executor.deep", "providers: {default: [deepseek]}"
+        ),
     )
 
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
@@ -500,7 +511,7 @@ def test_run_refuses_a_form_rung_the_repository_denies(repo):
     repo.write(
         ".torve/config.yaml",
         _rung_routing_config(
-            "functional: executor, form: executor.deep", "providers: {default: []}"
+            repo.root, "functional: executor, form: executor.deep", "providers: {default: []}"
         ),
     )
 
@@ -877,12 +888,14 @@ def test_route_dispatch_providers_refuses_a_rung_provider(tmp_path):
     from torve.config.runconfig import ProviderDenied, load_runner_config, tier_for
 
     root = _assembly_root(tmp_path)
+    harness(root)
+    harness(root, "deep", "adapter: harness\ncommand: c\n")
     _write_config(
         root,
         "schema_version: 1\n"
         "tiers:\n"
-        "  executor: {retry_variants: {compliance: executor.deep}}\n"
-        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        "  executor: {harness: fake, retry_variants: {compliance: executor.deep}}\n"
+        "  executor.deep: {harness: deep, provider: deepseek, model: m}\n"
         "providers: {default: []}\n",
     )
     config = load_runner_config(root)
@@ -894,8 +907,8 @@ def test_route_dispatch_providers_refuses_a_rung_provider(tmp_path):
         root,
         "schema_version: 1\n"
         "tiers:\n"
-        "  executor: {retry_variants: {compliance: executor.deep}}\n"
-        "  executor.deep: {adapter: harness, command: c, provider: deepseek, model: m}\n"
+        "  executor: {harness: fake, retry_variants: {compliance: executor.deep}}\n"
+        "  executor.deep: {harness: deep, provider: deepseek, model: m}\n"
         "providers: {default: [deepseek]}\n",
     )
     config = load_runner_config(root)
@@ -1117,6 +1130,7 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
     assert first.exit_code == 0, first.output
     schemas = root / ".torve" / "schemas"
     assert sorted(p.name for p in schemas.iterdir()) == [
+        "agent.json",
         "amendments.json",
         "config.json",
         "contract.json",
@@ -1124,6 +1138,7 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "document.json",
         "fleet.json",
         "gates.json",
+        "harness.json",
         "landing.json",
         "log.json",
         "phasing.json",

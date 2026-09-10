@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "Plugin": {
+      "additionalProperties": false,
+      "description": "One plugin the harness loads (S-0061/D-5).\n\nA source and a ref, and nothing else: the ref is whatever the source's own\nvocabulary pins with \u2014 a tag, a branch, a commit \u2014 and torve neither\nresolves nor verifies it. Pinning is the source's job; torve's is to stop\nthe Dockerfile, the cache path and the installed-plugins file disagreeing\nabout what was pinned.",
+      "properties": {
+        "ref": {
+          "default": "",
+          "description": "What the source pins it at; empty takes whatever the harness's installer resolves.",
+          "title": "Ref",
+          "type": "string"
+        },
+        "source": {
+          "description": "Where the plugin comes from, in the source's own spelling \u2014 `github:owner/repo`.",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "Plugin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the agent is (S-0061/D-1) \u2014 never how it runs.\n\nA seat naming no profile resolves the profile named for the task's role\n(S-0061/D-11), so `implement`, `review` and `revert` are the names that\ncarry a repository's defaults.",
+  "properties": {
+    "plugins": {
+      "description": "The plugins the harness loads, rendered into its own seeding format at dispatch\n(S-0061/D-6).",
+      "items": {
+        "$ref": "#/$defs/Plugin"
+      },
+      "title": "Plugins",
+      "type": "array"
+    },
+    "prompt_extras": {
+      "description": "Working rules appended after the charter's base rules \u2014 never before, never\nreplacing them (S-0061/D-4).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Prompt Extras",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "The profile's own shape version.",
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "skills": {
+      "description": "The skills materialized into this agent's sandbox, by name (S-0009/D-1). Names\nresolve against package data and the vendored directory exactly as before; only\nwhere the set is declared has moved.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Skills",
+      "type": "array"
+    }
+  },
+  "title": "AgentProfile",
+  "type": "object"
+}

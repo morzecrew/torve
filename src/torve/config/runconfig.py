@@ -11,7 +11,6 @@ are not (S-0001/D-13 in spirit at the operator level too).
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -22,6 +21,12 @@ from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_valid
 
 from torve.base.model import STRICT
 from torve.config import layout
+from torve.config.agents import (
+    AgentError,
+    Plugin,
+    resolve_seats,
+    role_profiles,
+)
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
 
@@ -109,22 +114,27 @@ class TierConfig(BaseModel):
     carries (S-0027/D-3) — character routing never reassigns a task to a different seat.
     An unmapped or undeclared character falls through to the seat default."""
 
+    harness: str = ""
+    """S-0061/D-2/D-3: the harness manifest this seat is reached through, by name —
+    `.torve/harnesses/<name>.yaml`. Resolution happens on the raw mapping in
+    `load_runner_config`, before this model validates, so by the time a `TierConfig`
+    exists the manifest's fields are already merged onto it; the name is kept so
+    `config_hash` and `torve doctor` can both say where a value came from."""
+
     profile: str = ""
-    """S-0028/the-profile-file, S-0028/D-1/D-28.2, S-0028/A-1: the named profile(s) this
-    tier resolved from, if any — resolution happens on the raw mapping in
-    `load_runner_config`, before this model ever validates, so by the time a `TierConfig`
-    exists every other field already carries the merged content. The raw config's
-    `profile` key may be a single name or a list merged left to right (S-0028/A-1); either
-    way this field ends up holding the chain in order (`"a -> b"`, or just `"a"` for a
-    single name), kept (not popped) so `config_hash` and `torve doctor` can both see where
-    a tier came from."""
+    """S-0061/D-1/D-3: the agent profile this seat runs, by name —
+    `.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty
+    resolves the profile named for the task's role (S-0061/D-11)."""
+
+    plugins: list[Plugin] = Field(default_factory=list)
+    """S-0061/D-5: the plugins the profile declares, carried onto the resolved seat so
+    dispatch can render them into the harness's own seeding format (S-0061/D-6)."""
 
     skills: list[str] | None = None
-    """S-0029/equipment-on-the-tier, S-0029/D-1/D-29.3: `None` inherits the role-scoped
-    skill set (`SkillsConfig.sets[role]`) exactly as today; a list overrides it wholesale —
-    never additive, so the effective set is readable in one place. Rides the profile merge
-    unchanged (S-0028/D-4's replace-wholesale rule already covers list fields). Names
-    resolve through the same `materialize` path with the same refusals (S-0029/D-2)."""
+    """S-0029/equipment-on-the-tier, S-0029/D-1: the skills this seat's agent loads, merged
+    from its profile (S-0061/D-1) — `None` is a seat whose profile named none, which falls
+    through to the profile named for the task's role (S-0061/D-11). Names resolve through
+    the same `materialize` path with the same refusals (S-0029/D-2)."""
 
     prompt_extras: list[str] = Field(default_factory=list)
     """S-0029/equipment-on-the-tier, S-0029/D-1: lines appended to the built prompt after
@@ -929,31 +939,36 @@ class StoreConfig(BaseModel):
 # ....................... #
 
 
-def _default_skill_sets() -> dict[str, list[str]]:
-    """The skills each dispatchable role loads (S-0009/D-1). Keyed by roles a run
-    can actually have: an entry for a role nothing dispatches promises a
-    materialization that never happens, and `torve eval` then refuses the
-    skill it names as "in no role set" (S-0009/A-5)."""
-
-    return {
-        "implement": ["flag-dont-flip", "ratchet-what-you-build"],
-        "review": ["ratchet-what-you-build"],
-        "revert": ["flag-dont-flip"],
-    }
+# The role defaults `torve init` mints as profiles (S-0061/D-11) — a role a run can
+# actually have, since an entry for a role nothing dispatches promises a
+# materialization that never happens and `torve eval` then refuses the skill it names
+# as "in no role set" (S-0009/A-5).
+ROLE_SKILLS: dict[str, list[str]] = {
+    "implement": ["flag-dont-flip", "ratchet-what-you-build"],
+    "review": ["ratchet-what-you-build"],
+    "revert": ["flag-dont-flip"],
+}
 
 
 # ....................... #
 
 
 class SkillsConfig(BaseModel):
-    """Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1) materialized into the
-    sandbox from package data at dispatch (S-0009/A-1, S-0009/D-7)."""
+    """Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1)
+    materialized into the sandbox from package data at dispatch (S-0009/A-1, S-0009/D-7).
+
+    Nobody writes this any more (S-0061/D-11): the set a role loads is the profile
+    named for that role, `.torve/agents/<role>.yaml`, and the loader fills this in from
+    those files so every reader keeps the shape it had. A default set and a named set
+    were two mechanisms answering one question in two files.
+    """
 
     model_config = STRICT
 
-    sets: dict[str, list[str]] = Field(default_factory=_default_skill_sets)
-    """The skill names each dispatchable role loads, keyed by role (S-0009/D-1); a tier's
-    own `skills` overrides its role's entry wholesale (`effective_skill_sets`)."""
+    sets: dict[str, list[str]] = Field(default_factory=dict)
+    """The skill names each dispatchable role loads, keyed by role — resolved from the
+    role profiles, never written here. A seat whose own profile names skills overrides
+    its role's entry wholesale (`effective_skill_sets`)."""
 
 
 # ....................... #
@@ -1419,116 +1434,6 @@ class RunnerConfig(BaseModel):
 # ....................... #
 
 
-def profiles_dir() -> Path:
-    """`~/.config/torve/agents/` (S-0028/the-profile-file, S-0028/D-1) — beside the fleet
-    manifest, on the operator's machine, never the repository under work.
-    XDG_CONFIG_HOME when set, matching `fleet.default_manifest_path`."""
-
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-
-    return Path(base) / "torve" / "agents"
-
-
-# ....................... #
-
-
-def _load_profile_body(name: str, key: str, agents_dir: Path) -> tuple[dict[str, Any], Path]:
-    """One named profile's body, validated in isolation (S-0028/D-3): every
-    refusal below names this profile's own file, never the chain it is
-    part of."""
-
-    path = agents_dir / f"{name}.yaml"
-
-    if not path.is_file():
-        present = sorted(p.stem for p in agents_dir.glob("*.yaml")) if agents_dir.is_dir() else []
-        raise ValueError(
-            f"tier {key!r} names profile {name!r}, resolving to {path} — no such "
-            f"file; profiles present: {', '.join(present) or 'none'}"
-        )
-
-    try:
-        raw_body = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
-        raise ValueError(f"{path}: could not be read as a profile — {exc}") from exc
-
-    if raw_body is None:
-        raw_body = {}
-
-    if not isinstance(raw_body, dict):
-        raise ValueError(f"{path}: profile body must be a mapping")
-
-    body = cast("dict[str, Any]", raw_body)
-    unknown = sorted(k for k in body if k not in TierConfig.model_fields)
-
-    if unknown:
-        raise ValueError(f"{path}: unknown key(s) {', '.join(unknown)} — not a TierConfig field")
-
-    return body, path
-
-
-# ....................... #
-
-
-def _resolve_profiles(tiers: dict[str, Any], agents_dir: Path) -> dict[str, list[tuple[str, Path]]]:
-    """S-0028/D-2: a raw-mapping merge, on `raw["tiers"]`, before
-    `RunnerConfig.model_validate` ever runs — locally-present keys win, and
-    the merged mapping is all `TierConfig` sees. One merge level, no
-    profile-to-profile inheritance (S-0028/D-4): a profile body's own `profile`
-    key, if any, is never itself resolved.
-
-    S-0028/A-1: `profile` also accepts a list of names, merged left to right under
-    this same shallow rule before local overrides — a tier composing flat
-    layers, never a profile referencing a profile. Each named profile is
-    loaded and validated on its own (`_load_profile_body`), so every refusal
-    class still names that profile's own path.
-
-    S-0028/D-3: every failure below refuses the configuration load, naming the
-    file — there is no fallback to inline defaults.
-
-    Returns the tier key -> ordered [(profile name, profile path), ...] map
-    for every tier resolved through a profile, so a later TierConfig
-    validation failure on the merged result can be traced back to the chain
-    that supplied it."""
-
-    sources: dict[str, list[tuple[str, Path]]] = {}
-
-    for key, raw_entry in tiers.items():
-        if not isinstance(raw_entry, dict):
-            continue
-
-        entry = cast("dict[str, Any]", raw_entry)
-        names_field = entry.get("profile")
-
-        if not names_field:
-            continue
-
-        names = cast("list[str]", names_field if isinstance(names_field, list) else [names_field])
-
-        merged_body: dict[str, Any] = {}
-        chain: list[tuple[str, Path]] = []
-
-        for name in names:
-            body, path = _load_profile_body(name, key, agents_dir)
-            # Left to right (S-0028/A-1): each next profile's keys win over the
-            # ones before it, same shallow-merge rule as local-over-profile
-            # below — list fields replace wholesale, never concatenate.
-            merged_body = {**merged_body, **body}
-            chain.append((name, path))
-
-        # Local wins last (S-0028/D-2); list fields (api_key_env) replace
-        # wholesale, never concatenate (S-0028/D-4) — this is a plain dict
-        # merge, no per-field logic, so that falls out for free.
-        merged = {**merged_body, **{k: v for k, v in entry.items() if k != "profile"}}
-        merged["profile"] = " -> ".join(names)
-        tiers[key] = merged
-        sources[key] = chain
-
-    return sources
-
-
-# ....................... #
-
-
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     """Explicit `path` is a flag-level override (S-0013/D-4); otherwise the file
     is `.torve/config.yaml` and nowhere else. A missing default file means
@@ -1552,10 +1457,22 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     config = cast("dict[str, Any]", raw)
     tiers = config.get("tiers")
-    profile_sources: dict[str, list[tuple[str, Path]]] = {}
+    named: dict[str, tuple[str, str]] = {}
 
     if isinstance(tiers, dict):
-        profile_sources = _resolve_profiles(cast("dict[str, Any]", tiers), profiles_dir())
+        try:
+            named = resolve_seats(cast("dict[str, Any]", tiers), root)
+
+        except AgentError as exc:
+            raise ValueError(str(exc)) from None
+
+    # S-0061/D-11: the role default is a profile named for the role, so the sets a
+    # repository once wrote under `skills:` are read off `.torve/agents/`. A
+    # `skills:` key in the configuration is refused by `SkillsConfig` itself.
+    roles = role_profiles(root)
+
+    if roles:
+        config.setdefault("skills", {})["sets"] = roles
 
     try:
         return RunnerConfig.model_validate(config)
@@ -1569,19 +1486,17 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
             {
                 str(error["loc"][1])
                 for error in exc.errors()
-                if len(error["loc"]) >= 2
-                and error["loc"][0] == "tiers"
-                and error["loc"][1] in profile_sources
+                if len(error["loc"]) >= 2 and error["loc"][0] == "tiers" and error["loc"][1] in named
             }
         )
 
         if not offenders:
             raise
 
-        named = "; ".join(
-            f"tier {name!r} via profile "
-            + " -> ".join(f"{pname!r} ({ppath})" for pname, ppath in profile_sources[name])
-            for name in offenders
+        where = "; ".join(
+            f"tier {seat!r} via harness {named[seat][0]!r}"
+            + (f" and profile {named[seat][1]!r}" if named[seat][1] else "")
+            for seat in offenders
         )
 
-        raise ValueError(f"{named}: invalid merged tier configuration — {exc}") from exc
+        raise ValueError(f"{where}: invalid merged tier configuration — {exc}") from exc

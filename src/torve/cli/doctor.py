@@ -529,22 +529,27 @@ def _standing_summary(root: Path) -> str:
 
 
 def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """S-0028/D-7: provenance only — a resolved profile is named per tier, and no
-    check is attached, so this can never turn doctor red. A tier that names
-    no profile, or an unreferenced profile file, gets no line at all. S-0028/A-1:
-    `tier.profile` already carries a composed tier's chain in order
-    (`"a -> b"`), so the same line renders it with no extra formatting."""
+    """S-0028/D-7, S-0061/D-10: provenance only — each seat is named with the two
+    files it was resolved from, and no check is attached, so this can never
+    turn doctor red. A seat is always reached through a harness, so every seat
+    gets a line; the profile is named only when the seat picked one, since an
+    unnamed profile means the role's own answers instead (S-0061/D-11).
+
+    This is what the `profile: "a -> b"` provenance string was for: the seat
+    names its parts, so nothing has to be recorded to say where a value came
+    from."""
 
     config = load_config(root, config_path)
 
     return [
         (
-            f"profile {name}",
+            f"seat {name}",
             True,
-            f"tier {name}: adapter, model and command resolved from profile '{tier.profile}'",
+            f"tier {name}: harness '{tier.harness}'"
+            + (f", profile '{tier.profile}'" if tier.profile else ", the role's own profile"),
         )
         for name, tier in sorted(config.tiers.items(), key=lambda item: item[0])
-        if tier.profile
+        if tier.harness
     ]
 
 

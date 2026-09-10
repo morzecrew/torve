@@ -36,7 +36,14 @@ from torve.application.review import (
 from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.base import naming
-from torve.config.runconfig import ReviewConfig, RunnerConfig, RuntimeConfig, TierConfig
+from torve.config.runconfig import (
+    ROLE_SKILLS,
+    ReviewConfig,
+    RunnerConfig,
+    RuntimeConfig,
+    SkillsConfig,
+    TierConfig,
+)
 from torve.domain.attempt import Finding
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Task
@@ -1020,7 +1027,7 @@ def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
         worktree,
         target,
         review,
-        RunnerConfig(),
+        RunnerConfig(skills=SkillsConfig(sets=dict(ROLE_SKILLS))),
         MockRuntime(),
         reviewer,
         "diff --git a/src/app.py b/src/app.py\n@@ -1,1 +1,2 @@\n x = 1\n+y = 2\n",

@@ -12,6 +12,7 @@ import pathlib
 import subprocess
 
 import pytest
+from conftest import harness
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
@@ -122,7 +123,10 @@ def test_effective_skill_sets_none_inherits_the_role_set():
 
 
 def test_effective_skill_sets_override_replaces_the_role_set_wholesale():
-    sets = RunnerConfig().skills.sets
+    # The sets come from the role profiles now (S-0061/D-11), so a unit test of
+    # the override rule supplies its own rather than leaning on a default that
+    # is no longer written in code.
+    sets = {"implement": ["flag-dont-flip", "ratchet-what-you-build"], "review": ["ratchet"]}
     tier = TierConfig(skills=["prose-voice"])
     resolved = effective_skill_sets(tier, "implement", sets)
 
@@ -426,16 +430,38 @@ def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path):
 # Dispatch (CLI): routing enforced before anything exists
 
 
-def seeded_run_repo(tmp_path, tier_yaml, providers_yaml="providers: {default: []}"):
+def seeded_run_repo(tmp_path, tier: dict, providers_yaml="providers: {default: []}"):
+    """A repository whose executor seat is reached through a harness written
+    for the case (S-0061/D-2).
+
+    The case still describes one tier; the helper splits it where the files
+    now split — `adapter`, `command` and `api_key_env` into the manifest,
+    `provider` and the rest onto the seat — so a case reads as it always did
+    while the tree carries the three files.
+    """
+
+    import yaml
+
+    from torve.config.agents import HARNESS_KEYS
+
     root = tmp_path / "repo"
     (root / ".torve" / "tasks" / "T-0042").mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     (root / ".torve" / "tasks" / "T-0042" / "contract.yaml").write_text(
         "schema_version: 1\nid: T-0042\ndecisions: []\n", encoding="utf-8"
     )
+    harness(root)
+    harness(
+        root,
+        "under-test",
+        yaml.safe_dump({k: v for k, v in tier.items() if k in HARNESS_KEYS}, sort_keys=False),
+    )
+    seat = {"harness": "under-test", **{k: v for k, v in tier.items() if k not in HARNESS_KEYS}}
     (root / ".torve" / "config.yaml").write_text(
-        f"schema_version: 1\ntiers:\n  planner: {{adapter: fake}}\n"
-        f"  reviewer: {{adapter: fake}}\n  executor: {tier_yaml}\n{providers_yaml}\n",
+        "schema_version: 1\ntiers:\n  planner: {harness: fake}\n"
+        "  reviewer: {harness: fake}\n"
+        f"  executor: {yaml.safe_dump(seat, default_flow_style=True).strip()}\n"
+        f"{providers_yaml}\n",
         encoding="utf-8",
     )
     return root
@@ -444,7 +470,7 @@ def seeded_run_repo(tmp_path, tier_yaml, providers_yaml="providers: {default: []
 def test_run_refuses_an_unrouted_provider_with_exit_3(tmp_path):
     root = seeded_run_repo(
         tmp_path,
-        "{adapter: api, command: run-it, provider: anthropic, api_key_env: [K]}",
+        {"adapter": "api", "command": "run-it", "provider": "anthropic", "api_key_env": ["K"]},
     )
     result = CliRunner().invoke(app, ["run", "T-0042", "--root", str(root)])
     assert result.exit_code == 3
@@ -452,9 +478,9 @@ def test_run_refuses_an_unrouted_provider_with_exit_3(tmp_path):
 
 
 def test_run_refuses_a_missing_tier_with_exit_3(tmp_path):
-    root = seeded_run_repo(tmp_path, "{adapter: fake}")
+    root = seeded_run_repo(tmp_path, {"adapter": "fake"})
     (root / ".torve" / "config.yaml").write_text(
-        "schema_version: 1\ntiers:\n  planner: {adapter: fake}\n", encoding="utf-8"
+        "schema_version: 1\ntiers:\n  planner: {harness: fake}\n", encoding="utf-8"
     )
     result = CliRunner().invoke(app, ["run", "T-0042", "--root", str(root)])
     assert result.exit_code == 3
@@ -464,7 +490,7 @@ def test_run_refuses_a_missing_tier_with_exit_3(tmp_path):
 def test_scenario_with_a_real_tier_is_refused(tmp_path):
     root = seeded_run_repo(
         tmp_path,
-        "{adapter: api, command: run-it, provider: anthropic}",
+        {"adapter": "api", "command": "run-it", "provider": "anthropic"},
         "providers: {default: [anthropic]}",
     )
     scenario = tmp_path / "scenario.yaml"

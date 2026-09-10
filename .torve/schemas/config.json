@@ -199,6 +199,28 @@
       "title": "OpenSandboxConfig",
       "type": "object"
     },
+    "Plugin": {
+      "additionalProperties": false,
+      "description": "One plugin the harness loads (S-0061/D-5).\n\nA source and a ref, and nothing else: the ref is whatever the source's own\nvocabulary pins with \u2014 a tag, a branch, a commit \u2014 and torve neither\nresolves nor verifies it. Pinning is the source's job; torve's is to stop\nthe Dockerfile, the cache path and the installed-plugins file disagreeing\nabout what was pinned.",
+      "properties": {
+        "ref": {
+          "default": "",
+          "description": "What the source pins it at; empty takes whatever the harness's installer resolves.",
+          "title": "Ref",
+          "type": "string"
+        },
+        "source": {
+          "description": "Where the plugin comes from, in the source's own spelling \u2014 `github:owner/repo`.",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "Plugin",
+      "type": "object"
+    },
     "PromotionConfig": {
       "additionalProperties": false,
       "description": "Landing policy (S-0006/promotion). The operator's `torve merge` is always\nthe recorded approval; `auto_merge` is the opt-in that lets a manager\npass invoke the same lane on the same terms \u2014 it arms the pass's landing\nleg, and every refusal below still applies to it unchanged.\n\n`require_ci` is \u00a73's `ci: green_on_current_head` requirement: the lane\nrefuses to land a candidate whose branch tip is not green on the\nconfigured remote's CI (`scm.repo`), polled with backoff against the\nlightweight runs endpoint (\u00a71). A rebased tree is additionally judged\nby the local battery re-run \u2014 the remote verdict covers the tip the\nremote actually saw.",
@@ -436,7 +458,7 @@
     },
     "SkillsConfig": {
       "additionalProperties": false,
-      "description": "Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1) materialized into the\nsandbox from package data at dispatch (S-0009/A-1, S-0009/D-7).",
+      "description": "Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1)\nmaterialized into the sandbox from package data at dispatch (S-0009/A-1, S-0009/D-7).\n\nNobody writes this any more (S-0061/D-11): the set a role loads is the profile\nnamed for that role, `.torve/agents/<role>.yaml`, and the loader fills this in from\nthose files so every reader keeps the shape it had. A default set and a named set\nwere two mechanisms answering one question in two files.",
       "properties": {
         "sets": {
           "additionalProperties": {
@@ -445,7 +467,7 @@
             },
             "type": "array"
           },
-          "description": "The skill names each dispatchable role loads, keyed by role (S-0009/D-1); a tier's\nown `skills` overrides its role's entry wholesale (`effective_skill_sets`).",
+          "description": "The skill names each dispatchable role loads, keyed by role \u2014 resolved from the\nrole profiles, never written here. A seat whose own profile names skills overrides\nits role's entry wholesale (`effective_skill_sets`).",
           "title": "Sets",
           "type": "object"
         }
@@ -580,6 +602,12 @@
           "title": "Command",
           "type": "string"
         },
+        "harness": {
+          "default": "",
+          "description": "S-0061/D-2/D-3: the harness manifest this seat is reached through, by name \u2014\n`.torve/harnesses/<name>.yaml`. Resolution happens on the raw mapping in\n`load_runner_config`, before this model validates, so by the time a `TierConfig`\nexists the manifest's fields are already merged onto it; the name is kept so\n`config_hash` and `torve doctor` can both say where a value came from.",
+          "title": "Harness",
+          "type": "string"
+        },
         "image": {
           "default": "",
           "description": "The tier's sandbox image \u2014 harness identity is the image\n(S-0017/configuration-routes-by-nature, S-0017/D-4). Empty falls back to\nruntime.image.",
@@ -592,9 +620,17 @@
           "title": "Model",
           "type": "string"
         },
+        "plugins": {
+          "description": "S-0061/D-5: the plugins the profile declares, carried onto the resolved seat so\ndispatch can render them into the harness's own seeding format (S-0061/D-6).",
+          "items": {
+            "$ref": "#/$defs/Plugin"
+          },
+          "title": "Plugins",
+          "type": "array"
+        },
         "profile": {
           "default": "",
-          "description": "S-0028/the-profile-file, S-0028/D-1/D-28.2, S-0028/A-1: the named profile(s) this\ntier resolved from, if any \u2014 resolution happens on the raw mapping in\n`load_runner_config`, before this model ever validates, so by the time a `TierConfig`\nexists every other field already carries the merged content. The raw config's\n`profile` key may be a single name or a list merged left to right (S-0028/A-1); either\nway this field ends up holding the chain in order (`\"a -> b\"`, or just `\"a\"` for a\nsingle name), kept (not popped) so `config_hash` and `torve doctor` can both see where\na tier came from.",
+          "description": "S-0061/D-1/D-3: the agent profile this seat runs, by name \u2014\n`.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty\nresolves the profile named for the task's role (S-0061/D-11).",
           "title": "Profile",
           "type": "string"
         },
@@ -660,7 +696,7 @@
             }
           ],
           "default": null,
-          "description": "S-0029/equipment-on-the-tier, S-0029/D-1/D-29.3: `None` inherits the role-scoped\nskill set (`SkillsConfig.sets[role]`) exactly as today; a list overrides it wholesale \u2014\nnever additive, so the effective set is readable in one place. Rides the profile merge\nunchanged (S-0028/D-4's replace-wholesale rule already covers list fields). Names\nresolve through the same `materialize` path with the same refusals (S-0029/D-2).",
+          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: the skills this seat's agent loads, merged\nfrom its profile (S-0061/D-1) \u2014 `None` is a seat whose profile named none, which falls\nthrough to the profile named for the task's role (S-0061/D-11). Names resolve through\nthe same `materialize` path with the same refusals (S-0029/D-2).",
           "title": "Skills"
         }
       },

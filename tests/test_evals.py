@@ -15,6 +15,7 @@ import subprocess
 from functools import partial
 
 import pytest
+from conftest import harness
 from test_shadow import ship
 from typer.testing import CliRunner
 
@@ -34,7 +35,13 @@ from torve.application.evals import candidate_config, run_config_eval, run_skill
 from torve.application.shadow import ShadowSource
 from torve.cli import app
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig, RuntimeConfig, TierConfig
+from torve.config.runconfig import (
+    ROLE_SKILLS,
+    RunnerConfig,
+    RuntimeConfig,
+    SkillsConfig,
+    TierConfig,
+)
 from torve.gates.context import load_task
 from torve.gates.sabotage import TASK_ID, base_task
 
@@ -42,7 +49,7 @@ from torve.gates.sabotage import TASK_ID, base_task
 
 
 def test_without_skill_strips_every_role_set():
-    config = RunnerConfig()
+    config = RunnerConfig(skills=SkillsConfig(sets=dict(ROLE_SKILLS)))
     stripped = without_skill(config, "flag-dont-flip")
     assert all("flag-dont-flip" not in names for names in stripped.skills.sets.values())
     # The with-arm's configuration is untouched.
@@ -151,7 +158,11 @@ def test_skill_eval_runs_both_arms_and_ledgers(repo):
     ship(repo)
 
     config = RunnerConfig(
-        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90), poison_ceiling=2
+        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),
+        poison_ceiling=2,
+        # S-0061/D-11: a configuration built in Python carries no role sets, since
+        # they are read off `.torve/agents/` at load; the arms need one to strip.
+        skills=SkillsConfig(sets=dict(ROLE_SKILLS)),
     )
     deps = RunDeps(
         workspace=GitWorkspace(repo.root),
@@ -228,7 +239,11 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     ship(repo)
 
     config = RunnerConfig(
-        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90), poison_ceiling=2
+        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),
+        poison_ceiling=2,
+        # S-0061/D-11: a configuration built in Python carries no role sets, since
+        # they are read off `.torve/agents/` at load; the arms need one to strip.
+        skills=SkillsConfig(sets=dict(ROLE_SKILLS)),
     )
     runtime = DockerRuntime()
 
@@ -408,6 +423,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
 
 def _bare_task_repo(root, tier: str = "executor"):
     (root / ".torve" / "tasks" / "T-0042").mkdir(parents=True)
+    harness(root)
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
@@ -511,7 +527,8 @@ def test_eval_cli_config_mode_refuses_an_already_resolved_variant(tmp_path):
     _bare_task_repo(root)
     # The variant is configured, but identical to the seat — nothing to measure.
     (root / ".torve" / "config.yaml").write_text(
-        "tiers:\n  executor: {}\n  executor.indexed: {}\n", encoding="utf-8"
+        "tiers:\n  executor: {harness: fake}\n  executor.indexed: {harness: fake}\n",
+        encoding="utf-8",
     )
 
     result = CliRunner().invoke(

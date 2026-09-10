@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An agent profile and a harness manifest are files of their own:
+  `.torve/agents/<name>.yaml` says what an agent is — skills, plugins, extra
+  working rules — and `.torve/harnesses/<name>.yaml` says how a model is
+  reached. A seat in `config.yaml` names one of each.
+
 - The fleet manifest carries a `schema_version` and has a schema: `torve init`
   mints `.torve/schemas/fleet.json` like every other model's, so an editor can
   validate `~/.config/torve/fleet.yaml`.
@@ -43,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reviewing its own kind shares its blind spots.
 
 ### Changed
+
+- **Breaking:** a tier entry no longer carries `adapter`, `command`, `image`,
+  `api_key_env`, `skills` or `prompt_extras`. Each is refused by name with the
+  file it moved to; `torve init` mints a profile per role.
 
 - Every shape the engine writes declares its own `schema_version` beside its
   own model, at the value it already carried. One shared constant meant a bump

@@ -824,6 +824,7 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
     assert written.exit_code == 0, written.output
     schemas = tmp_path / ".torve" / "schemas"
     assert sorted(p.name for p in schemas.iterdir()) == [
+        "agent.json",
         "amendments.json",
         "config.json",
         "contract.json",
@@ -831,6 +832,7 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
         "document.json",
         "fleet.json",
         "gates.json",
+        "harness.json",
         "landing.json",
         "log.json",
         "phasing.json",

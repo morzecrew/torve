@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "description": "How a model is reached (S-0061/D-2) \u2014 and never which model.\n\nOne image runs several models, so choosing among them is the seat's; what\nbelongs here is everything that would be identical whichever model the\nseat picks.",
+  "properties": {
+    "adapter": {
+      "default": "fake",
+      "description": "Which agent adapter this harness drives: fake, api, harness or subscription.",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "api_key_env": {
+      "description": "The names of the variables the runtime forwards from its own environment \u2014\nnames, never values, so a secret never transits a spec (S-0001/D-13).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Api Key Env",
+      "type": "array"
+    },
+    "auth_mount": {
+      "default": "/auth",
+      "description": "Where that volume is mounted, read-write because token refresh writes.",
+      "title": "Auth Mount",
+      "type": "string"
+    },
+    "auth_volume": {
+      "default": "torve-auth",
+      "description": "The subscription route's volume; one per worker slot, `-<slot>` appended.",
+      "title": "Auth Volume",
+      "type": "string"
+    },
+    "command": {
+      "default": "",
+      "description": "The command line run inside the sandbox; `{prompt}` and `{model}` are\nsubstituted. The engine never links a harness SDK \u2014 it shells a line into a\ncontainer it created (S-0004/D-1).",
+      "title": "Command",
+      "type": "string"
+    },
+    "image": {
+      "default": "",
+      "description": "The sandbox image, which is what harness identity actually is (S-0017/D-4).\nEmpty falls back to `runtime.image`.",
+      "title": "Image",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "The manifest's own shape version.",
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "HarnessManifest",
+  "type": "object"
+}

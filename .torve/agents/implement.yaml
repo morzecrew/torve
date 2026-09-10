@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=../schemas/agent.json
+skills:
+- flag-dont-flip
+- ratchet-what-you-build
