@@ -127,13 +127,13 @@ async def _graph(dsn: str | None, partition: str) -> Graph:
 
 
 async def _import(
-    dsn: str | None, partition: str, rfc_dir: Path, *, actor: str, write: bool
+    dsn: str | None, partition: str, root: Path, rfc_dir: Path, *, actor: str, write: bool
 ) -> list[PendingEvent]:
     from torve.application.decisions import (
         import_corpus,
         landing_events,
+        landings,
         load,
-        load_corpus,
         record_all,
     )
     from torve.application.eventlog import event_log
@@ -144,10 +144,12 @@ async def _import(
         # S-0057 S-0057/D-8: what every execution file holds and the record
         # lacks — an agent's entries and the manager's landing, replayed
         # under the actor each kind names.
-        corpus = load_corpus(rfc_dir)
-        landed = sorted({one.task for doc in corpus.documents for one in doc.landings})
-        recorded = {task: await log.history(task, partition=partition) for task in landed}
-        pending += landing_events(corpus, recorded)
+        found = landings(root, rfc_dir)
+        recorded = {
+            task: await log.history(task, partition=partition)
+            for task in sorted({one.task for one in found})
+        }
+        pending += landing_events(found, recorded)
 
         if write:
             await record_all(log, pending, partition=partition, actor_id=actor)
@@ -190,7 +192,7 @@ def import_cmd(
     # refuses rather than appending the corpus to a store that vanishes.
     resolved = dsn_for(root, dsn) if check else dsn_to_write(root, dsn)
     pending = asyncio.run(
-        _import(resolved or None, partition, rfc_dir, actor=actor, write=not check)
+        _import(resolved or None, partition, root, rfc_dir, actor=actor, write=not check)
     )
 
     if fmt is Format.JSON:

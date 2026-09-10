@@ -231,54 +231,20 @@ class ShadowWorkspace:
 # ....................... #
 
 
-def shipped_commit(root: Path, task_id: str) -> str | None:
-    """The commit that shipped a task: the `Torve-Task:` trailer the runner
-    writes, with the hand-committed subject convention as the fallback this
-    repository's own history needs — `id)` rather than `(id)`, because real
-    subjects read `(S-0015/A-1, T-0019)` as often as `(T-0019)`. The fallback
-    matches subjects only: `--grep` searches whole messages, and a later
-    commit merely *mentioning* the id in its body must never shadow the
-    commit that shipped the work."""
+def shipped_commit(root: Path, task_id: str, spec_dir: Path | None = None) -> str | None:
+    """The commit that shipped a task, from the landings the tree holds
+    (S-0059/D-12): the newest landing of that task naming a commit, or None.
 
-    proc = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "log",
-            "--all",
-            "-1",
-            "--format=%H",
-            "--fixed-strings",
-            f"--grep=Torve-Task: {task_id}",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+    This grepped the `Torve-Task:` trailer, with a subject convention
+    behind it for the hand-made landings that carried no trailer; both are
+    gone with the trailer, and a tree without git answers now."""
+
+    from torve.application.decisions import landed_commit
+    from torve.config import layout
+
+    return landed_commit(
+        root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR, task_id
     )
-
-    sha = proc.stdout.strip()
-
-    if proc.returncode == 0 and sha:
-        return sha
-
-    proc = subprocess.run(
-        ["git", "-C", str(root), "log", "--all", "--format=%H%x09%s"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    if proc.returncode != 0:
-        return None
-
-    for line in proc.stdout.splitlines():
-        sha, _, subject = line.partition("\t")
-
-        if f"{task_id})" in subject:
-            return sha
-
-    return None
 
 
 # ....................... #

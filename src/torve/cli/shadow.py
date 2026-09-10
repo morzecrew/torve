@@ -50,7 +50,7 @@ def shadow_cmd(
         str | None,
         typer.Option(
             "--commit",
-            help="The commit that shipped the task; found by its Torve-Task trailer when omitted.",
+            help="The commit that shipped the task; read from its landing when omitted.",
         ),
     ] = None,
     agent_name: Annotated[

@@ -41,7 +41,6 @@ from torve.cli.options import (
 from torve.domain.states import EXIT_INFRASTRUCTURE
 
 if TYPE_CHECKING:
-    from torve.adapters.vcs.git import GitVcs
     from torve.application.manager import Board
     from torve.application.reaper import ReapReport
     from torve.config.runconfig import RunnerConfig
@@ -150,11 +149,13 @@ def _swept(
     force: bool,
     dry_run: bool,
     escalated: bool,
-    vcs: GitVcs,
 ) -> ReapReport:
     from torve.adapters.store.durable import open_store
     from torve.adapters.workspace.git import GitWorkspace
+    from torve.application.projections import shipped_ids
     from torve.application.reaper import reap
+
+    landed_ids = shipped_ids(root, root / config.specs.path)
 
     return reap(
         root,
@@ -164,10 +165,11 @@ def _swept(
         force=force,
         dry_run=dry_run,
         store=open_store,
-        # The landed oracle (S-0019/D-10): a READY implement state whose landing
-        # trailer is in history is collectable — without it this verb kept
-        # every landed candidate forever.
-        landed=lambda t: bool(vcs.landed_shas(root, t)),
+        # The landed oracle (S-0019/D-10): a READY implement state whose
+        # landing the tree holds is collectable (S-0059/D-12) — without it
+        # this verb kept every landed candidate forever. Read once, not
+        # once per task.
+        landed=landed_ids.__contains__,
         escalated=escalated,
     )
 
@@ -206,14 +208,11 @@ def reap_cmd(
     """Sweep orphaned sandboxes, worktrees and finished run state, by
     convention."""
 
-    from torve.adapters.vcs.git import GitVcs
-
     root = root.resolve()
     config = load_config(root, config_path)
-    vcs = GitVcs()
 
     try:
-        report = _swept(root, config, runtime_name, force, dry_run, escalated, vcs)
+        report = _swept(root, config, runtime_name, force, dry_run, escalated)
 
     except RuntimeError as exc:
         # A store the sweep cannot reach is infrastructure, not a crash: the

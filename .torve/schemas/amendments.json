@@ -290,6 +290,33 @@
       "title": "DesignSection",
       "type": "object"
     },
+    "GradedRow": {
+      "additionalProperties": false,
+      "description": "One inherited row as a landing keeps it (S-0059/D-10): the identifier\nand the grade the contract carried, which is what the `Torve-Decisions`\ntrailer used to say and what outlives the task directory.",
+      "properties": {
+        "grade": {
+          "description": "The grade the contract inherited at mint.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "description": "The row's identifier, `S-NNNN/D-n`; local inside its own document.",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade"
+      ],
+      "title": "GradedRow",
+      "type": "object"
+    },
     "InheritedDecision": {
       "additionalProperties": false,
       "description": "One row as a contract carries it (charter \u00a73; S-0054 S-0054/D-1): grade,\ntext and paths copied at mint and fingerprinted; `consequence` beside\nthem so the executor gets the reason, and `check` \u2014 a command whose\nexit code judges the row \u2014 which the runner appends to the battery as\na `decision:<id>` gate at `check_state`, with `check_twin` the test\nthat proves the check can fail (S-0054/D-4). A contract minted before\nS-0054 loads with the four defaults, which is the old behaviour.",
@@ -443,6 +470,14 @@
           "description": "The commit the work landed in, when the lander knew it (S-0058/D-12).",
           "title": "Commit",
           "type": "string"
+        },
+        "decisions": {
+          "description": "The rows the contract carried, with their grades (S-0059/D-10).",
+          "items": {
+            "$ref": "#/$defs/GradedRow"
+          },
+          "title": "Decisions",
+          "type": "array"
         },
         "entries": {
           "description": "The task log's entries, kept here beside the rows they cite (S-0057/D-7).",

@@ -44,7 +44,7 @@ class ShadowSource:
     orchestrates, the workspace adapter owns the history mechanics."""
 
     create_workspace: Callable[[str, str], Path]  # (task_id, parent_sha) -> path
-    shipped_commit: Callable[[str], str | None]  # task_id -> sha
+    shipped_commit: Callable[[str], str | None]  # task_id -> the commit its landing names
     parent_of: Callable[[str], str]
     diff_range: Callable[[str], dict[str, Any]]  # what shipped, commit vs parent
     # What the replay produced vs the parent — never vs HEAD, which the
@@ -83,8 +83,8 @@ def run_shadow(
 
     if resolved is None:
         raise ValueError(
-            f"no shipped commit found for {task.id} (no 'Torve-Task: {task.id}' trailer "
-            f"or '({task.id})' subject in history); pass --commit explicitly"
+            f"no shipped commit found for {task.id} — no landing of it names a "
+            "commit (S-0059/D-12); pass --commit explicitly"
         )
 
     parent = source.parent_of(resolved)

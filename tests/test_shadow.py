@@ -10,6 +10,7 @@ import json
 import subprocess
 
 import pytest
+from test_decisions import landed
 from test_runtime_conformance import docker_available
 from typer.testing import CliRunner
 
@@ -53,7 +54,7 @@ def scratch_history(tmp_path):
     for n, content in enumerate(("one", "two", "FUTURE-ANSWER"), start=1):
         (root / "f.txt").write_text(content + "\n", encoding="utf-8")
         git("add", "-A")
-        git("commit", "-q", "-m", f"c{n}" + ("\n\nTorve-Task: T-7002" if n == 3 else ""))
+        git("commit", "-q", "-m", f"c{n}")
         proc = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
             capture_output=True,
@@ -95,59 +96,28 @@ def test_shadow_workspace_has_truncated_history_and_no_later_refs(tmp_path):
     assert count == "2"
 
 
-def test_shipped_commit_lookup_by_trailer_and_subject(tmp_path):
-    root, (_c1, _c2, c3) = scratch_history(tmp_path)
-    assert shipped_commit(root, "T-7002") == c3  # the Torve-Task trailer
+def test_shipped_commit_is_the_commit_the_newest_landing_names(tmp_path):
+    """S-0059/D-12: a task shipped iff a landing of it names a commit — the
+    lookup reads the landings the tree holds, the newest of them wins, and a
+    commit no landing names is not a shipped commit. The `Torve-Task:`
+    trailer this once grepped, and the subject convention behind it, are
+    both gone with the trailer."""
+
+    root, (_c1, c2, c3) = scratch_history(tmp_path)
+    assert shipped_commit(root, "T-7002") is None  # nothing has landed yet
+
+    landed(root, "T-7002", c2, at="2026-09-09T12:00:00Z")
+    assert shipped_commit(root, "T-7002") == c2
+
+    # A second attempt landed later: the newest landing is what shipped.
+    landed(root, "T-7002", c3, attempt=2, at="2026-09-09T13:00:00Z")
+    assert shipped_commit(root, "T-7002") == c3
+
+    # An attempt that changed nothing lands without a commit — landed, but
+    # with no shipped commit to replay, and no other task's either.
+    landed(root, "T-7003")
+    assert shipped_commit(root, "T-7003") is None
     assert shipped_commit(root, "T-9999") is None
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "commit",
-            "-q",
-            "--allow-empty",
-            "-m",
-            "docs: adopt patch (T-7003)",
-        ],
-        capture_output=True,
-        check=True,
-    )
-    found = shipped_commit(root, "T-7003")  # the hand-committed subject fallback
-    assert found is not None and found != c3
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "commit",
-            "-q",
-            "--allow-empty",
-            "-m",
-            "feat: containment (A-19, T-7004)",
-        ],
-        capture_output=True,
-        check=True,
-    )
-    multi = shipped_commit(root, "T-7004")
-    assert multi is not None  # multi-id subjects too
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "commit",
-            "-q",
-            "--allow-empty",
-            "-m",
-            "fix: lookup fallback\n\nquotes the subject style (A-19, T-7004)",
-        ],
-        capture_output=True,
-        check=True,
-    )
-    # A later commit mentioning the id in its BODY must not shadow the
-    # shipping commit — the fallback matches subjects only.
-    assert shipped_commit(root, "T-7004") == multi
 
 
 def test_parent_of_and_diffstats(tmp_path):
@@ -185,6 +155,26 @@ def test_parent_of_and_diffstats(tmp_path):
 # The shadow loop end to end (real Docker)
 
 
+def ship(repo) -> str:
+    """The shipped work, and the landing that names the commit it shipped as
+    — what a replay looks for now that a task shipped iff a landing of it
+    names a commit (S-0059/D-12). Returns that commit."""
+
+    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
+    repo.commit(f"torve({TASK_ID}): shipped")
+    sha = subprocess.run(
+        ["git", "-C", str(repo.root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    # A landing is a file in the tree, and the lookup reads it from there —
+    # so this needs no commit of its own to be found.
+    landed(repo.root, TASK_ID, sha)
+
+    return sha
+
+
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 def test_shadow_replay_end_to_end(repo):
     repo.seed()
@@ -198,8 +188,7 @@ def test_shadow_replay_end_to_end(repo):
         text=True,
         check=True,
     ).stdout.strip()
-    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
-    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
+    ship(repo)
 
     config = RunnerConfig(
         runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90), poison_ceiling=2
@@ -230,8 +219,8 @@ def test_shadow_replay_end_to_end(repo):
     assert record["state"] == "ready"
     assert record["attempts"] == 1
     assert record["parent"] == parent_sha
-    # The replay found the shipped commit by its trailer and worked from the
-    # parent — where the answer does not exist.
+    # The replay found the shipped commit by the landing that names it, and
+    # worked from the parent — where the answer does not exist.
     workspace = repo.root / ".wt" / f"shadow-{TASK_ID}"
     unreachable = subprocess.run(
         ["git", "-C", str(workspace), "cat-file", "-t", record["commit"]],
@@ -326,14 +315,7 @@ def test_replay_never_mounts_the_cache_volume_even_when_the_tier_names_one(
     task_doc = base_task(allow=["src/**"])
     repo.task(task_doc, None)
     repo.commit("task minted")
-    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
-    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
-    shipped = subprocess.run(
-        ["git", "-C", str(repo.root), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    shipped = ship(repo)
 
     specs: list = []
 

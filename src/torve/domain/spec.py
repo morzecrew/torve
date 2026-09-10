@@ -6,8 +6,8 @@ files, each holding the slice of this model that one writer owns
 (`FILE_FIELDS`), and nothing parses anything else into it.
 
 This module owns the shape and nothing about the storage: `config/spec.py`
-loads and checks it, `config/spec_emit.py` writes it, and `domain/rfc.py`
-still owns the vocabularies. It imports pydantic, the vocabularies and the
+loads and checks it, `config/spec_emit.py` writes it, and
+`domain/vocabulary.py` owns the words it uses (S-0059/D-5). It imports pydantic, the vocabularies and the
 task contract only (S-0053/D-14), so extracting it into its own distribution
 is a packaging act and never a rewrite.
 
@@ -374,6 +374,17 @@ class LogEntry(Item):
     """Anything else the reader of the log should know."""
 
 
+class GradedRow(Item):
+    """One inherited row as a landing keeps it (S-0059/D-10): the identifier
+    and the grade the contract carried, which is what the `Torve-Decisions`
+    trailer used to say and what outlives the task directory."""
+
+    id: str
+    """The row's identifier, `S-NNNN/D-n`; local inside its own document."""
+    grade: Grade
+    """The grade the contract inherited at mint."""
+
+
 class Landing(Item):
     """What one task found, kept beside the rows it informs (S-0057/D-7): the
     task, its phase and attempt, the commit when the lander knew it (the
@@ -394,6 +405,8 @@ class Landing(Item):
     """The instant of the landing, `YYYY-MM-DDTHH:MM:SSZ` (S-0058/D-7)."""
     agent: str = ""
     """Who landed it — the agent identity the runner composes, or a session."""
+    decisions: list[GradedRow] = Field(default_factory=list)
+    """The rows the contract carried, with their grades (S-0059/D-10)."""
     entries: list[LogEntry] = Field(default_factory=list)
     """The task log's entries, kept here beside the rows they cite (S-0057/D-7)."""
 
@@ -571,6 +584,9 @@ class Document(Item):
         for landing in self.landings:
             for entry in landing.entries:
                 entry.decision = qualify(me, entry.decision)
+
+            for graded in landing.decisions:
+                graded.id = qualify(me, graded.id)
 
         self.retired = [qualify(me, r) for r in self.retired]
 

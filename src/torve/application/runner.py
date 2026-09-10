@@ -514,9 +514,10 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
 
 
 def _agent_identity(meta: dict[str, Any]) -> str:
-    """The commit author and Torve-Agent trailer value (S-0010/branches-and-commits):
-    adapter/model@model_version, degrading gracefully — a fake or mechanical
-    attempt is named for what it is, never invented."""
+    """The commit author, and the `agent` a landing records
+    (S-0010/branches-and-commits): adapter/model@model_version, degrading
+    gracefully — a fake or mechanical attempt is named for what it is, never
+    invented."""
 
     adapter = str(meta.get("adapter") or "unknown")
     model = meta.get("model")
@@ -529,11 +530,15 @@ def _agent_identity(meta: dict[str, Any]) -> str:
 # ....................... #
 
 
-def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, Any]) -> str:
-    """The full trailer set (S-0010/D-4): enough that `git log --grep`
-    reconstructs a task's history with the store offline. The subject
-    carries the intent's head (S-0010/D-6: composed from the contract, never
-    the agent's prose) — a history readable without opening the task."""
+def _work_message(task: Task, attempts: int) -> str:
+    """The work commit's message, composed from the contract and nothing
+    else (S-0010/D-6): the subject carries the intent's head, so a history
+    is readable without opening the task.
+
+    No `Torve-` trailer rides here (S-0059/D-10). The landing file that
+    follows in its own commit carries the task, the attempt, the agent,
+    the base, this commit and the rows the contract inherited — everything
+    the five trailers said, in the place the corpus reads."""
 
     # S-0007/A-1: the contract's short title names the landing; the intent's
     # first line is the fallback for contracts minted before it existed.
@@ -546,20 +551,7 @@ def _provenance_message(task: Task, attempts: int, digest: str, meta: dict[str, 
 
     what = f" {head} —" if head else ""
 
-    lines = [
-        f"torve({task.id}):{what} attempt {attempts} green",
-        "",
-        f"Torve-Task: {task.id}",
-        f"Torve-Attempt: {attempts}",
-        f"Torve-Agent: {_agent_identity(meta)}",
-        f"Torve-Config: {digest}",
-    ]
-
-    if task.decisions:
-        graded = " ".join(f"{d.id}({d.grade})" for d in task.decisions)
-        lines.append(f"Torve-Decisions: {graded}")
-
-    return "\n".join(lines)
+    return f"torve({task.id}):{what} attempt {attempts} green"
 
 
 # ....................... #
@@ -616,10 +608,22 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
 
     deps, config, task, worktree = run.deps, run.config, run.task, run.worktree
 
-    # S-0057/D-7: what this attempt found goes beside the rows it cites, in the
-    # candidate commit; the commit field stays empty — the candidate's own
-    # trailers name the task — and a contract naming no document lands
-    # nowhere, which is a fact, not a failure.
+    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
+
+    sha = await asyncio.to_thread(
+        deps.vcs.commit_all,
+        worktree,
+        _work_message(task, state.attempts),
+        author,
+        config.vcs.signing_key,
+    )
+
+    # S-0059/D-9: the landing follows the work commit and names it, in a
+    # commit of its own — a file cannot name the commit it rides in, and an
+    # amended commit is a different sha. Two commits per attempt, departing
+    # S-0010/D-8. What this attempt found goes beside the rows it cites
+    # (S-0057/D-7), or under `.torve/execution/` when the contract names no
+    # document (S-0059/D-11).
     try:
         execution = decisions.land(
             worktree,
@@ -627,17 +631,19 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
             task,
             attempt=state.attempts,
             agent=_agent_identity(run.meta),
+            commit=sha or "",
         )
         landed = f"execution {execution.relative_to(worktree)}"
+
+        await asyncio.to_thread(
+            deps.vcs.commit_all,
+            worktree,
+            f"torve({task.id}): landing of attempt {state.attempts}",
+            author,
+            config.vcs.signing_key,
+        )
     except ValueError as exc:
         landed = f"no execution file — {exc}"
-
-    message = _provenance_message(task, state.attempts, digest, run.meta)
-    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
-
-    sha = await asyncio.to_thread(
-        deps.vcs.commit_all, worktree, message, author, config.vcs.signing_key
-    )
 
     # The credential is resolved by NAME here, at the runner boundary
     # (S-0001/D-13): the value lives only in this process and the subprocess
@@ -697,13 +703,13 @@ def checkpoint(run: Dispatch, final: RunState) -> None:
     (S-0026/D-9). Local only: the branch already lives in this repository, and
     publishing a WIP tip is the eventual `land`'s job, unchanged.
 
-    A trailer of its own (never Torve-Task) keeps this commit from ever
-    being mistaken for a landed candidate (S-0010/D-4's grep, the revert leg's
-    `landed_shas`)."""
+    A trailer of its own keeps this commit from ever being mistaken for a
+    landed candidate: it writes no landing, and a landing is what a landed
+    candidate is (S-0059/D-12)."""
 
     message = (
         f"torve checkpoint {run.task.id}: attempt {final.attempts} exhausted its budget"
-        f"\n\nTorve-Checkpoint: {run.task.id}\nTorve-Attempt: {final.attempts}"
+        f"\n\nTorve-Checkpoint: {run.task.id} attempt {final.attempts}"
     )
     author = f"{_agent_identity(run.meta)} <agents@torve.local>"
     run.deps.vcs.commit_all(run.worktree, message, author, run.config.vcs.signing_key)

@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces `--rfc`, and every envelope and source id says `spec`. A gate's
   `origin` is a citation (`S-0054/D-2`), never `rfc/NNNN`. The contract's
   `schema_version` is 2.
+- **Breaking (S-0059):** the landing file is the record of a landing. The
+  runner commits the work, then the landing naming its base and commit in a
+  commit of its own, and writes no `Torve-Task` family trailer; readers that
+  grepped one read the tree. `Torve-Bypass` and `Torve-Fixes` stay.
+
 - **Breaking (S-0059):** `torve/domain/vocabulary.py` holds every closed word
   the engine reads; `torve/domain/rfc.py` is gone. Every schema `torve init`
   writes describes every property from the field's docstring; the standing

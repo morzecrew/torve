@@ -12,6 +12,7 @@ under `.torve/specs/`, `archived` under `.torve/archive/`."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -226,6 +227,57 @@ def place(spec_dir: Path, number: str, doc: Doc) -> Path:
         (directory / file_name).write_text(text, encoding="utf-8")
 
     return directory
+
+
+def landed(
+    root: Path,
+    task_id: str,
+    commit: str = "",
+    *,
+    spec: str | None = None,
+    attempt: int = 1,
+    at: str = "2026-09-09T12:00:00Z",
+    agent: str = "test",
+    phase: int = 0,
+    base: str = "",
+    entries: Sequence[dict[str, Any]] = (),
+    decisions: Sequence[dict[str, str]] = (),
+) -> Path:
+    """One landing file, written the way the engine writes it — what a test
+    means when it says a task shipped (S-0059/D-12). Under the named
+    document's `execution/`, or `.torve/execution/` when none is named
+    (S-0059/D-11)."""
+
+    from torve.config import layout
+    from torve.config.spec import document_dir, load_document
+    from torve.config.spec_emit import write_landing
+    from torve.domain.spec import EXECUTION_DIR, Landing
+
+    doc = None
+    execution = layout.execution_dir(root)
+
+    if spec is not None:
+        directory = document_dir(root / layout.SPECS_DIR, spec)
+        assert directory is not None, f"no document {spec} under {root / layout.SPECS_DIR}"
+        doc = load_document(directory)
+        execution = directory / EXECUTION_DIR
+
+    landing = Landing.model_validate(
+        {
+            "task": task_id,
+            "phase": phase,
+            "attempt": attempt,
+            "base": base,
+            "commit": commit,
+            "at": at,
+            "agent": agent,
+            "decisions": list(decisions),
+            "entries": list(entries),
+        }
+    )
+    path, _ = write_landing(execution, doc, landing)
+
+    return path
 
 
 def corpus(tmp_path: Path, **docs: Doc) -> Path:

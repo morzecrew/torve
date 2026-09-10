@@ -265,10 +265,12 @@ def landing_schema_text() -> str:
     return json.dumps(Landing.model_json_schema(), indent=2, sort_keys=True) + "\n"
 
 
-def landing_header() -> str:
-    """The first line of a landing file: its schema, three levels up."""
+def landing_header(levels: int = 3) -> str:
+    """The first line of a landing file: its schema, *levels* directories up
+    — three from a document's `execution/`, one from the document-less
+    directory beside the corpus (S-0059/D-11)."""
 
-    return f"{SCHEMA_HEADER}../../../schemas/{LANDING_SCHEMA}.json"
+    return f"{SCHEMA_HEADER}{'../' * levels}schemas/{LANDING_SCHEMA}.json"
 
 
 def check_schema(spec_dir: Path) -> tuple[list[str], list[str]]:
@@ -338,7 +340,12 @@ def landing_files(directory: Path) -> list[Path]:
     """The landing files of one document, sorted by instant, task and
     attempt — the order `landings` reads in (S-0058/D-6)."""
 
-    execution = directory / EXECUTION_DIR
+    return landing_files_in(directory / EXECUTION_DIR)
+
+
+def landing_files_in(execution: Path) -> list[Path]:
+    """The landing files of one execution directory — a document's, or the
+    document-less one beside the corpus (S-0059/D-11)."""
 
     if not execution.is_dir():
         return []

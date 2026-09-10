@@ -220,11 +220,19 @@ def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> N
     found = json.loads(result.output)
     assert found["code"] == [{"file": "src/x.py", "line": 1}]
     assert found["landings"] == [
-        {"task": "T-0007", "attempt": 1, "commit": "abc", "document": "S-0001"}
+        {
+            "task": "T-0007",
+            "attempt": 1,
+            "commit": "abc",
+            "document": "S-0001",
+            "how": "entry",
+        }
     ]
     assert found["amendments"] == [{"id": "S-0001/A-1", "document": "S-0001"}]
     assert found["documents"] == ["S-0002"]
-    assert found["commits"] == []  # nothing committed with a trailer yet
+    # S-0059/D-12: the commits whose trailers graded a row were the fifth
+    # answer; the trailer is gone and the landing carries the grade.
+    assert "commits" not in found
 
     empty = runner.invoke(app, ["spec", "cites", "S-0002/D-1", "--root", str(tmp_path)])
 

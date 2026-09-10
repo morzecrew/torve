@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import yaml
+from test_decisions import landed
 from test_run_loop import MockRuntime
 from typer.testing import CliRunner
 
@@ -136,8 +137,10 @@ def git(root: Path, *args: str) -> str:
 
 def escape_repo(tmp_path: Path) -> Path:
     """A history with one escape: T-0142 ships a fetch that swallows every
-    exception, and HEAD fixes it, citing the landing with a Torve-Fixes
-    trailer."""
+    exception, and HEAD fixes it, citing the defective task with a
+    Torve-Fixes trailer. What says T-0142 shipped — and which commit it
+    shipped as — is its landing file, carried by the commit that follows the
+    one it names (S-0059/D-12)."""
 
     root = tmp_path / "proj"
     root.mkdir()
@@ -145,18 +148,14 @@ def escape_repo(tmp_path: Path) -> Path:
     (root / "src").mkdir()
     (root / "src" / "app.py").write_text("def fetch():\n    return 1\n", encoding="utf-8")
     git(root, "add", ".")
-    git(root, "commit", "-qm", "seed work (T-0001)\n\nTorve-Task: T-0001")
+    git(root, "commit", "-qm", "seed work (T-0001)")
     (root / "src" / "app.py").write_text(
         "def fetch():\n    try:\n        return 1\n    except Exception:\n        return None\n",
         encoding="utf-8",
     )
     git(root, "add", ".")
-    git(
-        root,
-        "commit",
-        "-qm",
-        "torve(T-0142): add retry handling — attempt 1 green\n\nTorve-Task: T-0142",
-    )
+    git(root, "commit", "-qm", "torve(T-0142): add retry handling — attempt 1 green")
+    landed(root, "T-0142", git(root, "rev-parse", "HEAD").strip())
     (root / "notes.md").write_text("unrelated\n", encoding="utf-8")
     git(root, "add", ".")
     git(root, "commit", "-qm", "docs: note")
@@ -258,7 +257,10 @@ def test_defect_outside_the_ancestry_is_refused(tmp_path):
     git(root, "checkout", "-q", "-b", "later")
     (root / "notes.md").write_text("other branch\n", encoding="utf-8")
     git(root, "add", ".")
-    git(root, "commit", "-qm", "torve(T-0300): other work\n\nTorve-Task: T-0300")
+    git(root, "commit", "-qm", "torve(T-0300): other work")
+    # T-0300 landed, and its landing names a commit — just not one in the
+    # fixing commit's history, which is what "ancestor" means (S-0036/D-5).
+    landed(root, "T-0300", git(root, "rev-parse", "HEAD").strip())
     git(root, "checkout", "-q", "main")
 
     result = invoke_add(root, "HEAD", "--defect", "T-0300")

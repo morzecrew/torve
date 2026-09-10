@@ -12,7 +12,7 @@ to say "clean" (S-0005/calibration) is itself regression-tested.
 
 The corpus grows from escapes, not only seeds (S-0036/escapes-mint-corpus-entries, S-0036/D-4):
 `torve review corpus add <fixing-commit>` scaffolds an entry from the
-commit pair — the defective landing located by its `Torve-Task:` trailer,
+commit pair — the defective landing located by the commit its landing names,
 the fixing commit's parent extracted as the tree — and refuses an entry
 whose finding paragraph its operator has not yet written (S-0036/D-5). The
 scaffold's git plumbing stays in this module because the decision names
@@ -392,14 +392,29 @@ def _git(root: Path, *args: str) -> str | None:
     return proc.stdout.strip() if proc.returncode == 0 else None
 
 
+def _is_ancestor(root: Path, earlier: str, later: str) -> bool:
+    """Whether *earlier* is in *later*'s history — what "shipped defective
+    ancestor" means (S-0036/D-5), asked of git rather than of a log grep."""
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "merge-base", "--is-ancestor", earlier, later],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return proc.returncode == 0
+
+
 # ....................... #
 
 
 def _defective_landing(
-    root: Path, fixing_sha: str, message: str, defect: str | None
+    root: Path, spec_dir: Path, fixing_sha: str, message: str, defect: str | None
 ) -> tuple[str, str]:
     """Resolve the pair's other commit: the landing that shipped the defect,
-    found by its task trailer among the fixing commit's ancestors (S-0036/D-5).
+    found among the fixing commit's ancestors by the commit its landing
+    names (S-0036/D-5, S-0059/D-12).
     Returns (landing sha, defective task id); refusals carry the
     instruction — the caller's numbers are already the scaffold's."""
 
@@ -425,39 +440,23 @@ def _defective_landing(
 
         defect_id = cited.group(1)
 
-    landing = _git(
-        root,
-        "log",
-        fixing_sha,
-        "-1",
-        "--format=%H",
-        # Anchored, and a regex rather than a fixed string: `--grep` is a
-        # substring match, and TASK_ID admits `T-\\d{4,}`, so asking for
-        # T-0142 matched a landing trailered `Torve-Task: T-01429` and
-        # scaffolded a corpus entry against an unrelated commit instead of
-        # refusing as S-0036/D-5 requires (T-0265).
-        "--extended-regexp",
-        f"--grep=^Torve-Task: {defect_id}$",
-    )
+    # S-0059/D-12: the landing file names the commit its task shipped, so
+    # this asks the tree rather than grepping a trailer, and keeps the
+    # ancestor restriction — "shipped defective ancestor" means the landing
+    # is in this commit's history, not merely somewhere in the repository.
+    from torve.application.decisions import landed_commits
 
-    if not landing:
-        # The hand-commit fallback the shipped history needs, same shape as
-        # the workspace adapter's: the parenthesized subject citation, over
-        # this commit's ancestry only — never --all, the ancestor restriction
-        # is what "shipped defective ancestor" means.
-        log = _git(root, "log", fixing_sha, "--format=%H%x09%s")
+    landing = ""
 
-        for line in (log or "").splitlines():
-            sha, _, subject = line.partition("\t")
-
-            if f"{defect_id})" in subject:
-                landing = sha
-                break
+    for candidate in landed_commits(root, spec_dir, defect_id):
+        if _is_ancestor(root, candidate, fixing_sha):
+            landing = candidate
+            break
 
     if not landing:
         raise fail(
-            f"configuration error: no shipped defective ancestor: no commit in the history of "
-            f"{fixing_sha[:10]} carries 'Torve-Task: {defect_id}' — {defect_id} landed after "
+            f"configuration error: no shipped defective ancestor: no landing of {defect_id} "
+            f"names a commit in the history of {fixing_sha[:10]} — {defect_id} landed after "
             "this commit, outside its history, or not at all; pass the commit that fixes the "
             "defect, or name the task whose landing shipped it with --defect",
             EXIT_CONFIG,
@@ -541,10 +540,11 @@ def corpus_add(
         ),
     ] = None,
     root: RootOption = Path("."),
+    config_path: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Scaffold a review-corpus entry from an escape: the defective landing
-    found by its Torve-Task trailer, its own diff as the patch, the fixing
+    found by the commit its landing names, its own diff as the patch, the fixing
     commit's parent as the tree — and the finding paragraph left explicitly
     for a person, since a placeholder the loader refuses until written keeps
     an unjust entry out of the measurement. A commit with no shipped
@@ -562,7 +562,8 @@ def corpus_add(
         )
 
     message = _git(root, "log", "-1", "--format=%B", fixing_sha) or ""
-    landing_sha, defect_id = _defective_landing(root, fixing_sha, message, defect)
+    spec_dir = root / load_config(root, config_path).specs.path
+    landing_sha, defect_id = _defective_landing(root, spec_dir, fixing_sha, message, defect)
 
     case_name = name or f"escape-{defect_id.lower()}"
 

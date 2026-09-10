@@ -8,11 +8,10 @@ S-0005's review-corpus fixtures already use for calibration)."""
 from __future__ import annotations
 
 import json
-import subprocess
 
 import pytest
 import yaml
-from test_decisions import corpus, document
+from test_decisions import corpus, document, landed
 from typer.testing import CliRunner
 
 from torve.application.runstate import RunState
@@ -123,25 +122,6 @@ def landed_state_with(root, task_id: str, *, attempts: int, start_at: str, end_a
         {"at": end_at, "from": "reviewed", "to": "ready", "fact": "t"},
     ]
     state.save()
-
-
-def land_commit(root, task_id: str) -> None:
-    """The landing trailer git carries forever (S-0010/D-4) — the persistent
-    record `read_tasks` now reads instead of the run-state file the reaper
-    deletes."""
-
-    if not (root / ".git").exists():
-        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-        subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t.example"], check=True)
-        subprocess.run(["git", "-C", str(root), "config", "user.name", "torve-test"], check=True)
-
-    marker = root / f".landed-{task_id}"
-    marker.write_text("x", encoding="utf-8")
-    subprocess.run(["git", "-C", str(root), "add", str(marker)], check=True)
-    subprocess.run(
-        ["git", "-C", str(root), "commit", "-q", "-m", f"land {task_id}\n\nTorve-Task: {task_id}"],
-        check=True,
-    )
 
 
 def write_cost(root, task_id: str, cost_usd: float, *, adapter: str = "harness") -> None:
@@ -408,7 +388,7 @@ def test_locked_halted_and_requeued_reads_as_healthy(tmp_path):
 def test_landed_and_abandoned_denominators_are_both_reported(tmp_path):
     write_contract(tmp_path, "T-0001", decisions=[("S-0001/D-1", "ASSUMED", ["src/a.py"])])
     ready_state(tmp_path, "T-0001")
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     write_contract(tmp_path, "T-0002", decisions=[("S-0001/D-1", "ASSUMED", ["src/a.py"])])
     abandoned_state(tmp_path, "T-0002")
     report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
@@ -420,11 +400,12 @@ def test_landed_and_abandoned_denominators_are_both_reported(tmp_path):
 def test_landed_survives_the_reap_sweep_of_the_run_state_file(tmp_path):
     """T-0133: the reaper deletes a terminal run's state file (S-0003/D-4) — a
     population read afterwards must still see what actually shipped, from
-    git's own landing trailer rather than the file that is gone."""
+    the landing the tree keeps (S-0059/D-12) rather than the file that is
+    gone."""
 
     write_contract(tmp_path, "T-0001", decisions=[("S-0001/D-1", "ASSUMED", ["src/a.py"])])
     ready_state(tmp_path, "T-0001")
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     naming.state_file(tmp_path, "T-0001").unlink()  # the reap sweep
 
     report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
@@ -549,7 +530,7 @@ def test_dispatch_envelope_is_silent_below_the_floor(tmp_path):
             start_at="2026-08-20T10:00:00.000000Z",
             end_at="2026-08-20T10:10:00.000000Z",
         )
-        land_commit(tmp_path, task_id)
+        landed(tmp_path, task_id)
 
     envelope = dispatch_envelope(tmp_path, "ok", floor=3)
     assert envelope["n"] == 2  # the denominator prints regardless (S-0022/D-8)
@@ -569,7 +550,7 @@ def test_dispatch_envelope_reports_medians_once_the_floor_is_met(tmp_path):
         write_contract(tmp_path, task_id, scope_allow=["src/a.py"])
         start, end = starts_ends[i - 1]
         landed_state_with(tmp_path, task_id, attempts=i, start_at=start, end_at=end)
-        land_commit(tmp_path, task_id)
+        landed(tmp_path, task_id)
         write_cost(tmp_path, task_id, float(i))
 
     envelope = dispatch_envelope(tmp_path, "ok", floor=3)
@@ -589,7 +570,7 @@ def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
         start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     # Two top-level modules in scope.allow reads as too_large (sizing.py's
     # MAX_MODULES=1; "tests" is excluded from the count so it must be a
     # second non-test module here), so this task must never join the "ok"
@@ -602,7 +583,7 @@ def test_dispatch_envelope_only_pools_the_matching_size_class(tmp_path):
         start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
-    land_commit(tmp_path, "T-0002")
+    landed(tmp_path, "T-0002")
 
     assert dispatch_envelope(tmp_path, "ok", floor=1)["n"] == 1
     assert dispatch_envelope(tmp_path, "too_large", floor=1)["n"] == 1
@@ -715,7 +696,7 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
 def test_operator_attention_counts_landed_changes(tmp_path):
     write_contract(tmp_path, "T-0001")
     ready_state(tmp_path, "T-0001")
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     write_contract(tmp_path, "T-0002")  # never ran: not landed
 
     report = operator_attention(tmp_path)
@@ -735,7 +716,7 @@ def test_operator_attention_counts_escalations_triaged_both_exits(tmp_path):
 def test_operator_attention_joins_feedback_to_landed_changes(tmp_path):
     write_contract(tmp_path, "T-0001")
     ready_state(tmp_path, "T-0001")
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     write_feedback(tmp_path, "T-0001", 10)
     write_contract(tmp_path, "T-0002")
     write_feedback(tmp_path, "T-0002", 20)  # never landed: raw total only
@@ -749,7 +730,7 @@ def test_operator_attention_joins_feedback_to_landed_changes(tmp_path):
 def test_operator_attention_joins_escalations_to_landed_changes(tmp_path):
     write_contract(tmp_path, "T-0001")
     requeued_state(tmp_path, "T-0001")  # escalated -> queued, then lands
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     write_contract(tmp_path, "T-0002")
     requeued_state(tmp_path, "T-0002")  # never landed: raw total only
 
@@ -875,7 +856,7 @@ def test_dispatch_envelope_cost_follows_the_configured_telemetry_path(tmp_path):
         start_at="2026-08-20T10:00:00.000000Z",
         end_at="2026-08-20T10:05:00.000000Z",
     )
-    land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
 
     _write_gates_with_telemetry(tmp_path, ".torve/custom-telemetry.jsonl")
     _write_cost_record(tmp_path, ".torve/custom-telemetry.jsonl", "T-0001", 2.0)

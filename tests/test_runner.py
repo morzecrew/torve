@@ -2085,13 +2085,18 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
     from torve.application.runstate import RunState
     from torve.config.runconfig import RunnerConfig, TierConfig
     from torve.config.spec import load_document
-    from torve.domain.task import Task
+    from torve.domain.task import InheritedDecision, Task
 
     worktree = tmp_path / "wt"
     spec_dir = corpus(
         worktree, **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`src/**`")])}
     )
-    task = Task(id="T-0001", spec="S-0001", phase=1, decisions=[])
+    task = Task(
+        id="T-0001",
+        spec="S-0001",
+        phase=1,
+        decisions=[InheritedDecision(id="S-0001/D-1", grade="LOCKED", text="x")],
+    )
     log_path = worktree / ".torve" / "tasks" / task.id / "log.yaml"
     log_path.parent.mkdir(parents=True)
     log_path.write_text(
@@ -2114,11 +2119,14 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
         encoding="utf-8",
     )
     committed: list[tuple[str, str]] = []
+    execution = spec_dir / "S-0001" / "execution"
 
     class _Vcs:
         def commit_all(self, where, message, author, key):
-            # the landing file is on disk before the candidate is cut
-            assert any((spec_dir / "S-0001" / "execution").glob("T-0001-1-*.yaml"))
+            # S-0059/D-9: the work commit is cut first, with no landing on
+            # disk yet; the landing that names it follows in its own commit.
+            landings = list(execution.glob("T-0001-1-*.yaml"))
+            assert len(landings) == len(committed), (committed, landings)
             committed.append((message.splitlines()[0], author))
             return "a" * 40
 
@@ -2151,8 +2159,14 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
     fact = asyncio.run(land(run, state, "digest"))
 
     assert "execution .torve/specs/S-0001/execution/T-0001-1-" in fact
-    assert len(committed) == 1
+    assert [one[0] for one in committed] == [
+        "torve(T-0001): attempt 1 green",
+        "torve(T-0001): landing of attempt 1",
+    ]
     landing = load_document(spec_dir / "S-0001").landings[0]
-    assert (landing.task, landing.attempt, landing.commit) == ("T-0001", 1, "")
+    # The landing names the commit it followed (S-0059/D-9) and the rows the
+    # contract inherited, with their grades (S-0059/D-10).
+    assert (landing.task, landing.attempt, landing.commit) == ("T-0001", 1, "a" * 40)
     assert landing.agent == committed[0][1].split(" <")[0]
     assert landing.entries[0].claim == "held"
+    assert [(one.id, one.grade) for one in landing.decisions] == [("S-0001/D-1", "LOCKED")]

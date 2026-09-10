@@ -39,7 +39,6 @@ from torve.application.ports import (
     Broker,
     BrokerHandle,
     SandboxSpec,
-    Vcs,
 )
 from torve.application.runstate import RunState
 from torve.application.skills import materialize
@@ -604,10 +603,12 @@ _SHA = re.compile(r"[0-9a-f]{7,40}")
 # ....................... #
 
 
-def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
-    """Each target is a task id — resolved to its landed commits via the
-    Torve-Task trailer — or an explicit sha. An unresolvable target is a
-    contract error, raised before the first attempt dispatches."""
+def _revert_targets(task: Task, worktree: Path, spec_dir: Path) -> list[str]:
+    """Each target is a task id — resolved to the commits its landings name
+    (S-0059/D-12) — or an explicit sha. An unresolvable target is a contract
+    error, raised before the first attempt dispatches."""
+
+    from torve.application.decisions import landed_commits
 
     shas: list[str] = []
 
@@ -616,13 +617,13 @@ def _revert_targets(task: Task, vcs: Vcs, worktree: Path) -> list[str]:
             shas.append(target)
             continue
 
-        landed = vcs.landed_shas(worktree, target)
+        landed = landed_commits(worktree, spec_dir, target)
 
         if not landed:
             raise ValueError(
-                f"revert target {target!r} has no landed commits in this "
-                "worktree's history — name a task that landed, or an "
-                "explicit commit sha"
+                f"revert target {target!r} has no landing naming a commit in "
+                "this worktree — name a task that landed, or an explicit "
+                "commit sha"
             )
 
         shas.extend(landed)
@@ -682,7 +683,7 @@ def revert_leg(run: Dispatch) -> Callable[[RunState], Awaitable[AgentResult]]:
     fails loudly rather than at attempt three."""
 
     run.meta.update(adapter="revert", provider=None, model=None)
-    shas = _revert_targets(run.task, run.deps.vcs, run.worktree)
+    shas = _revert_targets(run.task, run.worktree, run.worktree / run.config.specs.path)
 
     async def run_revert(state: RunState) -> AgentResult:
         # The mechanical attempt still stamps its number (S-0038/D-4): its gate

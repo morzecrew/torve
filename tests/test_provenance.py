@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from test_decisions import landed
 from test_run_loop import OK, MockRuntime, MockScm, ScriptedAgent
 
 import torve.application.runner as run_module
@@ -19,6 +20,7 @@ from torve.application.dispatch import RunDeps
 from torve.application.runner import run_task
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
+from torve.domain.spec import Landing
 from torve.domain.states import TaskState
 from torve.domain.task import Scope, Task
 
@@ -57,18 +59,28 @@ def test_the_commit_is_authored_by_the_agent_and_committed_by_torve(vcs_repo):
     assert committer == "Torve"
 
 
-def test_landed_shas_reconstruct_a_task_from_trailers_alone(vcs_repo):
+def test_landed_commits_reconstruct_a_task_from_its_landings(vcs_repo):
+    """S-0059/D-12: a task's commits come from the landings the tree holds,
+    newest first — what the `Torve-Task` trailer and a `git log --grep`
+    answered until the landing file named the commit. A tree without git
+    answers this too."""
+
+    from torve.application.decisions import landed_commits
+
     vcs = GitVcs()
+    shas = []
+
     for n in (1, 2):
         (vcs_repo / "app.py").write_text(f"value = {n + 1}\n", encoding="utf-8")
-        vcs.commit_all(
-            vcs_repo, f"torve(T-8102): attempt {n} green\n\nTorve-Task: T-8102\nTorve-Attempt: {n}"
-        )
-    assert vcs.landed_shas(vcs_repo, "T-8102") == [
-        git(vcs_repo, "rev-parse", "HEAD"),
-        git(vcs_repo, "rev-parse", "HEAD~1"),
-    ]
-    assert vcs.landed_shas(vcs_repo, "T-9999") == []
+        sha = vcs.commit_all(vcs_repo, f"torve(T-8102): attempt {n} green")
+        assert sha
+        shas.append(sha)
+        landed(vcs_repo, "T-8102", sha, attempt=n, at=f"2026-09-09T12:0{n}:00Z")
+
+    specs = vcs_repo / ".torve" / "specs"
+
+    assert landed_commits(vcs_repo, specs, "T-8102") == [shas[1], shas[0]]
+    assert landed_commits(vcs_repo, specs, "T-9999") == []
 
 
 @pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="no ssh-keygen")
@@ -192,12 +204,13 @@ def engine_repo(tmp_path: Path, monkeypatch) -> Path:
     (root / "app.py").write_text("value = 1\n", encoding="utf-8")
     git(root, "add", "-A")
     git(root, "commit", "-q", "--no-gpg-sign", "-m", "init")
-    # The target task's landed commit, trailer and all (S-0010/D-4 is what
-    # makes it findable later).
+    # The target task's work commit and the landing that names it — what
+    # makes it findable later (S-0059/D-9, S-0059/D-12).
     (root / "app.py").write_text("value = 2\n", encoding="utf-8")
-    GitVcs().commit_all(
-        root, "torve(T-8200): attempt 1 green\n\nTorve-Task: T-8200\nTorve-Attempt: 1"
-    )
+    shipped = GitVcs().commit_all(root, "torve(T-8200): attempt 1 green")
+    assert shipped
+    landed(root, "T-8200", shipped)
+    GitVcs().commit_all(root, "torve(T-8200): landing of attempt 1")
 
     def scripted_gates(*args, **kwargs):
         return 0, "scripted", "cafecafe1234", [], ""
@@ -229,23 +242,46 @@ def engine_deps(root: Path) -> RunDeps:
     )
 
 
+def _landing_of(root: Path, branch: str, task_id: str) -> Landing:
+    """The landing the branch carries for one task, as the tree holds it."""
+
+    import yaml
+
+    names = git(root, "ls-tree", "-r", "--name-only", branch).splitlines()
+    found = [n for n in names if f"/{task_id}-" in n and "/execution/" in n]
+
+    assert len(found) == 1, found
+
+    return Landing.model_validate(yaml.safe_load(git(root, "show", f"{branch}:{found[0]}")))
+
+
 def test_a_revert_runs_as_a_task_and_lands_with_its_own_provenance(engine_repo):
     state = run_task(engine_repo, revert_task(), RunnerConfig(), engine_deps(engine_repo))
     assert state.state is TaskState.READY, state.history
 
     branch = naming.branch("T-8201")
-    subject = git(engine_repo, "log", "-1", "--format=%s", branch)
-    body = git(engine_repo, "log", "-1", "--format=%B", branch)
-    # The subject carries the intent's head (owner feedback: a history
-    # readable without opening the task) and still ends with the verdict.
-    assert subject.startswith("torve(T-8201):")
-    assert subject.endswith("attempt 1 green")
-    assert "Torve-Task: T-8201" in body
-    assert "Torve-Agent: revert" in body  # mechanical, named for what it is
+    # S-0059/D-9: two commits per attempt — the work, then the landing that
+    # names it, and no `Torve-` trailer on either (S-0059/D-10).
+    subjects = git(engine_repo, "log", "-2", "--format=%s", branch).splitlines()
+
+    assert subjects == ["torve(T-8201): landing of attempt 1", "torve(T-8201): attempt 1 green"]
+
+    bodies = git(engine_repo, "log", "-2", "--format=%B", branch)
+
+    assert "Torve-" not in bodies
     assert git(engine_repo, "show", f"{branch}:app.py") == "value = 1"
-    # The machine-written resolved entry survived into the landed tree, and
-    # the trailer carries the inherited decision with its grade.
-    assert "Torve-Decisions: D-77(LOCKED)" in body
+
+    work = git(engine_repo, "rev-parse", f"{branch}~1")
+    landing = _landing_of(engine_repo, branch, "T-8201")
+
+    # The landing carries what the five trailers said: the task, the
+    # attempt, the agent — mechanical, named for what it is — the commit it
+    # landed, and the inherited row with its grade.
+    assert (landing.task, landing.attempt, landing.agent) == ("T-8201", 1, "revert")
+    assert landing.commit == work
+    assert [(one.id, one.grade) for one in landing.decisions] == [("D-77", "LOCKED")]
+    # The machine-written resolved entry survived into the landed tree.
+    assert landing.entries[0].kind == "resolved"
     log = git(engine_repo, "show", f"{branch}:.torve/tasks/T-8201/log.yaml")
     assert "kind: resolved" in log
     assert "undone by T-8201" in log
@@ -265,7 +301,7 @@ def test_a_conflicting_revert_escalates_as_merge_conflict(engine_repo):
 
 
 def test_an_unresolvable_target_fails_loudly_before_dispatch(engine_repo):
-    with pytest.raises(ValueError, match="no landed commits"):
+    with pytest.raises(ValueError, match="has no landing naming a commit"):
         run_task(engine_repo, revert_task("T-0000"), RunnerConfig(), engine_deps(engine_repo))
 
 

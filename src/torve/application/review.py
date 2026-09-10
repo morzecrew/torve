@@ -975,7 +975,7 @@ def review_pull_request(
     base_sha, head_sha = vcs.fetch_pr(root, number, info.base_ref, token)
     degraded, target = True, None
 
-    for task_id in vcs.task_trailers(root, base_sha, head_sha):
+    for task_id in vcs.landed_tasks(root, base_sha, head_sha):
         contract = layout.task_file(root, task_id)
 
         if contract.is_file():

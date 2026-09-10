@@ -509,8 +509,8 @@ def test_a_landing_is_recorded_once_under_the_actors_its_kinds_name(tmp_path):
     )
 
     async def scenario(log: EventLog) -> None:
-        corpus = decisions.load_corpus(rfc_dir)
-        pending = decisions.landing_events(corpus, {})
+        found = decisions.landings(rfc_dir.parent.parent, rfc_dir)
+        pending = decisions.landing_events(found, {})
 
         assert [(p.kind, p.subject_id, p.actor_kind, p.actor_id) for p in pending] == [
             (EventKind.DIVERGENCE_RECORDED, "T-0001", ActorKind.AGENT, "session/x"),
@@ -522,6 +522,6 @@ def test_a_landing_is_recorded_once_under_the_actors_its_kinds_name(tmp_path):
         history = await log.history("T-0001", partition=PARTITION)
 
         assert [e.actor_kind for e in history] == [ActorKind.AGENT, ActorKind.MANAGER]
-        assert decisions.landing_events(corpus, {"T-0001": history}) == []
+        assert decisions.landing_events(found, {"T-0001": history}) == []
 
     run(scenario)

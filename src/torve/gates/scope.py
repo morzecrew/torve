@@ -34,6 +34,9 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         # names (S-0059/D-2); no lookup.
         if ctx.task.spec:
             prefixes.add(f"{ctx.specs.rstrip('/')}/{ctx.task.spec}/execution/")
+        else:
+            # S-0059/D-11: a task naming no document lands here instead.
+            prefixes.add(f"{layout.TORVE_DIR}/execution/")
 
         for prefix in (f"{layout.TORVE_DIR}/", ""):
             implicit.add(f"{prefix}logs/{ctx.task.id}.yaml")

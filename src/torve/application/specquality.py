@@ -5,7 +5,7 @@ the row as it was minted.
 
 The report never edits a decision table, proposes no text and calls no model
 (S-0022/D-1, LOCKED): everything here is a read over `.torve/tasks/*/contract.yaml`,
-`log.yaml`, run state, git's own landing trailer and the corpus — a plain
+`log.yaml`, run state, the corpus and the landings it holds — a plain
 reader over JSONL-shaped YAML, no new dependency, so moving to S-0004/telemetry-staged
 stage 2 is a change of reader, not a rewrite (S-0022/D-5). The grade compared is
 always the one copied onto the contract at mint time, never the row as the
@@ -93,11 +93,11 @@ _ABANDONED_STATE = str(TaskState.ABANDONED)
 _ESCALATED_STATE = str(TaskState.ESCALATED)
 _QUEUED_STATE = str(TaskState.QUEUED)
 
-# The landing trailer the runner writes into the commit that lands a task
-# (S-0010/D-4: git log is the surviving record) — the same trailer
-# `torve.adapters.vcs.git.GitVcs.landed_shas` greps for. `read_tasks` reads
-# it directly (T-0133, departing S-0022/D-5's "no git subprocess" — logged)
-# because it has no caller to inject one for it.
+# Landedness comes from the landing files the tree holds (S-0059/D-12), read
+# through the projections' own map. The git subprocess this module ran for
+# it — T-0133's departure from S-0022/D-5's "no git subprocess", allowed by
+# S-0022/A-1 — is gone with the trailer it grepped, so this module is
+# YAML-and-JSONL-only again, as S-0022/D-5 says.
 
 
 # ....................... #
@@ -120,11 +120,11 @@ class TaskFacts:
     state: str | None
     attempts: int = 0
     history: list[dict[str, str]] = field(default_factory=list)
-    # S-0022/D-10's landed reading, sourced from git's own landing trailer
-    # (T-0133, departing S-0022/D-5 — see `_landed_task_ids`) rather than
-    # RunState.state == ready: the run-state file is exactly what the
-    # reaper deletes on every terminal run, so a population read after a
-    # reap sweep saw every task as unlanded regardless of what shipped.
+    # S-0022/D-10's landed reading, sourced from the landing files the tree
+    # holds (S-0059/D-12) rather than RunState.state == ready: the run-state
+    # file is exactly what the reaper deletes on every terminal run, so a
+    # population read after a reap sweep saw every task as unlanded
+    # regardless of what shipped.
     landed: bool = False
 
     # ....................... #
@@ -300,17 +300,13 @@ def _run_state(root: Path, task_id: str) -> RunState | None:
 
 
 def _landed_task_ids(root: Path) -> set[str]:
-    """Every task id git's own history records as landed, read in one
-    batched pass rather than once per task. A repository git cannot read
-    (no commits yet, no `.git`, the binary missing) lands no tasks rather
-    than erroring — the same convention `_load_yaml_dict` uses for a file
-    it cannot read."""
+    """Every task the tree records as landed, read in one pass rather than
+    once per task. A tree with no landings lands no tasks rather than
+    erroring — the same convention `_load_yaml_dict` uses for a file it
+    cannot read."""
 
-    # One derivation, not two (S-0007/D-26): projections owns the landing
-    # spellings — trailer, parenthesized citation, merge-branch shape —
-    # and a second copy here would drift. The trailer-only first cut left
-    # every pre-trailer landing uncounted, which is half of the very
-    # "(0 landed)" symptom this function exists to fix.
+    # One derivation, not two (S-0007/D-26, retired by S-0059/D-12):
+    # projections owns the reading and a second copy here would drift.
     from torve.application.projections import shipped_ids
 
     try:
@@ -325,7 +321,7 @@ def _landed_task_ids(root: Path) -> set[str]:
 
 def read_tasks(root: Path) -> list[TaskFacts]:
     """Every task the corpus knows, joined to its own log, run state and
-    landing trailer (S-0022/the-join-and-what-it-is-keyed-by). A directory with no readable
+    landing file (S-0022/the-join-and-what-it-is-keyed-by). A directory with no readable
     `contract.yaml` is not a task the join can use and is skipped, not
     fabricated."""
 

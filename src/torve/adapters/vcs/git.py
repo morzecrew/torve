@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from torve.application.ports import PrInfo
+from torve.domain.spec import LANDING_FILE
 
 # ----------------------- #
 
@@ -80,18 +81,6 @@ class GitVcs:
             raise RuntimeError(proc.stderr.strip() or "git commit failed")
 
         return _git(worktree, "rev-parse", "HEAD").stdout.strip()
-
-    # ....................... #
-
-    def landed_shas(self, worktree: Path, task_id: str) -> list[str]:
-        """The commits a task landed, newest first — reconstructed from the
-        Torve-Task trailer alone (S-0010/D-4: git log is the surviving record)."""
-
-        proc = _git(
-            worktree, "log", "--format=%H", "--fixed-strings", f"--grep=Torve-Task: {task_id}"
-        )
-
-        return [line for line in proc.stdout.split() if line]
 
     # ....................... #
 
@@ -334,13 +323,19 @@ class GitVcs:
 
     # ....................... #
 
-    def task_trailers(self, root: Path, base: str, head: str) -> list[str]:
-        log = _git(root, "log", "--format=%B", f"{base}..{head}").stdout
+    def landed_tasks(self, root: Path, base: str, head: str) -> list[str]:
+        """The tasks whose landings the range adds (S-0059/D-12), by file
+        name — the diff says which landing files appeared, and the name
+        carries the task. No trailer is read, and none is written."""
+
+        proc = _git(root, "diff", "--name-only", "--diff-filter=A", f"{base}...{head}")
         seen: list[str] = []
 
-        for found in re.findall(r"^Torve-Task: (T-\d{4})$", log, re.MULTILINE):
-            if found not in seen:
-                seen.append(found)
+        for line in proc.stdout.splitlines():
+            found = LANDING_FILE.match(Path(line).name)
+
+            if found and found.group(1) not in seen:
+                seen.append(found.group(1))
 
         return seen
 

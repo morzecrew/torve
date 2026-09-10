@@ -28,7 +28,7 @@ from torve.config.spec import (
     SpecError,
     archive_dir,
     check_corpus,
-    landing_files,
+    landing_files_in,
     landing_header,
     load_document,
     schema_header,
@@ -36,7 +36,6 @@ from torve.config.spec import (
 from torve.domain.spec import (
     DECISIONS_FILE,
     DOCUMENT_FILE,
-    EXECUTION_DIR,
     FILE_FIELDS,
     LANDING_FILE,
     SCHEMA_VERSION,
@@ -224,20 +223,20 @@ def write_document(directory: Path, doc: Document) -> list[str]:
     return list(texts)
 
 
-def write_landing(directory: Path, doc: Document, landing: Landing) -> tuple[Path, bool]:
-    """One landing as its own file under `execution/` (S-0058/D-6): named
-    by task, attempt and instant, written once. A file already there for
-    the same task and attempt with the same entries is the same landing —
-    returned, not rewritten; anything else is a new file. The path and
-    whether it was written."""
+def write_landing(execution: Path, doc: Document | None, landing: Landing) -> tuple[Path, bool]:
+    """One landing as its own file in an execution directory (S-0058/D-6):
+    named by task, attempt and instant, written once. A file already there
+    for the same task and attempt with the same entries is the same landing
+    — returned, not rewritten; anything else is a new file. *doc* is the
+    document whose directory this is, whose own identifiers are written
+    local; None is the document-less directory (S-0059/D-11), where every
+    identifier is already global. The path and whether it was written."""
 
-    execution = directory / EXECUTION_DIR
     execution.mkdir(parents=True, exist_ok=True)
-    payload = _localize(
-        doc, landing.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
-    )
+    dumped = landing.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
+    payload = _localize(doc, dumped) if doc is not None else dumped
 
-    for existing in landing_files(directory):
+    for existing in landing_files_in(execution):
         match = LANDING_FILE.match(existing.name)
 
         if (
@@ -267,7 +266,8 @@ def write_landing(directory: Path, doc: Document, landing: Landing) -> tuple[Pat
         width=WIDTH,
         default_flow_style=False,
     )
-    path.write_text(f"{landing_header()}\n{text}", encoding="utf-8")
+    levels = 3 if doc is not None else 1
+    path.write_text(f"{landing_header(levels)}\n{text}", encoding="utf-8")
 
     return path, True
 

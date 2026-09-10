@@ -34,13 +34,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import yaml
 from pathspec import GitIgnoreSpec
+from pydantic import ValidationError
 
 from torve.application.planner import PlanError, globs_intersect
 from torve.config import spec
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.source import Source, corpus_source_id
-from torve.domain.spec import rule_fingerprint
+from torve.domain.spec import Landing, rule_fingerprint
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -677,34 +679,42 @@ def land(
     commit: str = "",
     entries: list[dict[str, Any]] | None = None,
 ) -> Path:
-    """The landing written into the execution directory of the document
-    the contract names (S-0057/D-7, S-0058/D-6) — here rather than in
-    `divergence`, which the agent harness imports and which therefore may
-    not reach the corpus (the planner-boundary contract, S-0015/A-1): the
-    task, its phase and attempt, when and by whom, the commit when the
-    lander knows it, and the log's entries — the worktree's log by default,
-    or the entries given (the record's, read by `torve log land
-    --partition`). One file per landing, staged, so the commit that lands
-    the task carries it. Refuses, with the reason, a contract that names no
-    document or a document the corpus does not hold; an identical replay
-    is a no-op."""
+    """The landing written into an execution directory (S-0057/D-7,
+    S-0058/D-6) — here rather than in `divergence`, which the agent harness
+    imports and which therefore may not reach the corpus (the
+    planner-boundary contract, S-0015/A-1): the task, its phase and attempt,
+    the base it built on and the commit it landed, when and by whom, the
+    rows the contract carried with their grades (S-0059/D-10), and the log's
+    entries — the worktree's log by default, or the entries given (the
+    record's, read by `torve log land --partition`).
+
+    The directory is the document's when the contract names one, and
+    `.torve/execution/` when it does not (S-0059/D-11): an operator's ask
+    and a standing job have no rows to land beside, and are still records.
+    One file per landing, staged, so the commit that follows carries it; an
+    identical replay is a no-op. Refuses, with the reason, a document the
+    corpus does not hold."""
 
     from torve.application.divergence import open_log, stage
     from torve.base.clock import stamp
+    from torve.config import layout
     from torve.config.spec_emit import write_landing
-    from torve.domain.spec import Landing
+    from torve.domain.spec import EXECUTION_DIR, Landing
 
-    if not task.spec:
-        raise ValueError(f"{task.id} names no document — its log stays in git history")
+    doc = None
+    execution = layout.execution_dir(root)
 
-    directory = spec.document_dir(spec_dir, task.spec)  # the one lookup (S-0059/D-2)
+    if task.spec:
+        directory = spec.document_dir(spec_dir, task.spec)  # the one lookup (S-0059/D-2)
 
-    if directory is None:
-        raise ValueError(
-            f"{task.id} names {task.spec}, which the corpus at {spec_dir} does not hold"
-        )
+        if directory is None:
+            raise ValueError(
+                f"{task.id} names {task.spec}, which the corpus at {spec_dir} does not hold"
+            )
 
-    doc = spec.load_document(directory)
+        doc = spec.load_document(directory)
+        execution = directory / EXECUTION_DIR
+
     log_document = open_log(root, task.id)
     carried = log_document["entries"] if entries is None else entries
     landing = Landing.model_validate(
@@ -712,16 +722,18 @@ def land(
             "task": task.id,
             "phase": task.phase,
             "attempt": attempt,
-            "base": str(log_document.get("base") or ""),  # S-0058/D-12
+            # S-0058/D-12; a log written before S-0059/D-8 says `base_sha`.
+            "base": str(log_document.get("base") or log_document.get("base_sha") or ""),
             "commit": commit,
             "at": at or stamp(),
             "agent": agent,
+            "decisions": [{"id": row.id, "grade": row.grade} for row in task.decisions],
             "entries": carried,
         }
     )
     # S-0058/D-6: one file per landing, written once; the same task, attempt
     # and entries again is the same landing and writes nothing.
-    path, written = write_landing(directory, doc, landing)
+    path, written = write_landing(execution, doc, landing)
 
     if written:
         stage(root, path)
@@ -732,66 +744,167 @@ def land(
 # ....................... #
 
 
+def landings(root: Path, spec_dir: Path) -> list[Landing]:
+    """Every landing the tree holds (S-0059/D-12): the corpus, the archive
+    beside it, and the document-less directory — oldest first.
+
+    Read from the files rather than from loaded documents, because this is
+    asked on hot paths and a landing needs no document to be true. A file
+    that does not parse is skipped rather than raised on: `spec check` is
+    what convicts a broken landing, and one of them must not take down every
+    reader that asks what shipped.
+    """
+
+    from torve.config import layout
+    from torve.domain.spec import EXECUTION_DIR, qualify
+
+    directories: list[tuple[str, Path]] = [
+        (f"S-{number}", path / EXECUTION_DIR)
+        for source in (spec_dir, spec.archive_dir(spec_dir))
+        for number, path in sorted(spec.document_dirs(source).items())
+    ]
+    # The document-less directory owns no namespace, so its identifiers are
+    # already global and nothing is qualified into them (S-0059/D-11).
+    directories.append(("", layout.execution_dir(root)))
+
+    found: list[Landing] = []
+
+    for document, execution in directories:
+        for path in spec.landing_files_in(execution):
+            try:
+                raw: Any = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+                landing = Landing.model_validate(raw)
+            except (OSError, yaml.YAMLError, ValidationError):
+                continue
+
+            if document:
+                for entry in landing.entries:
+                    entry.decision = qualify(document, entry.decision)
+
+                for row in landing.decisions:
+                    row.id = qualify(document, row.id)
+
+            found.append(landing)
+
+    return sorted(found, key=lambda one: (one.at, one.task, one.attempt))
+
+
+# ....................... #
+
+
+def landed_commits(root: Path, spec_dir: Path, task_id: str) -> list[str]:
+    """The commits one task landed, newest first (S-0059/D-12) — what
+    `Vcs.landed_shas` read out of `Torve-Task` trailers until the landing
+    file carried it. A landing with no commit (an attempt that changed
+    nothing) is a landing without a commit, not a commit to report."""
+
+    return [
+        one.commit
+        for one in reversed(landings(root, spec_dir))
+        if one.task == task_id and one.commit
+    ]
+
+
+# ....................... #
+
+
+def landed_by_task(root: Path, spec_dir: Path) -> dict[str, str]:
+    """Task id to the commit that landed it, newest winning — the map the
+    projections, the reaper and the shadow lane all ask for (S-0059/D-12).
+    A task that landed without a commit is absent here and present in
+    `landed_task_ids`, which is the difference between "what shipped" and
+    "what finished"."""
+
+    found: dict[str, str] = {}
+
+    for one in landings(root, spec_dir):
+        if one.commit:
+            found[one.task] = one.commit
+
+    return found
+
+
+# ....................... #
+
+
+def landed_task_ids(root: Path, spec_dir: Path) -> set[str]:
+    """Every task the tree records as landed, with or without a commit."""
+
+    return {one.task for one in landings(root, spec_dir)}
+
+
+# ....................... #
+
+
+def landed_commit(root: Path, spec_dir: Path, task_id: str) -> str | None:
+    """The newest commit one task landed, or None — the single-task question
+    `shipped_commit` answered from a trailer."""
+
+    found = landed_commits(root, spec_dir, task_id)
+
+    return found[0] if found else None
+
+
+# ....................... #
+
+
 def landing_events(
-    corpus: Corpus, recorded: Mapping[str, Sequence[EventRecord]]
+    landed: Iterable[Landing], recorded: Mapping[str, Sequence[EventRecord]]
 ) -> list[PendingEvent]:
     """S-0057 S-0057/D-8: the divergence and landing events every execution
-    file holds — live and archived alike — and the record lacks, so a clone
-    without a store rebuilds the same record from the tree. *recorded* is
-    each landed task's history; an entry is known by its attempt, row and
-    claim, a landing by its commit. Idempotent: an unchanged tree returns
-    nothing the second time."""
+    file holds — a document's, the archive's and the document-less directory's
+    (S-0059/D-11) — and the record lacks, so a clone without a store rebuilds
+    the same record from the tree. *recorded* is each landed task's history;
+    an entry is known by its attempt, row and claim, a landing by its commit.
+    Idempotent: an unchanged tree returns nothing the second time."""
 
     from torve.application.divergence import payload_of
 
     pending: list[PendingEvent] = []
 
-    for doc in corpus.documents:
-        for landing in doc.landings:
-            history = recorded.get(landing.task, [])
-            known = {
-                (
-                    int(e.payload.get("attempt") or 0),
-                    str(e.payload.get("decision_id") or ""),
-                    str(e.payload.get("claim") or ""),
+    for landing in landed:
+        history = recorded.get(landing.task, [])
+        known = {
+            (
+                int(e.payload.get("attempt") or 0),
+                str(e.payload.get("decision_id") or ""),
+                str(e.payload.get("claim") or ""),
+            )
+            for e in history
+            if e.kind is EventKind.DIVERGENCE_RECORDED
+        }
+        shipped = {
+            str(e.payload.get("sha") or "") for e in history if e.kind is EventKind.LANDING_RECORDED
+        }
+
+        for entry in landing.entries:
+            payload = payload_of(entry.model_dump(mode="json"))
+
+            if (payload["attempt"], payload["decision_id"], payload["claim"]) in known:
+                continue
+
+            pending.append(
+                PendingEvent(
+                    EventKind.DIVERGENCE_RECORDED,
+                    SubjectType.TASK,
+                    landing.task,
+                    payload,
+                    actor_kind=ActorKind.AGENT,
+                    actor_id=landing.agent or "execution",
                 )
-                for e in history
-                if e.kind is EventKind.DIVERGENCE_RECORDED
-            }
-            landed = {
-                str(e.payload.get("sha") or "")
-                for e in history
-                if e.kind is EventKind.LANDING_RECORDED
-            }
+            )
 
-            for entry in landing.entries:
-                payload = payload_of(entry.model_dump(mode="json"))
-
-                if (payload["attempt"], payload["decision_id"], payload["claim"]) in known:
-                    continue
-
-                pending.append(
-                    PendingEvent(
-                        EventKind.DIVERGENCE_RECORDED,
-                        SubjectType.TASK,
-                        landing.task,
-                        payload,
-                        actor_kind=ActorKind.AGENT,
-                        actor_id=landing.agent or "execution",
-                    )
+        if landing.commit and landing.commit not in shipped:
+            pending.append(
+                PendingEvent(
+                    EventKind.LANDING_RECORDED,
+                    SubjectType.TASK,
+                    landing.task,
+                    {"sha": landing.commit, "attempt": landing.attempt},
+                    actor_kind=ActorKind.MANAGER,
+                    actor_id="execution",
                 )
-
-            if landing.commit and landing.commit not in landed:
-                pending.append(
-                    PendingEvent(
-                        EventKind.LANDING_RECORDED,
-                        SubjectType.TASK,
-                        landing.task,
-                        {"sha": landing.commit, "attempt": landing.attempt},
-                        actor_kind=ActorKind.MANAGER,
-                        actor_id="execution",
-                    )
-                )
+            )
 
     return pending
 
@@ -810,7 +923,12 @@ __all__ = [
     "fingerprint_drift",
     "import_corpus",
     "land",
+    "landed_by_task",
+    "landed_commit",
+    "landed_commits",
+    "landed_task_ids",
     "landing_events",
+    "landings",
     "load",
     "load_corpus",
     "path_rot",

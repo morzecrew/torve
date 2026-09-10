@@ -209,11 +209,13 @@ decisions:
 invariants:
   - id: I-1
     statement: >-
-      No file under `src/torve` writes or reads a `Torve-Task`, `Torve-Attempt`, `Torve-Agent`,
-      `Torve-Config` or `Torve-Decisions` trailer
+      No file under `src/torve` writes a `Torve-Task`, `Torve-Attempt`, `Torve-Agent`,
+      `Torve-Config` or `Torve-Decisions` trailer; a backticked mention in prose is
+      a record of what these used to say, not a writer
     paths: [src/**]
     check: >-
-      ! grep -rnE --include=*.py "Torve-(Task|Attempt|Agent|Config|Decisions)" src/torve
+      ! grep -rnE --include=*.py '[^`]Torve-(Task|Attempt|Agent|Config|Decisions):'
+      src/torve
   - id: I-2
     statement: >-
       The word `rfc` stands in `src/torve` only where the retired key is refused (`domain/task.py`)

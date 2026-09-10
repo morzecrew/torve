@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from test_decisions import landed
 from test_run_loop import MockRuntime
 
 import torve.adapters.vcs.git as git_module
@@ -46,8 +47,8 @@ class FakePrScm:
 
 
 class FakePrVcs:
-    def __init__(self, trailers: list[str] | None = None, refuse_fetch: bool = False) -> None:
-        self.trailers = trailers or []
+    def __init__(self, tasks: list[str] | None = None, refuse_fetch: bool = False) -> None:
+        self.tasks = tasks or []
         self.refuse_fetch = refuse_fetch
         self.removed: list[Path] = []
 
@@ -65,8 +66,8 @@ class FakePrVcs:
     def diff(self, root, base, head):
         return "diff --git a/x b/x\n+organic change\n"
 
-    def task_trailers(self, root, base, head):
-        return list(self.trailers)
+    def landed_tasks(self, root, base, head):
+        return list(self.tasks)
 
 
 def pr_info(**overrides) -> PrInfo:
@@ -168,7 +169,9 @@ def test_a_new_head_reviews_again(root):
     assert len(scm.comments) == 2
 
 
-def test_a_torve_task_trailer_maps_to_its_contract(root):
+def test_a_landing_the_range_adds_maps_to_its_contract(root):
+    # S-0059/D-12: the head carries a task because the range adds that
+    # task's landing file — no trailer is read, and none is written.
     contract_dir = root / ".torve" / "tasks" / "T-0101"
     contract_dir.mkdir(parents=True)
     (contract_dir / "contract.yaml").write_text(
@@ -177,7 +180,7 @@ def test_a_torve_task_trailer_maps_to_its_contract(root):
         encoding="utf-8",
     )
     agent = RecordingAgent()
-    outcome = run(root, FakePrScm(pr_info()), FakePrVcs(trailers=["T-0101"]), agent=agent)
+    outcome = run(root, FakePrScm(pr_info()), FakePrVcs(tasks=["T-0101"]), agent=agent)
     assert outcome.action == "reviewed"
     # Task-informed, not degraded: the contract's intent reaches the prompt.
     assert "the mapped task intent sentence" in agent.prompts[0]
@@ -364,7 +367,12 @@ def test_gitvcs_pr_surface_over_a_local_origin(tmp_path: Path) -> None:
     git(seed, "checkout", "-q", "-b", "feature")
     (seed / "feature.py").write_text("feature = 2\n", encoding="utf-8")
     git(seed, "add", "-A")
-    git(seed, "commit", "-q", "--no-gpg-sign", "-m", "work\n\nTorve-Task: T-0042")
+    git(seed, "commit", "-q", "--no-gpg-sign", "-m", "work")
+    # S-0059/D-12: the landing file is what says T-0042 shipped, carried by
+    # the commit that follows the work it names.
+    landed(seed, "T-0042", git(seed, "rev-parse", "HEAD"))
+    git(seed, "add", "-A")
+    git(seed, "commit", "-q", "--no-gpg-sign", "-m", "landing")
     git(seed, "push", "-q", "origin", "HEAD:refs/pull/7/head")
 
     root = tmp_path / "engine"
@@ -373,7 +381,7 @@ def test_gitvcs_pr_surface_over_a_local_origin(tmp_path: Path) -> None:
     base_sha, head_sha = vcs.fetch_pr(root, 7, "main")
     assert base_sha != head_sha
 
-    assert vcs.task_trailers(root, base_sha, head_sha) == ["T-0042"]
+    assert vcs.landed_tasks(root, base_sha, head_sha) == ["T-0042"]
     diff = vcs.diff(root, base_sha, head_sha)
     assert "feature = 2" in diff and "base = 1" not in diff
 

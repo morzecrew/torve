@@ -15,6 +15,7 @@ import subprocess
 from functools import partial
 
 import pytest
+from test_shadow import ship
 from typer.testing import CliRunner
 
 from torve.adapters.agent.fake import FakeAgent
@@ -147,8 +148,7 @@ def test_skill_eval_runs_both_arms_and_ledgers(repo):
     task_doc["acceptance"] = ["test -f src/feature.py"]
     repo.task(task_doc, None)
     repo.commit("task minted")
-    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
-    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
+    ship(repo)
 
     config = RunnerConfig(
         runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90), poison_ceiling=2
@@ -225,8 +225,7 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     task_doc["acceptance"] = ["test -f src/feature.py"]
     repo.task(task_doc, None)
     repo.commit("task minted")
-    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
-    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
+    ship(repo)
 
     config = RunnerConfig(
         runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90), poison_ceiling=2
@@ -323,8 +322,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
     task_doc["acceptance"] = ["test -f src/feature.py"]
     repo.task(task_doc, None)
     repo.commit("task minted")
-    repo.write("src/feature.py", "FEATURE = 'shipped'\n")
-    repo.commit(f"torve({TASK_ID}): shipped\n\nTorve-Task: {TASK_ID}")
+    ship(repo)
 
     config = RunnerConfig(
         runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),

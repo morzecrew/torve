@@ -439,8 +439,6 @@ class Vcs(Protocol):
 
     def republish_branch(self, root: Path, branch: str, token: str | None = None) -> bool: ...
 
-    def landed_shas(self, worktree: Path, task_id: str) -> list[str]: ...
-
     def revert(self, worktree: Path, shas: list[str]) -> bool: ...
 
 
@@ -519,7 +517,8 @@ class PrScm(Protocol):
 class PrVcs(Protocol):
     """The PR-review trigger's git surface: fetch the pull request's head
     and base, materialise a detached worktree to review, diff, and read
-    Torve-Task trailers to map the head back to a task contract."""
+    the landings the range adds to map the head back to a task contract
+    (S-0059/D-12)."""
 
     def fetch_pr(
         self, root: Path, number: int, base_ref: str, token: str | None = None
@@ -531,7 +530,7 @@ class PrVcs(Protocol):
 
     def diff(self, root: Path, base: str, head: str) -> str: ...
 
-    def task_trailers(self, root: Path, base: str, head: str) -> list[str]: ...
+    def landed_tasks(self, root: Path, base: str, head: str) -> list[str]: ...
 
 
 # ....................... #

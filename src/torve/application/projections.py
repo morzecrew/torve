@@ -20,9 +20,7 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import statistics
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -53,15 +51,6 @@ if TYPE_CHECKING:
 
 ACTIVE = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
 
-# The shipping spellings the repository's history carries: the Torve-Task
-# trailer the runner writes, a parenthesized citation — `(T-0019)`,
-# `(T-0087, S-0006/A-3)`, `(S-0015/A-1, T-0019)` — and the merge-branch shape
-# `merge torve/T-0006`. A bare prose mention ("mint T-0097–T-0104",
-# "accept T-0002 proposals", "from the T-0146 wild miss") records the id
-# without shipping it and must not count (S-0007/D-26).
-SUBJECT_ID = re.compile(r"\([^)]*?(T-\d{4,})[^)]*\)|torve/(T-\d{4,})")
-TRAILER_ID = re.compile(r"Torve-Task: (T-\d{4,})")
-
 # S-0004/measurement-defects-to-fix-before-trusting-a-number, reproduced verbatim (S-0022/D-7, LOCKED: printed with the report,
 # never paraphrased). `torve.cli.spec` owns and prints this same text for
 # `torve spec health`; the layering contract puts `torve.cli` above
@@ -88,45 +77,28 @@ SPEC_DRIFT_FINDINGS_LIMIT = 10
 # ....................... #
 
 
-def shipped_landings(root: Path) -> dict[str, str]:
-    """Task id to the commit that shipped it, in one batched log pass —
-    newest first, so the first sighting wins.
+def shipped_landings(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
+    """Task id to the commit that landed it, from the landings the tree
+    holds (S-0059/D-12) — newest winning.
 
     A task with no run state is not necessarily unstarted: the engine did
-    not run it, but a shipping commit records that someone did. Both
-    spellings count, the engine's own trailer and a human's citation
-    (S-0007/D-26), because the question every caller is really asking is whether
-    this task is finished — and the manager asking it more narrowly than
-    the projections is how a worker gets handed somebody's finished work.
+    not run it, but a landing records that someone did. This read the
+    commit history until the landing file carried the commit, and had to
+    know three spellings of a shipped task to do it (S-0007/D-26, retired
+    here); now it reads files, so a tree without git answers too.
     """
 
-    proc = subprocess.run(
-        ["git", "-C", str(root), "log", "--all", "--format=%x1e%H%x1f%s%x1f%b"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    from torve.application.decisions import landed_by_task
 
-    if proc.returncode != 0:
-        return {}
-
-    found: dict[str, str] = {}
-
-    for record in proc.stdout.split("\x1e"):
-        sha, _, rest = record.partition("\x1f")
-        subject, _, body = rest.partition("\x1f")
-        cited = [g for pair in SUBJECT_ID.findall(subject) for g in pair if g]
-
-        for task_id in cited + TRAILER_ID.findall(body):
-            found.setdefault(task_id, sha.strip())
-
-    return found
+    return landed_by_task(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
 
 
-def shipped_ids(root: Path) -> set[str]:
-    """Task ids the history records as shipped."""
+def shipped_ids(root: Path, spec_dir: Path | None = None) -> set[str]:
+    """Task ids the tree records as landed, with or without a commit."""
 
-    return set(shipped_landings(root))
+    from torve.application.decisions import landed_task_ids
+
+    return landed_task_ids(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
 
 
 # ....................... #

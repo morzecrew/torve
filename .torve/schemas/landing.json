@@ -1,5 +1,32 @@
 {
   "$defs": {
+    "GradedRow": {
+      "additionalProperties": false,
+      "description": "One inherited row as a landing keeps it (S-0059/D-10): the identifier\nand the grade the contract carried, which is what the `Torve-Decisions`\ntrailer used to say and what outlives the task directory.",
+      "properties": {
+        "grade": {
+          "description": "The grade the contract inherited at mint.",
+          "enum": [
+            "LOCKED",
+            "ASSUMED",
+            "OPEN"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "id": {
+          "description": "The row's identifier, `S-NNNN/D-n`; local inside its own document.",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grade"
+      ],
+      "title": "GradedRow",
+      "type": "object"
+    },
     "LogEntry": {
       "additionalProperties": false,
       "description": "One divergence entry as the task log carries it and a landing keeps\nit (S-0057/D-7): the row it cites, what reality said, the evidence, what\nthe executor did. `class` is the log's key; the field is `entry_class`\nbecause the word is Python's.",
@@ -134,6 +161,14 @@
       "description": "The commit the work landed in, when the lander knew it (S-0058/D-12).",
       "title": "Commit",
       "type": "string"
+    },
+    "decisions": {
+      "description": "The rows the contract carried, with their grades (S-0059/D-10).",
+      "items": {
+        "$ref": "#/$defs/GradedRow"
+      },
+      "title": "Decisions",
+      "type": "array"
     },
     "entries": {
       "description": "The task log's entries, kept here beside the rows they cite (S-0057/D-7).",

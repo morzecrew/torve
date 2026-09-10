@@ -656,19 +656,35 @@ def test_land_appends_the_worktree_log_to_the_documents_execution_file(tmp_path)
     ]
 
 
-def test_land_refuses_no_document_and_an_unknown_one_and_replays_idempotently(tmp_path):
+def test_land_writes_the_document_less_directory_and_refuses_an_unknown_document(tmp_path):
+    """S-0059/D-11: a task naming no document lands under `.torve/execution/`
+    in the same file shape — an operator's ask and a standing job have no rows
+    to land beside and are still records. A document the corpus does not hold
+    is still a refusal."""
+
     from torve.application.decisions import land
+    from torve.config import layout
     from torve.domain.task import Task
 
-    spec_dir, task = _landing_repo(tmp_path)
+    spec_dir, _task = _landing_repo(tmp_path)
 
-    with pytest.raises(ValueError, match="names no document"):
-        land(tmp_path, spec_dir, Task(id="T-0002", decisions=[]), attempt=1, entries=[])
+    asked = land(tmp_path, spec_dir, Task(id="T-0002", decisions=[]), attempt=1, entries=[ENTRY])
+
+    assert asked.parent == layout.execution_dir(tmp_path)
+    assert asked.read_text(encoding="utf-8").startswith(
+        "# yaml-language-server: $schema=../schemas/landing.json\n"
+    )
 
     stranger = Task(id="T-0003", spec="S-0009", decisions=[])
 
     with pytest.raises(ValueError, match="does not hold"):
         land(tmp_path, spec_dir, stranger, attempt=1, entries=[])
+
+
+def test_land_replays_idempotently(tmp_path):
+    from torve.application.decisions import land
+
+    spec_dir, task = _landing_repo(tmp_path)
 
     first = land(tmp_path, spec_dir, task, attempt=1, entries=[ENTRY])
     # an identical replay is the same landing: nothing written (S-0058/D-6)
@@ -679,6 +695,32 @@ def test_land_refuses_no_document_and_an_unknown_one_and_replays_idempotently(tm
     again = land(tmp_path, spec_dir, task, attempt=1, entries=[{**ENTRY, "claim": "restarted"}])
 
     assert again != first and len(list((spec_dir / "S-0001" / "execution").iterdir())) == 2
+
+
+def test_the_document_less_landing_counts_as_shipped(tmp_path):
+    """S-0059/D-11, S-0059/D-12: a landing under `.torve/execution/` is read
+    beside the corpus and the archive, so a task with no document counts as
+    landed and names its commit like any other."""
+
+    from torve.application.decisions import land, landed_commits, landings
+    from torve.application.projections import shipped_ids
+    from torve.domain.task import Task
+
+    spec_dir, task = _landing_repo(tmp_path)
+
+    land(tmp_path, spec_dir, task, attempt=1, commit="a" * 40, entries=[ENTRY])
+    land(
+        tmp_path,
+        spec_dir,
+        Task(id="T-0002", decisions=[]),
+        attempt=1,
+        commit="b" * 40,
+        entries=[ENTRY],
+    )
+
+    assert {one.task for one in landings(tmp_path, spec_dir)} == {task.id, "T-0002"}
+    assert landed_commits(tmp_path, spec_dir, "T-0002") == ["b" * 40]
+    assert shipped_ids(tmp_path, spec_dir) == {task.id, "T-0002"}
 
 
 def test_the_log_land_verb_lands_the_contracts_task_with_the_commit_named(tmp_path):

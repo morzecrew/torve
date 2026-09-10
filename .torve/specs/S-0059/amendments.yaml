@@ -10,3 +10,17 @@ amendments:
       (S-0059/D-1) and the fold that reads it off a mint recorded before this document
       (S-0059/D-3). The invariant names them; its check excludes those two files and
       nothing else. No row changes.
+  - id: A-2
+    at: '2026-09-10T04:34:14Z'
+    title: >-
+      the checkpoint says its attempt in one trailer, and I-1 reads a written trailer
+      only
+    md: >-
+      Phase 3 left one writer standing and I-1's check could not see past prose. The
+      checkpoint commit carried `Torve-Checkpoint` *and* `Torve-Attempt` (S-0026/D-9's
+      mark that a commit is not a landing); the attempt now rides the checkpoint's
+      own trailer, so D-10's list holds to the letter and the mark stays. I-1's check
+      matched the docstrings that record what the five trailers used to say, which
+      is history the corpus wants kept: it now requires the colon and refuses a backtick
+      before the name, so a trailer written into a message is caught and a backticked
+      mention is not. Statement and check only; no row changes.

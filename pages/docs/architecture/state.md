@@ -26,7 +26,7 @@ each is a projection of the record with a reason to exist:
 | `.wt/<task>.state.json` | the run the attempt loop is driving | the loop's own aggregate, and the only carrier a run without a store has |
 | `.torve/tasks/<id>/contract.yaml` | what a task was asked to do | the authored artefact a human reviews and commits — and the *importer* the mint reads, not something dispatch consults |
 | `.torve/tasks/<id>/log.yaml` | the task's divergences | written into the worktree from the record before each gate pass, and landed with the work so the diff carries its own account |
-| landing commits | `Torve-Task` trailers | git's own record of completion — the one thing that survives a fresh clone with no store at all |
+| landings | `.torve/specs/S-NNNN/execution/` and `.torve/execution/` | one file per landing, naming the base, the commit and the rows the contract carried — what survives a fresh clone with no store at all |
 
 The rule that keeps them honest: **one record, rendered into carriers**.
 Where two carriers hold the same fact, one of them is generated from the

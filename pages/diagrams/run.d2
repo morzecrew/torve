@@ -5,7 +5,7 @@ claim: "claimed\n(a lease, nothing else)" {shape: oval}
 run: "running\n(agent in a sandbox,\nsame worktree every attempt)"
 gated: "gated\n(battery, over the record's log)"
 reviewed: "reviewed\n(a second agent, without the author's trace)"
-ready: "ready\n(landing commit, Torve-Task trailer)" {shape: oval; style.fill: "#e8f5e9"}
+ready: "ready\n(work commit, then its landing)" {shape: oval; style.fill: "#e8f5e9"}
 esc: "escalated\n(a person's turn)" {shape: oval; style.fill: "#fdecea"}
 
 queued -> claim: "dispatchable: deps landed,\nscope disjoint"

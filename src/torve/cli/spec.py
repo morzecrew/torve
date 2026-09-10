@@ -1307,43 +1307,6 @@ def health(
 # ....................... #
 
 
-def _commits_citing(root: Path, identifier: str) -> list[dict[str, str]]:
-    """The commits whose `Torve-Decisions` trailer grades this row — the
-    identifier followed by `=`, so a longer number never matches a shorter
-    one's prefix."""
-
-    import subprocess
-
-    try:
-        done = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(root),
-                "log",
-                "--fixed-strings",
-                f"--grep={identifier}=",
-                "--format=%h%x09%ad%x09%s",
-                "--date=short",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return []
-
-    if done.returncode != 0:
-        return []
-
-    return [
-        {"sha": sha, "at": at, "subject": subject}
-        for sha, at, subject in (
-            line.split("\t", 2) for line in done.stdout.splitlines() if line.count("\t") == 2
-        )
-    ]
-
-
 @spec_app.command("cites")
 def cites_cmd(
     identifier: Annotated[
@@ -1354,10 +1317,12 @@ def cites_cmd(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Who cites an identifier — the row's side of the link: the code and
-    docs lines that mention it, the landings whose entries cite it, the
-    amendments that changed it, the documents whose rows or prose cite
-    it, and the commits whose trailers grade it."""
-    # S-0057 S-0057/D-10; the trailers are S-0057/D-13, decided in phase 4.
+    docs lines that mention it, the landings whose entries cite it or whose
+    contract inherited it, the amendments that changed it, and the documents
+    whose rows or prose cite it."""
+    # S-0057/D-10. The commits whose trailers graded it were the fifth
+    # answer (S-0057/D-13); the trailer is gone and the landing carries the
+    # grade instead (S-0059/D-10, S-0059/D-12).
 
     from torve.config.spec import cited_in, tree_citations
 
@@ -1373,10 +1338,14 @@ def cites_cmd(
             "attempt": landing.attempt,
             "commit": landing.commit,
             "document": Path(doc.path).name,
+            "how": "entry"
+            if any(entry.decision == identifier for entry in landing.entries)
+            else "inherited",
         }
         for doc in corpus.documents
         for landing in doc.landings
         if any(entry.decision == identifier for entry in landing.entries)
+        or any(row.id == identifier for row in landing.decisions)
     ]
     amendments = [
         {"id": amendment.id, "document": Path(doc.path).name}
@@ -1385,7 +1354,6 @@ def cites_cmd(
         if any(change.subject == identifier for change in amendment.changes)
     ]
     documents = cited_in(corpus, identifier)
-    commits = _commits_citing(root, identifier)
 
     if fmt is Format.JSON:
         emit_json(
@@ -1396,13 +1364,12 @@ def cites_cmd(
                 "landings": landings,
                 "amendments": amendments,
                 "documents": documents,
-                "commits": commits,
             }
         )
         raise typer.Exit(EXIT_OK)
 
     console = out(fmt)
-    total = len(code) + len(landings) + len(amendments) + len(documents) + len(commits)
+    total = len(code) + len(landings) + len(amendments) + len(documents)
     header(console, "spec cites", f"{identifier} · {total} citation(s)")
 
     for one in code:
@@ -1412,7 +1379,8 @@ def cites_cmd(
         commit = f" @ {str(one['commit'])[:10]}" if one["commit"] else ""
         console.print(
             Text(
-                f"  landing    {one['task']} attempt {one['attempt']}{commit} ({one['document']})",
+                f"  landing    {one['task']} attempt {one['attempt']}{commit} "
+                f"({one['document']}, {one['how']})",
                 "",
             )
         )
@@ -1422,11 +1390,6 @@ def cites_cmd(
 
     for name in documents:
         console.print(Text(f"  document   {name}", ""))
-
-    for named in commits:
-        console.print(
-            Text(f"  commit     {named['sha']} {named['at']} {named['subject']}", STYLE_DIM)
-        )
 
     if not total:
         closing(console, "nothing cites it yet", STYLE_DIM)

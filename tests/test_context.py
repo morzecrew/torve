@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 import yaml
+from test_decisions import landed
 from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
@@ -238,29 +239,12 @@ def test_settled_documents_leave_the_programme_table_for_a_count(plan_repo):  # 
     assert "Doneware" not in result.output  # the row itself is gone
 
 
-def test_a_shipping_commit_derives_shipped_without_a_run_state(plan_repo):  # noqa: F811
-    import subprocess
-
+def test_a_landing_derives_shipped_without_a_run_state(plan_repo):  # noqa: F811
     root, _, _git = plan_repo
     seed_facts(root)
-    # T-0003 never ran through the engine, but history records its shipping
-    # by the provenance trailer (S-0010) — a mere id mention in a chore
-    # subject no longer counts, which is what keeps mint commits from
-    # shipping whole phases in the programme view.
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "commit",
-            "-q",
-            "--allow-empty",
-            "-m",
-            "feat: wire together by hand\n\nTorve-Task: T-0003",
-        ],
-        capture_output=True,
-        check=True,
-    )
+    # T-0003 never ran through the engine, but the tree holds a landing for
+    # it (S-0059/D-12), which is the whole of what shipping is.
+    landed(root, "T-0003")
     report = context_report(root, root / SPECS_DIR)
     states = {t["id"]: t["state"] for t in report["tasks"]}
     assert states["T-0003"] == "shipped"
@@ -316,11 +300,12 @@ def test_costs_are_newest_first_and_carry_the_model(plan_repo):  # noqa: F811
     )
 
 
-def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
-    """S-0007/D-26: only a landing citation — a parenthesized (T-nnnn), the
-    merge-branch shape torve/T-nnnn, or the Torve-Task trailer — ships a
-    task. A bare prose mention must not: a mint chore whose subject says
-    'T-0097–T-0104' shipped a whole phase in the programme view once."""
+def test_a_task_with_no_landing_ships_nothing(tmp_path):
+    """S-0059/D-12: a task shipped iff the tree holds a landing file for it.
+    However often the history names an id, it ships nothing — the three
+    spellings this once read (S-0007/D-26: a parenthesized (T-nnnn), the
+    merge-branch shape torve/T-nnnn, the Torve-Task trailer) are gone, and
+    with them the mint chore whose subject shipped a whole phase once."""
     import subprocess
 
     from torve.application.projections import shipped_ids
@@ -329,42 +314,22 @@ def test_a_chore_subject_citing_ids_ships_nothing(tmp_path):
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
-    (root / "a").write_text("x")
-    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(root), "commit", "-q", "-m", "chore: mint T-0097 and T-0104"],
-        check=True,
-    )
-    (root / "b").write_text("x")
-    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "commit",
-            "-q",
-            "-m",
-            "feat: the broker meters the wire (T-0105, A-56)",
-        ],
-        check=True,
-    )
-    (root / "c").write_text("x")
-    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "commit",
-            "-q",
-            "-m",
-            "merge torve/T-0106 into main\n\nTorve-Task: T-0107",
-        ],
-        check=True,
-    )
 
-    assert shipped_ids(root) == {"T-0105", "T-0106", "T-0107"}
+    for name, subject in (
+        ("a", "chore: mint T-0097 and T-0104"),
+        ("b", "feat: the broker meters the wire (T-0105, A-56)"),
+        ("c", "merge torve/T-0106 into main\n\nTorve-Task: T-0107"),
+    ):
+        (root / name).write_text("x")
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", subject], check=True)
+
+    assert shipped_ids(root) == set()
+
+    # The one task the tree holds a landing for is the one that shipped.
+    landed(root, "T-0105")
+
+    assert shipped_ids(root) == {"T-0105"}
 
 
 # ----------------------- #
@@ -625,29 +590,13 @@ def test_operator_attention_human_minutes_suppressed_below_the_default_floor(tmp
     assert attention["human_minutes_n"] == 2  # denominator prints regardless (S-0022/D-8)
 
 
-def _land_commit(root, task_id: str) -> None:
-    import subprocess
-
-    if not (root / ".git").exists():
-        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
-        subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
-        subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
-    marker = root / f".landed-{task_id}"
-    marker.write_text("x", encoding="utf-8")
-    subprocess.run(["git", "-C", str(root), "add", str(marker)], check=True)
-    subprocess.run(
-        ["git", "-C", str(root), "commit", "-q", "-m", f"land {task_id}\n\nTorve-Task: {task_id}"],
-        check=True,
-    )
-
-
 def test_operator_attention_joins_interventions_to_landed_changes(tmp_path):
     """S-0022/D-12: the interventions behind landed changes — feedback and the
     escalations a human triaged — join per task id, with the raw total
     carrying whatever never landed in the window."""
     _write_task(tmp_path, "T-0001", spec="S-0090")
     _ready_state(tmp_path, "T-0001")
-    _land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     _write_feedback(tmp_path, "T-0001", 10, rework=False)
     _write_feedback(tmp_path, "T-0002", 20, rework=False)  # never landed: raw only
     _write_task(tmp_path, "T-0002", spec="S-0090")
@@ -756,14 +705,14 @@ def test_only_a_pull_request_blocker_reaches_the_ledger(tmp_path):
 
     blocker = [{"severity": "blocker", "claim": "the guard never fires", "evidence": "src/a.py:1"}]
 
-    _land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     _write_review_telemetry(tmp_path, "T-0101", "T-0001", blocker, trigger="pull_request")
 
-    _land_commit(tmp_path, "T-0002")
+    landed(tmp_path, "T-0002")
     _write_review_telemetry(tmp_path, "T-0102", "T-0002", blocker, trigger="task_gated")
 
     # A record written before the marker existed is task-gated by default.
-    _land_commit(tmp_path, "T-0003")
+    landed(tmp_path, "T-0003")
     _write_review_telemetry(tmp_path, "T-0103", "T-0003", blocker, trigger=None)
 
     report = context_report(tmp_path, tmp_path / SPECS_DIR)
@@ -772,7 +721,7 @@ def test_only_a_pull_request_blocker_reaches_the_ledger(tmp_path):
 
 
 def test_findings_ledger_lists_kept_non_blocking_findings_from_landed_targets(tmp_path):
-    _land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     _write_review_telemetry(
         tmp_path,
         "T-0101",
@@ -811,7 +760,7 @@ def test_findings_from_unlanded_targets_stay_out(tmp_path):
 
 
 def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_path):
-    _land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     _write_review_telemetry(
         tmp_path,
         "T-0101",
@@ -847,7 +796,7 @@ def test_a_finding_is_possibly_addressed_when_a_contract_cites_the_review(tmp_pa
 
 
 def test_findings_render_in_all_three_formats(tmp_path):
-    _land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     _write_review_telemetry(
         tmp_path,
         "T-0101",
@@ -878,7 +827,7 @@ def test_findings_render_in_all_three_formats(tmp_path):
 
 
 def test_addressed_findings_collapse_to_the_plus_line(tmp_path):
-    _land_commit(tmp_path, "T-0001")
+    landed(tmp_path, "T-0001")
     _write_review_telemetry(
         tmp_path,
         "T-0101",

@@ -210,8 +210,12 @@ def test_clean_success(rig):
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.state is TaskState.READY
     assert state.attempts == 1
-    assert len(vcs.commits) == 1
-    assert "Torve-Task: T-9001" in vcs.commits[0]
+    # S-0059/D-9: the work, then the landing that names it — two commits
+    # per attempt, and no `Torve-` trailer on either (S-0059/D-10).
+    assert vcs.commits == [
+        "torve(T-9001): attempt 1 green",
+        "torve(T-9001): landing of attempt 1",
+    ]
     assert runtime.created and runtime.destroyed  # every sandbox died
     assert "pr deferred" in state.history[-1]["fact"]
 

@@ -74,6 +74,17 @@ def standing_dir(root: Path) -> Path:
 # ....................... #
 
 
+def execution_dir(root: Path) -> Path:
+    """Where a task naming no document lands (S-0059/D-11): the same file
+    shape a document's `execution/` holds, for an operator's ask or a
+    standing job — a landing with no rows to sit beside is still a record."""
+
+    return root / TORVE_DIR / "execution"
+
+
+# ....................... #
+
+
 def task_dir(root: Path, task_id: str) -> Path:
     """One directory per task (S-0001/A-5, S-0001/D-37); a projection when a store holds
     the task (S-0056/D-9), the record itself when none does."""
