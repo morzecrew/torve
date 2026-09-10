@@ -274,4 +274,19 @@ The profile and the harness manifest are committed files of the operating reposi
 - Consequence: a regime is reconstructable from a checkout, and two operators running one repository cannot silently run different equipment
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0062/D-4 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+Equipment is fetched host-side into a cache keyed by source and ref, never inside an attempt.
+
+- Paths: `src/torve/application/equipment.py` `src/torve/cli/equip.py`
+- Consequence: an attempt's failures do not include the internet's, and a warmed cache makes dispatch touch no network at all
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-11 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+`torve equip --check` audits the cache against what each source recorded — a skill's `github-pinned` frontmatter, a clone's HEAD — and reports; it never refetches and never resolves.
+
+- Paths: `src/torve/cli/equip.py` `src/torve/application/equipment.py`
+- Consequence: a cache directory that does not hold what its key claims is a finding an operator can read, rather than a regime hash that agrees with itself and with nothing else
+
 <!-- /torve:managed -->

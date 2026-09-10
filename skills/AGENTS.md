@@ -39,4 +39,12 @@ The skill and its template, the schemas `torve init` writes, the projections bes
 - Paths: `skills/**` `src/torve/application/colocation.py` `src/torve/cli/init.py` `pages/docs/operating.md`
 - Consequence: Nothing a harness or a person reads names an identifier the check refuses
 
+### S-0062/D-6 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A skill a gate reads stays package data, versioned with the engine; `torve:` is the source that names one.
+
+- Paths: `src/torve/application/skills.py` `skills/**`
+- Consequence: the two skills this engine ships cannot drift against the gate that parses what they teach
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

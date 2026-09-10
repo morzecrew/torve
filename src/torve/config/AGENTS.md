@@ -355,6 +355,46 @@ A seat naming no profile resolves the profile named for the task's role, and Ski
 - Paths: `src/torve/config/runconfig.py` `src/torve/config/agents.py`
 - Consequence: the default equipment for a role and a named set stop being two mechanisms answering one question in two files
 
+### S-0062/D-1 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A profile declares equipment as typed items — a kind, a source, and a ref where the source is fetched — and `skills` and `plugins` fold into it.
+
+- Paths: `src/torve/config/equipment.py` `src/torve/config/agents.py` `.torve/agents/**`
+- Consequence: what an agent has is one list with a version per item, instead of two fields with a version for one of them and no external source for either
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-2 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A harness manifest declares which equipment kinds it accepts and the flag template that carries each into its command; a kind a profile declares and the manifest does not is refused at load.
+
+- Paths: `src/torve/config/agents.py` `.torve/harnesses/**`
+- Consequence: a harness that cannot be given something says so once, in its own file, rather than in an attempt that ran without it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-3 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A source is `torve:<name>`, `local:<path>` or `github:<owner>/<repo>`; a fetched source requires a ref and the other two refuse one.
+
+- Paths: `src/torve/config/equipment.py`
+- Consequence: no equipment can enter a run at a version nobody wrote down
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-7 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A profile may declare a `prepare` command; torve runs it in the sandbox before the agent, with its own clock, and a non-zero exit is an infrastructure failure that convicts nothing.
+
+- Paths: `src/torve/application/session.py` `src/torve/config/equipment.py`
+- Consequence: an index that fails to build ends the attempt as what it is, rather than as a model that could not make the battery pass
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-12 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+Equipment resolves in two layers — the profile named for the task's role, then the seat's profile — appended and deduplicated by kind and source, the seat's ref winning; a profile never names the role it serves.
+
+- Paths: `src/torve/config/equipment.py` `src/torve/config/agents.py`
+- Consequence: a seat profile that declares one plugin adds it to the role's equipment instead of replacing it, and a reviewer is equipped by its own seat rather than by the seat it reviews
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
@@ -366,5 +406,8 @@ A seat naming no profile resolves the profile named for the task's role, and Ski
 - **S-0061/I-2**: Every key of the old flat tier body lives in exactly one of the three files, and the other two refuse it by name.
   - Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py`
   - Check: `uv run pytest tests/test_agents.py -k one_home`
+- **S-0062/I-2**: Every equipment item a run used is named by a cache key that resolves to a source and a ref an operator wrote.
+  - Paths: `src/torve/config/equipment.py` `src/torve/application/telemetry.py`
+  - Check: `uv run pytest tests/test_equipment.py -k reconstructable`
 
 <!-- /torve:managed -->

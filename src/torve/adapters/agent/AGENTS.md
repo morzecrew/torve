@@ -38,6 +38,13 @@ The harness prompt names the source, its title and its ref in the line above the
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
 - Consequence: The executor reads what asked, not a slug
 
+### S-0062/D-10 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`; for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/skills.py`
+- Consequence: a loaded skill is loaded, not described — and a harness with no skill channel keeps the only mechanism it has
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.

@@ -597,10 +597,68 @@ The regime hash reads each seat's resolved harness, profile and own keys, and st
 - Paths: `src/torve/application/telemetry.py`
 - Consequence: the hash changes when the equipment changes, and stops changing when a tool torve does not run reformats its own lockfile
 
+### S-0062/D-4 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+Equipment is fetched host-side into a cache keyed by source and ref, never inside an attempt.
+
+- Paths: `src/torve/application/equipment.py` `src/torve/cli/equip.py`
+- Consequence: an attempt's failures do not include the internet's, and a warmed cache makes dispatch touch no network at all
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-5 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+The cache mounts read-only into the sandbox, one directory per item, and the harness's flag templates are composed against those paths.
+
+- Paths: `src/torve/adapters/runtime/**` `src/torve/application/ports.py`
+- Consequence: nothing inside an attempt can edit what it was equipped with, and the cache stays derived state that deleting costs only wall clock
+
+### S-0062/D-6 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A skill a gate reads stays package data, versioned with the engine; `torve:` is the source that names one.
+
+- Paths: `src/torve/application/skills.py` `skills/**`
+- Consequence: the two skills this engine ships cannot drift against the gate that parses what they teach
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-7 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+A profile may declare a `prepare` command; torve runs it in the sandbox before the agent, with its own clock, and a non-zero exit is an infrastructure failure that convicts nothing.
+
+- Paths: `src/torve/application/session.py` `src/torve/config/equipment.py`
+- Consequence: an index that fails to build ends the attempt as what it is, rather than as a model that could not make the battery pass
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0062/D-8 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+The regime hash reads the equipment cache keys, not the fetched contents.
+
+- Paths: `src/torve/application/telemetry.py`
+- Consequence: two checkouts of one tree hash one regime without either having fetched anything yet
+
+### S-0062/D-10 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`; for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/skills.py`
+- Consequence: a loaded skill is loaded, not described — and a harness with no skill channel keeps the only mechanism it has
+
+### S-0062/D-11 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+`torve equip --check` audits the cache against what each source recorded — a skill's `github-pinned` frontmatter, a clone's HEAD — and reports; it never refetches and never resolves.
+
+- Paths: `src/torve/cli/equip.py` `src/torve/application/equipment.py`
+- Consequence: a cache directory that does not hold what its key claims is a finding an operator can read, rather than a regime hash that agrees with itself and with nothing else
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
   - Paths: `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py`
   - Check: `uv run pytest tests/test_spec.py -k schema_descriptions`
+- **S-0062/I-1**: No equipment is fetched while an attempt is running — every fetch is host-side, before the sandbox exists.
+  - Paths: `src/torve/application/equipment.py` `src/torve/adapters/runtime/**`
+  - Check: `uv run pytest tests/test_equipment.py -k host_side`
+- **S-0062/I-2**: Every equipment item a run used is named by a cache key that resolves to a source and a ref an operator wrote.
+  - Paths: `src/torve/config/equipment.py` `src/torve/application/telemetry.py`
+  - Check: `uv run pytest tests/test_equipment.py -k reconstructable`
 
 <!-- /torve:managed -->
