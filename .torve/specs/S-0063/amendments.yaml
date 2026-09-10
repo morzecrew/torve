@@ -23,3 +23,30 @@ amendments:
       Moving the definitions to `sandboxes/` creates five governed directories, and the root `AGENTS.md` carries the index of every governed directory (S-0054/D-7). So `torve spec project` rewrites five new sections and one index line the phase could not name.
 
       This is the third scope amendment on one phase, which is worth saying plainly: the retirement's reach was underestimated at authoring, and each widening was found by a red gate rather than by reading. The scope is what the work actually touches now.
+  - id: A-4
+    at: '2026-09-10T17:52:18Z'
+    title: >-
+      The base's row governs the definitions, not one directory each
+    changes:
+      - subject: D-7
+        field: paths
+        before: [sandboxes/base/**, tests/test_sandbox_defs.py]
+        after: [sandboxes/**, tests/test_sandbox_defs.py]
+      - subject: D-7
+        field: fingerprint
+        after: b12c7650bd697574/0cb1affa4de73ac6
+  - id: A-5
+    at: '2026-09-10T17:52:21Z'
+    title: D-9 governs the definitions as one surface
+    changes:
+      - subject: D-9
+        field: paths
+        before: [sandboxes/claude/**, sandboxes/dsh/**, sandboxes/mimo/**]
+        after: [sandboxes/**]
+      - subject: D-9
+        field: fingerprint
+        after: 04df4b057682af0f/765a667e6ee4604e
+    md: |-
+      The same coarsening as A-4, and it fixes a second defect while it is there: D-9's paths named `sandboxes/claude/**` alongside `sandboxes/dsh/**` and `sandboxes/mimo/**`, which are phase 2's surface and phase 3's. A row whose paths span two phases mints a contract that contradicts itself — the executor inherits a decision it cannot satisfy without leaving `scope.allow`.
+
+      `sandboxes/**` sits inside every phase that touches a definition, which is what the row always meant: claude first, the other two after.

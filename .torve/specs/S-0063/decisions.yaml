@@ -95,7 +95,7 @@ decisions:
       One base image carries `git`, `uv` and the engine's CLI; every definition inherits
       it, and `_torve-cli.dockerfile` with the test pinning five copies against it
       retires.
-    paths: [sandboxes/base/**, tests/test_sandbox_defs.py]
+    paths: [sandboxes/**, tests/test_sandbox_defs.py]
     consequence: >-
       the layer five images duplicate is built once and inherited, and the test that
       stood in for inheritance goes with it
@@ -103,6 +103,7 @@ decisions:
       the block is byte-identical in every definition and kept in step by a pin test,
       which is a test doing a base image's job
     cites: [S-0017/D-8]
+    fingerprint: b12c7650bd697574/0cb1affa4de73ac6
   - id: D-8
     grade: ASSUMED
     text: >-
@@ -122,7 +123,7 @@ decisions:
     text: >-
       Claude's `equip` and `run` land first; dsh's and mimo's land after, and they
       are the proof that the contract is not claude-shaped.
-    paths: [sandboxes/claude/**, sandboxes/dsh/**, sandboxes/mimo/**]
+    paths: [sandboxes/**]
     consequence: >-
       the first landing is written against a harness this repository can reach, and
       the contract's generality is tested rather than asserted
@@ -130,6 +131,7 @@ decisions:
       only claude has a seat to measure against, so writing all three at once lands
       two unexercised; the cost is that a claude-shaped contract is found one phase
       later, which is the trade the owner chose
+    fingerprint: 04df4b057682af0f/765a667e6ee4604e
   - id: D-10
     grade: ASSUMED
     text: >-
