@@ -46,15 +46,22 @@ def config_hash(
     config: RunnerConfig | None = None,
     image_digest: str | None = None,
 ) -> str:
-    """Digest of the regime a run belongs to (S-0002/telemetry-from-day-one, S-0009/D-8): gates.yaml,
-    the agent-skills lockfile, the Torve package version (its gates and
-    shipped skills change behavior — S-0009/A-1), the pinned forze version (a
-    substrate upgrade is a regime change, and possibly a migration — S-0003/A-1),
-    and — when the runner configuration is at hand — the tier mapping and
-    provider policy (S-0004/telemetry-staged, S-0004/D-3): which adapter executed and where
-    contents were allowed to go are part of what a number was measured under.
-    The sandbox image digest joins when the caller resolved one (S-0017/the-image-is-an-input-not-an-environment,
-    S-0017/D-1): two runs under one tag but different digests are two regimes.
+    """Digest of the regime a run belongs to (S-0002/telemetry-from-day-one, S-0009/D-8):
+    gates.yaml, the Torve package version (its gates and shipped skills change
+    behavior — S-0009/A-1), the pinned forze version (a substrate upgrade is a regime
+    change, and possibly a migration — S-0003/A-1), and — when the runner
+    configuration is at hand — the seats, the role equipment and the provider
+    policy (S-0004/telemetry-staged, S-0004/D-3): which agent ran under which
+    harness, with what, and where contents were allowed to go are all part of what
+    a number was measured under. The sandbox image digest joins when the caller
+    resolved one (S-0017/the-image-is-an-input-not-an-environment, S-0017/D-1): two
+    runs under one tag but different digests are two regimes.
+
+    The parts are what was *resolved*, never a file some other tool keeps
+    (S-0061/D-7). Each seat carries its harness and profile merged onto it, so
+    editing either moves the digest; the role equipment joins beside them,
+    because since S-0061/D-11 a role's skills are a file rather than a default
+    written in code, and a hash that missed it would call two regimes one.
     """
 
     from torve.application.migrate import forze_pin
@@ -74,6 +81,11 @@ def config_hash(
             sort_keys=True,
         )
 
+        # The equipment a role loads, resolved from the role profiles at load
+        # (S-0061/D-11). It rode the `torve` version while it was a default in
+        # code; a file needs its own part.
+        parts["skills"] = json.dumps(config.skills.model_dump(), sort_keys=True)
+
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
 
         # The egress regime (S-0021/what-this-does-not-change, S-0021/D-8): the broker adapter and
@@ -84,10 +96,11 @@ def config_hash(
     if image_digest is not None:
         parts["image"] = image_digest
 
-    lock = root / "skills-lock.json"
-
-    if lock.is_file():
-        parts["skills-lock.json"] = lock.read_text(encoding="utf-8")
+    # `skills-lock.json` was here and is not (S-0061/D-7). It is the `skills`
+    # CLI's file, written and read by that tool for the operator's own use; this
+    # engine installs nothing from it and read it for nothing else. Hashing it
+    # meant a reformat by another tool changed the regime while a change to the
+    # equipment this engine actually resolves did not.
 
     # The vendored skills tree (S-0009/vendored-skills, S-0009/D-13): an edited vendored
     # skill is a regime change — the image-digest doctrine applied to

@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The regime hash reads what torve resolved — each seat's merged harness and
+  profile, and the equipment each role loads — and no longer reads
+  `skills-lock.json`, which belongs to a tool torve does not run.
+
 - **Breaking:** a tier entry no longer carries `adapter`, `command`, `image`,
   `api_key_env`, `skills` or `prompt_extras`. Each is refused by name with the
   file it moved to; `torve init` mints a profile per role.

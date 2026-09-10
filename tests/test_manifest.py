@@ -65,7 +65,7 @@ def test_a_shapeless_origin_is_refused(tmp_path):
         load_manifest(write_manifest(tmp_path, bad))
 
 
-def test_config_hash_tracks_manifest_and_skill_lock(tmp_path):
+def test_config_hash_tracks_the_manifest(tmp_path):
     path = write_manifest(tmp_path, BASE_MANIFEST)
     first = config_hash(path, tmp_path)
     assert first == config_hash(path, tmp_path)  # stable
@@ -73,9 +73,24 @@ def test_config_hash_tracks_manifest_and_skill_lock(tmp_path):
     changed = dict(BASE_MANIFEST, quarantine=["flaky-command"])
     assert config_hash(write_manifest(tmp_path, changed), tmp_path) != first
 
+
+def test_the_hash_reads_what_was_resolved_and_not_another_tool_s_lockfile(tmp_path):
+    """S-0061/D-7: `skills-lock.json` is the `skills` CLI's file, which this
+    engine installs nothing from and reads for nothing else. Hashing it meant a
+    reformat by another tool changed the regime while a change to the equipment
+    this engine actually resolves did not."""
+
+    from torve.config.runconfig import RunnerConfig, SkillsConfig
+
     path = write_manifest(tmp_path, BASE_MANIFEST)
-    (tmp_path / "skills-lock.json").write_text("{}", encoding="utf-8")
-    assert config_hash(path, tmp_path) != first  # the skill set is part of the regime
+    config = RunnerConfig(skills=SkillsConfig(sets={"implement": ["flag-dont-flip"]}))
+    first = config_hash(path, tmp_path, config)
+
+    (tmp_path / "skills-lock.json").write_text('{"skills": {}}', encoding="utf-8")
+    assert config_hash(path, tmp_path, config) == first  # not this engine's file
+
+    equipped = RunnerConfig(skills=SkillsConfig(sets={"implement": ["ratchet-what-you-build"]}))
+    assert config_hash(path, tmp_path, equipped) != first  # what a role loads is the regime
 
 
 # S-0034/D-4: the axis vocabulary classifies what a conviction from a gate means.
