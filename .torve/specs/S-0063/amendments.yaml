@@ -7,3 +7,19 @@ amendments:
       The phase was written before Q-1 was settled and still said `torve sandbox` shells bake. D-11 retires the verb's build half and `RuntimePort.build_image` with it, and that reaches further than the definitions: the port has two adapter implementations and four stubs in the suite, `torve doctor` and `torve intake` name the verb in their prose, and the README documents it twice.
 
       They are taken here rather than in a follow-up, because a half-retired port is worse than either state — the protocol would still promise a build nothing performs. No decision row changes and no scope reaches past what the retirement touches.
+  - id: A-2
+    at: '2026-09-10T17:37:44Z'
+    title: >-
+      Phase 1 takes the two files the retirement reaches outside itself
+    md: |-
+      `tests/test_evals.py` built a throwaway candidate image through `RuntimePort.build_image` to measure two digests apart. With the port gone it builds one the way an operator does, which is a two-line change in a file the phase did not name.
+
+      `.dockerignore` is new and belongs to the build: the base's context is the repository root (D-8), so what an image must never bake — the worktree, the venv, the task state — is excluded there rather than by the staging the retired verb used to do.
+  - id: A-3
+    at: '2026-09-10T17:42:57Z'
+    title: >-
+      Phase 1 takes the projection index its own move changes
+    md: |-
+      Moving the definitions to `sandboxes/` creates five governed directories, and the root `AGENTS.md` carries the index of every governed directory (S-0054/D-7). So `torve spec project` rewrites five new sections and one index line the phase could not name.
+
+      This is the third scope amendment on one phase, which is worth saying plainly: the retirement's reach was underestimated at authoring, and each widening was found by a red gate rather than by reading. The scope is what the work actually touches now.
