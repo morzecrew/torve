@@ -18,9 +18,8 @@ decisions:
     grade: LOCKED
     text: >-
       The engine speaks to every image through one set of environment variables —
-      `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIPMENT_MANIFEST`,
-      `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is
-      in force.
+      `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN`
+      where a broker is in force.
     paths: [src/torve/application/ports.py, src/torve/adapters/agent/harness.py]
     consequence: >-
       a new harness is a new image and never a new template language, and every adapter
@@ -145,6 +144,40 @@ decisions:
       a regime change that ought to be visible; today `--permission-mode` can change
       under a fixed digest and nothing says so
     cites: [S-0017/D-4]
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      `torve sandbox build` and `stage` retire, and `RuntimePort.build_image` with
+      them; the verb keeps `list` and `digest`, and `just images` is the build.
+    paths:
+      - src/torve/cli/sandbox.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/runtime/**
+    consequence: >-
+      the engine loses its last way to build an image, which is the rule S-0017/D-3
+      already stated and could not enforce while a verb of its own did it
+    rationale: >-
+      both verbs exist to assemble a build context by hand — staging the project into
+      every definition so the CLI layer can install — and the base image removes exactly
+      that work; a wrapper around bake would be indirection with nothing left inside
+      it
+    cites: [S-0017/D-3, D-7, D-8]
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      The equipment manifest is `manifest.json` at the root of the read-only equipment
+      mount, named by `TORVE_EQUIPMENT` alone — never a second variable, never a file
+      in the workspace.
+    paths: [src/torve/application/session.py, src/torve/adapters/runtime/**]
+    consequence: >-
+      the attempt cannot rewrite the description of what it was equipped with, and
+      one variable names one root rather than two disagreeing about which is authoritative
+    rationale: >-
+      the workspace is writable by the attempt and mounts read-only in the reviewer's
+      lane, so a manifest there would be both editable by the thing it describes and
+      differently reachable per lane; the mount is already read-only for this reason
+      (S-0062/D-5)
+    cites: [S-0062/D-5, S-0005/D-2, D-2]
 invariants:
   - id: I-1
     statement: >-

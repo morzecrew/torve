@@ -173,8 +173,7 @@ design:
       |---|---|
       | `TORVE_PROMPT` | path to the staged prompt, in the workspace |
       | `TORVE_MODEL` | the seat's model, verbatim |
-      | `TORVE_EQUIPMENT` | path to the mounted equipment root |
-      | `TORVE_EQUIPMENT_MANIFEST` | path to the JSON listing every item: kind, source, ref, path |
+      | `TORVE_EQUIPMENT` | the mounted equipment root; its `manifest.json` lists every item — kind, source, ref, path |
       | `TORVE_OUTPUT` | where `run` writes the result the engine parses |
       | `TORVE_BROKER_URL`, `TORVE_BROKER_TOKEN` | set when a broker handle reached the agent, absent otherwise |
 
@@ -182,6 +181,13 @@ design:
       into a file `run` sources, dsh writes one `--patch` overlay, and mimo runs its
       install commands — the same script name, three answers, each one written beside
       the harness it knows about.
+
+      The manifest is a file inside the mount, not a second variable and not a file in
+      the workspace (D-12). Inside the mount it is read-only, so the thing being
+      equipped cannot rewrite the description of what it was equipped with — the
+      property S-0062/D-5 mounts the cache read-only for, lost exactly where it matters
+      if the manifest sat in a workspace the attempt can write. One variable naming a
+      root also beats two that can disagree about which is authoritative.
 
       Broker placeholders retire into `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`. The
       refusal S-0021 built stays: a seat whose provider the broker does not route is
@@ -236,8 +242,14 @@ design:
 
       `bake.hcl` expresses the dependency (`contexts = { base = "target:base" }`) and
       a justfile recipe is the build, the way `morzecrew/platform-images` does it.
-      `torve sandbox build` stays the operator's verb and shells `docker buildx bake`
-      rather than assembling contexts by hand.
+
+      `torve sandbox build` and `stage` retire with it (D-11). They exist to assemble a
+      context by hand — staging `pyproject.toml` and `uv.lock` into every definition so
+      the CLI layer can install — and that is precisely the work the base image removes.
+      `RuntimePort.build_image` retires with them, which is the engine losing its last
+      way to build an image at all. The verb keeps `list` and `digest`: which definitions
+      exist, and what digest a configured image resolves to — what dispatch records and
+      what `torve doctor` reports.
   - key: claude-first
     md: |
       Phase 2 writes `equip` and `run` for claude alone, against a seat this
@@ -250,8 +262,8 @@ design:
       contract that was wrong.
 
       The order is the owner's: claude first, expand after. What phase 2 must not do
-      is let claude's shape into the variable names. `TORVE_EQUIPMENT_MANIFEST` says
-      what the equipment is, not where to put it.
+      is let claude's shape into the variable names. `TORVE_EQUIPMENT` names a root and
+      a manifest of typed items — what the equipment is, never where to put it.
 tests: |
   The seam is testable without an image. A fake harness image that echoes its
   environment is enough to assert that `equip` and `run` receive the six variables,
@@ -274,7 +286,7 @@ docs: ''
 out_of_scope: ''
 risks: |
   The largest is that the environment contract becomes claude's vocabulary with
-  neutral names. `TORVE_EQUIPMENT_MANIFEST` is a JSON file of typed items, which every
+  neutral names. The mount's `manifest.json` is a file of typed items, which every
   harness can read differently; a variable called `TORVE_PLUGIN_DIRS` would already be
   the mistake. Phase 3 is where this is caught, and catching it late is expensive
   because two images will have been written against the wrong shape.
@@ -321,6 +333,15 @@ alternatives:
       same concern when they are not. The base image is the cheap half; the location
       is what makes the split legible.
   - option: >-
+      Write the equipment manifest into the workspace, under `.torve/`, beside the
+      prompt and the log torve already stages there.
+    rejected_because: >-
+      The workspace is writable by the attempt, so the agent could rewrite the description
+      of what it was equipped with and `equip` would believe it — losing the property
+      S-0062/D-5 mounts the cache read-only to keep. It also collides with a repository
+      that has a file at that path, and behaves differently in the reviewer's lane,
+      where the workspace mounts read-only.
+  - option: >-
       Build all three images' scripts at once rather than claude first.
     rejected_because: >-
       Only claude has a seat this repository can reach, so dsh and mimo would be written
@@ -333,8 +354,12 @@ questions:
       Does `torve sandbox build` survive as a wrapper around `docker buildx bake`,
       or does it retire in favour of `just images` with the verb keeping only `list`
       and `digest`? The staging it exists for is what the base image removes.
+    status: settled
+    settled_by: D-11
   - id: Q-2
     text: >-
       Should the equipment manifest be mounted beside the equipment, or written into
       the workspace where the agent could read it too? Beside the equipment keeps
       the workspace the repository's alone; in the workspace lets a prompt name it.
+    status: settled
+    settled_by: D-12
