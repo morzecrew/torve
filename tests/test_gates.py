@@ -445,7 +445,7 @@ def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
 
-    (gate,) = decision_gates(context_for(repo))
+    (gate,) = decision_gates(context_for(repo).task)
 
     assert gate.name == "decision:S-0009/D-1" and gate.run == "true"
     assert gate.origin == "S-0009/D-1" and gate.axis == "compliance"

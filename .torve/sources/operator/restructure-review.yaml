@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/restructure-review
+kind: operator
+ref: the operator's eight-point read of .torve/
+title: 'Restructure review: gates, standing, sources, telemetry'
+at: '2026-09-10T06:13:37Z'
+summary: >-
+  An eight-point read of everything under `.torve/`, asking of each part whether it
+  earns its place: the gate manifest's readability and whether gates can be selected
+  per task; standing; the review corpus; whether specifications and sources want one
+  directory; the sandbox and skills vendoring; the agent manifests; the eval ledger;
+  and the telemetry stream. The measured answers settled four of them on the spot —
+  per-task gate selection already exists on the contract, standing and the review
+  corpus are tracked rather than ignored, telemetry has five readers and is not
+  garbage — and left three cheap fixes and one document's worth of work.

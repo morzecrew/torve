@@ -36,7 +36,7 @@ from torve.config.manifest import load_manifest
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
 from torve.gates import sabotage
 from torve.gates.context import GitError, build_context, load_task
-from torve.gates.runner import run_gates
+from torve.gates.runner import decision_gates, run_gates
 
 # ----------------------- #
 
@@ -148,6 +148,86 @@ def gates_run(
         )
 
     raise typer.Exit(report.exit_code)
+
+
+# ....................... #
+
+
+def gates_list(
+    task_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--task",
+            exists=True,
+            help="Task contract; adds the gates the contract itself carries.",
+        ),
+    ] = None,
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option("--gates", "--manifest", help="Gate manifest; defaults to .torve/gates.yaml."),
+    ] = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """The battery as it will run: every gate with its input, timeout and axis
+    resolved, cheapest first. With a task, the gates the contract carries are
+    listed too — a manifest read alone cannot show them, because they exist
+    only for the length of one contract."""
+
+    root = root.resolve()
+    manifest_path = layout.gates_file(root) if manifest_path is None else manifest_path
+
+    if not manifest_path.is_absolute():
+        manifest_path = root / manifest_path
+
+    if not manifest_path.is_file():
+        raise fail(f"configuration error: no gate manifest at {manifest_path}", EXIT_CONFIG)
+
+    try:
+        manifest = load_manifest(manifest_path)
+        task = load_task(task_path) if task_path is not None else None
+        gates = [*manifest.resolved_gates(), *decision_gates(task)]
+
+    except (ValueError, yaml.YAMLError) as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    # The order the runner will use, so this reads as a running order and not
+    # as a manifest transcript (cheapest first, manifest order breaking ties).
+    ordered = [g for _, g in sorted(enumerate(gates), key=lambda p: (p[1].timeout or 0.0, p[0]))]
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "gates": [g.model_dump(mode="json") for g in ordered],
+            }
+        )
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    contract = f"task {task.id}" if task is not None else "no task"
+    header(console, "gates list", contract, f"{len(ordered)} gate(s)")
+    table = make_table("gate", "runs", "state", "axis", "input", "timeout")
+
+    for gate in ordered:
+        # The command is the one unbounded field here, and a coverage command
+        # is four lines wide; the whole of it is in the JSON view.
+        command = gate.run if len(gate.run) <= 44 else f"{gate.run[:43]}…"
+        table.add_row(
+            gate.name,
+            Text(command, STYLE_DIM),
+            Text(gate.state, "" if gate.state == "blocking" else STYLE_DIM),
+            Text(gate.axis or "", STYLE_DIM),
+            Text(gate.input or "", STYLE_DIM),
+            Text(f"{gate.timeout:.0f}s" if gate.timeout else "", STYLE_DIM),
+        )
+
+    console.print(table)
+
+    blocking = sum(1 for g in ordered if g.state == "blocking")
+    closing(console, f"{blocking} blocking, {len(ordered) - blocking} reporting", STYLE_PASS)
+
+    raise typer.Exit(EXIT_OK)
 
 
 # ....................... #

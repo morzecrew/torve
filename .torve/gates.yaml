@@ -3,19 +3,22 @@
 # consuming repository, not in the package). Torve gates its own development.
 #
 # Every entry carries `state` and `origin` (S-0002/D-19, S-0002/A-2): state is the
-# activation lifecycle (shadow | blocking | quarantined — S-0002/states),
-# origin answers "why do we have this" for as long as the gate exists.
+# activation lifecycle (shadow | blocking | quarantined — S-0002/states), origin
+# answers "why do we have this" and cites the document that decided it — which
+# is where the promotion history lives, so it is not restated here.
 #
 # `axis` labels what a red from this gate means (S-0034/convictions-classified):
 # functional | boundary | compliance | form. An unlabeled gate reads as
 # functional, so a label appears only where that default is wrong (S-0034/D-4).
 #
 # `sabotage` names the twin that proves the entry can convict (S-0036/the-sabotage-pair-lint,
-# S-0036/D-3): a CASES family in the shipped sabotage suite or a repository test
-# path that reddens when the gate stops working. Builtins name their shipped
-# family; shell gates name their test file. The load refuses a twinless
-# entry in a manifest that names any twin, so the battery carries zero
-# grandfather exceptions — deleting one line below bricks `torve gates run`.
+# S-0036/D-3): a CASES family in the shipped sabotage suite, or a repository test
+# path that reddens when the gate stops working. The load refuses a twinless
+# entry in a manifest that names any twin — deleting one line below bricks
+# `torve gates run`.
+#
+# What actually runs, with input, timeout and axis resolved and the contract's
+# own gates included: `torve gates list [--task ...]`.
 schema_version: 1
 
 # Repository-level scope, used on runs with no task contract. Unconstrained:
@@ -30,123 +33,88 @@ gates:
     state: blocking
     origin: structural
     axis: boundary
-    added: 2026-08-21
     sabotage: scope
   - name: secrets
     run: "@secrets"
     state: blocking
     origin: structural
-    added: 2026-08-21
     sabotage: secrets
   - name: no-test-tampering
     run: "@no-test-tampering"
     state: blocking
     origin: structural
-    added: 2026-08-21
     sabotage: no-test-tampering
   - name: decisions-reported
     run: "@decisions-reported"
     state: blocking
     origin: structural
     axis: compliance
-    added: 2026-08-21
     sabotage: decisions-reported
-  # The one gate that was non-blocking, which is what shadow is (S-0002/A-2): it
-  # runs, reports, and is measured before it may ever block.
   - name: self-audit
     run: "@self-audit"
     state: shadow
     origin: structural
     axis: compliance
-    added: 2026-08-21
     sabotage: self-audit
-  # The corpus validator, the product gate of S-0007/format-validation (S-0007/D-14):
-  # `torve rfc check` covers format, graph and index drift in one run, from
-  # the package alone (S-0007/D-12) — no store, no skill. Promoted out of its
-  # shadow tenure when CI stopped running the battery a second time itself
-  # (S-0002/A-4): this is now the only place the corpus is checked, so it blocks,
-  # and it is named, so a red corpus does not read as a red test suite.
+  # The corpus validator (S-0007/D-14), and the only place the corpus is
+  # checked since CI stopped running the battery twice (S-0002/A-4) — named, so
+  # a red corpus does not read as a red test suite.
   - name: spec-valid
     run: "uv run torve spec check"
     input: worktree
     state: blocking
     origin: S-0007
     axis: form
-    added: 2026-08-22
     timeout: 20
     sabotage: tests/test_rfc_check.py
-  # The checkable half of S-0014 (S-0014/D-11), entering at shadow per S-0002/D-18
-  # after the one-time repository sweep (S-0014/D-12).
   - name: source-layout
     run: "@source-layout"
     state: shadow
     origin: S-0014
     axis: form
-    added: 2026-08-21
     sabotage: source-layout
-  # The audience rule of S-0011/audience-who-reads-the-string (S-0011/D-11, S-0011/A-1): no corpus identifiers
-  # in user-facing strings. Entered at shadow, whole-tree report read clean
-  # after the one-time rewrite, sabotage red on demand (including the
-  # must-pass docstring twin), then promoted — a deterministic AST check has
-  # no false-positive rate to soak (the layering precedent, T-0014).
+  # No corpus identifiers in user-facing strings (S-0011/D-11, S-0011/A-1).
   - name: user-facing-text
     run: "@user-facing-text"
     state: blocking
     origin: S-0011
     axis: compliance
-    added: 2026-08-22
     sabotage: user-facing-text
-  # S-0015/enforcement-the-layering-gate (S-0015/D-8): the layer contracts, checked by import-linter over
-  # the whole package — a self-development gate (S-0015/D-10), meaningful only in
-  # this repository; the tool is a dev dependency and never ships. Entered at
-  # shadow (§7.6), report read clean, sabotage red on demand, then promoted to
-  # blocking per §7.7 — a deterministic graph check has no false-positive rate
-  # to soak (departure from S-0002/D-23's 30-change criterion, logged in T-0014).
+  # The layer contracts over the whole package. A self-development gate
+  # (S-0015/D-10): the tool is a dev dependency and never ships.
   - name: layering
     run: "uv run lint-imports"
     state: blocking
     origin: S-0015
-    added: 2026-08-22
     input: worktree
     timeout: 60
     sabotage: tests/test_layering.py
-  # S-0036/the-coverage-delta-gate (S-0036/D-1): does the suite meet the attempt's changed lines?
-  # diff-cover intersects the coverage report with the diff against {base} —
-  # the merge-base the battery itself computed, substituted by the runner from
-  # the same context every builtin judges against. The command never resolves
-  # a ref in shell, so live runs and replays measure an identical surface. The
-  # judgment is the attempt's added and changed lines only — never the
-  # inherited tree, never a whole-repo threshold (0031's ratchet doctrine).
-  # Entering shadow per S-0002/D-18; promotion is a separate act on soak evidence.
-  # The threshold and this exact invocation are settled by measurement over
-  # the landing (S-0036/D-2, numbers in this task's execution log): 100% on the
-  # landing's 37 changed src lines, 25% on the sabotage defect, ~50 s for
-  # the full suite under coverage against the 600 s shell default; a later
-  # branch-level tightening has `--branch-coverage` in reserve.
+  # Does the suite meet the attempt's changed lines (S-0036/D-1)? diff-cover
+  # intersects coverage with the diff against {base} — the merge-base the
+  # battery itself computed, substituted by the runner, so a gate never
+  # resolves a ref in shell and live runs and replays measure one surface.
+  # The judgment is the attempt's added and changed lines, never the inherited
+  # tree and never a whole-repo threshold (S-0031's ratchet doctrine).
   - name: coverage-delta
     run: "uv run pytest --cov=src --cov-report=xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
     state: shadow
     origin: S-0036
-    added: 2026-09-03
     input: worktree
     sabotage: coverage-delta
-  # S-0054/the-projections-beside-the-code (S-0054/D-7): the managed AGENTS.md sections beside the code
-  # are rendered from the corpus and drift-checked like the index; a hand
-  # edit inside the markers names its file. Entering at shadow per S-0002/D-18.
+  # The managed AGENTS.md sections beside the code, rendered from the corpus
+  # and drift-checked like the index (S-0054/D-7).
   - name: spec-projection
     run: "uv run torve spec project --check"
     input: worktree
     state: shadow
     origin: S-0054
     axis: form
-    added: 2026-09-09
     timeout: 30
     sabotage: tests/test_colocation.py
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
     origin: structural
-    added: 2026-08-21
     timeout: 900
     sabotage: acceptance
     # Fallback for runs with no task contract (human pull requests).

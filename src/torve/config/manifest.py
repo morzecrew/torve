@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import warnings
-from datetime import date
 from pathlib import Path
 
 import yaml
@@ -65,9 +64,6 @@ class Gate(BaseModel):
     origin: str
     """structural | leak/<task> | a citation (S-0059/D-4) — why this gate exists. Required
     on every entry (S-0002/D-19): provenance is unrecoverable later."""
-    added: date | None = None
-    """The date the entry landed in the manifest, recorded for the reader; the engine
-    reads nothing from it."""
     input: GateInput | None = None
     """Derived for builtins; defaults to worktree for shell gates."""
     timeout: float | None = None

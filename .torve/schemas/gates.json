@@ -4,20 +4,6 @@
       "additionalProperties": false,
       "description": "One entry in gates.yaml (S-0002/the-gate-contract, lifecycle \u00a77 per S-0002/A-2).\n\n`run` is a shell command, or an `@`-prefixed builtin reference. The RFC's\n`@task.acceptance` is the acceptance builtin; the other builtins follow the\nsame convention (`@scope`, `@secrets`, ...). `commands` is the acceptance\nfallback for runs with no task file.\n\n`state` and `origin` are required on every entry (S-0002/D-19): a boolean\ncannot express shadow or quarantine, and provenance is unrecoverable\nlater. `shadow` and `quarantined` gates run and report but never affect\nthe exit code (\u00a77.3).\n\n`axis` is the optional conviction label (S-0034/D-4): what a red result from\nthis gate means. An entry without it reads as `functional` once\n`resolved_gates()` fills the default; the declaration itself stays absent\nso the manifest diff shows only labels the operator chose.\n\n`sabotage` names this gate's twin \u2014 a CASES family in the sabotage suite\nor a repository test path \u2014 the evidence that the gate can convict (S-0036/D-3).\nThe load refuses a twinless entry once the manifest names a twin for any\ngate; a manifest naming none at all predates the field and is only voiced\nby `twinless_gates()`. The value must be a non-blank reference; resolving\nit against the CASES families and the tree cannot happen here \u2014 the\nsabotage suite imports this model, so the cross-check lives in the\nrepository test that pins the shipped battery.",
       "properties": {
-        "added": {
-          "anyOf": [
-            {
-              "format": "date",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "The date the entry landed in the manifest, recorded for the reader; the engine\nreads nothing from it.",
-          "title": "Added"
-        },
         "axis": {
           "anyOf": [
             {

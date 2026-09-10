@@ -20,6 +20,7 @@ from typing import Any, cast
 from torve.base.shell import run_command
 from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
 from torve.domain.attempt import BypassRecord, GateResult
+from torve.domain.task import Task
 from torve.domain.vocabulary import GateOutcome
 from torve.gates import BUILTINS
 from torve.gates.context import GateContext
@@ -80,21 +81,23 @@ def _substitute_base(gate: Gate, ctx: GateContext) -> str:
 # ....................... #
 
 
-def decision_gates(ctx: GateContext) -> list[Gate]:
+def decision_gates(task: Task | None) -> list[Gate]:
     """The contract's checkable rows as gates (S-0054 S-0054/D-2): one
     `decision:<id>` shell gate per inherited row with a `check`, under the
     compliance axis, at the row's `check_state` — `shadow` until an
     amendment promotes it (S-0054/D-4) — with the row's twin as its sabotage
     reference. Contract-borne: never written into the manifest, and gone
     with the contract. Read from the contract alone, never the corpus
-    (S-0007/D-18)."""
+    (S-0007/D-18). Takes the contract rather than the run context: the same
+    list answers `torve gates list`, which has no repository to build a
+    context against."""
 
-    if ctx.task is None:
+    if task is None:
         return []
 
     gates: list[Gate] = []
 
-    for row in ctx.task.decisions:
+    for row in task.decisions:
         if not row.check:
             continue
 
@@ -201,7 +204,7 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
 def run_gates(
     ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
 ) -> RunReport:
-    gates = [*ctx.manifest.resolved_gates(), *decision_gates(ctx)]
+    gates = [*ctx.manifest.resolved_gates(), *decision_gates(ctx.task)]
 
     if only is not None:
         unknown = only - {g.name for g in gates}

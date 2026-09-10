@@ -2,6 +2,7 @@
 
     torve gates run --base origin/main       # all gates
     torve gates run --only scope,acceptance
+    torve gates list                         # what the battery will run
     torve gates check                        # the sabotage suite
     torve size .torve/tasks/T-0002.yaml
 
@@ -105,6 +106,7 @@ def root_options(
 # ....................... #
 
 gates_app.command("run")(gates.gates_run)
+gates_app.command("list")(gates.gates_list)
 gates_app.command("check")(gates.gates_check)
 app.command("size")(gates.size)
 app.command("plan")(plan.plan_cmd)

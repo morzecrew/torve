@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `torve gates list` prints the battery as it will run: every gate with its
+  input, timeout and axis resolved, cheapest first, plus the gates a task
+  contract carries for its own length. `--format json` gives the whole
+  command where the table truncates it.
+
 - A contract names what asked for the work: `source` beside `spec`, where
   `spec` says whose rows it inherits. `torve intake --source` records it and
   adoption copies it onto every contract it mints. The record reads source,
@@ -26,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reviewing its own kind shares its blind spots.
 
 ### Changed
+
+- **Breaking:** a gate entry no longer accepts `added:`. Nothing ever read
+  it, and the date the entry landed is what `git log` answers. Remove the
+  key from `gates.yaml`; the manifest refuses unknown keys.
 
 - **Breaking (S-0059):** a contract names its document as `spec: S-NNNN`, the
   identifier, never a path; `rfc` refuses with a hint, `torve intake --spec`

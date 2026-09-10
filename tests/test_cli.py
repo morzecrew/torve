@@ -67,6 +67,54 @@ def test_json_is_exactly_one_document_on_stdout(repo):
     json.loads(result.stdout)  # would raise on any stray line
 
 
+def test_gates_list_shows_the_resolved_battery_and_the_contract_s_own(repo):
+    """The view the manifest cannot give: input, timeout and axis resolved,
+    and the gates that exist only for the length of one contract."""
+
+    repo.seed()
+    rows = [
+        {
+            "id": "S-0002/D-1",
+            "grade": "LOCKED",
+            "text": "settled",
+            "paths": ["src/**"],
+            "check": "true",
+        }
+    ]
+    repo.task(base_task(allow=["src/**"], decisions=rows), None)
+    task_file = repo.root / ".torve" / "tasks" / TASK_ID / "contract.yaml"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "gates",
+            "list",
+            "--root",
+            str(repo.root),
+            "--task",
+            str(task_file),
+            "--format",
+            "json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    listed = {g["name"]: g for g in json.loads(result.stdout)["gates"]}
+
+    # Derived, never written in the manifest.
+    assert listed["scope"]["input"] == "diff"
+    assert listed["scope"]["timeout"] == 30
+    assert listed["secrets"]["axis"] == "functional"  # unlabeled reads as functional
+
+    # Contract-borne, and gone with the contract.
+    assert listed["decision:S-0002/D-1"]["run"] == "true"
+    assert listed["decision:S-0002/D-1"]["origin"] == "S-0002/D-1"
+
+    bare = CliRunner().invoke(
+        app, ["gates", "list", "--root", str(repo.root), "--format", "json"]
+    )
+    assert "decision:S-0002/D-1" not in bare.stdout
+
+
 def test_gates_check_json_is_schema_versioned():
     result = CliRunner().invoke(app, ["gates", "check", "--format", "json"])
     document = json.loads(result.stdout)
