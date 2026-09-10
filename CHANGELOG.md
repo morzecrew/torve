@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The fleet manifest carries a `schema_version` and has a schema: `torve init`
+  mints `.torve/schemas/fleet.json` like every other model's, so an editor can
+  validate `~/.config/torve/fleet.yaml`.
+
 - `torve doctor` says how many standing contracts the tree carries and when
   one last minted a task. A contract that has never fired is a capability
   nobody collects, and until now nothing said so.
@@ -39,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reviewing its own kind shares its blind spots.
 
 ### Changed
+
+- Every shape the engine writes declares its own `schema_version` beside its
+  own model, at the value it already carried. One shared constant meant a bump
+  to any shape bumped all of them.
 
 - Every writer and reader of the UTC instant goes through `torve.base.clock`.
   Twenty-odd call sites still spelled the format themselves. A test refuses a

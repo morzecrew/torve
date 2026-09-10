@@ -12,10 +12,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from torve.base.model import STRICT
 from torve.domain.spec import is_citation
-from torve.domain.task import SCHEMA_VERSION, Scope
+from torve.domain.task import Scope
 from torve.domain.vocabulary import GateAxis, GateInput, GateState
 
 # ----------------------- #
+
+# The gate manifest's own shape version (T-0321).
+SCHEMA_VERSION = 1
 
 # An unlabeled gate resolves to UNLABELED_AXIS in `resolved_gates()` (S-0034/D-4):
 # the fail-safe routes its retry to the heaviest rung, so a missing label

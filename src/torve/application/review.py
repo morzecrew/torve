@@ -54,7 +54,7 @@ from torve.config.runconfig import (
 )
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import CONTRACT_SCHEMA_VERSION, SCHEMA_VERSION, Budget, Task
+from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, Task
 from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
@@ -599,7 +599,12 @@ def run_review(
     mount point are all settled before the copy exists, so no write the
     reviewer makes can reach anything that was read into the judgment."""
 
-    from torve.application.telemetry import agent_token_counts, append_record, broker_block
+    from torve.application.telemetry import (
+        RECORD_SCHEMA_VERSION,
+        agent_token_counts,
+        append_record,
+        broker_block,
+    )
 
     tier = tier_for(config, review.tier)
     state = RunState(task_id=review.id, path=naming.state_file(root, review.id))
@@ -799,7 +804,7 @@ def run_review(
         fact = "review clean"
 
     record: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RECORD_SCHEMA_VERSION,
         "kind": "review",
         "at": stamp(),
         "config_hash": config_digest,

@@ -51,9 +51,11 @@ def _json(schema: dict[str, Any]) -> str:
 
 
 def expected_schemas(corpus: Path) -> dict[Path, str]:
-    """Every schema `init` writes, by path: the four files of a document,
-    the contract, the log, the run configuration and the gate manifest."""
+    """Every schema `init` writes, by path: the four files of a document, the
+    contract, the log, the run configuration, the gate manifest, a standing
+    contract, a source and the fleet manifest."""
 
+    from torve.config.fleet import FleetManifest
     from torve.config.manifest import Manifest
     from torve.config.runconfig import RunnerConfig
     from torve.config.spec import LANDING_SCHEMA, landing_schema_text
@@ -69,6 +71,9 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     texts[where / "gates.json"] = _json(Manifest.model_json_schema())
     texts[where / "standing.json"] = _json(StandingContract.model_json_schema())  # S-0059/D-7
     texts[where / f"{SOURCE_SCHEMA}.json"] = source_schema_text()  # S-0060/D-1
+    # The fleet manifest lives on the operator's machine (S-0024), so its schema is
+    # minted here for an editor to be pointed at — every other model has one (T-0321).
+    texts[where / "fleet.json"] = _json(FleetManifest.model_json_schema())
 
     return texts
 

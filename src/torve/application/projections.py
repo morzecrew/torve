@@ -39,7 +39,7 @@ from torve.config.manifest import UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.events import EventKind
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import DISPATCHABLE_ROLES, SCHEMA_VERSION, Task
+from torve.domain.task import DISPATCHABLE_ROLES, Task
 from torve.domain.vocabulary import GATE_AXES
 
 if TYPE_CHECKING:
@@ -1254,7 +1254,7 @@ def context_report(
             )
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": 1,
         "at": stamp(),
         # Which carrier answered, per block, and how much it had to answer
         # with (S-0050/A-3). A record that was not watching a run holds nothing
@@ -1326,7 +1326,7 @@ def run_from_view(view: TaskView) -> dict[str, Any]:
 
     return {
         "task_id": view.task_id,
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": 1,
         "state": str(view.state),
         "attempts": view.attempts,
         "heartbeat": stamp(heartbeat),
@@ -1833,7 +1833,7 @@ def why_report(
     contract = minted if minted is not None else _load_yaml_dict(layout.task_file(root, task_id))
 
     if contract is None:
-        return {"schema_version": SCHEMA_VERSION, "task": task_id, "found": False}
+        return {"schema_version": 1, "task": task_id, "found": False}
 
     rows = rows_from_events(recorded) if minted is not None and recorded else stream_rows(root)
     task_rows = [row for row in rows if row.get("task_id") == task_id and _is_attempt_row(row)]
@@ -1847,7 +1847,7 @@ def why_report(
     )
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": 1,
         "task": task_id,
         "found": True,
         "spec": contract.get("spec"),

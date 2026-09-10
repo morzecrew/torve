@@ -829,6 +829,7 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
         "contract.json",
         "decisions.json",
         "document.json",
+        "fleet.json",
         "gates.json",
         "landing.json",
         "log.json",

@@ -21,9 +21,11 @@ from pathlib import Path
 from torve.base.clock import parse, stamp
 from torve.base.naming import WORKTREE_DIR
 from torve.domain.states import EscalationReason, TaskState, check_transition
-from torve.domain.task import SCHEMA_VERSION
 
 # ----------------------- #
+
+# The run state's own shape version (T-0321).
+SCHEMA_VERSION = 1
 
 
 def _now() -> str:

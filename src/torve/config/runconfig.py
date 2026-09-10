@@ -22,10 +22,13 @@ from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_valid
 
 from torve.base.model import STRICT
 from torve.config import layout
-from torve.domain.task import SCHEMA_VERSION, Task
+from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
 
 # ----------------------- #
+
+# The runner configuration's own shape version (T-0321).
+SCHEMA_VERSION = 1
 
 ADAPTERS = ("fake", "api", "harness", "subscription")
 

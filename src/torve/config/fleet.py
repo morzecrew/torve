@@ -20,6 +20,9 @@ from torve.config.runconfig import RunnerConfig
 
 # ----------------------- #
 
+# The fleet manifest's own shape version (T-0321).
+SCHEMA_VERSION = 1
+
 
 class FleetRepository(BaseModel):
     """One manifest entry. `trust` names the capability class a repository
@@ -28,19 +31,19 @@ class FleetRepository(BaseModel):
 
     model_config = STRICT
     root: str
+    """Where the repository sits on this machine; `path` resolves it."""
     trust: Literal["own", "reviewed", "untrusted"]
+    """The capability class this repository is granted (§5.3), never defaulted — a class
+    nobody wrote down is a grant nobody reviewed."""
 
-    # Which board this root's contracts are minted onto (S-0048 S-0048/D-1).
-    # Declared here and never derived: a partition from the git remote is
-    # convenient and wrong for a repository with no remote, with two, or
-    # with one that changed. Declared *here* rather than in the root for
-    # S-0013/D-3's reason — a repository that chose its own partition could
-    # mint onto a board it was never given.
-    #
-    # Optional in the model because `torve fleet tick` neither reads nor
-    # needs it and a v1 fleet must keep working; required by the resident
-    # loop, which refuses an empty one before the root is served (S-0048/D-2).
     partition: str = ""
+    """Which board this root's contracts are minted onto (S-0048/D-1). Declared here and
+    never derived: a partition read off the git remote is convenient and wrong for a
+    repository with no remote, with two, or with one that changed; declared *here*
+    rather than in the root for S-0013/D-3's reason, since a repository choosing its own
+    partition could mint onto a board it was never given. Empty is legal because
+    `torve fleet tick` neither reads nor needs it, and the resident loop refuses an
+    empty one before the root is served (S-0048/D-2)."""
 
     # ....................... #
 
@@ -58,19 +61,32 @@ class FleetAttention(BaseModel):
 
     model_config = STRICT
     pause_escalations: int = 1
+    """How many open escalations pause the fleet — one budget across every repository,
+    because the operator triaging them exists once."""
 
 
 # ....................... #
 
 
 class FleetManifest(BaseModel):
+    """The operator's own file (S-0024): which roots this machine ticks, how
+    much attention each may consume, and in what order. It stays on the
+    machine because that is what genuinely varies by machine — the repository
+    under work never gets to argue with it."""
+
     model_config = STRICT
+    schema_version: int = SCHEMA_VERSION
+    """The manifest's own shape version (T-0321) — the fleet declared none at all, so
+    a reader had nothing to refuse an older file by."""
     repositories: list[FleetRepository] = Field(default_factory=list)
+    """The roots this machine ticks, in the order they are written unless `order` says
+    otherwise."""
     attention: FleetAttention = Field(default_factory=FleetAttention)
-    # Deterministic, never a priority field (S-0024/D-4): a fleet that ticks
-    # roots in a chosen order is one config change from being a scheduler
-    # with opinions.
+    """The triage budget shared across every root."""
     order: Literal["manifest", "alphabetical"] = "manifest"
+    """The ticking order — deterministic, never a priority field (S-0024/D-4): a fleet
+    that ticks roots in a chosen order is one configuration change away from being a
+    scheduler with opinions."""
 
     # ....................... #
 

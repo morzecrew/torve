@@ -23,11 +23,15 @@ from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
-from torve.domain.task import SCHEMA_VERSION, InheritedDecision, Task
+from torve.domain.task import InheritedDecision, Task
 from torve.gates.context import GateContext
 from torve.gates.runner import RunReport
 
 # ----------------------- #
+
+# The telemetry envelope's own shape version (T-0321) — every record
+# appended to the stream declares it, wherever it was built.
+RECORD_SCHEMA_VERSION = 1
 
 _APPEND_LOCK = threading.Lock()
 _REGIME_LOCK = threading.Lock()
@@ -362,7 +366,7 @@ def build_record(
     transfer = _drain_transfer(ctx.task.id if ctx.task else None)
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RECORD_SCHEMA_VERSION,
         "at": stamp(),
         "config_hash": config_hash,
         "torve_version": torve.__version__,  # toolchain, recorded beside the regime hash
@@ -421,7 +425,7 @@ def build_attempt_row(
     transfer = _drain_transfer(task.id)
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RECORD_SCHEMA_VERSION,
         "at": stamp(),
         "config_hash": None,  # gates never ran; no manifest pass
         "torve_version": torve.__version__,
@@ -473,7 +477,7 @@ def record_row(payload: Mapping[str, Any], *, task_id: str | None, at: str) -> d
     what makes the two carriers incapable of disagreeing."""
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RECORD_SCHEMA_VERSION,
         "at": at,
         "task_id": task_id,
         **{key: value for key, value in payload.items() if key != "attempt"},
@@ -516,7 +520,7 @@ def engine_event(root: Path, event: str, details: dict[str, Any]) -> None:
     append_record(
         root / telemetry_rel,
         {
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": RECORD_SCHEMA_VERSION,
             "kind": "engine",
             "event": event,
             "at": stamp(),
@@ -534,7 +538,7 @@ def feedback_record(task_id: str, human_minutes: int, rework_after_review: bool)
     append-only store is not."""
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RECORD_SCHEMA_VERSION,
         "at": stamp(),
         "task_id": task_id,
         "human_minutes": human_minutes,

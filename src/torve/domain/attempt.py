@@ -11,10 +11,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from torve.base.model import STRICT
-from torve.domain.task import SCHEMA_VERSION
 from torve.domain.vocabulary import FindingSeverity, GateOutcome, GateState
 
 # ----------------------- #
+
+# The attempt shapes' own version — gate results, findings (T-0321).
+SCHEMA_VERSION = 1
 
 # ....................... #
 

@@ -292,3 +292,33 @@ def test_the_coverage_entry_says_which_of_its_two_halves_went_red():
     green = behaves("true")
     assert green.returncode == 0
     assert "MEASURED" in green.stdout
+
+
+def test_no_shape_borrows_another_shape_s_version():
+    """T-0321: one shared constant meant bumping any shape bumped every shape —
+    the contract going to 2 reddened the telemetry and survey suites, which
+    declare nothing about a contract. `domain.task` now exports the contract's
+    version alone."""
+
+    from torve.domain import task
+
+    assert task.CONTRACT_SCHEMA_VERSION == 2
+    assert not hasattr(task, "SCHEMA_VERSION")
+
+    # Each shape says its own, and they are free to disagree.
+    from torve.application.evals import SCHEMA_VERSION as evals_version
+    from torve.application.runstate import SCHEMA_VERSION as runstate_version
+    from torve.application.telemetry import RECORD_SCHEMA_VERSION
+    from torve.config.fleet import FleetManifest
+    from torve.config.manifest import SCHEMA_VERSION as manifest_version
+    from torve.domain.attempt import SCHEMA_VERSION as attempt_version
+
+    declared = (
+        RECORD_SCHEMA_VERSION,
+        evals_version,
+        runstate_version,
+        manifest_version,
+        attempt_version,
+        FleetManifest().schema_version,
+    )
+    assert all(isinstance(v, int) and v >= 1 for v in declared)

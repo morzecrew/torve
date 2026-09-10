@@ -38,7 +38,6 @@ from torve.cli.options import (
     read_log,
 )
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
-from torve.domain.task import SCHEMA_VERSION
 
 # ----------------------- #
 
@@ -148,7 +147,7 @@ def plan_cmd(
     if fmt is Format.JSON:
         emit_json(
             {
-                "schema_version": SCHEMA_VERSION,
+                "schema_version": 1,
                 "document": report.document,
                 "dry_run": dry_run,
                 "tasks": [
@@ -211,7 +210,7 @@ def _reconcile(root: Path, rfc_dir: Path, dry_run: bool, fmt: Format) -> None:
     if fmt is Format.JSON:
         emit_json(
             {
-                "schema_version": SCHEMA_VERSION,
+                "schema_version": 1,
                 "dry_run": dry_run,
                 "stale": [
                     {

@@ -27,13 +27,13 @@ from torve.application.dispatch import RunDeps
 from torve.application.ports import AgentResult
 from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
 from torve.application.runstate import RunState
-from torve.application.telemetry import append_record, config_hash
+from torve.application.telemetry import RECORD_SCHEMA_VERSION, append_record, config_hash
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, image_for, tier_for, tier_name_for
 from torve.domain.states import TaskState
-from torve.domain.task import SCHEMA_VERSION, Task
+from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -143,7 +143,7 @@ def run_shadow(
     )
 
     record: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RECORD_SCHEMA_VERSION,
         "kind": "shadow",
         "at": stamp(),
         "config_hash": (

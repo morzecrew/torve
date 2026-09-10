@@ -39,9 +39,12 @@ from torve.application.telemetry import append_record
 from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, SkillsConfig, image_for, tier_for
-from torve.domain.task import SCHEMA_VERSION, Task
+from torve.domain.task import Task
 
 # ----------------------- #
+
+# The eval ledger's own shape version (T-0321).
+SCHEMA_VERSION = 1
 
 EVAL_LEDGER = "evals.jsonl"
 

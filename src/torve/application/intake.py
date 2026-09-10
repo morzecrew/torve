@@ -39,7 +39,7 @@ from torve.application.ports import (
 )
 from torve.application.review import SchemaRefusal, schema_refusal
 from torve.application.runstate import RunState
-from torve.application.telemetry import broker_block, engine_event
+from torve.application.telemetry import RECORD_SCHEMA_VERSION, broker_block, engine_event
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.base.model import STRICT
@@ -57,7 +57,6 @@ from torve.domain.spec import document_id
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import (
     CONTRACT_SCHEMA_VERSION,
-    SCHEMA_VERSION,
     Budget,
     InheritedDecision,
     Scope,
@@ -1654,7 +1653,7 @@ def _append_intake_record(
     append_record(
         root / load_manifest(manifest).telemetry,
         {
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": RECORD_SCHEMA_VERSION,
             "kind": "intake",
             "at": stamp(),
             "config_hash": config_digest,

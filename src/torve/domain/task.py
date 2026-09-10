@@ -17,11 +17,11 @@ from torve.domain.vocabulary import Character, CheckState, Grade, Role, Tier
 
 # ----------------------- #
 
-# The engine's shape version, borrowed by every envelope the engine writes —
-# telemetry, run state, the manifest, the projections. Not the contract's.
-SCHEMA_VERSION = 1
-# S-0059/D-1: the contract's own — 2 names the document as `spec: S-NNNN`;
-# 1 carried `rfc`, a path.
+# The contract's own shape version (S-0059/D-1): 2 names the document as
+# `spec: S-NNNN`; 1 carried `rfc`, a path. Every other shape the engine writes
+# declares its own beside its own model (T-0321) — one constant shared across
+# unrelated shapes means bumping any of them bumps all of them, which is what
+# happened when this went to 2 and the telemetry and survey suites reddened.
 CONTRACT_SCHEMA_VERSION = 2
 
 # The document grammar (S-0058/D-1), spelled here because `domain/spec.py`

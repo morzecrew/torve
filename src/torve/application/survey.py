@@ -26,7 +26,6 @@ from typing import Any
 
 from torve.config import layout
 from torve.config.manifest import Gate, Manifest, load_manifest
-from torve.domain.task import SCHEMA_VERSION
 from torve.gates.context import build_context
 from torve.gates.contract import NO_TASK
 from torve.gates.runner import run_gates
@@ -94,7 +93,7 @@ def default_battery() -> Manifest:
         Gate(name="acceptance", run="@task.acceptance", state="blocking", origin="structural"),
     ]
 
-    return Manifest(schema_version=SCHEMA_VERSION, gates=gates)
+    return Manifest(gates=gates)
 
 
 # ....................... #
@@ -217,7 +216,7 @@ def run_survey(
     corpus_adds = [name for name in order if not ran[name] and no_task_skip[name] and surveyed > 0]
 
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": 1,
         "kind": "survey",
         "branch": branch,
         "last": last,

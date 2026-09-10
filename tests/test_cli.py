@@ -1122,6 +1122,7 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "contract.json",
         "decisions.json",
         "document.json",
+        "fleet.json",
         "gates.json",
         "landing.json",
         "log.json",
