@@ -4,7 +4,7 @@ title: >-
   One word for the document, and the tree as the record
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0058]
 informed_by: [S-0010, S-0044, S-0047, S-0057]
 supersedes: []
