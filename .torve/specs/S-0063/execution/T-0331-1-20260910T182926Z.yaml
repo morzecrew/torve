@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0331
+phase: 1
+base: ecc80067ca09ec226999a339262c06d527d755e5
+commit: 2c92bc86824ee1a3f3f0a43e13f2da5c6426f2ee
+at: '2026-09-10T18:29:26Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-10T17:54:24Z'
+    claim: >-
+      The environment contract is phase 2's, and phase 1 touches its file only to
+      take a method off it. Nothing here fills TORVE_PROMPT or the rest; what changed
+      on the port is that it no longer promises a build.
+    evidence: >-
+      src/torve/application/ports.py:133 — RuntimePort keeps create, destroy, exec,
+      resolve_image and the sandbox listing, and nothing that writes an image.
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T17:54:24Z'
+    claim: >-
+      The equip script is phase 2's. What phase 1 owed it is the place to put it:
+      the base ends by making /opt/torve, and its comment says a definition that inherits
+      without writing the two scripts is an image no seat can use.
+    evidence: >-
+      sandboxes/base/Dockerfile:56 — the directory and the note, so the seam has an
+      address before it has an implementation.
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-10T17:54:24Z'
+    claim: >-
+      Moving out of .torve/ has a consequence nobody wrote down: a hidden directory
+      is not projectable, so the definitions were ungoverned by the colocation rule
+      the whole time they lived there. They are projectable now, and every definition
+      directory carries a rendered AGENTS.md like every other source directory in
+      this tree.
+    evidence: >-
+      src/torve/application/colocation.py:87 — _projectable refuses any path segment
+      starting with a dot, which .torve/sandbox/ always was.
+    action: decided
+    notes: >-
+      Amended in the same pass: D-7 and D-9 named directories one by one, which rendered
+      near-identical sections into four folders holding a Dockerfile each (S-0063/A-4,
+      A-5).
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-10T17:54:25Z'
+    claim: >-
+      One base, on node:24-slim rather than a python base. The row says what the base
+      carries and not what it is built from; four of the six definitions are npm packages
+      and the fifth installed node anyway, and the CLI layer brings its own interpreter
+      through uv. python3 is installed for a repository whose battery calls it bare,
+      never for torve.
+    evidence: >-
+      sandboxes/base/Dockerfile:13 — node:24-slim plus git, curl, ca-certificates,
+      python3 and zstd, which is the union of what the six definitions installed separately.
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-10T17:54:25Z'
+    claim: >-
+      No equip or run script lands here, which is what claude-first means for phase
+      1: the definitions move and inherit, and every image keeps the command its manifest
+      already carries.
+    evidence: >-
+      sandboxes/claude/Dockerfile:4 — the definition is the base plus one npm install,
+      and nothing about invocation has moved yet.
+    action: decided
+  - decision: D-11
+    grade: LOCKED
+    at: '2026-09-10T17:54:26Z'
+    claim: >-
+      The retirement reached the drafting gate, which built every touched definition
+      to prove it still builds. It cannot, and replacing it with a build run some
+      other way would put the network and a builder back on a path that may reach
+      neither. It reads bake.hcl instead: a definition no target names is a definition
+      nothing would build, which is the drafting error that exists once a build file
+      does.
+    evidence: >-
+      src/torve/application/intake.py:519 — the leg reads the bake file and names
+      the recipe, and the runtime is still asked to resolve configured images.
+    action: decided
+    notes: >-
+      torve sandbox keeps list and digest; build and stage are gone with RuntimePort.build_image,
+      its two adapter implementations and four stubs in the suite.
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-10T17:54:26Z'
+    claim: >-
+      The equipment mount is phase 2's. Phase 1 touches the runtime adapters only
+      to take build_image off them, and the plugin renderer only because the tag it
+      parses changed shape.
+    evidence: >-
+      src/torve/adapters/runtime/plugins.py:37 — harness_kind reads the repository
+      name and its -sandbox suffix, where it used to read the version position of
+      a torve-agent tag.
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-10T18:24:14Z'
+    claim: >-
+      The acceptance battery cannot build sandbox images. It ran the suite twice —
+      once as acceptance, once inside coverage-delta — concurrently, and both raced
+      the same bake through one buildkit; six images over this host's proxied egress
+      took acceptance past its 900s bound and the gate timed out. The image-building
+      probes are gated behind TORVE_IMAGE_TESTS now, which takes the suite from over
+      15 minutes to 2:03. Nothing in the corpus decided what the battery must build,
+      so this is a rule being written rather than departed from.
+    evidence: >-
+      tests/test_sandbox_images.py:96 — builds_images, the marker; the text-level
+      checks in tests/test_sandbox_defs.py still run on every attempt.
+    action: decided
+    proposal: >-
+      A row on S-0063: building a sandbox image is an operator's act and never an
+      attempt's, so the battery checks a definition's shape and never its build. It
+      follows from D-11 — the engine has no way to build one, so 'does this build'
+      is what just images answers — and the shape checks are what catch a drafting
+      error: inherits the base, carries no copy of the CLI layer, is named by a bake
+      target, and bakes what the wheel declares.
+    notes: >-
+      What is gated is whether a pinned npm version still resolves, which surfaces
+      the moment anyone builds.
