@@ -20,6 +20,7 @@ phasing:
       - src/torve/cli/main.py
       - src/torve/cli/decisions.py
       - src/torve/application/decisions.py
+      - tests/test_decisions.py
       - tests/test_sources.py
       - tests/test_cli.py
       - tests/test_doctor.py

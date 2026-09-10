@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-10T04:11:07Z'
+    title: >-
+      phase 1 takes the test files of the modules it touches
+    md: >-
+      The contract lint refuses a phase that allows a module without its existing
+      test file (the T-0113 rule). Phase 1 touches `application/decisions.py` and
+      `cli/decisions.py`, whose tests live in `tests/test_decisions.py`, which the
+      phase did not name. It joins phase 1's scope. Scope only; no row changes.
