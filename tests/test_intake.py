@@ -836,9 +836,9 @@ def test_run_intake_spent_budget_escalates(seeded):
 # Adoption (S-0020/D-1, S-0020/D-4).
 
 
-def adopted_ready_run(seeded, *, spec: str | None = None) -> str:
+def adopted_ready_run(seeded, *, spec: str | None = None, source: str | None = None) -> str:
     config = RunnerConfig()
-    task = mint_intake_task(seeded.root, "two modules", config, spec=spec)
+    task = mint_intake_task(seeded.root, "two modules", config, spec=spec, source=source)
     agent = ScriptedAgent(
         [
             output_for(
@@ -852,6 +852,77 @@ def adopted_ready_run(seeded, *, spec: str | None = None) -> str:
     run_intake(seeded.root, seeded.root, task, config, StubRuntime(), agent, "digest")
     seeded.commit("intake bookkeeping")
     return task.id
+
+
+def file_source(root, kind: str = "audit", slug: str = "soc2-2026") -> str:
+    """One filed source in the tree, so a run may name it."""
+
+    from torve.config.sources import schema_header
+
+    path = root / ".torve" / "sources" / kind / f"{slug}.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"{schema_header()}\n"
+        + yaml.safe_dump(
+            {"id": f"{kind}/{slug}", "kind": kind, "title": "A gap", "ref": "https://x.invalid/42"},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    return f"{kind}/{slug}"
+
+
+def test_the_source_reaches_the_drafts_file_and_every_adopted_contract(seeded):
+    """S-0060/D-5: `--source` records what asked on the drafting run, carries
+    it in the drafts file and copies it onto every contract adoption mints —
+    the same shape `--spec` already had."""
+
+    asked = file_source(seeded.root)
+    source = adopted_ready_run(seeded, source=asked)
+
+    drafts = json.loads(
+        (seeded.root / ".torve" / "tasks" / source / "drafts.json").read_text(encoding="utf-8")
+    )
+
+    assert drafts["source"] == asked
+
+    for task_id in adopt(seeded.root, source, RunnerConfig()):
+        contract = yaml.safe_load(
+            (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert contract["source"] == asked
+        assert Task.model_validate(contract).source == asked
+
+
+def test_an_unknown_source_is_refused_before_a_model_runs(seeded):
+    """S-0060/D-5: a provenance nobody can open is worse than none, because
+    it reads as an answer — so the run is refused at minting."""
+
+    config = RunnerConfig()
+
+    with pytest.raises(ValueError, match="no source 'audit/never-filed'"):
+        mint_intake_task(seeded.root, "two modules", config, source="audit/never-filed")
+
+    with pytest.raises(ValueError, match="is not a source identifier"):
+        mint_intake_task(seeded.root, "two modules", config, source="NOT A SOURCE")
+
+    with pytest.raises(ValueError, match="no document 'S-0404'"):
+        mint_intake_task(seeded.root, "two modules", config, source="S-0404")
+
+
+def test_a_document_is_a_source_a_run_may_name(seeded):
+    """S-0060/D-1: a document is a source without being filed as one, so
+    `--source S-NNNN` resolves through the corpus."""
+
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
+
+    task = mint_intake_task(seeded.root, "two modules", RunnerConfig(), source="S-0099")
+
+    assert task.source == "S-0099"
 
 
 def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):

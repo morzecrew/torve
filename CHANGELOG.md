@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A contract names what asked for the work: `source` beside `spec`, where
+  `spec` says whose rows it inherits. `torve intake --source` records it and
+  adoption copies it onto every contract it mints. The record reads source,
+  then spec, then `operator`, so that word now means nobody said.
+
 - `torve source` files the provenance that is not a document: one file per
   source at `.torve/sources/<kind>/<slug>.yaml`, identified by that path,
   carrying what it is, where it lives and what it said, and no decisions.

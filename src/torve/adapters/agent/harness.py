@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
+# Where the engine materialises the context pack in the worktree; the
+# adapter reads files from it and never the corpus behind them.
+PACK_RELPATH = ".torve/context"
 
 # The broker handle's fields reach the sandbox inline in the tier command
 # (S-0021/the-port): a broker URL and a run-scoped token are operator
@@ -69,11 +72,35 @@ def _workspace_head(workspace: Path) -> str | None:
 # ....................... #
 
 
+def source_line(workspace: Path, task: Task) -> str:
+    """What asked for this work, as the pack states it (S-0060/D-9): the
+    identifier, its title and where it lives. Read from the pack the engine
+    wrote into the worktree rather than from the tree, because an adapter
+    does not reach the corpus (the planner-boundary contract, S-0015/A-1).
+    The identifier alone when the pack carries no file for it."""
+
+    if not task.source:
+        return ""
+
+    try:
+        payload = json.loads((workspace / PACK_RELPATH / "source.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return task.source
+
+    title = str(payload.get("title") or "")
+    ref = str(payload.get("ref") or "")
+    said = f' — "{title}"' if title else ""
+    where = f" ({ref})" if ref else ""
+
+    return f"{task.source}{said}{where}"
+
+
 def build_prompt(
     task: Task,
     revision: bool = False,
     continuation: bool = False,
     prompt_extras: list[str] | None = None,
+    asked: str = "",
 ) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
 
@@ -109,6 +136,9 @@ def build_prompt(
 
     if task.intent:
         lines += [task.intent.strip(), ""]
+
+    if asked:
+        lines += [f"Source: {asked}", ""]
 
     if task.spec:
         lines += [f"Specification: see the decisions below, inherited from `{task.spec}`.", ""]
@@ -676,6 +706,7 @@ class HarnessAgent:
                 revision=revision,
                 continuation=ctx.resume,
                 prompt_extras=self.tier.prompt_extras,
+                asked=source_line(ctx.workspace, ctx.task),
             )
         )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")

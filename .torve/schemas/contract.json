@@ -255,6 +255,20 @@
       "$ref": "#/$defs/Scope",
       "description": "What the attempt may and may not touch (S-0002/scope-in-detail)."
     },
+    "source": {
+      "anyOf": [
+        {
+          "pattern": "^(?:S-\\d{4}|(?:incident|audit|review|operator)/[a-z0-9][a-z0-9.-]*)$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "What asked for the work (S-0060/D-3): a source identifier, `S-NNNN` or\n`<kind>/<slug>`, never parsed for inheritance. `spec` says whose rows this\ncontract inherits and this says why it exists; a contract may carry both,\neither or neither, and the record reads this before `spec` before\n`operator`.",
+      "title": "Source"
+    },
     "spec": {
       "anyOf": [
         {

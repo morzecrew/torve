@@ -52,6 +52,32 @@ from torve.domain.task import InheritedDecision, Scope, Task
 # The tier mapping
 
 
+def test_the_prompt_says_what_asked_for_the_work(tmp_path):
+    """S-0060/D-9: the line above the decisions names the source, its title
+    and where it lives — read from the pack the engine wrote into the
+    worktree, because an adapter does not reach the corpus."""
+
+    from torve.adapters.agent.harness import PACK_RELPATH, build_prompt, source_line
+    from torve.domain.task import Task
+
+    task = Task(id="T-0001", source="audit/soc2-2026", intent="close the gap", decisions=[])
+    pack = tmp_path / PACK_RELPATH
+    pack.mkdir(parents=True, exist_ok=True)
+    (pack / "source.json").write_text(
+        json.dumps({"title": "A gap", "ref": "https://x.invalid/42"}), encoding="utf-8"
+    )
+
+    line = source_line(tmp_path, task)
+
+    assert line == 'audit/soc2-2026 — "A gap" (https://x.invalid/42)'
+    assert f"Source: {line}" in build_prompt(task, asked=line)
+
+    # No pack for it: the identifier alone, never a crash.
+    assert source_line(tmp_path / "elsewhere", task) == "audit/soc2-2026"
+    # No source: the prompt says nothing extra.
+    assert "Source:" not in build_prompt(Task(id="T-0002", decisions=[]))
+
+
 def test_default_tiers_are_all_fake():
     config = RunnerConfig()
     assert set(config.tiers) == {"planner", "executor", "reviewer"}

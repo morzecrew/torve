@@ -50,6 +50,13 @@ def intake_cmd(
             "decisions are copied at adoption (accepted documents only).",
         ),
     ] = None,
+    source: Annotated[
+        str | None,
+        typer.Option(
+            "--source",
+            help="What asked for the work: a document, or a filed source `<kind>/<slug>`.",
+        ),
+    ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -85,7 +92,11 @@ def intake_cmd(
 
     from torve.base import naming
 
-    task = mint_intake_task(root, request, config, spec=spec)
+    try:
+        task = mint_intake_task(root, request, config, spec=spec, source=source)
+
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
     workdir = naming.intake_worktree(root, task.id)
     vcs.worktree_at(root, base_sha, workdir)
 

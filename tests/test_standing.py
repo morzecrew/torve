@@ -78,6 +78,7 @@ def job_dict(
     allow: list[str] | None = None,
     acceptance: list[str] | None = None,
     decisions_from: str | None = None,
+    source: str | None = None,
     cooldown_hours: float = 0.0,
     max_open: int = 1,
     strike_limit: int = 3,
@@ -89,6 +90,7 @@ def job_dict(
         "scope": {"allow": allow if allow is not None else ["src/app.py", "tests/test_app.py"]},
         "acceptance": acceptance if acceptance is not None else ["true"],
         "decisions_from": decisions_from,
+        "source": source,
         "cooldown_hours": cooldown_hours,
         "max_open": max_open,
         "strike_limit": strike_limit,
@@ -294,6 +296,36 @@ def test_evaluate_predicate_path_digest_never_touches_the_sandbox(seeded):
 
 # ----------------------- #
 # Instantiation through the adoption path, unchanged (S-0023/D-4).
+
+
+def test_an_instantiated_job_carries_its_own_source(seeded):
+    """S-0060/D-5: a recurring job names what asked, so the contracts it
+    mints are told apart in the record from a task somebody typed."""
+
+    from torve.config.sources import schema_header
+
+    filed = seeded.root / ".torve" / "sources" / "operator" / "lockfile-drift.yaml"
+    filed.parent.mkdir(parents=True, exist_ok=True)
+    filed.write_text(
+        f"{schema_header()}\n"
+        + yaml.safe_dump(
+            {"id": "operator/lockfile-drift", "kind": "operator", "title": "The nightly job"},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    job = StandingContract.model_validate(job_dict(source="operator/lockfile-drift"))
+    task_id = instantiate(seeded.root, job, RunnerConfig())
+
+    contract = yaml.safe_load(
+        (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").read_text(encoding="utf-8")
+    )
+
+    assert contract["source"] == "operator/lockfile-drift"
+
+
+# ....................... #
 
 
 def test_instantiate_mints_through_adoption_and_records_origin(seeded):

@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from torve.base.model import STRICT
+from torve.domain.source import SOURCE_PATTERN
 from torve.domain.vocabulary import Character, CheckState, Grade, Role, Tier
 
 # ----------------------- #
@@ -121,6 +122,12 @@ class Task(BaseModel):
     """The document the contract was minted from, by identifier and never by path
     (S-0059/D-1) — `document_dir` is the one lookup that finds it. None is the
     document-less lane: an operator's ask, a standing job."""
+    source: str | None = Field(default=None, pattern=SOURCE_PATTERN)
+    """What asked for the work (S-0060/D-3): a source identifier, `S-NNNN` or
+    `<kind>/<slug>`, never parsed for inheritance. `spec` says whose rows this
+    contract inherits and this says why it exists; a contract may carry both,
+    either or neither, and the record reads this before `spec` before
+    `operator`."""
     phase: int = 0
     """The phasing entry the contract was minted from; 0 when no phase minted it."""
     role: Role = "implement"

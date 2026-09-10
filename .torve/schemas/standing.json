@@ -91,7 +91,7 @@
         }
       ],
       "default": null,
-      "description": "The document the minted instance inherits its decisions from, by number or\nidentifier; a job naming a document that is not in the corpus is refused before\nadoption.",
+      "description": "The document whose rows this job's contracts inherit, by number or identifier.",
       "title": "Decisions From"
     },
     "intent": {
@@ -114,6 +114,19 @@
     "scope": {
       "$ref": "#/$defs/Scope",
       "description": "The scope the minted contract carries, exactly as a task contract's does."
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "What asked for this job's work (S-0060/D-5): a source identifier the tree\nholds, so the contracts a recurring job mints say which job minted them.",
+      "title": "Source"
     },
     "strike_limit": {
       "default": 3,

@@ -811,18 +811,58 @@ def document_threshold_warnings(
 # ....................... #
 
 
+def resolve_source(root: Path, config: RunnerConfig, identifier: str) -> str:
+    """One source identifier, checked against the tree (S-0060/D-5): a
+    document the corpus holds, or a source filed under `.torve/sources/`.
+    Raises `ValueError` naming what was not found — a provenance nobody can
+    open is worse than none, because it reads as an answer."""
+
+    from torve.config import spec as corpus
+    from torve.config.sources import load_sources
+    from torve.domain.source import FILED_ID, is_source_id
+
+    if not is_source_id(identifier):
+        raise ValueError(
+            f"{identifier!r} is not a source identifier — a document `S-NNNN`, "
+            "or `<kind>/<slug>` for one that is filed"
+        )
+
+    if FILED_ID.match(identifier):
+        if identifier not in load_sources(root):
+            raise ValueError(
+                f"no source {identifier!r} under {root / layout.TORVE_DIR / 'sources'} — "
+                "`torve source new` files one"
+            )
+    elif corpus.document_dir(root / config.specs.path, identifier) is None:
+        raise ValueError(f"no document {identifier!r} under {config.specs.path}")
+
+    return identifier
+
+
+# ....................... #
+
+
 # The drafting run.
 def mint_intake_task(
-    root: Path, request: str, config: RunnerConfig, spec: str | None = None
+    root: Path,
+    request: str,
+    config: RunnerConfig,
+    spec: str | None = None,
+    source: str | None = None,
 ) -> Task:
     """Engine-minted at request time, like a review at gated — the id here
-    names the drafting run itself, never its output (S-0020/D-4)."""
+    names the drafting run itself, never its output (S-0020/D-4).
+
+    *source* is what asked (S-0060/D-5), refused here if the tree holds no
+    such source — before a model is called, since a run that names a
+    provenance nobody can open is a run whose contracts would name it too."""
 
     from torve.application.planner import next_task_number
 
     task = Task(
         id=f"T-{next_task_number(root):04d}",
         spec=document_id(spec) if spec else None,
+        source=resolve_source(root, config, source) if source else None,
         role="draft",
         intent=request,
         decisions=[],
@@ -1400,6 +1440,7 @@ def _finish_intake_success(
                 "schema_version": 1,
                 "request": task.intent,
                 "spec": task.spec,
+                "source": task.source,
                 "rationale": document.rationale,
                 "drafts": [d.model_dump() for d in document.drafts],
             },
@@ -1750,6 +1791,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
     record = cast("dict[str, Any]", json.loads(source.read_text(encoding="utf-8")))
     drafts: list[Draft] = [Draft.model_validate(d) for d in record["drafts"]]
     cited = record.get("spec")
+    asked = record.get("source")
     decisions = _inherit_decisions(root, config, str(cited)) if cited else []
 
     # S-0030/D-4: adoption refuses document_required before anything is
@@ -1808,6 +1850,9 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
 
             if cited:
                 document["spec"] = cited
+
+            if asked:
+                document["source"] = asked
 
             if parent_id:
                 document["parent"] = parent_id

@@ -217,7 +217,9 @@ async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: s
         actor_id=actor_id,
         payload={
             "title": _title(task),
-            "source_id": task.spec or "operator",  # the document id (S-0059/D-3)
+            # S-0060/D-4: what asked, then whose rows govern, then the honest
+            # absence — `operator` means nobody said, not that the operator did.
+            "source_id": task.source or task.spec or "operator",
             # Copies of the contract's own fields, kept for the mints
             # written before S-0044/A-8 and pinned equal to it by test.
             "phase": task.phase,

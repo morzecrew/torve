@@ -347,6 +347,29 @@ def schemas() -> dict[str, dict[str, Any]]:
 # ----------------------- #
 
 
+def source_file(root: Path, task: Task) -> dict[str, Any] | None:
+    """The source the contract names, whole (S-0060/D-9) — what asked for
+    this work, so the executor reads the audit rather than its slug. None
+    when the contract names none, or names a document, which the corpus
+    files already carry."""
+
+    from torve.config.sources import load_sources
+    from torve.config.spec import SpecError
+
+    if not task.source:
+        return None
+
+    try:
+        found = load_sources(root).get(task.source)
+    except SpecError:
+        return None
+
+    return found.model_dump(mode="json") if found is not None else None
+
+
+# ....................... #
+
+
 def build(
     root: Path, rfc_dir: Path, task: Task, manifest_path: Path, *, replay: bool = False
 ) -> dict[str, str]:
@@ -363,6 +386,12 @@ def build(
         files[name] = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
     put("decisions.json", decisions_file(task, corpus, rfc_dir))
+
+    asked = source_file(root, task)
+
+    if asked is not None:
+        put("source.json", asked)
+
     put("gates.json", gates_file(root, task, manifest_path))
     put("tests.json", tests_file(root, task))
 
@@ -388,6 +417,11 @@ def render_index(files: dict[str, str], task: Task) -> str:
         "Written by the engine before this attempt, from the record and the tree,",
         "with no model. Nothing here outranks the contract. Open what you need:",
         "",
+        *(
+            ["- `source.json` — what asked for this work: an audit, an incident, a review, an ask"]
+            if "source.json" in files
+            else []
+        ),
         "- `decisions.json` — the contract's rows with consequence, check, rationale and the",
         "  amendments that changed each; plus accepted rows from other documents over this scope",
         "- `gates.json` — the battery this attempt faces: name, axis, state, what convicts",

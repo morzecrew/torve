@@ -14,6 +14,39 @@ from torve.gates.secrets import check_secrets
 GATE = Gate(name="test", run="@scope", state="blocking", origin="structural")  # any handle
 
 
+def test_a_contract_may_name_both_its_document_and_its_source(tmp_path):
+    """S-0060/D-3: `spec` says whose rows it inherits, `source` says what
+    asked; a contract may carry both, either or neither, and a source the
+    grammar refuses does not load."""
+
+    import yaml
+    from pydantic import ValidationError
+
+    from torve.gates.context import load_task
+
+    def contract(**extra) -> dict:
+        return {"schema_version": 2, "id": "T-0001", "decisions": [], **extra}
+
+    path = tmp_path / "contract.yaml"
+
+    for record in (
+        contract(spec="S-0060", source="audit/soc2-2026"),
+        contract(source="audit/soc2-2026"),
+        contract(spec="S-0060"),
+        contract(),
+    ):
+        path.write_text(yaml.safe_dump(record), encoding="utf-8")
+        loaded = load_task(path)
+
+        assert loaded.source == record.get("source")
+        assert loaded.spec == record.get("spec")
+
+    path.write_text(yaml.safe_dump(contract(source="specification/s-0060")), encoding="utf-8")
+
+    with pytest.raises((ValueError, ValidationError)):
+        load_task(path)
+
+
 def test_scope_implicitly_allows_task_and_log_files(repo):
     repo.seed()
     repo.task(base_task(allow=["src/**"]), log_document())

@@ -82,6 +82,48 @@ def _seed(tmp_path: Path) -> Path:
 # ----------------------- #
 
 
+def test_the_pack_carries_what_asked_for_the_work(tmp_path):
+    """S-0060/D-9: the executor reads the audit rather than its slug, and a
+    contract naming no source adds no file and no index line."""
+
+    from torve.application.contextpack import build
+    from torve.config.sources import schema_header
+    from torve.domain.task import Task
+
+    filed = tmp_path / ".torve" / "sources" / "audit" / "soc2-2026.yaml"
+    filed.parent.mkdir(parents=True, exist_ok=True)
+    filed.write_text(
+        f"{schema_header()}\n"
+        + yaml.safe_dump(
+            {
+                "id": "audit/soc2-2026",
+                "kind": "audit",
+                "title": "A gap",
+                "ref": "https://x.invalid/42",
+                "summary": "Sessions outlive their tokens.\n",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    manifest = tmp_path / ".torve" / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    specs = tmp_path / ".torve" / "specs"
+
+    asked = Task(id="T-0001", source="audit/soc2-2026", decisions=[])
+    files = build(tmp_path, specs, asked, manifest)
+    payload = json.loads(files["source.json"])
+
+    assert payload["title"] == "A gap" and payload["ref"] == "https://x.invalid/42"
+    assert "Sessions outlive their tokens." in payload["summary"]
+    assert "`source.json`" in files["index.md"]
+
+    plain = build(tmp_path, specs, Task(id="T-0002", decisions=[]), manifest)
+
+    assert "source.json" not in plain
+    assert "`source.json`" not in plain["index.md"]
+
+
 def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
     tmp_path: Path,
 ) -> None:

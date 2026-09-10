@@ -76,6 +76,35 @@ def worker_over(log, executed: list[str], outcome: Outcome | None = None) -> Wor
 # ....................... #
 
 
+def test_the_records_source_id_is_what_asked_then_what_governs(tmp_path):
+    """S-0060/D-4: `source` before `spec` before `operator`, so `operator`
+    means nobody said rather than that the operator did."""
+
+    from torve.application.residency import _record_mint
+    from torve.domain.task import Task
+
+    class _Log:
+        def __init__(self) -> None:
+            self.recorded: list[str] = []
+
+        async def record(self, kind, **kwargs):
+            self.recorded.append(str(kwargs["payload"]["source_id"]))
+
+    async def scenario() -> None:
+        log = _Log()
+
+        for task in (
+            Task(id="T-0001", spec="S-0060", source="audit/soc2-2026", decisions=[]),
+            Task(id="T-0002", spec="S-0060", decisions=[]),
+            Task(id="T-0003", decisions=[]),
+        ):
+            await _record_mint(log, task, partition="p", actor_id="tester")  # type: ignore[arg-type]
+
+        assert log.recorded == ["audit/soc2-2026", "S-0060", "operator"]
+
+    asyncio.run(scenario())
+
+
 def test_every_contract_is_imported_and_a_broken_one_is_skipped(tmp_path):
     contract(tmp_path, "T-0001")
     contract(tmp_path, "T-0002", role="review")

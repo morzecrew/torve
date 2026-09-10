@@ -120,6 +120,10 @@ class StandingContract(BaseModel):
     """The acceptance commands the minted contract carries, exactly as a task contract's
     do."""
     decisions_from: str | None = None
+    """The document whose rows this job's contracts inherit, by number or identifier."""
+    source: str | None = None
+    """What asked for this job's work (S-0060/D-5): a source identifier the tree
+    holds, so the contracts a recurring job mints say which job minted them."""
     """The document the minted instance inherits its decisions from, by number or
     identifier; a job naming a document that is not in the corpus is refused before
     adoption."""
@@ -375,6 +379,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
                 "schema_version": 1,
                 "request": job.intent,
                 "spec": document,
+                "source": job.source,
                 "rationale": "",
                 "drafts": [
                     {
