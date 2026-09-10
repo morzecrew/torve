@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the declaration and the capability map
+    intent: >-
+      Equipment becomes a typed list on the profile and a capability map on the harness
+      manifest, with every refusal the grammar admits: an unpinned fetched source,
+      a ref on a source that has one already, a selector matching nothing, a kind
+      the manifest does not name, and a template with no path placeholder. `skills`
+      and `plugins` fold into it, each refused by name with the item that replaces
+      them. Nothing is fetched and nothing is mounted yet — this phase is what a repository
+      can say.
+    scope:
+      - src/torve/config/equipment.py
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - .torve/agents/**
+      - .torve/harnesses/**
+      - .torve/schemas/**
+      - src/torve/cli/init.py
+      - tests/test_equipment.py
+      - tests/test_agents.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
+    title: fetched once, mounted read-only
+    intent: >-
+      `torve equip` warms a cache keyed by source and ref, through the source's own
+      tool — `gh skill install --pin` for a skill, a pinned clone for a plugin — and
+      dispatch warms what a seat needs before the sandbox exists. The cache mounts
+      read-only, one directory per item, and the harness's flag templates are composed
+      against the mount paths and appended to the command. The regime hash reads the
+      keys.
+    scope:
+      - src/torve/application/equipment.py
+      - src/torve/application/session.py
+      - src/torve/application/ports.py
+      - src/torve/application/telemetry.py
+      - src/torve/adapters/runtime/**
+      - src/torve/cli/equip.py
+      - src/torve/cli/main.py
+      - tests/test_equipment.py
+      - tests/test_manifest.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: what has to run before the agent
+    intent: >-
+      A profile's `prepare` command runs in the sandbox after creation and before
+      the agent, timed on its own clock and booked as its own step. A non-zero exit
+      ends the attempt as an infrastructure failure: nothing is convicted, no rung
+      is selected, the poison ceiling is untouched, and the escalation names the prepare
+      step rather than the model.
+    scope:
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+      - src/torve/domain/states.py
+      - tests/test_run_loop.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 4
+    title: the harness is told by its own flag
+    intent: >-
+      S-0061/D-6's renderer goes: `seed_files` and the two adapter write-backs are
+      deleted, the claude image's seed keeps only its clones, and a plugin reaches
+      the harness through the capability map like every other kind. The prompt stops
+      naming `.torve/skills/` for a harness that takes the skill kind, and keeps it
+      for one that does not. The rows this supersedes are amended on S-0061.
+    scope:
+      - src/torve/adapters/runtime/plugins.py
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/adapters/runtime/opensandbox.py
+      - src/torve/adapters/agent/harness.py
+      - .torve/sandbox/**
+      - .torve/specs/S-0061/**
+      - tests/test_runtime.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: routine
+contract_example:
+  schema_version: 2
+  id: T-0326
+  spec: S-0062
+  phase: 1
+  role: implement
+  title: ''
+  intent: >-
+    Equipment becomes a typed list on the profile and a capability map on the harness
+    manifest, with every refusal the grammar admits.
+  depends_on: []
+  targets: []
+  scope:
+    allow:
+      - src/torve/config/equipment.py
+      - src/torve/config/agents.py
+      - tests/test_equipment.py
+    deny: []
+  acceptance:
+    - uv run pytest
+  decisions:
+    - id: D-1
+      grade: LOCKED
+      text: >-
+        A profile declares equipment as typed items — a kind, a source, and a ref
+        where the source is fetched — and `skills` and `plugins` fold into it.
+      paths:
+        - src/torve/config/equipment.py
+        - src/torve/config/agents.py
+        - .torve/agents/**
+      consequence: ''
+      check_state: shadow
+  budget: {}
+  tier: executor

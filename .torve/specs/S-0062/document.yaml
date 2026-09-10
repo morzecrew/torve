@@ -1,0 +1,333 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0062
+title: >-
+  Equipment is declared, and the harness is told how to take it
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0061]
+informed_by: [S-0009, S-0004, S-0017, S-0035]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A profile can say what an agent *is* and cannot say what it *has*. Plugins are a
+  list of two fields; skills are package data with no versions; MCP servers and hooks
+  have no declaration at all, and anything that must be *run* before the agent — an
+  index built, a cache warmed — can only be chained into the tier command, where its
+  failure is booked as the agent's.
+
+  Those are one gap. Claude Code's plugin format already carries skills, MCP servers,
+  hooks and agents, and every one of them has a session flag. So this document adds
+  one concept rather than four: a profile declares **equipment** as typed items with a
+  source and a ref; the harness manifest declares which kinds it accepts and how each
+  reaches it; torve fetches host-side into a cache keyed by source and ref, and mounts
+  it read-only. A kind the harness cannot take, declared by a profile, is refused.
+
+  A profile may also declare a `prepare` command. Torve runs it, times it, and books
+  its failure as an infrastructure failure — never as a gate-red conviction feeding
+  rung selection and the poison ceiling.
+
+  What does not change: a shipped skill stays package data, because the two torve
+  ships are read by a gate and their version must stay the engine's by construction.
+motivation: |
+  Measured against Claude Code 2.1.252 in the built `torve-agent:claude` image, not
+  from documentation:
+
+  - `claude -p` accepts `--plugin-dir <path>` (repeatable, session-only), so
+    S-0061/D-6's rendered bookkeeping — three JSON files reverse-engineered from the
+    harness's internal state — reaches nothing a supported flag could not. A session
+    with no `~/.claude` at all and two `--plugin-dir` flags parses through to the auth
+    check.
+  - `--mcp-config <file-or-inline-json>` and `--settings <file-or-json>` are the same
+    shape for MCP servers and hooks. All three were accepted by the real binary.
+  - `gh skill install <repo> <skill> --pin <sha> --agent claude-code --dir <path>`
+    writes `<path>/<skill>/SKILL.md` carrying `github-pinned: <sha>` in its
+    frontmatter — so a pin is verifiable after the fact, which is what a regime hash
+    needs and what `skills-lock.json` never gave this engine.
+  - `--permission-mode` takes `acceptEdits | auto | bypassPermissions | manual |
+    dontAsk | plan`. `acceptEdits` denies every Bash call that is not a handful of
+    filesystem commands, and in print mode a denial is silent — an attempt would read
+    as a model that would not work rather than a seat that was not permitted to.
+
+  Against that, what a profile can say today is `plugins: [{source, ref}]` and
+  `skills: [<name>]`, where a name resolves only against package data or
+  `.torve/skills-vendor/`. There is no version, no external source, no subset of a
+  repository's skills, and no way to say a repository's own directory. A skill also
+  never becomes a skill the harness knows about: `materialize` copies it into
+  `<worktree>/.torve/skills/` and the prompt says "read every `SKILL.md` there", so it
+  gets no trigger matching and no progressive disclosure — it is a file the model is
+  told about, which is the weakest form of every mechanism in this list.
+current_state: |
+  Verified against the tree at `d4da1ac`.
+
+  `AgentProfile` (`src/torve/config/agents.py`) carries `skills: list[str]`,
+  `plugins: list[Plugin]` and `prompt_extras: list[str]`. `Plugin` is `source` and
+  `ref`, neither parsed. `HarnessManifest` carries `adapter`, `command`, `image`,
+  `api_key_env` and the two auth fields, and says nothing about what it can be given.
+
+  Plugins reach an attempt through `src/torve/adapters/runtime/plugins.py`:
+  `seed_files(image, plugins)` renders three JSON files keyed by the image tag's name,
+  and the docker adapter writes them into `/opt/torve/seed` as root while OpenSandbox
+  writes them through its files API. The mechanism works — `claude plugin list` inside
+  the image reports both seeded plugins enabled — and this repository's own harness
+  manifest no longer uses it, because `--plugin-dir` names the clones directly.
+
+  Skills reach an attempt through `src/torve/application/skills.py`: `materialize`
+  copies a role's set from package data or `.torve/skills-vendor/` into the worktree.
+  Nothing is fetched, nothing is versioned, and `effective_skill_sets` decides only
+  whether the seat's list or the role's answers.
+
+  Nothing configures an MCP server for a sandboxed agent. `src/torve/cli/mcp.py` is
+  torve *serving* MCP to an outside client — the opposite direction; torve's own
+  `context`, `show` and `why` tools are exactly what an executing agent would want and
+  it has no way to be given them. There is no hook concept anywhere in the package,
+  and no step between sandbox creation and the tier command.
+
+  The precedent for a mounted cache already exists: S-0035/D-4's `cache_volume` is a
+  slot-suffixed derived-cache volume the docker adapter mounts and points the
+  toolchain cache homes at. Deleting it may change wall clock and nothing else.
+goals: |
+  A profile says everything an agent has, in one list, with a source and a version for
+  each item — including a subset of a repository's skills and a directory of this
+  repository's own.
+
+  A harness manifest says what it can be given and how, so a kind it cannot take is
+  refused at load rather than discovered by an attempt that quietly ran without it.
+
+  Nothing is fetched inside an attempt. The equipment a run used is reconstructable
+  from the record, because the cache key is the declaration.
+
+  Something that has to run before the agent has a place to be declared, and its
+  failure is told apart from the agent's.
+non_goals: |
+  Not a package manager. Torve fetches what a declaration names at the ref it names,
+  through the source's own tool — `gh skill install --pin`, `git clone` — and neither
+  resolves a range nor verifies a signature. If that is ever wanted it is a decision
+  to take deliberately, not to arrive at.
+
+  Not a change to what the two shipped skills are (D-6). Their version stays the
+  engine's, because a gate reads what they teach.
+
+  Not a second prompt system. `prompt_extras` keeps its meaning and its position after
+  the charter's base rules (S-0061/D-4); equipment is things the harness loads, never
+  words the engine writes.
+
+  Not a harness abstraction. The capability map is a flag template per kind, written
+  by whoever wrote the manifest. Torve does not model what a harness's flags mean.
+design:
+  - key: one-declaration-four-kinds
+    md: |
+      Equipment is a list, and a kind is what tells the harness where to put it:
+
+      ```yaml
+      # .torve/agents/claude-equipped.yaml
+      equipment:
+        - kind: skill
+          source: github:mattpocock/skills
+          ref: v1.2.3
+          select: [tdd, code-review]        # a subset; absent means every skill
+        - kind: skill
+          source: torve:flag-dont-flip       # package data, no ref (D-6)
+        - kind: skill
+          source: local:skills/house-voice   # this repository's own directory
+        - kind: plugin
+          source: github:JuliusBrussee/caveman
+          ref: 81536f57b330
+        - kind: mcp
+          source: local:.torve/mcp/torve.json
+      prepare: uv run repowise init --yes
+      ```
+
+      Three source schemes and one rule each. `torve:` is package data and takes no
+      ref, because the version is the engine's. `local:` is a path in the repository
+      under work and takes no ref, because git already has one. `github:` is fetched
+      and a ref is **required** — an unpinned fetch is a regime nobody can reproduce,
+      which is the defect S-0061/D-7 removed from the hash and this must not
+      reintroduce.
+
+      `select` names a subset. It applies to a source that contains several items of
+      its kind; naming a subset of a source that has one is a refusal, not a
+      no-op — a selector that matches nothing is how equipment silently goes missing.
+  - key: the-harness-says-what-it-takes
+    md: |
+      A manifest gains one field: which kinds it accepts, and the flag that carries
+      each into its command.
+
+      ```yaml
+      # .torve/harnesses/claude-subscription.yaml
+      equips:
+        skill:  "--add-dir {path}"
+        plugin: "--plugin-dir {path}"
+        mcp:    "--mcp-config {path}"
+        hook:   "--settings {path}"
+      ```
+
+      `{path}` substitutes to where that item was mounted. One flag is emitted per
+      item, in declaration order, appended to the command — so a harness that takes a
+      kind once and a harness that takes it repeatably are the same shape, and a
+      manifest that gets it wrong is wrong in one visible line.
+
+      A profile declaring a kind the manifest does not name is refused at load, naming
+      both files. This is S-0061/D-6's refusal generalised from plugins to every kind,
+      and it exists for the same reason: an attempt quietly missing its equipment
+      measures a regime nobody configured, and the record would say it ran with
+      equipment it never had.
+
+      What a manifest may *not* say is where an item comes from or what it is. The
+      split S-0061 drew holds: the profile is what the agent has, the manifest is how
+      this harness is told about it.
+  - key: fetched-once-mounted-read-only
+    md: |
+      Fetching happens host-side, into a cache keyed by the declaration:
+
+      ```
+      ~/.cache/torve/equipment/<kind>/<source>@<ref>/
+      ```
+
+      `torve equip` warms it — for a profile, for a seat, or for the whole
+      configuration — and dispatch warms what a seat needs if it is cold. Both run on
+      the host, before the sandbox exists. Nothing is fetched inside an attempt, which
+      is S-0061/D-6's rule kept: a fetch at dispatch puts the network inside every
+      attempt, and an attempt that has to reach the internet to be equipped is an
+      attempt whose failures include the internet's.
+
+      The cache mounts read-only at a fixed root, one directory per item, and the
+      manifest's flag templates are composed against those paths. Read-only because
+      nothing inside an attempt may edit what it was equipped with — the same reason
+      the plugin seed is written as root today.
+
+      The cache is derived state: deleting it costs wall clock and nothing else, which
+      is the property S-0035/D-1 already states for the toolchain cache. Its key is
+      the declaration, so the regime hash reads the keys rather than the contents
+      (D-8) and two checkouts of one tree equip identically.
+  - key: what-has-to-run-before-the-agent
+    md: |
+      Some equipment is not a file. `repowise` indexes a repository before its tools
+      answer; a toolchain cache is warm or it is not. Today the only place to say so
+      is the tier command:
+
+      ```yaml
+      command: repowise init --yes && claude -p "$(cat {prompt})" ...
+      ```
+
+      which is wrong three ways. It is untimed, so the attempt's clock includes it and
+      nothing says how much. It is unrecorded, so nothing can ask whether the seat
+      that indexed was slower than the seat that did not. And its failure is the
+      command's failure, which the runner books as a gate-red conviction feeding rung
+      selection and the poison ceiling — exactly the class T-0243 found when a
+      root-owned cache surfaced as `uv sync` failing under the battery.
+
+      A profile declares it instead:
+
+      ```yaml
+      prepare: uv run repowise init --yes
+      ```
+
+      Torve runs it in the sandbox after creation and before the agent, with its own
+      clock, and books it as its own step. A non-zero exit is an infrastructure
+      failure: the attempt never starts, nothing is convicted, and the escalation
+      names the prepare step rather than the model.
+
+      Claude Code's own `Setup` and `SessionStart` hooks would also run before the
+      turn. They are not the answer here for the reason above — inside the harness's
+      machinery torve can neither time the step nor tell its failure apart from the
+      agent's, which is the whole point.
+  - key: what-the-agent-is-told
+    md: |
+      An installed skill participates in the harness's own trigger matching and
+      progressive disclosure. A directory the prompt names does not — it is a file the
+      model was told about, and whether it reads it is a matter of instruction
+      following.
+
+      So the prompt stops carrying its skills paragraph for a harness that takes the
+      `skill` kind: the equipment is loaded, and saying it twice invites the model to
+      treat a loaded skill as a document to summarise. A harness that takes no `skill`
+      kind keeps the paragraph and keeps `materialize` writing into the worktree,
+      because for that harness a file the prompt names is all there is.
+
+      This is the one place the document changes what an executing model sees, and it
+      is worth stating plainly: a skill that used to be read because the prompt said
+      to will now be loaded because the harness loaded it. The two shipped skills are
+      the ones this matters most for, and D-6 keeps their content the engine's.
+tests: |
+  The refusals are the surface: an unpinned `github:` source, a `torve:` or `local:`
+  source carrying a ref, a `select` that matches nothing, a kind the manifest does not
+  name, and a manifest naming a kind with no `{path}` in its template. Each is one
+  case, and each names both files.
+
+  The cache is tested by key: two declarations differing only in ref land in two
+  directories, the same declaration twice fetches once, and a warmed cache makes
+  dispatch touch no network. The fetch itself is stubbed — `gh` and `git` are not run
+  in the suite.
+
+  The prepare step is tested for what it books, not what it runs: a non-zero exit
+  ends the attempt as an infrastructure failure with nothing convicted, and its
+  seconds land in the attempt's record separately from the agent's.
+
+  Not tested: that a real harness loads a real fetched skill. Every tier in this
+  repository is `fake`; that is a live-run observation and belongs in the first
+  operator report, not the suite.
+docs: ''
+out_of_scope: ''
+risks: |
+  The largest is that equipment becomes a package manager by accretion. The
+  non-goal states the line and D-3 is where it is drawn — a ref is required and never
+  resolved. The pressure will come from wanting a range, a lockfile, or a verified
+  signature; each is a decision to take on its own evidence.
+
+  The second is the cache's location. `~/.cache/torve/` is the operator's machine, so
+  two machines equip separately and a CI runner equips every time. That is the right
+  trade against baking equipment into an image — the profile stays configuration —
+  but it means a cold runner pays the fetch, and the fetch is somebody else's network.
+
+  The third is that D-6's exception reads as arbitrary. It is not: `decisions-reported`
+  parses the log format `flag-dont-flip` teaches, so a fetched version of that skill
+  could drift against the gate that reads it. The rule is not "torve's skills are
+  special", it is "a skill a gate reads is versioned with the gate".
+alternatives:
+  - option: >-
+      Keep S-0061/D-6's rendered bookkeeping and add renderers for MCP servers and
+      hooks the same way.
+    rejected_because: >-
+      It reverse-engineers internal state a supported flag already exposes. The renderer
+      was written before `--plugin-dir` was measured; three more of them would be
+      three more things to keep in step with a harness's internals across versions.
+  - option: >-
+      Fetch equipment at image build, so `torve sandbox build` bakes what the profiles
+      declare.
+    rejected_because: >-
+      The image is harness identity (S-0017/D-4), and baking a profile into it makes
+      equipment a property of the harness — a changed skill would be a rebuilt image,
+      and two profiles on one harness would be two images. The profile stops being
+      configuration.
+  - option: Fetch at dispatch, straight into the sandbox.
+    rejected_because: >-
+      It puts the network inside every attempt, which S-0061/D-6 already refused for
+      plugins. An attempt whose failures include the internet's is an attempt whose
+      gate results measure the internet.
+  - option: >-
+      Let equipment be fetched unpinned, resolving to a default branch.
+    rejected_because: >-
+      A regime nobody can reconstruct is not a regime — the defect D-7 of S-0061 just
+      removed from the hash. An unpinned fetch would put it back through a different
+      door.
+  - option: >-
+      Use Claude Code's `Setup` hook for the prepare step instead of a torve step.
+    rejected_because: >-
+      Inside the harness's machinery torve can neither time the step nor tell its
+      failure apart from the agent's, and telling them apart is the entire reason
+      the step is being declared.
+questions:
+  - id: Q-1
+    text: >-
+      Should `torve equip --check` verify a fetched skill against its recorded pin
+      — `gh skill install` writes `github-pinned` into the frontmatter, so the cache
+      can be audited without refetching. Cheap, but it is a verification step the
+      non-goal says this document does not do.
+  - id: Q-2
+    text: >-
+      Does a seat's equipment reach the reviewer's sandbox? A reviewer reads a diff
+      and writes findings, and the skills it loads change what it finds — so the review
+      seat's own profile answers, but nothing says whether it should inherit the target's.

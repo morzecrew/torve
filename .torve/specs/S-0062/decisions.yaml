@@ -1,0 +1,154 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A profile declares equipment as typed items — a kind, a source, and a ref where
+      the source is fetched — and `skills` and `plugins` fold into it.
+    paths:
+      - src/torve/config/equipment.py
+      - src/torve/config/agents.py
+      - .torve/agents/**
+    consequence: >-
+      what an agent has is one list with a version per item, instead of two fields
+      with a version for one of them and no external source for either
+    rationale: >-
+      skills carry no version and resolve only against package data or the vendored
+      directory, so a repository cannot say which skills it wants or where from; plugins
+      already say both, and the shapes differ for no reason
+    cites: [S-0061/D-1, S-0061/D-5]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A harness manifest declares which equipment kinds it accepts and the flag template
+      that carries each into its command; a kind a profile declares and the manifest
+      does not is refused at load.
+    paths: [src/torve/config/agents.py, .torve/harnesses/**]
+    consequence: >-
+      a harness that cannot be given something says so once, in its own file, rather
+      than in an attempt that ran without it
+    rationale: >-
+      S-0061/D-6's refusal already exists for plugins and for the same reason — an
+      attempt quietly missing its equipment measures a regime nobody configured
+    cites: [S-0061/D-2, S-0061/D-6, S-0009/D-2]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      A source is `torve:<name>`, `local:<path>` or `github:<owner>/<repo>`; a fetched
+      source requires a ref and the other two refuse one.
+    paths: [src/torve/config/equipment.py]
+    consequence: >-
+      no equipment can enter a run at a version nobody wrote down
+    rationale: >-
+      an unpinned fetch is a regime nobody can reconstruct, which is exactly the defect
+      S-0061/D-7 removed from the hash; package data and a tracked path already have
+      a version, so a second one could only disagree
+    cites: [S-0061/D-7]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      Equipment is fetched host-side into a cache keyed by source and ref, never inside
+      an attempt.
+    paths: [src/torve/application/equipment.py, src/torve/cli/equip.py]
+    consequence: >-
+      an attempt's failures do not include the internet's, and a warmed cache makes
+      dispatch touch no network at all
+    rationale: >-
+      S-0061/D-6 already refused a fetch at dispatch for plugins; the reason is the
+      kind of failure it admits, which does not change with the kind of equipment
+    cites: [S-0061/D-6]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The cache mounts read-only into the sandbox, one directory per item, and the
+      harness's flag templates are composed against those paths.
+    paths: [src/torve/adapters/runtime/**, src/torve/application/ports.py]
+    consequence: >-
+      nothing inside an attempt can edit what it was equipped with, and the cache
+      stays derived state that deleting costs only wall clock
+    rationale: >-
+      the mounted derived cache is S-0035/D-4's shape, already carried by the docker
+      adapter; read-only is why the plugin seed is written as root today
+    cites: [S-0035/D-4, S-0035/D-1]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      A skill a gate reads stays package data, versioned with the engine; `torve:`
+      is the source that names one.
+    paths: [src/torve/application/skills.py, skills/**]
+    consequence: >-
+      the two skills this engine ships cannot drift against the gate that parses what
+      they teach
+    rationale: >-
+      S-0009/D-7 made the skill version the torve version by construction, and `decisions-reported`
+      parses the log format `flag-dont-flip` teaches — a fetched, pinned version of
+      that skill could drift against the gate reading it
+    cites: [S-0009/D-7]
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      A profile may declare a `prepare` command; torve runs it in the sandbox before
+      the agent, with its own clock, and a non-zero exit is an infrastructure failure
+      that convicts nothing.
+    paths: [src/torve/application/session.py, src/torve/config/equipment.py]
+    consequence: >-
+      an index that fails to build ends the attempt as what it is, rather than as
+      a model that could not make the battery pass
+    rationale: >-
+      chained into the tier command it is untimed, unrecorded, and its failure is
+      booked as a gate-red conviction feeding rung selection and the poison ceiling
+      — the class T-0243 found when a root-owned cache surfaced as `uv sync` failing
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The regime hash reads the equipment cache keys, not the fetched contents.
+    paths: [src/torve/application/telemetry.py]
+    consequence: >-
+      two checkouts of one tree hash one regime without either having fetched anything
+      yet
+    rationale: >-
+      the key is the declaration, and the declaration is what an operator chose; hashing
+      contents would make a regime depend on when a fetch happened
+    cites: [S-0061/D-7]
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      S-0061/D-5 is superseded by D-1 and S-0061/D-6's renderer retires; the harness
+      is told about a plugin by its own flag, not by files torve writes into its state.
+    paths: [src/torve/adapters/runtime/plugins.py, .torve/sandbox/**]
+    consequence: >-
+      torve stops keeping a second copy of a harness's internal bookkeeping in step
+      with it across versions
+    rationale: >-
+      measured against Claude Code 2.1.252 — `--plugin-dir` is a supported, repeatable
+      session flag, and a session with no `~/.claude` at all loads plugins through
+      it, so the rendered files reach nothing a flag could not
+    cites: [S-0061/D-5, S-0061/D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`;
+      for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+    paths: [src/torve/adapters/agent/harness.py, src/torve/application/skills.py]
+    consequence: >-
+      a loaded skill is loaded, not described — and a harness with no skill channel
+      keeps the only mechanism it has
+    rationale: >-
+      an installed skill participates in the harness's own trigger matching and progressive
+      disclosure; a directory the prompt names is a file the model was told about,
+      and saying it twice invites treating a loaded skill as a document
+invariants:
+  - id: I-1
+    statement: >-
+      No equipment is fetched while an attempt is running — every fetch is host-side,
+      before the sandbox exists.
+    paths: [src/torve/application/equipment.py, src/torve/adapters/runtime/**]
+    check: >-
+      uv run pytest tests/test_equipment.py -k host_side
+  - id: I-2
+    statement: >-
+      Every equipment item a run used is named by a cache key that resolves to a source
+      and a ref an operator wrote.
+    paths: [src/torve/config/equipment.py, src/torve/application/telemetry.py]
+    check: >-
+      uv run pytest tests/test_equipment.py -k reconstructable
