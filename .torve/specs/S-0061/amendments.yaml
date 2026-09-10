@@ -35,3 +35,13 @@ amendments:
       The risks section said a seat with `adapter` and `command` inline stays legal. D-9 says the opposite, and D-9 is what T-0322 built.
 
       The prose was hedging written before the migration's cost was known. The cost turned out to be one line per fixture, and the price of the hedge would have been I-2: one home per key is false the moment `adapter` may be written in two places, and the seat line in `torve doctor` could not say which harness a seat runs. The section now says what the document does, and says what the migration actually cost.
+  - id: A-5
+    at: '2026-09-10T15:41:46Z'
+    title: >-
+      prompt_extras is one block of prose, not a list of lines
+    md: |-
+      D-4 says a profile appends to the charter's base working rules and names the key it appends with. It never said what shape the key is, and the list of strings it got was the wrong one: every entry was rendered as one more bullet in the rules list, so a profile could add rules and could not add a paragraph, an example, or anything a rule needs context for.
+
+      It is one string now, a YAML block scalar, appended after the base rules as it is written. The operator writes the bullets when bullets are what they want. Nothing about D-4's refusal changes — the base rules stay unaddressable, `prompt` is still refused by name, and the block still lands after them and never before.
+
+      Requested by the owner; landed as T-0330.

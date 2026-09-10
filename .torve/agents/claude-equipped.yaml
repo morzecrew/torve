@@ -14,5 +14,5 @@ equipment:
 - kind: plugin
   source: github:DietrichGebert/ponytail
   ref: v4.9.0
-prompt_extras:
-- Prefer the smallest change that makes the acceptance commands pass.
+prompt_extras: |
+  Prefer the smallest change that makes the acceptance commands pass.

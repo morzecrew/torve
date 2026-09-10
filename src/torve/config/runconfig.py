@@ -153,9 +153,10 @@ class TierConfig(BaseModel):
     (S-0061/D-11). Names resolve through the same `materialize` path with the same
     refusals (S-0029/D-2)."""
 
-    prompt_extras: list[str] = Field(default_factory=list)
-    """S-0029/equipment-on-the-tier, S-0029/D-1: lines appended to the built prompt after
-    the charter's base working rules, which stay unaddressable from configuration."""
+    prompt_extras: str = ""
+    """S-0029/equipment-on-the-tier, S-0029/D-1: the block appended to the built prompt
+    after the charter's base working rules, which stay unaddressable from configuration.
+    One string since S-0061/A-5."""
 
     agent_timeout: float | None = None
     """S-0035/the-tier-clock, S-0035/D-6: the tier's own agent attempt clock. `None`

@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** a profile's `prompt_extras` is one block of prose, not a list of
+  strings. Each entry used to be rendered as one more bullet in the prompt's
+  rules list, so a profile could add a rule and never a paragraph; the block is
+  now appended after the base working rules exactly as it is written.
+
 - **Breaking:** `skills:` and `plugins:` are no longer profile keys — both are
   `equipment` items now, and a profile still naming either is refused with the
   item that replaces it. A role profile written by `torve init` carries

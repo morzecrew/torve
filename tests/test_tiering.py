@@ -114,7 +114,7 @@ def test_tier_for_missing_entry_is_a_configuration_error():
 def test_tier_config_equipment_defaults_to_no_override():
     tier = TierConfig()
     assert tier.skills is None
-    assert tier.prompt_extras == []
+    assert tier.prompt_extras == ""
 
 
 def test_effective_skill_sets_none_inherits_the_role_set():
@@ -402,9 +402,9 @@ def test_prompt_extras_follow_the_charters_base_working_rules():
     base rules are present regardless."""
     prompt = build_prompt(
         Task(id="T-1", decisions=[]),
-        prompt_extras=["Docstrings and user-facing text follow the house voice."],
+        prompt_extras="Docstrings and user-facing text follow the house voice.\n",
     )
-    assert "- Docstrings and user-facing text follow the house voice." in prompt
+    assert "Docstrings and user-facing text follow the house voice." in prompt
     assert prompt.index("Gates run outside this session") < prompt.index("house voice")
     # The base rules stay unaddressable: still present, unaltered.
     assert "Skills for your role are under `.torve/skills/`" in prompt
@@ -416,13 +416,13 @@ def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path):
         provider="anthropic",
         model="m",
         command="cat {prompt}",
-        prompt_extras=["Docstrings and user-facing text follow the house voice."],
+        prompt_extras="Docstrings and user-facing text follow the house voice.\n",
     )
     ctx, agent = harness_ctx(tmp_path, tier)
     agent.run(ctx)
     prompt = (ctx.workspace / ".torve" / "tmp" / "prompt.md").read_text(encoding="utf-8")
 
-    assert "- Docstrings and user-facing text follow the house voice." in prompt
+    assert "Docstrings and user-facing text follow the house voice." in prompt
     assert prompt.index("Gates run outside this session") < prompt.index("house voice")
 
 
@@ -551,7 +551,7 @@ def test_config_hash_separates_regimes_with_different_prompt_extras(tmp_path):
         return {"planner": TierConfig(), "reviewer": TierConfig(), "executor": executor}
 
     generalist = RunnerConfig(tiers=tiers(TierConfig()))
-    equipped = RunnerConfig(tiers=tiers(TierConfig(prompt_extras=["house voice"])))
+    equipped = RunnerConfig(tiers=tiers(TierConfig(prompt_extras="house voice")))
 
     assert config_hash(manifest, tmp_path, generalist) != config_hash(manifest, tmp_path, equipped)
 

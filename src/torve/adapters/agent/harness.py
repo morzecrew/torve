@@ -99,7 +99,7 @@ def build_prompt(
     task: Task,
     revision: bool = False,
     continuation: bool = False,
-    prompt_extras: list[str] | None = None,
+    prompt_extras: str = "",
     asked: str = "",
 ) -> str:
     lines: list[str] = [f"# Torve task {task.id}", ""]
@@ -229,8 +229,9 @@ def build_prompt(
         ),
         # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
         # after the charter's base rules above — never before, never
-        # replacing them.
-        *(f"- {extra}" for extra in (prompt_extras or [])),
+        # replacing them. Verbatim (S-0061/A-5): the profile wrote prose, and
+        # bulleting it here would decide a shape the operator already chose.
+        *([(prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
         "",
     ]
 

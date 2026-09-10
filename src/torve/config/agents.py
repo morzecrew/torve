@@ -90,9 +90,10 @@ class AgentProfile(BaseModel):
     built, a cache warmed. Its failure is an infrastructure failure and convicts
     nothing (S-0062/D-7); chained into the harness command it would be booked as a
     gate-red conviction instead."""
-    prompt_extras: list[str] = Field(default_factory=list)
-    """Working rules appended after the charter's base rules — never before, never
-    replacing them (S-0061/D-4)."""
+    prompt_extras: str = ""
+    """Prose appended after the charter's base rules — never before, never replacing
+    them (S-0061/D-4). One block, written as it should read: a list rendered one
+    bullet per entry could add a rule and never a paragraph (S-0061/A-5)."""
 
 
 class HarnessManifest(BaseModel):

@@ -572,9 +572,9 @@ def _equipment_checks(root: Path, config_path: Path | None) -> list[tuple[str, b
         if tier.skills is not None:
             parts.append(f"skills [{', '.join(tier.skills)}] (override)")
 
-        if tier.prompt_extras:
-            n = len(tier.prompt_extras)
-            parts.append(f"+{n} prompt extra{'s' if n != 1 else ''}")
+        if tier.prompt_extras.strip():
+            n = len(tier.prompt_extras.strip().splitlines())
+            parts.append(f"prompt extra ({n} line{'s' if n != 1 else ''})")
 
         if not parts:
             continue

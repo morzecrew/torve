@@ -700,12 +700,10 @@
           "type": "string"
         },
         "prompt_extras": {
-          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: lines appended to the built prompt after\nthe charter's base working rules, which stay unaddressable from configuration.",
-          "items": {
-            "type": "string"
-          },
+          "default": "",
+          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: the block appended to the built prompt\nafter the charter's base working rules, which stay unaddressable from configuration.\nOne string since S-0061/A-5.",
           "title": "Prompt Extras",
-          "type": "array"
+          "type": "string"
         },
         "provider": {
           "default": "",

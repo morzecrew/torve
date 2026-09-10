@@ -62,12 +62,10 @@
       "type": "string"
     },
     "prompt_extras": {
-      "description": "Working rules appended after the charter's base rules \u2014 never before, never\nreplacing them (S-0061/D-4).",
-      "items": {
-        "type": "string"
-      },
+      "default": "",
+      "description": "Prose appended after the charter's base rules \u2014 never before, never replacing\nthem (S-0061/D-4). One block, written as it should read: a list rendered one\nbullet per entry could add a rule and never a paragraph (S-0061/A-5).",
       "title": "Prompt Extras",
-      "type": "array"
+      "type": "string"
     },
     "schema_version": {
       "default": 1,

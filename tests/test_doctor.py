@@ -93,7 +93,7 @@ def test_equipment_check_names_an_override_tier(tmp_path: Path):
         {"tiers": {"executor.copywriter": {"harness": "fake", "profile": "copywriter"}}},
         copywriter=(
             "equipment: [{kind: skill, source: torve:prose-voice}]\n"
-            "prompt_extras: [Docstrings follow the house voice.]\n"
+            "prompt_extras: Docstrings follow the house voice.\n"
         ),
     )
 
@@ -104,7 +104,7 @@ def test_equipment_check_names_an_override_tier(tmp_path: Path):
     assert name == "equipment executor.copywriter"
     assert ok is True
     assert "skills [prose-voice] (override)" in detail
-    assert "+1 prompt extra" in detail
+    assert "prompt extra (1 line)" in detail
 
 
 def test_equipment_check_is_silent_with_no_override(tmp_path: Path):

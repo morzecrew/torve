@@ -65,7 +65,7 @@ def test_a_seat_resolves_its_harness_and_its_profile(root: Path):
     write(
         agents_dir(root) / "careful.yaml",
         "equipment: [{kind: skill, source: torve:flag-dont-flip}]\n"
-        "prompt_extras: [Prefer the smallest change.]\n",
+        "prompt_extras: Prefer the smallest change.\n",
     )
     config = load(
         root,
@@ -83,7 +83,7 @@ def test_a_seat_resolves_its_harness_and_its_profile(root: Path):
         "torve-agent:claude",
     )
     assert seat.skills == ["flag-dont-flip"]
-    assert seat.prompt_extras == ["Prefer the smallest change."]
+    assert seat.prompt_extras == "Prefer the smallest change."
     assert (seat.model, seat.provider) == ("claude-opus-5", "anthropic")
     assert (seat.harness, seat.profile) == ("claude-code", "careful")
 
@@ -118,7 +118,7 @@ def test_a_plugin_is_a_source_and_a_ref(root: Path):
         ("api_key_env", "[FOO]", "harness manifest"),
         ("equipment", "[]", "agent profile"),
         ("prepare", "index --yes", "agent profile"),
-        ("prompt_extras", "[be brief]", "agent profile"),
+        ("prompt_extras", "be brief", "agent profile"),
     ],
 )
 def test_a_moved_key_on_the_seat_names_the_file_it_moved_to(root, key, value, where):
@@ -149,7 +149,7 @@ def test_a_harness_key_in_a_profile_is_refused(root: Path):
 
 
 def test_a_profile_key_in_a_harness_is_refused(root: Path):
-    write(harnesses_dir(root) / "mixed.yaml", "adapter: fake\nprompt_extras: [be brief]\n")
+    write(harnesses_dir(root) / "mixed.yaml", "adapter: fake\nprompt_extras: be brief\n")
 
     with pytest.raises(AgentError, match="agent profile"):
         load_harness(root, "mixed")
