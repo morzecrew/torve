@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A harness manifest carries `kinds`, the equipment kinds it accepts, and
   `env`, the knobs its image reads. `CLAUDE_PERMISSION_MODE` is the first.
 
+- `dsh` and `mimo` carry the seam too, and each answers the same manifest its
+  own way: claude composes a session flag per kind, dsh writes one `--patch`
+  overlay because that is its only configuration channel, and mimo runs
+  install commands because it has no session channel at all.
+
+- `.torve/harnesses/dsh.yaml` and `mimo.yaml` ship. A dsh seat names an overlay
+  from the roster its image pins as its model; a mimo seat takes `plugin`
+  equipment and nothing else, because `mimo mcp add` is interactive.
+
 - Sandbox image definitions live at `sandboxes/<name>/` in the repository root
   and build to `<name>-sandbox`. `.torve/sandbox/` stays the hook for a
   repository that defines an image of its own.
@@ -52,6 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own clock. Chained into the harness command an index build is untimed and
   its failure is booked as a failing gate; declared, it is an infrastructure
   failure that convicts nothing.
+
+### Fixed
+
+- A sandbox harness's exit code is the attempt's verdict again. `run` pipes the
+  harness through `tee`, and a pipeline reports its last command — so a failed
+  attempt read as a clean one. POSIX `sh` has no `pipefail`, so the status is
+  carried across by hand.
 
 ### Changed
 

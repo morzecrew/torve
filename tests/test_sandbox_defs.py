@@ -52,6 +52,68 @@ def test_no_definition_carries_its_own_copy_of_the_cli_layer(name: str) -> None:
     assert "/opt/torve/build-context" not in definition
 
 
+# The definitions carrying the two scripts the engine invokes (S-0063/I-2).
+# claude landed in phase 2 and dsh and mimo in phase 3; `battery` runs no agent
+# and `codex` and `opencode` have no seat, so neither carries one yet.
+SEATED = ("claude", "dsh", "mimo")
+
+
+@pytest.mark.parametrize("name", SEATED)
+def test_every_seated_definition_answers_the_seam(name: str) -> None:
+    """S-0063/I-2: the engine invokes `/opt/torve/equip` and then
+    `/opt/torve/run` and knows nothing else about either, so a definition a
+    seat can name has to carry both."""
+
+    definition = DEFINITIONS / name
+
+    for script in ("run", "equip"):
+        assert (definition / script).is_file(), f"{name} carries no {script}"
+
+    dockerfile = (definition / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "COPY run equip /opt/torve/" in dockerfile
+    assert "chmod +x /opt/torve/run /opt/torve/equip" in dockerfile
+
+
+@pytest.mark.parametrize("name", SEATED)
+def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> None:
+    """The contract is five variables (S-0063/D-2). A script reaching for a
+    sixth is a harness's shape leaking back into the engine's vocabulary —
+    which is the mistake S-0062/D-2 made once and phase 3 exists to catch."""
+
+    NAMED = {
+        "TORVE_PROMPT",
+        "TORVE_MODEL",
+        "TORVE_EQUIPMENT",
+        "TORVE_OUTPUT",
+        "TORVE_BROKER_URL",
+        "TORVE_BROKER_TOKEN",
+    }
+    scripts = "".join(
+        (DEFINITIONS / name / script).read_text(encoding="utf-8") for script in ("run", "equip")
+    )
+    reached = set(re.findall(r"TORVE_[A-Z_]+", scripts))
+
+    assert reached <= NAMED, f"{name} reads {sorted(reached - NAMED)}, which the engine never sets"
+
+
+def test_each_harness_answers_the_manifest_its_own_way() -> None:
+    """The finding phase 3 exists for, kept where it can be read: one manifest,
+    three translations, and no variable had to change to admit them."""
+
+    equip = {name: (DEFINITIONS / name / "equip").read_text(encoding="utf-8") for name in SEATED}
+
+    # claude has a session flag per kind.
+    assert "--plugin-dir" in equip["claude"]
+    # dsh has one channel and every kind travels it.
+    assert "--patch" in equip["dsh"]
+    # mimo has no session channel at all: its equipment is installed state,
+    # so its `equip` runs a command and writes an empty argument file.
+    assert '"mimo", "plugin"' in equip["mimo"]
+    assert "--plugin-dir" not in equip["mimo"]
+    assert "--patch" not in equip["mimo"]
+
+
 def test_the_base_installs_the_cli_where_a_sandbox_can_reach_it() -> None:
     block = BASE.read_text(encoding="utf-8")
 

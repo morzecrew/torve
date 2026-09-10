@@ -1,0 +1,37 @@
+#!/bin/sh
+# How this image takes its equipment (S-0063/D-3).
+#
+# mimo has no session channel: `mimo plugin <module>` installs and rewrites the
+# config, and the agent reads that config when it starts. So equipping mimo is
+# running commands before the run — the third answer to the same manifest, and
+# the one a flag template could never have expressed.
+#
+# `mimo mcp add` is interactive and takes no arguments, so this image's manifest
+# declares `kinds: [plugin]` and nothing else reaches here (S-0063/D-4). An MCP
+# server for a mimo seat waits for a non-interactive verb.
+set -eu
+
+: > /tmp/torve-equip.args  # mimo takes nothing at the command line
+
+[ -n "${TORVE_EQUIPMENT:-}" ] || exit 0
+[ -f "$TORVE_EQUIPMENT/manifest.json" ] || exit 0
+
+python3 - "$TORVE_EQUIPMENT/manifest.json" <<'PY'
+import json
+import subprocess
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    items = json.load(handle).get("items", [])
+
+for item in items:
+    if item["kind"] != "plugin":
+        # The manifest refused every other kind before the sandbox existed, so
+        # one here is a bug in the refusal rather than an operator's mistake.
+        raise SystemExit(f"mimo takes no {item['kind']!r} equipment: {item['source']}")
+
+    # From the mount, never the registry: the fetch already happened host-side
+    # (S-0062/D-4), and an attempt that reaches npm is an attempt whose
+    # failures include npm's.
+    subprocess.run(["mimo", "plugin", item["path"]], check=True)
+PY

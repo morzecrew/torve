@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../schemas/harness.json
+# dsh headless (S-0004). The model is an overlay name rather than a string the
+# harness takes: a dsh model is a provider, a catalog entry and a default, all
+# of which are a patch. This image ships a roster under /opt/torve/overlays and
+# a seat names one of them — `brokered-deepseek`, `qwen3.8-flash` and the rest.
+#
+# `kinds` is [plugin, mcp, hook, agent] because dsh has one configuration
+# channel and every kind travels it: `--patch <file>`, a list of plugin entries.
+# `equip` installs a plugin through dsh's own verb and appends every other kind
+# to one overlay verbatim — the operator writes those in dsh's vocabulary,
+# because a document torve invented would be a schema it does not know
+# (S-0063/D-3).
+#
+# A brokered seat needs no `env`: the brokered overlays read TORVE_BROKER_URL
+# and TORVE_BROKER_TOKEN from the environment themselves.
+adapter: harness
+image: dsh-sandbox:0.1.1-rc.2
+kinds: [plugin, mcp, hook, agent]
+api_key_env: []

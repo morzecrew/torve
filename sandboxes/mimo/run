@@ -1,0 +1,43 @@
+#!/bin/sh
+# How this image invokes its harness (S-0063/D-1).
+set -eu
+
+: "${TORVE_PROMPT:?the engine names the prompt file}"
+: "${TORVE_OUTPUT:?the engine names where the result goes}"
+
+# A brokered seat is refused rather than run. mimo reaches a provider through
+# its own configuration, and torve has no mapping for the broker's two names
+# here — so a seat told to go through the broker would reach the provider
+# directly instead, which is the leak S-0055/D-4 exists to prevent. Better a
+# seat that will not start than one that quietly bypasses the wire.
+if [ -n "${TORVE_BROKER_URL:-}" ]; then
+    echo "this image has no broker route — a brokered mimo seat is not supported yet" >&2
+    exit 78  # EX_CONFIG
+fi
+
+set -- mimo run --format json --dangerously-skip-permissions
+
+if [ -n "${TORVE_MODEL:-}" ]; then
+    set -- "$@" --model "$TORVE_MODEL"
+fi
+
+if [ -n "${MIMO_AGENT:-}" ]; then
+    set -- "$@" --agent "$MIMO_AGENT"
+fi
+
+mkdir -p "$(dirname "$TORVE_OUTPUT")"
+
+# The harness's own exit code, not `tee`'s: a pipeline reports its last
+# command, so piping the harness through anything hands the engine a verdict
+# belonging to the pipe — a failed attempt reading as a clean one. POSIX `sh`
+# has no `pipefail`, so the status is carried across by hand, and the harness
+# runs inside an `if` because `set -e` would otherwise kill the subshell
+# before the status could be written.
+rc=/tmp/torve-run.rc
+echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
+
+{
+    if "$@" "$(cat "$TORVE_PROMPT")"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+} | tee "$TORVE_OUTPUT"
+
+exit "$(cat "$rc")"

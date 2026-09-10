@@ -6,3 +6,7 @@ FROM ${BASE}
 # one-line reviewed diff, never a rebuild side effect.
 ARG MIMO_VERSION=0.1.13
 RUN npm install -g @mimo-ai/cli@${MIMO_VERSION} && mimo --version
+# The two scripts the engine runs (S-0063/D-1, S-0063/D-3): `equip` turns the
+# equipment manifest into whatever this harness needs, `run` invokes it.
+COPY run equip /opt/torve/
+RUN chmod +x /opt/torve/run /opt/torve/equip

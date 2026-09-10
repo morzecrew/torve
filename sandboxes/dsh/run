@@ -1,0 +1,59 @@
+#!/bin/sh
+# How this image invokes its harness (S-0063/D-1).
+#
+# dsh takes three options in total — a profile, repeatable `--patch` overlays,
+# and the task text as an argument. Everything else it does is configured by
+# those overlays, which is why `equip` beside this file writes one rather than
+# composing flags: dsh has one channel and claude has five.
+set -eu
+
+: "${TORVE_PROMPT:?the engine names the prompt file}"
+: "${TORVE_OUTPUT:?the engine names where the result goes}"
+
+set -- dsh --profile headless
+
+# The model is an overlay name here, not a string dsh takes: a dsh model is a
+# provider, a catalog entry and a default, which is a patch. The image pins the
+# roster it ships under /opt/torve/overlays, so a seat names one of those.
+if [ -n "${TORVE_MODEL:-}" ]; then
+    overlay="/opt/torve/overlays/${TORVE_MODEL}.yml"
+
+    if [ ! -f "$overlay" ]; then
+        echo "no overlay for model '${TORVE_MODEL}' — this image ships:" >&2
+        ls -1 /opt/torve/overlays >&2
+        exit 78  # EX_CONFIG: the seat is wrong, not the model
+    fi
+
+    set -- "$@" --patch "$overlay"
+fi
+
+# The broker needs no mapping: the brokered overlays read TORVE_BROKER_URL and
+# TORVE_BROKER_TOKEN from the environment themselves, which is what makes a
+# brokered dsh seat a choice of overlay rather than a different command.
+
+if [ -s /tmp/torve-equip.args ]; then
+    eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
+fi
+
+mkdir -p "$(dirname "$TORVE_OUTPUT")"
+
+# Headless dsh prints no usage; the session log carries it, multi-frame
+# zstd-compressed. The reporter sums it and prints the one JSON line
+# `parse_metadata` reads, so it goes last — the last JSON line wins.
+# The harness's own exit code, not `tee`'s: a pipeline reports its last
+# command, so piping the harness through anything hands the engine a verdict
+# belonging to the pipe — a failed attempt reading as a clean one. POSIX `sh`
+# has no `pipefail`, so the status is carried across by hand, and the harness
+# runs inside an `if` because `set -e` would otherwise kill the subshell
+# before the status could be written.
+rc=/tmp/torve-run.rc
+echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
+
+{
+    if "$@" "$(cat "$TORVE_PROMPT")"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+
+    # Last, because the last JSON line wins and this one carries the usage.
+    /opt/torve/report-usage || true
+} | tee "$TORVE_OUTPUT"
+
+exit "$(cat "$rc")"

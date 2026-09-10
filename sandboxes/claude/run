@@ -57,4 +57,17 @@ mkdir -p "$(dirname "$TORVE_OUTPUT")"
 
 # Both: the engine parses the stream it captured, and the file is the same
 # bytes without the wrapper's noise around them.
-"$@" | tee "$TORVE_OUTPUT"
+# The harness's own exit code, not `tee`'s: a pipeline reports its last
+# command, so piping the harness through anything hands the engine a verdict
+# belonging to the pipe — a failed attempt reading as a clean one. POSIX `sh`
+# has no `pipefail`, so the status is carried across by hand, and the harness
+# runs inside an `if` because `set -e` would otherwise kill the subshell
+# before the status could be written.
+rc=/tmp/torve-run.rc
+echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
+
+{
+    if "$@"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+} | tee "$TORVE_OUTPUT"
+
+exit "$(cat "$rc")"

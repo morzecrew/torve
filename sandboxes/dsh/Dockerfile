@@ -7,7 +7,10 @@ FROM ${BASE}
 # one-line reviewed diff, never a rebuild side effect.
 ARG DSH_VERSION=0.1.1-rc.2
 RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION} && dsh --version
-
+# The two scripts the engine runs (S-0063/D-1, S-0063/D-3): `equip` turns the
+# equipment manifest into whatever this harness needs, `run` invokes it.
+COPY run equip /opt/torve/
+RUN chmod +x /opt/torve/run /opt/torve/equip
 # Harness identity (RFC 0017 §3, D-17.4): the headless profile's default
 # model is deepseek-v4-flash; the department runs deepseek-chat. The pin is
 # identity, so it rides the image — a different model is a new overlay, a
