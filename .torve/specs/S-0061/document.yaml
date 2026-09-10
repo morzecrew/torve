@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../../schemas/document.json
 id: S-0061
-title: The agent profile, the harness manifest, and the seat that names them
+title: >-
+  The agent profile, the harness manifest, and the seat that names them
 kind: design
 status: draft
 implementation: none
@@ -234,6 +235,8 @@ tests: |
 
   Not tested: that a real harness actually loads a rendered plugin file. Every tier in
   this repository is `fake`, so that is a live-run observation, not a unit test.
+docs: ''
+out_of_scope: ''
 risks: |
   The largest risk is that the split is read as three times the configuration rather
   than one question per file. It is more files and fewer things per file, and a
@@ -251,34 +254,41 @@ risks: |
   set. The refusal names the three files and the key that moved, so the error is the
   migration guide.
 alternatives:
-  - option: Keep one tier body and group the fields with nested keys — `tier.equipment.skills`,
+  - option: >-
+      Keep one tier body and group the fields with nested keys — `tier.equipment.skills`,
       `tier.harness.command`.
-    rejected_because: The nesting names the concerns but keeps them in one file, so the
-      profile file stays TierConfig-shaped and can still carry a retry rung. The problem
-      is not that the fields are unsorted, it is that a persona file may decide fleet
-      routing.
-  - option: Let a profile replace the base working rules, so a harness with different
-      conventions can be driven properly.
-    rejected_because: Those rules are what two blocking gates convict on. A file on the
-      operator's machine that never appears in the repository's diff must not be able to
-      disarm them. A harness needing different phrasing needs a different adapter, which
+    rejected_because: >-
+      The nesting names the concerns but keeps them in one file, so the profile file
+      stays TierConfig-shaped and can still carry a retry rung. The problem is not
+      that the fields are unsorted, it is that a persona file may decide fleet routing.
+  - option: >-
+      Let a profile replace the base working rules, so a harness with different conventions
+      can be driven properly.
+    rejected_because: >-
+      Those rules are what two blocking gates convict on. A file on the operator's
+      machine that never appears in the repository's diff must not be able to disarm
+      them. A harness needing different phrasing needs a different adapter, which
       is a code change that gets reviewed.
-  - option: Have torve fetch and pin plugins itself, with a lockfile of its own.
-    rejected_because: A second lockfile in a tree that already has one nobody reads is
-      the problem restated. The source's own vocabulary pins; torve's contribution is
-      that three files stop disagreeing about what was pinned.
-  - option: Drop `skills-lock.json` from the tree entirely rather than from the hash.
-    rejected_because: The file is the `skills` CLI's, written and read by that tool for
-      the operator's own use. Torve's mistake was hashing it, not its existence.
+  - option: >-
+      Have torve fetch and pin plugins itself, with a lockfile of its own.
+    rejected_because: >-
+      A second lockfile in a tree that already has one nobody reads is the problem
+      restated. The source's own vocabulary pins; torve's contribution is that three
+      files stop disagreeing about what was pinned.
+  - option: >-
+      Drop `skills-lock.json` from the tree entirely rather than from the hash.
+    rejected_because: >-
+      The file is the `skills` CLI's, written and read by that tool for the operator's
+      own use. Torve's mistake was hashing it, not its existence.
 questions:
   - id: Q-1
-    text: Does a harness manifest belong on the operator's machine beside the profile,
+    text: >-
+      Does a harness manifest belong on the operator's machine beside the profile,
       or in the repository beside `gates.yaml`? It describes how a repository's contents
-      reach a provider, which is closer to the provider policy in `config.yaml` than to
-      a persona.
-    status: open
+      reach a provider, which is closer to the provider policy in `config.yaml` than
+      to a persona.
   - id: Q-2
-    text: Should `SkillsConfig.sets` — the role-keyed default set — survive at all once
-      a profile carries skills, or does the role default become a profile named for the
-      role?
-    status: open
+    text: >-
+      Should `SkillsConfig.sets` — the role-keyed default set — survive at all once
+      a profile carries skills, or does the role default become a profile named for
+      the role?

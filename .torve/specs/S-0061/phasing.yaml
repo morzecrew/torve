@@ -4,52 +4,51 @@ phasing:
     title: three files, three questions
     intent: >-
       The agent profile and the harness manifest become models of their own in a new
-      module, each carrying only its own keys and refusing the other two files' by name,
-      and the seat learns to name one of each. The charter's base working rules stay
-      unaddressable — a profile naming a prompt key is refused with the reason. The old
-      flat tier body is refused key by key, each refusal naming the file the key moved
-      to. Nothing about how a skill name resolves changes; only where the set is
-      declared.
+      module, each carrying only its own keys and refusing the other two files' by
+      name, and the seat learns to name one of each. The charter's base working rules
+      stay unaddressable — a profile naming a prompt key is refused with the reason.
+      The old flat tier body is refused key by key, each refusal naming the file the
+      key moved to. Nothing about how a skill name resolves changes; only where the
+      set is declared.
     scope:
       - src/torve/config/agents.py
       - src/torve/config/runconfig.py
       - tests/test_agents.py
       - tests/test_runconfig.py
     acceptance:
-      - uv run pytest tests/test_agents.py tests/test_runconfig.py
+      - >-
+        uv run pytest tests/test_agents.py tests/test_runconfig.py
       - uv run mypy src
       - uv run lint-imports
-    depends_on: []
     character: structural
   - phase: 2
-    title: the plugin list renders into the harness's own format
+    title: >-
+      the plugin list renders into the harness's own format
     intent: >-
       The runtime adapter renders a profile's plugin declaration into whatever seeding
-      format the seat's harness reads, from one function per harness, and refuses a
-      non-empty list for a harness that has none. Claude Code's three hand-kept JSON
-      files become the first renderer's output; the image keeps its clone, because a
-      fetch at dispatch would put the network inside every attempt.
-    scope:
-      - src/torve/adapters/runtime/**
-      - .torve/sandbox/**
-      - tests/test_runtime.py
+      format the seat's harness reads, from one function per harness, and refuses
+      a non-empty list for a harness that has none. Claude Code's three hand-kept
+      JSON files become the first renderer's output; the image keeps its clone, because
+      a fetch at dispatch would put the network inside every attempt.
+    scope: [src/torve/adapters/runtime/**, .torve/sandbox/**, tests/test_runtime.py]
     acceptance:
       - uv run pytest tests/test_runtime.py
       - uv run mypy src
-    depends_on: [1]
+    depends_on:
+      - 1
     character: structural
   - phase: 3
     title: the hash reads what was resolved
     intent: >-
-      The regime hash's parts become each seat's resolved harness body, profile body and
-      own keys, beside the vendored-skills digest that already exists; skills-lock.json
-      leaves the hash. Doctor gains a line naming each seat's harness and profile, which
-      is what the profile provenance string was for, so that field goes with it.
-    scope:
-      - src/torve/application/telemetry.py
-      - tests/test_manifest.py
+      The regime hash's parts become each seat's resolved harness body, profile body
+      and own keys, beside the vendored-skills digest that already exists; skills-lock.json
+      leaves the hash. Doctor gains a line naming each seat's harness and profile,
+      which is what the profile provenance string was for, so that field goes with
+      it.
+    scope: [src/torve/application/telemetry.py, tests/test_manifest.py]
     acceptance:
       - uv run pytest tests/test_manifest.py
       - uv run mypy src
-    depends_on: [1]
+    depends_on:
+      - 1
     character: routine

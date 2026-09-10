@@ -2,33 +2,42 @@
 decisions:
   - id: D-1
     grade: LOCKED
-    text: An agent profile carries what the agent is — skills, plugins, prompt_extras — and
-      nothing about how it runs.
+    text: >-
+      An agent profile carries what the agent is — skills, plugins, prompt_extras
+      — and nothing about how it runs.
     paths: [src/torve/config/agents.py]
-    consequence: a persona file can no longer decide where a conviction routes, because
-      routing is not a key it has
-    rationale: a profile body is validated against TierConfig.model_fields today, so
-      ~/.config/torve/agents/heavy.yaml may legally declare retry_variants — a file named
-      for a persona deciding a property of the fleet
+    consequence: >-
+      a persona file can no longer decide where a conviction routes, because routing
+      is not a key it has
+    rationale: >-
+      a profile body is validated against TierConfig.model_fields today, so ~/.config/torve/agents/heavy.yaml
+      may legally declare retry_variants — a file named for a persona deciding a property
+      of the fleet
     cites: [S-0028/D-1, S-0029/D-1]
   - id: D-2
     grade: LOCKED
-    text: A harness manifest carries how a model is reached — adapter, command, image and
-      how auth arrives — and names no model.
+    text: >-
+      A harness manifest carries how a model is reached — adapter, command, image
+      and how auth arrives — and names no model.
     paths: [src/torve/config/agents.py]
-    consequence: one manifest serves every model that image can run, and a model change
-      is a one-line seat edit
-    rationale: harness identity is the image (S-0017/D-4), which is already true and has
-      no file to be true in; the model is what varies across seats sharing one harness
+    consequence: >-
+      one manifest serves every model that image can run, and a model change is a
+      one-line seat edit
+    rationale: >-
+      harness identity is the image (S-0017/D-4), which is already true and has no
+      file to be true in; the model is what varies across seats sharing one harness
     cites: [S-0004/D-1, S-0017/D-4]
   - id: D-3
     grade: LOCKED
-    text: The seat names one harness and at most one profile, and holds what varies per
+    text: >-
+      The seat names one harness and at most one profile, and holds what varies per
       run — model, provider, routing, clocks and caches.
     paths: [src/torve/config/runconfig.py]
-    consequence: "`tiers:` reads as an assignment rather than as a full agent definition"
-    rationale: model, retry rungs, character routing and the two clocks all differ
-      between seats that share an agent and a harness; they are the seat's by nature
+    consequence: >-
+      `tiers:` reads as an assignment rather than as a full agent definition
+    rationale: >-
+      model, retry rungs, character routing and the two clocks all differ between
+      seats that share an agent and a harness; they are the seat's by nature
     cites: [S-0027/D-11, S-0034/D-6, S-0035/D-6]
   - id: D-4
     grade: LOCKED
@@ -36,68 +45,86 @@ decisions:
       The charter's base working rules stay unaddressable from configuration; a profile
       appends with prompt_extras and a `prompt` key is refused by name.
     paths: [src/torve/config/agents.py]
-    consequence: no file outside the repository under work can disarm the rules two
-      blocking gates convict on
-    rationale: the base rules are what tell an executor to log divergences before
-      committing and to keep corpus coordinates out of user-facing strings — exactly what
-      decisions-reported and user-facing-text convict on
+    consequence: >-
+      no file outside the repository under work can disarm the rules two blocking
+      gates convict on
+    rationale: >-
+      the base rules are what tell an executor to log divergences before committing
+      and to keep corpus coordinates out of user-facing strings — exactly what decisions-reported
+      and user-facing-text convict on
     cites: [S-0029/D-1]
   - id: D-5
     grade: ASSUMED
-    text: A plugin is declared on the profile as a source and a ref, which torve neither
+    text: >-
+      A plugin is declared on the profile as a source and a ref, which torve neither
       resolves nor verifies.
     paths: [src/torve/config/agents.py]
-    consequence: torve stops being a place where a pinned version is written down three
-      times, without becoming a package manager
-    rationale: the ref today lives in a Dockerfile ARG, a cp target and a JSON string
-      with nothing checking that the three agree; pinning is the source's job, agreement
+    consequence: >-
+      torve stops being a place where a pinned version is written down three times,
+      without becoming a package manager
+    rationale: >-
+      the ref today lives in a Dockerfile ARG, a cp target and a JSON string with
+      nothing checking that the three agree; pinning is the source's job, agreement
       is torve's
   - id: D-6
     grade: ASSUMED
-    text: The runtime adapter renders the profile's plugins into the harness's own seeding
+    text: >-
+      The runtime adapter renders the profile's plugins into the harness's own seeding
       format at dispatch, and refuses a non-empty list for a harness with no renderer.
     paths: [src/torve/adapters/runtime/**, .torve/sandbox/**]
-    consequence: a plugin list that cannot be honoured is a configuration error rather
-      than an attempt that quietly ran without it
-    rationale: an agent silently missing its equipment makes the telemetry lie — S-0009/D-2's
+    consequence: >-
+      a plugin list that cannot be honoured is a configuration error rather than an
+      attempt that quietly ran without it
+    rationale: >-
+      an agent silently missing its equipment makes the telemetry lie — S-0009/D-2's
       rule for skills, read for plugins
     cites: [S-0009/D-2]
   - id: D-7
     grade: ASSUMED
-    text: The regime hash reads each seat's resolved harness, profile and own keys, and
+    text: >-
+      The regime hash reads each seat's resolved harness, profile and own keys, and
       stops reading skills-lock.json.
     paths: [src/torve/application/telemetry.py]
-    consequence: the hash changes when the equipment changes, and stops changing when a
-      tool torve does not run reformats its own lockfile
-    rationale: config_hash digests that file's bytes today and the engine reads it for
-      nothing else, so a hash the operator cannot influence gates a regime the operator
-      did choose
+    consequence: >-
+      the hash changes when the equipment changes, and stops changing when a tool
+      torve does not run reformats its own lockfile
+    rationale: >-
+      config_hash digests that file's bytes today and the engine reads it for nothing
+      else, so a hash the operator cannot influence gates a regime the operator did
+      choose
   - id: D-8
     grade: ASSUMED
-    text: One merge level survives the split — a seat merges its harness and its profile,
+    text: >-
+      One merge level survives the split — a seat merges its harness and its profile,
       and neither references another of its kind.
     paths: [src/torve/config/agents.py]
-    consequence: the file a refusal names is the file that carries the bad key
-    rationale: S-0028/D-4 settled this for profiles and the reason is unchanged; a chain
-      that resolves chains cannot name which link supplied a value
+    consequence: >-
+      the file a refusal names is the file that carries the bad key
+    rationale: >-
+      S-0028/D-4 settled this for profiles and the reason is unchanged; a chain that
+      resolves chains cannot name which link supplied a value
     cites: [S-0028/D-4]
   - id: D-9
     grade: ASSUMED
-    text: A seat carrying a moved key is refused by name, with the file the key belongs
+    text: >-
+      A seat carrying a moved key is refused by name, with the file the key belongs
       in named in the message.
     paths: [src/torve/config/runconfig.py]
-    consequence: the migration guide is the error, so no repository needs one written
-    rationale: every consuming repository's tiers are the flat shape, and STRICT already
-      refuses unknown keys — the only question is whether the refusal teaches
+    consequence: >-
+      the migration guide is the error, so no repository needs one written
+    rationale: >-
+      every consuming repository's tiers are the flat shape, and STRICT already refuses
+      unknown keys — the only question is whether the refusal teaches
 invariants:
   - id: I-1
-    statement: No configuration key reaches the prompt before the charter's base working
-      rules — prompt_extras appends, and nothing replaces.
+    statement: >-
+      No configuration key reaches the prompt before the charter's base working rules
+      — prompt_extras appends, and nothing replaces.
     paths: [src/torve/adapters/agent/harness.py, src/torve/config/agents.py]
     check: uv run pytest tests/test_agents.py -k base_rules
   - id: I-2
-    statement: Every key of the old flat tier body lives in exactly one of the three
-      files, and the other two refuse it by name.
+    statement: >-
+      Every key of the old flat tier body lives in exactly one of the three files,
+      and the other two refuse it by name.
     paths: [src/torve/config/agents.py, src/torve/config/runconfig.py]
     check: uv run pytest tests/test_agents.py -k one_home
-retired: []
