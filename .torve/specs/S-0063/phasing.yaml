@@ -9,16 +9,31 @@ phasing:
       byte-identical in five definitions becomes inheritance, and `_torve-cli.dockerfile`
       retires with the test that pinned the copies against it. `bake.hcl` declares
       a target per definition with the base as a named context and a justfile recipe
-      is the build; `torve sandbox` reads the new root and shells bake. No engine
-      behaviour changes — the images keep the commands their manifests already carry.
+      is the build. `torve sandbox build` and `stage` retire with `RuntimePort.build_image`,
+      leaving `list` and `digest`, and every message that named the verb names the
+      recipe. No engine behaviour changes — the images keep the commands their manifests
+      already carry.
     scope:
       - sandboxes/**
       - .torve/sandbox/**
       - bake.hcl
       - justfile
       - src/torve/cli/sandbox.py
+      - src/torve/cli/main.py
+      - src/torve/cli/doctor.py
+      - src/torve/application/ports.py
+      - src/torve/application/intake.py
+      - src/torve/adapters/runtime/**
+      - README.md
       - tests/test_sandbox_defs.py
       - tests/test_sandbox_images.py
+      - tests/test_runtime.py
+      - tests/test_runtime_conformance.py
+      - tests/test_cli.py
+      - tests/test_doctor.py
+      - tests/test_intake.py
+      - tests/test_run_loop.py
+      - tests/test_broker.py
       - CHANGELOG.md
     acceptance:
       - uv run pytest
@@ -98,8 +113,21 @@ contract_example:
       - bake.hcl
       - justfile
       - src/torve/cli/sandbox.py
+      - src/torve/cli/main.py
+      - src/torve/cli/doctor.py
+      - src/torve/application/ports.py
+      - src/torve/application/intake.py
+      - src/torve/adapters/runtime/**
+      - README.md
       - tests/test_sandbox_defs.py
       - tests/test_sandbox_images.py
+      - tests/test_runtime.py
+      - tests/test_runtime_conformance.py
+      - tests/test_cli.py
+      - tests/test_doctor.py
+      - tests/test_intake.py
+      - tests/test_run_loop.py
+      - tests/test_broker.py
       - CHANGELOG.md
     deny: []
   acceptance:

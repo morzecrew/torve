@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-10T17:04:33Z'
+    title: Phase 1 takes the retirement D-11 decided
+    md: |-
+      The phase was written before Q-1 was settled and still said `torve sandbox` shells bake. D-11 retires the verb's build half and `RuntimePort.build_image` with it, and that reaches further than the definitions: the port has two adapter implementations and four stubs in the suite, `torve doctor` and `torve intake` name the verb in their prose, and the README documents it twice.
+
+      They are taken here rather than in a follow-up, because a half-retired port is worse than either state — the protocol would still promise a build nothing performs. No decision row changes and no scope reaches past what the retirement touches.
