@@ -131,13 +131,6 @@ class Runtime(Protocol):
 
         ...
 
-    def build_image(self, context: Path, tag: str) -> str:
-        """Build the definition at *context* under *tag* and return the
-        digest. An operator action invoked by `torve sandbox build` only —
-        the engine never builds mid-run (S-0017/D-3)."""
-
-        ...
-
 
 # ....................... #
 

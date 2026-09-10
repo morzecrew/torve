@@ -76,13 +76,6 @@ class StubRuntime:
     def resolve_image(self, image):
         return self._image_digest
 
-    def build_image(self, context, tag):
-        if self._build_error is not None:
-            raise RuntimeError(self._build_error)
-
-        self.built.append((context, tag))
-        return "sha256:built"
-
 
 def draft_dict(
     ref: str = "DRAFT-1",
@@ -1356,25 +1349,43 @@ def test_configuration_lint_parses_the_committed_schema(tree):
     assert any("does not parse" in e for e in errors)
 
 
-def test_configuration_lint_builds_every_touched_image(tree):
-    definition = tree / ".torve" / "sandbox" / "dsh"
+def test_configuration_lint_accepts_a_definition_the_build_knows_about(tree):
+    """The leg used to build each touched image. It cannot: the engine lost
+    `build_image` with S-0063/D-11, so what it checks is that something
+    would build the definition at all."""
+
+    definition = tree / "sandboxes" / "dsh"
     definition.mkdir(parents=True)
     (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
-    doc = document(draft_dict(allow=[".torve/sandbox/dsh/Dockerfile"]))
-    runtime = StubRuntime()
-    errors = lint_configuration_change(tree, doc, RunnerConfig(), runtime)
+    (tree / "bake.hcl").write_text('target "dsh" {\n}\n', encoding="utf-8")
+    doc = document(draft_dict(allow=["sandboxes/dsh/Dockerfile"]))
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime())
+
     assert errors == []
-    assert runtime.built == [(definition, "torve-agent:dsh")]
 
 
-def test_configuration_lint_refuses_a_broken_image_build(tree):
-    definition = tree / ".torve" / "sandbox" / "dsh"
+def test_configuration_lint_refuses_a_definition_nothing_would_build(tree):
+    definition = tree / "sandboxes" / "ghost"
     definition.mkdir(parents=True)
     (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
-    doc = document(draft_dict(allow=[".torve/sandbox/dsh/Dockerfile"]))
-    runtime = StubRuntime(build_error="no such tool")
-    errors = lint_configuration_change(tree, doc, RunnerConfig(), runtime)
-    assert any("failed to build" in e for e in errors)
+    (tree / "bake.hcl").write_text('target "dsh" {\n}\n', encoding="utf-8")
+    doc = document(draft_dict(allow=["sandboxes/ghost/Dockerfile"]))
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime())
+
+    assert any("names no target for it" in e for e in errors)
+
+
+def test_configuration_lint_still_reaches_a_consuming_repositorys_own(tree):
+    """S-0063/D-6: `.torve/sandbox/` stays the hook, so a draft naming one
+    is still a configuration surface."""
+
+    definition = tree / ".torve" / "sandbox" / "house"
+    definition.mkdir(parents=True)
+    (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (tree / "bake.hcl").write_text('target "house" {\n}\n', encoding="utf-8")
+    doc = document(draft_dict(allow=[".torve/sandbox/house/Dockerfile"]))
+
+    assert lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime()) == []
 
 
 def test_configuration_lint_refuses_when_a_configured_image_is_missing(tree):

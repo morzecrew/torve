@@ -255,7 +255,16 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
         f"FROM {config.runtime.image}\nLABEL torve.eval=candidate\n", encoding="utf-8"
     )
     candidate_image = "torve-eval-candidate:test"
-    runtime.build_image(context, candidate_image)
+    # Built here rather than through the runtime: the engine lost
+    # `build_image` with S-0063/D-11, and a test that needs an image builds
+    # one the way an operator does.
+    built = subprocess.run(
+        ["docker", "build", "-t", candidate_image, str(context)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert built.returncode == 0, built.stderr[-2000:]
 
     steps = [
         {"writes": {"src/feature.py": "FEATURE = 'a'\n"}, "exit": 0},

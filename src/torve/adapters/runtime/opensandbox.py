@@ -400,14 +400,6 @@ class OpenSandboxRuntime:
 
     # ....................... #
 
-    def build_image(self, context: Path, tag: str) -> str:
-        raise RuntimeError(
-            "the opensandbox runtime cannot build images — build with the docker "
-            "runtime and push to a registry the server can pull from"
-        )
-
-    # ....................... #
-
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         with self._sdk.SandboxManagerSync.create(connection_config=self._connection) as manager:
             paged = manager.list_sandbox_infos(self._sdk.models.SandboxFilter(states=["RUNNING"]))

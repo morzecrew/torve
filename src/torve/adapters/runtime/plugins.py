@@ -34,22 +34,32 @@ from torve.config.agents import Plugin
 SEED_ROOT = "/opt/torve/seed"
 
 
-def harness_kind(image: str) -> str:
-    """The harness an image is: the tag's name, which is the definition
-    directory under `.torve/sandbox/` it was built from.
+SANDBOX_SUFFIX = "-sandbox"
 
-    `torve-agent:claude` and `registry.example.com/org/torve-agent:claude`
-    are the same harness — a push renames the repository and keeps the tag
-    (S-0017/D-2), so the tag is what survives the move.
+
+def harness_kind(image: str) -> str:
+    """The harness an image is: the definition directory under `sandboxes/`
+    it was built from (S-0063/D-6).
+
+    `claude-sandbox:2.1.252` and `ghcr.io/morzecrew/claude-sandbox:2.1.252`
+    are the same harness — publishing changes the repository prefix and the
+    version, and the name in the middle is what survives the move.
+
+    The `-sandbox` suffix is what makes this answerable at all. The old
+    `torve-agent:<name>` spelling put the name in the version position, so
+    every other image published under a `torve-agent` repository — the
+    engine's own among them — read as a harness called by its version. An
+    image that is not a sandbox this repository defines answers nothing,
+    which is the right answer for a stock base or a third party's image.
     """
 
     if not image:
         return ""
 
     tag = image.rsplit("@", 1)[0]  # a digest pin carries the tag before it
-    name = posixpath.basename(tag)
+    repository = posixpath.basename(tag).partition(":")[0]
 
-    return name.split(":", 1)[1] if ":" in name else ""
+    return repository.removesuffix(SANDBOX_SUFFIX) if repository.endswith(SANDBOX_SUFFIX) else ""
 
 
 # ....................... #

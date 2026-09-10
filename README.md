@@ -155,12 +155,12 @@ command: >-
 The command runs inside the sandbox image, so it reaches the harness and
 the small toolkit the image bakes at `/opt/torve/` — here the claude seed,
 copied into the runtime home (`$HOME` is the container's `/tmp`) before the
-harness starts. The image itself is the one `torve sandbox build claude`
-produces from the in-repo definition, or a pinned pull from the registry
+harness starts. The image itself is the one `just image claude` produces from
+the in-repo definition under `sandboxes/`, or a pinned pull from the registry
 when publishing is configured.
 
 That registry pull is the other half of the zero-config story: CI publishes
-`claude`, `dsh` and `mimo` to `ghcr.io/morzecrew/torve-agent-<name>` under
+`claude`, `dsh` and `mimo` to `ghcr.io/morzecrew/<name>-sandbox` under
 immutable `<harness-version>-r<image-rev>` tags, so a profile can name one
 directly and build nothing:
 
@@ -169,7 +169,7 @@ directly and build nothing:
 adapter: harness
 provider: anthropic
 model: claude-sonnet-5
-image: ghcr.io/morzecrew/torve-agent-claude:2.1.252-r1
+image: ghcr.io/morzecrew/claude-sandbox:2.1.252-r1
 command: >-
   cp -r /opt/torve/seed/. "$HOME/" && claude -p --model {model}
   "$(cat {prompt})" --output-format json
@@ -177,8 +177,10 @@ command: >-
 
 Always a full version tag, never `latest` — `latest` is for kicking tires,
 not for a profile a run depends on. Pulling trusts this repository's CI and
-the ghcr account; `torve sandbox build claude` from the same in-repo
-definition is the one-command alternative for anyone who'd rather not.
+the ghcr account; `just image claude` from the same in-repo definition is the
+one-command alternative for anyone who'd rather not. `torve sandbox list` says
+which definitions exist and `torve sandbox digest` what each resolves to; the
+engine itself never builds one.
 
 `profile` also takes a list of names, merged left to right under the same
 rule, local keys still winning last — a tier composing a wiring layer and an

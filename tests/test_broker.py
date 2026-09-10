@@ -749,9 +749,6 @@ class HostRuntime:
     def resolve_image(self, image: str) -> None:
         return None
 
-    def build_image(self, context, tag: str) -> str:
-        raise NotImplementedError
-
 
 class HostVcs:
     """The landing hook's git surface: a stub commit that never pushes."""

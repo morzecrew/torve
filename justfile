@@ -70,6 +70,22 @@ quality strict="false":
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 
 # ----------------------- #
+# Sandbox images
+
+# Build every sandbox image; `just images agents` skips the gates-side one
+images group='default':
+    docker buildx bake --file bake.hcl {{ group }}
+
+# Build one image by its definition name, e.g. `just image claude`
+image name:
+    docker buildx bake --file bake.hcl {{ name }}
+
+# Build and push under a registry, e.g. `just images-push ghcr.io/morzecrew v1`
+images-push registry tag='latest' group='default':
+    REGISTRY={{ registry }} TAG={{ tag }} \
+      docker buildx bake --file bake.hcl --push {{ group }}
+
+# ----------------------- #
 # Store
 
 # Start the lab's Postgres and wait until it answers

@@ -1,28 +1,23 @@
 """`torve sandbox` — image definitions as reviewed artefacts (S-0017/the-image-is-an-input-not-an-environment).
 
-Definitions live under `.torve/sandbox/<name>/` (S-0017/D-2), build to the tag
-`torve-agent:<name>`, and the reported digest is the identity that joins
-`config_hash` at dispatch (S-0017/D-1). Building is an operator action — the
-engine never builds mid-run (S-0017/D-3) — and images stay thin (S-0017/D-8): base
-runtime, harness, git, uv; everything task-specific arrives via the
-workspace. Parsing and rendering only (S-0015/D-6).
+Definitions live under `sandboxes/<name>/` in the repository root and build to
+`<name>-sandbox` (S-0063/D-6). They are torve's own source, published for other
+repositories to pull; `.torve/sandbox/` stays the hook for a consuming
+repository that defines an image of its own, and this reads whichever is there.
 
-`--push` publishes a built image to a registry the server can pull from
-(S-0041/D-4). The push is a docker call made here, at the operator's command —
-no registry client enters the runtime (S-0041/images-reach-the-registry) — and the
-digest-pinned reference it prints is what the run config should carry: on
-a pull-from-registry platform the pinned reference is the resolution, not
-a stand-in for one.
+The engine does not build. `docker buildx bake` does, through `just images`
+(S-0063/D-8), and `RuntimePort.build_image` retired with the verb that called it
+(S-0063/D-11) — so S-0017/D-3's rule that no build happens mid-run is structural
+rather than stated. What is left here is what the engine needs to *know*: which
+definitions exist, and what digest a configured image resolves to, because that
+digest joins `config_hash` at dispatch (S-0017/D-1) and a rebuild must be a
+visible regime change. Parsing and rendering only (S-0015/D-6).
 """
 
 from __future__ import annotations
 
-import shutil
-import subprocess
-import tempfile
-from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 import typer
 from rich.text import Text
@@ -44,68 +39,105 @@ from torve.cli.options import (
     load_config,
     runtime_for,
 )
-from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
+from torve.domain.states import EXIT_CONFIG
 
 # ----------------------- #
 
 sandbox_app = typer.Typer(
-    no_args_is_help=True, help="Sandbox image definitions: build and identify."
+    no_args_is_help=True, help="Sandbox image definitions: what exists, and what it resolves to."
 )
 
-DEFINITIONS_DIR = "sandbox"
+# Torve's own definitions, in the repository root (S-0063/D-6).
+DEFINITIONS_DIR = "sandboxes"
 
-# What every build context carries beside the definition's own files: the
-# project the engine is built from. An agent calls the engine's own verbs
-# from inside its sandbox — the divergence intake, the notes poll — so the
-# image needs `torve` installed, and installing it needs the project.
-#
-# The definitions guard on these being present, so a bare `docker build` of
-# a definition directory still produces a working image without them; what
-# staging changes is that the supported path no longer asks an operator to
-# assemble a context by hand.
-# The files an install always needs, whatever the wheel is made of.
-PROJECT_FILES = ("pyproject.toml", "uv.lock", "README.md", "LICENSE")
+# Where a consuming repository puts one of its own — everything torve owns in a
+# repository it works on lives under `.torve/` (S-0055/D-30), and a definition
+# written by that repository is exactly that.
+CONSUMER_DEFINITIONS_DIR = "sandbox"
+
+BUILD_RECIPE = "just images"
+
+# The base every definition inherits (S-0063/D-7). It is a definition directory
+# like the others and it is not a sandbox: it contains no harness, so no seat
+# can name it and nothing resolves its digest at dispatch. `bake.hcl` builds it
+# as the named context the others take, which is the only place it appears.
+BASE_DEFINITION = "base"
+
+# What the base's `COPY` lines bake, held against what the wheel declares by
+# `tests/test_sandbox_defs.py`. The list is in two places because a Dockerfile
+# cannot read pyproject.toml; the test is what keeps them one list.
+PROJECT_INPUTS = (
+    "pyproject.toml",
+    "uv.lock",
+    "README.md",
+    "LICENSE",
+    "src",
+    "skills",
+    "migrations",
+)
 
 
 # ....................... #
 
 
 def definitions_root(root: Path) -> Path:
+    """The directory holding this repository's definitions.
+
+    `sandboxes/` when it exists, `.torve/sandbox/` otherwise: one repository
+    has one answer, and which one it is says whether the definitions are its
+    source or its configuration.
+    """
+
     from torve.config import layout
 
-    return root / layout.TORVE_DIR / DEFINITIONS_DIR
+    own = root / DEFINITIONS_DIR
 
+    if own.is_dir():
+        return own
 
-# ....................... #
+    return root / layout.TORVE_DIR / CONSUMER_DEFINITIONS_DIR
 
 
 def definition_names(root: Path) -> list[str]:
-    base = definitions_root(root)
+    """Every runnable definition, in name order — the base is not one."""
 
-    if not base.is_dir():
+    where = definitions_root(root)
+
+    if not where.is_dir():
         return []
 
     return sorted(
-        entry.name
-        for entry in base.iterdir()
-        if entry.is_dir() and (entry / "Dockerfile").is_file()
+        one.name
+        for one in where.iterdir()
+        if one.is_dir() and one.name != BASE_DEFINITION and (one / "Dockerfile").is_file()
     )
 
 
-# ....................... #
+# S-0063/D-6: the tag and the definition directory are the same fact, which is
+# what lets `doctor` ask whether an image it found is still defined here.
+def image_tag(name: str) -> str:
+    """The tag `bake.hcl` builds this definition to.
+
+    `<name>-sandbox`, not `torve-agent:<name>`: the prefix said who built the
+    image, which a registry path already says, and a name worth publishing is
+    the point of the rename.
+    """
+
+    return f"{name}-sandbox"
 
 
 def project_inputs(root: Path) -> list[str]:
-    """What the context must carry for the project to build inside an image.
+    """What the base must bake for the project to install inside an image.
 
     The packages and forced includes are read from `pyproject.toml` rather
-    than listed here: a wheel that ships migrations or skills as package
-    data fails to build without them, and a hand-kept list is a list that
-    goes stale the first time one is added. It went stale once already —
-    that is why this reads.
+    than listed here: a wheel that ships migrations or skills as package data
+    fails to build without them, and a hand-kept list is a list that goes
+    stale the first time one is added. It went stale once already — that is
+    why this reads.
+
+    The base's `COPY` lines are the hand-kept half now, since a Dockerfile
+    cannot read a TOML file; `PROJECT_INPUTS` is that half and the test holds
+    the two together.
     """
 
     import tomllib
@@ -113,7 +145,7 @@ def project_inputs(root: Path) -> list[str]:
     manifest = root / "pyproject.toml"
 
     if not manifest.is_file():
-        return list(PROJECT_FILES)
+        return list(PROJECT_INPUTS[:4])
 
     wheel = (
         tomllib.loads(manifest.read_text(encoding="utf-8"))
@@ -126,207 +158,87 @@ def project_inputs(root: Path) -> list[str]:
     packages = [str(one).split("/", 1)[0] for one in wheel.get("packages", ["src"])]
     included = [str(one) for one in wheel.get("force-include", {})]
 
-    return [*PROJECT_FILES, *dict.fromkeys([*packages, *included])]
+    return [*PROJECT_INPUTS[:4], *dict.fromkeys([*packages, *included])]
 
 
 # ....................... #
 
 
-@contextmanager
-def staged_context(definition: Path, root: Path) -> Generator[Path]:
-    """The definition's files plus the project, in a directory of their own.
+def _known(root: Path, name: str) -> None:
+    """Refuse a name no definition answers to, saying which do."""
 
-    The build context is a copy rather than the repository: an image should
-    see the inputs it bakes and nothing else, and a context rooted at the
-    repository would send the worktree, the venv and every artefact in it.
-    """
+    if name in definition_names(root):
+        return
 
-    with tempfile.TemporaryDirectory(prefix="torve-image-") as scratch:
-        staged = Path(scratch)
-        shutil.copytree(definition, staged, dirs_exist_ok=True)
+    listed = ", ".join(definition_names(root)) or "none"
 
-        for name in project_inputs(root):
-            source = root / name
-
-            if source.is_dir():
-                shutil.copytree(source, staged / name, ignore=shutil.ignore_patterns("__pycache__"))
-
-            elif source.is_file():
-                shutil.copy2(source, staged / name)
-
-        yield staged
-
-
-# ....................... #
-
-
-def image_tag(name: str) -> str:
-    return f"torve-agent:{name}"
-
-
-# ....................... #
-
-
-# A push crosses the network to a registry that may be far away; it gets
-# the build's own bound and no more.
-PUSH_TIMEOUT_S = 1800
-
-
-def _docker(*args: str, timeout: float) -> subprocess.CompletedProcess[str]:
-    """One docker call — the same binary the Docker runtime drives, and
-    the only registry client the CLI is allowed: the adapter gets none
-    (S-0041/images-reach-the-registry)."""
-
-    return subprocess.run(
-        ["docker", *args], capture_output=True, text=True, timeout=timeout, check=False
+    raise fail(
+        f"configuration error: no definition directory with a Dockerfile for {name!r} "
+        f"under {definitions_root(root)} (defined: {listed})",
+        EXIT_CONFIG,
     )
 
 
 # ....................... #
 
 
-def registry_repository(reference: str) -> str:
-    """A `--push` value as a validated registry repository: the tag is the
-    definition's name, so one value addresses a build of every definition.
-    A reference that already carries a tag or a digest is the operator's
-    to correct, not ours to second-guess."""
-
-    repository = reference.strip().rstrip("/")
-    tail = repository.rsplit("/", 1)[-1]
-
-    if not repository or "@" in repository or ":" in tail:
-        raise fail(
-            f"configuration error: --push {reference!r} is not a registry repository — "
-            "pass the repository only (e.g. registry.example.com/org/torve-agent), "
-            "no tag and no digest; each built definition is pushed as "
-            "<repository>:<definition-name>",
-            EXIT_CONFIG,
-        )
-
-    return repository
-
-
-# ....................... #
-
-
-def push_image(local_tag: str, repository: str, name: str) -> str:
-    """Publish *local_tag* as `<repository>:<name>` and return the
-    digest-pinned reference the registry recorded: the registry's manifest
-    digest, not the local content id, is what a pull platform resolves."""
-
-    pushed = f"{repository}:{name}"
-
-    for step in (
-        ("tag", local_tag, pushed),
-        ("push", pushed),
-    ):
-        proc = _docker(*step, timeout=PUSH_TIMEOUT_S)
-
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"docker {step[0]} failed: {proc.stderr.strip() or 'no error output'}"
-            )
-
-    # After a successful push the daemon records the manifest digest the
-    # registry names the content by; that is the identity to carry.
-    proc = _docker("image", "inspect", "--format", "{{index .RepoDigests 0}}", pushed, timeout=30)
-    pinned = proc.stdout.strip()
-
-    if proc.returncode != 0 or "@sha256:" not in pinned:
-        raise RuntimeError(
-            f"pushed {pushed} but no registry digest resolved — "
-            f"{proc.stderr.strip() or 'the daemon recorded no RepoDigest for the pushed image'}"
-        )
-
-    return pinned
-
-
-# ....................... #
-
-
-@sandbox_app.command("stage")
-def stage(
-    name: Annotated[str, typer.Argument(help="The definition whose context to assemble.")],
-    into: Annotated[Path, typer.Argument(help="Directory to write the context into.")],
+@sandbox_app.command("list")
+def list_definitions(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Assemble one definition's build context in a directory.
-
-    `build` does this in scratch and throws it away; this is the same
-    assembly for a builder that is not this process — CI hands a context
-    directory to a build action, and it must be the same context, by the
-    same rule, or the published image differs from the local one in a way
-    nothing checks.
-    """
+    """Every image definition this repository carries, and the tag each
+    builds to. Building them is `just images`; the engine never does."""
 
     root = root.resolve()
-
-    if name not in definition_names(root):
-        listed = ", ".join(definition_names(root)) or "none"
-
-        raise fail(
-            f"configuration error: no definition directory with a Dockerfile for "
-            f"{name!r} under {definitions_root(root)} (defined: {listed})",
-            EXIT_CONFIG,
-        )
-
-    into = into.resolve()
-    into.mkdir(parents=True, exist_ok=True)
-
-    with staged_context(definitions_root(root) / name, root) as context:
-        shutil.copytree(context, into, dirs_exist_ok=True)
-
-    staged = sorted(one.name for one in into.iterdir())
+    names = definition_names(root)
 
     if fmt is Format.JSON:
-        emit_json({"name": name, "context": str(into), "entries": staged})
+        emit_json(
+            {
+                "schema_version": 1,
+                "root": str(definitions_root(root)),
+                "definitions": [{"name": one, "tag": image_tag(one)} for one in names],
+            }
+        )
         return
 
     console = out(fmt)
-    header(console, "sandbox stage", name)
-    console.print(Text(str(into), STYLE_ID))
-    console.print(Text(", ".join(staged), STYLE_ID))
+    header(console, "sandbox list", f"{len(names)} definition(s)")
+
+    if not names:
+        console.print(Text(f"none under {definitions_root(root)}", STYLE_ID))
+        return
+
+    table = make_table("name", "tag")
+
+    for one in names:
+        table.add_row(one, Text(image_tag(one), STYLE_ID))
+
+    console.print(table)
+    console.print(Text(f"build: {BUILD_RECIPE}", STYLE_ID))
 
 
 # ....................... #
 
 
-@sandbox_app.command("build")
-def build(
+@sandbox_app.command("digest")
+def digest(
     name: Annotated[
-        str | None, typer.Argument(help="One definition to build; omit to build every definition.")
-    ] = None,
-    push: Annotated[
         str | None,
-        typer.Option(
-            "--push",
-            help=(
-                "Registry repository to publish each built image to, pushed as "
-                "<repository>:<definition-name> (pass no tag and no digest). The "
-                "digest-pinned reference the registry records is printed beside "
-                "it — that pinned reference is the identity a run config carries "
-                "on a platform whose server pulls from the registry."
-            ),
-        ),
+        typer.Argument(help="One definition to resolve; omit to resolve every definition."),
     ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Build image definitions and report their digests. The digest is the
-    image's identity: it joins the run's configuration hash at dispatch, so
-    a rebuild is a visible regime change, never a silent one.
+    """What each definition's tag resolves to on this runtime.
 
-    With --push, each built image is also published to the named registry
-    repository and the digest-pinned reference is printed for the run
-    config: on a pull platform the pinned reference is the resolution."""
-
-    # Fail on the reference before loading anything else (S-0041/D-4: the push
-    # is this command's docker call; the runtime adapters get no registry
-    # client).
-    repository = registry_repository(push) if push is not None else ""
+    The digest is the image's identity: it joins the run's configuration hash
+    at dispatch, so a rebuild is a visible regime change and an image that
+    resolves to nothing has not been built here. An unresolved image is
+    reported as unresolved, never invented."""
 
     root = root.resolve()
     config = load_config(root, config_path)
@@ -335,68 +247,33 @@ def build(
     names = definition_names(root)
 
     if name is not None:
-        if name not in names:
-            listed = ", ".join(names) or "none"
-
-            raise fail(
-                f"configuration error: no definition directory with a "
-                f"Dockerfile for {name!r} under {definitions_root(root)} "
-                f"(defined: {listed})",
-                EXIT_CONFIG,
-            )
-
+        _known(root, name)
         names = [name]
 
     if not names:
         raise fail(
-            f"configuration error: no image definitions under {definitions_root(root)}", EXIT_CONFIG
+            f"configuration error: no image definitions under {definitions_root(root)}",
+            EXIT_CONFIG,
         )
 
-    built: list[dict[str, str]] = []
-
-    for entry in names:
-        try:
-            with staged_context(definitions_root(root) / entry, root) as context:
-                digest = runtime.build_image(context, image_tag(entry))
-
-        except Exception as error:  # the build tool's failure is the message
-            raise fail(f"build failed for {entry!r}: {error}", EXIT_INFRASTRUCTURE) from None
-
-        image = {"name": entry, "tag": image_tag(entry), "digest": digest}
-
-        if repository:
-            try:
-                image["pinned"] = push_image(image_tag(entry), repository, entry)
-
-            except Exception as error:  # the build succeeded; say what failed
-                raise fail(f"push failed for {entry!r}: {error}", EXIT_INFRASTRUCTURE) from None
-
-        built.append(image)
+    resolved = [
+        {"name": one, "tag": image_tag(one), "digest": runtime.resolve_image(image_tag(one)) or ""}
+        for one in names
+    ]
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "images": built})
+        emit_json({"schema_version": 1, "images": resolved})
         return
 
     console = out(fmt)
-    header(console, "sandbox build", f"{len(built)} image(s)")
+    header(console, "sandbox digest", f"{len(resolved)} image(s)")
+    table = make_table("name", "tag", "digest")
 
-    if repository:
-        table = make_table("name", "tag", "digest", "pinned reference")
-
-        for image in built:
-            table.add_row(
-                image["name"],
-                Text(image["tag"], STYLE_ID),
-                Text(image["digest"], STYLE_ID),
-                Text(image["pinned"], STYLE_ID),
-            )
-
-    else:
-        table = make_table("name", "tag", "digest")
-
-        for image in built:
-            table.add_row(
-                image["name"], Text(image["tag"], STYLE_ID), Text(image["digest"], STYLE_ID)
-            )
+    for image in resolved:
+        table.add_row(
+            image["name"],
+            Text(image["tag"], STYLE_ID),
+            Text(image["digest"] or f"unresolved — {BUILD_RECIPE}", STYLE_ID),
+        )
 
     console.print(table)

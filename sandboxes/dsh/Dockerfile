@@ -1,18 +1,12 @@
-# Sandbox image for the dsh harness (RFC 0004 §1): harness baked in, never
-# injected. node:24-slim satisfies dsh's Node >=24 requirement; git for the
-# workspace, python3 kept for parity with gate commands.
-FROM node:24-slim
-# The harness version rides a pinned-default ARG (RFC 0033 §5.2, D-33.3): a
-# bump is a one-line reviewed diff, never a rebuild side effect.
+# Sandbox image for the dsh harness (S-0004): harness baked in, never
+# injected. The base carries node 24, which satisfies dsh's requirement, plus
+# git, python3, uv and the engine's own CLI (S-0063/D-7).
+ARG BASE=sandbox-base
+FROM ${BASE}
+# The harness version rides a pinned-default ARG (S-0033/D-3): a bump is a
+# one-line reviewed diff, never a rebuild side effect.
 ARG DSH_VERSION=0.1.1-rc.2
-RUN apt-get update \
- && apt-get install -y --no-install-recommends git curl ca-certificates python3 zstd \
- && rm -rf /var/lib/apt/lists/* \
- && npm install -g @deepseek-ai/dsh@${DSH_VERSION} \
- && dsh --version
-
-# uv for replaying tasks whose acceptance battery is uv-driven
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION} && dsh --version
 
 # Harness identity (RFC 0017 §3, D-17.4): the headless profile's default
 # model is deepseek-v4-flash; the department runs deepseek-chat. The pin is
@@ -51,41 +45,3 @@ RUN mkdir -p /opt/dsh \
  && ln -s /opt/torve/overlays/brokered-glm-5.2.yml /opt/dsh/brokered-glm-5.2.yml \
  && ln -s /opt/torve/overlays/brokered-deepseek-v4-pro.yml /opt/dsh/brokered-deepseek-v4-pro.yml \
  && ln -s /opt/torve/overlays/brokered-qwen3.8-max.yml /opt/dsh/brokered-qwen3.8-max.yml
-
-# The engine's own CLI, for the verbs an attempt calls from inside its
-# sandbox: `torve log divergence` records a divergence through the run's
-# channel, `torve log notes` reads what the engine had to say. Without it
-# the prompt names commands the sandbox does not have.
-#
-# Its own interpreter and its own environment, under /opt/torve: the
-# repository under work owns the workspace, and the intake must not depend
-# on what that repository happens to install — or on it being a Python
-# project at all. The interpreter is installed where every uid can read it,
-# because a sandbox runs as the host's uid and uv's default install
-# directory is root's home; the build proves it by running the verb as
-# `nobody` rather than as the user that built it.
-#
-# Guarded like the battery's dependency layer, and for the same reason:
-# `torve sandbox build` stages the project into the context, and a bare
-# `docker build` of this directory still produces a working image without
-# it.
-#
-# This block is byte-identical in every agent definition, copied from
-# `.torve/sandbox/_torve-cli.dockerfile` and pinned against it by a test —
-# edit that file, not this copy. A shared base image replaces the
-# arrangement when the sandboxes are reworked.
-COPY . /opt/torve/build-context/
-ENV UV_PYTHON_INSTALL_DIR=/opt/torve/python
-RUN set -eu; \
-    if [ -f /opt/torve/build-context/pyproject.toml ] \
-       && [ -f /opt/torve/build-context/uv.lock ]; then \
-      uv python install 3.13; \
-      uv venv --python 3.13 /opt/torve/cli; \
-      UV_PROJECT_ENVIRONMENT=/opt/torve/cli \
-        uv sync --locked --no-cache --no-dev --no-editable \
-          --project /opt/torve/build-context; \
-      ln -sf /opt/torve/cli/bin/torve /usr/local/bin/torve; \
-      chmod -R a+rX /opt/torve/python /opt/torve/cli; \
-      su -s /bin/sh -c "torve --version" nobody; \
-    fi; \
-    rm -rf /opt/torve/build-context

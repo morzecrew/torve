@@ -359,21 +359,6 @@ class DockerRuntime:
 
     # ....................... #
 
-    def build_image(self, context: Path, tag: str) -> str:
-        proc = self._run("build", "-t", tag, str(context), timeout=1800)
-
-        if proc.returncode != 0:
-            raise DockerError(proc.stderr.strip() or f"docker build failed for {tag}")
-
-        digest = self.resolve_image(tag)
-
-        if digest is None:
-            raise DockerError(f"built {tag} but could not resolve its digest")
-
-        return digest
-
-    # ....................... #
-
     def list_torve_sandboxes(self) -> list[SandboxInfo]:
         proc = self._run(
             "ps",

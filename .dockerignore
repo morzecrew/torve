@@ -1,0 +1,16 @@
+# The build context is the repository root (S-0063/D-8), so what an image
+# must never bake is excluded here rather than by staging a copy.
+.git
+.venv
+.torve/tasks
+.torve/runs
+.torve/worktrees
+**/__pycache__
+**/*.pyc
+web/node_modules
+node_modules
+htmlcov
+.pytest_cache
+.mypy_cache
+.ruff_cache
+coverage.xml

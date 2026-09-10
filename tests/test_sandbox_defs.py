@@ -1,41 +1,59 @@
-"""The image definitions as reviewed artefacts (S-0017/the-image-is-an-input-not-an-environment, S-0017/D-2).
+"""The image definitions as reviewed artefacts (S-0017/the-image-is-an-input-not-an-environment, S-0063/D-6).
 
-The engine's own CLI now ships inside every agent image, because the prompt
-tells an attempt to call it — `torve log divergence` for the intake, `torve
-log notes` for the poll — and a command the sandbox does not have is a
-prompt instruction that cannot be followed.
+They live at `sandboxes/<name>/` and build to `<name>-sandbox` through
+`bake.hcl`, which is where the layer five of them used to copy is a real
+dependency instead of a test holding the copies in step (S-0063/D-7).
 
-The block that installs it is copied into five Dockerfiles, so the one
-thing worth a test is that they are still one block. A shared base image is
-what removes the duplication; until then this is what keeps the copies from
-drifting into five slightly different sandboxes.
+What is worth a test here is what a build cannot tell you: that every
+definition inherits the base rather than a stock image, that the base bakes
+exactly the project inputs the wheel declares, and that `bake.hcl` names a
+target for every definition — a definition nothing builds is a definition
+that quietly stops existing.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
-DEFINITIONS = Path(".torve/sandbox")
-FRAGMENT = DEFINITIONS / "_torve-cli.dockerfile"
-# The battery image is the gates' socket image and installs no harness and
-# no CLI: gates run the engine from the workspace's own environment.
+DEFINITIONS = Path("sandboxes")
+BAKE = Path("bake.hcl")
+BASE = DEFINITIONS / "base" / "Dockerfile"
+# The battery image is the gates' socket image and installs no harness; it
+# inherits the base like the rest, because the CLI and uv are what it needed
+# the duplicated block for.
 AGENTS = ("claude", "codex", "dsh", "mimo", "opencode")
+EVERY = (*AGENTS, "battery")
 
 
-@pytest.mark.parametrize("name", AGENTS)
-def test_every_agent_image_carries_the_cli_block_verbatim(name):
+@pytest.mark.parametrize("name", EVERY)
+def test_every_definition_inherits_the_base(name: str) -> None:
+    """S-0063/D-7: one base, so the CLI layer is built once. A definition
+    that names a stock image instead is a sandbox with no `torve` in it, and
+    the prompt tells an attempt to call `torve log divergence`."""
+
     definition = (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8")
 
-    assert definition.endswith(FRAGMENT.read_text(encoding="utf-8")), (
-        f"{name}'s Dockerfile has drifted from {FRAGMENT} — edit the fragment "
-        "and copy it into every definition, or the sandboxes stop being alike"
-    )
+    assert "ARG BASE=sandbox-base" in definition
+    assert "FROM ${BASE}" in definition
 
 
-def test_the_block_installs_the_cli_where_a_sandbox_can_reach_it():
-    block = FRAGMENT.read_text(encoding="utf-8")
+@pytest.mark.parametrize("name", EVERY)
+def test_no_definition_carries_its_own_copy_of_the_cli_layer(name: str) -> None:
+    """The duplication S-0063/D-7 removed, kept removed. This is the shape
+    the old pin test guarded, inverted: not "are the copies alike" but "is
+    there a copy at all"."""
+
+    definition = (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "uv venv --python 3.13 /opt/torve/cli" not in definition
+    assert "/opt/torve/build-context" not in definition
+
+
+def test_the_base_installs_the_cli_where_a_sandbox_can_reach_it() -> None:
+    block = BASE.read_text(encoding="utf-8")
 
     # Its own environment, not the workspace's: the repository under work
     # may not be a Python project at all.
@@ -46,76 +64,86 @@ def test_the_block_installs_the_cli_where_a_sandbox_can_reach_it():
     assert "--locked" in block
     # And the build proves the verb exists rather than assuming it.
     assert "torve --version" in block
+    # As a uid that is not the builder's: a sandbox runs as the host's uid.
+    assert "nobody" in block
 
 
-def test_a_definition_without_the_project_still_builds():
-    # The guard is what keeps `docker build .torve/sandbox/<name>` working
-    # for anyone who has not staged a context (S-0017/D-2's reviewed artefact
-    # stays buildable by hand).
-    block = FRAGMENT.read_text(encoding="utf-8")
+def test_the_base_bakes_every_input_the_wheel_declares() -> None:
+    """The list moved from `project_inputs` staging a context into a `COPY`
+    in the base, and a hand-kept list in a Dockerfile goes stale the same way
+    a hand-kept list in Python did — which is what happened the first time a
+    forced include was added."""
 
-    assert "if [ -f /opt/torve/build-context/pyproject.toml ]" in block
-    assert "rm -rf /opt/torve/build-context" in block
+    from torve.cli.sandbox import PROJECT_INPUTS, project_inputs
+
+    block = BASE.read_text(encoding="utf-8")
+    declared = project_inputs(Path("."))
+
+    assert set(declared) == set(PROJECT_INPUTS), (
+        "the wheel declares inputs the base does not name — add them to the "
+        f"COPY lines in {BASE} and to PROJECT_INPUTS"
+    )
+
+    for one in declared:
+        assert re.search(rf"^COPY .*\b{re.escape(one)}\b", block, re.MULTILINE), (
+            f"{BASE} bakes no {one!r}, which the wheel needs to build"
+        )
 
 
-def test_every_definition_the_build_verb_lists_is_a_directory():
+def test_bake_names_a_target_for_every_definition() -> None:
+    """A definition `bake.hcl` does not name is a definition nothing builds
+    — the drafting gate checks the same thing for a proposed one."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+
+    for name in EVERY:
+        assert f'target "{name}"' in baked
+        assert f"{name}-sandbox" in baked
+
+
+def test_the_base_is_not_a_sandbox_anyone_can_run() -> None:
+    """It carries no harness, so no seat may name it and nothing resolves
+    its digest at dispatch. It is a definition directory all the same, which
+    is why the listing has to exclude it by name."""
+
     from torve.cli.sandbox import definition_names
 
-    # The fragment sits beside the definitions and is not one of them.
     listed = definition_names(Path("."))
 
-    assert set(AGENTS) <= set(listed)
-    assert "_torve-cli.dockerfile" not in listed
+    assert set(EVERY) <= set(listed)
+    assert "base" not in listed
+    assert (DEFINITIONS / "base" / "Dockerfile").is_file()
 
 
-def test_the_staged_inputs_follow_the_wheel_rather_than_a_list():
-    from torve.cli.sandbox import project_inputs
+def test_an_image_tag_names_its_definition_back() -> None:
+    """S-0063/D-6: the tag and the directory are the same fact, so `doctor`
+    can ask whether an image it finds is still defined here."""
 
-    staged = project_inputs(Path("."))
+    from torve.adapters.runtime.plugins import harness_kind
+    from torve.cli.sandbox import image_tag
 
-    # Every forced include the wheel declares: a wheel that ships migrations
-    # or skills as package data cannot build without them, and this list
-    # went stale the first time one was added.
-    assert "src" in staged
-    assert "skills" in staged
-    assert "migrations" in staged
-    assert "uv.lock" in staged
+    for name in EVERY:
+        assert harness_kind(image_tag(name)) == name
+        assert harness_kind(f"ghcr.io/morzecrew/{image_tag(name)}:2.1.252") == name
+
+    # A reference that is not one of ours answers nothing rather than
+    # guessing: a stock base is nobody's definition to check.
+    assert harness_kind("python:3.13-slim") == ""
+    assert harness_kind("ghcr.io/morzecrew/torve-agent:0.1.1") == ""
 
 
-def test_the_staged_context_carries_the_definition_and_the_project(tmp_path):
-    from torve.cli.sandbox import staged_context
+def test_a_consuming_repository_keeps_its_own_hook(tmp_path: Path) -> None:
+    """S-0063/D-6: `sandboxes/` is torve's source; `.torve/sandbox/` is where
+    a repository torve works on puts a definition of its own, which is what
+    S-0055/D-30 says about everything torve owns there."""
 
-    definition = tmp_path / "definition"
-    definition.mkdir()
-    (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
-    (definition / "seed.json").write_text("{}\n", encoding="utf-8")
+    from torve.cli.sandbox import definition_names, definitions_root
 
-    root = tmp_path / "repo"
-    (root / "src" / "torve").mkdir(parents=True)
-    (root / "src" / "torve" / "__init__.py").write_text("", encoding="utf-8")
-    (root / "src" / "torve" / "__pycache__").mkdir()
-    (root / "src" / "torve" / "__pycache__" / "stale.pyc").write_bytes(b"\x00")
-    (root / "pyproject.toml").write_text(
-        "[project]\nname = 'torve'\n[tool.hatch.build.targets.wheel]\npackages = [\"src/torve\"]\n",
-        encoding="utf-8",
+    consumer = tmp_path / "repo"
+    (consumer / ".torve" / "sandbox" / "house").mkdir(parents=True)
+    (consumer / ".torve" / "sandbox" / "house" / "Dockerfile").write_text(
+        "FROM scratch\n", encoding="utf-8"
     )
-    (root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
-    (root / ".venv").mkdir()
-    (root / "secrets.env").write_text("KEY=value\n", encoding="utf-8")
 
-    with staged_context(definition, root) as context:
-        staged = {str(one.relative_to(context)) for one in context.rglob("*") if one.is_file()}
-
-        assert "Dockerfile" in staged
-        assert "seed.json" in staged
-        assert "pyproject.toml" in staged
-        assert "uv.lock" in staged
-        assert "src/torve/__init__.py" in staged
-        # The context is a copy of what the image bakes, not of the
-        # repository: a build must not be able to send what it does not need.
-        assert not any(one.startswith(".venv") for one in staged)
-        assert "secrets.env" not in staged
-        assert not any(one.endswith(".pyc") for one in staged)
-
-    # And it is scratch: the directory does not outlive the build.
-    assert not context.exists()
+    assert definitions_root(consumer) == consumer / ".torve" / "sandbox"
+    assert definition_names(consumer) == ["house"]

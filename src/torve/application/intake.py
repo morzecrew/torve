@@ -446,7 +446,7 @@ def lint_decomposition(
 # S-0027/tier-variants: the committed configuration tree a configuration
 # drafting run proposes changes to — sandbox definitions and the tier
 # blocks live in `.torve/config.yaml`, nowhere else (S-0013/D-3).
-CONFIGURATION_SURFACES = [".torve/sandbox/**", ".torve/config.yaml"]
+CONFIGURATION_SURFACES = ["sandboxes/**", ".torve/sandbox/**", ".torve/config.yaml"]
 
 
 def _configuration_paths(allow: list[str]) -> list[str]:
@@ -463,8 +463,8 @@ def lint_configuration_change(
     verb"). Confines the diff to `CONFIGURATION_SURFACES` (never mixed with
     application code in one draft), then grounds the proposal in a *working*
     baseline: the committed configuration parses under its schema, every
-    sandbox definition a draft names still builds clean, and every
-    configured image resolves *in this runtime*.
+    sandbox definition a draft names is a target the build knows about, and
+    every configured image resolves *in this runtime*.
 
     Narrower than `torve doctor`'s image check, which it used to claim to
     be (S-0017/D-2): doctor falls back to the registry for a reference this host
@@ -472,9 +472,12 @@ def lint_configuration_change(
     belonging to an adapter, and nothing here may reach one. So the two
     answer different questions, and the refusal below says which one it
     asked instead of asserting doctor's verdict (T-0194).
-    Building here is the drafting gate's own deterministic check — the same
-    act as an operator running `torve sandbox build` before adopting, never
-    a mid-run build on the dispatch path (S-0017/D-3 untouched)."""
+    The definition leg used to build each touched image. It cannot any more and
+    should not: `RuntimePort.build_image` retired with S-0063/D-11, so the engine
+    has no way to build at all, which is S-0017/D-3 made structural. What it
+    checks instead is that `bake.hcl` names a target for the definition — the
+    realistic drafting error once a build file exists, caught by reading a file
+    rather than by a build nothing on this path may run."""
 
     errors: list[str] = []
     touched_names: set[str] = set()
@@ -500,7 +503,10 @@ def lint_configuration_change(
         for path in config_paths:
             parts = Path(path).parts
 
-            if len(parts) >= 3 and parts[0] == ".torve" and parts[1] == "sandbox":
+            if len(parts) >= 2 and parts[0] == "sandboxes":
+                touched_names.add(parts[1])
+
+            elif len(parts) >= 3 and parts[0] == ".torve" and parts[1] == "sandbox":
                 touched_names.add(parts[2])
 
     if not any_configuration:
@@ -516,17 +522,27 @@ def lint_configuration_change(
         except (yaml.YAMLError, ValidationError) as exc:
             errors.append(f"configuration-change lint: {config_path} does not parse: {exc}")
 
+    bake = tree / "bake.hcl"
+    baked = bake.read_text(encoding="utf-8") if bake.is_file() else ""
+
     for name in sorted(touched_names):
-        definition = tree / ".torve" / "sandbox" / name
+        definition = next(
+            (
+                one
+                for one in (tree / "sandboxes" / name, tree / ".torve" / "sandbox" / name)
+                if one.is_dir()
+            ),
+            None,
+        )
 
-        if not definition.is_dir():
-            continue  # a newly proposed definition does not exist yet to build
+        if definition is None:
+            continue  # a newly proposed definition does not exist yet
 
-        try:
-            runtime.build_image(definition, f"torve-agent:{name}")
-
-        except Exception as exc:  # the build tool's own failure is the message
-            errors.append(f"configuration-change lint: image {name!r} failed to build: {exc}")
+        if baked and f'target "{name}"' not in baked:
+            errors.append(
+                f"configuration-change lint: definition {name!r} exists and {bake.name} "
+                f"names no target for it — nothing would build it (`just images`)"
+            )
 
     from torve.application.migrate import check_forze_pin
 

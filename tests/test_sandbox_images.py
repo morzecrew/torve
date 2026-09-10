@@ -1,6 +1,8 @@
 """The image-as-input mechanism (S-0017): digest identity into config_hash
-and the attempt record, tier images, `torve sandbox build`, and the doctor's
-image checks. Docker-backed cases skip without a daemon, like the runtime
+and the attempt record, tier images, `torve sandbox digest`, and the doctor's
+image checks. The engine does not build any more (S-0063/D-11), so a case that
+needs an image bakes one — `docker buildx bake` under a throwaway tag, which is
+the same definition an operator's `just images` builds. Docker-backed cases skip without a daemon, like the runtime
 conformance battery.
 
 Carries two sections of its own since S-0041: the transfer ledger the
@@ -98,12 +100,67 @@ def test_opensandbox_resolves_digest_pinned_references_only():
     runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
     assert runtime.resolve_image("registry.example/torve-agent@sha256:abc123") == "sha256:abc123"
     assert runtime.resolve_image("registry.example/torve-agent:latest") is None
-    with pytest.raises(RuntimeError):
-        runtime.build_image(Path("."), "torve-agent:x")
+    # No `build_image` to refuse: the port lost it with S-0063/D-11, so a
+    # runtime that cannot build is every runtime.
+    assert not hasattr(runtime, "build_image")
 
 
 # ....................... #
 # build and doctor, against the daemon
+
+
+# Building a sandbox image is an operator's act, not an attempt's (S-0063/D-11):
+# the engine has no way to build one, so "does this definition build" is what
+# `just images` answers. Six images over this host's proxied egress took the
+# acceptance battery past its 900s bound — twice, because `coverage-delta` runs
+# the suite too and both raced the same bake.
+#
+# What still runs on every attempt is `tests/test_sandbox_defs.py`: every
+# definition inherits the base, none carries its own copy of the CLI layer,
+# `bake.hcl` names a target for each, and the base bakes what the wheel
+# declares. Those are the drafting errors. What is gated below is whether a
+# pinned npm version still resolves, which surfaces the moment anyone builds.
+#
+# `TORVE_IMAGE_TESTS=1 uv run pytest tests/test_sandbox_images.py` runs them.
+builds_images = pytest.mark.skipif(
+    not os.environ.get("TORVE_IMAGE_TESTS"),
+    reason="set TORVE_IMAGE_TESTS=1 to build sandbox images",
+)
+
+
+def bake(target: str, tag: str, *, cwd: Path | None = None) -> None:
+    """Build one definition under a throwaway tag, the way `just images`
+    builds it under its own (S-0063/D-8).
+
+    The tag is a throwaway on purpose: building under the production tag and
+    `rmi`-ing it in cleanup deleted the host's live agent images from inside
+    the acceptance battery once, and three mid-queue dispatches failed before
+    the phantom was found.
+    """
+
+    proc = subprocess.run(
+        [
+            "docker",
+            "buildx",
+            "bake",
+            "--file",
+            "bake.hcl",
+            target,
+            "--set",
+            f"{target}.tags={tag}",
+            "--set",
+            f"{target}.output=type=docker",
+        ],
+        cwd=str(cwd or REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0, proc.stderr[-4000:]
+
+
+def unbake(*tags: str) -> None:
+    subprocess.run(["docker", "rmi", "-f", *tags], capture_output=True, check=False)
 
 
 def seed_repo(tmp_path: Path, config: dict[str, object]) -> Path:
@@ -116,41 +173,49 @@ def seed_repo(tmp_path: Path, config: dict[str, object]) -> Path:
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
-def test_sandbox_build_reports_a_digest_that_tracks_content(tmp_path):
-    root = seed_repo(tmp_path, {})
-    definition = root / ".torve" / "sandbox" / "probe"
-    definition.mkdir(parents=True)
-    definition.joinpath("Dockerfile").write_text(
-        "FROM python:3.13-slim\nLABEL torve.probe=one\n", encoding="utf-8"
-    )
-
-    first = CliRunner().invoke(
-        app, ["sandbox", "build", "probe", "--root", str(root), "--format", "json"]
-    )
-    assert first.exit_code == 0, first.output
-    again = CliRunner().invoke(
-        app, ["sandbox", "build", "probe", "--root", str(root), "--format", "json"]
-    )
-    assert again.exit_code == 0, again.output
+@pytest.mark.timeout(1800)
+def test_sandbox_digest_reports_an_identity_that_tracks_content(tmp_path):
+    """The digest is what joins `config_hash`, so it has to move when the
+    image's content does and hold still when it does not. The engine reads
+    it; something else built it (S-0063/D-11)."""
 
     import json
 
-    digest_one = json.loads(first.stdout)["images"][0]["digest"]
-    assert digest_one.startswith("sha256:")
-    # Same definition -> same identity.
-    assert json.loads(again.stdout)["images"][0]["digest"] == digest_one
+    root = seed_repo(tmp_path, {})
+    definition = root / "sandboxes" / "probe"
+    definition.mkdir(parents=True)
+    tag = "probe-sandbox"
 
-    definition.joinpath("Dockerfile").write_text(
-        "FROM python:3.13-slim\nLABEL torve.probe=two\n", encoding="utf-8"
-    )
-    rebuilt = CliRunner().invoke(
-        app, ["sandbox", "build", "probe", "--root", str(root), "--format", "json"]
-    )
-    assert rebuilt.exit_code == 0, rebuilt.output
-    # Changed definition -> changed identity: the drift the hash now sees.
-    assert json.loads(rebuilt.stdout)["images"][0]["digest"] != digest_one
+    def build(label: str) -> None:
+        definition.joinpath("Dockerfile").write_text(
+            f"FROM python:3.13-slim\nLABEL torve.probe={label}\n", encoding="utf-8"
+        )
+        proc = subprocess.run(
+            ["docker", "build", "-t", tag, str(definition)], capture_output=True, text=True
+        )
+        assert proc.returncode == 0, proc.stderr[-2000:]
 
-    subprocess.run(["docker", "rmi", "-f", "torve-agent:probe"], capture_output=True, check=False)
+    def reported() -> str:
+        result = CliRunner().invoke(
+            app, ["sandbox", "digest", "probe", "--root", str(root), "--format", "json"]
+        )
+        assert result.exit_code == 0, result.output
+        return str(json.loads(result.stdout)["images"][0]["digest"])
+
+    try:
+        build("one")
+        digest_one = reported()
+
+        assert digest_one.startswith("sha256:")
+        # Same definition -> same identity.
+        assert reported() == digest_one
+
+        build("two")
+        # Changed definition -> changed identity: the drift the hash sees.
+        assert reported() != digest_one
+
+    finally:
+        unbake(tag)
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
@@ -167,9 +232,9 @@ def test_doctor_reds_on_a_configured_image_that_does_not_exist(tmp_path):
     assert "not present" in image_check["detail"]
 
 
-def test_sandbox_build_refuses_an_unknown_definition(tmp_path):
+def test_sandbox_digest_refuses_an_unknown_definition(tmp_path):
     root = seed_repo(tmp_path, {})
-    result = CliRunner().invoke(app, ["sandbox", "build", "ghost", "--root", str(root)])
+    result = CliRunner().invoke(app, ["sandbox", "digest", "ghost", "--root", str(root)])
     assert result.exit_code == 3, result.output
 
 
@@ -191,7 +256,7 @@ PUBLISHABLE = {
 
 
 def _definition_dockerfile(name: str) -> Path:
-    return REPO_ROOT / ".torve" / "sandbox" / name / "Dockerfile"
+    return REPO_ROOT / "sandboxes" / name / "Dockerfile"
 
 
 def test_harness_installs_ride_pinned_default_args():
@@ -250,77 +315,46 @@ def _toolkit_check(name: str) -> str:
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
+@pytest.mark.timeout(1800)
 @pytest.mark.parametrize("name", ["claude", "dsh"])
-def test_toolkit_contract_answers_in_the_container(name, tmp_path):
-    # What CI publishes is what the battery built (S-0033/D-5): the definition
-    # builds through the same command as an operator's, then answers. The
-    # definition bytes are the repo's, the TAG is a throwaway: building
-    # under the production tag and rmi-ing it in cleanup deleted the
-    # host's live agent images from inside the acceptance battery — three
-    # mid-queue dispatch failures before the phantom was caught.
-    root = seed_repo(tmp_path, {})
-    probe_name = f"{name}-probe"
-    definition = root / ".torve" / "sandbox" / probe_name
-    shutil.copytree(REPO_ROOT / ".torve" / "sandbox" / name, definition)
+def test_toolkit_contract_answers_in_the_container(name):
+    """What CI publishes is what the battery built (S-0033/D-5): the
+    definition bakes through the same file an operator's `just images` uses,
+    then answers."""
 
-    built = CliRunner().invoke(
-        app, ["sandbox", "build", probe_name, "--root", str(root), "--format", "json"]
-    )
-    assert built.exit_code == 0, built.output
+    tag = f"{name}-toolkit-probe"
+    bake(name, tag)
+
     try:
         probe = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                f"torve-agent:{probe_name}",
-                "sh",
-                "-c",
-                _toolkit_check(name),
-            ],
+            ["docker", "run", "--rm", tag, "sh", "-c", _toolkit_check(name)],
             capture_output=True,
             text=True,
         )
         assert probe.returncode == 0, probe.stderr
+
     finally:
-        subprocess.run(
-            ["docker", "rmi", "-f", f"torve-agent:{probe_name}"], capture_output=True, check=False
-        )
+        unbake(tag)
 
 
 # ....................... #
-# The engine's CLI inside the image (A-84): the prompt tells an attempt to
-# record divergence and to poll for notes with `torve`, so the image has to
+# The engine's CLI inside the image (S-0017/A-2): the prompt tells an attempt
+# to record divergence and to poll for notes with `torve`, so the image has to
 # have it — installed in an environment of its own, and readable by the uid
 # the sandbox actually runs as, which is the host's, never root's.
+#
+# It comes from the base now (S-0063/D-7), so this proves the inheritance
+# rather than one definition's copy: the probe is an image that installs no
+# CLI of its own.
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
-def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid(tmp_path):
-    from torve.cli.sandbox import project_inputs
-
-    root = seed_repo(tmp_path, {})
-    probe_name = "mimo-cli-probe"
-    shutil.copytree(
-        REPO_ROOT / ".torve" / "sandbox" / "mimo", root / ".torve" / "sandbox" / probe_name
-    )
-
-    # The project the build stages into the context. Copied rather than
-    # listed, from the same rule the build uses: this test found the gap
-    # once already, when the wheel's forced includes were not staged.
-    for name in project_inputs(REPO_ROOT):
-        source = REPO_ROOT / name
-
-        if source.is_dir():
-            shutil.copytree(source, root / name, ignore=shutil.ignore_patterns("__pycache__"))
-
-        elif source.is_file():
-            shutil.copy2(source, root / name)
-
-    built = CliRunner().invoke(
-        app, ["sandbox", "build", probe_name, "--root", str(root), "--format", "json"]
-    )
-    assert built.exit_code == 0, built.output
+@builds_images
+@pytest.mark.timeout(1800)
+def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid():
+    tag = "mimo-cli-probe"
+    bake("mimo", tag)
 
     try:
         probe = subprocess.run(
@@ -336,7 +370,7 @@ def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid(tmp_path):
                 "65534:65534",
                 "-e",
                 "HOME=/tmp",
-                f"torve-agent:{probe_name}",
+                tag,
                 "sh",
                 "-c",
                 "torve --version && torve log notes --root /tmp --format json",
@@ -348,23 +382,23 @@ def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid(tmp_path):
         # A sandbox with no channel says so and exits clean: the verb is
         # usable before anything is wired.
         assert '"channel": false' in probe.stdout
+
     finally:
-        subprocess.run(
-            ["docker", "rmi", "-f", f"torve-agent:{probe_name}"], capture_output=True, check=False
-        )
+        unbake(tag)
 
 
 # ....................... #
 # The battery's dependency layer (S-0035/D-2): pyproject.toml and uv.lock baked
 # by `uv sync --all-extras --no-install-project` into a fixed
 # UV_PROJECT_ENVIRONMENT, keyed to the lock's bytes so an attempt with an
-# unchanged lock reconciles the delta with zero package downloads. The bake
-# is context-staged — `torve sandbox build battery` (context: the definition
-# directory alone) yields today's thin image, a context staged with the two
-# project inputs yields the warm one — the layer is a convenience, never a
-# requirement.
+# unchanged lock reconciles the delta with zero package downloads.
+#
+# It is no longer a convenience. The context is the repository root
+# (S-0063/D-8), so the two inputs are always there and the guard that let a
+# definition build without them is gone: a bake that cannot find the lockfile
+# fails, which is what a missing lockfile should do.
 
-LAYER_IMAGE = "torve-agent:battery-layer-probe"
+LAYER_IMAGE = "battery-layer-probe"
 
 
 def test_battery_bakes_the_lockfile_keyed_dependency_layer():
@@ -383,39 +417,21 @@ def test_battery_bakes_the_lockfile_keyed_dependency_layer():
     assert re.search(r"uv sync[^\n]*--check", text), "battery: the layer ships no build-time check"
 
 
-def _stage_battery_context(tmp_path: Path) -> Path:
-    context = tmp_path / "battery-context"
-    context.mkdir()
-    shutil.copy(_definition_dockerfile("battery"), context / "Dockerfile")
-    shutil.copy(REPO_ROOT / "pyproject.toml", context / "pyproject.toml")
-    shutil.copy(REPO_ROOT / "uv.lock", context / "uv.lock")
-    return context
-
-
-def _build_battery(tag: str, context: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["docker", "build", "-t", tag, str(context)],
-        capture_output=True,
-        text=True,
-        timeout=1800,
-        check=False,
-    )
-
-
 def _remove_battery(tag: str) -> None:
     subprocess.run(["docker", "rmi", "-f", tag], capture_output=True, check=False)
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
 @pytest.mark.timeout(1800)
-def test_unchanged_lockfile_downloads_nothing_in_an_attempt(tmp_path):
+def test_unchanged_lockfile_downloads_nothing_in_an_attempt():
     # The conformance case: the baked venv checked with `uv sync --check`
     # over the exact lock bytes the bake consumed, inside a container whose
     # only network is none. A green check on a routeless container means
     # reconciling an unchanged lockfile performed no package downloads —
     # the attempt-side mirror of the bake's own sync set.
-    built = _build_battery(LAYER_IMAGE, _stage_battery_context(tmp_path))
-    assert built.returncode == 0, built.stderr[-4000:]
+    bake("battery", LAYER_IMAGE)
+
     try:
         started = subprocess.run(
             ["docker", "run", "--rm", "-d", "--network", "none", LAYER_IMAGE, "sleep", "600"],
@@ -424,6 +440,7 @@ def test_unchanged_lockfile_downloads_nothing_in_an_attempt(tmp_path):
             check=True,
         )
         container = started.stdout.strip()
+
         try:
             subprocess.run(
                 ["docker", "exec", container, "mkdir", "-p", "/workspace"],
@@ -455,63 +472,99 @@ def test_unchanged_lockfile_downloads_nothing_in_an_attempt(tmp_path):
                 text=True,
             )
             assert reconciled.returncode == 0, reconciled.stdout + reconciled.stderr
+
         finally:
             subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
+
     finally:
         _remove_battery(LAYER_IMAGE)
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
 @pytest.mark.timeout(1800)
 def test_the_layer_is_keyed_to_the_lockfile_bytes(tmp_path):
     # A lockfile change rebuilds the layer — and the rebuild is governed by
     # the new bytes the moment the layer re-runs: a staged lock that stops
     # parsing fails the build rather than serving a stale warm lie from
     # cache. (A cached good build never re-runs the sync at all.)
-    context = _stage_battery_context(tmp_path)
+    #
+    # Built with `docker build` against the definition's real bytes and a
+    # context of its own, because the bake's context is the repository root
+    # and this case needs a lockfile the repository must not have. `ARG BASE`
+    # is what makes that possible from outside bake (S-0063/D-7).
+    base_tag = "sandbox-base-probe"
+    probe_tag = "battery-lock-probe"
+    bake("base", base_tag)
+
+    context = tmp_path / "battery-context"
+    context.mkdir()
+    shutil.copy(_definition_dockerfile("battery"), context / "Dockerfile")
+    shutil.copy(REPO_ROOT / "pyproject.toml", context / "pyproject.toml")
     context.joinpath("uv.lock").write_text("not a lockfile {{{\n", encoding="utf-8")
-    built = _build_battery(LAYER_IMAGE, context)
-    assert built.returncode != 0
-    assert "uv.lock" in built.stdout + built.stderr
-    _remove_battery(LAYER_IMAGE)
+
+    try:
+        built = subprocess.run(
+            [
+                "docker",
+                "build",
+                "--build-arg",
+                f"BASE={base_tag}",
+                "-t",
+                probe_tag,
+                str(context),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1800,
+            check=False,
+        )
+        assert built.returncode != 0
+        assert "uv.lock" in built.stdout + built.stderr
+
+    finally:
+        _remove_battery(probe_tag)
+        _remove_battery(base_tag)
+
+
+def test_the_layer_is_no_longer_optional():
+    # It used to be: the definition guarded on the two project inputs being
+    # in the context, so `torve sandbox build battery` produced a thin image
+    # and only a staged context produced the warm one. The context is the
+    # repository root now (S-0063/D-8), so there is one battery image and it
+    # has the layer — a build that cannot find the lockfile fails instead of
+    # quietly shipping something thinner than the operator asked for.
+    text = _definition_dockerfile("battery").read_text(encoding="utf-8")
+
+    assert "if [ -f pyproject.toml ]" not in text
+    assert re.search(r"^COPY pyproject\.toml uv\.lock ", text, re.MULTILINE)
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
 @pytest.mark.timeout(1800)
-def test_the_bare_definition_builds_thin_as_before(tmp_path):
-    # The layer is a convenience, never a requirement: the path the engine
-    # itself takes — `torve sandbox build`, the definition directory as
-    # the only context — still produces today's thin image. The build
-    # succeeds, the uv the battery needs is there, and no baked venv
-    # exists to go stale. A throwaway tag, never the production one: this
-    # cleanup used to rmi the host's live battery image.
-    root = seed_repo(tmp_path, {})
-    definition = root / ".torve" / "sandbox" / "battery-probe"
-    shutil.copytree(REPO_ROOT / ".torve" / "sandbox" / "battery", definition)
+def test_the_baked_battery_carries_the_layer():
+    tag = "battery-warm-probe"
+    bake("battery", tag)
 
-    built = CliRunner().invoke(
-        app, ["sandbox", "build", "battery-probe", "--root", str(root), "--format", "json"]
-    )
-    assert built.exit_code == 0, built.output
     try:
         probe = subprocess.run(
             [
                 "docker",
                 "run",
                 "--rm",
-                "torve-agent:battery-probe",
+                tag,
                 "sh",
                 "-c",
-                "uv --version >/dev/null && test ! -d /opt/torve/project/.venv",
+                "uv --version >/dev/null && test -d /opt/torve/project/.venv",
             ],
             capture_output=True,
             text=True,
         )
         assert probe.returncode == 0, probe.stderr
+
     finally:
-        subprocess.run(
-            ["docker", "rmi", "-f", "torve-agent:battery-probe"], capture_output=True, check=False
-        )
+        _remove_battery(tag)
 
 
 # ....................... #
@@ -637,6 +690,7 @@ BATTERY = "/opt/torve/project/.venv/bin/mypy /work/t.py && /opt/torve/project/.v
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
 @pytest.mark.timeout(1800)
 def test_deleting_the_cache_volume_changes_nothing_but_wall_clock(tmp_path):
     from torve.adapters.runtime.docker import DockerRuntime
@@ -648,8 +702,7 @@ def test_deleting_the_cache_volume_changes_nothing_but_wall_clock(tmp_path):
     workspace.mkdir()
     (workspace / "t.py").write_text("x: int = 1\nprint(x)\n", encoding="utf-8")
 
-    built = _build_battery(LAYER_IMAGE, _stage_battery_context(tmp_path))
-    assert built.returncode == 0, built.stderr[-4000:]
+    bake("battery", LAYER_IMAGE)
 
     def run_pass(name: str) -> tuple[int | None, str, str]:
         handle = runtime.create(cache_spec(workspace, {volume: CACHE_MOUNT}, name=name), workspace)

@@ -61,9 +61,6 @@ class MockRuntime:
         # tests can tell two images apart, never a real digest.
         return f"sha256:mock-{image}"
 
-    def build_image(self, context, tag):
-        return self.resolve_image(tag)
-
 
 class MockWorkspace:
     def __init__(self, root):

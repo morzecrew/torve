@@ -98,6 +98,7 @@ def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
 
 
 def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    from torve.adapters.runtime.plugins import harness_kind
     from torve.cli.options import runtime_for
     from torve.cli.sandbox import definitions_root
     from torve.config.runconfig import configured_images
@@ -128,7 +129,7 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                             False,
                             (
                                 f"{image}: not present in the runtime — build it "
-                                "(torve sandbox build) or pull it"
+                                "(just images) or pull it"
                             ),
                         )
                     )
@@ -145,11 +146,13 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     f"(candidate_matched={verdict['candidate_matched']})"
                 )
 
-            prefix = "torve-agent:"
+            # S-0063/D-6: a `<name>-sandbox` tag names its definition, so an
+            # image built here and no longer defined here is an ambient regime.
+            # A reference naming no definition — a stock base, a third party's
+            # image — is nobody's to check.
+            name = harness_kind(image)
 
-            if image.startswith(prefix):
-                name = image.removeprefix(prefix)
-
+            if name:
                 if not (definitions_root(root) / name / "Dockerfile").is_file():
                     checks.append(
                         (

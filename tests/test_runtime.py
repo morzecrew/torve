@@ -32,9 +32,7 @@ PONYTAIL = Plugin(source="github:DietrichGebert/ponytail", ref="v4.9.0")
 
 
 def spec(image: str, *plugins: Plugin) -> SandboxSpec:
-    return SandboxSpec(
-        name="s", image=image, labels={}, timeout_s=60, plugins=tuple(plugins)
-    )
+    return SandboxSpec(name="s", image=image, labels={}, timeout_s=60, plugins=tuple(plugins))
 
 
 # ....................... #
@@ -44,18 +42,22 @@ def spec(image: str, *plugins: Plugin) -> SandboxSpec:
 @pytest.mark.parametrize(
     ("image", "kind"),
     [
-        ("torve-agent:claude", "claude"),
-        ("registry.example.com/org/torve-agent:claude", "claude"),
-        ("registry.example.com:5000/org/torve-agent:claude", "claude"),
-        ("torve-agent:claude@sha256:abc", "claude"),
-        ("python:3.13-slim", "3.13-slim"),
-        ("torve-agent", ""),
+        ("claude-sandbox:2.1.252", "claude"),
+        ("ghcr.io/morzecrew/claude-sandbox:2.1.252", "claude"),
+        ("registry.example.com:5000/org/claude-sandbox:2.1.252", "claude"),
+        ("claude-sandbox@sha256:abc", "claude"),
+        ("claude-sandbox", "claude"),
+        # Not one of ours: a stock base and the engine's own published image
+        # answer nothing rather than naming a harness by its version, which
+        # is what the old `torve-agent:<name>` spelling did (S-0063/D-6).
+        ("python:3.13-slim", ""),
+        ("ghcr.io/morzecrew/torve-agent:0.1.1", ""),
         ("", ""),
     ],
 )
-def test_the_tag_is_what_survives_a_push(image, kind):
-    """A push renames the repository and keeps the tag, so the tag names the
-    definition under `.torve/sandbox/` the image was built from."""
+def test_the_name_is_what_survives_a_push(image, kind):
+    """A push changes the repository prefix and the version tag, so the name
+    in the middle is what names the definition under `sandboxes/`."""
 
     assert harness_kind(image) == kind
 
@@ -70,7 +72,7 @@ def test_a_plugin_is_named_by_the_last_segment_of_its_source():
 
 
 def test_the_three_files_agree_because_they_come_off_one_list():
-    rendered = seed_files("torve-agent:claude", [CAVEMAN, PONYTAIL])
+    rendered = seed_files("claude-sandbox:2.1.252", [CAVEMAN, PONYTAIL])
 
     settings = json.loads(rendered[f"{SEED_ROOT}/.claude/settings.json"])
     installed = json.loads(rendered[f"{SEED_ROOT}/.claude/plugins/installed_plugins.json"])
@@ -124,7 +126,7 @@ class RecordingDocker(DockerRuntime):
 
 def test_the_adapter_writes_the_rendered_files_as_root_into_the_seed():
     runtime = RecordingDocker()
-    runtime._seed_plugins(SandboxHandle(id="c1", name="s"), spec("torve-agent:claude", CAVEMAN))
+    runtime._seed_plugins(SandboxHandle(id="c1", name="s"), spec("claude-sandbox:2.1.252", CAVEMAN))
 
     written = {
         args[-1].split("cat > ", 1)[1].split(" ", 1)[0]: stdin
@@ -132,7 +134,7 @@ def test_the_adapter_writes_the_rendered_files_as_root_into_the_seed():
         if stdin is not None
     }
 
-    assert set(written) == set(seed_files("torve-agent:claude", [CAVEMAN]))
+    assert set(written) == set(seed_files("claude-sandbox:2.1.252", [CAVEMAN]))
     # As root, because the seed is readable by every uid and writable by none:
     # nothing inside the attempt may edit what it was equipped with.
     assert all("root" in args for args, _ in runtime.calls)
@@ -140,7 +142,7 @@ def test_the_adapter_writes_the_rendered_files_as_root_into_the_seed():
 
 def test_the_adapter_writes_nothing_when_nothing_is_declared():
     runtime = RecordingDocker()
-    runtime._seed_plugins(SandboxHandle(id="c1", name="s"), spec("torve-agent:claude"))
+    runtime._seed_plugins(SandboxHandle(id="c1", name="s"), spec("claude-sandbox:2.1.252"))
 
     assert runtime.calls == []
 
@@ -156,7 +158,7 @@ def test_a_failed_write_is_an_infrastructure_failure_not_a_silent_run():
 
     with pytest.raises(DockerError, match="no such file"):
         FailingDocker()._seed_plugins(
-            SandboxHandle(id="c1", name="s"), spec("torve-agent:claude", CAVEMAN)
+            SandboxHandle(id="c1", name="s"), spec("claude-sandbox:2.1.252", CAVEMAN)
         )
 
 
@@ -169,7 +171,7 @@ def test_the_claude_image_keeps_the_clone_and_not_the_bookkeeping():
     network inside every attempt; the files that say which are installed are
     the runtime's now."""
 
-    definition = Path(__file__).resolve().parents[1] / ".torve" / "sandbox" / "claude"
+    definition = Path(__file__).resolve().parents[1] / "sandboxes" / "claude"
     dockerfile = (definition / "Dockerfile").read_text(encoding="utf-8")
 
     assert "git clone" in dockerfile

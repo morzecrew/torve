@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declaring a kind the manifest does not name is refused at load, naming both
   files, instead of being discovered by an attempt that ran without it.
 
+- Sandbox image definitions live at `sandboxes/<name>/` in the repository root
+  and build to `<name>-sandbox`. `.torve/sandbox/` stays the hook for a
+  repository that defines an image of its own.
+
+- One base image carries `git`, `uv`, `python3` and the engine's CLI, and every
+  definition inherits it. The block that installed the CLI was byte-identical
+  in five Dockerfiles and held in step by a test.
+
+- `bake.hcl` and `just images` are the build. `just image <name>` builds one;
+  `just images-push <registry> <tag>` publishes.
+
 - A subagent is an equipment kind. `agent` sits beside `skill`, `plugin`, `mcp`
   and `hook`, because a harness that takes `--agents <json>` has a channel for
   one like it has a channel for the rest.
@@ -32,6 +43,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure that convicts nothing.
 
 ### Changed
+
+- **Breaking:** `torve sandbox build` and `stage` are gone, and so is the
+  runtime port's `build_image`. The engine has no way to build an image at
+  all, which is the rule it already stated. `torve sandbox list` and
+  `torve sandbox digest` are what the verb keeps.
+
+- **Breaking:** images are tagged `<name>-sandbox`, not `torve-agent:<name>`.
+  The old spelling put the definition's name where a version goes, so every
+  other image published under a `torve-agent` repository read as a harness
+  named by its version.
+
+- The acceptance battery no longer builds sandbox images. Building one is an
+  operator's act — the engine cannot — so the suite checks each definition's
+  shape and `TORVE_IMAGE_TESTS=1` runs the probes that build.
+
+- The drafting gate no longer builds a touched image — it cannot. It checks
+  that `bake.hcl` names a target for the definition, which is what would
+  otherwise leave a definition nothing builds.
 
 - **Breaking:** a profile's `prompt_extras` is one block of prose, not a list of
   strings. Each entry used to be rendered as one more bullet in the prompt's
