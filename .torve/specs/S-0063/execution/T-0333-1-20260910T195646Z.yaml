@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0333
+phase: 3
+base: cdf9f3ee688a242584a1149f036cd9cb197fd196
+commit: 172914f9978b5561cad951468c6f49d3b6f8a82b
+at: '2026-09-10T19:56:46Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T19:51:37Z'
+    claim: >-
+      Three harnesses, three translations, and the contract held: no variable changed
+      to admit dsh or mimo. dsh writes one --patch overlay because its whole configuration
+      is a list of plugin entries and --patch is how a list reaches it; every kind
+      but plugin lands in that overlay verbatim, because an MCP server, a hook and
+      an agent are all plugin entries there and a document torve invented would be
+      a schema it does not know. mimo runs mimo plugin before the agent, because it
+      has no session channel at all.
+    evidence: >-
+      sandboxes/dsh/equip:42 — the install goes through dsh's own verb so the profile
+      directory gets it, and the mounted path is the source, never the network.
+    action: decided
+    notes: >-
+      mimo's equip raises on any kind but plugin, because the manifest refused the
+      rest before the sandbox existed — a kind arriving there is a bug in the refusal,
+      not an operator's mistake.
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-10T19:51:37Z'
+    claim: >-
+      A dsh model is an overlay name, not a string dsh takes. A model there is a provider,
+      a catalog entry and a default, all of which are a patch — so the image pins
+      a roster under /opt/torve/overlays and a seat names one of them. A name with
+      no overlay is refused with the roster printed and EX_CONFIG, because the seat
+      is wrong rather than the model.
+    evidence: >-
+      sandboxes/dsh/run:22 — the refusal lists what the image ships, so the fix is
+      visible without opening the Dockerfile.
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-10T19:51:37Z'
+    claim: >-
+      Running the third harness for real found a defect the first two hid: run pipes
+      the harness through tee so the engine gets both a stream and a file, and a pipeline
+      reports its last command — so dsh exited 0 after a MISSING_CREDENTIAL failure,
+      and every failed attempt would have read as a clean one. All three carry the
+      status by hand now, with the harness inside an if because set -e would otherwise
+      kill the subshell before the status could be written.
+    evidence: >-
+      sandboxes/claude/run:66 — the rc file, seeded with EX_SOFTWARE so a pipe that
+      never wrote it is loud rather than green.
+    action: decided
+    notes: >-
+      Measured after the fix: dsh's credential failure exits 1 and its reporter still
+      emits the usage line last, so the engine gets counts for a failed attempt.
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-10T19:51:38Z'
+    claim: >-
+      The base is untouched by this phase; what changed in its test file is the seam's
+      own check. SEATED names the three definitions a seat can run, and battery, codex
+      and opencode carry no scripts because nothing dispatches to them.
+    evidence: >-
+      tests/test_sandbox_defs.py:58 — SEATED, and the case beside it refusing a script
+      that reads a variable the engine never sets.
+    action: decided
