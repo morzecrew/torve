@@ -180,6 +180,24 @@ decisions:
       differently reachable per lane; the mount is already read-only for this reason
       (S-0062/D-5)
     cites: [S-0062/D-5, S-0005/D-2, D-2]
+  - id: D-13
+    grade: LOCKED
+    text: >-
+      Building a sandbox image is an operator's act and never an attempt's: the battery
+      checks a definition's shape and never its build, and `TORVE_IMAGE_TESTS` runs
+      the probes that build one.
+    paths: [tests/test_sandbox_images.py, tests/test_sandbox_defs.py]
+    consequence: >-
+      the acceptance battery stays under its clock, and a definition that would not
+      build is an operator's finding rather than a timed-out gate
+    rationale: >-
+      proposed from T-0331, where it was measured: the battery runs the suite twice
+      — acceptance and coverage-delta — concurrently, and both raced the same bake
+      through one buildkit, taking acceptance past its 900s bound. It follows from
+      D-11 anyway: the engine has no way to build an image, so whether one builds
+      is what `just images` answers, and the shape checks are what catch a drafting
+      error
+    cites: [D-11, D-7]
 invariants:
   - id: I-1
     statement: >-

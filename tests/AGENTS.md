@@ -17,6 +17,14 @@ One base image carries `git`, `uv` and the engine's CLI; every definition inheri
 - Consequence: the layer five images duplicate is built once and inherited, and the test that stood in for inheritance goes with it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0063/D-13 — `LOCKED` (The image knows how to equip itself)
+
+Building a sandbox image is an operator's act and never an attempt's: the battery checks a definition's shape and never its build, and `TORVE_IMAGE_TESTS` runs the probes that build one.
+
+- Paths: `tests/test_sandbox_images.py` `tests/test_sandbox_defs.py`
+- Consequence: the acceptance battery stays under its clock, and a definition that would not build is an operator's finding rather than a timed-out gate
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green
