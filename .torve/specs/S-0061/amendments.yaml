@@ -17,3 +17,13 @@ amendments:
       Every fixture that writes a `tiers:` mapping in YAML is a repository's worth of configuration, and twenty tests across eight files carried the flat shape. They are ported here rather than in a follow-up, because a phase that leaves the suite red has not landed. `tests/conftest.py` gains one helper — a harness manifest beside the configuration that names it — so the port is one line per fixture rather than a rewrite per file.
 
       `src/torve/cli/doctor.py` joins for the same reason at the other end: its provenance line said a tier resolved its adapter, model and command from a profile, which after the split is three quarters wrong. It now names the harness and the profile, which is what the `profile: "a -> b"` string it replaced was for.
+  - id: A-3
+    at: '2026-09-10T13:24:54Z'
+    title: >-
+      Phase 2 takes the spec that carries the declaration
+    md: |-
+      D-6 puts the rendering in the runtime adapter, and gave the phase the adapter and the sandbox definitions. It did not give it the road the declaration travels to get there.
+
+      A `SandboxSpec` is what an adapter receives, so the plugins ride it — a spec carries the declaration and never the rendering, which is what lets both adapters read one shape and each answer for its own harness. That is `application/ports.py`, and the seat that fills it is `application/session.py`: the agent's own sandbox is the only one a profile equips, so the other four construction sites are untouched.
+
+      `tests/test_sandbox_images.py` joins because the claude image's toolkit check asserted `settings.json` exists in the seed. It is rendered at dispatch now, so the check reads the clone the build still pins instead.

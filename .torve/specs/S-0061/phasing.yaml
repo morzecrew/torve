@@ -48,7 +48,14 @@ phasing:
       a non-empty list for a harness that has none. Claude Code's three hand-kept
       JSON files become the first renderer's output; the image keeps its clone, because
       a fetch at dispatch would put the network inside every attempt.
-    scope: [src/torve/adapters/runtime/**, .torve/sandbox/**, tests/test_runtime.py]
+    scope:
+      - src/torve/adapters/runtime/**
+      - .torve/sandbox/**
+      - tests/test_runtime.py
+      - src/torve/application/ports.py
+      - src/torve/application/session.py
+      - tests/test_sandbox_images.py
+      - CHANGELOG.md
     acceptance:
       - uv run pytest
       - uv run mypy src
