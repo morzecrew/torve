@@ -12,6 +12,7 @@ phasing:
       becomes `import_sources` and records every file with its own kind, idempotently.
       The pages and the changelog say it.
     scope:
+      - src/torve/domain/vocabulary.py
       - src/torve/domain/source.py
       - src/torve/config/sources.py
       - src/torve/cli/sources.py
@@ -23,6 +24,7 @@ phasing:
       - tests/test_decisions.py
       - tests/test_sources.py
       - tests/test_cli.py
+      - tests/test_rfc_check.py
       - tests/test_doctor.py
       - tests/test_decisions_record.py
       - .torve/sources/**

@@ -9,3 +9,14 @@ amendments:
       test file (the T-0113 rule). Phase 1 touches `application/decisions.py` and
       `cli/decisions.py`, whose tests live in `tests/test_decisions.py`, which the
       phase did not name. It joins phase 1's scope. Scope only; no row changes.
+  - id: A-2
+    at: '2026-09-10T04:54:07Z'
+    title: >-
+      phase 1 takes the vocabulary it derives from and the check that lists the schemas
+    md: >-
+      Two files the phase reaches and did not name. The filed kinds are derived from
+      `SourceKind` rather than respelled (S-0059/D-5), which means the phase writes
+      `SOURCE_KINDS` into `domain/vocabulary.py`; and the list of schemas `torve init`
+      writes is asserted in `tests/test_rfc_check.py` as well as `tests/test_cli.py`,
+      so adding `sources.json` moves both. Both join phase 1's scope. Scope only;
+      no row changes.
