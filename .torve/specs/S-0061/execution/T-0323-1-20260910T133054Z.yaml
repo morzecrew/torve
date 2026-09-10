@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0323
+phase: 2
+base: 7840a8952db4e8ba9024f43228ffbf76b34397d1
+commit: 1bd266d497ce5de9213f3d9c85c781dcb17b34c2
+at: '2026-09-10T13:30:54Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-09-10T13:24:28Z'
+    claim: >-
+      One renderer per harness, keyed by the image tag's name, and a non-empty declaration
+      for a harness with no renderer is refused
+    evidence: >-
+      src/torve/adapters/runtime/plugins.py:143 - RENDERERS maps a harness kind to
+      its renderer; seed_files raises UnseededHarness naming what it can seed
+    action: decided
+    notes: >-
+      The key had to be something already on the resolved seat, since a manifest field
+      naming a renderer is phase 1's file. The image is the honest one rather than
+      a fallback: harness identity IS the image (S-0017/D-4), and .torve/sandbox/<name>/
+      is where that harness's seeding shape is defined, so the tag's name is the definition
+      it was built from. A registry push renames the repository and keeps the tag.
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-10T13:24:28Z'
+    claim: >-
+      The ref is written once and read three times, so the pinned ref and the installed
+      version cannot disagree
+    evidence: >-
+      src/torve/adapters/runtime/plugins.py:96 - installPath and version both come
+      off plugin.ref; the Dockerfile derives its cp target from the same ARG
+    action: decided
+    notes: >-
+      The bug this closes was live: ponytail's ARG was v4.9.0 and its cache directory
+      4.9.0, with nothing checking that the Dockerfile's cp target, the ARG and the
+      JSON string agreed.
