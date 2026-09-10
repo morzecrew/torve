@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0326
+phase: 1
+base: 87df6f469153e47b47636fd852b40fd3a5911e33
+commit: 015ae80d226c4afd21f2a2e4fe9628294f74f938
+at: '2026-09-10T15:40:48Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-10T15:07:07Z'
+    claim: >-
+      D-2 refuses a kind the harness manifest does not name. D-10 says a harness that
+      takes no skill kind keeps materialize and the prompt's paragraph. Read together
+      they contradict, because a role profile declaring a package-data skill on a
+      harness with no skill flag names a kind that harness does not equip — so D-2
+      would refuse the very configuration D-10 describes, and every seat in this repository
+      with it, since fake equips nothing and all three role profiles declare skills.
+    evidence: >-
+      src/torve/config/agents.py:438 — the exemption is one condition on the refusal,
+      and without it loading this repository's own configuration raises before any
+      seat resolves.
+    action: halted
+    proposal: >-
+      D-2 gains its exception: a kind the manifest does not name is refused unless
+      the engine can deliver it itself, which is package-data skills alone (S-0062/D-6,
+      S-0062/D-10). The rule becomes no way to deliver it rather than no flag for
+      it. When a real harness gives the skill kind a flag the exemption narrows on
+      its own — it only ever fires for a harness with no skill channel.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T15:29:19Z'
+    claim: >-
+      Equipment is one typed list on the profile and the two keys it replaced are
+      refused by name. What building it decided, because the row does not say: an
+      empty list written is a declaration of nothing, while an absent key contributes
+      no layer at all — so 'equipment: []' and no file are different answers, and
+      only the second lets the role's profile speak.
+    evidence: >-
+      src/torve/config/equipment.py:60 — Equipment carries kind, source, ref and select;
+      agents.py FOLDED names skills and plugins with the item that replaces each.
+    action: decided
+    notes: >-
+      The seat still exposes derived plugins and skills for the sandbox spec and the
+      materializer; both retire with the renderer in phase 4.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T15:29:19Z'
+    claim: >-
+      Three schemes, and a ref required for the fetched one alone. What the row left
+      open and building settled: select is refused on a torve: source, because a scheme
+      naming one item has nothing to select from, and a selector that silently matches
+      nothing is how equipment goes missing.
+    evidence: >-
+      src/torve/config/equipment.py:76 — the _reachable validator, four refusals:
+      unknown scheme, unpinned fetch, ref on a versioned source, select where there
+      is nothing to select.
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-10T15:29:28Z'
+    claim: >-
+      The prepare command is declared on the profile in this phase and runs in phase
+      3. It is one string, not a list: a shell line is what a sandbox takes, and a
+      list would invite the sequencing a list cannot express.
+    evidence: >-
+      src/torve/config/agents.py:88 — declared and validated here, with nothing reading
+      it until phase 3.
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-10T15:29:29Z'
+    claim: >-
+      The two layers merge by kind and source, seat winning. What building decided:
+      the key is both halves, because one repository can be a plugin source and a
+      skill source at once, and keying on source alone would have made the second
+      declaration silently replace the first.
+    evidence: >-
+      src/torve/config/equipment.py:133 — a dict keyed on (kind, source), role first
+      so its order survives and the seat overrides in place.
+    action: decided
+    notes: >-
+      The role layer is loaded per task, so nothing merges at seat resolution; role_equipment
+      is the lower layer and phase 2 is where dispatch calls merge_equipment.
