@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../schemas/harness.json
+# Claude Code on a subscription (S-0004/D-2): the seat's credentials live in a
+# per-worker-slot volume, not in an environment variable, so `api_key_env` is
+# empty and nothing here is a secret.
+#
+# The command is one shell line run inside the sandbox — the engine never links
+# a harness SDK (S-0004/D-1). It has three jobs before it reaches the agent:
+#
+#   1. HOME. The container runs as the invoking uid with no passwd entry, so
+#      the runtime sets HOME=/tmp. Everything Claude Code reads from HOME has
+#      to arrive there.
+#   2. The seed. The image bakes the plugin clones at pinned refs, and the
+#      runtime writes the bookkeeping that says which are installed and enabled
+#      (S-0061/D-6) into the same tree. Copying it into HOME is what makes both
+#      take effect.
+#   3. The credentials. The auth volume is mounted read-write at /auth because
+#      token refresh writes; symlinking it into HOME is what keeps a refreshed
+#      token for the next attempt on this slot.
+#
+# `{prompt}` substitutes to the staged prompt's path in the workspace and
+# `{model}` to the seat's model. `--output-format json` is what the harness
+# adapter parses the cost and the model version out of.
+adapter: subscription
+image: torve-agent:claude
+command: >-
+  cp -r /opt/torve/seed/.claude "$HOME/.claude" &&
+  ln -sf /auth/.credentials.json "$HOME/.claude/.credentials.json" &&
+  claude -p "$(cat {prompt})" --model {model} --output-format json
+  --permission-mode acceptEdits
+auth_volume: torve-auth
+auth_mount: /auth
+api_key_env: []

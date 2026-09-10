@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../schemas/agent.json
+# What the agent is, for a seat on the claude image (S-0061/D-1). It names no
+# skills, so the profile named for the task's role answers for those
+# (S-0061/D-11) — this file adds equipment, it does not replace it.
+#
+# The refs are the ones the image clones at; the renderer writes the install
+# path and the version from the same value, so the three files Claude Code
+# reads cannot disagree with the Dockerfile ARG that pinned them.
+plugins:
+- source: github:JuliusBrussee/caveman
+  ref: 81536f57b330
+- source: github:DietrichGebert/ponytail
+  ref: v4.9.0
+prompt_extras:
+- Prefer the smallest change that makes the acceptance commands pass.
