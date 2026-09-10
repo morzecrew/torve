@@ -104,8 +104,10 @@ goals: |
 non_goals: |
   Not a package manager. Torve fetches what a declaration names at the ref it names,
   through the source's own tool — `gh skill install --pin`, `git clone` — and neither
-  resolves a range nor verifies a signature. If that is ever wanted it is a decision
-  to take deliberately, not to arrive at.
+  resolves a range nor verifies a signature. It does audit the cache against what the
+  source recorded (D-11), which is a different thing: confirming a directory holds
+  what its key says, not deciding what a version means. If a range or a signature is
+  ever wanted it is a decision to take deliberately, not to arrive at.
 
   Not a change to what the two shipped skills are (D-6). Their version stays the
   engine's, because a gate reads what they teach.
@@ -150,6 +152,38 @@ design:
       `select` names a subset. It applies to a source that contains several items of
       its kind; naming a subset of a source that has one is a refusal, not a
       no-op — a selector that matches nothing is how equipment silently goes missing.
+  - key: two-layers-role-then-seat
+    md: |
+      A seat names a profile, and a task carries a role — and the two are different
+      vocabularies. `executor` is a seat; `implement` and `revert` are roles, and one
+      executor seat runs tasks of both. So the profile named for the role cannot be
+      collapsed into the seat's: the role varies *within* a seat, per task.
+
+      Equipment therefore resolves in two layers, role first, then the seat's profile:
+
+      ```
+      .torve/agents/implement.yaml     the role's equipment
+      .torve/agents/claude-equipped.yaml   the seat's, appended
+      ```
+
+      Appended, not replacing. Items are deduplicated by kind and source, and where
+      both layers name one source the seat's ref wins — the seat is the more specific
+      statement. This is what `skills` already did through `effective_skill_sets`, and
+      it needs saying now because folding skills into `equipment` would otherwise lose
+      it: a seat profile that declares one plugin would silently replace the role's
+      skills, which is the S-0061/D-11 bug T-0325 fixed, returning through a different
+      door.
+
+      A profile does not name the role it serves. The mapping already exists twice
+      over — the seat's `profile:` names one explicitly, and a file named for a role
+      is that role's default — and a third spelling could only contradict them. Which
+      is S-0061/I-2's rule, one home per key, applied to the mapping rather than to a
+      field.
+
+      A reviewer is a seat like any other, so a repository gives it different equipment
+      by giving `tiers.reviewer` its own profile. It inherits nothing from the seat
+      whose work it reads: the reviewer's job is to disagree, and equipping it from
+      the profile it is checking would make it disagree less.
   - key: the-harness-says-what-it-takes
     md: |
       A manifest gains one field: which kinds it accepts, and the flag that carries
@@ -314,6 +348,14 @@ alternatives:
       removed from the hash. An unpinned fetch would put it back through a different
       door.
   - option: >-
+      Give the profile a `role:` key, so any file can be a role's default without
+      being named for it.
+    rejected_because: >-
+      It is a third spelling of a mapping that already has two — the seat's `profile:`
+      and the filename — and two files could then claim one role while the seat named
+      a third. Renaming a file costs one command; a back-reference that can contradict
+      the seat costs a refusal nobody can read.
+  - option: >-
       Use Claude Code's `Setup` hook for the prepare step instead of a torve step.
     rejected_because: >-
       Inside the harness's machinery torve can neither time the step nor tell its
@@ -326,8 +368,12 @@ questions:
       — `gh skill install` writes `github-pinned` into the frontmatter, so the cache
       can be audited without refetching. Cheap, but it is a verification step the
       non-goal says this document does not do.
+    status: settled
+    settled_by: D-11
   - id: Q-2
     text: >-
       Does a seat's equipment reach the reviewer's sandbox? A reviewer reads a diff
       and writes findings, and the skills it loads change what it finds — so the review
       seat's own profile answers, but nothing says whether it should inherit the target's.
+    status: settled
+    settled_by: D-12

@@ -137,6 +137,39 @@ decisions:
       an installed skill participates in the harness's own trigger matching and progressive
       disclosure; a directory the prompt names is a file the model was told about,
       and saying it twice invites treating a loaded skill as a document
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `torve equip --check` audits the cache against what each source recorded — a
+      skill's `github-pinned` frontmatter, a clone's HEAD — and reports; it never
+      refetches and never resolves.
+    paths: [src/torve/cli/equip.py, src/torve/application/equipment.py]
+    consequence: >-
+      a cache directory that does not hold what its key claims is a finding an operator
+      can read, rather than a regime hash that agrees with itself and with nothing
+      else
+    rationale: >-
+      the pin is already written into the artefact by the tool that fetched it, so
+      the audit costs a file read; without it I-2's guarantee is that a key exists,
+      not that the key describes what is there
+    cites: [D-3, I-2]
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      Equipment resolves in two layers — the profile named for the task's role, then
+      the seat's profile — appended and deduplicated by kind and source, the seat's
+      ref winning; a profile never names the role it serves.
+    paths: [src/torve/config/equipment.py, src/torve/config/agents.py]
+    consequence: >-
+      a seat profile that declares one plugin adds it to the role's equipment instead
+      of replacing it, and a reviewer is equipped by its own seat rather than by the
+      seat it reviews
+    rationale: >-
+      the role varies per task within one seat, so the role layer cannot be collapsed
+      into the seat's profile; and the mapping from profile to role already has two
+      spellings — the seat's `profile:` and the filename — so a third could only contradict
+      them, which is S-0061/I-2 applied to a mapping
+    cites: [S-0061/D-11, S-0061/I-2, S-0029/D-1]
 invariants:
   - id: I-1
     statement: >-
