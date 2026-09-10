@@ -61,6 +61,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
+from torve.adapters.runtime.plugins import seed_files
 from torve.application.ports import (
     PROXY_ENV,
     ExecResult,
@@ -298,6 +299,19 @@ class OpenSandboxRuntime:
 
         if task_id is not None:
             self._transfer_tasks[handle.id] = task_id
+
+        # The profile's plugins in this harness's own shape (S-0061/D-6),
+        # through the files API rather than a shell: the same refusal for an
+        # unseedable harness, raised before the attempt believes it has them.
+        rendered = seed_files(spec.image, spec.plugins)
+
+        if rendered:
+            sandbox.files.write_files(
+                [
+                    self._sdk.models.WriteEntry(path=path, data=text)
+                    for path, text in sorted(rendered.items())
+                ]
+            )
 
         return handle
 

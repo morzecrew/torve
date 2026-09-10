@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A profile's plugins are rendered into the harness's own seeding format when
+  the sandbox is created, from one renderer per harness. Claude Code's three
+  hand-kept JSON files are gone; a harness with no renderer refuses a
+  declaration rather than running without it.
+
 - An agent profile and a harness manifest are files of their own:
   `.torve/agents/<name>.yaml` says what an agent is — skills, plugins, extra
   working rules — and `.torve/harnesses/<name>.yaml` says how a model is

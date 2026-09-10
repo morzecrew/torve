@@ -392,6 +392,9 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         timeout_s=sandbox_timeout_for(config, run.tier),
         env_passthrough=env_passthrough,
         volumes=volumes,
+        # S-0061/D-5: the seat's profile declares them; the runtime renders them
+        # into the harness's own seeding format once the sandbox exists.
+        plugins=tuple(run.tier.plugins),
     )
 
     withheld = _withhold_never_send(worktree, config.providers.never_send)

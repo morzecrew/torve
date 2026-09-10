@@ -213,11 +213,13 @@ def test_harness_installs_ride_pinned_default_args():
 
 # The toolkit contract per image (S-0033/tests): what a profile's command
 # template depends on. `answer` must exit 0 inside the container — for dsh
-# the reporter the RFC names, for claude the seed's settings file — and
-# every old path must survive as a symlink for the transition revision.
+# the reporter the RFC names, for claude the plugin clone the build pins
+# (its bookkeeping is rendered at dispatch now, S-0061/D-6, so the image
+# no longer carries settings.json) — and every old path must survive as a
+# symlink for the transition revision.
 TOOLKIT = {
     "claude": {
-        "answer": "test -f /opt/torve/seed/.claude/settings.json",
+        "answer": "test -d /opt/torve/seed/.claude/plugins/marketplaces/caveman",
         "symlinks": {"/opt/claude-seed": "/opt/torve/seed"},
     },
     "dsh": {
