@@ -395,6 +395,37 @@ Equipment resolves in two layers — the profile named for the task's role, then
 - Consequence: a seat profile that declares one plugin adds it to the role's equipment instead of replacing it, and a reviewer is equipped by its own seat rather than by the seat it reviews
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0063/D-1 — `LOCKED` (The image knows how to equip itself)
+
+A sandbox image carries `/opt/torve/run`, which invokes its harness; a manifest carries no command template and `command` is refused by name.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
+- Consequence: the shell that knows how to start a harness lives beside the harness, and a seat cannot be misconfigured into a model that silently would not work
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-3 — `LOCKED` (The image knows how to equip itself)
+
+A sandbox image carries `/opt/torve/equip`, which translates the equipment manifest into whatever its harness needs; S-0062/D-2's flag templates retire and `kinds` is what remains of the capability map.
+
+- Paths: `src/torve/config/agents.py` `sandboxes/**`
+- Consequence: equipment reaches a harness the way that harness takes it, decided beside the harness rather than by a renderer keeping up with three of them across versions
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-4 — `LOCKED` (The image knows how to equip itself)
+
+`kinds` on a manifest is the enumeration this harness accepts; a profile declaring a kind outside it is refused at load, naming both files, with the package-data skill exception S-0062/A-3 already carries.
+
+- Paths: `src/torve/config/agents.py`
+- Consequence: the refusal survives the templates, in reviewed configuration, without pulling an image to learn what a harness can take
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-10 — `ASSUMED` (The image knows how to equip itself)
+
+A manifest's `env` mapping reaches the image's environment and nothing else reads it; a knob that is not there is a rebuild.
+
+- Paths: `src/torve/config/agents.py` `src/torve/application/session.py`
+- Consequence: an operator changes a permission mode in configuration, and a change to how the harness is invoked moves the image digest the telemetry already records
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
@@ -409,5 +440,8 @@ Equipment resolves in two layers — the profile named for the task's role, then
 - **S-0062/I-2**: Every equipment item a run used is named by a cache key that resolves to a source and a ref an operator wrote.
   - Paths: `src/torve/config/equipment.py` `src/torve/application/telemetry.py`
   - Check: `uv run pytest tests/test_equipment.py -k reconstructable`
+- **S-0063/I-1**: No harness manifest carries a shell line, and no engine code substitutes into one.
+  - Paths: `src/torve/config/agents.py` `src/torve/adapters/agent/harness.py`
+  - Check: `uv run pytest tests/test_agents.py -k no_shell`
 
 <!-- /torve:managed -->

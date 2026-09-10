@@ -45,10 +45,36 @@ For a harness that takes the `skill` kind the prompt stops naming `.torve/skills
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/skills.py`
 - Consequence: a loaded skill is loaded, not described — and a harness with no skill channel keeps the only mechanism it has
 
+### S-0063/D-1 — `LOCKED` (The image knows how to equip itself)
+
+A sandbox image carries `/opt/torve/run`, which invokes its harness; a manifest carries no command template and `command` is refused by name.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
+- Consequence: the shell that knows how to start a harness lives beside the harness, and a seat cannot be misconfigured into a model that silently would not work
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-2 — `LOCKED` (The image knows how to equip itself)
+
+The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py`
+- Consequence: a new harness is a new image and never a new template language, and every adapter fills one shape
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-5 — `ASSUMED` (The image knows how to equip itself)
+
+Broker placeholders retire into `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`; the refusal moves from "the string names a placeholder" to "this seat needs a broker".
+
+- Paths: `src/torve/adapters/agent/harness.py`
+- Consequence: a run-scoped token stops being spliced into a shell string, and a seat whose provider the broker does not route is still refused before dispatch
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
   - Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
   - Check: `uv run pytest tests/test_agents.py -k base_rules`
+- **S-0063/I-1**: No harness manifest carries a shell line, and no engine code substitutes into one.
+  - Paths: `src/torve/config/agents.py` `src/torve/adapters/agent/harness.py`
+  - Check: `uv run pytest tests/test_agents.py -k no_shell`
 
 <!-- /torve:managed -->

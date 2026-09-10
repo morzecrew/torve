@@ -649,6 +649,37 @@ For a harness that takes the `skill` kind the prompt stops naming `.torve/skills
 - Paths: `src/torve/cli/equip.py` `src/torve/application/equipment.py`
 - Consequence: a cache directory that does not hold what its key claims is a finding an operator can read, rather than a regime hash that agrees with itself and with nothing else
 
+### S-0063/D-2 — `LOCKED` (The image knows how to equip itself)
+
+The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py`
+- Consequence: a new harness is a new image and never a new template language, and every adapter fills one shape
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-10 — `ASSUMED` (The image knows how to equip itself)
+
+A manifest's `env` mapping reaches the image's environment and nothing else reads it; a knob that is not there is a rebuild.
+
+- Paths: `src/torve/config/agents.py` `src/torve/application/session.py`
+- Consequence: an operator changes a permission mode in configuration, and a change to how the harness is invoked moves the image digest the telemetry already records
+
+### S-0063/D-11 — `LOCKED` (The image knows how to equip itself)
+
+`torve sandbox build` and `stage` retire, and `RuntimePort.build_image` with them; the verb keeps `list` and `digest`, and `just images` is the build.
+
+- Paths: `src/torve/cli/sandbox.py` `src/torve/application/ports.py` `src/torve/adapters/runtime/**`
+- Consequence: the engine loses its last way to build an image, which is the rule S-0017/D-3 already stated and could not enforce while a verb of its own did it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-12 — `LOCKED` (The image knows how to equip itself)
+
+The equipment manifest is `manifest.json` at the root of the read-only equipment mount, named by `TORVE_EQUIPMENT` alone — never a second variable, never a file in the workspace.
+
+- Paths: `src/torve/application/session.py` `src/torve/adapters/runtime/**`
+- Consequence: the attempt cannot rewrite the description of what it was equipped with, and one variable names one root rather than two disagreeing about which is authoritative
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

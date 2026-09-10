@@ -289,4 +289,27 @@ Equipment is fetched host-side into a cache keyed by source and ref, never insid
 - Paths: `src/torve/cli/equip.py` `src/torve/application/equipment.py`
 - Consequence: a cache directory that does not hold what its key claims is a finding an operator can read, rather than a regime hash that agrees with itself and with nothing else
 
+### S-0063/D-6 — `LOCKED` (The image knows how to equip itself)
+
+Image definitions live at `sandboxes/<name>/` in the repository root and build to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming repository's own.
+
+- Paths: `sandboxes/**` `src/torve/cli/sandbox.py`
+- Consequence: torve's own source stops living in the directory torve creates inside repositories it works on, and an image gets a name worth publishing
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-8 — `ASSUMED` (The image knows how to equip itself)
+
+`bake.hcl` declares a target per definition with the base as a named context, and a justfile recipe is the build; `torve sandbox build` shells `docker buildx bake`.
+
+- Paths: `bake.hcl` `justfile` `src/torve/cli/sandbox.py`
+- Consequence: the build expresses its own dependency graph, and the context staging the verb does by hand becomes the base image's inheritance
+
+### S-0063/D-11 — `LOCKED` (The image knows how to equip itself)
+
+`torve sandbox build` and `stage` retire, and `RuntimePort.build_image` with them; the verb keeps `list` and `digest`, and `just images` is the build.
+
+- Paths: `src/torve/cli/sandbox.py` `src/torve/application/ports.py` `src/torve/adapters/runtime/**`
+- Consequence: the engine loses its last way to build an image, which is the rule S-0017/D-3 already stated and could not enforce while a verb of its own did it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

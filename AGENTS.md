@@ -78,6 +78,13 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 - Consequence: No legacy identifier stands anywhere the check reads; history keeps its words and resolves through the mapping
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0063/D-8 — `ASSUMED` (The image knows how to equip itself)
+
+`bake.hcl` declares a target per definition with the base as a named context, and a justfile recipe is the build; `torve sandbox build` shells `docker buildx bake`.
+
+- Paths: `bake.hcl` `justfile` `src/torve/cli/sandbox.py`
+- Consequence: the build expresses its own dependency graph, and the context staging the verb does by hand becomes the base image's inheritance
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -110,18 +117,18 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/` — 3 decision(s)
 - `src/torve/_web/` — 1 decision(s)
 - `src/torve/adapters/` — 2 decision(s)
-- `src/torve/adapters/agent/` — 6 decision(s)
+- `src/torve/adapters/agent/` — 9 decision(s)
 - `src/torve/adapters/broker/` — 1 decision(s)
-- `src/torve/adapters/runtime/` — 4 decision(s)
+- `src/torve/adapters/runtime/` — 6 decision(s)
 - `src/torve/adapters/vcs/` — 2 decision(s)
 - `src/torve/adapters/workspace/` — 1 decision(s)
-- `src/torve/application/` — 87 decision(s)
+- `src/torve/application/` — 91 decision(s)
 - `src/torve/base/` — 2 decision(s)
-- `src/torve/cli/` — 38 decision(s)
-- `src/torve/config/` — 51 decision(s)
+- `src/torve/cli/` — 41 decision(s)
+- `src/torve/config/` — 55 decision(s)
 - `src/torve/domain/` — 34 decision(s)
 - `src/torve/gates/` — 24 decision(s)
-- `tests/` — 1 decision(s)
+- `tests/` — 2 decision(s)
 - `web/` — 1 decision(s)
 - `web/src/` — 1 decision(s)
 
