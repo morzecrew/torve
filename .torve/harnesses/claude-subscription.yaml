@@ -4,29 +4,30 @@
 # empty and nothing here is a secret.
 #
 # The command is one shell line run inside the sandbox — the engine never links
-# a harness SDK (S-0004/D-1). It has three jobs before it reaches the agent:
+# a harness SDK (S-0004/D-1). Two jobs before it reaches the agent:
 #
-#   1. HOME. The container runs as the invoking uid with no passwd entry, so
-#      the runtime sets HOME=/tmp. Everything Claude Code reads from HOME has
-#      to arrive there.
-#   2. The seed. The image bakes the plugin clones at pinned refs, and the
-#      runtime writes the bookkeeping that says which are installed and enabled
-#      (S-0061/D-6) into the same tree. Copying it into HOME is what makes both
-#      take effect.
-#   3. The credentials. The auth volume is mounted read-write at /auth because
-#      token refresh writes; symlinking it into HOME is what keeps a refreshed
-#      token for the next attempt on this slot.
+#   1. The credentials. HOME is /tmp (the container has no passwd entry), and
+#      the auth volume is mounted read-write at /auth because token refresh
+#      writes; linking it into HOME is what keeps a refreshed token for the
+#      next attempt on this slot.
+#   2. The plugins. `--plugin-dir` loads a plugin directory for the session, so
+#      the image's clones are named directly and no HOME seed is copied.
 #
-# `{prompt}` substitutes to the staged prompt's path in the workspace and
-# `{model}` to the seat's model. `--output-format json` is what the harness
-# adapter parses the cost and the model version out of.
+# `--permission-mode bypassPermissions`, not `acceptEdits`: acceptEdits
+# auto-approves file writes and a handful of filesystem commands, and *denies*
+# every other Bash call. In print mode a denial is not a prompt and not a hang —
+# it is a silent refusal, so an attempt would look like a model that would not
+# work rather than a seat that was not permitted to. The sandbox is disposable
+# and runs as the invoking uid, which is what the bypass asks for.
 adapter: subscription
 image: torve-agent:claude
 command: >-
-  cp -r /opt/torve/seed/.claude "$HOME/.claude" &&
+  mkdir -p "$HOME/.claude" &&
   ln -sf /auth/.credentials.json "$HOME/.claude/.credentials.json" &&
   claude -p "$(cat {prompt})" --model {model} --output-format json
-  --permission-mode acceptEdits
+  --permission-mode bypassPermissions
+  --plugin-dir /opt/torve/seed/.claude/plugins/marketplaces/caveman
+  --plugin-dir /opt/torve/seed/.claude/plugins/marketplaces/ponytail
 auth_volume: torve-auth
 auth_mount: /auth
 api_key_env: []
