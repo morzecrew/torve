@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0315
+phase: 1
+base: 6e6104780abd7017d61ca3e61879ee3d1b4861da
+commit: 56d7a655cce2e79b29c4d3167002fbb84f380e6f
+at: '2026-09-10T05:03:51Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T04:53:25Z'
+    claim: >-
+      `Source` is a filed item with `id`, `kind`, `ref`, `title`, `at`, `summary`
+      and `settled_by`; `config/sources.py` loads one file per source under `.torve/sources/<kind>/<slug>.yaml`,
+      refusing an `id` that disagrees with its path, a kind that disagrees with its
+      directory, a directory no kind names (`specification` included), a slug the
+      grammar refuses and two files claiming one identifier; `init` writes `sources.json`
+      and lines every source file, and `doctor` reddens on a directory that does not
+      load
+    evidence: src/torve/domain/source.py:46 - the filed model
+    action: decided
+    notes: >-
+      `SOURCE_KINDS` joins the vocabulary beside `SourceKind`, so the filed kinds
+      are derived rather than respelled
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-10T04:53:25Z'
+    claim: >-
+      the model has no field for a decision, so `extra="forbid"` refuses a file that
+      grows rules; `settled_by` names the documents holding what a source settled
+    evidence: >-
+      src/torve/config/sources.py:85 - the loader that refuses one
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-10T04:53:26Z'
+    claim: >-
+      `torve source new <kind> <slug> --title --ref` writes the file with its schema
+      line and the instant it arrived, `list` proves the directory and exits non-zero
+      on a file that does not load, `list --check` resolves every source a local contract
+      names, and `show` reads one whole with the tasks that cite it
+    evidence: >-
+      src/torve/cli/sources.py:35 - the verb that owns the files
+    action: decided
+    notes: >-
+      `--check` is complete here rather than in phase 2, whose scope does not include
+      this module; it passes vacuously until a contract carries a source
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-10T04:53:26Z'
+    claim: >-
+      `import_corpus` is `import_sources(graph, root, spec_dir)` and records every
+      filed source with its own kind beside every document, idempotently; a source
+      whose file is deleted keeps what was recorded and is not retired
+    evidence: >-
+      src/torve/application/decisions.py:306 - the importer over both
+    action: decided
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-10T04:53:27Z'
+    claim: >-
+      `kind` on a document is untouched: this phase adds no member and files provenance
+      beside the corpus instead
+    evidence: >-
+      src/torve/domain/source.py:46 - the model that carries provenance
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T04:53:27Z'
+    claim: >-
+      phase 2's row (the contract's field): untouched here; this phase files the sources
+      it will name, and `cited_sources` already reads the `source` key a contract
+      will carry
+    evidence: >-
+      src/torve/config/sources.py:85 - the reader phase 2's field will resolve through
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-10T04:53:28Z'
+    claim: >-
+      phase 2's row (the record's source id): untouched here; this phase files the
+      sources it will name, and `cited_sources` already reads the `source` key a contract
+      will carry
+    evidence: >-
+      src/torve/config/sources.py:85 - the reader phase 2's field will resolve through
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-10T04:53:28Z'
+    claim: >-
+      phase 2's row (the front door): untouched here; this phase files the sources
+      it will name, and `cited_sources` already reads the `source` key a contract
+      will carry
+    evidence: >-
+      src/torve/config/sources.py:85 - the reader phase 2's field will resolve through
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-10T04:53:29Z'
+    claim: >-
+      phase 2's row (telling the executor): untouched here; this phase files the sources
+      it will name, and `cited_sources` already reads the `source` key a contract
+      will carry
+    evidence: >-
+      src/torve/config/sources.py:85 - the reader phase 2's field will resolve through
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T04:59:57Z'
+    claim: >-
+      the source grammar lives in `domain/source.py` and nothing else spells it: phase
+      2 must validate `Task.source` from `domain/task.py`, and a module-level import
+      of `domain/spec.py` there would have closed a cycle (task to source to spec
+      to task). The module carries `SOURCE_PATTERN`, `FILED_KINDS` and `SLUG` and
+      imports only the vocabulary, so `task.py` can reach it; `corpus_source_id` imports
+      the document grammar inside the function, where it always did
+    evidence: >-
+      src/torve/domain/source.py:36 - the grammar, imported by whatever validates
+      one
+    action: decided
+    notes: >-
+      phase 2's scope does not include this module, so the shape it needs had to be
+      settled here
