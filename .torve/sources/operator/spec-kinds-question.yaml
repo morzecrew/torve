@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/spec-kinds-question
+kind: operator
+ref: 3077c23 — the draft it produced
+title: Should a specification carry a bugfix or audit kind?
+at: '2026-09-10T04:00:00Z'
+settled_by:
+  - S-0060
+summary: |
+  The owner asked whether a document should be able to say `kind: bugfix` or
+  `kind: audit`, so that a feature request, an external audit or a bug found
+  could enter the process uniformly — source, then specification, then tasks.
+
+  The answer was no, and the reason is recorded as S-0060/D-8: `kind` has one
+  reader, the anatomy check, and it answers what prose an accepted document
+  owes. Provenance is a different axis with a model of its own, unserved since
+  S-0044 — five source kinds and one producer between them. The question found
+  a real hole one field lower, and this document is what closed it.

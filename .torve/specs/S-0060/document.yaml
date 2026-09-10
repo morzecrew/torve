@@ -3,7 +3,7 @@ id: S-0060
 title: A source is a file, and the contract names it
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0059]
 informed_by: [S-0020, S-0023, S-0044, S-0047, S-0055]
 supersedes: []
