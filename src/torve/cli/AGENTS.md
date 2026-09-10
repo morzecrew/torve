@@ -235,4 +235,35 @@ Every reader of a landing reads the tree through `landings` and `landed_commits`
 - Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0060/D-1 — `LOCKED` (A source is a file, and the contract names it)
+
+A source is a file, `.torve/sources/<kind>/<slug>.yaml`, carrying `id` (which must equal `<kind>/<slug>` from its own path), `title`, `ref`, `at` and `summary`; its identifier is `<kind>/<slug>`, a document's stays `S-NNNN`, and `specification` is not a directory because a document is already a source; `torve init` writes `sources.json` and each file opens with its schema line
+
+- Paths: `src/torve/domain/source.py` `src/torve/config/sources.py` `src/torve/cli/init.py` `.torve/sources/**` `.torve/schemas/**`
+- Consequence: A source identifier resolves to something a person can open, which is what makes it worth putting on a contract
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-5 — `LOCKED` (A source is a file, and the contract names it)
+
+`torve intake --source <id>` records the source on the drafting run, carries it in the drafts file and copies it onto every contract adoption mints, refusing an unknown source before a model is called; a standing job names `source` beside `decisions_from`; `torve plan` sets none, because a phase's task is sourced by its document
+
+- Paths: `src/torve/cli/intake.py` `src/torve/application/intake.py` `src/torve/application/standing.py`
+- Consequence: The front door records what walked in, and a recurring job's contracts say which job minted them
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-6 — `ASSUMED` (A source is a file, and the contract names it)
+
+`torve source new <kind> <slug>`, `list` and `show <id>` write and read the files, `show` naming the tasks that cite the source
+
+- Paths: `src/torve/cli/sources.py`
+- Consequence: A source is minted and read by the tool that owns it, as a document is
+
+### S-0060/D-7 — `LOCKED` (A source is a file, and the contract names it)
+
+`import_corpus` becomes `import_sources`, recording every file under `.torve/sources/` as a `SourceImported` with its own kind beside every document as today, idempotent as before; a source whose file is deleted keeps what was recorded and is not retired
+
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/decisions.py`
+- Consequence: Every kind the vocabulary admits has a producer
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

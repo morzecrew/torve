@@ -234,6 +234,38 @@ The runner writes no `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config
 - Consequence: One record of a landing; the commit author stays the agent's identity (S-0010/D-2)
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0060/D-1 — `LOCKED` (A source is a file, and the contract names it)
+
+A source is a file, `.torve/sources/<kind>/<slug>.yaml`, carrying `id` (which must equal `<kind>/<slug>` from its own path), `title`, `ref`, `at` and `summary`; its identifier is `<kind>/<slug>`, a document's stays `S-NNNN`, and `specification` is not a directory because a document is already a source; `torve init` writes `sources.json` and each file opens with its schema line
+
+- Paths: `src/torve/domain/source.py` `src/torve/config/sources.py` `src/torve/cli/init.py` `.torve/sources/**` `.torve/schemas/**`
+- Consequence: A source identifier resolves to something a person can open, which is what makes it worth putting on a contract
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-2 — `LOCKED` (A source is a file, and the contract names it)
+
+A source carries no decisions: rows that stand are the corpus's alone, and a source that settled some names the document holding them in `settled_by`
+
+- Paths: `src/torve/domain/source.py` `src/torve/config/sources.py`
+- Consequence: One row-bearing artefact; a contract inherits from one place and `spec cites` has one answer
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-3 — `LOCKED` (A source is a file, and the contract names it)
+
+`Task.source: str | None` is the provenance — a source identifier, `S-NNNN` or `<kind>/<slug>`, validated and never parsed for inheritance — beside `spec`, which stays whose rows the contract inherits; a contract may carry both, either or neither
+
+- Paths: `src/torve/domain/task.py` `src/torve/gates/context.py`
+- Consequence: A task can say what asked for it without pretending a document did
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-8 — `LOCKED` (A source is a file, and the contract names it)
+
+A document's `kind` stays `design` or `convention`: it answers what prose an accepted document owes and nothing else, so a bug worth a document is a design whose motivation is the defect, an audit's standing rules are a convention, and where the work came from is the source
+
+- Paths: `src/torve/domain/vocabulary.py` `src/torve/config/spec.py` `skills/spec-writer/**`
+- Consequence: One axis per field; the corpus never grows a second way to say provenance
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

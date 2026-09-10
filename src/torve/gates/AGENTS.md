@@ -178,6 +178,14 @@ A task naming no document lands under `.torve/execution/` in the same file shape
 - Consequence: An operator's ask and a standing job land with a record; the revert leg finds them
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0060/D-3 — `LOCKED` (A source is a file, and the contract names it)
+
+`Task.source: str | None` is the provenance — a source identifier, `S-NNNN` or `<kind>/<slug>`, validated and never parsed for inheritance — beside `spec`, which stays whose rows the contract inherits; a contract may carry both, either or neither
+
+- Paths: `src/torve/domain/task.py` `src/torve/gates/context.py`
+- Consequence: A task can say what asked for it without pretending a document did
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail

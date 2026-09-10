@@ -31,4 +31,11 @@ The log's `base_sha` is `base`, the landing's word; the log's schema version is 
 - Paths: `src/torve/domain/spec.py` `src/torve/application/**` `src/torve/gates/decisions_reported.py` `src/torve/adapters/agent/harness.py` `src/torve/cli/**`
 - Consequence: One word for the commit an attempt built on, in the log and the landing
 
+### S-0060/D-9 — `ASSUMED` (A source is a file, and the contract names it)
+
+The harness prompt names the source, its title and its ref in the line above the decisions, and the pack carries the source's own file beside `decisions.json`
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
+- Consequence: The executor reads what asked, not a slug
+
 <!-- /torve:managed -->

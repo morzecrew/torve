@@ -559,6 +559,37 @@ Every reader of a landing reads the tree through `landings` and `landed_commits`
 - Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0060/D-4 — `LOCKED` (A source is a file, and the contract names it)
+
+The record's source id of a task is `source` before `spec` before `operator`, so `operator` means nobody said rather than the operator said; the 20 mints already recorded as `operator` are not rewritten
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: The record answers what made us do this with the truth or with an honest absence
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-5 — `LOCKED` (A source is a file, and the contract names it)
+
+`torve intake --source <id>` records the source on the drafting run, carries it in the drafts file and copies it onto every contract adoption mints, refusing an unknown source before a model is called; a standing job names `source` beside `decisions_from`; `torve plan` sets none, because a phase's task is sourced by its document
+
+- Paths: `src/torve/cli/intake.py` `src/torve/application/intake.py` `src/torve/application/standing.py`
+- Consequence: The front door records what walked in, and a recurring job's contracts say which job minted them
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-7 — `LOCKED` (A source is a file, and the contract names it)
+
+`import_corpus` becomes `import_sources`, recording every file under `.torve/sources/` as a `SourceImported` with its own kind beside every document as today, idempotent as before; a source whose file is deleted keeps what was recorded and is not retired
+
+- Paths: `src/torve/application/decisions.py` `src/torve/cli/decisions.py`
+- Consequence: Every kind the vocabulary admits has a producer
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0060/D-9 — `ASSUMED` (A source is a file, and the contract names it)
+
+The harness prompt names the source, its title and its ref in the line above the decisions, and the pack carries the source's own file beside `decisions.json`
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
+- Consequence: The executor reads what asked, not a slug
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
