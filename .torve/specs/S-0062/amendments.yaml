@@ -51,3 +51,21 @@ amendments:
       Four phases changed what a repository writes and none of them could say so: `CHANGELOG.md` was in no scope, so an entry would have reddened the scope gate and its absence would have left four landings undocumented.
 
       Every phase gains it. An entry is not documentation of the work — it is the user-facing half of the change, and a phase that ships a new declaration and cannot write down that it did has not shipped it.
+  - id: A-5
+    at: '2026-09-10T15:10:48Z'
+    title: >-
+      A fifth kind: the subagents a harness can be handed
+    md: |-
+      Claude Code 2.1.252 takes `--agents <json>`, a JSON object defining custom agents, beside `--plugin-dir`, `--mcp-config` and `--settings`. It is a channel like the other four, so it is a kind like the other four: `local:.torve/subagents/<name>.json` with the manifest naming `agent: --agents {path}`.
+
+      The design section is renamed from `one-declaration-four-kinds`, and now says why the kinds are an enumeration: the capability map is keyed on them, so a kind no manifest could name would be a declaration nothing can carry. Adding one is this amendment, which is the intended cost.
+  - id: A-6
+    at: '2026-09-10T15:10:51Z'
+    title: >-
+      No equipment by default — an unequipped seat runs the bare harness
+    md: |-
+      `torve init` minted `implement.yaml`, `review.yaml` and `revert.yaml` pre-filled with the two skills this engine ships, so a repository that had asked for nothing got two skills in its trigger-matching set and two entries in its regime hash. That is equipment by default, and S-0009's own argument against it is the collision cost of a skill nobody wanted.
+
+      It mints none now. A role with no profile contributes no layer, a seat naming no profile contributes none either, and a seat with neither runs the bare harness with nothing attached. The two shipped skills stay shipped and stay package data (D-6); what changes is that a repository has to name one.
+
+      The cost is named rather than hidden: `decisions-reported` convicts on the divergence-log format `flag-dont-flip` teaches, and a fresh repository no longer loads that skill. The base working rules in the prompt still mandate the logging (S-0061/D-4), which is where the requirement always lived — the skill taught it, it never carried it.

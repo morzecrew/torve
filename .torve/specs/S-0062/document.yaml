@@ -119,7 +119,7 @@ non_goals: |
   Not a harness abstraction. The capability map is a flag template per kind, written
   by whoever wrote the manifest. Torve does not model what a harness's flags mean.
 design:
-  - key: one-declaration-four-kinds
+  - key: one-declaration-many-kinds
     md: |
       Equipment is a list, and a kind is what tells the harness where to put it:
 
@@ -139,8 +139,15 @@ design:
           ref: 81536f57b330
         - kind: mcp
           source: local:.torve/mcp/torve.json
+        - kind: agent
+          source: local:.torve/subagents/reviewer.json
       prepare: uv run repowise init --yes
       ```
+
+      The kinds are the channels a harness has: `skill`, `plugin`, `mcp`, `hook`,
+      `agent`. They are an enumeration rather than an open set because the manifest's
+      capability map is keyed on them, and a kind no manifest could name would be a
+      declaration nothing can carry.
 
       Three source schemes and one rule each. `torve:` is package data and takes no
       ref, because the version is the engine's. `local:` is a path in the repository
@@ -173,6 +180,12 @@ design:
       it: a seat profile that declares one plugin would silently replace the role's
       skills, which is the S-0061/D-11 bug T-0325 fixed, returning through a different
       door.
+
+      Neither layer has a default. A repository that writes no profile for a role
+      contributes no lower layer, a seat that names no profile contributes no upper
+      one, and a seat with neither runs the bare harness with nothing attached —
+      `torve init` mints no role profile, because a skill nobody asked for is still a
+      skill in the trigger-matching set (S-0009/trigger-collision-is-the-real-cost).
 
       A profile does not name the role it serves. The mapping already exists twice
       over — the seat's `profile:` names one explicitly, and a file named for a role
