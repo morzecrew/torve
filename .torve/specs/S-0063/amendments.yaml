@@ -50,3 +50,10 @@ amendments:
       The same coarsening as A-4, and it fixes a second defect while it is there: D-9's paths named `sandboxes/claude/**` alongside `sandboxes/dsh/**` and `sandboxes/mimo/**`, which are phase 2's surface and phase 3's. A row whose paths span two phases mints a contract that contradicts itself — the executor inherits a decision it cannot satisfy without leaving `scope.allow`.
 
       `sandboxes/**` sits inside every phase that touches a definition, which is what the row always meant: claude first, the other two after.
+  - id: A-6
+    at: '2026-09-10T18:41:06Z'
+    title: Phase 2 takes the seats the seam reaches
+    md: |-
+      D-1 refuses `command` on a manifest and takes it off the seat, which is the migration this phase exists to force. Fifty-five fixtures across nine test modules build a `TierConfig` with a command in it, because until now that was how a test said "a real seat".
+
+      They are ported here rather than in a follow-up, because a phase that leaves the suite red has not landed. Most are a deletion and an `image=`; `tests/test_tiering.py` is the exception and is where the port is worth reading — its harness cases used the command to *be* the harness, so they now write a two-line `run` script and point the seam at it, which exercises the mechanism the old form could not.

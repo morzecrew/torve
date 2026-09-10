@@ -67,6 +67,15 @@ phasing:
       - tests/test_agents.py
       - tests/test_runconfig.py
       - tests/test_session.py
+      - tests/test_equipment.py
+      - tests/test_runner.py
+      - tests/test_run_loop.py
+      - tests/test_run_integration.py
+      - tests/test_dispatch.py
+      - tests/test_broker.py
+      - tests/test_intake.py
+      - tests/test_cli.py
+      - tests/test_sandbox_images.py
       - CHANGELOG.md
     acceptance:
       - uv run pytest
