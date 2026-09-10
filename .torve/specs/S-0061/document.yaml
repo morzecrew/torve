@@ -262,9 +262,16 @@ out_of_scope: ''
 risks: |
   The largest risk is that the split is read as three times the configuration rather
   than one question per file. It is more files and fewer things per file, and a
-  single-seat repository with one harness and no profile writes strictly less than
-  today: a seat with `adapter` and `command` inline stays legal, because a repository
-  that has one of each should not have to name them.
+  single-seat repository with one harness and no profile writes little more than
+  today: one manifest, and a seat that names it.
+
+  A seat names its harness even when the repository has exactly one. Leaving the
+  inline form legal would have spared that line and cost the rule that pays for the
+  whole document — one home per key (I-2) is false the moment `adapter` may be
+  written in two places, and `torve doctor` could no longer say which harness a seat
+  runs. The migration this forces was measured rather than guessed: it moved this
+  repository's three seats and twenty tests across eight files, and the refusal text
+  was the only guide any of them needed.
 
   The second is that `plugins` invites torve into being a package manager. D-6 draws
   the line at rendering, and the refusal for an unrendered harness is what keeps it

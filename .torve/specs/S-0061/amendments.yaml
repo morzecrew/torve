@@ -27,3 +27,11 @@ amendments:
       A `SandboxSpec` is what an adapter receives, so the plugins ride it — a spec carries the declaration and never the rendering, which is what lets both adapters read one shape and each answer for its own harness. That is `application/ports.py`, and the seat that fills it is `application/session.py`: the agent's own sandbox is the only one a profile equips, so the other four construction sites are untouched.
 
       `tests/test_sandbox_images.py` joins because the claude image's toolkit check asserted `settings.json` exists in the seed. It is rendered at dispatch now, so the check reads the clone the build still pins instead.
+  - id: A-4
+    at: '2026-09-10T13:34:19Z'
+    title: >-
+      A seat names its harness even when there is only one
+    md: |-
+      The risks section said a seat with `adapter` and `command` inline stays legal. D-9 says the opposite, and D-9 is what T-0322 built.
+
+      The prose was hedging written before the migration's cost was known. The cost turned out to be one line per fixture, and the price of the hedge would have been I-2: one home per key is false the moment `adapter` may be written in two places, and the seat line in `torve doctor` could not say which harness a seat runs. The section now says what the document does, and says what the migration actually cost.
