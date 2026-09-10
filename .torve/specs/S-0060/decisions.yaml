@@ -1,0 +1,137 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A source is a file, `.torve/sources/<kind>/<slug>.yaml`, carrying `id` (which
+      must equal `<kind>/<slug>` from its own path), `title`, `ref`, `at` and `summary`;
+      its identifier is `<kind>/<slug>`, a document's stays `S-NNNN`, and `specification`
+      is not a directory because a document is already a source; `torve init` writes
+      `sources.json` and each file opens with its schema line
+    paths:
+      - src/torve/domain/source.py
+      - src/torve/config/sources.py
+      - src/torve/cli/init.py
+      - .torve/sources/**
+      - .torve/schemas/**
+    consequence: >-
+      A source identifier resolves to something a person can open, which is what makes
+      it worth putting on a contract
+    rationale: >-
+      five source kinds have existed since S-0044 with one producer between them;
+      a bare string on a contract would resolve to nothing
+    cites: [S-0044/D-8, S-0047/D-4, S-0057/D-4, S-0058/D-7]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A source carries no decisions: rows that stand are the corpus's alone, and a
+      source that settled some names the document holding them in `settled_by`
+    paths: [src/torve/domain/source.py, src/torve/config/sources.py]
+    consequence: >-
+      One row-bearing artefact; a contract inherits from one place and `spec cites`
+      has one answer
+    rationale: >-
+      an audit that settles standing rules writes a convention, which is what S-0055
+      already is
+    cites: [S-0055/D-1, S-0007/D-5]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      `Task.source: str | None` is the provenance — a source identifier, `S-NNNN`
+      or `<kind>/<slug>`, validated and never parsed for inheritance — beside `spec`,
+      which stays whose rows the contract inherits; a contract may carry both, either
+      or neither
+    paths: [src/torve/domain/task.py, src/torve/gates/context.py]
+    consequence: >-
+      A task can say what asked for it without pretending a document did
+    rationale: >-
+      `spec` can only name a document since S-0059/D-1, so an audit's task has nowhere
+      to say where it came from
+    cites: [S-0044/D-8, S-0059/D-1]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      The record's source id of a task is `source` before `spec` before `operator`,
+      so `operator` means nobody said rather than the operator said; the 20 mints
+      already recorded as `operator` are not rewritten
+    paths: [src/torve/application/residency.py]
+    consequence: >-
+      The record answers what made us do this with the truth or with an honest absence
+    cites: [S-0059/D-3, S-0049/D-4]
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      `torve intake --source <id>` records the source on the drafting run, carries
+      it in the drafts file and copies it onto every contract adoption mints, refusing
+      an unknown source before a model is called; a standing job names `source` beside
+      `decisions_from`; `torve plan` sets none, because a phase's task is sourced
+      by its document
+    paths:
+      - src/torve/cli/intake.py
+      - src/torve/application/intake.py
+      - src/torve/application/standing.py
+    consequence: >-
+      The front door records what walked in, and a recurring job's contracts say which
+      job minted them
+    cites: [S-0020/D-4, S-0023/D-4, S-0030/D-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `torve source new <kind> <slug>`, `list` and `show <id>` write and read the
+      files, `show` naming the tasks that cite the source
+    paths: [src/torve/cli/sources.py]
+    consequence: >-
+      A source is minted and read by the tool that owns it, as a document is
+    cites: [S-0011/D-1]
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      `import_corpus` becomes `import_sources`, recording every file under `.torve/sources/`
+      as a `SourceImported` with its own kind beside every document as today, idempotent
+      as before; a source whose file is deleted keeps what was recorded and is not
+      retired
+    paths: [src/torve/application/decisions.py, src/torve/cli/decisions.py]
+    consequence: Every kind the vocabulary admits has a producer
+    rationale: >-
+      the record keeps what was true, the way an archived document's rows stay resolvable
+    cites: [S-0044/D-2, S-0053/D-8, S-0047/D-7]
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      A document's `kind` stays `design` or `convention`: it answers what prose an
+      accepted document owes and nothing else, so a bug worth a document is a design
+      whose motivation is the defect, an audit's standing rules are a convention,
+      and where the work came from is the source
+    paths:
+      - src/torve/domain/vocabulary.py
+      - src/torve/config/spec.py
+      - skills/spec-writer/**
+    consequence: >-
+      One axis per field; the corpus never grows a second way to say provenance
+    rationale: >-
+      `kind` has one reader, the anatomy check; a `bugfix` or `audit` member would
+      answer a different question in the same field
+    cites: [S-0058/D-4, S-0055/A-2]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      The harness prompt names the source, its title and its ref in the line above
+      the decisions, and the pack carries the source's own file beside `decisions.json`
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/contextpack.py
+    consequence: The executor reads what asked, not a slug
+    cites: [S-0054/D-9, S-0003/context-assembly]
+invariants:
+  - id: I-1
+    statement: >-
+      Every source file under `.torve/sources/` loads, its `id` equals its path, and
+      no two files claim one identifier
+    paths: [.torve/sources/**]
+    check: uv run torve source list
+  - id: I-2
+    statement: >-
+      Every source identifier a contract names resolves to a document or to a source
+      file
+    paths: [.torve/tasks/**, .torve/sources/**]
+    check: uv run torve source list --check

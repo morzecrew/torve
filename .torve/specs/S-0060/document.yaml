@@ -1,0 +1,269 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0060
+title: A source is a file, and the contract names it
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0059]
+informed_by: [S-0020, S-0023, S-0044, S-0047, S-0055]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A source is a file, `.torve/sources/<kind>/<slug>.yaml`, whose identifier is
+  `<kind>/<slug>` — `audit/soc2-2026`, `incident/2026-09-04-lease-storm`,
+  `ask/nightly-digest`. It carries what it is, where it lives and what it
+  said, and it carries no decisions: rows that stand are the corpus's alone,
+  and a source that settled some names the document that holds them. A
+  contract gains `source` beside `spec`: `spec` says whose rows it inherits,
+  `source` says what asked for the work, and the record's source id is
+  `source` before `spec` before `operator`. `torve intake --source` carries
+  one through adoption onto every contract it mints, a standing job names its
+  own, the importer records every source file with its own kind, and the
+  prompt and the pack tell the executor what asked. A document's `kind` stays
+  `design` or `convention`: a bug worth a document is a design, an audit's
+  standing rules are a convention, and where the work came from is the source.
+motivation: |
+  The engine has had five source kinds since S-0044 — specification,
+  incident, audit, review, operator — and one producer. Every source the
+  record holds is a specification; the other four are words with no way to
+  say them. So work that comes from anywhere but the corpus arrives with its
+  provenance flattened to the string `operator`, and the question a person
+  asks first — what made us do this — has no answer the engine can give.
+
+  That is also the shape of the question that opened this document: whether
+  a document should be able to say `kind: bugfix` or `kind: audit`. It
+  should not, and the reason is the same one. `kind` answers what prose an
+  accepted document owes and nothing else; provenance is a different axis
+  and already has a model. The axis is real and unserved, which is why this
+  document exists; the field it wanted is not the one it was reaching for.
+current_state: |
+  Measured on `37f1bf6`, against the local record (partition
+  `morzecrew/torve`):
+
+  - 117 distinct sources are recorded, from 230 `source.imported` events.
+    Every one is `kind: specification`. `incident`, `audit`, `review` and
+    `operator` have no producer anywhere in `src/torve`: the only importer
+    is `decisions.import_corpus`, and the only `Source` ever constructed is
+    `decisions._source_of`, which reads a `Document`.
+  - Of 278 tasks minted, 258 carry a document as their source id and 20
+    carry `operator` — 11 of them `implement` contracts, real work whose
+    provenance the record cannot name. `residency._record_mint` writes
+    `task.spec or "operator"`, so `operator` is not a claim about who asked
+    but the absence of any claim at all.
+  - `Task` has one provenance field, `spec`, and S-0059/D-1 made it an
+    identifier the grammar validates — so it can only ever name a document.
+    A task that came from an audit has nowhere to say so.
+  - `Source` carries `id`, `kind`, `ref` and `title` and lives only in the
+    record: no file, no schema, no verb. A source id in a contract would
+    resolve to nothing a person could open, which is the reason not to add
+    one as a bare string.
+  - The intake lane already generalises the front door — `torve intake
+    "<request>" [--spec S-NNNN]` mints a drafting run, and adoption copies
+    the cited document onto every contract — but the request itself, the
+    thing that walked in, is kept only as the drafting task's `intent`.
+  - A standing job names `decisions_from` and nothing else, so the twelve
+    contracts a recurring job has minted are indistinguishable in the record
+    from a task somebody typed.
+  - The three local contracts with no document (T-0293, T-0294, T-0295) were
+    hand-minted mid-phase to fix what a phase found. They are the shape this
+    document is about: real work, a real reason, no way to write it down.
+goals: |
+  - One identifier for every provenance, resolving to a file a person can
+    open: `S-NNNN` for a document, `<kind>/<slug>` for everything else.
+  - A contract that can say both whose rows govern it and what asked for it,
+    without either standing in for the other.
+  - Every source kind the vocabulary admits has a producer, so the record's
+    answer to "what made us do this" is the truth rather than a default.
+  - The executor is told what asked, in the prompt and the pack.
+non_goals: |
+  - Decisions on a source. Rows that stand are the corpus's; a source that
+    settled some names the document that holds them (D-2).
+  - A new document `kind`. The question that opened this document is
+    answered by D-8, not by a member.
+  - An issue-tracker integration. A source names a ref; fetching what is
+    behind it is somebody else's job.
+  - Rewriting the record. The 20 `operator` mints stay as they are; the next
+    re-mint of a contract that gains a source records the change (S-0049/D-4).
+  - A source for every task. Absent is legal and common — a phase's task is
+    sourced by its document.
+design:
+  - key: the-source-file
+    md: |
+      `.torve/sources/<kind>/<slug>.yaml`, one file per source, where
+      `<kind>` is a directory named for a member of the vocabulary other
+      than `specification` — a document is already a file, and its source id
+      is its own identifier (S-0059/D-3). The file carries `id`, which must
+      equal `<kind>/<slug>` from its own path, `title`, `ref` — where the
+      thing lives, a URL, an issue, a commit, a person — `at`, the instant
+      it arrived (S-0058/D-7), and `summary`, what it said in prose.
+
+      The first line names the schema, as every other minted YAML does
+      (S-0057/D-4): `torve init` writes `sources.json` from the model and
+      `doctor` reddens when it lags. The directory is committed and
+      reviewed, so `.torve/.gitignore` gains nothing.
+
+      One file per source rather than one file holding them all: adding a
+      source then touches nothing that already stands, and the shape is the
+      corpus's, which every reader here has already learned.
+  - key: what-a-source-may-carry
+    md: |
+      Not decisions. A source is a statement that something happened and a
+      pointer to it; a decision is a rule with a grade and the paths it
+      governs, inherited at mint and gated. Two artefacts that both carry
+      rows is two places for a contract to inherit from and two answers to
+      `spec cites`.
+
+      So an audit that settles rules writes them into a document — a
+      `convention`, the S-0055 shape, if they are standing rules — and the
+      source names it in `settled_by`. The link is what makes the audit
+      traceable to the rules it produced without giving it rows of its own.
+  - key: the-contracts-two-fields
+    md: |
+      `Task.source: str | None`, a source identifier: `S-NNNN`, or
+      `<kind>/<slug>`, validated against the grammar and the vocabulary and
+      never parsed for inheritance (S-0044/D-8). It sits beside `spec`, and
+      the two answer different questions: `spec` is whose rows this contract
+      inherits and whose execution directory its landing goes in; `source`
+      is what asked for the work.
+
+      A contract may carry both — an audit finding a defect in code S-0009
+      governs inherits S-0009's rows and is sourced by the audit — either,
+      or neither. The record's source id is `source` before `spec` before
+      `operator`, so the default stops being a claim: `operator` now means
+      nobody said, which is what it always meant and never showed.
+  - key: the-front-door
+    md: |
+      `torve intake "<request>" --source audit/soc2-2026` records the
+      source on the drafting run, carries it in the drafts file, and
+      adoption copies it onto every contract it mints, exactly as `--spec`
+      is carried today. A source the corpus does not hold is refused at
+      intake, before a model is called.
+
+      A standing job names `source` beside `decisions_from`, so the
+      contracts a recurring job mints say which job minted them.
+      `torve plan` sets no source: a phase's task is sourced by its
+      document, and `spec` already says which.
+
+      `torve source new <kind> <slug> --title … --ref …` writes the file
+      with its schema line; `torve source list` and `torve source show
+      <id>` read it, `show` naming the tasks that cite it — the same
+      backlink `spec cites` gives a row.
+  - key: every-kind-has-a-producer
+    md: |
+      `import_corpus` becomes `import_sources(graph, root, spec_dir)`:
+      every document as today, and every file under `.torve/sources/` as a
+      `SourceImported` with its own kind, its ref and its title. Idempotent
+      as before — an unchanged tree records nothing the second time — and
+      the authority table is unchanged, since importing is the operator's
+      act either way.
+
+      A source whose file is deleted is not retired: the record keeps what
+      was recorded, the way an archived document's rows stay resolvable
+      (S-0053/D-8). Deleting the file is how a source stops being offered,
+      not how it stops having been true.
+  - key: telling-the-executor
+    md: |
+      The harness prompt says what asked in the line above the decisions —
+      `Source: audit/soc2-2026 — "SOC 2 control gap in session expiry"
+      (https://…)` — and the pack carries the source's own file beside
+      `decisions.json`, so an executor reading the pack reads what the
+      audit said rather than a slug. A task with no source says nothing
+      extra, as today.
+  - key: what-kind-stays
+    md: |
+      A document's `kind` stays `design` or `convention`. It has one reader
+      — the anatomy check — and it answers what prose an accepted document
+      owes: a design owes the seven and designs something, a convention owes
+      its summary. A `bugfix` or an `audit` member would answer a different
+      question in the same field, and the corpus would then have two ways to
+      say provenance and one of them in the wrong place.
+
+      The rule that follows: a bug worth a document is a design, and the
+      defect is its motivation and its current state. An audit's standing
+      rules are a convention. What the work came from is the source.
+tests: |
+  - `tests/test_sources.py` (new): a source file loads, its `id` must equal
+    its path, a kind outside the vocabulary is refused, `specification` is
+    refused as a directory (a document is already a source), and two files
+    claiming one id are a problem.
+  - `tests/test_cli.py`, `tests/test_doctor.py`: `init` writes
+    `sources.json` and `doctor` reddens when it lags; `torve source new`
+    writes the file with its schema line, `list` and `show` read it.
+  - `tests/test_gates.py`: a contract carrying an unknown source refuses; a
+    contract carrying both `spec` and `source` loads.
+  - `tests/test_residency.py`: the record's source id is `source` before
+    `spec` before `operator`.
+  - `tests/test_intake.py`: `--source` reaches the drafts file and every
+    adopted contract; an unknown source is refused before the run;
+    `tests/test_standing.py`: an instantiated job carries its own source.
+  - `tests/test_decisions_record.py`: every source file records with its own
+    kind, and a second import records nothing.
+  - `tests/test_tiering.py`, `tests/test_contextpack.py`: the prompt names
+    the source and the pack carries its file.
+docs: |
+  `pages/docs/architecture/record.md` (the source is a file now, not only an
+  event), `pages/docs/operating.md` (`torve source`, `intake --source`),
+  `skills/spec-writer/references/authoring.md` (a bug is a design, an
+  audit's rules are a convention), the `AGENTS.md` projections,
+  `CHANGELOG.md` under Added and Changed.
+out_of_scope: |
+  Fetching what a `ref` points at; a source kind beyond the five the
+  vocabulary already admits; retiring a source (Q-1); whether a review
+  finding recorded by `torve review` mints its own source file
+  automatically (Q-2).
+risks: |
+  - **A second provenance field is a second thing to forget.** Mitigation:
+    absent is legal and the fallback chain is one line; nothing refuses a
+    contract for having no source.
+  - **`source` and `spec` drift apart in a reader's head.** Mitigation: the
+    field docstrings say which answers what, and the one place that chooses
+    between them is `_record_mint`'s single expression.
+  - **A source file becomes a document by accretion** — prose, then rules,
+    then rows. Mitigation: D-2 refuses rows structurally; the model has no
+    field for them.
+  - **Slugs collide across kinds.** Mitigation: the id carries the kind, so
+    `audit/expiry` and `incident/expiry` are two sources, and the loader
+    refuses two files claiming one id.
+alternatives:
+  - option: '`kind: bugfix` and `kind: audit` on a document'
+    rejected_because: >-
+      `kind` answers what prose an accepted document owes and has one reader; provenance
+      is a different axis with its own model, and spelling it twice puts one of the
+      spellings in the wrong place (D-8)
+  - option: one `source` field replacing `spec`
+    rejected_because: >-
+      inheritance and provenance are asked by different code for different reasons
+      — one resolves to a directory and mints rows, the other is never parsed — and
+      S-0059 has just made `spec` the word every reader uses
+  - option: >-
+      a source as a bare string on the contract, with no file
+    rejected_because: >-
+      an identifier that resolves to nothing is a comment; the file is what makes
+      `torve source show` and the executor's prompt possible
+  - option: one `.torve/sources.yaml` holding every source
+    rejected_because: >-
+      adding a source would rewrite the file every other source lives in, and the
+      corpus's one-file-per-thing shape is what every reader here already knows
+  - option: sources carry decisions, like a document
+    rejected_because: >-
+      two row-bearing artefacts is two places a contract inherits from and two answers
+      to `spec cites`; an audit that settles rules writes a convention (D-2)
+  - option: a `standing` source kind for recurring jobs
+    rejected_because: >-
+      the vocabulary is closed on purpose (S-0044/D-1); a job's source is an `ask`,
+      and the job's own name is its slug
+  - option: >-
+      derive the kind from the slug's prefix and keep sources flat
+    rejected_because: >-
+      a slug may contain a hyphen; the directory says the kind without parsing
+questions:
+  - id: Q-1
+    text: >-
+      Whether a source is ever retired, and what that would mean for the tasks that
+      cite it
+  - id: Q-2
+    text: >-
+      Whether `torve review`'s findings mint a `review` source automatically, or stay
+      the review record they are today

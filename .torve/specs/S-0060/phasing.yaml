@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: a source is a file
+    intent: >-
+      `Source` gains the fields a file carries and a loader beside it in `config/sources.py`
+      — one file per source under `.torve/sources/<kind>/<slug>.yaml`, `id` checked
+      against its path, a kind outside the vocabulary and a `specification` directory
+      both refused, two files claiming one identifier a problem, and no field for
+      a decision. `torve init` writes `sources.json` and `doctor` reddens when it
+      lags; `torve source new`, `list` and `show` write and read them; `import_corpus`
+      becomes `import_sources` and records every file with its own kind, idempotently.
+      The pages and the changelog say it.
+    scope:
+      - src/torve/domain/source.py
+      - src/torve/config/sources.py
+      - src/torve/cli/sources.py
+      - src/torve/cli/init.py
+      - src/torve/cli/doctor.py
+      - src/torve/cli/main.py
+      - src/torve/cli/decisions.py
+      - src/torve/application/decisions.py
+      - tests/test_sources.py
+      - tests/test_cli.py
+      - tests/test_doctor.py
+      - tests/test_decisions_record.py
+      - .torve/sources/**
+      - .torve/schemas/**
+      - .torve/specs/**
+      - .torve/tasks/**
+      - pages/docs/**
+      - '**/AGENTS.md'
+      - CHANGELOG.md
+      - pyproject.toml
+    acceptance:
+      - >-
+        uv run pytest tests/test_sources.py tests/test_cli.py tests/test_doctor.py
+        tests/test_decisions_record.py
+      - uv run torve spec check
+      - uv run lint-imports --config pyproject.toml
+    character: structural
+  - phase: 2
+    title: the contract names its source
+    intent: >-
+      `Task.source` carries a validated source identifier beside `spec`, and the record's
+      source id is `source` before `spec` before `operator`. `torve intake --source`
+      records it, refuses an unknown one before the run, carries it through the drafts
+      file and onto every adopted contract; a standing job names its own. The harness
+      prompt and the context pack tell the executor what asked. The spec-writer skill
+      says a bug is a design and an audit's rules are a convention, and the changelog
+      says the contract gained a field.
+    scope:
+      - src/torve/domain/task.py
+      - src/torve/application/intake.py
+      - src/torve/application/standing.py
+      - src/torve/application/residency.py
+      - src/torve/application/contextpack.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/cli/intake.py
+      - tests/test_gates.py
+      - tests/test_intake.py
+      - tests/test_standing.py
+      - tests/test_residency.py
+      - tests/test_tiering.py
+      - tests/test_contextpack.py
+      - .torve/specs/**
+      - .torve/schemas/**
+      - .torve/tasks/**
+      - skills/**
+      - .claude/skills/**
+      - pages/docs/**
+      - '**/AGENTS.md'
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run torve spec check
+      - uv run torve spec project --check
+      - uv run lint-imports --config pyproject.toml
+    depends_on:
+      - 1
+    character: structural
