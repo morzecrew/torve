@@ -108,12 +108,6 @@ decisions:
     consequence: >-
       The file is a carrier and an append target, never what a reader with a record
       opens
-  - id: D-12
-    grade: ASSUMED
-    text: >-
-      `.torve/review-corpus/` moves to `tests/fixtures/review-corpus/`
-    paths: [tests/fixtures/**]
-    consequence: Test fixtures live with the tests
   - id: D-13
     grade: OPEN
     text: >-
@@ -121,3 +115,4 @@ decisions:
       them to S-0039
     paths: [src/torve/application/reaper.py]
     consequence: Decided by whoever executes phase 4, logged
+retired: [D-12]

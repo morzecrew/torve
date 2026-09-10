@@ -41,3 +41,20 @@ amendments:
       `check` lives in the loader module — the drift check has to sit beside
       the checks it joins, not in the writer. `src/torve/config/spec.py`
       joins phase 2's scope. Scope only; no row changes.
+  - id: A-5
+    at: '2026-09-10T07:58:05Z'
+    title: >-
+      The review corpus stays where a repository keeps its own
+    changes:
+      - subject: D-12
+        field: retired
+        before: tests/fixtures/**
+        after: >-
+          the review corpus is a per-repository feature, not this repository's test
+          data — no test reads it and `torve review corpus add` writes into it
+    md: |-
+      D-12 read `.torve/review-corpus/` as this repository's test data and sent it to `tests/fixtures/`. It is neither.
+
+      `torve review corpus` is a shipped verb: any repository replays its seeded cases against its own reviewer tier, and `torve review corpus add <landing-sha>` scaffolds a new case from an escape, writing into `.torve/review-corpus/<case>/`. The directory is a repository's own regression corpus, a sibling of `.torve/standing/` and `.torve/sources/`, and torve has no claim on a `tests/fixtures/` path in someone else's tree.
+
+      The evidence that it is not test data is that no test reads it: every case in `tests/test_review_corpus.py` is built under a temporary root, and the three cases here — a clean twin and two seeded defects — are replayed by the verb, not by pytest. Moving them would have broken the feature to tidy a directory.
