@@ -65,3 +65,13 @@ amendments:
       Two kinds of file the phase could not name. `tests/conftest.py` gains the one helper every ported module uses — a stand-in for the image's two scripts, written once rather than nine times.
 
       The three `AGENTS.md` are rendered, not written: amending S-0062/D-2 and S-0062/D-5 for the moved seam changes what governs `src/torve/config/`, `src/torve/application/` and `src/torve/adapters/runtime/`, and `torve spec project` rewrites their managed sections. A phase that amends a row must be able to re-render the sections that row appears in.
+  - id: A-8
+    at: '2026-09-10T19:45:10Z'
+    title: >-
+      Phase 3 takes the claude script the pipe bug it found reaches
+    md: |-
+      Probing dsh against its real image showed `exit=0` after a `MISSING_CREDENTIAL` failure. `run` pipes the harness through `tee` so the engine gets both a stream and a file, and a pipeline reports its last command — so every failed attempt read as a clean one, and the engine's verdict belonged to `tee`.
+
+      claude's `run` landed in phase 2 with the same shape, so the fix reaches its file. All three carry the status by hand now, with the harness inside an `if` because `set -e` would otherwise kill the subshell before the status could be written.
+
+      This is what phase 3 exists for, arriving from an unexpected direction: the contract held across three harnesses without a variable changing, and running the third one for real found a defect the first two hid.
