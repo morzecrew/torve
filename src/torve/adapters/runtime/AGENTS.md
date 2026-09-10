@@ -19,7 +19,7 @@ The runtime adapter renders the profile's plugins into the harness's own seeding
 
 ### S-0062/D-5 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
 
-The cache mounts read-only into the sandbox, one directory per item, and the harness's flag templates are composed against those paths.
+The equipment cache mounts read-only into the sandbox, one directory per item, and the image's own `/opt/torve/equip` composes whatever its harness needs from the manifest at the mount root (S-0063/D-3, S-0063/D-12).
 
 - Paths: `src/torve/adapters/runtime/**` `src/torve/application/ports.py`
 - Consequence: nothing inside an attempt can edit what it was equipped with, and the cache stays derived state that deleting costs only wall clock

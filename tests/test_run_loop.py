@@ -634,12 +634,11 @@ def test_retry_variant_resolves_after_a_gate_red_and_stamps_its_own_tier(rig, mo
 
     build_tier = TierConfig(
         adapter="api",
-        command="x",
         provider="p",
         model="build-model",
         retry_variant="executor.fast",
     )
-    fast_tier = TierConfig(adapter="api", command="x", provider="p", model="fast-model")
+    fast_tier = TierConfig(adapter="api", provider="p", model="fast-model")
     config = RunnerConfig(
         tiers={
             "planner": TierConfig(),
@@ -719,7 +718,7 @@ def test_worktree_config_edits_never_reach_dispatch(rig, monkeypatch):
     repo, deps, _runtime, _vcs, gate_outcomes = rig
     gate_outcomes += [1, 0]
 
-    root_tier = TierConfig(adapter="api", command="x", provider="p", model="root-executor")
+    root_tier = TierConfig(adapter="api", provider="p", model="root-executor")
     config = RunnerConfig(
         tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": root_tier}
     )

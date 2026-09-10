@@ -60,14 +60,14 @@ class _StubRuntime:
 
 
 def _config() -> RunnerConfig:
-    seat = TierConfig(adapter="api", command="c", provider="p", model="cheap")
+    seat = TierConfig(adapter="api", provider="p", model="cheap")
     seat.retry_variants = {"form": "executor.tidy"}
 
     return RunnerConfig(
         tiers={
             "executor": seat,
             "executor.tidy": TierConfig(
-                adapter="api", command="c", provider="p", model="neat", image="tidy-image"
+                adapter="api", provider="p", model="neat", image="tidy-image"
             ),
         }
     )

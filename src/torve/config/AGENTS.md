@@ -365,7 +365,7 @@ A profile declares equipment as typed items — a kind, a source, and a ref wher
 
 ### S-0062/D-2 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
 
-A harness manifest declares which equipment kinds it accepts and the flag template that carries each into its command; a kind a profile declares and the manifest does not is refused at load, unless the engine can deliver it itself — package-data skills alone, which `materialize` writes into the worktree.
+A harness manifest declares which equipment kinds it accepts, and a kind a profile declares and the manifest does not is refused at load, unless the engine can deliver it itself — package-data skills alone, which `materialize` writes into the worktree. Which flag carries each kind is the image's own `/opt/torve/equip` (S-0063/D-3), not a template here.
 
 - Paths: `src/torve/config/agents.py` `.torve/harnesses/**`
 - Consequence: a harness that cannot be given something says so once, in its own file, rather than in an attempt that ran without it

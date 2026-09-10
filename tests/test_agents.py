@@ -44,7 +44,7 @@ def root(tmp_path: Path) -> Path:
     # `fake` names no kind, which is what a harness that takes nothing looks like.
     write(
         harnesses_dir(where) / "plugged.yaml",
-        "adapter: fake\nequips:\n  plugin: --plugin-dir {path}\n",
+        "adapter: fake\nkinds: [plugin]\n",
     )
     return where
 
@@ -60,7 +60,7 @@ def load(root: Path, text: str):
 def test_a_seat_resolves_its_harness_and_its_profile(root: Path):
     write(
         harnesses_dir(root) / "claude-code.yaml",
-        "adapter: harness\ncommand: claude -p {prompt}\nimage: torve-agent:claude\n",
+        "adapter: harness\nimage: claude-sandbox:2.1.252\nenv: {CLAUDE_PERMISSION_MODE: bypassPermissions}\n",
     )
     write(
         agents_dir(root) / "careful.yaml",
@@ -77,11 +77,8 @@ def test_a_seat_resolves_its_harness_and_its_profile(root: Path):
     # The harness's, the profile's and the seat's own, on one object — three
     # files, one resolved seat, because three objects at every call site would
     # be the split leaking out of the files it belongs in.
-    assert (seat.adapter, seat.command, seat.image) == (
-        "harness",
-        "claude -p {prompt}",
-        "torve-agent:claude",
-    )
+    assert (seat.adapter, seat.image) == ("harness", "claude-sandbox:2.1.252")
+    assert seat.env == {"CLAUDE_PERMISSION_MODE": "bypassPermissions"}
     assert seat.skills == ["flag-dont-flip"]
     assert seat.prompt_extras == "Prefer the smallest change."
     assert (seat.model, seat.provider) == ("claude-opus-5", "anthropic")
@@ -113,7 +110,7 @@ def test_a_plugin_is_a_source_and_a_ref(root: Path):
     ("key", "value", "where"),
     [
         ("adapter", "harness", "harness manifest"),
-        ("command", "run {model}", "harness manifest"),
+        ("kinds", "[plugin]", "harness manifest"),
         ("image", "img:1", "harness manifest"),
         ("api_key_env", "[FOO]", "harness manifest"),
         ("equipment", "[]", "agent profile"),
@@ -206,12 +203,15 @@ def test_an_unknown_key_names_the_key_and_the_file(root: Path):
 
 
 def test_an_invalid_merged_seat_names_its_harness_and_profile(root: Path):
-    """A real adapter with no command: the underlying pydantic error, wrapped
-    to name the seat and the files that supplied it."""
+    """A real adapter with no provider: the underlying pydantic error, wrapped
+    to name the seat and the files that supplied it.
+
+    Not "no command" any more — the shell that starts a harness is the image's
+    (S-0063/D-1), and a seat naming no image runs the runtime's default one."""
 
     write(harnesses_dir(root) / "half.yaml", "adapter: harness\n")
 
-    with pytest.raises(ValueError, match="needs a command") as excinfo:
+    with pytest.raises(ValueError, match="needs a provider") as excinfo:
         load(root, "tiers:\n  executor:\n    harness: half\n")
 
     message = str(excinfo.value)
@@ -341,3 +341,37 @@ def test_only_a_name_the_engine_has_a_role_for_is_a_role_profile(root: Path):
     write(agents_dir(root) / "careful.yaml", SKILL % "flag-dont-flip")
 
     assert list(role_equipment(root)) == ["review"]
+
+
+# ....................... #
+# The seam (S-0063): a manifest names an image and its knobs, never a shell line
+
+
+def test_a_manifest_naming_a_command_is_refused_with_what_replaced_it(root: Path):
+    """S-0063/D-1: the shell that knows how to start a harness lives beside the
+    harness. A reader who wrote the old key gets the new shape, not a list of
+    valid keys."""
+
+    write(harnesses_dir(root) / "old.yaml", "adapter: harness\ncommand: claude -p {prompt}\n")
+
+    with pytest.raises(AgentError, match=r"/opt/torve/run") as excinfo:
+        load_harness(root, "old")
+
+    assert "`kinds`" in str(excinfo.value)
+
+
+def test_the_seat_carries_the_knobs_its_image_reads(root: Path):
+    """S-0063/D-10: `env` reaches the image's environment and torve never
+    interprets it — a knob that is not there is a rebuild."""
+
+    write(
+        harnesses_dir(root) / "claude.yaml",
+        "adapter: harness\nimage: claude-sandbox:2.1.252\n"
+        "kinds: [plugin]\nenv: {CLAUDE_PERMISSION_MODE: bypassPermissions}\n",
+    )
+    seat = load(root, "tiers:\n  executor:\n    harness: claude\n    provider: anthropic\n").tiers[
+        "executor"
+    ]
+
+    assert seat.kinds == ["plugin"]
+    assert seat.env == {"CLAUDE_PERMISSION_MODE": "bypassPermissions"}

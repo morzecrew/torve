@@ -3,39 +3,28 @@
 # per-worker-slot volume, not in an environment variable, so `api_key_env` is
 # empty and nothing here is a secret.
 #
-# The command is one shell line run inside the sandbox — the engine never links
-# a harness SDK (S-0004/D-1). Two jobs before it reaches the agent:
+# No command. How claude is started — the auth link, the print-mode flags, the
+# broker's two names mapped onto ANTHROPIC_BASE_URL — lives in the image's own
+# `/opt/torve/run`, which is the only thing in the system that already knows
+# what harness it contains (S-0063/D-1). The engine names the attempt through
+# five environment variables and invokes `equip` and then `run`.
 #
-#   1. The credentials. HOME is /tmp (the container has no passwd entry), and
-#      the auth volume is mounted read-write at /auth because token refresh
-#      writes; linking it into HOME is what keeps a refreshed token for the
-#      next attempt on this slot.
-#   2. The plugins. `--plugin-dir` loads a plugin directory for the session, so
-#      the image's clones are named directly and no HOME seed is copied. Phase 2
-#      of S-0062 composes those flags from `equips` against the mounted cache;
-#      until then the image's own paths stand, and `equips` is what the profile's
-#      declaration is checked against (S-0062/D-2).
+# `kinds` is what the capability map kept: a profile declaring a kind this
+# harness has no channel for is refused at load, naming both files, without
+# anyone having to pull an image to find out (S-0063/D-4). Which flag carries
+# each is `/opt/torve/equip`, beside the harness that knows.
 #
-# `--permission-mode bypassPermissions`, not `acceptEdits`: acceptEdits
-# auto-approves file writes and a handful of filesystem commands, and *denies*
-# every other Bash call. In print mode a denial is not a prompt and not a hang —
-# it is a silent refusal, so an attempt would look like a model that would not
-# work rather than a seat that was not permitted to. The sandbox is disposable
-# and runs as the invoking uid, which is what the bypass asks for.
+# `env` is the knob surface (S-0063/D-10). `CLAUDE_PERMISSION_MODE` is
+# bypassPermissions and not acceptEdits: acceptEdits auto-approves file writes
+# and a handful of filesystem commands, and *denies* every other Bash call. In
+# print mode a denial is not a prompt and not a hang — it is a silent refusal,
+# so an attempt would look like a model that would not work rather than a seat
+# that was not permitted to.
 adapter: subscription
-equips:
-  skill: --add-dir {path}
-  plugin: --plugin-dir {path}
-  mcp: --mcp-config {path}
-  hook: --settings {path}
-image: torve-agent:claude
-command: >-
-  mkdir -p "$HOME/.claude" &&
-  ln -sf /auth/.credentials.json "$HOME/.claude/.credentials.json" &&
-  claude -p "$(cat {prompt})" --model {model} --output-format json
-  --permission-mode bypassPermissions
-  --plugin-dir /opt/torve/seed/.claude/plugins/marketplaces/caveman
-  --plugin-dir /opt/torve/seed/.claude/plugins/marketplaces/ponytail
+image: claude-sandbox:2.1.252
+kinds: [skill, plugin, mcp, hook, agent]
+env:
+  CLAUDE_PERMISSION_MODE: bypassPermissions
 auth_volume: torve-auth
 auth_mount: /auth
 api_key_env: []

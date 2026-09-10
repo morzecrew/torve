@@ -36,7 +36,7 @@ def root(tmp_path: Path) -> Path:
     write(harnesses_dir(where) / "fake.yaml", "adapter: fake\n")
     write(
         harnesses_dir(where) / "claude.yaml",
-        "adapter: fake\nequips:\n  skill: --add-dir {path}\n  plugin: --plugin-dir {path}\n",
+        "adapter: fake\nkinds: [skill, plugin]\n",
     )
     return where
 
@@ -97,16 +97,23 @@ def test_a_cache_key_is_the_declaration_and_reads_back_reconstructable():
 
 
 def test_a_manifest_naming_a_kind_the_engine_has_no_name_for_is_refused(root: Path):
-    write(harnesses_dir(root) / "odd.yaml", "adapter: fake\nequips:\n  widget: --widget {path}\n")
+    write(harnesses_dir(root) / "odd.yaml", "adapter: fake\nkinds: [widget]\n")
 
     with pytest.raises(AgentError, match="no equipment kind"):
         load_harness(root, "odd")
 
 
-def test_a_template_with_nowhere_to_put_the_path_is_refused(root: Path):
-    write(harnesses_dir(root) / "flat.yaml", "adapter: fake\nequips:\n  plugin: --plugins-on\n")
+def test_a_manifest_still_naming_the_template_map_is_refused(root: Path):
+    """S-0063/D-4: `equips` kept the refusal and lost the templates, because a
+    flag per kind describes claude and neither of the other two harnesses this
+    repository builds. The map's reader is the image's own `equip` now."""
 
-    with pytest.raises(AgentError, match="carries no"):
+    write(
+        harnesses_dir(root) / "flat.yaml",
+        "adapter: fake\nequips:\n  plugin: --plugin-dir {path}\n",
+    )
+
+    with pytest.raises(AgentError, match="`kinds`, a list"):
         load_harness(root, "flat")
 
 
@@ -240,7 +247,7 @@ def test_a_subagent_is_a_kind_because_the_harness_has_a_channel_for_it(root: Pat
 
     write(
         harnesses_dir(root) / "sub.yaml",
-        "adapter: fake\nequips:\n  agent: --agents {path}\n",
+        "adapter: fake\nkinds: [agent]\n",
     )
     write(
         agents_dir(root) / "delegating.yaml",

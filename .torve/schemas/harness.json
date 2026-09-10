@@ -28,18 +28,12 @@
       "title": "Auth Volume",
       "type": "string"
     },
-    "command": {
-      "default": "",
-      "description": "The command line run inside the sandbox; `{prompt}` and `{model}` are\nsubstituted. The engine never links a harness SDK \u2014 it shells a line into a\ncontainer it created (S-0004/D-1).",
-      "title": "Command",
-      "type": "string"
-    },
-    "equips": {
+    "env": {
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Which equipment kinds this harness accepts, and the flag that carries each into\nits command \u2014 `{\"plugin\": \"--plugin-dir {path}\"}` (S-0062/D-2). One flag is emitted\nper item, in declaration order. A harness naming no kind takes no equipment, which\nis what `fake` is.",
-      "title": "Equips",
+      "description": "The knobs this harness's image reads \u2014 `{\"CLAUDE_PERMISSION_MODE\": \"...\"}`\n(S-0063/D-10). Torve sets them and never interprets them; a knob that is not here\nis a rebuild, because a flag that changes what an agent may do is a regime change\nthe digest should carry.",
+      "title": "Env",
       "type": "object"
     },
     "image": {
@@ -47,6 +41,14 @@
       "description": "The sandbox image, which is what harness identity actually is (S-0017/D-4).\nEmpty falls back to `runtime.image`.",
       "title": "Image",
       "type": "string"
+    },
+    "kinds": {
+      "description": "Which equipment kinds this harness accepts (S-0063/D-4). A kind a profile\ndeclares and this does not name is refused at load, naming both files; how each\nreaches the harness is the image's `equip` (S-0063/D-3), not a template here.\nA harness naming no kind takes no equipment, which is what `fake` is.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Kinds",
+      "type": "array"
     },
     "schema_version": {
       "default": 1,

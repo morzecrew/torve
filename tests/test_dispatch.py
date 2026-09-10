@@ -80,7 +80,7 @@ def _brokered(**tiers: TierConfig) -> RunnerConfig:
     built in code rather than read from a file never passed it."""
 
     return RunnerConfig(
-        tiers={"executor": TierConfig(adapter="api", provider="p", command="run"), **tiers},
+        tiers={"executor": TierConfig(adapter="api", provider="p", ), **tiers},
         broker=BrokerConfig(
             adapter="local",
             providers={"p": BrokerProvider(upstream="https://p.example", key_env=KEY_ENV)},
@@ -123,9 +123,9 @@ def test_a_retry_rung_naming_a_credential_is_refused_too(tmp_path):
     broker = _CountingBroker()
     config = _brokered(
         executor=TierConfig(
-            adapter="api", provider="p", command="run", retry_variants={"functional": "heavy"}
+            adapter="api", provider="p", retry_variants={"functional": "heavy"}
         ),
-        heavy=TierConfig(adapter="api", provider="p", command="run"),
+        heavy=TierConfig(adapter="api", provider="p", ),
     )
     config.tiers["heavy"].api_key_env = [KEY_ENV]
 

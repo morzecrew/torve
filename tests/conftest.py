@@ -103,3 +103,25 @@ def upstream():
 
     server.shutdown()
     server.server_close()
+
+
+# ....................... #
+
+
+def seam(body: str, monkeypatch) -> dict[str, str]:
+    """A stand-in for the image's own `/opt/torve/equip` and `/opt/torve/run`
+    (S-0063/D-1), for a test that has no image to put them in.
+
+    The engine invokes two paths and knows nothing else about either, so a case
+    that used to put a shell line on the tier hands that line to a `run` which
+    is `sh -c "$TORVE_PROBE"`. Returns the `env` the seat carries, because the
+    body travels the same channel every other knob does — which is the point
+    being exercised, and is what a `command=` on the tier could not reach.
+    """
+
+    from torve.adapters.agent import harness as harness_mod
+
+    monkeypatch.setattr(harness_mod, "EQUIP", "true")
+    monkeypatch.setattr(harness_mod, "RUN", 'sh -c "$TORVE_PROBE"')
+
+    return {"TORVE_PROBE": body}

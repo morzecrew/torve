@@ -109,15 +109,16 @@ class HarnessManifest(BaseModel):
     """The manifest's own shape version."""
     adapter: str = "fake"
     """Which agent adapter this harness drives: fake, api, harness or subscription."""
-    equips: dict[str, str] = Field(default_factory=dict)
-    """Which equipment kinds this harness accepts, and the flag that carries each into
-    its command — `{"plugin": "--plugin-dir {path}"}` (S-0062/D-2). One flag is emitted
-    per item, in declaration order. A harness naming no kind takes no equipment, which
-    is what `fake` is."""
-    command: str = ""
-    """The command line run inside the sandbox; `{prompt}` and `{model}` are
-    substituted. The engine never links a harness SDK — it shells a line into a
-    container it created (S-0004/D-1)."""
+    kinds: list[str] = Field(default_factory=list)
+    """Which equipment kinds this harness accepts (S-0063/D-4). A kind a profile
+    declares and this does not name is refused at load, naming both files; how each
+    reaches the harness is the image's `equip` (S-0063/D-3), not a template here.
+    A harness naming no kind takes no equipment, which is what `fake` is."""
+    env: dict[str, str] = Field(default_factory=dict)
+    """The knobs this harness's image reads — `{"CLAUDE_PERMISSION_MODE": "..."}`
+    (S-0063/D-10). Torve sets them and never interprets them; a knob that is not here
+    is a rebuild, because a flag that changes what an agent may do is a regime change
+    the digest should carry."""
     image: str = ""
     """The sandbox image, which is what harness identity actually is (S-0017/D-4).
     Empty falls back to `runtime.image`."""
@@ -130,22 +131,15 @@ class HarnessManifest(BaseModel):
     """Where that volume is mounted, read-write because token refresh writes."""
 
     @model_validator(mode="after")
-    def _templates(self) -> HarnessManifest:
-        """A kind the engine has no name for, or a flag with nowhere to put the
-        path, is wrong in one visible line rather than in an attempt that ran
-        without its equipment (S-0062/D-2)."""
+    def _kinds(self) -> HarnessManifest:
+        """A kind the engine has no name for is wrong in one visible line rather
+        than in an attempt that ran without its equipment (S-0063/D-4)."""
 
-        for kind, template in sorted(self.equips.items()):
+        for kind in sorted(set(self.kinds)):
             if kind not in KINDS:
                 raise ValueError(
-                    f"`equips` names {kind!r}, which is no equipment kind — "
+                    f"`kinds` names {kind!r}, which is no equipment kind — "
                     f"the kinds are {', '.join(KINDS)}"
-                )
-
-            if "{path}" not in template:
-                raise ValueError(
-                    f"`equips.{kind}` is {template!r} and carries no `{{path}}`, so "
-                    "nothing would tell the harness where the item was mounted"
                 )
 
         return self
@@ -204,6 +198,14 @@ def harnesses_dir(root: Path) -> Path:
 FOLDED: dict[str, str] = {
     "skills": "`equipment` as items of kind `skill` — `{kind: skill, source: torve:<name>}`",
     "plugins": "`equipment` as items of kind `plugin` — the source and the ref unchanged",
+    # S-0063/D-1: the shell that knows how to start a harness lives beside the
+    # harness. A manifest names the image and the knobs its scripts read.
+    "command": (
+        "the image's own `/opt/torve/run`, which the engine invokes — a manifest names "
+        "`image`, the `kinds` it takes and the `env` its scripts read, and never a shell line"
+    ),
+    # S-0063/D-4: the capability map keeps the refusal and loses the templates.
+    "equips": "`kinds`, a list — the flag per kind is the image's `/opt/torve/equip`",
 }
 
 
@@ -428,7 +430,7 @@ def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str,
     except ValueError as exc:
         raise AgentError(f"tier {seat!r} via profile {profile_name!r}: {exc}") from None
 
-    equips: dict[str, str] = merged.get("equips", {})
+    kinds: list[str] = merged.get("kinds", [])
 
     for item in items:
         # A package-data skill has a second channel every harness has: `materialize`
@@ -436,10 +438,10 @@ def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str,
         # only stands if a harness with no `skill` flag still receives skills). So
         # the refusal is "no way to deliver it", not "no flag for it" — every other
         # kind, and a skill that has to be fetched, has only the flag.
-        if item.kind in equips or (item.kind == "skill" and item.scheme == "torve"):
+        if item.kind in kinds or (item.kind == "skill" and item.scheme == "torve"):
             continue
 
-        takes = ", ".join(sorted(equips)) or "no equipment at all"
+        takes = ", ".join(sorted(kinds)) or "no equipment at all"
         raise AgentError(
             f"tier {seat!r}: profile {profile_name!r} declares {item.source} of kind "
             f"{item.kind!r}, and harness {harness_name!r} takes {takes} — a kind the "

@@ -24,6 +24,7 @@ from urllib.request import Request, urlopen
 import opensandbox_stub
 import pytest
 import yaml
+from conftest import seam
 from forze.application.execution import DepsRegistry, ExecutionRuntime
 from pydantic import ValidationError
 from typer.testing import CliRunner
@@ -114,7 +115,7 @@ def test_brokered_tier_naming_api_key_env_is_refused():
     # S-0021/D-1: a non-empty api_key_env under a broker is a refused
     # configuration, not a warning — a second channel for the key is the
     # leak the broker exists to remove.
-    tier = TierConfig(adapter="api", provider=PROVIDER, command="run", api_key_env=[KEY_ENV])
+    tier = TierConfig(adapter="api", provider=PROVIDER, api_key_env=[KEY_ENV])
     with pytest.raises(ValidationError, match="brokered tier names no credential"):
         RunnerConfig(
             tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
@@ -125,7 +126,7 @@ def test_brokered_tier_naming_api_key_env_is_refused():
 def test_none_broker_allows_the_existing_key_name_channel():
     # Under `none` — today's behaviour, named — the tier keeps naming its
     # key's env var exactly as before (S-0021/D-9: none stays legal).
-    tier = TierConfig(adapter="api", provider=PROVIDER, command="run", api_key_env=[KEY_ENV])
+    tier = TierConfig(adapter="api", provider=PROVIDER, api_key_env=[KEY_ENV])
     config = RunnerConfig(
         tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier}
     )
@@ -588,37 +589,50 @@ def harness_ctx(tmp_path: Path, tier: TierConfig, handle: BrokerHandle | None) -
     ), HarnessAgent(tier)
 
 
-def test_harness_substitutes_the_broker_url_and_token(tmp_path):
-    tier = TierConfig(
-        adapter="api", provider=PROVIDER, command="run --url {broker_url} --token {broker_token}"
-    )
+def test_the_broker_reaches_the_image_as_two_variables(tmp_path):
+    """S-0063/D-5: `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`, where a
+    placeholder substituted into a shell string used to carry them. A
+    run-scoped token no longer passes through `str.replace` over shell."""
+
+    tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
     handle = BrokerHandle(
         token="run-token", base_urls={PROVIDER: "http://127.0.0.1:9999/test-vendor"}
     )
     ctx, agent = harness_ctx(tmp_path, tier, handle)
+    env = agent._env(ctx)
 
-    command = agent._command(ctx)
-    assert command == "run --url http://127.0.0.1:9999/test-vendor --token run-token"
+    assert env["TORVE_BROKER_URL"] == "http://127.0.0.1:9999/test-vendor"
+    assert env["TORVE_BROKER_TOKEN"] == "run-token"
 
 
-def test_harness_refuses_broker_placeholders_with_no_broker(tmp_path):
-    tier = TierConfig(adapter="api", provider=PROVIDER, command="run --url {broker_url}")
+def test_no_broker_sets_neither_variable(tmp_path):
+    """Absent, not empty: an absent variable is how an image is told there is
+    no broker, and an empty one reads as a broker at the empty URL."""
+
+    tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
     ctx, agent = harness_ctx(tmp_path, tier, None)
+    env = agent._env(ctx)
 
-    with pytest.raises(ValueError, match="no broker handle"):
-        agent._command(ctx)
+    assert "TORVE_BROKER_URL" not in env
+    assert "TORVE_BROKER_TOKEN" not in env
 
 
-def test_harness_refuses_broker_placeholders_under_the_none_broker(tmp_path):
-    tier = TierConfig(adapter="api", provider=PROVIDER, command="run --token {broker_token}")
+def test_the_none_broker_routes_nothing_and_sets_neither(tmp_path):
+    """S-0021/D-9's handle routes nothing, which is the same as no handle:
+    the seat reaches its provider directly."""
+
+    tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
     ctx, agent = harness_ctx(tmp_path, tier, BrokerHandle(token="", base_urls={}))
 
-    with pytest.raises(ValueError, match="'none'"):
-        agent._command(ctx)
+    assert "TORVE_BROKER_URL" not in agent._env(ctx)
 
 
 def test_harness_refuses_a_provider_the_broker_does_not_route(tmp_path):
-    tier = TierConfig(adapter="api", provider="unrouted-vendor", command="run --url {broker_url}")
+    """The refusal that survives the placeholders: a brokered run whose
+    routing is missing the seat's provider is a configuration error, not a
+    seat that quietly reaches the provider itself."""
+
+    tier = TierConfig(adapter="api", provider="unrouted-vendor", model="m", image="probe-sandbox")
     ctx, agent = harness_ctx(
         tmp_path, tier, BrokerHandle(token="t", base_urls={PROVIDER: "http://127.0.0.1:1/x"})
     )
@@ -627,13 +641,20 @@ def test_harness_refuses_a_provider_the_broker_does_not_route(tmp_path):
         agent._command(ctx)
 
 
-def test_harness_without_placeholders_runs_unchanged_under_a_broker(tmp_path):
-    tier = TierConfig(adapter="api", provider=PROVIDER, command="claude -p $(cat {prompt})")
+def test_the_command_is_the_image_s_two_scripts(tmp_path):
+    """S-0063/D-1: the engine names the attempt and invokes `equip` then
+    `run`; what a harness does with either is the image's."""
+
+    tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
     ctx, agent = harness_ctx(
         tmp_path, tier, BrokerHandle(token="t", base_urls={PROVIDER: "http://127.0.0.1:1/x"})
     )
+    command = agent._command(ctx)
 
-    assert agent._command(ctx) == "claude -p $(cat .torve/tmp/prompt.md)"
+    assert command.endswith("/opt/torve/equip && /opt/torve/run")
+    assert "TORVE_PROMPT=" in command
+    # The token is exported, not spliced into a flag someone has to quote.
+    assert "TORVE_BROKER_TOKEN=t" in command
 
 
 # ....................... #
@@ -815,13 +836,18 @@ def _drive_task(tmp_path: Path, config: RunnerConfig, task: Task, deps) -> objec
     return asyncio.run(drive_attempts(state, task, config, hooks)), worktree
 
 
-def _two_request_command() -> str:
+def _two_request_body() -> str:
+    """Two requests through the broker, from what the image was told
+    (S-0063/D-5): the token and the URL are variables now."""
+
     return (
-        'python -c "import urllib.request,json;'
-        "H={'Authorization':'Bearer {broker_token}','Content-Type':'application/json'};"
+        'python3 -c "import os,urllib.request,json;'
+        "H={'Authorization':'Bearer '+os.environ['TORVE_BROKER_TOKEN'],"
+        "'Content-Type':'application/json'};"
         "D=json.dumps({'model':'x'}).encode();"
-        "print(urllib.request.urlopen(urllib.request.Request('{broker_url}/v1/chat/completions',data=D,headers=H)).read().decode());"
-        "print(urllib.request.urlopen(urllib.request.Request('{broker_url}/v1/chat/completions',data=D,headers=H)).read().decode())\""
+        "U=os.environ['TORVE_BROKER_URL']+'/v1/chat/completions';"
+        "print(urllib.request.urlopen(urllib.request.Request(U,data=D,headers=H)).read().decode());"
+        'print(urllib.request.urlopen(urllib.request.Request(U,data=D,headers=H)).read().decode())"'
     )
 
 
@@ -833,7 +859,10 @@ def test_brokered_attempt_escalates_cost_anomaly_on_budget_refusal(tmp_path, ups
     state["usage"] = {"total_tokens": 5}
 
     tier = TierConfig(
-        adapter="api", provider=PROVIDER, model="fake-model-9", command=_two_request_command()
+        adapter="api",
+        provider=PROVIDER,
+        model="fake-model-9",
+        env=seam(_two_request_body(), monkeypatch),
     )
     config = RunnerConfig(
         poison_ceiling=3,
@@ -875,16 +904,24 @@ def test_brokered_attempt_reaches_ready_and_records_both_costs(tmp_path, upstrea
         adapter="api",
         provider=PROVIDER,
         model="fake-model-9",
-        command=(
-            'python -c "import urllib.request,json;'
-            "H={'Authorization':'Bearer {broker_token}','Content-Type':'application/json'};"
+        env=seam(
+            # S-0063/D-5: the broker's URL and the run-scoped token reach the image
+            # as two variables, where a placeholder in a shell string carried them.
+            'python3 -c "import os,urllib.request,json;'
+            "H={'Authorization':'Bearer '+os.environ['TORVE_BROKER_TOKEN'],"
+            "'Content-Type':'application/json'};"
             "D=json.dumps({'model':'x'}).encode();"
-            "print(urllib.request.urlopen(urllib.request.Request('{broker_url}/v1/chat/completions',data=D,headers=H)).read().decode());"
-            'print(\'{\\"total_cost_usd\\": 0.5, \\"model\\": \\"fake-model-9\\"}\');'
+            "print(urllib.request.urlopen(urllib.request.Request("
+            "os.environ['TORVE_BROKER_URL']+'/v1/chat/completions',data=D,headers=H)).read().decode());"
+            "print(json.dumps({'total_cost_usd':0.5,'model':'fake-model-9'}));"
             "print('ok')\" "
-            "&& mkdir -p src && echo FEATURE = True > src/feature.py"
+            "&& mkdir -p src && echo FEATURE = True > src/feature.py",
+            monkeypatch,
         ),
+        image="probe-sandbox",
     )
+    # S-0063/D-5: the broker's URL and the run-scoped token reach the image as
+    # two variables, where a placeholder in a shell string carried them.
     config = RunnerConfig(
         poison_ceiling=3,
         tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
@@ -962,12 +999,15 @@ def test_brokered_docker_run_sandbox_holds_no_key(repo, upstream, monkeypatch):
         adapter="api",
         provider=PROVIDER,
         model="fake-model-9",
-        command=(
-            'python -c "import urllib.request,json;'
-            "H={'Authorization':'Bearer {broker_token}','Content-Type':'application/json'};"
+        env=seam(
+            'python3 -c "import os,urllib.request,json;'
+            "H={'Authorization':'Bearer '+os.environ['TORVE_BROKER_TOKEN'],"
+            "'Content-Type':'application/json'};"
             "D=json.dumps({'model':'x'}).encode();"
-            "print(urllib.request.urlopen(urllib.request.Request('{broker_url}/v1/chat/completions',data=D,headers=H)).read().decode())\" "
-            "&& mkdir -p src && echo FEATURE = True > src/feature.py"
+            "print(urllib.request.urlopen(urllib.request.Request("
+            "os.environ['TORVE_BROKER_URL']+'/v1/chat/completions',data=D,headers=H)).read().decode())\" "
+            "&& mkdir -p src && echo FEATURE = True > src/feature.py",
+            monkeypatch,
         ),
     )
     config = RunnerConfig(
@@ -1018,7 +1058,10 @@ def test_brokered_docker_budget_refusal_escalates_cost_anomaly(repo, upstream, m
     from torve.gates.sabotage import TASK_ID
 
     tier = TierConfig(
-        adapter="api", provider=PROVIDER, model="fake-model-9", command=_two_request_command()
+        adapter="api",
+        provider=PROVIDER,
+        model="fake-model-9",
+        env=seam(_two_request_body(), monkeypatch),
     )
     config = RunnerConfig(
         runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),
@@ -1063,7 +1106,7 @@ def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
             "tiers": {
                 "executor": {
                     "adapter": "harness",
-                    "command": "x {prompt}",
+                    "image": "probe-sandbox",
                     "model": "m",
                     "provider": "deepseek",
                     "api_key_env": ["DEEPSEEK_API_KEY"],
@@ -1075,16 +1118,20 @@ def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
     assert routing.routes == ()
 
 
-def test_none_handle_runs_a_placeholder_free_command_unchanged(tmp_path):
-    """The none adapter opens a routeless handle (S-0021/D-9); a tier command
-    that names no broker placeholders must pass through it untouched — the
-    second half of the regression that broke every real-tier run when
-    phase 1 landed."""
-    tier = TierConfig(adapter="api", provider=PROVIDER, command='run "$(cat {prompt})"')
-    ctx, agent = harness_ctx(tmp_path, tier, BrokerHandle(token="", base_urls={}))
+def test_the_none_handle_leaves_the_command_untouched(tmp_path):
+    """The none adapter opens a routeless handle (S-0021/D-9), and a seat under
+    it reaches its provider directly. The command is what it always is —
+    the image's two scripts — and neither broker variable is set.
 
+    This is the second half of the regression that broke every real-tier run
+    when S-0021 phase 1 landed: a routeless handle must not read as a broker."""
+
+    tier = TierConfig(adapter="api", provider=PROVIDER, model="m")
+    ctx, agent = harness_ctx(tmp_path, tier, BrokerHandle(token="", base_urls={}))
     command = agent._command(ctx)
-    assert command == 'run "$(cat .torve/tmp/prompt.md)"'
+
+    assert command.endswith("/opt/torve/equip && /opt/torve/run")
+    assert "TORVE_BROKER" not in command
 
 
 def test_forward_strips_a_lowercase_authorization_header(upstream, monkeypatch):

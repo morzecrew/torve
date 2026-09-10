@@ -12,7 +12,7 @@ import pathlib
 import subprocess
 
 import pytest
-from conftest import harness
+from conftest import harness, seam
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
@@ -85,15 +85,20 @@ def test_default_tiers_are_all_fake():
     assert all(tier.adapter == "fake" for tier in config.tiers.values())
 
 
-def test_a_real_adapter_needs_a_command():
-    with pytest.raises(ValidationError, match="needs a command"):
-        TierConfig(adapter="api", provider="anthropic")
+def test_a_real_adapter_needs_no_command_because_the_image_carries_it():
+    """S-0063/D-1: the shell that starts a harness is the image's own
+    `/opt/torve/run`, and a seat naming no image runs the runtime's default
+    one — so there is nothing left for a seat to be missing here."""
+
+    seat = TierConfig(adapter="api", provider="anthropic")
+
+    assert seat.image == ""
 
 
 def test_a_real_adapter_needs_a_provider():
     # Silence is not a policy (§6b): a real adapter must say where it sends.
     with pytest.raises(ValidationError, match="needs a provider"):
-        TierConfig(adapter="harness", command="claude -p x")
+        TierConfig(adapter="harness", image="probe-sandbox")
 
 
 def test_unknown_adapter_is_rejected():
@@ -217,14 +222,14 @@ def test_repository_name_parses_https_remotes(tmp_path):
 
 
 def test_api_and_harness_pass_key_names_never_values():
-    tier = TierConfig(adapter="api", command="run", provider="p", api_key_env=["ANTHROPIC_API_KEY"])
+    tier = TierConfig(adapter="api", provider="p", api_key_env=["ANTHROPIC_API_KEY"])
     env_passthrough, volumes = _sandbox_auth(tier, worker_slot=0)
     assert env_passthrough == ("ANTHROPIC_API_KEY",)
     assert volumes == {}
 
 
 def test_subscription_mounts_one_volume_per_worker_slot():
-    tier = TierConfig(adapter="subscription", command="run", provider="p")
+    tier = TierConfig(adapter="subscription", provider="p")
     _, volumes = _sandbox_auth(tier, worker_slot=2)
     assert volumes == {"torve-auth-2": "/auth"}
     env_passthrough, _ = _sandbox_auth(tier, worker_slot=2)
@@ -265,7 +270,7 @@ def test_an_agent_edit_to_a_withheld_path_is_discarded(tmp_path):
     assert key.read_text(encoding="utf-8") == "original"
 
 
-def test_empty_never_send_touches_nothing(tmp_path):
+def test_empty_never_send_touches_nothing(tmp_path, monkeypatch):
     assert _withhold_never_send(tmp_path, []) == {}
 
 
@@ -300,6 +305,7 @@ class HostShellRuntime:
 def harness_ctx(tmp_path, tier):
     workspace = tmp_path / "wt-t9010" / "T-9010"
     workspace.mkdir(parents=True)
+
     task = Task(
         id="T-9010",
         intent="Make the widget idempotent.",
@@ -322,14 +328,23 @@ def harness_ctx(tmp_path, tier):
     ), HarnessAgent(tier)
 
 
-def test_harness_agent_stages_prompt_and_captures_trace(tmp_path):
+def test_harness_agent_stages_prompt_and_captures_trace(tmp_path, monkeypatch):
     tier = TierConfig(
         adapter="api",
         provider="anthropic",
         model="test-model-1",
-        command='cat {prompt} && echo \'{"total_cost_usd": 0.12, "model": "{model}"}\'',
     )
-    ctx, agent = harness_ctx(tmp_path, tier)
+    ctx, agent = harness_ctx(
+        tmp_path,
+        tier.model_copy(
+            update={
+                "env": seam(
+                    'cat "$TORVE_PROMPT" && echo \'{"total_cost_usd": 0.12, "model": "\'"$TORVE_MODEL"\'"}\'',
+                    monkeypatch,
+                )
+            },
+        ),
+    )
     result = agent.run(ctx)
 
     assert result.exit_code == 0
@@ -352,9 +367,11 @@ def test_harness_agent_stages_prompt_and_captures_trace(tmp_path):
     assert trace.read_text(encoding="utf-8") == result.output
 
 
-def test_harness_without_metadata_is_an_uncontrolled_regime(tmp_path):
-    tier = TierConfig(adapter="harness", provider="p", command="echo plain text only")
-    ctx, agent = harness_ctx(tmp_path, tier)
+def test_harness_without_metadata_is_an_uncontrolled_regime(tmp_path, monkeypatch):
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam("echo plain text only", monkeypatch)})
+    )
     result = agent.run(ctx)
     assert result.cost_usd is None
     assert result.model_version is None  # S-0004/D-6: absence is recorded, not invented
@@ -410,15 +427,16 @@ def test_prompt_extras_follow_the_charters_base_working_rules():
     assert "Skills for your role are under `.torve/skills/`" in prompt
 
 
-def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path):
+def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path, monkeypatch):
     tier = TierConfig(
         adapter="api",
         provider="anthropic",
         model="m",
-        command="cat {prompt}",
         prompt_extras="Docstrings and user-facing text follow the house voice.\n",
     )
-    ctx, agent = harness_ctx(tmp_path, tier)
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
     agent.run(ctx)
     prompt = (ctx.workspace / ".torve" / "tmp" / "prompt.md").read_text(encoding="utf-8")
 
@@ -470,7 +488,7 @@ def seeded_run_repo(tmp_path, tier: dict, providers_yaml="providers: {default: [
 def test_run_refuses_an_unrouted_provider_with_exit_3(tmp_path):
     root = seeded_run_repo(
         tmp_path,
-        {"adapter": "api", "command": "run-it", "provider": "anthropic", "api_key_env": ["K"]},
+        {"adapter": "api", "image": "probe-sandbox", "provider": "anthropic", "api_key_env": ["K"]},
     )
     result = CliRunner().invoke(app, ["run", "T-0042", "--root", str(root)])
     assert result.exit_code == 3
@@ -490,7 +508,7 @@ def test_run_refuses_a_missing_tier_with_exit_3(tmp_path):
 def test_scenario_with_a_real_tier_is_refused(tmp_path):
     root = seeded_run_repo(
         tmp_path,
-        {"adapter": "api", "command": "run-it", "provider": "anthropic"},
+        {"adapter": "api", "image": "probe-sandbox", "provider": "anthropic"},
         "providers: {default: [anthropic]}",
     )
     scenario = tmp_path / "scenario.yaml"
@@ -516,7 +534,7 @@ def test_config_hash_moves_with_the_tier_mapping(tmp_path):
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(adapter="api", command="c", provider="p"),
+            "executor": TierConfig(adapter="api", provider="p"),
         }
     )
     assert config_hash(manifest, tmp_path, plain) != config_hash(manifest, tmp_path, tiered)
@@ -583,7 +601,7 @@ def test_two_regimes_diff_as_two_files(tmp_path):
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(adapter="api", command="c", provider="p"),
+            "executor": TierConfig(adapter="api", provider="p"),
         }
     )
     digest_plain = config_hash(manifest, tmp_path, plain)
@@ -693,7 +711,7 @@ def test_unknown_variant_is_refused_loudly_not_a_fallback_to_the_seat():
 
 
 def test_a_variant_resolves_once_configured_as_a_dotted_entry():
-    fast = TierConfig(adapter="api", command="run", provider="p", model="fast")
+    fast = TierConfig(adapter="api", provider="p", model="fast")
     config = RunnerConfig(tiers={"executor": TierConfig(), "executor.fast": fast})
     task = Task(id="T-1", decisions=[], tier="executor", tier_variant="fast")
     assert tier_for(config, tier_name_for(task)) is fast
@@ -832,18 +850,27 @@ def test_parse_metadata_reads_opencodes_nested_step_finish_part():
     )
 
 
-def test_harness_agent_carries_reported_token_counts(tmp_path):
+def test_harness_agent_carries_reported_token_counts(tmp_path, monkeypatch):
     # T-0186: the counts parse_metadata reads off a usage block ride the
     # harness result — the runner stamps them onto the record's agent block.
     tier = TierConfig(
         adapter="api",
         provider="anthropic",
         model="m",
-        command='echo \'{"total_cost_usd": 0.5, "model": "m", '
-        '"usage": {"input_tokens": 10, "cache_read_input_tokens": 100, '
-        '"output_tokens": 5}}\'',
     )
-    ctx, agent = harness_ctx(tmp_path, tier)
+    ctx, agent = harness_ctx(
+        tmp_path,
+        tier.model_copy(
+            update={
+                "env": seam(
+                    'echo \'{"total_cost_usd": 0.5, "model": "m", '
+                    '"usage": {"input_tokens": 10, "cache_read_input_tokens": 100, '
+                    '"output_tokens": 5}}\'',
+                    monkeypatch,
+                )
+            },
+        ),
+    )
     result = agent.run(ctx)
 
     assert isinstance(result, HarnessResult)
@@ -1024,9 +1051,11 @@ def test_agent_burn_carries_only_a_present_profile():
     }
 
 
-def test_harness_agent_derives_the_burn_from_the_captured_stream(tmp_path):
-    tier = TierConfig(adapter="harness", provider="p", command="cat {prompt}")
-    ctx, agent = harness_ctx(tmp_path, tier)
+def test_harness_agent_derives_the_burn_from_the_captured_stream(tmp_path, monkeypatch):
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
     result = agent.run(dataclasses.replace(ctx, prompt=CLAUDE_STREAM))
 
     assert isinstance(result, HarnessResult)
@@ -1065,7 +1094,7 @@ class SandboxReadOnlyRuntime(HostShellRuntime):
         return None
 
 
-def test_a_read_only_workspace_still_runs_the_command(tmp_path):
+def test_a_read_only_workspace_still_runs_the_command(tmp_path, monkeypatch):
     """The raw capture path lives inside the workspace and the redirect was
     unconditional, so on a drafting run it failed before the command ran:
     `torve intake` returned three empty attempts and escalated `drafter
@@ -1074,8 +1103,10 @@ def test_a_read_only_workspace_still_runs_the_command(tmp_path):
     POSIX special builtin, exits the whole shell rather than returning
     non-zero — taking the fallback with it."""
 
-    tier = TierConfig(adapter="harness", provider="p", command="cat {prompt}")
-    ctx, agent = harness_ctx(tmp_path, tier)
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
     denied = SandboxReadOnlyRuntime(ctx.workspace)
 
     result = agent.run(dataclasses.replace(ctx, prompt="the drafter's answer", runtime=denied))
@@ -1098,7 +1129,7 @@ class ClippingRuntime(HostShellRuntime):
         return dataclasses.replace(result, output=truncate(result.output))
 
 
-def test_burn_counts_the_full_stream_a_clipped_result_output_cannot_see(tmp_path):
+def test_burn_counts_the_full_stream_a_clipped_result_output_cannot_see(tmp_path, monkeypatch):
     # T-0271's blocker, pinned: the heaviest turn sits inside the clip's
     # hole. Scanning result.output would silently drop it — so the scanner
     # reads the store's full bytes, and the store's file holds them.
@@ -1121,8 +1152,10 @@ def test_burn_counts_the_full_stream_a_clipped_result_output_cannot_see(tmp_path
     )
     assert len(stream) > 8000  # and the tail's preserved 6000 chars start far after it
 
-    tier = TierConfig(adapter="harness", provider="p", command="cat {prompt}")
-    ctx, agent = harness_ctx(tmp_path, tier)
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
     clipped = ClippingRuntime(ctx.workspace)
     result = agent.run(dataclasses.replace(ctx, prompt=stream, runtime=clipped))
 
@@ -1138,14 +1171,19 @@ def test_burn_counts_the_full_stream_a_clipped_result_output_cannot_see(tmp_path
     assert result.output_tokens == 36129
 
 
-def test_harness_capture_keeps_the_commands_own_exit_code(tmp_path):
+def test_harness_capture_keeps_the_commands_own_exit_code(tmp_path, monkeypatch):
     # The wrapper moves bytes without touching the verdict the loop reads.
-    tier = TierConfig(
-        adapter="harness",
-        provider="p",
-        command='echo \'{"type":"turn","usage":{"outputTokens":5}}\'; exit 3',
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path,
+        tier.model_copy(
+            update={
+                "env": seam(
+                    'echo \'{"type":"turn","usage":{"outputTokens":5}}\'; exit 3', monkeypatch
+                )
+            },
+        ),
     )
-    ctx, agent = harness_ctx(tmp_path, tier)
     result = agent.run(ctx)
 
     assert result.exit_code == 3
@@ -1155,15 +1193,20 @@ def test_harness_capture_keeps_the_commands_own_exit_code(tmp_path):
     assert trace.read_text(encoding="utf-8").startswith('{"type":"turn"')
 
 
-def test_harness_without_a_stream_profile_yields_no_block(tmp_path):
+def test_harness_without_a_stream_profile_yields_no_block(tmp_path, monkeypatch):
     # Envelope-only output through the whole capture path: cost rides,
     # burn is absent — not zeroed (S-0039/D-4), and the trace stays verbatim.
-    tier = TierConfig(
-        adapter="harness",
-        provider="p",
-        command='echo \'{"total_cost_usd": 0.5, "usage": {"output_tokens": 88}}\'',
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path,
+        tier.model_copy(
+            update={
+                "env": seam(
+                    'echo \'{"total_cost_usd": 0.5, "usage": {"output_tokens": 88}}\'', monkeypatch
+                )
+            },
+        ),
     )
-    ctx, agent = harness_ctx(tmp_path, tier)
     result = agent.run(ctx)
 
     assert isinstance(result, HarnessResult)
@@ -1242,9 +1285,7 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
             tiers={
                 "planner": TierConfig(),
                 "reviewer": TierConfig(),
-                "executor": TierConfig(
-                    adapter="harness", command="run", provider="p", model="m", api_key_env=[]
-                ),
+                "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
             },
         )
         task = Task(id="T-9020", decisions=[])

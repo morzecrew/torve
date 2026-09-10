@@ -407,7 +407,7 @@ def test_run_routing_includes_the_character_routed_variants_provider(tmp_path):
             "reviewer": TierConfig(),
             "executor": TierConfig(adapter="fake", character_routing={"structural": "indexed"}),
             "executor.indexed": TierConfig(
-                adapter="harness", command="run", provider="p", model="m"
+                adapter="harness", provider="p", model="m"
             ),
         },
         broker=BrokerConfig(
@@ -486,7 +486,7 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
             "planner": TierConfig(),
             "reviewer": TierConfig(),
             "executor": TierConfig(
-                adapter="harness", command="run", provider="p", model="m", api_key_env=[]
+                adapter="harness", provider="p", model="m", api_key_env=[]
             ),
         },
     )
@@ -581,7 +581,7 @@ def test_a_red_attempt_row_carries_the_burn_profile(tmp_path):
                 "planner": TierConfig(),
                 "reviewer": TierConfig(),
                 "executor": TierConfig(
-                    adapter="harness", command="run", provider="p", model="m", api_key_env=[]
+                    adapter="harness", provider="p", model="m", api_key_env=[]
                 ),
             },
         )
@@ -697,10 +697,9 @@ def test_the_attempt_hook_reads_the_resolved_tiers_clocks(tmp_path):
         poison_ceiling=1,
         runtime=RuntimeConfig(agent_timeout=1200, sandbox_timeout=1800),
         tiers={
-            "executor": TierConfig(adapter="harness", command="run", provider="p", model="m"),
+            "executor": TierConfig(adapter="harness", provider="p", model="m"),
             "executor.heavy": TierConfig(
                 adapter="harness",
-                command="run",
                 provider="p",
                 model="m",
                 agent_timeout=3600,
@@ -1465,7 +1464,7 @@ def test_run_routing_carries_the_provider_of_every_axis_rung():
     from torve.domain.task import Task
 
     def rung(provider: str) -> TierConfig:
-        return TierConfig(adapter="api", command="c", provider=provider, model="m")
+        return TierConfig(adapter="api", provider=provider, model="m")
 
     routed = {
         name: BrokerProvider(upstream="http://up", key_env="K")
@@ -1477,7 +1476,6 @@ def test_run_routing_carries_the_provider_of_every_axis_rung():
             "reviewer": TierConfig(),
             "executor": TierConfig(
                 adapter="api",
-                command="c",
                 provider="base",
                 model="m",
                 retry_variants={
@@ -1512,7 +1510,6 @@ def test_a_rung_naming_the_seat_itself_is_never_routed_twice():
             "reviewer": TierConfig(),
             "executor": TierConfig(
                 adapter="api",
-                command="c",
                 provider="base",
                 model="m",
                 retry_variants={"functional": "executor", "compliance": "executor"},
@@ -1541,12 +1538,11 @@ def test_an_axis_rung_the_broker_cannot_route_is_a_configuration_error():
             "reviewer": TierConfig(),
             "executor": TierConfig(
                 adapter="api",
-                command="c",
                 provider="base",
                 model="m",
                 retry_variants={"compliance": "executor.ink"},
             ),
-            "executor.ink": TierConfig(adapter="api", command="c", provider="ink", model="m"),
+            "executor.ink": TierConfig(adapter="api", provider="ink", model="m"),
         },
         broker=BrokerConfig(
             adapter="local",
@@ -1566,7 +1562,7 @@ def test_a_credentialed_compliance_rung_is_refused_under_a_broker():
     from torve.config.runconfig import BrokerConfig
     from torve.domain.task import Task
 
-    calm = TierConfig(adapter="api", command="c", provider="p", model="m", api_key_env=["CALM_KEY"])
+    calm = TierConfig(adapter="api", provider="p", model="m", api_key_env=["CALM_KEY"])
     config = RunnerConfig(
         tiers={
             "planner": TierConfig(),
@@ -1677,7 +1673,7 @@ def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=F
 
 def _retry_config(**rungs) -> RunnerConfig:
     def rung(model: str) -> TierConfig:
-        return TierConfig(adapter="api", command="c", provider="p", model=model)
+        return TierConfig(adapter="api", provider="p", model=model)
 
     return RunnerConfig(
         tiers={
@@ -1793,7 +1789,7 @@ def test_the_scalar_mirror_still_routes_every_unclassified_red(repo, monkeypatch
             "reviewer": TierConfig(),
             "executor": TierConfig(retry_variant="executor.heavy"),
             "executor.heavy": TierConfig(
-                adapter="api", command="c", provider="p", model="heavy-model"
+                adapter="api", provider="p", model="heavy-model"
             ),
         }
     )
@@ -2072,7 +2068,7 @@ def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
             "planner": TierConfig(),
             "reviewer": TierConfig(),
             "executor": TierConfig(
-                adapter="harness", command="run", provider="p", model="m", api_key_env=[]
+                adapter="harness", provider="p", model="m", api_key_env=[]
             ),
         },
     )

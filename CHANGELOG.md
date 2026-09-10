@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declaring a kind the manifest does not name is refused at load, naming both
   files, instead of being discovered by an attempt that ran without it.
 
+- A sandbox image carries `/opt/torve/run`, which invokes its harness, and
+  `/opt/torve/equip`, which turns the equipment manifest into whatever that
+  harness needs.
+
+- The engine names an attempt to any image through five environment variables:
+  `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and
+  `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
+
+- A harness manifest carries `kinds`, the equipment kinds it accepts, and
+  `env`, the knobs its image reads. `CLAUDE_PERMISSION_MODE` is the first.
+
 - Sandbox image definitions live at `sandboxes/<name>/` in the repository root
   and build to `<name>-sandbox`. `.torve/sandbox/` stays the hook for a
   repository that defines an image of its own.
@@ -43,6 +54,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure that convicts nothing.
 
 ### Changed
+
+- **Breaking:** a harness manifest carries no `command`, and neither does a
+  seat. The shell that starts a harness lives beside the harness, in the
+  image's own `/opt/torve/run`; a manifest still naming one is refused with
+  what replaced it.
+
+- **Breaking:** `equips` on a manifest is `kinds`, a list. The flag template
+  per kind described claude and neither of the other two harnesses this
+  repository builds — dsh takes one repeatable overlay, mimo installs.
+
+- The broker's URL and run-scoped token reach the sandbox as two environment
+  variables instead of `{broker_url}` and `{broker_token}` substituted into a
+  shell string. A run-scoped token no longer passes through `str.replace`.
 
 - **Breaking:** `torve sandbox build` and `stage` are gone, and so is the
   runtime port's `build_image`. The engine has no way to build an image at

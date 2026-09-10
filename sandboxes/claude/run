@@ -1,0 +1,60 @@
+#!/bin/sh
+# How this image invokes its harness (S-0063/D-1).
+#
+# The engine does not know how to start claude and should not have to: it
+# names what the attempt is — the prompt, the model, where to leave the
+# result — and this turns that into a command line. A flag that changes what
+# an agent may do moves the image digest, which is what the telemetry already
+# records; a knob an operator turns is an environment variable the manifest
+# sets, and `CLAUDE_PERMISSION_MODE` below is the only one so far.
+set -eu
+
+: "${TORVE_PROMPT:?the engine names the prompt file}"
+: "${TORVE_MODEL:?the engine names the model}"
+: "${TORVE_OUTPUT:?the engine names where the result goes}"
+
+# The credentials. HOME is /tmp — the container has no passwd entry — and the
+# auth volume is mounted read-write at /auth because token refresh writes;
+# linking it into HOME is what keeps a refreshed token for the next attempt on
+# this slot. A seat on the API route has no volume and skips this.
+mkdir -p "$HOME/.claude"
+
+if [ -e /auth/.credentials.json ]; then
+    ln -sf /auth/.credentials.json "$HOME/.claude/.credentials.json"
+fi
+
+# The broker, when the run has one: claude reaches its provider through
+# ANTHROPIC_BASE_URL, and mapping the engine's two names onto the harness's is
+# exactly the translation this file exists for.
+if [ -n "${TORVE_BROKER_URL:-}" ]; then
+    ANTHROPIC_BASE_URL="$TORVE_BROKER_URL"
+    export ANTHROPIC_BASE_URL
+fi
+
+if [ -n "${TORVE_BROKER_TOKEN:-}" ]; then
+    ANTHROPIC_AUTH_TOKEN="$TORVE_BROKER_TOKEN"
+    export ANTHROPIC_AUTH_TOKEN
+fi
+
+# `bypassPermissions`, not `acceptEdits`: acceptEdits auto-approves file writes
+# and a handful of filesystem commands, and *denies* every other Bash call. In
+# print mode a denial is not a prompt and not a hang — it is a silent refusal,
+# so an attempt would look like a model that would not work rather than a seat
+# that was not permitted to. The sandbox is disposable and runs as the invoking
+# uid, which is what the bypass asks for.
+set -- claude -p "$(cat "$TORVE_PROMPT")" \
+    --model "$TORVE_MODEL" \
+    --output-format json \
+    --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
+
+# What `equip` decided, if anything. Word-splitting is the point: the file
+# holds shell-quoted arguments, one flag pair per equipment item.
+if [ -s /tmp/torve-equip.args ]; then
+    eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
+fi
+
+mkdir -p "$(dirname "$TORVE_OUTPUT")"
+
+# Both: the engine parses the stream it captured, and the file is the same
+# bytes without the wrapper's noise around them.
+"$@" | tee "$TORVE_OUTPUT"

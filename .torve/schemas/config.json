@@ -639,11 +639,13 @@
           "title": "Character Routing",
           "type": "object"
         },
-        "command": {
-          "default": "",
-          "description": "The in-sandbox command line; {prompt} and {model} are substituted.",
-          "title": "Command",
-          "type": "string"
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "S-0063/D-10: the knobs this seat's image reads, merged off the manifest. Set\ninto the sandbox and never interpreted here.",
+          "title": "Env",
+          "type": "object"
         },
         "equipment": {
           "description": "S-0062/D-1: everything the seat's profile gives its agent, one item per thing.\nThe role's own profile contributes a layer under this one, merged per task\n(S-0062/D-12), because the role varies within a seat.",
@@ -652,14 +654,6 @@
           },
           "title": "Equipment",
           "type": "array"
-        },
-        "equips": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "S-0062/D-2: the kinds this seat's harness accepts and the flag that carries each,\nmerged off the manifest. A kind the profile declares and this does not name is\nrefused when the seat resolves.",
-          "title": "Equips",
-          "type": "object"
         },
         "harness": {
           "default": "",
@@ -673,9 +667,17 @@
           "title": "Image",
           "type": "string"
         },
+        "kinds": {
+          "description": "S-0063/D-4: the equipment kinds this seat's harness accepts, merged off the\nmanifest. A kind the profile declares and this does not name is refused when the\nseat resolves; how each reaches the harness is the image's own `equip`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Kinds",
+          "type": "array"
+        },
         "model": {
           "default": "",
-          "description": "The model, recorded in telemetry and substituted into the command.",
+          "description": "The model, recorded in telemetry and named to the image as `TORVE_MODEL`.",
           "title": "Model",
           "type": "string"
         },

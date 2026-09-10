@@ -14,6 +14,7 @@ import time
 
 import pytest
 import yaml
+from conftest import seam
 from test_runtime_conformance import docker_available
 
 from torve.adapters.agent.fake import FakeAgent
@@ -199,7 +200,7 @@ def test_log_entry_written_before_failure_is_on_disk(repo):
     assert "written before dying" in log.read_text()
 
 
-def test_harness_tier_end_to_end(repo):
+def test_harness_tier_end_to_end(repo, monkeypatch):
     """S-0004/adapters through the whole loop: the executor tier maps to an api
     adapter, routing admits the provider, the harness command runs inside the
     sandbox against the staged prompt, and the attempt record carries the
@@ -212,11 +213,12 @@ def test_harness_tier_end_to_end(repo):
         adapter="api",
         provider="test-vendor",
         model="fake-model-9",
-        command=(
-            "grep -q 'Torve task' {prompt} && echo FEATURE = True > src/feature.py"
-            ' && echo \'{"total_cost_usd": 0.05, "model": "{model}"}\''
-        ),
         api_key_env=["TORVE_TEST_KEY"],
+        env=seam(
+            'grep -q "Torve task" "$TORVE_PROMPT" && echo FEATURE = True > src/feature.py'
+            ' && echo \'{"total_cost_usd": 0.05, "model": "\'"$TORVE_MODEL"\'"}\'',
+            monkeypatch,
+        ),
     )
     config = CONFIG.model_copy(
         update={

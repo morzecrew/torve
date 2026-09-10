@@ -717,7 +717,6 @@ def test_a_real_tier_under_no_broker_drafts_without_a_provider_table(seeded):
         tiers={
             "planner": TierConfig(
                 adapter="harness",
-                command="run",
                 provider="anthropic",
                 api_key_env=["X"],
             ),

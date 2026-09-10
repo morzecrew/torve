@@ -23,6 +23,7 @@ material and nothing more.
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,11 +45,23 @@ PROMPT_RELPATH = ".torve/tmp/prompt.md"
 # adapter reads files from it and never the corpus behind them.
 PACK_RELPATH = ".torve/context"
 
-# The broker handle's fields reach the sandbox inline in the tier command
-# (S-0021/the-port): a broker URL and a run-scoped token are operator
-# non-secret knobs, exactly the channel S-0017/configuration-routes-by-nature already assigns them.
-BROKER_URL_PLACEHOLDER = "{broker_url}"
-BROKER_TOKEN_PLACEHOLDER = "{broker_token}"
+# The two scripts every sandbox image answers (S-0063/D-1, S-0063/D-3): one
+# turns the equipment manifest into whatever its harness needs, the other
+# invokes the harness. The engine runs `equip` and then `run`, and knows
+# nothing about either beyond their paths.
+EQUIP = "/opt/torve/equip"
+RUN = "/opt/torve/run"
+
+# Where the equipment cache mounts (S-0062/D-5) and where `run` leaves the
+# result. Both are named to the image rather than assumed by it, so the one
+# place that decides them is this one.
+EQUIPMENT_MOUNT = "/opt/torve/equipment"
+RESULT_RELPATH = ".torve/tmp/result-{attempt}.json"
+
+# The broker handle's fields reach the sandbox as `TORVE_BROKER_URL` and
+# `TORVE_BROKER_TOKEN` (S-0063/D-5), where a placeholder substituted into a
+# shell string used to carry them. A broker URL and a run-scoped token are
+# operator non-secret knobs, exactly the channel S-0017/configuration-routes-by-nature already assigns them.
 
 
 # ....................... #
@@ -630,42 +643,47 @@ class HarnessAgent:
     # ....................... #
 
     def _command(self, ctx: AgentContext) -> str:
-        """The tier command with its placeholders substituted: {prompt} and
-        {model} as always, plus the broker's per-provider URL and the
-        run-scoped token when a broker handle reached the agent (S-0021
-        §5.1). A command that names broker placeholders with no broker in
-        force is a refused configuration, not a literal string sent into the
-        sandbox."""
+        """What the sandbox is asked to do: equip itself, then run.
 
-        command = self.tier.command.replace("{prompt}", PROMPT_RELPATH).replace(
-            "{model}", self.tier.model
+        The engine does not know how to start a harness and no longer pretends
+        to (S-0063/D-1). It names what the attempt *is* — five variables,
+        identical for every image — and the image's own two scripts turn that
+        into a command line. A template with `{prompt}` and `{model}`
+        substituted by `str.replace` over shell is what this replaces, and
+        nothing checked that template before it ran.
+        """
+
+        exported = " ".join(
+            f"{name}={shlex.quote(value)}" for name, value in self._env(ctx).items()
         )
-        # str.replace, not str.format: the command template is shell and may
-        # legitimately contain braces of its own.
 
-        if ctx.broker is None:
-            if BROKER_URL_PLACEHOLDER in command or BROKER_TOKEN_PLACEHOLDER in command:
-                raise ValueError(
-                    "the tier command names broker placeholders "
-                    f"({BROKER_URL_PLACEHOLDER}/{BROKER_TOKEN_PLACEHOLDER}) but no broker "
-                    "handle reached the agent — configure broker.adapter or remove the "
-                    "placeholders"
-                )
+        return f"export {exported}; {EQUIP} && {RUN}"
 
-            return command
+    def _env(self, ctx: AgentContext) -> dict[str, str]:
+        """The seam (S-0063/D-2), in the order an image reads it.
 
-        if not ctx.broker.base_urls:
-            # The none adapter's handle routes nothing (S-0021/D-9): a command
-            # without placeholders runs unchanged; only a command that names
-            # them has been promised a broker that is not there.
-            if BROKER_URL_PLACEHOLDER in command or BROKER_TOKEN_PLACEHOLDER in command:
-                raise ValueError(
-                    "the tier command names broker placeholders "
-                    f"({BROKER_URL_PLACEHOLDER}/{BROKER_TOKEN_PLACEHOLDER}) but the broker "
-                    "adapter in force is 'none' — configure a broker or remove the placeholders"
-                )
+        `TORVE_BROKER_*` are absent when no broker is in force — an absent
+        variable is how an image is told there is none, and an empty one would
+        read as a broker at the empty URL.
+        """
 
-            return command
+        # Absolute, from the workdir the runtime mounted the worktree at: the
+        # scripts run wherever the harness leaves them, and a relative path
+        # would be one `cd` away from naming nothing.
+        env = {
+            "TORVE_PROMPT": f"{ctx.workdir}/{PROMPT_RELPATH}",
+            "TORVE_MODEL": self.tier.model,
+            "TORVE_EQUIPMENT": EQUIPMENT_MOUNT,
+            "TORVE_OUTPUT": f"{ctx.workdir}/{RESULT_RELPATH}".replace(
+                "{attempt}", str(ctx.attempt)
+            ),
+            **self.tier.env,
+        }
+
+        if ctx.broker is None or not ctx.broker.base_urls:
+            # The none adapter's handle routes nothing (S-0021/D-9), which is
+            # the same as no handle: the seat reaches its provider directly.
+            return env
 
         url = ctx.broker.url_for(self.tier.provider)
 
@@ -675,9 +693,7 @@ class HarnessAgent:
                 f"provider {self.tier.provider!r} — the run's routing is missing it"
             )
 
-        return command.replace(BROKER_URL_PLACEHOLDER, url).replace(
-            BROKER_TOKEN_PLACEHOLDER, ctx.broker.token
-        )
+        return {**env, "TORVE_BROKER_URL": url, "TORVE_BROKER_TOKEN": ctx.broker.token}
 
     # ....................... #
 

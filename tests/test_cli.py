@@ -424,7 +424,7 @@ def test_doctor_warns_when_the_reviewer_shares_the_executors_model(tmp_path):
 
     (tmp_path / ".torve").mkdir()
     harness(tmp_path)
-    harness(tmp_path, "h", "adapter: harness\ncommand: c\n")
+    harness(tmp_path, "h", "adapter: harness\nimage: probe-sandbox\n")
     (tmp_path / ".torve" / "config.yaml").write_text(
         "schema_version: 1\n"
         'review: {"on": [task_gated]}\n'
@@ -461,7 +461,7 @@ def _rung_routing_config(root, rungs: str, providers: str) -> str:
     configuration that names them (S-0061/D-2)."""
 
     harness(root)
-    harness(root, "deep", "adapter: harness\ncommand: c\n")
+    harness(root, "deep", "adapter: harness\nimage: probe-sandbox\n")
 
     return (
         "schema_version: 1\n"
@@ -776,7 +776,7 @@ def test_dispatch_agent_factory_applies_the_run_verbs_rules(tmp_path):
     from torve.config.runconfig import TierConfig
 
     fake = TierConfig(adapter="fake")
-    real = TierConfig(adapter="harness", command="c", provider="p", model="m")
+    real = TierConfig(adapter="harness", provider="p", model="m")
 
     plain = dispatch_agent_factory()
     assert isinstance(plain(fake), FakeAgent)
@@ -801,7 +801,7 @@ def test_route_dispatch_providers_refuses_a_rung_provider(tmp_path):
 
     root = _assembly_root(tmp_path)
     harness(root)
-    harness(root, "deep", "adapter: harness\ncommand: c\n")
+    harness(root, "deep", "adapter: harness\nimage: probe-sandbox\n")
     _write_config(
         root,
         "schema_version: 1\n"

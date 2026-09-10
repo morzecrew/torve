@@ -64,10 +64,8 @@ class TierConfig(BaseModel):
     model_config = STRICT
     adapter: str = "fake"
     """Which agent adapter this tier runs: fake, api, harness or subscription."""
-    command: str = ""
-    """The in-sandbox command line; {prompt} and {model} are substituted."""
     model: str = ""
-    """The model, recorded in telemetry and substituted into the command."""
+    """The model, recorded in telemetry and named to the image as `TORVE_MODEL`."""
     provider: str = ""
     """The routing identity (§6b); empty only for fake."""
 
@@ -132,10 +130,14 @@ class TierConfig(BaseModel):
     The role's own profile contributes a layer under this one, merged per task
     (S-0062/D-12), because the role varies within a seat."""
 
-    equips: dict[str, str] = Field(default_factory=dict)
-    """S-0062/D-2: the kinds this seat's harness accepts and the flag that carries each,
-    merged off the manifest. A kind the profile declares and this does not name is
-    refused when the seat resolves."""
+    kinds: list[str] = Field(default_factory=list)
+    """S-0063/D-4: the equipment kinds this seat's harness accepts, merged off the
+    manifest. A kind the profile declares and this does not name is refused when the
+    seat resolves; how each reaches the harness is the image's own `equip`."""
+
+    env: dict[str, str] = Field(default_factory=dict)
+    """S-0063/D-10: the knobs this seat's image reads, merged off the manifest. Set
+    into the sandbox and never interpreted here."""
 
     prepare: str = ""
     """S-0062/D-7: the command run in the sandbox before the agent, on its own clock —
@@ -197,16 +199,14 @@ class TierConfig(BaseModel):
         if self.adapter not in ADAPTERS:
             raise ValueError(f"unknown agent adapter {self.adapter!r}; one of {ADAPTERS}")
 
-        if self.adapter != "fake":
-            if not self.command:
-                raise ValueError(f"adapter {self.adapter!r} needs a command to run in the sandbox")
-
-            if not self.provider:
-                # Silence is not a policy (§6b): a real adapter sends the
-                # repository somewhere, and routing needs to know where.
-                raise ValueError(
-                    f"adapter {self.adapter!r} needs a provider for routing (S-0004/D-8)"
-                )
+        # No command to require any more (S-0063/D-1): the shell that starts a
+        # harness is the image's own `/opt/torve/run`, and a seat naming no image
+        # runs the runtime's default one — `image_for` answers that, and `torve
+        # doctor` reds on an image the runtime cannot resolve. What is left is
+        # routing: silence is not a policy (§6b), and a real adapter sends the
+        # repository somewhere.
+        if self.adapter != "fake" and not self.provider:
+            raise ValueError(f"adapter {self.adapter!r} needs a provider for routing (S-0004/D-8)")
 
         return self
 

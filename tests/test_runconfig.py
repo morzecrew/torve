@@ -44,7 +44,7 @@ def load(tmp_path: Path, text: str) -> RunnerConfig:
     root = tmp_path / "repo"
     root.mkdir(exist_ok=True)
     harness(root)
-    harness(root, "heavy", "adapter: api\ncommand: c\n")
+    harness(root, "heavy", "adapter: api\nimage: probe-sandbox\n")
     config_path = write(root / "config.yaml", text)
     return load_runner_config(root, config_path)
 

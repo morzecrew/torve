@@ -8,6 +8,13 @@ FROM ${BASE}
 ARG CLAUDE_VERSION=2.1.252
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION} && claude --version
 
+# The two scripts the engine runs (S-0063/D-1, S-0063/D-3): `equip` turns the
+# equipment manifest into this harness's flags, `run` invokes it. Everything
+# about how claude is started lives in them, and the engine names only what
+# the attempt is.
+COPY run equip /opt/torve/
+RUN chmod +x /opt/torve/run /opt/torve/equip
+
 # Harness plugins are identity (RFC 0017 §3, D-17.4): the clones are baked at
 # pinned refs, because a fetch at dispatch would put the network inside every
 # attempt. Which of them are installed and enabled is not baked — the runtime

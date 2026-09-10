@@ -1,0 +1,44 @@
+#!/bin/sh
+# How this image takes its equipment (S-0063/D-3).
+#
+# Claude Code has a session flag per kind, so equipping it is composing flags
+# against the paths the engine mounted. dsh writes one `--patch` overlay from
+# the same manifest and mimo runs install commands — the same script name,
+# three answers, each beside the harness that knows.
+#
+# Nothing to equip is not a failure: the mount is absent until the engine
+# fetches equipment, and a seat whose profile declares none never gets one.
+set -eu
+
+ARGS=/tmp/torve-equip.args
+: > "$ARGS"
+
+[ -n "${TORVE_EQUIPMENT:-}" ] || exit 0
+[ -f "$TORVE_EQUIPMENT/manifest.json" ] || exit 0
+
+python3 - "$TORVE_EQUIPMENT/manifest.json" > "$ARGS" <<'PY'
+import json
+import shlex
+import sys
+
+# One flag per kind. A kind that is not here is a kind this harness has no
+# channel for, and the engine refused the profile that declared it before the
+# sandbox existed (S-0063/D-4) — so an unknown kind here is a bug, not input.
+FLAG = {
+    "skill": "--add-dir",
+    "plugin": "--plugin-dir",
+    "mcp": "--mcp-config",
+    "hook": "--settings",
+    "agent": "--agents",
+}
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+words = []
+
+for item in manifest.get("items", []):
+    words += [FLAG[item["kind"]], item["path"]]
+
+print(" ".join(shlex.quote(word) for word in words))
+PY

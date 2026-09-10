@@ -81,7 +81,7 @@ def test_tier_image_overrides_the_runtime_default():
     config = RunnerConfig()
     plain = TierConfig()
     harness = TierConfig(
-        adapter="harness", command="run {prompt}", provider="deepseek", image="torve-agent:dsh"
+        adapter="harness", provider="deepseek", image="torve-agent:dsh"
     )
     assert image_for(config, plain) == config.runtime.image
     assert image_for(config, harness) == "torve-agent:dsh"
