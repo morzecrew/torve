@@ -22,7 +22,7 @@ from torve.config.agents import (
     load_profile,
     role_profiles,
 )
-from torve.config.runconfig import load_runner_config
+from torve.config.runconfig import effective_skill_sets, load_runner_config
 
 # ----------------------- #
 
@@ -278,3 +278,53 @@ def test_editing_a_profile_changes_the_regime(root: Path):
     after = config_hash(root / ".torve" / "gates.yaml", root, load(root, text))
 
     assert before != after
+
+
+def test_a_profile_contributes_what_it_wrote_and_not_its_model_s_defaults(root: Path):
+    """The trap this closes: writing a profile only to add plugins used to set
+    `skills: []` on the seat and silently strip the role's set. A merge over a
+    model dump cannot tell a key the file omitted from one it set to the
+    default — the ambiguity S-0028/D-2 mandated a raw-mapping merge to avoid."""
+
+    write(agents_dir(root) / "implement.yaml", "skills: [flag-dont-flip]\n")
+    write(
+        agents_dir(root) / "equipped.yaml",
+        "plugins:\n  - source: github:JuliusBrussee/caveman\n    ref: abc\n",
+    )
+    config = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: equipped\n")
+    seat = config.tiers["executor"]
+
+    assert seat.skills is None  # not written, so the role's profile answers
+    assert effective_skill_sets(seat, "implement", config.skills.sets)["implement"] == [
+        "flag-dont-flip"
+    ]
+    assert [p.source for p in seat.plugins] == ["github:JuliusBrussee/caveman"]
+
+    # An empty list written *is* a declaration: this agent equips nothing.
+    write(agents_dir(root) / "bare.yaml", "skills: []\n")
+    bare = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: bare\n")
+
+    assert bare.tiers["executor"].skills == []
+
+
+def test_a_harness_contributes_what_it_wrote_too(root: Path):
+    """The same rule at the other file: a manifest naming no image leaves the
+    seat's empty so `image_for` falls through to the runtime global, rather
+    than writing the model default over a value the seat could have had."""
+
+    write(harnesses_dir(root) / "bare.yaml", "adapter: fake\n")
+    config = load(root, "tiers:\n  executor:\n    harness: bare\n")
+
+    assert config.tiers["executor"].image == ""
+    assert config.tiers["executor"].auth_mount == "/auth"  # the model's default still applies
+
+
+def test_only_a_name_the_engine_has_a_role_for_is_a_role_profile(root: Path):
+    """A profile written for a seat is not a role. Keying it as one puts a role
+    nothing dispatches into the role sets and into the regime hash, and that is
+    what makes `torve eval` refuse a skill as being in no role set."""
+
+    write(agents_dir(root) / "review.yaml", "skills: [ratchet-what-you-build]\n")
+    write(agents_dir(root) / "careful.yaml", "skills: [flag-dont-flip]\n")
+
+    assert role_profiles(root) == {"review": ["ratchet-what-you-build"]}

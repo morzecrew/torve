@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from torve.base.model import STRICT
 from torve.config import layout
+from torve.domain.vocabulary import ROLES
 
 # ----------------------- #
 
@@ -207,28 +208,41 @@ def _body(path: Path, label: str) -> dict[str, Any]:
 # ....................... #
 
 
-def load_profile(root: Path, name: str) -> AgentProfile:
-    path = agents_dir(root) / f"{name}.yaml"
-    body = _body(path, "agent profile")
-    _refuse_foreign(path, body, PROFILE_KEYS)
+def _declared(path: Path, label: str, own: frozenset[str], model: type[BaseModel]) -> dict[str, Any]:
+    """The keys this file actually wrote, after the same validation and the
+    same refusals its model performs.
+
+    The body, never the model's dump: a merge over a dump cannot tell a key
+    the file omitted from one it set to the model's default, and that
+    ambiguity is what S-0028/D-2 mandated a raw-mapping merge to avoid. A
+    profile naming only `plugins` used to write `skills: []` onto the seat
+    and silently strip the role's set.
+    """
+
+    body = _body(path, label)
+    _refuse_foreign(path, body, own)
 
     try:
-        return AgentProfile.model_validate(body)
+        model.model_validate(body)
 
     except ValueError as exc:
         raise AgentError(f"{path}: {exc}") from None
+
+    return {key: value for key, value in body.items() if key != "schema_version"}
+
+
+def load_profile(root: Path, name: str) -> AgentProfile:
+    path = agents_dir(root) / f"{name}.yaml"
+
+    return AgentProfile.model_validate(_declared(path, "agent profile", PROFILE_KEYS, AgentProfile))
 
 
 def load_harness(root: Path, name: str) -> HarnessManifest:
     path = harnesses_dir(root) / f"{name}.yaml"
-    body = _body(path, "harness manifest")
-    _refuse_foreign(path, body, HARNESS_KEYS)
 
-    try:
-        return HarnessManifest.model_validate(body)
-
-    except ValueError as exc:
-        raise AgentError(f"{path}: {exc}") from None
+    return HarnessManifest.model_validate(
+        _declared(path, "harness manifest", HARNESS_KEYS, HarnessManifest)
+    )
 
 
 # ....................... #
@@ -250,7 +264,12 @@ def role_profiles(root: Path) -> dict[str, list[str]]:
         return found
 
     for path in sorted(directory.glob("*.yaml")):
-        found[path.stem] = list(load_profile(root, path.stem).skills)
+        # Only a name the engine has a role for. Every other profile is a
+        # seat's, and keying it here would put a role nothing dispatches into
+        # the role sets and into the regime hash — which is what makes
+        # `torve eval` refuse a skill as "in no role set" (S-0009/A-5).
+        if path.stem in ROLES:
+            found[path.stem] = list(load_profile(root, path.stem).skills)
 
     return found
 
@@ -261,6 +280,10 @@ def role_profiles(root: Path) -> dict[str, list[str]]:
 def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str]]:
     """Merge each seat's harness and profile into its raw mapping, before
     `TierConfig` ever validates (the shape S-0028/D-2 already used).
+
+    Each file contributes the keys it wrote and no others, so a profile that
+    names only `plugins` leaves the seat's `skills` unset and the role's own
+    profile answers (S-0061/D-11).
 
     One merge level (S-0061/D-8): a seat merges its harness and its profile,
     and neither references another of its kind, so the file a refusal names is
@@ -295,12 +318,22 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
                 f"model, and the manifests live in {harnesses_dir(root)}"
             )
 
-        merged: dict[str, Any] = dict(
-            load_harness(root, harness_name).model_dump(exclude={"schema_version"})
+        merged: dict[str, Any] = _declared(
+            harnesses_dir(root) / f"{harness_name}.yaml",
+            "harness manifest",
+            HARNESS_KEYS,
+            HarnessManifest,
         )
 
         if profile_name:
-            merged.update(load_profile(root, profile_name).model_dump(exclude={"schema_version"}))
+            merged.update(
+                _declared(
+                    agents_dir(root) / f"{profile_name}.yaml",
+                    "agent profile",
+                    PROFILE_KEYS,
+                    AgentProfile,
+                )
+            )
 
         merged.update(entry)
         tiers[key] = merged

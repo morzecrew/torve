@@ -48,6 +48,7 @@ ENTRY_ACTIONS: tuple[EntryAction, ...] = get_args(EntryAction)
 # The contract (S-0001/domain): what a task is, who takes it, how it routes.
 
 Role = Literal["implement", "review", "revert", "draft"]
+ROLES: tuple[Role, ...] = get_args(Role)
 Tier = Literal["planner", "executor", "reviewer"]
 # S-0034/D-1: a phase's declared character, copied onto its contracts.
 Character = Literal["structural", "routine"]
