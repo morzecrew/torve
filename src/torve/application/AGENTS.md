@@ -590,6 +590,13 @@ The harness prompt names the source, its title and its ref in the line above the
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
 - Consequence: The executor reads what asked, not a slug
 
+### S-0061/D-7 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+The regime hash reads each seat's resolved harness, profile and own keys, and stops reading skills-lock.json.
+
+- Paths: `src/torve/application/telemetry.py`
+- Consequence: the hash changes when the equipment changes, and stops changing when a tool torve does not run reformats its own lockfile
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -287,10 +287,84 @@ A document's `kind` stays `design` or `convention`: it answers what prose an acc
 - Consequence: One axis per field; the corpus never grows a second way to say provenance
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0061/D-1 — `LOCKED` (The agent profile, the harness manifest, and the seat that names them)
+
+An agent profile carries what the agent is — skills, plugins, prompt_extras — and nothing about how it runs.
+
+- Paths: `src/torve/config/agents.py`
+- Consequence: a persona file can no longer decide where a conviction routes, because routing is not a key it has
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-2 — `LOCKED` (The agent profile, the harness manifest, and the seat that names them)
+
+A harness manifest carries how a model is reached — adapter, command, image and how auth arrives — and names no model.
+
+- Paths: `src/torve/config/agents.py`
+- Consequence: one manifest serves every model that image can run, and a model change is a one-line seat edit
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-3 — `LOCKED` (The agent profile, the harness manifest, and the seat that names them)
+
+The seat names one harness and at most one profile, and holds what varies per run — model, provider, routing, clocks and caches.
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: `tiers:` reads as an assignment rather than as a full agent definition
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-4 — `LOCKED` (The agent profile, the harness manifest, and the seat that names them)
+
+The charter's base working rules stay unaddressable from configuration; a profile appends with prompt_extras and a `prompt` key is refused by name.
+
+- Paths: `src/torve/config/agents.py`
+- Consequence: no file outside the repository under work can disarm the rules two blocking gates convict on
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-5 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+A plugin is declared on the profile as a source and a ref, which torve neither resolves nor verifies.
+
+- Paths: `src/torve/config/agents.py`
+- Consequence: torve stops being a place where a pinned version is written down three times, without becoming a package manager
+
+### S-0061/D-8 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+One merge level survives the split — a seat merges its harness and its profile, and neither references another of its kind.
+
+- Paths: `src/torve/config/agents.py`
+- Consequence: the file a refusal names is the file that carries the bad key
+
+### S-0061/D-9 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+A seat carrying a moved key is refused by name, with the file the key belongs in named in the message.
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: the migration guide is the error, so no repository needs one written
+
+### S-0061/D-10 — `LOCKED` (The agent profile, the harness manifest, and the seat that names them)
+
+The profile and the harness manifest are committed files of the operating repository under `.torve/`, not files on the operator's machine.
+
+- Paths: `src/torve/config/agents.py` `src/torve/cli/init.py`
+- Consequence: a regime is reconstructable from a checkout, and two operators running one repository cannot silently run different equipment
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0061/D-11 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+A seat naming no profile resolves the profile named for the task's role, and SkillsConfig.sets retires.
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/config/agents.py`
+- Consequence: the default equipment for a role and a named set stop being two mechanisms answering one question in two files
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
   - Paths: `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py`
   - Check: `uv run pytest tests/test_spec.py -k schema_descriptions`
+- **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
+  - Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
+  - Check: `uv run pytest tests/test_agents.py -k base_rules`
+- **S-0061/I-2**: Every key of the old flat tier body lives in exactly one of the three files, and the other two refuse it by name.
+  - Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py`
+  - Check: `uv run pytest tests/test_agents.py -k one_home`
 
 <!-- /torve:managed -->

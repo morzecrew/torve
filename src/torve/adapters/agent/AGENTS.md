@@ -38,4 +38,10 @@ The harness prompt names the source, its title and its ref in the line above the
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
 - Consequence: The executor reads what asked, not a slug
 
+## Invariants holding over `src/torve/adapters/agent/`
+
+- **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
+  - Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
+  - Check: `uv run pytest tests/test_agents.py -k base_rules`
+
 <!-- /torve:managed -->

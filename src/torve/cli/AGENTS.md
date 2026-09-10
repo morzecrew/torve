@@ -266,4 +266,12 @@ A source is a file, `.torve/sources/<kind>/<slug>.yaml`, carrying `id` (which mu
 - Consequence: Every kind the vocabulary admits has a producer
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0061/D-10 — `LOCKED` (The agent profile, the harness manifest, and the seat that names them)
+
+The profile and the harness manifest are committed files of the operating repository under `.torve/`, not files on the operator's machine.
+
+- Paths: `src/torve/config/agents.py` `src/torve/cli/init.py`
+- Consequence: a regime is reconstructable from a checkout, and two operators running one repository cannot silently run different equipment
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->
