@@ -1,0 +1,120 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0316
+phase: 2
+base: baef1e1944701b9e50a233802d87144333e57a16
+commit: 6986c40b3195b55c18fcc2dbaa1fb68754b2aef2
+at: '2026-09-10T05:18:31Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-10T05:09:45Z'
+    claim: >-
+      `Task.source` is validated against `SOURCE_PATTERN` from `domain/source.py`
+      and sits beside `spec`; a contract may carry both, either or neither, and `specification/<slug>`
+      is refused because a document is named `S-NNNN`
+    evidence: >-
+      src/torve/domain/task.py:125 - the provenance field
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-10T05:09:45Z'
+    claim: >-
+      `_record_mint` writes `task.source or task.spec or "operator"`; the mints already
+      recorded are not rewritten
+    evidence: >-
+      src/torve/application/residency.py:222 - the fallback chain, one expression
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-10T05:09:46Z'
+    claim: >-
+      `resolve_source` checks a source against the tree at minting — a filed source
+      under `.torve/sources/`, or a document the corpus holds — and refuses before
+      a model is called; `mint_intake_task` takes `source`, the drafts file carries
+      it and adoption copies it onto every contract; `StandingContract.source` reaches
+      the same drafts file, so a recurring job's contracts say which job minted them;
+      `torve plan` sets none
+    evidence: >-
+      src/torve/application/intake.py:814 - the resolver that refuses before the run
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-10T05:09:46Z'
+    claim: >-
+      the pack carries `source.json` when the contract names a filed source, and its
+      index line appears only with the file; the harness reads that file from the
+      worktree for the prompt's `Source:` line, because `adapters.agent` may not reach
+      `config.spec` and `config.sources` imports it (the planner-boundary contract,
+      S-0015/A-1) — the pack is the seam, and the identifier alone is the fallback
+      when no file is there
+    evidence: >-
+      src/torve/application/contextpack.py:350 - the pack's own source file
+    action: decided
+    notes: >-
+      `AgentContext` and `session.py` are outside this phase's scope, so a new port
+      field was not the route; the pack already crosses that boundary by design
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-10T05:09:47Z'
+    claim: >-
+      phase 1's row (the source file), landed in T-0315; this phase names the sources
+      it filed and adds no member to `kind`
+    evidence: >-
+      src/torve/domain/task.py:125 - the field that names what phase 1 filed
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-10T05:09:47Z'
+    claim: >-
+      phase 1's row (no decisions on a source), landed in T-0315; this phase names
+      the sources it filed and adds no member to `kind`
+    evidence: >-
+      src/torve/domain/task.py:125 - the field that names what phase 1 filed
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-10T05:09:47Z'
+    claim: >-
+      phase 1's row (the verbs), landed in T-0315; this phase names the sources it
+      filed and adds no member to `kind`
+    evidence: >-
+      src/torve/domain/task.py:125 - the field that names what phase 1 filed
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-10T05:09:48Z'
+    claim: >-
+      phase 1's row (the importer), landed in T-0315; this phase names the sources
+      it filed and adds no member to `kind`
+    evidence: >-
+      src/torve/domain/task.py:125 - the field that names what phase 1 filed
+    action: decided
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-10T05:09:48Z'
+    claim: >-
+      phase 1's row (the document's kind), landed in T-0315; this phase names the
+      sources it filed and adds no member to `kind`
+    evidence: >-
+      src/torve/domain/task.py:125 - the field that names what phase 1 filed
+    action: decided
