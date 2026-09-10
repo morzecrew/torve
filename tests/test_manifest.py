@@ -261,3 +261,34 @@ def test_this_repositorys_manifest_names_the_projection_gate_and_its_twin():
     assert gate.run == "uv run torve spec project --check"
     assert gate.state == "shadow" and gate.axis == "form"
     assert gate.sabotage == "tests/test_colocation.py"
+
+
+def test_the_coverage_entry_says_which_of_its_two_halves_went_red():
+    """The entry runs the suite before it can measure anything, so a failing
+    test and a coverage shortfall both redden one gate. It says which — the
+    shipped command's own shell logic, exercised with the two commands
+    stubbed, because the distinction is the point of the entry and reverting
+    it to a bare `&&` restores exactly the misreading that cost T-0319."""
+
+    import subprocess
+
+    root = Path(__file__).resolve().parents[1]
+    manifest = load_manifest(root / ".torve" / "gates.yaml")
+    (entry,) = [g for g in manifest.gates if g.name == "coverage-delta"]
+
+    suite = "uv run pytest --cov=src --cov-report=xml -q"
+    measure = entry.run.rsplit("; ", 1)[1]
+    assert suite in entry.run and measure.startswith("uv run diff-cover")
+
+    def behaves(suite_exit: str) -> subprocess.CompletedProcess[str]:
+        line = entry.run.replace(suite, suite_exit).replace(measure, "echo MEASURED")
+        return subprocess.run(["sh", "-c", line], capture_output=True, text=True)
+
+    red = behaves("false")
+    assert red.returncode == 1
+    assert "the coverage delta was never measured" in red.stdout
+    assert "MEASURED" not in red.stdout  # nothing was measured, and it says so
+
+    green = behaves("true")
+    assert green.returncode == 0
+    assert "MEASURED" in green.stdout

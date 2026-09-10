@@ -95,8 +95,14 @@ gates:
   # resolves a ref in shell and live runs and replays measure one surface.
   # The judgment is the attempt's added and changed lines, never the inherited
   # tree and never a whole-repo threshold (S-0031's ratchet doctrine).
+  #
+  # The entry runs the suite before it can measure anything, so it has two
+  # ways to go red under one name. It says which: a red suite ends here with
+  # that sentence last, where the terminal and the retry's feedback pack both
+  # read (T-0319), instead of filing a failing test under a name that says
+  # coverage.
   - name: coverage-delta
-    run: "uv run pytest --cov=src --cov-report=xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
+    run: "uv run pytest --cov=src --cov-report=xml -q || { echo '== the suite is red, so the coverage delta was never measured — the failure above is a failing test, not a coverage shortfall =='; exit 1; }; uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
     state: shadow
     origin: S-0036
     input: worktree
