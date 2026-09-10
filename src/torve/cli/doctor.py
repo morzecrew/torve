@@ -494,6 +494,40 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
     return []
 
 
+def _standing_summary(root: Path) -> str:
+    """How many standing contracts there are and when one last minted a task.
+
+    A contract that has never fired is a capability the tree carries and
+    nobody collects, which is invisible until someone reads the module; the
+    count and the last firing put it in front of whoever runs `doctor`.
+    Never-fired is not a failure — the leg fails closed toward not creating
+    work, so silence is its normal state — which is why this rides the
+    passing check rather than reddening one.
+    """
+
+    from torve.application.standing import firings
+
+    fired = firings(root)
+
+    if not fired:
+        return "no contracts"
+
+    count = f"{len(fired)} contract(s)"
+    latest = [(at, name) for name, at in fired.items() if at is not None]
+
+    if not latest:
+        return f"{count}, none has ever fired"
+
+    at, name = max(latest)
+    never = len(fired) - len(latest)
+    tail = f"; {never} never fired" if never else ""
+
+    return f"{count}, last fired {at:%Y-%m-%d} ({name}){tail}"
+
+
+# ....................... #
+
+
 def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     """S-0028/D-7: provenance only — a resolved profile is named per tier, and no
     check is attached, so this can never turn doctor red. A tier that names
@@ -626,7 +660,7 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
             )
         )
     else:
-        checks.append(("standing", True, "standing: every contract names its schema"))
+        checks.append(("standing", True, f"standing: {_standing_summary(root)}"))
 
     # S-0060/D-1: a source file that does not load is an identifier a
     # contract could name and nobody could open.

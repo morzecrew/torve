@@ -23,6 +23,7 @@ from torve.application.standing import (
     StandingContract,
     Trigger,
     evaluate_predicate,
+    firings,
     instantiate,
     lint_job_body,
     load_standing_contracts,
@@ -675,3 +676,45 @@ def test_flake_threshold_reads_the_engines_own_records(tmp_path):
     # The quarantined command no longer fires the job (a landed response
     # stops the refire); ruff's count of 1 stays under threshold.
     assert _flake_over_threshold(tmp_path, 3) is False
+
+
+def test_firings_reports_the_never_fired_contract_as_never(seeded):
+    """A contract carried and never collected is invisible until someone reads
+    the module; `firings` is what puts it in front of `torve doctor`."""
+
+    write_job(seeded.root, job_dict(name="job-a"))
+    write_job(seeded.root, job_dict(name="job-b", allow=["src/other.py"]))
+    (seeded.root / "src" / "other.py").write_text("x = 1\n", encoding="utf-8")
+    seeded.commit("add other module")
+
+    assert firings(seeded.root) == {"job-a": None, "job-b": None}
+
+    config = RunnerConfig()
+    config.loop.standing_max_per_tick = 1
+    assert standing_leg(seeded.root, config, ScriptedRuntime([1, 1]), lambda _t: False)[1]
+    fired = firings(seeded.root)
+
+    # One fired, and the other stays honestly absent from the ledger.
+    assert sum(at is not None for at in fired.values()) == 1
+    assert sum(at is None for at in fired.values()) == 1
+
+
+def test_doctor_says_how_many_standing_contracts_and_when_one_last_fired(seeded):
+    from torve.cli.doctor import _standing_summary
+
+    assert _standing_summary(seeded.root) == "no contracts"
+
+    write_job(seeded.root, job_dict(name="job-a"))
+    write_job(seeded.root, job_dict(name="job-b", allow=["src/other.py"]))
+    (seeded.root / "src" / "other.py").write_text("x = 1\n", encoding="utf-8")
+    seeded.commit("add other module")
+
+    assert _standing_summary(seeded.root) == "2 contract(s), none has ever fired"
+
+    config = RunnerConfig()
+    config.loop.standing_max_per_tick = 1
+    standing_leg(seeded.root, config, ScriptedRuntime([1, 1]), lambda _t: False)
+    summary = _standing_summary(seeded.root)
+
+    assert summary.startswith("2 contract(s), last fired ")
+    assert summary.endswith("; 1 never fired")

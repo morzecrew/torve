@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `torve doctor` says how many standing contracts the tree carries and when
+  one last minted a task. A contract that has never fired is a capability
+  nobody collects, and until now nothing said so.
+
 - `torve gates list` prints the battery as it will run: every gate with its
   input, timeout and axis resolved, cheapest first, plus the gates a task
   contract carries for its own length. `--format json` gives the whole

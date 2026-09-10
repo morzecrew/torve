@@ -473,6 +473,28 @@ def _job_instances(root: Path, name: str) -> list[tuple[str, datetime, dict[str,
 # ....................... #
 
 
+def firings(root: Path) -> dict[str, datetime | None]:
+    """Per contract, when it last minted a task, or None for one that never
+    has — read from the same `standing.json` sidecars the cooldown and
+    max_open bounds already read, so the answer is the ledger's and not a
+    second count kept beside it.
+
+    A contract this cannot load is absent from the result: the loader's own
+    problems are what report an unreadable file, and a firing summary is
+    not the place to raise them a second time."""
+
+    found: dict[str, datetime | None] = {}
+
+    for job in load_standing_contracts(root)[0]:
+        instances = _job_instances(root, job.name)
+        found[job.name] = max((at for _tid, at, _rec in instances), default=None)
+
+    return found
+
+
+# ....................... #
+
+
 def _last_digest(instances: list[tuple[str, datetime, dict[str, Any]]]) -> str | None:
     """The digest recorded at the job's most recent firing — the
     `path-digest` baseline. None when the job has never fired."""
