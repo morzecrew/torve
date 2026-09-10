@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Every writer and reader of the UTC instant goes through `torve.base.clock`.
+  Twenty-odd call sites still spelled the format themselves. A test refuses a
+  second spelling anywhere in the package.
+
 - The telemetry stream stops carrying what nothing reads it for: a passing
   gate's output is dropped, a red gate's is kept to 4000 characters, and a
   contract row is recorded as its id, grade and paths. On this repository

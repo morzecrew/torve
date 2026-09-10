@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +29,7 @@ from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
 from torve.application.runstate import RunState
 from torve.application.telemetry import append_record, config_hash
 from torve.base import naming
+from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, image_for, tier_for, tier_name_for
 from torve.domain.states import TaskState
@@ -145,7 +145,7 @@ def run_shadow(
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "shadow",
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "config_hash": (
             config_hash(manifest_path, workspace, config, image_digest=image_digest)
             if manifest_path.is_file()

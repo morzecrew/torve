@@ -14,9 +14,9 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any, cast
 
+from torve.base.clock import stamp
 from torve.base.shell import run_command
 from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
 from torve.domain.attempt import BypassRecord, GateResult
@@ -187,7 +187,7 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
             "reason": record.reason,
             "author": record.author,
             "commit": record.commit,
-            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "at": stamp(),
         }
     )
 

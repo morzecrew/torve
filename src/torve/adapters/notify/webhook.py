@@ -17,6 +17,7 @@ import urllib.request
 from typing import TYPE_CHECKING
 
 from torve.application.ports import TransientDelivery
+from torve.base.clock import stamp
 
 if TYPE_CHECKING:
     from torve.application.ports import Notification
@@ -60,7 +61,7 @@ class WebhookNotifier:
                 "partition": notification.partition,
                 "reason": notification.reason,
                 "detail": notification.detail,
-                "at": notification.at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "at": stamp(notification.at),
                 "age_s": round(notification.age_s, 1),
                 # Composed from records, saying what happened and never what
                 # the finding deserves (S-0051/the-port).

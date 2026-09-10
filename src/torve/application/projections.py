@@ -33,7 +33,7 @@ from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
 from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
-from torve.base.clock import stamp
+from torve.base.clock import parse, stamp
 from torve.config import layout, spec
 from torve.config.manifest import UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
@@ -1086,20 +1086,17 @@ def escalation_route(reason: str) -> str:
 # ....................... #
 
 
-def _age_seconds(stamp: object) -> float | None:
-    if not isinstance(stamp, str):
+def _age_seconds(at: object) -> float | None:
+    if not isinstance(at, str):
         return None
 
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
-        try:
-            parsed = datetime.strptime(stamp, fmt).replace(tzinfo=UTC)
+    try:
+        parsed = parse(at)
 
-        except ValueError:
-            continue
+    except ValueError:
+        return None
 
-        return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
-
-    return None
+    return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
 
 
 # ....................... #
@@ -1193,7 +1190,7 @@ def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
 
     board = project(events)
     escalated_at = {
-        event.subject_id: event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        event.subject_id: stamp(event.created_at)
         for event in events
         if event.kind is EventKind.ESCALATION_RAISED
     }
@@ -1757,7 +1754,7 @@ def rows_from_events(events: Iterable[EventRecord]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
     for event in events:
-        at = event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        at = stamp(event.created_at)
         payload = event.payload
 
         if event.kind in (EventKind.GATES_EVALUATED, EventKind.ATTEMPT_FINISHED):

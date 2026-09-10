@@ -17,7 +17,6 @@ import shlex
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -42,6 +41,7 @@ from torve.application.review import SchemaRefusal, schema_refusal
 from torve.application.runstate import RunState
 from torve.application.telemetry import broker_block, engine_event
 from torve.base import naming
+from torve.base.clock import stamp
 from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.runconfig import (
@@ -1656,7 +1656,7 @@ def _append_intake_record(
         {
             "schema_version": SCHEMA_VERSION,
             "kind": "intake",
-            "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "at": stamp(),
             "config_hash": config_digest,
             "task_id": task.id,
             "drafts": drafts,
@@ -1930,7 +1930,7 @@ def adopt(root: Path, task_id: str, config: RunnerConfig, assume_lock: bool = Fa
             {
                 "schema_version": 1,
                 "adopted": list(ids.values()),
-                "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "at": stamp(),
             },
             indent=2,
         )

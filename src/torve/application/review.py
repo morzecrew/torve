@@ -21,7 +21,6 @@ import json
 import re
 import shutil
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -43,6 +42,7 @@ from torve.application.ports import (
 )
 from torve.application.runstate import RunState
 from torve.base import naming
+from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.runconfig import (
     RunnerConfig,
@@ -679,10 +679,8 @@ def run_review(
     state.save()
 
     import time as _time
-    from datetime import UTC as _UTC
-    from datetime import datetime as _datetime
 
-    started_at = _datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    started_at = stamp()
     review_clock = _time.monotonic()
 
     try:
@@ -803,7 +801,7 @@ def run_review(
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "review",
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "config_hash": config_digest,
         "task_id": review.id,
         "target": target.id,
@@ -828,7 +826,7 @@ def run_review(
             # so it can never answer "how long was the review"): two wall
             # stamps for the humans, the monotonic duration as the truth.
             "started_at": started_at,
-            "ended_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "ended_at": stamp(),
             "wall_time_s": round(_time.monotonic() - review_clock, 3),
             # The reviewer's token counts, flat beside cost (T-0186) — only
             # the reported ones, absent keys omitted (S-0004/D-6).
@@ -1065,7 +1063,7 @@ def review_pull_request(
                     "pr": number,
                     "head": head_sha,
                     "review": review.id,
-                    "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "at": stamp(),
                 }
             )
             + "\n"

@@ -42,6 +42,7 @@ from forze.application.contracts.document import (
 )
 
 from torve.application.ports import AttemptFact, AttemptSink, BurnEvent, BurnSink, RunChannel
+from torve.base.clock import stamp
 from torve.domain.events import (
     ActorKind,
     CreateEventCmd,
@@ -408,7 +409,7 @@ class RunLogChannel(RunChannel):
         ).result(self.timeout_s)
 
         return [
-            {"at": event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"), **event.payload}
+            {"at": stamp(event.created_at), **event.payload}
             for event in events
             if event.kind is kind
         ]

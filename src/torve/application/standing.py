@@ -38,6 +38,7 @@ from torve.application.ports import Runtime, SandboxSpec
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
+from torve.base.clock import parse, stamp
 from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
@@ -415,7 +416,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
     record: dict[str, Any] = {
         "schema_version": 1,
         "job": job.name,
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
     }
 
     if job.trigger.kind == "path-digest":
@@ -460,7 +461,7 @@ def _job_instances(root: Path, name: str) -> list[tuple[str, datetime, dict[str,
             continue
 
         try:
-            at = datetime.strptime(str(record["at"]), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+            at = parse(str(record["at"]))
 
         except (KeyError, ValueError):
             continue

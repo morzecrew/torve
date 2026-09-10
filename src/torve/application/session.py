@@ -19,7 +19,6 @@ import asyncio
 import re
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -50,6 +49,7 @@ from torve.application.telemetry import (
     record_payload,
 )
 from torve.base import naming
+from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, load_manifest
 from torve.config.runconfig import (
@@ -397,10 +397,8 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     withheld = _withhold_never_send(worktree, config.providers.never_send)
     # The attempt's own clock, sandbox creation included — the broker's
     # wall_time_s spans the whole run and reads cumulative on retries.
-    from datetime import UTC as _UTC
-    from datetime import datetime as _datetime
 
-    attempt_started_at = _datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    attempt_started_at = stamp()
     attempt_clock = time.monotonic()
     handle = deps.runtime.create(spec, worktree)
     state.sandbox_id = handle.id
@@ -432,7 +430,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
             cost_usd=result.cost_usd,
             trace_ref=result.trace_ref,
             started_at=attempt_started_at,
-            ended_at=_datetime.now(_UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            ended_at=stamp(),
             wall_time_s=round(time.monotonic() - attempt_clock, 3),
         )
         # The attempt's self-reported token counts ride the same block
@@ -640,7 +638,7 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
     session as data, not folklore. Machine-written — a mechanical revert has
     no agent to write one."""
 
-    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    at = stamp()
     short = " ".join(sha[:10] for sha in shas)
 
     entries: list[dict[str, Any]] = [
@@ -648,7 +646,7 @@ def _write_revert_log(worktree: Path, task: Task, attempt: int, shas: list[str])
             "decision": d.id,
             "grade": str(d.grade),
             "kind": "resolved",
-            "at": stamp,
+            "at": at,
             "attempt": attempt,
             "claim": f"the work under this decision was undone by {task.id}: "
             f"{', '.join(task.targets)} reverted mechanically, "

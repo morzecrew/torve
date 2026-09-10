@@ -437,7 +437,7 @@ def entry_of(event: EventRecord) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "decision": str(payload.get("decision_id") or ""),
         "grade": str(payload.get("grade") or ""),
-        "at": event.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(event.created_at),
         "attempt": int(payload.get("attempt") or 1),
         "claim": str(payload.get("claim") or ""),
         "evidence": str(payload.get("evidence") or ""),

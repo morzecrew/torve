@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from torve.application.telemetry import engine_event
+from torve.base.clock import parse, stamp
 from torve.config import layout
 
 # ----------------------- #
@@ -45,9 +46,7 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
         try:
             row = cast("dict[str, Any]", json.loads(lock.read_text(encoding="utf-8")))
 
-            held_at = datetime.strptime(str(row.get("at", "")), "%Y-%m-%dT%H:%M:%SZ").replace(
-                tzinfo=UTC
-            )
+            held_at = parse(str(row.get("at", "")))
 
             age = (_now() - held_at).total_seconds()
 
@@ -61,7 +60,7 @@ def acquire_lock(root: Path, budget_s: int) -> bool:
         engine_event(root, "tick_lock_broken", {"stale_holder": row.get("pid"), "age_s": age})
 
     lock.write_text(
-        json.dumps({"pid": os.getpid(), "at": _now().strftime("%Y-%m-%dT%H:%M:%SZ")}),
+        json.dumps({"pid": os.getpid(), "at": stamp(_now())}),
         encoding="utf-8",
     )
 

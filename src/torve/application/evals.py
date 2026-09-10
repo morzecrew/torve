@@ -29,7 +29,6 @@ invocation.
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +36,7 @@ from torve.application.dispatch import RunDeps
 from torve.application.ports import Agent
 from torve.application.shadow import ShadowSource, run_shadow
 from torve.application.telemetry import append_record
+from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, SkillsConfig, image_for, tier_for
 from torve.domain.task import SCHEMA_VERSION, Task
@@ -195,7 +195,7 @@ def run_skill_eval(
     record = {
         "schema_version": SCHEMA_VERSION,
         "kind": "skill-eval",
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "skill": skill,
         "tasks": [task.id for task in tasks],
         "arms": results,
@@ -280,7 +280,7 @@ def run_config_eval(
     record: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": "config-eval",
-        "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "at": stamp(),
         "tier": tier,
     }
 

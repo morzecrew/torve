@@ -29,6 +29,7 @@ from torve.application.ports import CiStatus, LaneVcs
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
+from torve.base.clock import stamp
 from torve.config import layout
 from torve.domain.states import EscalationReason, TaskState
 
@@ -172,10 +173,9 @@ def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     if any(a.get("actor") == actor and a.get("sha") == sha for a in state.approvals):
         return False
 
-    from datetime import UTC, datetime
 
     state.approvals.append(
-        {"actor": actor, "sha": sha, "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        {"actor": actor, "sha": sha, "at": stamp()}
     )
 
     state.save()
