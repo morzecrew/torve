@@ -162,3 +162,11 @@ amendments:
       The scope named `.torve/sandbox/**`, which is `sandboxes/` since S-0063/D-6. And deleting the renderer reaches further than the renderer: `Plugin`, `SandboxSpec.plugins` and the seat field exist only to carry a declaration to it, so leaving them would be a road to a demolished building. `harness_kind` is the exception and moves rather than going — it answers which definition an image was built from, which `torve doctor` asks and a renderer never did.
 
       The intent also still promised the prompt would stop naming `.torve/skills/` for a harness that takes the skill kind. S-0062/A-9 already settled that: all three harnesses this repository builds read skills, so the paragraph stands for none of them and there is nothing left here to do about it.
+  - id: A-13
+    at: '2026-09-11T14:41:54Z'
+    title: >-
+      Phase 4 takes the projections retiring two rows re-renders
+    md: >-
+      Retiring S-0061/D-5 and S-0061/D-6 changes what governs `src/torve/adapters/runtime/`
+      and `src/torve/config/`, and takes two rows out of the root index. Rendered,
+      not written — the same reason the earlier phases needed theirs.

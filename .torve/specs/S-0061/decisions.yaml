@@ -53,32 +53,6 @@ decisions:
       and to keep corpus coordinates out of user-facing strings — exactly what decisions-reported
       and user-facing-text convict on
     cites: [S-0029/D-1]
-  - id: D-5
-    grade: ASSUMED
-    text: >-
-      A plugin is declared on the profile as a source and a ref, which torve neither
-      resolves nor verifies.
-    paths: [src/torve/config/agents.py]
-    consequence: >-
-      torve stops being a place where a pinned version is written down three times,
-      without becoming a package manager
-    rationale: >-
-      the ref today lives in a Dockerfile ARG, a cp target and a JSON string with
-      nothing checking that the three agree; pinning is the source's job, agreement
-      is torve's
-  - id: D-6
-    grade: ASSUMED
-    text: >-
-      The runtime adapter renders the profile's plugins into the harness's own seeding
-      format at dispatch, and refuses a non-empty list for a harness with no renderer.
-    paths: [src/torve/adapters/runtime/**, .torve/sandbox/**]
-    consequence: >-
-      a plugin list that cannot be honoured is a configuration error rather than an
-      attempt that quietly ran without it
-    rationale: >-
-      an agent silently missing its equipment makes the telemetry lie — S-0009/D-2's
-      rule for skills, read for plugins
-    cites: [S-0009/D-2]
   - id: D-7
     grade: ASSUMED
     text: >-
@@ -157,3 +131,4 @@ invariants:
       and the other two refuse it by name.
     paths: [src/torve/config/agents.py, src/torve/config/runconfig.py]
     check: uv run pytest tests/test_agents.py -k one_home
+retired: [D-5, D-6]

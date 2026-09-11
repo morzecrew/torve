@@ -102,6 +102,9 @@ phasing:
       - src/torve/config/runconfig.py
       - sandboxes/**
       - .torve/specs/S-0061/**
+      - AGENTS.md
+      - src/torve/adapters/runtime/AGENTS.md
+      - src/torve/config/AGENTS.md
       - tests/test_runtime.py
       - tests/test_agents.py
       - tests/test_equipment.py

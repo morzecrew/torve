@@ -45,3 +45,39 @@ amendments:
       It is one string now, a YAML block scalar, appended after the base rules as it is written. The operator writes the bullets when bullets are what they want. Nothing about D-4's refusal changes — the base rules stay unaddressable, `prompt` is still refused by name, and the block still lands after them and never before.
 
       Requested by the owner; landed as T-0330.
+  - id: A-6
+    at: '2026-09-11T14:41:04Z'
+    title: >-
+      A plugin is equipment, and this row's shape is gone
+    changes:
+      - subject: D-5
+        field: retired
+        before: src/torve/config/agents.py
+        after: >-
+          Superseded by S-0062/D-1: a plugin is an equipment item like every other
+          kind — a source and a ref on one typed list — and the two-field shape this
+          row defined retired with the renderer that read it (S-0062/D-9, landed T-0329).
+    md: |-
+      The row defined a plugin as a source and a ref, which was right and too narrow: a skill wanted the same two fields and had neither, an MCP server had no declaration at all. S-0062/D-1 folded all of them into one typed list, and this shape's last reader — the renderer — went with T-0329.
+
+      What the row got right survives in the thing that replaced it: pinning is the source's job, and torve's is to stop the Dockerfile, the cache path and the installed bookkeeping disagreeing about what was pinned. There is no bookkeeping to disagree with now.
+  - id: A-7
+    at: '2026-09-11T14:41:07Z'
+    title: >-
+      The renderer is gone and so is the road that fed it
+    changes:
+      - subject: D-6
+        field: retired
+        before: src/torve/adapters/runtime/** .torve/sandbox/**
+        after: >-
+          Superseded by S-0062/D-9 and landed in T-0329: `seed_files`, both adapter
+          write-backs, `Plugin` and `SandboxSpec.plugins` are deleted. A plugin reaches
+          its harness through the image's own `/opt/torve/equip` (S-0063/D-3), which
+          is the harness's business rather than a copy of its internal state torve
+          kept in step by hand.
+    md: |-
+      The row had the engine render a profile's plugins into each harness's own seeding format at dispatch, and refuse a declaration for a harness with no renderer. It worked — `claude plugin list` reported both plugins enabled from files torve wrote.
+
+      What it cost was a hand-kept copy of another program's internal state, to be held in step across that program's versions. `--plugin-dir` reaches the same result through a supported, repeatable session flag, measured on 2.1.252 against an image with no `~/.claude` at all. That was found after the renderer shipped, which is why S-0062/D-9 retired it the same day.
+
+      T-0329 removes the whole road, not just the building: `seed_files`, both adapter write-backs, `Plugin` and `SandboxSpec.plugins` existed only to carry a declaration to it. `harness_kind` is the one survivor and moved beside `image_tag`, since it answers which definition an image was built from — a question `torve doctor` asks and a renderer never did.
