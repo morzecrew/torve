@@ -242,28 +242,6 @@
       "title": "OpenSandboxConfig",
       "type": "object"
     },
-    "Plugin": {
-      "additionalProperties": false,
-      "description": "One plugin on a resolved seat, derived from the profile's equipment.\n\nS-0062/D-1 folded plugins into `equipment`, so nothing declares this shape\nany more \u2014 `resolve_seats` builds it from the items of kind `plugin` so the\nrenderer and the sandbox spec keep the shape they had. Both retire with the\nrenderer in S-0062 phase 4.\n\nWas (S-0061/D-5):\n\nA source and a ref, and nothing else: the ref is whatever the source's own\nvocabulary pins with \u2014 a tag, a branch, a commit \u2014 and torve neither\nresolves nor verifies it. Pinning is the source's job; torve's is to stop\nthe Dockerfile, the cache path and the installed-plugins file disagreeing\nabout what was pinned.",
-      "properties": {
-        "ref": {
-          "default": "",
-          "description": "What the source pins it at; empty takes whatever the harness's installer resolves.",
-          "title": "Ref",
-          "type": "string"
-        },
-        "source": {
-          "description": "Where the plugin comes from, in the source's own spelling \u2014 `github:owner/repo`.",
-          "title": "Source",
-          "type": "string"
-        }
-      },
-      "required": [
-        "source"
-      ],
-      "title": "Plugin",
-      "type": "object"
-    },
     "PromotionConfig": {
       "additionalProperties": false,
       "description": "Landing policy (S-0006/promotion). The operator's `torve merge` is always\nthe recorded approval; `auto_merge` is the opt-in that lets a manager\npass invoke the same lane on the same terms \u2014 it arms the pass's landing\nleg, and every refusal below still applies to it unchanged.\n\n`require_ci` is \u00a73's `ci: green_on_current_head` requirement: the lane\nrefuses to land a candidate whose branch tip is not green on the\nconfigured remote's CI (`scm.repo`), polled with backoff against the\nlightweight runs endpoint (\u00a71). A rebased tree is additionally judged\nby the local battery re-run \u2014 the remote verdict covers the tip the\nremote actually saw.",
@@ -680,14 +658,6 @@
           "description": "The model, recorded in telemetry and named to the image as `TORVE_MODEL`.",
           "title": "Model",
           "type": "string"
-        },
-        "plugins": {
-          "description": "Derived from `equipment`, not declared (S-0062/D-1): the items of kind `plugin`,\nin the shape the sandbox spec and the renderer already read. Retires with the\nrenderer in S-0062 phase 4.",
-          "items": {
-            "$ref": "#/$defs/Plugin"
-          },
-          "title": "Plugins",
-          "type": "array"
         },
         "prepare": {
           "default": "",
