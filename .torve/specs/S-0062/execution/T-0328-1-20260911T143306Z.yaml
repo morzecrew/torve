@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0328
+phase: 3
+base: bc2855b30456f27ce06c538e343fa679340c0cfa
+commit: 97a1acb9a25e2629ceaea687c0e9aa1debbf2522
+at: '2026-09-11T14:33:06Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-11T14:28:09Z'
+    claim: >-
+      The prepare step runs on the sandbox's clock rather than a clock of its own.
+      A dedicated bound would be a field nobody has asked for; the sandbox's is the
+      one it cannot outlive anyway, and spending the agent's would be the untimed
+      chaining this replaces wearing a different hat. Its seconds land in the attempt's
+      record as prepare_s, beside the attempt's own and never inside them.
+    evidence: >-
+      src/torve/application/session.py:583 — _prepare, between sandbox creation and
+      the agent, returning False rather than raising so the ending is booked like
+      every other.
+    action: decided
+    notes: >-
+      A new escalation reason rather than reusing gate_infrastructure_failure: no
+      gate ran, and the taxonomy is one-to-one with the exit codes it projects onto.
