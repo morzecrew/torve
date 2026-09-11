@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overlay because that is its only configuration channel, and mimo runs
   install commands because it has no session channel at all.
 
+- A sandbox definition's files live under `rootfs/`, mirroring the container
+  filesystem, so one `COPY rootfs/ /` installs them and where a file lands is
+  where it is written.
+
+- A skill reaches every harness as a skill it loads. dsh watches
+  `.agents/skills`, mimo reads `.mimocode/skill/`, and claude takes a flag —
+  so no harness this repository builds needs the prompt to name a directory.
+
 - `.torve/harnesses/dsh.yaml` and `mimo.yaml` ship. A dsh seat names an overlay
   from the roster its image pins as its model; a mimo seat takes `plugin`
   equipment and nothing else, because `mimo mcp add` is interactive.
@@ -62,7 +70,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its failure is booked as a failing gate; declared, it is an infrastructure
   failure that convicts nothing.
 
+### Removed
+
+- **Breaking:** the dsh image bakes no model. Its seven overlay files are gone;
+  a seat carries `DSH_MODEL` in its `env` and `equip` renders the overlay, so
+  adding a model is an edit to reviewed configuration rather than a rebuild.
+
 ### Fixed
+
+- dsh equipment that would add a plugin installs it before patching it.
+  `--patch` configures an entry the profile already carries and refuses an
+  unknown id, so anything but a model overlay failed at boot.
+
 
 - A sandbox harness's exit code is the attempt's verdict again. `run` pipes the
   harness through `tee`, and a pipeline reports its last command — so a failed

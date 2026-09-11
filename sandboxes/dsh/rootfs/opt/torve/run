@@ -3,7 +3,7 @@
 #
 # dsh takes three options in total — a profile, repeatable `--patch` overlays,
 # and the task text as an argument. Everything else it does is configured by
-# those overlays, which is why `equip` beside this file writes one rather than
+# those overlays, which is why `equip` beside this file writes them rather than
 # composing flags: dsh has one channel and claude has five.
 set -eu
 
@@ -12,24 +12,16 @@ set -eu
 
 set -- dsh --profile headless
 
-# The model is an overlay name here, not a string dsh takes: a dsh model is a
-# provider, a catalog entry and a default, which is a patch. The image pins the
-# roster it ships under /opt/torve/overlays, so a seat names one of those.
-if [ -n "${TORVE_MODEL:-}" ]; then
-    overlay="/opt/torve/overlays/${TORVE_MODEL}.yml"
-
-    if [ ! -f "$overlay" ]; then
-        echo "no overlay for model '${TORVE_MODEL}' — this image ships:" >&2
-        ls -1 /opt/torve/overlays >&2
-        exit 78  # EX_CONFIG: the seat is wrong, not the model
-    fi
-
-    set -- "$@" --patch "$overlay"
+# The model overlay `equip` rendered from the seat's `env` (S-0063/D-15). No
+# model file is baked: a dsh model is a provider, a catalog entry and a default,
+# and all three are values an operator chose rather than facts about the image.
+if [ -s /tmp/torve-model.yml ]; then
+    set -- "$@" --patch /tmp/torve-model.yml
 fi
 
-# The broker needs no mapping: the brokered overlays read TORVE_BROKER_URL and
-# TORVE_BROKER_TOKEN from the environment themselves, which is what makes a
-# brokered dsh seat a choice of overlay rather than a different command.
+# The broker needs no mapping of its own: the rendered overlay reads
+# TORVE_BROKER_URL and TORVE_BROKER_TOKEN from the environment, which is what
+# makes a brokered dsh seat a choice of `env` rather than a different command.
 
 if [ -s /tmp/torve-equip.args ]; then
     eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
@@ -37,9 +29,6 @@ fi
 
 mkdir -p "$(dirname "$TORVE_OUTPUT")"
 
-# Headless dsh prints no usage; the session log carries it, multi-frame
-# zstd-compressed. The reporter sums it and prints the one JSON line
-# `parse_metadata` reads, so it goes last — the last JSON line wins.
 # The harness's own exit code, not `tee`'s: a pipeline reports its last
 # command, so piping the harness through anything hands the engine a verdict
 # belonging to the pipe — a failed attempt reading as a clean one. POSIX `sh`

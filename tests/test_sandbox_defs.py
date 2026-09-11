@@ -67,11 +67,13 @@ def test_every_seated_definition_answers_the_seam(name: str) -> None:
     definition = DEFINITIONS / name
 
     for script in ("run", "equip"):
-        assert (definition / script).is_file(), f"{name} carries no {script}"
+        assert (definition / "rootfs" / "opt" / "torve" / script).is_file(), (
+            f"{name} carries no {script}"
+        )
 
     dockerfile = (definition / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "COPY run equip /opt/torve/" in dockerfile
+    assert "COPY rootfs/ /" in dockerfile
     assert "chmod +x /opt/torve/run /opt/torve/equip" in dockerfile
 
 
@@ -90,7 +92,8 @@ def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> Non
         "TORVE_BROKER_TOKEN",
     }
     scripts = "".join(
-        (DEFINITIONS / name / script).read_text(encoding="utf-8") for script in ("run", "equip")
+        (DEFINITIONS / name / "rootfs" / "opt" / "torve" / script).read_text(encoding="utf-8")
+        for script in ("run", "equip")
     )
     reached = set(re.findall(r"TORVE_[A-Z_]+", scripts))
 
@@ -101,7 +104,12 @@ def test_each_harness_answers_the_manifest_its_own_way() -> None:
     """The finding phase 3 exists for, kept where it can be read: one manifest,
     three translations, and no variable had to change to admit them."""
 
-    equip = {name: (DEFINITIONS / name / "equip").read_text(encoding="utf-8") for name in SEATED}
+    equip = {
+        name: (DEFINITIONS / name / "rootfs" / "opt" / "torve" / "equip").read_text(
+            encoding="utf-8"
+        )
+        for name in SEATED
+    }
 
     # claude has a session flag per kind.
     assert "--plugin-dir" in equip["claude"]
@@ -112,6 +120,52 @@ def test_each_harness_answers_the_manifest_its_own_way() -> None:
     assert '"mimo", "plugin"' in equip["mimo"]
     assert "--plugin-dir" not in equip["mimo"]
     assert "--patch" not in equip["mimo"]
+
+
+def test_no_definition_bakes_a_model(name: str = "dsh") -> None:
+    """S-0063/D-15: a model is a provider, an API dialect, a catalog entry and a
+    default — values an operator chose, not facts about the image. The dsh image
+    baked seven of them, which made the fleet's roster a property of the
+    harness and every new model a rebuild."""
+
+    definition = DEFINITIONS / name
+
+    assert not list(definition.glob("*.yml")), (
+        f"{name} bakes a model file; a model is the seat's `env` (S-0063/D-15)"
+    )
+    assert "/opt/torve/overlays" not in (definition / "Dockerfile").read_text(encoding="utf-8")
+
+    # And the generator that replaced them reads the knob rather than a roster.
+    equip = (definition / "rootfs" / "opt" / "torve" / "equip").read_text(encoding="utf-8")
+
+    assert "DSH_MODEL" in equip
+
+
+@pytest.mark.parametrize("name", ("dsh", "mimo"))
+def test_a_skill_reaches_the_harness_that_reads_one(name: str) -> None:
+    """S-0063/D-16, measured: dsh watches `.agents/skills`, mimo reads
+    `.mimocode/skill/`. Both take the kind now, so S-0062/D-10's prompt
+    paragraph stands for no harness this repository builds."""
+
+    from torve.config.agents import load_harness
+
+    equip = (DEFINITIONS / name / "rootfs" / "opt" / "torve" / "equip").read_text(encoding="utf-8")
+    expected = {"dsh": ".agents/skills", "mimo": ".mimocode/skill"}[name]
+
+    assert expected in equip
+    assert "skill" in load_harness(Path("."), name).kinds
+
+
+def test_dsh_installs_before_it_patches() -> None:
+    """S-0063/D-17, measured against 0.1.1-rc.2: `--patch` configures an entry
+    the profile already carries and refuses an unknown id with `patch: entry
+    "..." not found`. An item that would add a plugin has to install it first."""
+
+    equip = (DEFINITIONS / "dsh" / "rootfs" / "opt" / "torve" / "equip").read_text(encoding="utf-8")
+    install = equip.index('"dsh", "plugin"')
+    patch = equip.index("fragments.append")
+
+    assert install < patch, "the install has to come before the patch it configures"
 
 
 def test_the_base_installs_the_cli_where_a_sandbox_can_reach_it() -> None:

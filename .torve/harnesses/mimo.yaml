@@ -1,12 +1,14 @@
 # yaml-language-server: $schema=../schemas/harness.json
 # MiMo Code (S-0004, opencode lineage).
 #
-# `kinds` is [plugin] alone, and that is a measurement rather than a
-# simplification: `mimo plugin <module>` installs and rewrites the config, but
-# `mimo mcp add` is interactive and takes no arguments at all. A kind this
-# harness has no non-interactive channel for is refused at load, naming both
-# files, instead of being discovered by an attempt that ran without it
-# (S-0063/D-4).
+# `kinds` is [skill, plugin], and both halves are measurements. `mimo debug
+# skill` lists what it loads, and a user skill is read from
+# `<project>/.mimocode/skill/<name>/SKILL.md` — project-scoped, since a global
+# one is not read (S-0063/D-16). `mimo plugin <module>` installs and rewrites
+# the config. What is absent is absent for a reason: `mimo mcp add` is
+# interactive and takes no arguments at all, so an MCP server waits for a
+# non-interactive verb, and a kind declared here that this harness has no
+# channel for is refused at load naming both files (S-0063/D-4).
 #
 # mimo's equipment is installed state, not session flags, so `equip` runs
 # commands before the agent — the third answer to one manifest, and the one a
@@ -17,5 +19,5 @@
 # to prevent.
 adapter: harness
 image: mimo-sandbox:0.1.13
-kinds: [plugin]
+kinds: [skill, plugin]
 api_key_env: []

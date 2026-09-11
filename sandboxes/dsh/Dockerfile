@@ -7,44 +7,21 @@ FROM ${BASE}
 # one-line reviewed diff, never a rebuild side effect.
 ARG DSH_VERSION=0.1.1-rc.2
 RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION} && dsh --version
-# The two scripts the engine runs (S-0063/D-1, S-0063/D-3): `equip` turns the
-# equipment manifest into whatever this harness needs, `run` invokes it.
-COPY run equip /opt/torve/
-RUN chmod +x /opt/torve/run /opt/torve/equip
-# Harness identity (RFC 0017 §3, D-17.4): the headless profile's default
-# model is deepseek-v4-flash; the department runs deepseek-chat. The pin is
-# identity, so it rides the image — a different model is a new overlay, a
-# new digest, a visible regime change. Permission mode stays an operator
-# knob in the tier command (DSH_PERMISSION_MODE), never baked here.
-# Overlays live under the /opt/torve/ toolkit (RFC 0033 §5.3, D-33.4); the
-# /opt/dsh paths stay as symlinks for one transition revision.
-COPY deepseek-chat.yml /opt/torve/overlays/deepseek-chat.yml
-# qwen3.8-flash over OpenRouter: newer than the bundled pi-ai catalog, so
-# the overlay declares the model as well as pinning it. NODE_USE_ENV_PROXY
-# stays an operator knob in the tier command — node's fetch ignores the
-# proxy environment without it, and whether a proxy exists is the host's
-# business, never the image's.
-COPY qwen3.8-flash.yml /opt/torve/overlays/qwen3.8-flash.yml
-COPY brokered-deepseek.yml /opt/torve/overlays/brokered-deepseek.yml
-COPY brokered-deepseek-v4-flash.yml /opt/torve/overlays/brokered-deepseek-v4-flash.yml
-# The ModelStudio token-plan seats (2026-09-01): glm-5.2, deepseek-v4-pro
-# and qwen3.8-max join the roster brokered; qwen3.8-flash above is
-# repointed from OpenRouter to the same plan.
-COPY brokered-glm-5.2.yml /opt/torve/overlays/brokered-glm-5.2.yml
-COPY brokered-deepseek-v4-pro.yml /opt/torve/overlays/brokered-deepseek-v4-pro.yml
-COPY brokered-qwen3.8-max.yml /opt/torve/overlays/brokered-qwen3.8-max.yml
-# Usage extraction (D-4.6, self-reported regime): headless dsh prints no
-# usage; the session log carries it. The reporter sums it and prints the
-# one JSON line parse_metadata reads. Named /opt/torve/report-usage so the
-# command template calls the utility directly, no node prefix.
-COPY report-usage.js /opt/torve/report-usage
-RUN mkdir -p /opt/dsh \
- && chmod +x /opt/torve/report-usage \
- && ln -s /opt/torve/report-usage /opt/dsh/report-usage.js \
- && ln -s /opt/torve/overlays/deepseek-chat.yml /opt/dsh/deepseek-chat.yml \
- && ln -s /opt/torve/overlays/qwen3.8-flash.yml /opt/dsh/qwen3.8-flash.yml \
- && ln -s /opt/torve/overlays/brokered-deepseek.yml /opt/dsh/brokered-deepseek.yml \
- && ln -s /opt/torve/overlays/brokered-deepseek-v4-flash.yml /opt/dsh/brokered-deepseek-v4-flash.yml \
- && ln -s /opt/torve/overlays/brokered-glm-5.2.yml /opt/dsh/brokered-glm-5.2.yml \
- && ln -s /opt/torve/overlays/brokered-deepseek-v4-pro.yml /opt/dsh/brokered-deepseek-v4-pro.yml \
- && ln -s /opt/torve/overlays/brokered-qwen3.8-max.yml /opt/dsh/brokered-qwen3.8-max.yml
+# What this definition puts inside the image (S-0063/D-14): `rootfs/` mirrors
+# the container filesystem, so where a file lands is where it is written and
+# one COPY installs the lot. `/opt/torve/equip` turns the equipment manifest
+# into whatever this harness needs and `/opt/torve/run` invokes it; the engine
+# names only what the attempt is.
+COPY rootfs/ /
+RUN chmod -R a+rX /opt/torve \
+ && chmod +x /opt/torve/run /opt/torve/equip /opt/torve/report-usage
+
+# No model file is baked (S-0063/D-15). A dsh model is a provider, a catalog
+# entry and a default — all of which are a patch — and the seven overlays this
+# image used to carry made the fleet's roster a property of the harness. `equip`
+# renders one overlay from the seat's `env` instead, so adding a model is an
+# edit to reviewed configuration.
+#
+# Headless dsh prints no usage either; the session log carries it, multi-frame
+# zstd-compressed, and `/opt/torve/report-usage` sums it into the one JSON line
+# `parse_metadata` reads.

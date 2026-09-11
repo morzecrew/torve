@@ -1,19 +1,22 @@
 # yaml-language-server: $schema=../schemas/harness.json
-# dsh headless (S-0004). The model is an overlay name rather than a string the
-# harness takes: a dsh model is a provider, a catalog entry and a default, all
-# of which are a patch. This image ships a roster under /opt/torve/overlays and
-# a seat names one of them — `brokered-deepseek`, `qwen3.8-flash` and the rest.
+# dsh headless (S-0004). A dsh model is a provider, an API dialect, a catalog
+# entry and a default — all of which are a patch, so the image bakes none of
+# them (S-0063/D-15). `DSH_MODEL` carries the catalog entry as one knob, because
+# those values only make sense together: split into four, three can be right
+# while the fourth goes stale. `equip` renders the overlay, and it adds the
+# broker's provider block only when the run has a broker.
 #
-# `kinds` is [plugin, mcp, hook, agent] because dsh has one configuration
-# channel and every kind travels it: `--patch <file>`, a list of plugin entries.
-# `equip` installs a plugin through dsh's own verb and appends every other kind
-# to one overlay verbatim — the operator writes those in dsh's vocabulary,
-# because a document torve invented would be a schema it does not know
-# (S-0063/D-3).
-#
-# A brokered seat needs no `env`: the brokered overlays read TORVE_BROKER_URL
-# and TORVE_BROKER_TOKEN from the environment themselves.
+# `kinds` is every kind, because dsh has one configuration channel and they all
+# travel it: `--patch <file>`, a list of plugin entries. `equip` installs a
+# plugin through dsh's own verb *before* patching it, since `--patch` configures
+# an entry the profile already carries and cannot add one (S-0063/D-17); it
+# copies a skill into `.agents/skills`, which is where
+# `@deepseek-ai/dsh-skill-filesystem` watches (S-0063/D-16); and it appends
+# every other kind verbatim, because those the operator writes in dsh's own
+# vocabulary and a document torve invented would be a schema it does not know.
 adapter: harness
 image: dsh-sandbox:0.1.1-rc.2
-kinds: [plugin, mcp, hook, agent]
-api_key_env: []
+kinds: [skill, plugin, mcp, hook, agent]
+env:
+  DSH_MODEL: '{"provider": "deepseek-official", "model": "deepseek-chat"}'
+api_key_env: [DEEPSEEK_API_KEY]

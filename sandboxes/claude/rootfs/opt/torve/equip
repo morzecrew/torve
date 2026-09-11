@@ -2,7 +2,7 @@
 # How this image takes its equipment (S-0063/D-3).
 #
 # Claude Code has a session flag per kind, so equipping it is composing flags
-# against the paths the engine mounted. dsh writes one `--patch` overlay from
+# against the paths the engine mounted. dsh renders one `--patch` overlay from
 # the same manifest and mimo runs install commands — the same script name,
 # three answers, each beside the harness that knows.
 #

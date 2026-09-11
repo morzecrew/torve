@@ -637,7 +637,7 @@ The regime hash reads the equipment cache keys, not the fetched contents.
 
 ### S-0062/D-10 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
 
-For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`; for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`; for one that does not, `materialize` and the prompt's paragraph stand unchanged. All three harnesses this repository builds take it — claude by flag, dsh at `.agents/skills`, mimo at `.mimocode/skill/` (S-0063/D-16) — so the paragraph stands for none of them.
 
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/skills.py`
 - Consequence: a loaded skill is loaded, not described — and a harness with no skill channel keeps the only mechanism it has
