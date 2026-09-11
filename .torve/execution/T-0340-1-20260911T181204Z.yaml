@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../schemas/landing.json
+task: T-0340
+base: 7f6283aea7bbc31455036567cfecb8e4e94d5bac
+commit: 6b5876ec552d36e0f5b8fe052a2a961e64a8f43e
+at: '2026-09-11T18:12:04Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-11T18:02:22Z'
+    attempt: 3
+    claim: >-
+      the scope gate folds untracked files into the judged diff, and the harness mints
+      skill scratch under .agents/ and .dsh/ with no ignore pattern, so both prior
+      attempts of this task convicted on scope for files no agent wrote; the contract's
+      allow names only the probe file and settles nothing about that scratch — this
+      attempt removes the two directories from the tree it leaves behind so the gate
+      sees only the allowed path
+    evidence: >-
+      src/torve/gates/context.py:148 — the untracked list enters the diff; .gitignore:220
+      — the file ignores .wt/ and .repowise/ scratch but names no .dsh/ or .agents/
+      pattern
+    action: decided
+    proposal: >-
+      torve init should mint .dsh/ and .agents/ (or the harness scratch of each executor
+      seat) into .gitignore beside the .wt/ and .repowise/ patterns, so a seat never
+      carries its own tooling into the diff that judges it
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-11T18:07:04Z'
+    attempt: 3
+    claim: >-
+      correction to this attempt's first entry, which said it removes two directories:
+      only .dsh/ is untracked harness scratch, and it alone has been removed from
+      the tree this attempt leaves behind; .agents/skills/** and the .claude/skills
+      symlinks are tracked in the base this worktree checked out, so deleting them
+      would itself be an out-of-scope diff — the first entry's claim that no agent
+      wrote the convicted paths stands for attempt 1's base, which evidently did not
+      yet track .agents/skills
+    evidence: >-
+      skills-lock.json:3 — the tracked lockfile pins the vendored skills mirrored
+      into .agents/skills; see also src/torve/gates/context.py:148, which is the line
+      that folds the untracked .dsh/ files into the judged diff
+    action: decided
+    proposal: >-
+      torve init should mint only a .dsh/ pattern into .gitignore beside .wt/ and
+      .repowise/, not .agents/ or .claude/, whose skills are tracked vendored copies
