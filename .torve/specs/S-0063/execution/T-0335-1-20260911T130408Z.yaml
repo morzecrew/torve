@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0335
+base: e55d0d8e8dd2ae91faea1e83d030ad148ff4dcfd
+commit: d9fdf2932a40ed364ace1f011deff81bc1af05d9
+at: '2026-09-11T13:04:08Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-14
+    grade: LOCKED
+entries:
+  - decision: D-14
+    grade: LOCKED
+    at: '2026-09-11T12:58:58Z'
+    claim: >-
+      The directory is toolkit and the destination is /opt/torve, so the name says
+      where its contents land. What building confirmed: nothing needs the mirror —
+      all three definitions install to one place, and the three empty levels the mirror
+      required were the whole cost of a generality none of them used.
+    evidence: >-
+      sandboxes/dsh/Dockerfile:15 — COPY toolkit/ /opt/torve/, the one line that installs
+      a definition's files.
+    action: decided
+    notes: >-
+      A definition that one day needs /etc adds a rootfs/ beside toolkit/ and copies
+      it separately; nothing had to be decided in advance to allow that.
