@@ -1,7 +1,9 @@
 # yaml-language-server: $schema=../schemas/agent.json
 # What an implement-role agent is given. The two this engine ships are package
 # data, versioned with it (S-0062/D-6); the rest come from a repository, pinned
-# at a commit, with `select` naming which of the 37 it holds (S-0062/D-1).
+# at a commit, with `select` naming which of the 37 it holds (S-0062/D-1). The commit
+# is in `.torve/pins.yaml` rather than here, so a bump moves one line however many
+# profiles name this source (S-0062/D-13).
 # Declared, never read off the filename (S-0061/D-13): `implement` is an ordinary
 # word, and a seat's own profile that happened to be called this used to become
 # the role's default for every seat in the repository.
@@ -13,5 +15,4 @@ equipment:
   source: torve:ratchet-what-you-build
 - kind: skill
   source: github:mattpocock/skills
-  ref: 3cca18b368ae95cdbdebbff572ccafa662551015
   select: [tdd, diagnosing-bugs, code-review]

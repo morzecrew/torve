@@ -185,3 +185,35 @@ amendments:
       The row named `src/torve/adapters/runtime/plugins.py` and `.torve/sandbox/**`, and marking the document implemented turned both into findings: an implemented document cites real areas (S-0001/D-32), and the first is the file this row deleted while the second moved to `sandboxes/` under S-0063/D-6.
 
       The row is not retired, because it still stands and still governs — what changed is where. A plugin reaches its harness through the image's own `equip` under `sandboxes/`, the tag that names which definition an image came from is `src/torve/cli/sandbox.py`, and `src/torve/application/ports.py` is where the declaration the renderer read used to ride.
+  - id: A-15
+    at: '2026-09-11T21:20:30Z'
+    title: One place a ref moves
+    changes:
+      - subject: D-13
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-13
+        field: paths
+        before: []
+        after:
+          - src/torve/config/equipment.py
+          - src/torve/config/agents.py
+          - .torve/pins.yaml
+          - .torve/agents/**
+      - subject: D-13
+        field: text
+        before: <decision>
+        after: >-
+          A repository names an equipment ref once, in `.torve/pins.yaml`, keyed by
+          source; a profile that omits `ref` takes the pin, and one that writes a
+          ref keeps it. A fetched source with neither is refused, naming both.
+      - subject: D-13
+        field: fingerprint
+        after: f5d772ac56e82832/8cf9c2253ef18318
+    md: |-
+      D-1 made an item's ref the thing that pins it, and D-4 keys the cache on `source@ref` — so a ref is not decoration, it is the identity of what gets mounted. What neither row settled is where the ref is *written*, and the answer so far has been "in every profile that names the source". With one fetched source in one profile that reads as a non-problem; the day `review` and `revert` also want a skill out of `mattpocock/skills`, three files carry the same forty characters and a bump edits three. A stale one is invisible: it fetches, it mounts, it just is not what the repository thinks it trusts.
+
+      The pin is deliberately not a third equipment layer. S-0062/A-6 settled that a seat naming no equipment runs the bare harness, and a root layer contributing *items* would be equipment by default under another name. A pin contributes no item: a profile still has to name what it wants, and the pin only says which ref that source means.
+
+      It lives in its own file rather than in `config.yaml` because `--config` takes an arbitrary path, and `role_equipment` is reached at dispatch with a root and no config in hand. A pin read from a file the run is not using is worse than no pin at all. Reproducibility is unaffected either way — the regime hash records the *resolved* `source@ref` through `regime_keys`, never the pin that produced it.

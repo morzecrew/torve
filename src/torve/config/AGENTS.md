@@ -402,6 +402,13 @@ Equipment resolves in two layers — the profile named for the task's role, then
 - Consequence: a seat profile that declares one plugin adds it to the role's equipment instead of replacing it, and a reviewer is equipped by its own seat rather than by the seat it reviews
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0062/D-13 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+
+A repository names an equipment ref once, in `.torve/pins.yaml`, keyed by source; a profile that omits `ref` takes the pin, and one that writes a ref keeps it. A fetched source with neither is refused, naming both.
+
+- Paths: `src/torve/config/equipment.py` `src/torve/config/agents.py` `.torve/pins.yaml` `.torve/agents/**`
+- Consequence: a ref moves in one place instead of once per profile that named the source, and a profile that forgot to move with it cannot exist
+
 ### S-0063/D-1 — `LOCKED` (The image knows how to equip itself)
 
 A sandbox image carries `/opt/torve/run`, which invokes its harness; a manifest carries no command template and `command` is refused by name.

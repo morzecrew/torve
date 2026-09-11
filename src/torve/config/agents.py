@@ -46,6 +46,12 @@ SCHEMA_VERSION = 1
 AGENTS_DIR = "agents"
 HARNESSES_DIR = "harnesses"
 
+# Where a repository names an equipment ref once (S-0062/D-13). Its own file rather
+# than a key in `config.yaml`, because `--config` takes an arbitrary path while
+# `role_equipment` is reached at dispatch with a root and no configuration in hand —
+# and a pin read out of a file the run is not using is worse than no pin at all.
+PINS_FILE = "pins.yaml"
+
 
 class AgentProfile(BaseModel):
     """What the agent is (S-0061/D-1) — never how it runs.
@@ -215,6 +221,35 @@ def harnesses_dir(root: Path) -> Path:
     return root / layout.TORVE_DIR / HARNESSES_DIR
 
 
+def pins(root: Path) -> dict[str, str]:
+    """The ref this repository trusts for each fetched source (S-0062/D-13).
+
+    Absent is empty, which is every repository that writes its refs in the
+    profiles. This is not an equipment layer: a pin contributes no item, so a
+    seat naming no equipment still runs the bare harness (S-0062/A-6). It only
+    says which ref a source the profile *did* name resolves to.
+    """
+
+    path = root / layout.TORVE_DIR / PINS_FILE
+
+    if not path.is_file():
+        return {}
+
+    raw: Any = _body(path, "pins file")
+    found: dict[str, str] = {}
+
+    for source, ref in raw.items():
+        if not isinstance(ref, str) or not ref:
+            raise AgentError(
+                f"{path}: `{source}` pins {ref!r}, and a ref is a non-empty string — "
+                "a tag, a branch or a commit, whatever the source is fetched at"
+            )
+
+        found[str(source)] = ref
+
+    return found
+
+
 # ....................... #
 
 
@@ -327,8 +362,32 @@ def _resolve(directory: Path, label: str, name: str) -> Path:
     return path
 
 
+def _pinned(body: dict[str, Any], refs: dict[str, str]) -> None:
+    """Fill in the ref the repository named once (S-0062/D-13).
+
+    Before validation, not after: `Equipment` refuses a fetched source with no
+    ref, and every object that survives that refusal has the ref the cache is
+    keyed on. A pin applied afterwards would leave an item whose `key` is
+    `source@` for as long as it took someone to notice.
+
+    A profile that wrote its own ref keeps it — the same precedence the seat
+    has over the role (S-0062/D-12), one level further out.
+    """
+
+    for raw in body.get("equipment") or []:
+        if isinstance(raw, dict) and not raw.get("ref"):
+            ref = refs.get(str(raw.get("source") or ""))
+
+            if ref:
+                raw["ref"] = ref
+
+
 def _declared(
-    path: Path, label: str, own: frozenset[str], model: type[BaseModel]
+    path: Path,
+    label: str,
+    own: frozenset[str],
+    model: type[BaseModel],
+    refs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """The keys this file actually wrote, after the same validation and the
     same refusals its model performs.
@@ -342,6 +401,7 @@ def _declared(
 
     body = _body(path, label)
     _refuse_foreign(path, body, own)
+    _pinned(body, refs or {})
 
     try:
         model.model_validate(body)
@@ -355,7 +415,9 @@ def _declared(
 def load_profile(root: Path, name: str) -> AgentProfile:
     path = _resolve(agents_dir(root), "agent profile", name)
 
-    return AgentProfile.model_validate(_declared(path, "agent profile", PROFILE_KEYS, AgentProfile))
+    return AgentProfile.model_validate(
+        _declared(path, "agent profile", PROFILE_KEYS, AgentProfile, pins(root))
+    )
 
 
 def load_harness(root: Path, name: str) -> HarnessManifest:
@@ -440,6 +502,7 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
     """
 
     named: dict[str, tuple[str, str]] = {}
+    refs = pins(root)
 
     for key, raw_entry in tiers.items():
         if not isinstance(raw_entry, dict):
@@ -478,6 +541,7 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
                     "agent profile",
                     PROFILE_KEYS,
                     AgentProfile,
+                    refs,
                 )
             )
 

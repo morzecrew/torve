@@ -180,6 +180,26 @@ decisions:
       spellings — the seat's `profile:` and the filename — so a third could only contradict
       them, which is S-0061/I-2 applied to a mapping
     cites: [S-0061/D-11, S-0061/I-2, S-0029/D-1]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      A repository names an equipment ref once, in `.torve/pins.yaml`, keyed by source;
+      a profile that omits `ref` takes the pin, and one that writes a ref keeps it.
+      A fetched source with neither is refused, naming both.
+    paths:
+      - src/torve/config/equipment.py
+      - src/torve/config/agents.py
+      - .torve/pins.yaml
+      - .torve/agents/**
+    consequence: >-
+      a ref moves in one place instead of once per profile that named the source,
+      and a profile that forgot to move with it cannot exist
+    rationale: >-
+      a pinned ref is the one part of an equipment item that is neither what the agent
+      is nor what the operator chose per role — it is what the repository currently
+      trusts, and repeating it per profile makes a stale copy invisible
+    cites: [D-1, D-4, D-12]
+    fingerprint: f5d772ac56e82832/8cf9c2253ef18318
 invariants:
   - id: I-1
     statement: >-

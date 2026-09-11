@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `.torve/pins.yaml` names an equipment ref once, keyed by source. A profile that
+  omits `ref` takes the pin; one that writes a ref keeps it. A fetched source
+  with neither is refused, naming both places it could come from.
+
 - A profile says what its agent has in one list. `equipment:` carries a kind
   (`skill`, `plugin`, `mcp` or `hook`), a source and a ref, so a skill can name
   a version and a repository other than this one for the first time.

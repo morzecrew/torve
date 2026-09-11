@@ -76,8 +76,9 @@ class Equipment(BaseModel):
 
         if scheme in FETCHED and not self.ref:
             raise EquipmentError(
-                f"{self.source} names no ref — a fetched source is pinned or the regime "
-                "it equips cannot be rebuilt"
+                f"{self.source} names no ref and no pin — a fetched source is pinned or "
+                "the regime it equips cannot be rebuilt, so write `ref:` here or name "
+                "this source in `.torve/pins.yaml` (S-0062/D-13)"
             )
 
         if scheme not in FETCHED and self.ref:

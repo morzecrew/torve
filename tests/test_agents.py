@@ -15,13 +15,16 @@ import pytest
 
 from torve.application.telemetry import config_hash
 from torve.config.agents import (
+    PINS_FILE,
     AgentError,
     agents_dir,
     harnesses_dir,
     load_harness,
     load_profile,
+    pins,
     role_equipment,
 )
+from torve.config.layout import TORVE_DIR
 from torve.config.runconfig import effective_skill_sets, load_runner_config
 
 # ----------------------- #
@@ -431,3 +434,72 @@ def test_identity_never_reaches_the_seat(root: Path):
     ]
 
     assert not {"name", "role"} & set(type(seat).model_fields)
+
+
+# ....................... #
+# One place a ref moves (S-0062/D-13)
+
+FETCHED = "equipment: [{kind: skill, source: 'github:o/r'%s}]\n"
+PIN = "github:o/r: v9.9.9\n"
+
+
+def test_a_profile_omitting_a_ref_takes_the_pin(root: Path):
+    write(root / TORVE_DIR / PINS_FILE, PIN)
+    write(agents_dir(root) / "seated.yaml", FETCHED % "")
+
+    assert [item.ref for item in load_profile(root, "seated").equipment] == ["v9.9.9"]
+
+
+def test_a_profile_writing_its_own_ref_keeps_it(root: Path):
+    """The same precedence the seat has over the role, one level further out:
+    what a file says beats what it would have inherited."""
+
+    write(root / TORVE_DIR / PINS_FILE, PIN)
+    write(agents_dir(root) / "seated.yaml", FETCHED % ", ref: abc123")
+
+    assert [item.ref for item in load_profile(root, "seated").equipment] == ["abc123"]
+
+
+def test_a_fetched_source_with_neither_is_refused_naming_both(root: Path):
+    write(agents_dir(root) / "seated.yaml", FETCHED % "")
+
+    with pytest.raises(AgentError, match="names no ref and no pin") as excinfo:
+        load_profile(root, "seated")
+
+    assert "pins.yaml" in str(excinfo.value)
+
+
+def test_a_pin_gives_a_seat_nothing_it_did_not_ask_for(root: Path):
+    """S-0062/A-6 holds: a pin is not a third equipment layer. The pinned source
+    is never named by this profile, so nothing about it reaches the seat."""
+
+    write(root / TORVE_DIR / PINS_FILE, PIN)
+    write(agents_dir(root) / "bare.yaml", "equipment: []\n")
+    seat = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: bare\n")
+
+    assert seat.tiers["executor"].equipment == []
+
+
+def test_the_seat_resolves_through_the_pin_too(root: Path):
+    """Not only `load_profile`: a seat merges the profile's body before any
+    `Equipment` is built, and that body is where the ref has to arrive."""
+
+    write(root / TORVE_DIR / PINS_FILE, PIN)
+    write(harnesses_dir(root) / "skilled.yaml", "adapter: fake\nkinds: [skill]\n")
+    write(agents_dir(root) / "seated.yaml", FETCHED % "")
+    seat = load(root, "tiers:\n  executor:\n    harness: skilled\n    profile: seated\n")
+
+    assert [item.ref for item in seat.tiers["executor"].equipment] == ["v9.9.9"]
+
+
+def test_a_pin_that_is_not_a_ref_is_refused_with_the_file(root: Path):
+    path = write(root / TORVE_DIR / PINS_FILE, "github:o/r:\n")
+
+    with pytest.raises(AgentError, match="a ref is a non-empty string") as excinfo:
+        pins(root)
+
+    assert str(path) in str(excinfo.value)
+
+
+def test_no_pins_file_is_no_pins(root: Path):
+    assert pins(root) == {}
