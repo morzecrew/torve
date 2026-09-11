@@ -1,9 +1,10 @@
 # yaml-language-server: $schema=../schemas/harness.json
-# Claude Code on a subscription (S-0004/D-2). The credential reaches the sandbox
-# by name and nothing is mounted (S-0063/D-18): `CLAUDE_CODE_OAUTH_TOKEN` is one
-# token for one attempt, which is the narrower blast radius and costs this seat
-# nothing, since claude takes the variable directly. The name is what this file
-# carries; the value never transits a manifest (S-0001/D-13).
+# Claude Code on a subscription (S-0004/D-2), and nothing is mounted
+# (S-0063/D-18). Which credential reaches the sandbox is the run's business, not
+# this file's: under a broker the seat names none at all — the run-scoped token
+# arrives as `TORVE_BROKER_TOKEN` and the image's own `run` maps it onto
+# `ANTHROPIC_AUTH_TOKEN`, so the real key never leaves the host. Unbrokered, a
+# seat names its variable here and it is forwarded by name.
 #
 # No command. How claude is started — the auth link, the print-mode flags, the
 # broker's two names mapped onto ANTHROPIC_BASE_URL — lives in the image's own
@@ -27,4 +28,4 @@ image: claude-sandbox:2.1.252
 kinds: [skill, plugin, mcp, hook, agent]
 env:
   CLAUDE_PERMISSION_MODE: bypassPermissions
-api_key_env: [CLAUDE_CODE_OAUTH_TOKEN]
+api_key_env: []

@@ -75,16 +75,50 @@ tiers:
     profile: claude-equipped
     model: claude-opus-5
     provider: anthropic
+  # A second live seat, on the ModelStudio token plan through the broker.
+  # `model` is the overlay's model id; `DSH_MODEL` on the manifest carries the
+  # catalog entry, because a dsh model is a provider and a catalog and a
+  # default all at once (S-0063/D-15).
+  executor.dsh:
+    harness: dsh
+    model: qwen3.8-flash
+    provider: modelstudio
   reviewer: {harness: fake}
 
 # RFC 0004 §6b, D-4.8: which providers this repository's contents may reach,
 # enforced at dispatch, before a sandbox exists. Empty defaults deny every
 # real provider — silence is not a policy, it is a closed door.
+# The egress broker (S-0021/D-1). `local` puts a process between the sandbox
+# and every provider: the run-scoped token is what reaches the agent, the real
+# key never leaves this host, and spend is metered per attempt. `none` passes
+# provider keys straight through, which is what `torve doctor` has been calling
+# an unmet credential-custody requirement.
+#
+# `key_env` names a variable; no value is ever written here (S-0001/D-13).
+# Anthropic goes `via_proxy` because this host's egress to it is region-blocked
+# without one; the other two reach their endpoints directly.
+broker:
+  adapter: local
+  mode: endpoint
+  cost_tolerance: 0.25
+  providers:
+    anthropic:
+      key_env: CLAUDE_CODE_OAUTH_TOKEN
+      upstream: https://api.anthropic.com
+      via_proxy: true
+    deepseek:
+      key_env: DEEPSEEK_API_KEY
+      upstream: https://api.deepseek.com
+      via_proxy: false
+    modelstudio:
+      key_env: MODELSTUDIO_CODING_API_KEY
+      upstream: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+      via_proxy: false
+
 providers:
-  # Silence is not a policy, so this is the one line that lets the executor
-  # seat reach anything at all (S-0004/D-8). Anthropic only: the seat above is
-  # the only real one, and a provider nobody dispatches to has no business
+  # Silence is not a policy (S-0004/D-8): this is what the seats below may
+  # reach, and nothing else. A provider nobody dispatches to has no business
   # being allowed.
-  default: [anthropic]
+  default: [anthropic, deepseek, modelstudio]
   repositories: {}
   never_send: []             # gitwildmatch globs lifted out of the sandbox's world
