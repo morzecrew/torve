@@ -36,7 +36,7 @@ Claude's `equip` and `run` land first; dsh's and mimo's land after, and they are
 
 ### S-0063/D-14 — `LOCKED` (The image knows how to equip itself)
 
-Everything a definition puts inside its image lives under `rootfs/`, mirroring the container filesystem, and one `COPY rootfs/ /` installs it.
+Everything a definition puts inside its image lives under `toolkit/`, and one `COPY toolkit/ /opt/torve/` installs it.
 
 - Paths: `sandboxes/**`
 - Consequence: where a file lands is where it is written, so a definition is read by looking at it rather than by following a COPY line to a destination named somewhere else

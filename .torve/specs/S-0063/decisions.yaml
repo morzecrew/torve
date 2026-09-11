@@ -201,8 +201,8 @@ decisions:
   - id: D-14
     grade: LOCKED
     text: >-
-      Everything a definition puts inside its image lives under `rootfs/`, mirroring
-      the container filesystem, and one `COPY rootfs/ /` installs it.
+      Everything a definition puts inside its image lives under `toolkit/`, and one
+      `COPY toolkit/ /opt/torve/` installs it.
     paths: [sandboxes/**]
     consequence: >-
       where a file lands is where it is written, so a definition is read by looking
@@ -212,6 +212,7 @@ decisions:
       the convention `morzecrew/platform-images` already runs, and this repository
       has three definitions now writing `/opt/torve/` paths in a COPY argument, a
       chmod and a comment — three places for one fact
+    fingerprint: 6699fa33dd4e9eb8/765a667e6ee4604e
   - id: D-15
     grade: LOCKED
     text: >-

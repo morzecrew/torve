@@ -97,3 +97,24 @@ amendments:
       D-16 amends S-0062/D-10, which governs `src/torve/adapters/agent/` and `src/torve/application/`,
       so `torve spec project` rewrites their managed sections. Rendered, not written
       — the same reason phase 2 needed three of them under A-7.
+  - id: A-11
+    at: '2026-09-11T12:54:48Z'
+    title: >-
+      The directory is named for where it lands, not for a filesystem it does not
+      mirror
+    changes:
+      - subject: D-14
+        field: text
+        before: >-
+          Everything a definition puts inside its image lives under `rootfs/`, mirroring
+          the container filesystem, and one `COPY rootfs/ /` installs it.
+        after: >-
+          Everything a definition puts inside its image lives under `toolkit/`, and
+          one `COPY toolkit/ /opt/torve/` installs it.
+      - subject: D-14
+        field: fingerprint
+        after: 6699fa33dd4e9eb8/765a667e6ee4604e
+    md: |-
+      The row said `rootfs/`, mirroring the container filesystem, which is the convention `morzecrew/platform-images` runs and the right one when files land in several places. Here they do not: every file all three definitions install goes to `/opt/torve`, so the mirror bought three empty directory levels and a name that promised a generality nothing used.
+
+      `toolkit/` is what `/opt/torve` has been called since S-0033/D-4, so the directory now says where its contents land. A definition that one day needs `/etc` or `/usr/local/bin` adds a `rootfs/` beside it and copies that separately; nothing here has to be decided in advance to allow it.
