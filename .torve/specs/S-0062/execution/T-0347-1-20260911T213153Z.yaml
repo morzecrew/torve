@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0347
+base: 8706f30c5c1749f378e620c24468c404b2cb319c
+commit: b994274
+at: '2026-09-11T21:31:53Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-13
+    grade: ASSUMED
+  - id: D-1
+    grade: LOCKED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-11T21:26:19Z'
+    claim: >-
+      The row makes an item a kind, a source and a ref, and the ref is the one of
+      the three that is not a property of the agent. A kind and a source say what
+      this agent is given; a ref says what the repository currently trusts, which
+      is the same answer for every profile naming that source. Written per profile
+      it is a value with N copies and no single writer: a bump edits N files, and
+      the one that was missed still fetches and still mounts — it is simply not what
+      anyone thinks it is. The item keeps all three fields; the pin fills the third
+      before any Equipment exists.
+    evidence: >-
+      src/torve/config/agents.py:365 — _pinned fills the ref into the raw body before
+      validation, because Equipment refuses a fetched source without one and the cache
+      is keyed on source@ref.
+    action: decided
+    proposal: >-
+      D-1 stands as written. D-13 says where the ref is written when a profile does
+      not write it, and nothing about the item's shape changes.
