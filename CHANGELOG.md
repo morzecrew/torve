@@ -61,6 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bake.hcl` and `just images` are the build. `just image <name>` builds one;
   `just images-push <registry> <tag>` publishes.
 
+- A profile may declare `prepare`, a command torve runs in the sandbox before
+  the agent, on its own clock. Its failure escalates as `prepare_failed`
+  infrastructure: no gate ran, so nothing is convicted, no rung is selected and
+  the poison ceiling is untouched.
+
 - `torve equip` warms the equipment cache for what this repository declares,
   and `torve equip --check` audits it against the pin each source recorded.
   Nothing is fetched while an attempt runs.

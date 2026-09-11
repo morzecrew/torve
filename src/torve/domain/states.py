@@ -39,6 +39,11 @@ class EscalationReason(StrEnum):
     BLOCKER_FINDING = "blocker_finding"
     GATE_INFRASTRUCTURE_FAILURE = "gate_infrastructure_failure"
     LEASE_EXPIRED = "lease_expired"
+    # A seat's `prepare` command failed before the agent ran (S-0062/D-7): an
+    # index that would not build, a cache that would not warm. Infrastructure,
+    # not a verdict — nothing about the model was measured, so nothing is
+    # convicted and no rung is selected.
+    PREPARE_FAILED = "prepare_failed"
     COST_ANOMALY = "cost_anomaly"
     KILLED = "killed"
     # A contract needing three or more load-bearing decisions invented is a
@@ -76,6 +81,7 @@ EXIT_BY_REASON: dict[EscalationReason, int] = {
     EscalationReason.STALE_INHERITANCE: EXIT_ESCALATED,
     EscalationReason.GATE_INFRASTRUCTURE_FAILURE: EXIT_INFRASTRUCTURE,
     EscalationReason.LEASE_EXPIRED: EXIT_INFRASTRUCTURE,
+    EscalationReason.PREPARE_FAILED: EXIT_INFRASTRUCTURE,
 }
 
 

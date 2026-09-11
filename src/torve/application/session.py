@@ -38,6 +38,7 @@ from torve.application.ports import (
     AgentResult,
     Broker,
     BrokerHandle,
+    SandboxHandle,
     SandboxSpec,
 )
 from torve.application.runstate import RunState
@@ -428,6 +429,14 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     state.save()
 
     try:
+        # What has to run before the agent (S-0062/D-7). Chained into the tier
+        # command it was untimed, unrecorded, and its failure was the command's
+        # — which the runner books as a gate-red conviction feeding rung
+        # selection and the poison ceiling. Declared, it is its own step with
+        # its own clock, and its failure convicts nothing.
+        if run.tier.prepare and not await _prepare(run, state, handle, spec):
+            return AgentResult(exit_code=None, output=run.meta.get("prepare_output", ""))
+
         result = await asyncio.to_thread(
             run_agent.run,
             AgentContext(
@@ -565,6 +574,68 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         planted.unlink(missing_ok=True)
         state.sandbox_id = None
         state.save()
+
+
+# ....................... #
+
+
+async def _prepare(
+    run: Dispatch, state: RunState, handle: SandboxHandle, spec: SandboxSpec
+) -> bool:
+    """The seat's `prepare` command, timed and booked as its own step
+    (S-0062/D-7). True when the agent may run.
+
+    `repowise` indexes a repository before its tools answer; a toolchain cache
+    is warm or it is not. Both used to be chained into the tier command, where
+    three things were wrong at once: the attempt's clock included them and
+    nothing said how much, nothing could ask whether the seat that indexed was
+    slower than the seat that did not, and a failure was the command's failure
+    — which the loop reads as the model failing its battery. That is the
+    T-0243 class, where a root-owned cache surfaced as `uv sync` failing.
+
+    A non-zero exit here escalates as infrastructure: the attempt never starts,
+    no rung is selected, the poison ceiling is untouched, and the escalation
+    names the prepare step rather than the model.
+    """
+
+    started = time.monotonic()
+    # The sandbox's own bound, not the agent's: this runs inside the sandbox's
+    # lifetime and cannot outlive it, and spending the agent's clock here would
+    # be the untimed chaining this replaces wearing a different hat.
+    result = await asyncio.to_thread(
+        run.deps.runtime.exec, handle, f"cd {spec.workdir} && {run.tier.prepare}", spec.timeout_s
+    )
+    seconds = round(time.monotonic() - started, 3)
+    # Beside the attempt's own seconds and never inside them, which is the
+    # whole point of declaring it: an index build is a cost an operator can
+    # see and compare between seats.
+    run.meta["prepare_s"] = seconds
+
+    if result.exit_code == 0:
+        return True
+
+    run.meta["prepare_output"] = result.output
+    state.escalate(
+        EscalationReason.PREPARE_FAILED,
+        f"prepare exited {result.exit_code} after {seconds}s: {run.tier.prepare}",
+    )
+    emit(
+        run,
+        "attempt_finished",
+        state.attempts,
+        **record_payload(
+            attempt_row(
+                run,
+                "prepare_failed",
+                exit_code=result.exit_code,
+                timed_out=result.timed_out,
+                escalation=str(EscalationReason.PREPARE_FAILED),
+            ),
+            state.attempts,
+        ),
+    )
+
+    return False
 
 
 # ....................... #

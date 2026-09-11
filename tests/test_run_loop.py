@@ -857,3 +857,77 @@ def test_a_noop_whose_only_trace_is_the_contract_copy_is_red_to_the_ceiling(repo
     assert [r["agent"]["attempt"] for r in rows] == [1, 2]
     assert [e["event"] for e in events] == ["escalation"]
     assert events[0]["reason"] == "poison_ceiling"
+
+
+# ....................... #
+# What has to run before the agent (S-0062/D-7)
+
+
+def test_a_prepare_command_runs_before_the_agent(rig, monkeypatch):
+    """Declared rather than chained into the tier command, so torve knows it
+    happened and when — an index build is a cost an operator can compare
+    between seats."""
+
+    repo, deps, runtime, _, _ = rig
+    ran: list[str] = []
+    real = runtime.exec
+    monkeypatch.setattr(
+        runtime, "exec", lambda h, command, t: (ran.append(command), real(h, command, t))[1]
+    )
+    config = RunnerConfig(
+        tiers={"executor": TierConfig(prepare="index --yes"), "planner": TierConfig()}
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    assert any("index --yes" in command for command in ran), ran
+    # Before the agent, not after: the agent is a scripted double here, so the
+    # order that matters is that the sandbox saw prepare at all.
+    assert ran and "index --yes" in ran[0]
+
+
+def test_a_failed_prepare_convicts_nothing(rig, monkeypatch):
+    """The T-0243 class, closed. Chained into the tier command a failed index
+    build was the command's failure, which the loop reads as the model failing
+    its battery — so it fed rung selection and the poison ceiling. Declared, it
+    is infrastructure: no gate ran, nothing was measured, nothing is convicted."""
+
+    from torve.application.ports import ExecResult
+    from torve.domain.states import EscalationReason
+
+    repo, deps, runtime, vcs, _ = rig
+    monkeypatch.setattr(
+        runtime,
+        "exec",
+        lambda h, command, t: ExecResult(exit_code=3, output="no index here", duration_s=0.0),
+    )
+    config = RunnerConfig(
+        tiers={"executor": TierConfig(prepare="index --yes"), "planner": TierConfig()}
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == EscalationReason.PREPARE_FAILED
+    # The escalation names the step, not the model.
+    assert "index --yes" in state.escalation.detail
+    # And nothing was committed, because no attempt ran to produce anything.
+    assert vcs.commits == []
+
+
+def test_a_seat_with_no_prepare_runs_nothing_extra(rig, monkeypatch):
+    """Absent is the common case and costs an attempt nothing: no exec, no
+    seconds recorded, no step in the record."""
+
+    repo, deps, runtime, _, _ = rig
+    ran: list[str] = []
+    real = runtime.exec
+    monkeypatch.setattr(
+        runtime, "exec", lambda h, command, t: (ran.append(command), real(h, command, t))[1]
+    )
+
+    run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+    assert ran == []
