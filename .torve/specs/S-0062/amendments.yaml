@@ -144,3 +144,11 @@ amendments:
       A-7 and A-8 moved composing into the image and the phase's own prose still said the engine does it. A contract minted from that prose would carry an instruction its rows contradict, which is worse than either: the executor reads both.
 
       Nothing else about the phase changes — the cache, the mount and the hash are what they were.
+  - id: A-11
+    at: '2026-09-11T13:16:58Z'
+    title: >-
+      Phase 2 takes the adapter the mount point moved out of
+    md: |-
+      `/opt/torve/equipment` was a constant in `adapters/agent/harness.py`, where the seam's other four variables live. It cannot stay there: the manifest written into that mount carries in-container paths, so the engine writing the manifest and the adapter naming the mount have to agree, and `application/session.py` may not import from an adapter.
+
+      It moves to `application/equipment.py` beside the code that builds the mount, and the adapter imports it — one place to disagree instead of two.

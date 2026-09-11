@@ -43,6 +43,7 @@ phasing:
       - src/torve/application/ports.py
       - src/torve/application/telemetry.py
       - src/torve/adapters/runtime/**
+      - src/torve/adapters/agent/harness.py
       - src/torve/cli/equip.py
       - src/torve/cli/main.py
       - tests/test_equipment.py
