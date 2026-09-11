@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0338
+base: 5774e4a60b3eb05ce212cbb909f94c4fc7e4b956
+commit: 94d0beacf2d8be82dc341fb0c841cb2f733c2f39
+at: '2026-09-11T15:58:44Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-4
+    grade: LOCKED
