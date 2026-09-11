@@ -200,6 +200,69 @@ def warm(items: Sequence[Equipment], *, root: Path, cache: Path | None = None) -
 # ....................... #
 
 
+SKILL_MARKER = "SKILL.md"
+
+
+def skills_in(root: Path) -> dict[str, Path]:
+    """Every skill a fetched source holds, by the name it is known under.
+
+    A skill is a directory with a `SKILL.md` in it, and a repository of skills
+    nests them however it likes — `mattpocock/skills` keeps 37 at
+    `skills/<category>/<name>/SKILL.md`. The name is the directory's, because
+    that is what a harness matches a trigger against and what an operator
+    writes in `select`.
+
+    A source holding exactly one is the ordinary case: one skill, one item, and
+    the whole fetched tree is it.
+    """
+
+    found: dict[str, Path] = {}
+
+    for marker in sorted(root.rglob(SKILL_MARKER)):
+        found.setdefault(marker.parent.name, marker.parent)
+
+    return found
+
+
+def selected(item: Equipment, where: Path) -> list[tuple[str, Path]]:
+    """The directories this item contributes to a mount, named as each is named.
+
+    `select` names a subset of a source that holds several (S-0062/D-1); a
+    selector matching nothing is refused rather than quietly contributing
+    nothing, which is how equipment goes missing from an attempt that still
+    ran.
+    """
+
+    if item.kind != "skill":
+        return [(mount_name(item), where)]
+
+    skills = skills_in(where)
+
+    # One skill, or something this engine cannot read as skills at all: the
+    # item is the tree, exactly as a `torve:` or a `local:` source is.
+    if len(skills) <= 1:
+        if item.select:
+            raise EquipmentError(
+                f"{item.source} holds {len(skills) or 'no'} skill(s), so `select: "
+                f"{item.select}` has nothing to select from"
+            )
+
+        return [(mount_name(item), where)]
+
+    if not item.select:
+        return sorted(skills.items())
+
+    missing = [one for one in item.select if one not in skills]
+
+    if missing:
+        raise EquipmentError(
+            f"{item.source} holds no skill named {', '.join(missing)} — it holds "
+            f"{', '.join(sorted(skills))}"
+        )
+
+    return [(one, skills[one]) for one in item.select]
+
+
 def mount_name(item: Equipment) -> str:
     """What this item is called under the mount.
 
@@ -262,29 +325,32 @@ def mount_root(items: Sequence[Equipment], *, root: Path, cache: Path | None = N
     taken: dict[str, int] = {}
 
     for item in items:
-        # Named as the thing is named, not as the cache keys it. A directory
-        # name is not private bookkeeping: dsh refuses a skill whose directory
-        # is not a valid skill name, and claude puts this name in a flag an
-        # operator reads. The key disambiguates only where two items would
-        # otherwise collide.
-        name = mount_name(item)
-        taken[name] = taken.get(name, 0) + 1
+        # One item can contribute several directories: a repository of skills
+        # is one declaration and many things a harness loads (S-0062/D-1).
+        for name, source in selected(item, item_path(item, cache)):
+            # Named as the thing is named, not as the cache keys it. A
+            # directory name is not private bookkeeping: dsh refuses a skill
+            # whose directory is not a valid skill name, and claude puts this
+            # name in a flag an operator reads. The key disambiguates only
+            # where two would otherwise collide.
+            taken[name] = taken.get(name, 0) + 1
+            unique = name
 
-        if taken[name] > 1:
-            name = f"{name}-{hashlib.sha256(item.key.encode()).hexdigest()[:8]}"
+            if taken[name] > 1:
+                unique = f"{name}-{hashlib.sha256(item.key.encode()).hexdigest()[:8]}"
 
-        _link_tree(item_path(item, cache), scratch / name)
-        entries.append(
-            {
-                "kind": item.kind,
-                "source": item.source,
-                "ref": item.ref,
-                "select": list(item.select),
-                # In-container, because the image reads this and nothing else
-                # tells it where the mount landed.
-                "path": f"{EQUIPMENT_MOUNT}/{name}",
-            }
-        )
+            _link_tree(source, scratch / unique)
+            entries.append(
+                {
+                    "kind": item.kind,
+                    "source": item.source,
+                    "ref": item.ref,
+                    "name": name,
+                    # In-container, because the image reads this and nothing
+                    # else tells it where the mount landed.
+                    "path": f"{EQUIPMENT_MOUNT}/{unique}",
+                }
+            )
 
     (scratch / MANIFEST).write_text(
         json.dumps(

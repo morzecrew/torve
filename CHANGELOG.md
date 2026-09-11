@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   infrastructure: no gate ran, so nothing is convicted, no rung is selected and
   the poison ceiling is untouched.
 
+- `select` names which skills to take from a source that holds many. A
+  repository of skills is one declaration and many things a harness loads: each
+  selected one becomes its own directory under the mount, named as the skill is
+  named. A selector matching nothing is refused, naming what the source holds.
+
 - `torve equip` warms the equipment cache for what this repository declares,
   and `torve equip --check` audits it against the pin each source recorded.
   Nothing is fetched while an attempt runs.

@@ -727,3 +727,93 @@ def test_equip_refuses_a_seat_no_tier_carries_before_fetching_anything(
     assert result.exit_code == 3
     assert "excutor" in result.output
     assert not cache.exists(), "a refused seat still warmed the cache"
+
+
+# ....................... #
+# `select` picks out of a source that holds many (S-0062/D-1)
+
+
+def _skills_repo(root: Path, *names: str) -> Path:
+    """A fetched source shaped like a repository of skills: nested, because
+    that is how one is actually laid out."""
+
+    for name in names:
+        where = root / "skills" / "category" / name
+        where.mkdir(parents=True, exist_ok=True)
+        (where / "SKILL.md").write_text(f"---\nname: {name}\n---\n", encoding="utf-8")
+
+    return root
+
+
+def test_a_source_holding_many_skills_contributes_one_directory_each(tmp_path: Path) -> None:
+    """A repository of skills is one declaration and many things a harness
+    loads. Each is named as the skill is named, because that is what a harness
+    matches a trigger against."""
+
+    from torve.application.equipment import selected
+
+    where = _skills_repo(tmp_path / "clone", "tdd", "code-review", "grilling")
+    item = Equipment(kind="skill", source="github:o/skills", ref="v1", select=["tdd", "grilling"])
+
+    assert [name for name, _ in selected(item, where)] == ["tdd", "grilling"]
+
+    # No selector takes everything the source holds.
+    every = Equipment(kind="skill", source="github:o/skills", ref="v1")
+
+    assert [name for name, _ in selected(every, where)] == ["code-review", "grilling", "tdd"]
+
+
+def test_a_selector_that_matches_nothing_is_refused(tmp_path: Path) -> None:
+    """S-0062/D-1: a refusal, not a no-op. A selector that quietly contributes
+    nothing is how equipment goes missing from an attempt that still ran."""
+
+    from torve.application.equipment import EquipmentError, selected
+
+    where = _skills_repo(tmp_path / "clone", "tdd", "code-review")
+    item = Equipment(kind="skill", source="github:o/skills", ref="v1", select=["tdd", "absent"])
+
+    with pytest.raises(EquipmentError, match="absent") as excinfo:
+        selected(item, where)
+
+    # And it says what the source does hold, so the fix is visible.
+    assert "code-review" in str(excinfo.value)
+
+
+def test_a_source_holding_one_skill_is_that_skill(tmp_path: Path) -> None:
+    """The ordinary case: one skill, one item, the whole fetched tree."""
+
+    from torve.application.equipment import EquipmentError, selected
+
+    where = tmp_path / "one"
+    where.mkdir()
+    (where / "SKILL.md").write_text("---\nname: house\n---\n", encoding="utf-8")
+    item = Equipment(kind="skill", source="local:skills/house-voice")
+
+    assert [name for name, _ in selected(item, where)] == ["house-voice"]
+
+    # Selecting out of a source that holds one is the same mistake as selecting
+    # something absent, and gets the same refusal.
+    picky = Equipment(kind="skill", source="github:o/one", ref="v1", select=["house"])
+
+    with pytest.raises(EquipmentError, match="nothing to select"):
+        selected(picky, where)
+
+
+def test_the_mount_carries_every_selected_skill(tmp_path: Path) -> None:
+    import json
+
+    from torve.application.equipment import MANIFEST, mount_root
+
+    cache = tmp_path / "cache"
+    repo = tmp_path / "repo"
+    _skills_repo(repo / "vendor", "tdd", "code-review")
+
+    where = mount_root(
+        [Equipment(kind="skill", source="local:vendor", select=[])], root=repo, cache=cache
+    )
+
+    assert where is not None
+    names = {e["name"] for e in json.loads((where / MANIFEST).read_text())["items"]}
+
+    assert names == {"tdd", "code-review"}
+    assert (where / "tdd" / "SKILL.md").is_file()
