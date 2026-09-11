@@ -38,9 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overlay because that is its only configuration channel, and mimo runs
   install commands because it has no session channel at all.
 
-- A sandbox definition's files live under `rootfs/`, mirroring the container
-  filesystem, so one `COPY rootfs/ /` installs them and where a file lands is
-  where it is written.
+- A sandbox definition's files live under `toolkit/`, installed by one
+  `COPY toolkit/ /opt/torve/` — named for where its contents land, since that
+  is the one place all three definitions install to.
 
 - A skill reaches every harness as a skill it loads. dsh watches
   `.agents/skills`, mimo reads `.mimocode/skill/`, and claude takes a flag —

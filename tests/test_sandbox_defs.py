@@ -67,13 +67,11 @@ def test_every_seated_definition_answers_the_seam(name: str) -> None:
     definition = DEFINITIONS / name
 
     for script in ("run", "equip"):
-        assert (definition / "rootfs" / "opt" / "torve" / script).is_file(), (
-            f"{name} carries no {script}"
-        )
+        assert (definition / "toolkit" / script).is_file(), f"{name} carries no {script}"
 
     dockerfile = (definition / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "COPY rootfs/ /" in dockerfile
+    assert "COPY toolkit/ /opt/torve/" in dockerfile
     assert "chmod +x /opt/torve/run /opt/torve/equip" in dockerfile
 
 
@@ -92,7 +90,7 @@ def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> Non
         "TORVE_BROKER_TOKEN",
     }
     scripts = "".join(
-        (DEFINITIONS / name / "rootfs" / "opt" / "torve" / script).read_text(encoding="utf-8")
+        (DEFINITIONS / name / "toolkit" / script).read_text(encoding="utf-8")
         for script in ("run", "equip")
     )
     reached = set(re.findall(r"TORVE_[A-Z_]+", scripts))
@@ -105,9 +103,7 @@ def test_each_harness_answers_the_manifest_its_own_way() -> None:
     three translations, and no variable had to change to admit them."""
 
     equip = {
-        name: (DEFINITIONS / name / "rootfs" / "opt" / "torve" / "equip").read_text(
-            encoding="utf-8"
-        )
+        name: (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
         for name in SEATED
     }
 
@@ -136,7 +132,7 @@ def test_no_definition_bakes_a_model(name: str = "dsh") -> None:
     assert "/opt/torve/overlays" not in (definition / "Dockerfile").read_text(encoding="utf-8")
 
     # And the generator that replaced them reads the knob rather than a roster.
-    equip = (definition / "rootfs" / "opt" / "torve" / "equip").read_text(encoding="utf-8")
+    equip = (definition / "toolkit" / "equip").read_text(encoding="utf-8")
 
     assert "DSH_MODEL" in equip
 
@@ -149,7 +145,7 @@ def test_a_skill_reaches_the_harness_that_reads_one(name: str) -> None:
 
     from torve.config.agents import load_harness
 
-    equip = (DEFINITIONS / name / "rootfs" / "opt" / "torve" / "equip").read_text(encoding="utf-8")
+    equip = (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
     expected = {"dsh": ".agents/skills", "mimo": ".mimocode/skill"}[name]
 
     assert expected in equip
@@ -161,7 +157,7 @@ def test_dsh_installs_before_it_patches() -> None:
     the profile already carries and refuses an unknown id with `patch: entry
     "..." not found`. An item that would add a plugin has to install it first."""
 
-    equip = (DEFINITIONS / "dsh" / "rootfs" / "opt" / "torve" / "equip").read_text(encoding="utf-8")
+    equip = (DEFINITIONS / "dsh" / "toolkit" / "equip").read_text(encoding="utf-8")
     install = equip.index('"dsh", "plugin"')
     patch = equip.index("fragments.append")
 

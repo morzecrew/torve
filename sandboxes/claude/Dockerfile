@@ -8,12 +8,12 @@ FROM ${BASE}
 ARG CLAUDE_VERSION=2.1.252
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION} && claude --version
 
-# What this definition puts inside the image (S-0063/D-14): `rootfs/` mirrors
-# the container filesystem, so where a file lands is where it is written and
-# one COPY installs the lot. `/opt/torve/equip` turns the equipment manifest
-# into whatever this harness needs and `/opt/torve/run` invokes it; the engine
-# names only what the attempt is.
-COPY rootfs/ /
+# What this definition puts inside the image (S-0063/D-14): `toolkit/` is
+# `/opt/torve`, named for where its contents land, and one COPY installs the
+# lot. `/opt/torve/equip` turns the equipment manifest into whatever this
+# harness needs and `/opt/torve/run` invokes it; the engine names only what the
+# attempt is.
+COPY toolkit/ /opt/torve/
 RUN chmod -R a+rX /opt/torve && chmod +x /opt/torve/run /opt/torve/equip
 
 # Harness plugins are identity (RFC 0017 §3, D-17.4): the clones are baked at

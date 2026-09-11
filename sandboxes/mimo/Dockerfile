@@ -6,10 +6,10 @@ FROM ${BASE}
 # one-line reviewed diff, never a rebuild side effect.
 ARG MIMO_VERSION=0.1.13
 RUN npm install -g @mimo-ai/cli@${MIMO_VERSION} && mimo --version
-# What this definition puts inside the image (S-0063/D-14): `rootfs/` mirrors
-# the container filesystem, so where a file lands is where it is written and
-# one COPY installs the lot. `/opt/torve/equip` turns the equipment manifest
-# into whatever this harness needs and `/opt/torve/run` invokes it; the engine
-# names only what the attempt is.
-COPY rootfs/ /
+# What this definition puts inside the image (S-0063/D-14): `toolkit/` is
+# `/opt/torve`, named for where its contents land, and one COPY installs the
+# lot. `/opt/torve/equip` turns the equipment manifest into whatever this
+# harness needs and `/opt/torve/run` invokes it; the engine names only what the
+# attempt is.
+COPY toolkit/ /opt/torve/
 RUN chmod -R a+rX /opt/torve && chmod +x /opt/torve/run /opt/torve/equip
