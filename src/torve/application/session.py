@@ -603,9 +603,16 @@ def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
 
     `commit_all` runs `git add -A` and the scope gate reads the committed diff,
     so anything `equip` drops into the workspace is in the candidate before any
-    gate can complain about it. `.git/info/exclude` is the per-worktree,
-    untracked, local-only place to say otherwise — the repository's own
-    `.gitignore` is a reviewed file and not torve's to edit.
+    gate can complain about it. `info/exclude` is the untracked, local-only
+    place to say otherwise — the repository's own `.gitignore` is a reviewed
+    file and not torve's to edit.
+
+    The *common* gitdir, not the worktree's own: git reads `info/exclude` from
+    `--git-common-dir` and never from a linked worktree's `--git-dir`, so the
+    obvious spelling writes a file nothing consults. Measured — `check-ignore`
+    matched nothing until the line moved. Repository-wide is the right scope
+    anyway: the root is torve's by declaration and no checkout should track
+    equipment.
 
     This only works because the root is torve's own (D-19): exclusion governs
     untracked paths, so it could never have protected a tracked file that
@@ -615,12 +622,10 @@ def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
     if not equip_root:
         return
 
-    # A worktree's `.git` is a file naming the real gitdir; a plain clone's is
-    # the directory itself. Both answer this.
     try:
         where = Path(
             subprocess.run(
-                ["git", "-C", str(worktree), "rev-parse", "--git-dir"],
+                ["git", "-C", str(worktree), "rev-parse", "--git-common-dir"],
                 capture_output=True,
                 text=True,
                 check=True,

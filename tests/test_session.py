@@ -274,27 +274,70 @@ def test_the_adapter_no_longer_decides_the_route():
 def test_the_equipment_root_is_excluded_in_the_worktree(tmp_path):
     """`commit_all` runs `git add -A` and the scope gate reads the committed
     diff, so anything `equip` drops into the workspace is in the candidate
-    before a gate can object. `.git/info/exclude` is per-worktree, untracked
-    and local — the repository's own `.gitignore` is reviewed and not torve's
-    to edit."""
+    before a gate can object.
+
+    In a *linked worktree* — which is what every attempt runs in — git reads
+    `info/exclude` from the common gitdir and never from the worktree's own, so
+    the obvious spelling writes a file nothing consults. This asserts on
+    `check-ignore`, which is the only thing that proves the rule is live."""
 
     import subprocess
 
     from torve.application.session import _exclude_equip_root
 
+    main = tmp_path / "repo"
+    main.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(main)], check=True)
+    (main / "seed").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(main), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(main),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--no-gpg-sign",
+            "-m",
+            "seed",
+        ],
+        check=True,
+    )
     worktree = tmp_path / "wt"
-    worktree.mkdir()
-    subprocess.run(["git", "init", "-q", str(worktree)], check=True)
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(worktree)], check=True)
 
     _exclude_equip_root(worktree, ".dsh/skills")
-    exclude = (worktree / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+    (worktree / ".dsh" / "skills" / "tdd").mkdir(parents=True)
+    (worktree / ".dsh" / "skills" / "tdd" / "SKILL.md").write_text("x", encoding="utf-8")
+
+    ignored = subprocess.run(
+        ["git", "-C", str(worktree), "check-ignore", ".dsh/skills/tdd/SKILL.md"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ignored.returncode == 0, "the equipment root is not excluded in the worktree"
+    assert (
+        ".dsh"
+        not in subprocess.run(
+            ["git", "-C", str(worktree), "status", "--porcelain", "-uall"],
+            capture_output=True,
+            text=True,
+        ).stdout
+    )
+
+    exclude = (main / ".git" / "info" / "exclude").read_text(encoding="utf-8")
 
     assert "/.dsh/skills/" in exclude.splitlines()
 
     # Twice is once: an attempt retries, and a file that grows a line per
     # attempt is a file nobody reads.
     _exclude_equip_root(worktree, ".dsh/skills")
-    again = (worktree / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+    again = (main / ".git" / "info" / "exclude").read_text(encoding="utf-8")
 
     assert again == exclude
 
@@ -311,7 +354,6 @@ def test_a_harness_reading_the_mount_excludes_nothing(tmp_path):
     worktree.mkdir()
     subprocess.run(["git", "init", "-q", str(worktree)], check=True)
     _exclude_equip_root(worktree, "")
+    exclude = worktree / ".git" / "info" / "exclude"
 
-    assert not (worktree / ".git" / "info" / "exclude").is_file() or "/.dsh" not in (
-        worktree / ".git" / "info" / "exclude"
-    ).read_text(encoding="utf-8")
+    assert not exclude.is_file() or "/.dsh" not in exclude.read_text(encoding="utf-8")
