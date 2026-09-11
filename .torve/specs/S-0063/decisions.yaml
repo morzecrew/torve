@@ -198,6 +198,66 @@ decisions:
       is what `just images` answers, and the shape checks are what catch a drafting
       error
     cites: [D-11, D-7]
+  - id: D-14
+    grade: LOCKED
+    text: >-
+      Everything a definition puts inside its image lives under `rootfs/`, mirroring
+      the container filesystem, and one `COPY rootfs/ /` installs it.
+    paths: [sandboxes/**]
+    consequence: >-
+      where a file lands is where it is written, so a definition is read by looking
+      at it rather than by following a COPY line to a destination named somewhere
+      else
+    rationale: >-
+      the convention `morzecrew/platform-images` already runs, and this repository
+      has three definitions now writing `/opt/torve/` paths in a COPY argument, a
+      chmod and a comment — three places for one fact
+  - id: D-15
+    grade: LOCKED
+    text: >-
+      A harness's per-model configuration is the seat's `env`, rendered into whatever
+      form that harness reads by its own `equip`; no image bakes a model file.
+    paths: [sandboxes/**, .torve/harnesses/**]
+    consequence: >-
+      adding a model is an edit to reviewed configuration rather than a rebuilt image,
+      and the seven overlay files this repository bakes into the dsh image go
+    rationale: >-
+      measured: a `--patch` overlay generated at equip time from two environment variables
+      resolves its provider, passes the credential check and dials the broker — so
+      the files buy nothing a knob does not, and a model in an image makes the roster
+      a property of the harness instead of a property of the fleet
+    cites: [D-10]
+  - id: D-16
+    grade: LOCKED
+    text: >-
+      `skill` is a kind every harness this repository builds accepts, delivered the
+      way that harness reads skills; S-0062/D-10's prompt paragraph stands only for
+      a harness that reads none.
+    paths: [sandboxes/**, .torve/harnesses/**, src/torve/application/skills.py]
+    consequence: >-
+      a skill reaches a dsh or mimo seat as a skill its harness loads, rather than
+      as a directory the prompt names and the model may or may not read
+    rationale: >-
+      measured, and it corrects a claim this document shipped: dsh loads `@deepseek-ai/dsh-skill-filesystem`,
+      which watches `.agents/skills` and `.dsh/skills`, and mimo reads `<project>/.mimocode/skill/<name>/SKILL.md`
+      — so the manifest saying mimo takes only plugins was wrong about the harness,
+      not cautious about it
+    cites: [S-0062/D-10, S-0062/D-6]
+  - id: D-17
+    grade: LOCKED
+    text: >-
+      dsh's `--patch` configures an entry the profile already carries and cannot add
+      one, so equipment that would add a plugin installs it first and patches it after.
+    paths: [sandboxes/dsh/**]
+    consequence: >-
+      an item naming a plugin dsh has not got is refused where it is declared, instead
+      of failing at boot with `patch: entry "..." not found` inside an attempt
+    rationale: >-
+      measured against 0.1.1-rc.2, and it is a defect in what phase 3 landed: `equip`
+      appends every non-plugin item into one overlay, which works only when the item
+      patches an id the profile already has — which is why the model overlays tested
+      clean and nothing else would have
+    cites: [D-3]
 invariants:
   - id: I-1
     statement: >-

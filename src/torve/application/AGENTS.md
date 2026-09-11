@@ -680,6 +680,14 @@ The equipment manifest is `manifest.json` at the root of the read-only equipment
 - Consequence: the attempt cannot rewrite the description of what it was equipped with, and one variable names one root rather than two disagreeing about which is authoritative
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0063/D-16 — `LOCKED` (The image knows how to equip itself)
+
+`skill` is a kind every harness this repository builds accepts, delivered the way that harness reads skills; S-0062/D-10's prompt paragraph stands only for a harness that reads none.
+
+- Paths: `sandboxes/**` `.torve/harnesses/**` `src/torve/application/skills.py`
+- Consequence: a skill reaches a dsh or mimo seat as a skill its harness loads, rather than as a directory the prompt names and the model may or may not read
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

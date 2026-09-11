@@ -75,3 +75,17 @@ amendments:
       claude's `run` landed in phase 2 with the same shape, so the fix reaches its file. All three carry the status by hand now, with the harness inside an `if` because `set -e` would otherwise kill the subshell before the status could be written.
 
       This is what phase 3 exists for, arriving from an unexpected direction: the contract held across three harnesses without a variable changing, and running the third one for real found a defect the first two hid.
+  - id: A-9
+    at: '2026-09-11T12:01:33Z'
+    title: >-
+      A fourth phase: the image's own layout and its configuration channel
+    md: |-
+      Four rows and a phase, from what running the three harnesses for real turned up and from the owner's reading of the definitions beside them.
+
+      D-14 is `rootfs/`, the convention `morzecrew/platform-images` runs: a definition's files mirror the container filesystem and one `COPY rootfs/ /` installs them, instead of a path written three times — in the COPY argument, in the chmod, and in the comment above both.
+
+      D-15 is the one with reach. The dsh image bakes seven model overlays, so the fleet's roster is a property of the harness and adding a model is a rebuilt image. Measured against 0.1.1-rc.2: an overlay generated at equip time from two environment variables resolves its provider, passes the credential check and dials the broker. The files buy nothing a knob does not, and D-10 already said a knob belongs in `env`.
+
+      D-16 corrects a claim this document shipped. dsh loads `@deepseek-ai/dsh-skill-filesystem`, watching `.agents/skills` and `.dsh/skills`; mimo reads `<project>/.mimocode/skill/<name>/SKILL.md`. The mimo manifest saying `kinds: [plugin]` was wrong about the harness rather than cautious about it, and S-0062/D-10's prompt paragraph now stands for no harness this repository builds.
+
+      D-17 is a defect phase 3 landed: dsh's `--patch` configures an entry the profile already carries and cannot add one, so `equip` appending arbitrary fragments works only for an item patching an id that already exists. That is why the model overlays tested clean and nothing else would have.

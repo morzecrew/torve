@@ -34,6 +34,30 @@ Claude's `equip` and `run` land first; dsh's and mimo's land after, and they are
 - Consequence: the first landing is written against a harness this repository can reach, and the contract's generality is tested rather than asserted
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0063/D-14 — `LOCKED` (The image knows how to equip itself)
+
+Everything a definition puts inside its image lives under `rootfs/`, mirroring the container filesystem, and one `COPY rootfs/ /` installs it.
+
+- Paths: `sandboxes/**`
+- Consequence: where a file lands is where it is written, so a definition is read by looking at it rather than by following a COPY line to a destination named somewhere else
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-15 — `LOCKED` (The image knows how to equip itself)
+
+A harness's per-model configuration is the seat's `env`, rendered into whatever form that harness reads by its own `equip`; no image bakes a model file.
+
+- Paths: `sandboxes/**` `.torve/harnesses/**`
+- Consequence: adding a model is an edit to reviewed configuration rather than a rebuilt image, and the seven overlay files this repository bakes into the dsh image go
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-16 — `LOCKED` (The image knows how to equip itself)
+
+`skill` is a kind every harness this repository builds accepts, delivered the way that harness reads skills; S-0062/D-10's prompt paragraph stands only for a harness that reads none.
+
+- Paths: `sandboxes/**` `.torve/harnesses/**` `src/torve/application/skills.py`
+- Consequence: a skill reaches a dsh or mimo seat as a skill its harness loads, rather than as a directory the prompt names and the model may or may not read
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `sandboxes/`
 
 - **S-0063/I-2**: Every image definition answers `/opt/torve/equip` and `/opt/torve/run`, and none carries its own copy of the CLI layer.

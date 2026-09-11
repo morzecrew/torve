@@ -110,6 +110,32 @@ phasing:
     depends_on:
       - 2
     character: structural
+  - phase: 4
+    title: the image's own layout, and what it stops baking
+    intent: >-
+      Every definition's files move under `rootfs/`, mirroring the container filesystem,
+      so one `COPY rootfs/ /` installs them and where a file lands is where it is
+      written. The seven model overlays the dsh image bakes go: `equip` renders one
+      from the seat's `env`, which is where a model roster belongs — measured, a generated
+      overlay resolves its provider, passes the credential check and dials the broker.
+      `skill` joins the kinds dsh and mimo accept, delivered to the paths each actually
+      reads. And dsh's `equip` installs before it patches, because `--patch` configures
+      an entry the profile already carries and cannot add one — the defect phase 3
+      landed.
+    scope:
+      - sandboxes/**
+      - .torve/harnesses/**
+      - .torve/specs/S-0062/**
+      - bake.hcl
+      - tests/test_sandbox_defs.py
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    depends_on:
+      - 3
+    character: structural
 contract_example:
   schema_version: 2
   id: T-0331
