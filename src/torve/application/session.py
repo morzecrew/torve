@@ -246,11 +246,30 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 
 
 def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
-    """(env_passthrough, volumes) for the tier's authentication route
-    (S-0004/adapters): key names for api and harness, a per-slot volume for
-    subscription (S-0004/D-2), nothing for fake."""
+    """(env_passthrough, volumes) for the seat's authentication route
+    (S-0004/adapters, S-0063/D-18).
 
-    if tier.adapter in ("api", "harness"):
+    The manifest decides, not the adapter. A seat that names a variable gets it
+    forwarded by name — the value never transits torve (S-0001/D-13) — and
+    mounts nothing: one token for one attempt is the narrower blast radius, and
+    every harness this repository dispatches to has an env form.
+
+    A seat that names none falls back to the per-slot volume, which is the
+    route for a harness that has no env form. Read-write, and that is not an
+    oversight: the harness refreshes its token mid-session, and a mount it
+    cannot write to does not fail cleanly — it hangs until the agent clock
+    kills it, which reads as a slow model rather than a broken mount.
+
+    This used to key on the adapter, so a `subscription` seat had its
+    `api_key_env` dropped and got a volume whether it declared one or not. The
+    first live dispatch mounted an empty volume and the agent said `Not logged
+    in`.
+    """
+
+    if tier.adapter == "fake":
+        return (), {}
+
+    if tier.api_key_env:
         return tuple(tier.api_key_env), {}
 
     if tier.adapter == "subscription":

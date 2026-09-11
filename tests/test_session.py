@@ -210,3 +210,58 @@ def test_the_first_attempt_has_no_previous_pass_to_route_from(tmp_path, history)
 
     assert advance_tier(run, _state(*history)) == "seat-agent"
     assert run.tier_name == "executor"
+
+
+# ....................... #
+# Which authentication route a seat takes (S-0063/D-18)
+
+
+def test_a_seat_that_names_a_variable_mounts_nothing():
+    """The manifest decides, not the adapter. One token for one attempt is the
+    narrower blast radius, and every harness this repository dispatches to has
+    an env form."""
+
+    from torve.application.session import _sandbox_auth
+
+    seat = TierConfig(
+        adapter="subscription",
+        provider="anthropic",
+        image="claude-sandbox:2.1.252",
+        api_key_env=["CLAUDE_CODE_OAUTH_TOKEN"],
+    )
+    names, volumes = _sandbox_auth(seat, 0)
+
+    assert names == ("CLAUDE_CODE_OAUTH_TOKEN",)
+    assert volumes == {}
+
+
+def test_a_seat_that_names_none_falls_back_to_its_volume():
+    """The route for a harness with no env form. Read-write, because the
+    harness refreshes its token mid-session and a mount it cannot write to
+    hangs rather than failing."""
+
+    from torve.application.session import _sandbox_auth
+
+    seat = TierConfig(adapter="subscription", provider="openai", image="codex-sandbox:1")
+    names, volumes = _sandbox_auth(seat, 3)
+
+    assert names == ()
+    assert volumes == {"torve-auth-3": "/auth"}
+
+
+def test_the_adapter_no_longer_decides_the_route():
+    """The defect the first live dispatch found: keying on the adapter dropped
+    a subscription seat's `api_key_env` and mounted a volume whether it
+    declared one or not, so the agent reported `Not logged in` against an
+    empty mount."""
+
+    from torve.application.session import _sandbox_auth
+
+    for adapter in ("api", "harness", "subscription"):
+        names, volumes = _sandbox_auth(
+            TierConfig(adapter=adapter, provider="p", image="i", api_key_env=["K"]), 0
+        )
+
+        assert (names, volumes) == (("K",), {}), adapter
+
+    assert _sandbox_auth(TierConfig(), 0) == ((), {})

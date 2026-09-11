@@ -229,6 +229,10 @@ def test_api_and_harness_pass_key_names_never_values():
 
 
 def test_subscription_mounts_one_volume_per_worker_slot():
+    """The route for a seat that names no variable — a harness with no env
+    form (S-0063/D-18). One that names one is forwarded by name and mounts
+    nothing; see tests/test_session.py."""
+
     tier = TierConfig(adapter="subscription", provider="p")
     _, volumes = _sandbox_auth(tier, worker_slot=2)
     assert volumes == {"torve-auth-2": "/auth"}

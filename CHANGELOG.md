@@ -88,6 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the claude seat authenticates by variable name and mounts no
   credential. `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt.
 
+- A seat's manifest decides its authentication route, not its adapter. A seat
+  naming a variable gets it forwarded and mounts nothing; one naming none falls
+  back to the per-slot volume. A `subscription` seat used to have its
+  `api_key_env` dropped whatever it declared.
+
 - The auth volume route stays for a harness with no env form. Where one is
   used it is mounted read-write: a harness that cannot persist a refreshed
   token hangs rather than failing.
