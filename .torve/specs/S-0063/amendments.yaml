@@ -89,3 +89,11 @@ amendments:
       D-16 corrects a claim this document shipped. dsh loads `@deepseek-ai/dsh-skill-filesystem`, watching `.agents/skills` and `.dsh/skills`; mimo reads `<project>/.mimocode/skill/<name>/SKILL.md`. The mimo manifest saying `kinds: [plugin]` was wrong about the harness rather than cautious about it, and S-0062/D-10's prompt paragraph now stands for no harness this repository builds.
 
       D-17 is a defect phase 3 landed: dsh's `--patch` configures an entry the profile already carries and cannot add one, so `equip` appending arbitrary fragments works only for an item patching an id that already exists. That is why the model overlays tested clean and nothing else would have.
+  - id: A-10
+    at: '2026-09-11T12:09:00Z'
+    title: >-
+      Phase 4 takes the two projections its amendment re-renders
+    md: >-
+      D-16 amends S-0062/D-10, which governs `src/torve/adapters/agent/` and `src/torve/application/`,
+      so `torve spec project` rewrites their managed sections. Rendered, not written
+      — the same reason phase 2 needed three of them under A-7.

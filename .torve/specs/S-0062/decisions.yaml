@@ -134,6 +134,9 @@ decisions:
     text: >-
       For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`;
       for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+      All three harnesses this repository builds take it — claude by flag, dsh at
+      `.agents/skills`, mimo at `.mimocode/skill/` (S-0063/D-16) — so the paragraph
+      stands for none of them.
     paths: [src/torve/adapters/agent/harness.py, src/torve/application/skills.py]
     consequence: >-
       a loaded skill is loaded, not described — and a harness with no skill channel
@@ -142,6 +145,7 @@ decisions:
       an installed skill participates in the harness's own trigger matching and progressive
       disclosure; a directory the prompt names is a file the model was told about,
       and saying it twice invites treating a loaded skill as a document
+    fingerprint: 9952aa9998bd875d/4efcb7034d979af9
   - id: D-11
     grade: ASSUMED
     text: >-

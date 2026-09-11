@@ -112,3 +112,28 @@ amendments:
       The row said the manifest's flag templates are composed against the mount paths. There are no templates now (A-7), and composing is the image's: `equip` reads `manifest.json` at the root of the read-only mount and turns it into flags, an overlay, or install commands, depending on what its harness takes.
 
       What does not change is the mount: read-only, one directory per item, so nothing inside an attempt can edit what it was equipped with — which is also why the manifest sits inside it (S-0063/D-12) rather than in a workspace the attempt can write.
+  - id: A-9
+    at: '2026-09-11T12:08:24Z'
+    title: >-
+      No harness this repository builds is without a skill channel
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`;
+          for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+        after: >-
+          For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`;
+          for one that does not, `materialize` and the prompt's paragraph stand unchanged.
+          All three harnesses this repository builds take it — claude by flag, dsh
+          at `.agents/skills`, mimo at `.mimocode/skill/` (S-0063/D-16) — so the paragraph
+          stands for none of them.
+      - subject: D-10
+        field: fingerprint
+        after: 9952aa9998bd875d/4efcb7034d979af9
+    md: |-
+      The row was written when claude was the only harness measured, and it kept a fallback for a harness with no skill channel: `materialize` into the worktree, and a prompt paragraph naming the directory. Both other harnesses turn out to have one.
+
+      dsh loads `@deepseek-ai/dsh-skill-filesystem`, which watches `.agents/skills` and `.dsh/skills` under the workspace. mimo reads `<project>/.mimocode/skill/<name>/SKILL.md`, and `mimo debug skill` lists what it found — measured with a probe skill copied in by `equip`.
+
+      So the fallback has no subject among the images this repository builds. It stays in the row because a harness without one is a thing that can exist and the engine should still have an answer; what changes is that it is now the exception rather than half the story.

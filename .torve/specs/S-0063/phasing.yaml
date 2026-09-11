@@ -127,6 +127,8 @@ phasing:
       - .torve/harnesses/**
       - .torve/specs/S-0062/**
       - bake.hcl
+      - src/torve/adapters/agent/AGENTS.md
+      - src/torve/application/AGENTS.md
       - tests/test_sandbox_defs.py
       - CHANGELOG.md
     acceptance:
