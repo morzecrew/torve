@@ -50,13 +50,25 @@ scm:
 #     provider: anthropic
 tiers:
   planner: {harness: fake}
-  executor: {harness: fake}
+  # The first live seat (S-0063). Everything it needs is measured: the image
+  # starts claude through its own `/opt/torve/run`, the credential arrives by
+  # name (S-0063/D-18), and the equipment it declares is fetched host-side into
+  # a cache the sandbox mounts read-only (S-0062/D-4).
+  executor:
+    harness: claude-subscription
+    profile: claude-equipped
+    model: claude-opus-5
+    provider: anthropic
   reviewer: {harness: fake}
 
 # RFC 0004 §6b, D-4.8: which providers this repository's contents may reach,
 # enforced at dispatch, before a sandbox exists. Empty defaults deny every
 # real provider — silence is not a policy, it is a closed door.
 providers:
-  default: []
+  # Silence is not a policy, so this is the one line that lets the executor
+  # seat reach anything at all (S-0004/D-8). Anthropic only: the seat above is
+  # the only real one, and a provider nobody dispatches to has no business
+  # being allowed.
+  default: [anthropic]
   repositories: {}
   never_send: []             # gitwildmatch globs lifted out of the sandbox's world
