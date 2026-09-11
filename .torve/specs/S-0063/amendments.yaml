@@ -152,3 +152,26 @@ amendments:
       Two things are true instead. The seats this repository can actually experiment with — claude and dsh — both have an env form, so they use it: one token for one attempt, nothing persisted, which is the narrower blast radius and costs nothing here. And where a volume *is* used it has to be read-write, because the harness refreshes its token mid-session; a read-only mount does not produce a clean failure, it produces a sandbox that sits there until the agent clock kills it, which reads as a slow model rather than a broken mount.
 
       The second half is the one worth carrying forward, because it is a failure mode nothing else in the loop would name.
+  - id: A-14
+    at: '2026-09-11T17:12:43Z'
+    title: >-
+      A sixth variable: where equipment lands in the workspace
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          The engine speaks to every image through one set of environment variables
+          — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and
+          `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
+        after: >-
+          The engine speaks to every image through one set of environment variables
+          — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIP_ROOT`,
+          `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker
+          is in force.
+      - subject: D-2
+        field: fingerprint
+        after: 9ce1369002088403/363650853e0975a3
+    md: |-
+      D-19 needs the engine and the image to agree on one path, and a path written in two places is a path that drifts. The manifest declares it once: the engine excludes it in the worktree and names it to the image, and `equip` writes where it was told.
+
+      claude needs none — `--add-dir` points at the read-only mount itself, which is why it never hit this. A harness that reads equipment out of the workspace is the case the variable exists for, and a harness that declares no root and writes anyway lands visible, where the scope gate convicts loudly. Failing safe is the point: silent is what this cost.

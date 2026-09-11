@@ -419,6 +419,14 @@ A manifest's `env` mapping reaches the image's environment and nothing else read
 - Paths: `src/torve/config/agents.py` `src/torve/application/session.py`
 - Consequence: an operator changes a permission mode in configuration, and a change to how the harness is invoked moves the image digest the telemetry already records
 
+### S-0063/D-19 — `LOCKED` (The image knows how to equip itself)
+
+Equipment never writes into a path the repository owns. A harness that reads equipment from the workspace declares its own root on the manifest as `equip_root`; the engine excludes that root in the worktree and names it to the image as `TORVE_EQUIP_ROOT`.
+
+- Paths: `src/torve/config/agents.py` `src/torve/application/session.py` `sandboxes/**` `.torve/harnesses/**`
+- Consequence: an attempt commits its own work and nothing else, and a repository's reviewed skills are never overwritten by a packaged copy of the same name
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -91,10 +91,6 @@ Every existing identifier converts once through a mapping committed as `.torve/a
   - Paths: `src/torve/**` `pyproject.toml`
   - Check: `uv run lint-imports --config pyproject.toml`
 
-## Contended now
-
-- `unconstrained scope` — 1 blocked dispatch(es) in the last 500 attempts
-
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
@@ -110,7 +106,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/diagrams/` — 0 decision(s)
 - `pages/docs/` — 1 decision(s)
 - `pages/docs/architecture/` — 0 decision(s)
-- `sandboxes/` — 8 decision(s)
+- `sandboxes/` — 9 decision(s)
 - `sandboxes/base/` — 0 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/dsh/` — 1 decision(s)
@@ -127,10 +123,10 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/runtime/` — 4 decision(s)
 - `src/torve/adapters/vcs/` — 2 decision(s)
 - `src/torve/adapters/workspace/` — 1 decision(s)
-- `src/torve/application/` — 93 decision(s)
+- `src/torve/application/` — 94 decision(s)
 - `src/torve/base/` — 2 decision(s)
 - `src/torve/cli/` — 42 decision(s)
-- `src/torve/config/` — 54 decision(s)
+- `src/torve/config/` — 55 decision(s)
 - `src/torve/domain/` — 34 decision(s)
 - `src/torve/gates/` — 24 decision(s)
 - `tests/` — 3 decision(s)

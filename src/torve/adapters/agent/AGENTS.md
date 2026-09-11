@@ -55,7 +55,7 @@ A sandbox image carries `/opt/torve/run`, which invokes its harness; a manifest 
 
 ### S-0063/D-2 — `LOCKED` (The image knows how to equip itself)
 
-The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
+The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIP_ROOT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
 
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py`
 - Consequence: a new harness is a new image and never a new template language, and every adapter fills one shape

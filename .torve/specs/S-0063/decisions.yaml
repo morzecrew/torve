@@ -18,8 +18,8 @@ decisions:
     grade: LOCKED
     text: >-
       The engine speaks to every image through one set of environment variables —
-      `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN`
-      where a broker is in force.
+      `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIP_ROOT`, `TORVE_OUTPUT`,
+      and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
     paths: [src/torve/application/ports.py, src/torve/adapters/agent/harness.py]
     consequence: >-
       a new harness is a new image and never a new template language, and every adapter
@@ -29,6 +29,7 @@ decisions:
       so the channel exists; what a template bought was substitution the environment
       does without `str.replace` over shell
     cites: [S-0021/D-9]
+    fingerprint: 9ce1369002088403/363650853e0975a3
   - id: D-3
     grade: LOCKED
     text: >-
@@ -279,6 +280,28 @@ decisions:
       at all, once the host's proxy environment reaches it
     cites: [S-0055/D-4, S-0001/D-13]
     fingerprint: 6ad7f5252e3f2864/4d1178442d9c9e65
+  - id: D-19
+    grade: LOCKED
+    text: >-
+      Equipment never writes into a path the repository owns. A harness that reads
+      equipment from the workspace declares its own root on the manifest as `equip_root`;
+      the engine excludes that root in the worktree and names it to the image as `TORVE_EQUIP_ROOT`.
+    paths:
+      - src/torve/config/agents.py
+      - src/torve/application/session.py
+      - sandboxes/**
+      - .torve/harnesses/**
+    consequence: >-
+      an attempt commits its own work and nothing else, and a repository's reviewed
+      skills are never overwritten by a packaged copy of the same name
+    rationale: >-
+      measured: dsh reads `.agents/skills`, which is a convention repositories use
+      for their own skills — this one tracks six, including a `flag-dont-flip` the
+      equipment also ships. `equip` overwrote it, `commit_all` runs `git add -A`,
+      and the scope gate reads the committed diff, so the overwrite was already in
+      the candidate by the time anything complained. Excluding the path would not
+      have helped: `.git/info/exclude` governs untracked files only
+    cites: [D-2, D-3, S-0062/D-5]
 invariants:
   - id: I-1
     statement: >-

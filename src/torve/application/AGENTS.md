@@ -659,7 +659,7 @@ For a harness that takes the `skill` kind the prompt stops naming `.torve/skills
 
 ### S-0063/D-2 — `LOCKED` (The image knows how to equip itself)
 
-The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
+The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIP_ROOT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
 
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py`
 - Consequence: a new harness is a new image and never a new template language, and every adapter fills one shape
@@ -694,6 +694,14 @@ The equipment manifest is `manifest.json` at the root of the read-only equipment
 
 - Paths: `sandboxes/**` `.torve/harnesses/**` `src/torve/application/skills.py`
 - Consequence: a skill reaches a dsh or mimo seat as a skill its harness loads, rather than as a directory the prompt names and the model may or may not read
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0063/D-19 — `LOCKED` (The image knows how to equip itself)
+
+Equipment never writes into a path the repository owns. A harness that reads equipment from the workspace declares its own root on the manifest as `equip_root`; the engine excludes that root in the worktree and names it to the image as `TORVE_EQUIP_ROOT`.
+
+- Paths: `src/torve/config/agents.py` `src/torve/application/session.py` `sandboxes/**` `.torve/harnesses/**`
+- Consequence: an attempt commits its own work and nothing else, and a repository's reviewed skills are never overwritten by a packaged copy of the same name
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 ## Invariants holding over `src/torve/application/`
