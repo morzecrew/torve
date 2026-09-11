@@ -619,7 +619,10 @@ def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
     `equip` overwrote, which is what `.agents/skills` was.
     """
 
-    if not equip_root:
+    # A root outside the workspace needs no hiding: nothing lands in the
+    # repository, so nothing can reach the commit. `~/.claude/skills` is that
+    # case, and it is the one to prefer.
+    if not equip_root or equip_root.startswith(("~", "/")):
         return
 
     try:

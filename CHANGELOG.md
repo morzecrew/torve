@@ -66,6 +66,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   infrastructure: no gate ran, so nothing is convicted, no rung is selected and
   the poison ceiling is untouched.
 
+- **Fixed:** claude loads its equipment skills. They went through `--add-dir`,
+  which adds a working directory and does not load skills at all — a session
+  given five listed only claude's built-ins. They go to a skills root now.
+
+- Every seated harness declares an `equip_root`. claude's is under HOME, so
+  nothing lands in the repository at all; dsh and mimo watch their working
+  directory, so theirs are excluded from the commit.
+
+- A fetched plugin keeps no `.git`. Nothing reads it once the pin is recorded
+  beside the bytes, and it was 12MB of one 32MB checkout in every sandbox.
+
 - **Breaking:** a harness that reads equipment from the workspace declares its
   own `equip_root`, and the engine excludes it in the worktree. dsh moves off
   `.agents/skills`, which is where a repository keeps its *own* reviewed skills

@@ -817,3 +817,32 @@ def test_the_mount_carries_every_selected_skill(tmp_path: Path) -> None:
 
     assert names == {"tdd", "code-review"}
     assert (where / "tdd" / "SKILL.md").is_file()
+
+
+def test_a_fetch_keeps_no_repository_history(tmp_path: Path, monkeypatch) -> None:
+    """Nothing reads `.git` once the pin is recorded beside the bytes, and a
+    third party's whole history has no business in every sandbox that mounts
+    the plugin — 12MB of one 32MB checkout."""
+
+    import subprocess
+
+    from torve.application import equipment as equip_mod
+
+    cache = tmp_path / "cache"
+    item = Equipment(kind="plugin", source="github:owner/repo", ref="v1")
+
+    def clone(args, **kwargs):
+        if args[1] == "clone":
+            target = Path(args[-1])
+            (target / ".git").mkdir(parents=True)
+            (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+            (target / "plugin.json").write_text("{}", encoding="utf-8")
+
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(equip_mod.subprocess, "run", clone)
+    (where,) = equip_mod.warm([item], root=tmp_path, cache=cache)
+
+    assert (where / "plugin.json").is_file()
+    assert not (where / ".git").exists()
+    assert (where / equip_mod.PIN_FILE).is_file()

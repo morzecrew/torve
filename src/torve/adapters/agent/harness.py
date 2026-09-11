@@ -594,6 +594,28 @@ class HarnessResult(AgentResult):
 RAW_TRACE_RELPATH = ".torve/tmp/harness-output.a{attempt}.raw"
 
 
+def _equip_root(declared: str, workdir: str) -> str:
+    """Where the image should write equipment it cannot read from the mount.
+
+    A leading `~` or `/` is outside the workspace and travels verbatim — the
+    image expands `~` against its own HOME, which is the sandbox's and not this
+    host's. Anything else is relative to the workspace, which a harness watching
+    its working directory forces, and is made absolute here so the scripts can
+    run from anywhere.
+    """
+
+    if not declared:
+        return ""
+
+    if declared.startswith(("~", "/")):
+        return declared
+
+    return f"{workdir}/{declared.lstrip('/')}"
+
+
+# ....................... #
+
+
 def _capture(command: str, raw_relpath: str) -> str:
     """The tier command with its complete stdout+stderr landing in a worktree
     file, then emitted unchanged on the exec's own stdout: the runtimes clip
@@ -678,9 +700,7 @@ class HarnessAgent:
             # Where this harness reads equipment from inside the workspace
             # (S-0063/D-19). Empty for a harness that reads the mount itself,
             # and `equip` writes nowhere when it is.
-            "TORVE_EQUIP_ROOT": (
-                f"{ctx.workdir}/{self.tier.equip_root}" if self.tier.equip_root else ""
-            ),
+            "TORVE_EQUIP_ROOT": _equip_root(self.tier.equip_root, ctx.workdir),
             "TORVE_OUTPUT": f"{ctx.workdir}/{RESULT_RELPATH}".replace(
                 "{attempt}", str(ctx.attempt)
             ),

@@ -118,8 +118,12 @@ def _fetch_github(item: Equipment, into: Path) -> None:
                 f"{result.stderr.strip() or 'no error output'}"
             )
 
-    # The pin travels with the bytes, so an audit needs no network (S-0062/D-11).
+    # The pin travels with the bytes, so an audit needs no network (S-0062/D-11)
+    # — and once it does, nothing reads `.git`. Dropping it takes one plugin's
+    # checkout from 32MB to 20MB and keeps a third party's whole history out of
+    # every sandbox that mounts it.
     (scratch / PIN_FILE).write_text(f"{item.source}@{item.ref}\n", encoding="utf-8")
+    shutil.rmtree(scratch / ".git", ignore_errors=True)
     # Atomic: a half-fetched directory must never look like a warm one.
     scratch.rename(into)
 

@@ -25,6 +25,12 @@
 # that was not permitted to.
 adapter: subscription
 image: claude-sandbox:2.1.252
+# Skills load from a skills root, never from `--add-dir`: measured, a session
+# given five through that flag listed only claude's built-ins. `~` is HOME,
+# which is the sandbox's `/tmp` — outside the workspace, so nothing lands in the
+# repository and there is nothing to hide from the commit. The repository's own
+# `.claude/skills` is untouched (S-0063/D-19).
+equip_root: ~/.claude/skills
 kinds: [skill, plugin, mcp, hook, agent]
 env:
   CLAUDE_PERMISSION_MODE: bypassPermissions

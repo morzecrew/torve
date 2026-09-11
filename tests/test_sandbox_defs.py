@@ -373,7 +373,34 @@ def test_a_harness_reading_the_workspace_declares_its_root(name: str) -> None:
     assert "equip_root" in equip
 
 
-def test_claude_reads_the_mount_and_declares_no_root() -> None:
+def test_claude_declares_a_root_outside_the_workspace() -> None:
+    """`--add-dir` does not load skills — measured, a session given five
+    through it listed only claude's built-ins. Skills load from a skills root,
+    and claude's is under HOME, which in a sandbox is `/tmp`: outside the
+    workspace, so nothing lands in the repository and there is nothing to hide
+    from the commit (S-0063/D-19)."""
+
     from torve.config.agents import load_harness
 
-    assert load_harness(Path("."), "claude-subscription").equip_root == ""
+    root = load_harness(Path("."), "claude-subscription").equip_root
+
+    assert root.startswith("~")
+
+    # The flag is named in a comment saying why it is not used; what matters is
+    # that no code path composes it.
+    equip = (DEFINITIONS / "claude" / "toolkit" / "equip").read_text(encoding="utf-8")
+    code = [l for l in equip.splitlines() if l.strip() and not l.lstrip().startswith("#")]
+
+    assert not any("--add-dir" in line for line in code)
+
+
+@pytest.mark.parametrize("name", SEATED)
+def test_every_seated_harness_declares_where_equipment_lands(name: str) -> None:
+    """One root per harness, declared: equipment never mixes with the skills a
+    repository keeps for itself, whichever convention that harness reads."""
+
+    from torve.config.agents import load_harness
+
+    manifest = {"claude": "claude-subscription"}.get(name, name)
+
+    assert load_harness(Path("."), manifest).equip_root, f"{name} declares no equip_root"

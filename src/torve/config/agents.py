@@ -92,12 +92,17 @@ class HarnessManifest(BaseModel):
     reaches the harness is the image's `equip` (S-0063/D-3), not a template here.
     A harness naming no kind takes no equipment, which is what `fake` is."""
     equip_root: str = ""
-    """Where this harness reads equipment from inside the workspace, relative to it
-    (S-0063/D-19) — `.dsh/skills`, `.mimocode/skill`. Torve's own, never a path the
-    repository owns: dsh also watches `.agents/skills`, which repositories keep their
-    own reviewed skills in, and writing there overwrites them. The engine excludes this
-    root in the worktree and names it to the image as `TORVE_EQUIP_ROOT`. Empty is a
-    harness that reads equipment from the mount itself, which is what claude does."""
+    """Where this harness reads equipment that has to be written somewhere it looks
+    (S-0063/D-19), named to the image as `TORVE_EQUIP_ROOT`.
+
+    Torve's own, never a path the repository owns: dsh watches `.agents/skills` and
+    claude reads `.claude/skills`, both of which repositories keep their *own* reviewed
+    skills in, and writing there overwrites them.
+
+    A leading `~` or `/` is a path outside the workspace — `~/.claude/skills` is the
+    best case, because nothing lands in the repository at all and there is nothing to
+    hide from the commit. Anything else is relative to the workspace, which is what a
+    harness watching its working directory forces, and the engine excludes it there."""
 
     env: dict[str, str] = Field(default_factory=dict)
     """The knobs this harness's image reads — `{"CLAUDE_PERMISSION_MODE": "..."}`

@@ -38,7 +38,7 @@
     },
     "equip_root": {
       "default": "",
-      "description": "Where this harness reads equipment from inside the workspace, relative to it\n(S-0063/D-19) \u2014 `.dsh/skills`, `.mimocode/skill`. Torve's own, never a path the\nrepository owns: dsh also watches `.agents/skills`, which repositories keep their\nown reviewed skills in, and writing there overwrites them. The engine excludes this\nroot in the worktree and names it to the image as `TORVE_EQUIP_ROOT`. Empty is a\nharness that reads equipment from the mount itself, which is what claude does.",
+      "description": "Where this harness reads equipment that has to be written somewhere it looks\n(S-0063/D-19), named to the image as `TORVE_EQUIP_ROOT`.\n\nTorve's own, never a path the repository owns: dsh watches `.agents/skills` and\nclaude reads `.claude/skills`, both of which repositories keep their *own* reviewed\nskills in, and writing there overwrites them.\n\nA leading `~` or `/` is a path outside the workspace \u2014 `~/.claude/skills` is the\nbest case, because nothing lands in the repository at all and there is nothing to\nhide from the commit. Anything else is relative to the workspace, which is what a\nharness watching its working directory forces, and the engine excludes it there.",
       "title": "Equip Root",
       "type": "string"
     },
