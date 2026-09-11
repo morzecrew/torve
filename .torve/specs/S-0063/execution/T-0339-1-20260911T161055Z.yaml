@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0339
+base: 9bd862ffee5c9dbeb43be8613cac2da2c11071fc
+commit: 90700ec8716184f4b8f4dbdac9269ff84c829e4b
+at: '2026-09-11T16:10:55Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-18
+    grade: LOCKED
+entries:
+  - decision: D-18
+    grade: LOCKED
+    class: drift
+    at: '2026-09-11T15:59:32Z'
+    claim: >-
+      The row was written and the code that had to change for it never did. _sandbox_auth
+      keyed on the adapter, so a subscription seat had its api_key_env dropped whatever
+      the manifest declared and got a per-slot volume regardless. The first live dispatch
+      mounted an empty volume and the agent reported Not logged in, twice, then escalated
+      on budget — the row and the behaviour had disagreed since the row landed.
+    evidence: >-
+      src/torve/application/session.py:248 — the manifest decides now: a seat naming
+      a variable is forwarded by name and mounts nothing, a seat naming none falls
+      back to the volume.
+    action: decided
+    notes: >-
+      The volume stays read-write. That is not an oversight: the harness refreshes
+      its token mid-session and a mount it cannot write to hangs until the agent clock
+      kills it rather than failing cleanly.
