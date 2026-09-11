@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0346
+base: 741007a8d02652c8e6a07b1844e62e1ef3b54954
+commit: 92be50c
+at: '2026-09-11T20:13:57Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-15
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+entries:
+  - decision: D-15
+    grade: LOCKED
+    at: '2026-09-11T20:07:51Z'
+    claim: >-
+      The row holds — a model is the seat's env, rendered by the image's own equip
+      — and the generator that replaced the seven overlays implemented only half of
+      it. Sorting what those files carried by what each value is a property of: the
+      request cap, the idle backstop, the developer-role flag and the thinking format
+      are facts about the ModelStudio endpoint, true of every model it serves, which
+      is why five of the seven held identical copies. The knob took the model half;
+      the endpoint half went with the files. They ride the knob now because there
+      is nowhere else to put them, not because they belong there.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip:55 — the generator wrote reasoningEfforts: false
+      unconditionally, so the seat's own trace reads reasoningTokens: 0 across 33
+      requests while the endpoint returns 33 for a two-word prompt.
+    action: decided
+    proposal: >-
+      A provider record owns the endpoint facts — .torve/providers/<name>.yaml, or
+      the same fields inline on broker.providers — and the seam carries them as scalars
+      each image assembles. D-15 then stands for the model half alone.
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-11T20:07:58Z'
+    claim: >-
+      The env knob surface is what carried the repair, which is the row working as
+      intended: restoring six lost values was an edit to reviewed configuration and
+      an image rebuild of one script, not a new channel. What it also shows is the
+      row's ceiling — torve sets these and never interprets them, so nothing could
+      have told the operator that the knob had stopped carrying half of what the deleted
+      files did. A value the engine never reads is a value no gate can miss.
+    evidence: >-
+      .torve/harnesses/dsh.yaml:44 — DSH_MODEL now carries reasoning, both timeouts
+      and the compat block beside the window and the cap, all of them opaque to the
+      engine.
+    action: decided
+    proposal: >-
+      Where a knob carries values torve could validate — a window, a cap, an effort
+      level, a dialect — they belong in a typed record the engine loads, leaving env
+      for the knobs that really are the harness's alone.
