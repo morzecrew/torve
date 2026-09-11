@@ -13,12 +13,58 @@ that quietly stops existing.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
 DEFINITIONS = Path("sandboxes")
+MANIFESTS = Path(".torve/harnesses")
+
+
+class _Tolerant(yaml.SafeLoader):
+    """dsh's overlay carries `!!js process.env...`, which is dsh's own tag and
+    not this test's business — the shape around it is."""
+
+
+_Tolerant.add_constructor("tag:yaml.org,2002:js", lambda loader, node: node.value)
+
+
+def _render_dsh_model(spec: dict[str, Any], *, model: str, brokered: bool) -> Any:
+    """The overlay the shipped `equip` writes for this knob.
+
+    The generator is lifted out of the script and run, rather than
+    reimplemented here: a copy of the rendering logic would pass while the image
+    shipped something else, which is exactly how `reasoningEfforts: false`
+    survived a green suite.
+    """
+
+    script = (DEFINITIONS / "dsh" / "toolkit" / "equip").read_text(encoding="utf-8")
+    body = script.split("python3 - \"$MODEL\" <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    env = {
+        **os.environ,
+        "DSH_MODEL": json.dumps(spec),
+        "TORVE_MODEL": model,
+    }
+    env.pop("TORVE_BROKER_URL", None)
+
+    if brokered:
+        env["TORVE_BROKER_URL"] = "http://127.0.0.1:1/route"
+
+    with tempfile.TemporaryDirectory() as scratch:
+        written = Path(scratch) / "model.yml"
+        subprocess.run([sys.executable, "-c", body, str(written)], env=env, check=True)
+
+        return yaml.load(written.read_text(encoding="utf-8"), Loader=_Tolerant)
+
+
 BAKE = Path("bake.hcl")
 BASE = DEFINITIONS / "base" / "Dockerfile"
 # The battery image is the gates' socket image and installs no harness; it
@@ -136,6 +182,48 @@ def test_no_definition_bakes_a_model(name: str = "dsh") -> None:
     equip = (definition / "toolkit" / "equip").read_text(encoding="utf-8")
 
     assert "DSH_MODEL" in equip
+
+
+def test_the_dsh_knob_renders_every_endpoint_fact_the_overlays_carried() -> None:
+    """The regression retiring the overlays left behind, and the reason it was
+    invisible: the knob carried the *model* facts and dropped the *endpoint*
+    ones, which five of the seven deleted files had carried identical copies of.
+
+    Measured against the ModelStudio token plan on 2026-09-11 — the endpoint
+    returns 33 reasoning tokens for a two-word reply, HTTP 400s the `developer`
+    role, and returns thinking as `reasoning_content` — while the seat's own
+    trace read `reasoningTokens: 0` across 33 requests, because this generator
+    wrote `reasoningEfforts: false` no matter what the seat asked for.
+    """
+
+    spec = json.loads(
+        yaml.safe_load(MANIFESTS.joinpath("dsh.yaml").read_text())["env"]["DSH_MODEL"]
+    )
+
+    # The knob says them,
+    assert spec["reasoning"] == "medium"
+    assert spec["timeout_ms"] and spec["stream_idle_timeout_ms"]
+    assert spec["compat"] == {"supportsDeveloperRole": False, "thinkingFormat": "deepseek"}
+
+    # and the generator renders them rather than a constant.
+    rendered = _render_dsh_model(spec, model="qwen3.8-flash", brokered=True)
+    route = rendered[0]["config"]["providers"][spec["provider"]]
+
+    assert route["timeoutMs"] == spec["timeout_ms"]
+    assert route["streamIdleTimeoutMs"] == spec["stream_idle_timeout_ms"]
+    assert route["compat"] == spec["compat"]
+    assert route["reasoning"] == "medium"
+
+    # The map is what makes any effort reachable; `false` strips the capability.
+    efforts = route["models"][0]["reasoningEfforts"]
+
+    assert efforts is not False
+    assert {"low", "medium", "high"} <= set(map(str, efforts))
+
+    # A seat that names no effort still gets a well-formed catalog.
+    off = _render_dsh_model({**spec, "reasoning": ""}, model="m", brokered=True)
+
+    assert off[0]["config"]["providers"][spec["provider"]]["models"][0]["reasoningEfforts"] is False
 
 
 @pytest.mark.parametrize("name", ("dsh", "mimo"))

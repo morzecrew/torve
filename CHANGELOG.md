@@ -132,6 +132,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The brokered dsh seat runs its reasoning model with reasoning on again.
+  Retiring the seven baked overlays moved the model facts onto `DSH_MODEL` and
+  dropped the endpoint facts with the files, so `equip` wrote
+  `reasoningEfforts: false` whatever the seat asked for.
+
+- The same seat carries a request cap, an idle backstop and its endpoint's
+  compat flags again, and declares the context window it actually has —
+  1000000, not 128000.
+
 - dsh equipment that would add a plugin installs it before patching it.
   `--patch` configures an entry the profile already carries and refuses an
   unknown id, so anything but a model overlay failed at boot.

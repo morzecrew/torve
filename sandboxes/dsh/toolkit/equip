@@ -46,14 +46,58 @@ if brokered:
         f"        api: {spec.get('api', 'openai-completions')}",
         "        baseURL: !!js process.env.TORVE_BROKER_URL",
         "        apiKeyEnv: TORVE_BROKER_TOKEN",
+    ]
+
+    # Facts about the endpoint, not about the model: the same four values were
+    # copy-pasted identically into five of the seven overlays this knob
+    # replaced, and dropping the files dropped them. A hard per-request cap with
+    # an idle backstop is the fix for a wedged-but-trickling stream, which once
+    # idled two attempts to the full agent cap and reads as a slow model.
+    for key, field in (
+        ("timeout_ms", "timeoutMs"),
+        ("stream_idle_timeout_ms", "streamIdleTimeoutMs"),
+    ):
+        if spec.get(key):
+            lines.append(f"        {field}: {spec[key]}")
+
+    # Written in dsh's own vocabulary and passed through: torve has no provider
+    # record to own these yet, and inventing names for them here would be a
+    # schema this image would have to keep up with.
+    if spec.get("compat"):
+        lines.append("        compat:")
+        lines += [
+            f"          {key}: {json.dumps(value)}" for key, value in spec["compat"].items()
+        ]
+
+    # `reasoningEfforts: false` strips the capability from a reasoning model:
+    # measured, every trace of the seat that ran without this read
+    # `reasoningTokens: 0` while the endpoint itself returned reasoning tokens
+    # for the same prompt. The effort level is the seat's; the map is what makes
+    # any level reachable.
+    effort = spec.get("reasoning") or ""
+
+    if effort:
+        lines.append(f"        reasoning: {effort}")
+
+    lines += [
         "        models:",
         f"          - id: {model}",
         f"            name: {model}",
         f"            contextWindow: {spec.get('context_window', 128000)}",
         f"            maxTokens: {spec.get('max_tokens', 8192)}",
         "            input: [text]",
-        "            reasoningEfforts: false",
     ]
+
+    if effort:
+        lines += [
+            "            reasoningEfforts:",
+            "              off:",
+            "              low: low",
+            "              medium: medium",
+            "              high: high",
+        ]
+    else:
+        lines.append("            reasoningEfforts: false")
 
 lines += [
     "- id: agent-default-model",
