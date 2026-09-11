@@ -85,6 +85,7 @@ def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> Non
         "TORVE_PROMPT",
         "TORVE_MODEL",
         "TORVE_EQUIPMENT",
+        "TORVE_EQUIP_ROOT",
         "TORVE_OUTPUT",
         "TORVE_BROKER_URL",
         "TORVE_BROKER_TOKEN",
@@ -335,3 +336,44 @@ def test_a_brokered_manifest_names_no_credential_and_mounts_none() -> None:
         # The auth fields keep their model defaults because neither manifest
         # names one: they stay for a harness with no env form, such as codex.
         assert manifest.auth_volume == "torve-auth"
+
+
+def test_no_equip_writes_to_a_path_the_repository_owns() -> None:
+    """S-0063/D-19. `.agents/skills` is the convention a repository keeps its
+    own reviewed skills in — this one tracks six, including a `flag-dont-flip`
+    the equipment also ships. Writing there overwrote it, and `git add -A`
+    committed the overwrite before any gate could object."""
+
+    for name in SEATED:
+        equip = (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
+        code = [
+            line
+            for line in equip.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+
+        assert not any(".agents/skills" in line for line in code), (
+            f"{name} writes where the repository owns"
+        )
+
+
+@pytest.mark.parametrize("name", ("dsh", "mimo"))
+def test_a_harness_reading_the_workspace_declares_its_root(name: str) -> None:
+    """One declaration, two readers: the engine excludes it and names it, and
+    `equip` writes where it was told. A path written in two places drifts."""
+
+    from torve.config.agents import load_harness
+
+    manifest = load_harness(Path("."), name)
+    equip = (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
+
+    assert manifest.equip_root
+    assert "TORVE_EQUIP_ROOT" in equip
+    # And refuses rather than guessing when the engine named none.
+    assert "equip_root" in equip
+
+
+def test_claude_reads_the_mount_and_declares_no_root() -> None:
+    from torve.config.agents import load_harness
+
+    assert load_harness(Path("."), "claude-subscription").equip_root == ""

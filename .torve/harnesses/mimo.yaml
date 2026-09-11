@@ -19,5 +19,8 @@
 # to prevent.
 adapter: harness
 image: mimo-sandbox:0.1.13
+# mimo reads skills project-scoped, and this root is torve's alone
+# (S-0063/D-19): the engine excludes it so an attempt commits its own work.
+equip_root: .mimocode/skill
 kinds: [skill, plugin]
 api_key_env: []

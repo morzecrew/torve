@@ -265,3 +265,53 @@ def test_the_adapter_no_longer_decides_the_route():
         assert (names, volumes) == (("K",), {}), adapter
 
     assert _sandbox_auth(TierConfig(), 0) == ((), {})
+
+
+# ....................... #
+# Equipment lands where torve owns it (S-0063/D-19)
+
+
+def test_the_equipment_root_is_excluded_in_the_worktree(tmp_path):
+    """`commit_all` runs `git add -A` and the scope gate reads the committed
+    diff, so anything `equip` drops into the workspace is in the candidate
+    before a gate can object. `.git/info/exclude` is per-worktree, untracked
+    and local — the repository's own `.gitignore` is reviewed and not torve's
+    to edit."""
+
+    import subprocess
+
+    from torve.application.session import _exclude_equip_root
+
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    subprocess.run(["git", "init", "-q", str(worktree)], check=True)
+
+    _exclude_equip_root(worktree, ".dsh/skills")
+    exclude = (worktree / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+
+    assert "/.dsh/skills/" in exclude.splitlines()
+
+    # Twice is once: an attempt retries, and a file that grows a line per
+    # attempt is a file nobody reads.
+    _exclude_equip_root(worktree, ".dsh/skills")
+    again = (worktree / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+
+    assert again == exclude
+
+
+def test_a_harness_reading_the_mount_excludes_nothing(tmp_path):
+    """claude points `--add-dir` at the read-only mount, so nothing lands in
+    the workspace and there is nothing to hide."""
+
+    import subprocess
+
+    from torve.application.session import _exclude_equip_root
+
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    subprocess.run(["git", "init", "-q", str(worktree)], check=True)
+    _exclude_equip_root(worktree, "")
+
+    assert not (worktree / ".git" / "info" / "exclude").is_file() or "/.dsh" not in (
+        worktree / ".git" / "info" / "exclude"
+    ).read_text(encoding="utf-8")

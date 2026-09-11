@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   infrastructure: no gate ran, so nothing is convicted, no rung is selected and
   the poison ceiling is untouched.
 
+- **Breaking:** a harness that reads equipment from the workspace declares its
+  own `equip_root`, and the engine excludes it in the worktree. dsh moves off
+  `.agents/skills`, which is where a repository keeps its *own* reviewed skills
+  — writing there overwrote them, and `git add -A` committed the overwrite.
+
 - `select` names which skills to take from a source that holds many. A
   repository of skills is one declaration and many things a harness loads: each
   selected one becomes its own directory under the mount, named as the skill is

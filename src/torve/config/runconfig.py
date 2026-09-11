@@ -134,6 +134,11 @@ class TierConfig(BaseModel):
     manifest. A kind the profile declares and this does not name is refused when the
     seat resolves; how each reaches the harness is the image's own `equip`."""
 
+    equip_root: str = ""
+    """S-0063/D-19: where this seat's harness reads equipment from inside the workspace,
+    merged off the manifest. The engine excludes it in the worktree so an attempt commits
+    its own work and nothing else."""
+
     env: dict[str, str] = Field(default_factory=dict)
     """S-0063/D-10: the knobs this seat's image reads, merged off the manifest. Set
     into the sandbox and never interpreted here."""

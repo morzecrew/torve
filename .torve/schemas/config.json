@@ -625,6 +625,12 @@
           "title": "Env",
           "type": "object"
         },
+        "equip_root": {
+          "default": "",
+          "description": "S-0063/D-19: where this seat's harness reads equipment from inside the workspace,\nmerged off the manifest. The engine excludes it in the worktree so an attempt commits\nits own work and nothing else.",
+          "title": "Equip Root",
+          "type": "string"
+        },
         "equipment": {
           "description": "S-0062/D-1: everything the seat's profile gives its agent, one item per thing.\nThe role's own profile contributes a layer under this one, merged per task\n(S-0062/D-12), because the role varies within a seat.",
           "items": {

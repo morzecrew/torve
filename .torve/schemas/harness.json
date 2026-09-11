@@ -36,6 +36,12 @@
       "title": "Env",
       "type": "object"
     },
+    "equip_root": {
+      "default": "",
+      "description": "Where this harness reads equipment from inside the workspace, relative to it\n(S-0063/D-19) \u2014 `.dsh/skills`, `.mimocode/skill`. Torve's own, never a path the\nrepository owns: dsh also watches `.agents/skills`, which repositories keep their\nown reviewed skills in, and writing there overwrites them. The engine excludes this\nroot in the worktree and names it to the image as `TORVE_EQUIP_ROOT`. Empty is a\nharness that reads equipment from the mount itself, which is what claude does.",
+      "title": "Equip Root",
+      "type": "string"
+    },
     "image": {
       "default": "",
       "description": "The sandbox image, which is what harness identity actually is (S-0017/D-4).\nEmpty falls back to `runtime.image`.",

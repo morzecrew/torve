@@ -16,6 +16,10 @@
 # vocabulary and a document torve invented would be a schema it does not know.
 adapter: harness
 image: dsh-sandbox:0.1.1-rc.2
+# dsh's skill plugin watches `.agents/skills` and `.dsh/skills`. The first is
+# where a repository keeps its own reviewed skills — this one tracks six — so
+# equipment takes the second, which is torve's (S-0063/D-19).
+equip_root: .dsh/skills
 kinds: [skill, plugin, mcp, hook, agent]
 env:
   # Brokered: the provider block points at the run's loopback route, which the

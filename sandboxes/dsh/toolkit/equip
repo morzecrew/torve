@@ -88,11 +88,12 @@ manifest, overlay = sys.argv[1], sys.argv[2]
 with open(manifest, encoding="utf-8") as handle:
     items = json.load(handle).get("items", [])
 
-# Where dsh watches for skills: `@deepseek-ai/dsh-skill-filesystem` reads
-# `.agents/skills` and `.dsh/skills` under the workspace (S-0063/D-16), so a
-# skill reaches this harness as a skill it loads rather than as a directory the
-# prompt names and the model may or may not read.
-SKILLS = ".agents/skills"
+# Where the engine told this harness to put equipment (S-0063/D-19). dsh's
+# skill plugin watches `.agents/skills` and `.dsh/skills`; the first is the
+# convention a repository keeps its *own* reviewed skills in — writing there
+# overwrites them, and `git add -A` commits the overwrite before any gate can
+# object. So the manifest names the second and the engine excludes it.
+SKILLS = os.environ.get("TORVE_EQUIP_ROOT") or ""
 
 fragments = []
 
@@ -100,6 +101,12 @@ for item in items:
     kind, path = item["kind"], item["path"]
 
     if kind == "skill":
+        if not SKILLS:
+            raise SystemExit(
+                "this harness reads skills from the workspace and the engine named no "
+                "`TORVE_EQUIP_ROOT` — the manifest owes an `equip_root` (S-0063/D-19)"
+            )
+
         target = os.path.join(SKILLS, os.path.basename(path.rstrip("/")))
         shutil.copytree(path, target, dirs_exist_ok=True)
         continue

@@ -26,15 +26,22 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     items = json.load(handle).get("items", [])
 
-# Where mimo reads skills: `<project>/.mimocode/skill/<name>/SKILL.md`, which
-# is project-scoped — a global one is not read (S-0063/D-16). So a skill reaches
-# this harness as a skill it loads rather than as a directory the prompt names.
-SKILLS = ".mimocode/skill"
+# Where the engine told this harness to put equipment (S-0063/D-19). mimo reads
+# skills from `<project>/.mimocode/skill/<name>/SKILL.md` — project-scoped, since
+# a global one is not read (S-0063/D-16) — and the manifest names that root so the
+# engine can exclude it from the commit.
+SKILLS = os.environ.get("TORVE_EQUIP_ROOT") or ""
 
 for item in items:
     kind, path = item["kind"], item["path"]
 
     if kind == "skill":
+        if not SKILLS:
+            raise SystemExit(
+                "this harness reads skills from the workspace and the engine named no "
+                "`TORVE_EQUIP_ROOT` — the manifest owes an `equip_root` (S-0063/D-19)"
+            )
+
         target = os.path.join(SKILLS, os.path.basename(path.rstrip("/")))
         shutil.copytree(path, target, dirs_exist_ok=True)
         continue

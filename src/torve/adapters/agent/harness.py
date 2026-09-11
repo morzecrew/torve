@@ -675,6 +675,12 @@ class HarnessAgent:
             "TORVE_PROMPT": f"{ctx.workdir}/{PROMPT_RELPATH}",
             "TORVE_MODEL": self.tier.model,
             "TORVE_EQUIPMENT": EQUIPMENT_MOUNT,
+            # Where this harness reads equipment from inside the workspace
+            # (S-0063/D-19). Empty for a harness that reads the mount itself,
+            # and `equip` writes nowhere when it is.
+            "TORVE_EQUIP_ROOT": (
+                f"{ctx.workdir}/{self.tier.equip_root}" if self.tier.equip_root else ""
+            ),
             "TORVE_OUTPUT": f"{ctx.workdir}/{RESULT_RELPATH}".replace(
                 "{attempt}", str(ctx.attempt)
             ),

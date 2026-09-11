@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import subprocess
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from pathlib import Path
@@ -374,6 +375,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     equipment = merge_equipment(role_equipment(root).get(task.role, []), run.tier.equipment)
     equipment_mount = mount_root(equipment, root=root) if equipment else None
     run.meta["equipment"] = regime_keys(equipment)
+    _exclude_equip_root(worktree, run.tier.equip_root)
 
     # The context pack (S-0054/the-context-pack, S-0054/D-10): the facts the corpus
     # cannot carry, written host-side from the record and the tree with no
@@ -590,6 +592,58 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         planted.unlink(missing_ok=True)
         state.sandbox_id = None
         state.save()
+
+
+# ....................... #
+
+
+def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
+    """Make the harness's equipment root invisible to git in this worktree
+    (S-0063/D-19).
+
+    `commit_all` runs `git add -A` and the scope gate reads the committed diff,
+    so anything `equip` drops into the workspace is in the candidate before any
+    gate can complain about it. `.git/info/exclude` is the per-worktree,
+    untracked, local-only place to say otherwise — the repository's own
+    `.gitignore` is a reviewed file and not torve's to edit.
+
+    This only works because the root is torve's own (D-19): exclusion governs
+    untracked paths, so it could never have protected a tracked file that
+    `equip` overwrote, which is what `.agents/skills` was.
+    """
+
+    if not equip_root:
+        return
+
+    # A worktree's `.git` is a file naming the real gitdir; a plain clone's is
+    # the directory itself. Both answer this.
+    try:
+        where = Path(
+            subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "--git-dir"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
+            ).stdout.strip()
+        )
+
+    except (subprocess.SubprocessError, OSError):
+        return  # not a git worktree; the gates have nothing to read either
+
+    if not where.is_absolute():
+        where = worktree / where
+
+    exclude = where / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    line = f"/{equip_root.strip('/')}/"
+    present = exclude.read_text(encoding="utf-8") if exclude.is_file() else ""
+
+    if line in present.splitlines():
+        return
+
+    with exclude.open("a", encoding="utf-8") as handle:
+        handle.write(f"# torve: the harness's equipment root (S-0063/D-19)\n{line}\n")
 
 
 # ....................... #
