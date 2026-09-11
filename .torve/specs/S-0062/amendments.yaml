@@ -137,3 +137,6 @@ amendments:
       dsh loads `@deepseek-ai/dsh-skill-filesystem`, which watches `.agents/skills` and `.dsh/skills` under the workspace. mimo reads `<project>/.mimocode/skill/<name>/SKILL.md`, and `mimo debug skill` lists what it found — measured with a probe skill copied in by `equip`.
 
       So the fallback has no subject among the images this repository builds. It stays in the row because a harness without one is a thing that can exist and the engine should still have an answer; what changes is that it is now the exception rather than half the story.
+  - id: A-10
+    at: '2026-09-11T13:05:12Z'
+    title: Phase 2's intent says what its rows say now
