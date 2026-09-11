@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0336
+base: 4935093cb8fb0d342d9f801221198a2d34b6e733
+commit: fffcdf6f533311cb6cc0d47c296e77dcbf2e7c1d
+at: '2026-09-11T15:24:19Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-3
+    grade: LOCKED
+  - id: D-9
+    grade: LOCKED
+  - id: D-14
+    grade: LOCKED
+entries:
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-11T15:14:10Z'
+    claim: >-
+      The baked clones go entirely rather than staying as a fallback for a cold cache.
+      A fallback would be a second source of truth for a ref, which is the defect
+      the renderer had: the pin in the Dockerfile and the pin in the bookkeeping could
+      disagree. One pin, in the profile, fetched once.
+    evidence: >-
+      sandboxes/claude/Dockerfile:15 — what the image installs now is the toolkit
+      and nothing else; the clones and the seed root are gone.
+    action: decided
+    notes: >-
+      Measured after the rebuild: /opt/torve holds cli, equip, python, run — no seed.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-11T15:19:21Z'
+    claim: >-
+      The equip script is untouched; what changed around it is that the plugin paths
+      it composes now have exactly one source. Before this, an image carried clones
+      and the cache carried the same two repositories, and only the cache was read.
+    evidence: >-
+      sandboxes/claude/Dockerfile:16 — COPY toolkit/ /opt/torve/, the only thing this
+      definition installs.
+    action: decided
+  - decision: D-14
+    grade: LOCKED
+    at: '2026-09-11T15:19:21Z'
+    claim: >-
+      The toolkit is what the definition installs and now the only thing it installs.
+      The seed root sat outside toolkit/ because it predated the layout; deleting
+      it leaves one COPY and one chmod for the whole image.
+    evidence: >-
+      sandboxes/claude/Dockerfile:16 — one COPY, where three RUN blocks and a symlink
+      used to follow it.
+    action: decided
