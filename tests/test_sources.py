@@ -248,7 +248,9 @@ def test_show_resolves_a_document_because_the_grammar_admits_one(tmp_path):
 
     from test_decisions import corpus, document
 
-    corpus(tmp_path, **{"0059": document("0059", [("S-0059/D-1", "LOCKED", "A rule.", "`src/**`")])})
+    corpus(
+        tmp_path, **{"0059": document("0059", [("S-0059/D-1", "LOCKED", "A rule.", "`src/**`")])}
+    )
 
     shown = runner.invoke(
         app, ["source", "show", "S-0059", "--root", str(tmp_path), "--format", "json"]

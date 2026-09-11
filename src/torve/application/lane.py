@@ -173,10 +173,7 @@ def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     if any(a.get("actor") == actor and a.get("sha") == sha for a in state.approvals):
         return False
 
-
-    state.approvals.append(
-        {"actor": actor, "sha": sha, "at": stamp()}
-    )
+    state.approvals.append({"actor": actor, "sha": sha, "at": stamp()})
 
     state.save()
 

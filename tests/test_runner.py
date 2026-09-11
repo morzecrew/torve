@@ -406,9 +406,7 @@ def test_run_routing_includes_the_character_routed_variants_provider(tmp_path):
             "planner": TierConfig(),
             "reviewer": TierConfig(),
             "executor": TierConfig(adapter="fake", character_routing={"structural": "indexed"}),
-            "executor.indexed": TierConfig(
-                adapter="harness", provider="p", model="m"
-            ),
+            "executor.indexed": TierConfig(adapter="harness", provider="p", model="m"),
         },
         broker=BrokerConfig(
             adapter="local",
@@ -485,9 +483,7 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(
-                adapter="harness", provider="p", model="m", api_key_env=[]
-            ),
+            "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
         },
     )
     task = Task(id="T-9020", decisions=[])
@@ -580,9 +576,7 @@ def test_a_red_attempt_row_carries_the_burn_profile(tmp_path):
             tiers={
                 "planner": TierConfig(),
                 "reviewer": TierConfig(),
-                "executor": TierConfig(
-                    adapter="harness", provider="p", model="m", api_key_env=[]
-                ),
+                "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
             },
         )
         task = Task(id="T-9020", decisions=[])
@@ -1788,9 +1782,7 @@ def test_the_scalar_mirror_still_routes_every_unclassified_red(repo, monkeypatch
             "planner": TierConfig(),
             "reviewer": TierConfig(),
             "executor": TierConfig(retry_variant="executor.heavy"),
-            "executor.heavy": TierConfig(
-                adapter="api", provider="p", model="heavy-model"
-            ),
+            "executor.heavy": TierConfig(adapter="api", provider="p", model="heavy-model"),
         }
     )
     state = run_task(repo.root, task_for(repo), config, _loop_deps(repo, retry_agent))
@@ -2067,9 +2059,7 @@ def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(
-                adapter="harness", provider="p", model="m", api_key_env=[]
-            ),
+            "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
         },
     )
     task = Task(

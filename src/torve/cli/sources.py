@@ -183,9 +183,7 @@ def list_cmd(
 
 @source_app.command("show")
 def show_cmd(
-    identifier: Annotated[
-        str, typer.Argument(help="A source id: `S-NNNN` or `<kind>/<slug>`.")
-    ],
+    identifier: Annotated[str, typer.Argument(help="A source id: `S-NNNN` or `<kind>/<slug>`.")],
     root: RootOption = Path("."),
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,

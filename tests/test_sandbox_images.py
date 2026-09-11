@@ -80,9 +80,7 @@ def test_image_digest_changes_the_regime_hash(tmp_path):
 def test_tier_image_overrides_the_runtime_default():
     config = RunnerConfig()
     plain = TierConfig()
-    harness = TierConfig(
-        adapter="harness", provider="deepseek", image="torve-agent:dsh"
-    )
+    harness = TierConfig(adapter="harness", provider="deepseek", image="torve-agent:dsh")
     assert image_for(config, plain) == config.runtime.image
     assert image_for(config, harness) == "torve-agent:dsh"
     config.tiers["executor"] = harness
