@@ -389,7 +389,7 @@ def test_claude_declares_a_root_outside_the_workspace() -> None:
     # The flag is named in a comment saying why it is not used; what matters is
     # that no code path composes it.
     equip = (DEFINITIONS / "claude" / "toolkit" / "equip").read_text(encoding="utf-8")
-    code = [l for l in equip.splitlines() if l.strip() and not l.lstrip().startswith("#")]
+    code = [ln for ln in equip.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
 
     assert not any("--add-dir" in line for line in code)
 

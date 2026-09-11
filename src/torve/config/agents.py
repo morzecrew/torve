@@ -50,14 +50,26 @@ HARNESSES_DIR = "harnesses"
 class AgentProfile(BaseModel):
     """What the agent is (S-0061/D-1) — never how it runs.
 
-    A seat naming no profile resolves the profile named for the task's role
-    (S-0061/D-11), so `implement`, `review` and `revert` are the names that
-    carry a repository's defaults.
+    A seat naming no profile resolves the profile that declares the task's role
+    (S-0061/D-11, S-0061/D-13), so a repository's defaults are the profiles that
+    say which role they are for.
     """
 
     model_config = STRICT
     schema_version: int = SCHEMA_VERSION
     """The profile's own shape version."""
+    name: str = ""
+    """What a seat resolves this profile by (S-0061/D-12). Empty is the filename stem,
+    which is what every file wrote before the key existed; two profiles claiming one
+    name are refused at load naming both, which is the half a directory cannot enforce."""
+    role: str = ""
+    """The role this profile supplies the default equipment for (S-0061/D-13), or empty
+    for a profile a seat names.
+
+    Declared rather than inferred from the filename: `implement`, `review`, `revert` and
+    `draft` are ordinary words, so a seat's own profile sensibly called `review.yaml`
+    used to become the review role's default for every seat in the repository, and a
+    role default called anything else applied to nothing."""
     equipment: list[Equipment] = Field(default_factory=list)
     """Everything this agent is given, one item per thing (S-0062/D-1). A kind the
     seat's harness does not accept is refused when the seat resolves (S-0062/D-2);
@@ -72,6 +84,19 @@ class AgentProfile(BaseModel):
     them (S-0061/D-4). One block, written as it should read: a list rendered one
     bullet per entry could add a rule and never a paragraph (S-0061/A-5)."""
 
+    @model_validator(mode="after")
+    def _role(self) -> AgentProfile:
+        """A role the engine never dispatches is wrong in one visible line, rather than
+        in a default that silently reaches nothing (S-0061/D-13)."""
+
+        if self.role and self.role not in ROLES:
+            raise ValueError(
+                f"`role` names {self.role!r}, which is no role the engine dispatches — "
+                f"the roles are {', '.join(ROLES)}"
+            )
+
+        return self
+
 
 class HarnessManifest(BaseModel):
     """How a model is reached (S-0061/D-2) — and never which model.
@@ -84,6 +109,8 @@ class HarnessManifest(BaseModel):
     model_config = STRICT
     schema_version: int = SCHEMA_VERSION
     """The manifest's own shape version."""
+    name: str = ""
+    """What a seat resolves this manifest by (S-0061/D-12); empty is the filename stem."""
     adapter: str = "fake"
     """Which agent adapter this harness drives: fake, api, harness or subscription."""
     kinds: list[str] = Field(default_factory=list)
@@ -163,6 +190,15 @@ HOME: dict[str, str] = {
     **dict.fromkeys(SEAT_KEYS, "the seat, `tiers:` in .torve/config.yaml"),
 }
 
+# `name` is the one key both files carry (S-0061/D-12), so the mapping above would
+# have let whichever was written last answer for both.
+HOME["name"] = "the agent profile or the harness manifest, whichever this seat means"
+
+# What a file says it *is*, as opposed to what it configures. A seat merges the two
+# bodies and validates the result as a `TierConfig`, which has no idea what a role is
+# — these answer which file was read, and `resolve_seats` returns that separately.
+IDENTITY = frozenset({"name", "role"})
+
 
 class AgentError(ValueError):
     """A profile, a harness manifest or a seat that names it cannot be read."""
@@ -228,10 +264,6 @@ def _refuse_foreign(path: Path, body: dict[str, Any], own: frozenset[str]) -> No
 
 
 def _body(path: Path, label: str) -> dict[str, Any]:
-    if not path.is_file():
-        present = sorted(p.stem for p in path.parent.glob("*.yaml")) if path.parent.is_dir() else []
-        raise AgentError(f"no {label} at {path}; present: {', '.join(present) or 'none'}")
-
     try:
         raw: Any = yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -248,6 +280,51 @@ def _body(path: Path, label: str) -> dict[str, Any]:
 
 
 # ....................... #
+
+
+def _named(directory: Path, label: str) -> dict[str, Path]:
+    """Every file in `directory` by the identity it answers to (S-0061/D-12).
+
+    A file declaring `name` answers to it; one that does not answers to its
+    filename stem, which is what every file wrote before the key existed. The
+    body is read for that one key and nothing else is validated here — a
+    directory holding one broken profile still resolves the others.
+
+    Two files claiming one name are refused naming both. That is the half a
+    directory could never do: a filesystem will not take two `dsh.yaml`, but it
+    will happily take two files both writing `name: dsh`, and the winner would
+    otherwise be whichever `sorted()` reached first.
+    """
+
+    found: dict[str, Path] = {}
+
+    for path in sorted(directory.glob("*.yaml")) if directory.is_dir() else []:
+        name = str(_body(path, label).get("name") or path.stem)
+
+        if name in found:
+            raise AgentError(
+                f"two {label}s are both named {name!r}: {found[name]} and {path} — "
+                "a name is what a seat resolves, so one of them has to change"
+            )
+
+        found[name] = path
+
+    return found
+
+
+def _resolve(directory: Path, label: str, name: str) -> Path:
+    """The file that answers to `name`, or a refusal naming what does."""
+
+    index = _named(directory, label)
+    path = index.get(name)
+
+    if path is None:
+        raise AgentError(
+            f"no {label} named {name!r} in {directory}; "
+            f"present: {', '.join(sorted(index)) or 'none'}"
+        )
+
+    return path
 
 
 def _declared(
@@ -276,13 +353,13 @@ def _declared(
 
 
 def load_profile(root: Path, name: str) -> AgentProfile:
-    path = agents_dir(root) / f"{name}.yaml"
+    path = _resolve(agents_dir(root), "agent profile", name)
 
     return AgentProfile.model_validate(_declared(path, "agent profile", PROFILE_KEYS, AgentProfile))
 
 
 def load_harness(root: Path, name: str) -> HarnessManifest:
-    path = harnesses_dir(root) / f"{name}.yaml"
+    path = _resolve(harnesses_dir(root), "harness manifest", name)
 
     return HarnessManifest.model_validate(
         _declared(path, "harness manifest", HARNESS_KEYS, HarnessManifest)
@@ -293,30 +370,44 @@ def load_harness(root: Path, name: str) -> HarnessManifest:
 
 
 def role_equipment(root: Path) -> dict[str, list[Equipment]]:
-    """The equipment each role's own profile declares (S-0061/D-11, S-0062/D-12).
+    """The equipment each role's default profile declares (S-0061/D-11, S-0062/D-12).
 
-    The role default is a profile named for the role, so a repository writes
-    its defaults where every other piece of equipment is written instead of in
-    a second mapping under `skills:`. A role with no profile file contributes
-    nothing — this is a lookup, not a requirement.
+    The role default is a profile that *declares* the role (S-0061/D-13), so a
+    repository writes its defaults where every other piece of equipment is
+    written instead of in a second mapping under `skills:`. A role no profile
+    claims contributes nothing — this is a lookup, not a requirement.
+
+    Only a declared role, never a filename: keying this by stem put every
+    profile whose name happened to be an English word the engine dispatches
+    into the role sets and into the regime hash, and left a role default named
+    anything else reaching nothing at all.
 
     This is the lower of the two layers: `merge_equipment` puts the seat's
     profile on top of it, per task, because the role varies within a seat.
     """
 
     found: dict[str, list[Equipment]] = {}
+    claimed: dict[str, Path] = {}
     directory = agents_dir(root)
 
-    if not directory.is_dir():
-        return found
+    for name, path in sorted(_named(directory, "agent profile").items()):
+        # The body for one key, so a seat's own profile is never validated to
+        # answer a question about roles. A file that claims a role is then
+        # loaded whole, which is where a role outside ROLES is refused.
+        if not str(_body(path, "agent profile").get("role") or ""):
+            continue
 
-    for path in sorted(directory.glob("*.yaml")):
-        # Only a name the engine has a role for. Every other profile is a
-        # seat's, and keying it here would put a role nothing dispatches into
-        # the role sets and into the regime hash — which is what makes
-        # `torve eval` refuse a skill as "in no role set" (S-0009/A-5).
-        if path.stem in ROLES:
-            found[path.stem] = list(load_profile(root, path.stem).equipment)
+        profile = load_profile(root, name)
+
+        if profile.role in claimed:
+            raise AgentError(
+                f"two agent profiles both declare role {profile.role!r}: "
+                f"{claimed[profile.role]} and {path} — a role has one default, so one "
+                "of them has to drop it"
+            )
+
+        claimed[profile.role] = path
+        found[profile.role] = list(profile.equipment)
 
     return found
 
@@ -374,7 +465,7 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
             )
 
         merged: dict[str, Any] = _declared(
-            harnesses_dir(root) / f"{harness_name}.yaml",
+            _resolve(harnesses_dir(root), "harness manifest", harness_name),
             "harness manifest",
             HARNESS_KEYS,
             HarnessManifest,
@@ -383,12 +474,15 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
         if profile_name:
             merged.update(
                 _declared(
-                    agents_dir(root) / f"{profile_name}.yaml",
+                    _resolve(agents_dir(root), "agent profile", profile_name),
                     "agent profile",
                     PROFILE_KEYS,
                     AgentProfile,
                 )
             )
+
+        for own in IDENTITY & set(merged):
+            del merged[own]
 
         merged.update(entry)
         _equipped(key, harness_name, profile_name, merged)

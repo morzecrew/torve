@@ -477,7 +477,7 @@ def _equip_repo(tmp_path: Path) -> Path:
     write(root / "skills" / "ratchet" / "SKILL.md", "---\nname: ratchet\n---\n")
     write(
         agents_dir(root) / "implement.yaml",
-        "equipment: [{kind: skill, source: 'local:skills/house-voice'}]\n",
+        "role: implement\nequipment: [{kind: skill, source: 'local:skills/house-voice'}]\n",
     )
     write(
         agents_dir(root) / "seated.yaml",

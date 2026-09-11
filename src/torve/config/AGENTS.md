@@ -343,10 +343,24 @@ The profile and the harness manifest are committed files of the operating reposi
 
 ### S-0061/D-11 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
 
-A seat naming no profile resolves the profile named for the task's role, and SkillsConfig.sets retires.
+A seat naming no profile resolves the profile that declares the task's role, and SkillsConfig.sets retires.
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/config/agents.py`
 - Consequence: the default equipment for a role and a named set stop being two mechanisms answering one question in two files
+
+### S-0061/D-12 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+A profile or a manifest may carry `name`, and that is the identity a seat resolves; a file that carries none is known by its filename stem. Two files claiming one name are refused at load, naming both.
+
+- Paths: `src/torve/config/agents.py` `.torve/agents/**` `.torve/harnesses/**`
+- Consequence: a file can be renamed without breaking the seat that names it, and two files claiming one identity are refused naming both rather than resolved by whichever the directory listed first
+
+### S-0061/D-13 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
+
+The profile that supplies a role's default equipment declares `role`; a filename is never read as a role. Two profiles declaring one role are refused, naming both.
+
+- Paths: `src/torve/config/agents.py` `.torve/agents/**`
+- Consequence: a seat profile may be called anything, and a role default that is never applied is a visible absence rather than a filename nobody noticed was wrong
 
 ### S-0062/D-1 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
 

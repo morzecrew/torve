@@ -122,7 +122,7 @@ class TierConfig(BaseModel):
     profile: str = ""
     """S-0061/D-1/D-3: the agent profile this seat runs, by name —
     `.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty
-    resolves the profile named for the task's role (S-0061/D-11)."""
+    resolves the profile that declares the task's role (S-0061/D-11, S-0061/D-13)."""
 
     equipment: list[Equipment] = Field(default_factory=list)
     """S-0062/D-1: everything the seat's profile gives its agent, one item per thing.
@@ -150,7 +150,7 @@ class TierConfig(BaseModel):
     skills: list[str] | None = None
     """S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's
     agent materializes, derived from `equipment` (S-0062/D-1) — `None` is a seat whose
-    profile named none, which falls through to the profile named for the task's role
+    profile named none, which falls through to the profile declaring the task's role
     (S-0061/D-11). Names resolve through the same `materialize` path with the same
     refusals (S-0029/D-2)."""
 
@@ -1486,7 +1486,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
         except AgentError as exc:
             raise ValueError(str(exc)) from None
 
-    # S-0061/D-11: the role default is a profile named for the role, so the sets a
+    # S-0061/D-11: the role default is a profile that declares the role, so the sets a
     # repository once wrote under `skills:` are read off `.torve/agents/`. A
     # `skills:` key in the configuration is refused by `SkillsConfig` itself.
     roles = role_skills(root)

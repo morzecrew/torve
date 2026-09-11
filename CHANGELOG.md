@@ -144,6 +144,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** the profile that supplies a role's default equipment declares
+  `role:`. Read off the filename, a seat's own profile called `review.yaml`
+  became the review role's default for every seat, and a role default called
+  anything else applied to nothing.
+
+- An agent profile and a harness manifest may carry `name:`, which is what a
+  seat resolves them by; a file that declares none keeps answering to its
+  filename stem. Two files claiming one name are refused, naming both — a
+  directory cannot hold two `dsh.yaml`, but it will hold two files that both
+  write `name: dsh`.
+
 - **Breaking:** a harness manifest carries no `command`, and neither does a
   seat. The shell that starts a harness lives beside the harness, in the
   image's own `/opt/torve/run`; a manifest still naming one is refused with

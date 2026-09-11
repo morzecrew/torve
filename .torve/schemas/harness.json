@@ -56,6 +56,12 @@
       "title": "Kinds",
       "type": "array"
     },
+    "name": {
+      "default": "",
+      "description": "What a seat resolves this manifest by (S-0061/D-12); empty is the filename stem.",
+      "title": "Name",
+      "type": "string"
+    },
     "schema_version": {
       "default": 1,
       "description": "The manifest's own shape version.",

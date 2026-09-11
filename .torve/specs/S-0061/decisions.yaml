@@ -107,8 +107,8 @@ decisions:
   - id: D-11
     grade: ASSUMED
     text: >-
-      A seat naming no profile resolves the profile named for the task's role, and
-      SkillsConfig.sets retires.
+      A seat naming no profile resolves the profile that declares the task's role,
+      and SkillsConfig.sets retires.
     paths: [src/torve/config/runconfig.py, src/torve/config/agents.py]
     consequence: >-
       the default equipment for a role and a named set stop being two mechanisms answering
@@ -118,6 +118,38 @@ decisions:
       wholesale through effective_skill_sets, which is a merge rule existing only
       because the two live apart
     cites: [S-0009/D-1, S-0029/D-1]
+    fingerprint: 9f6d811ed0c50015/262ceed4621792ab
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      A profile or a manifest may carry `name`, and that is the identity a seat resolves;
+      a file that carries none is known by its filename stem. Two files claiming one
+      name are refused at load, naming both.
+    paths: [src/torve/config/agents.py, .torve/agents/**, .torve/harnesses/**]
+    consequence: >-
+      a file can be renamed without breaking the seat that names it, and two files
+      claiming one identity are refused naming both rather than resolved by whichever
+      the directory listed first
+    rationale: >-
+      the filename is the one part of a configuration file no schema validates and
+      no amendment records, so identity kept there is identity nothing checks
+    fingerprint: e8c2b7e3d60066d9/cd0da8a2b60e6802
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The profile that supplies a role's default equipment declares `role`; a filename
+      is never read as a role. Two profiles declaring one role are refused, naming
+      both.
+    paths: [src/torve/config/agents.py, .torve/agents/**]
+    consequence: >-
+      a seat profile may be called anything, and a role default that is never applied
+      is a visible absence rather than a filename nobody noticed was wrong
+    rationale: >-
+      `implement`, `review`, `revert` and `draft` are ordinary words, so a profile
+      written for a seat and named for what it does silently became that role's default
+      for every seat in the repository
+    cites: [D-11, D-12]
+    fingerprint: a4ee26dc8fb053f5/33a9469f3cd3314f
 invariants:
   - id: I-1
     statement: >-

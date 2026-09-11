@@ -34,6 +34,7 @@ def write(path: Path, text: str) -> Path:
 
 
 SKILL = "equipment: [{kind: skill, source: torve:%s}]\n"
+ROLE_SKILL = "role: %s\nequipment: [{kind: skill, source: torve:%s}]\n"
 
 
 @pytest.fixture
@@ -179,13 +180,19 @@ def test_a_profile_may_not_name_a_prompt(root: Path):
 # Refusals name the file (S-0061/D-3's inheritance from S-0028/D-3)
 
 
-def test_a_missing_file_names_its_path_and_what_is_present(root: Path):
-    write(agents_dir(root) / "existing.yaml", "equipment: []\n")
+def test_a_missing_profile_names_the_directory_and_what_answers_in_it(root: Path):
+    """The names, not the filenames (S-0061/D-12): what a seat may write is what
+    the directory answers to, and a file declaring `name` answers to that."""
 
-    with pytest.raises(AgentError, match=r"missing\.yaml") as excinfo:
+    write(agents_dir(root) / "existing.yaml", "equipment: []\n")
+    write(agents_dir(root) / "on-disk.yaml", "name: declared\nequipment: []\n")
+
+    with pytest.raises(AgentError, match="no agent profile named 'missing'") as excinfo:
         load_profile(root, "missing")
 
-    assert "existing" in str(excinfo.value)
+    assert str(agents_dir(root)) in str(excinfo.value)
+    assert "declared, existing" in str(excinfo.value)
+    assert "on-disk" not in str(excinfo.value)
 
 
 def test_a_non_mapping_body_names_the_file(root: Path):
@@ -238,9 +245,10 @@ def test_one_merge_level_a_profile_naming_a_profile_is_refused(root: Path):
 # The role default is a profile named for the role (S-0061/D-11)
 
 
-def test_the_role_default_is_a_profile_named_for_the_role(root: Path):
-    write(agents_dir(root) / "implement.yaml", SKILL % "flag-dont-flip")
-    write(agents_dir(root) / "review.yaml", SKILL % "ratchet-what-you-build")
+def test_the_role_default_is_a_profile_that_declares_the_role(root: Path):
+    # The filenames deliberately say nothing: the role is the declaration.
+    write(agents_dir(root) / "house-build.yaml", ROLE_SKILL % ("implement", "flag-dont-flip"))
+    write(agents_dir(root) / "house-check.yaml", ROLE_SKILL % ("review", "ratchet-what-you-build"))
 
     assert {
         role: [item.source for item in items] for role, items in role_equipment(root).items()
@@ -303,7 +311,7 @@ def test_a_profile_contributes_what_it_wrote_and_not_its_model_s_defaults(root: 
     model dump cannot tell a key the file omitted from one it set to the
     default — the ambiguity S-0028/D-2 mandated a raw-mapping merge to avoid."""
 
-    write(agents_dir(root) / "implement.yaml", SKILL % "flag-dont-flip")
+    write(agents_dir(root) / "implement.yaml", ROLE_SKILL % ("implement", "flag-dont-flip"))
     write(
         agents_dir(root) / "equipped.yaml",
         "equipment:\n  - kind: plugin\n    source: github:JuliusBrussee/caveman\n    ref: abc\n",
@@ -336,46 +344,90 @@ def test_a_harness_contributes_what_it_wrote_too(root: Path):
     assert config.tiers["executor"].auth_mount == "/auth"  # the model's default still applies
 
 
-def test_only_a_name_the_engine_has_a_role_for_is_a_role_profile(root: Path):
-    """A profile written for a seat is not a role. Keying it as one puts a role
-    nothing dispatches into the role sets and into the regime hash, and that is
-    what makes `torve eval` refuse a skill as being in no role set."""
+def test_a_filename_that_reads_as_a_role_is_not_one(root: Path):
+    """S-0061/D-13. The four roles are ordinary words, so a profile written for
+    a reviewer seat and sensibly called `review.yaml` used to become the review
+    role's default for every seat in the repository — putting a role nothing
+    dispatched into the role sets and into the regime hash, which is what made
+    `torve eval` refuse a skill as being in no role set."""
 
     write(agents_dir(root) / "review.yaml", SKILL % "ratchet-what-you-build")
-    write(agents_dir(root) / "careful.yaml", SKILL % "flag-dont-flip")
+    write(agents_dir(root) / "careful.yaml", ROLE_SKILL % ("review", "flag-dont-flip"))
 
-    assert list(role_equipment(root)) == ["review"]
+    assert {
+        role: [item.source for item in items] for role, items in role_equipment(root).items()
+    } == {"review": ["torve:flag-dont-flip"]}
+
+
+def test_a_role_no_profile_declares_has_no_default(root: Path):
+    """The mirror failure, and the quieter one: a repository writing its
+    defaults in a file the stem lookup did not recognise got no error and no
+    equipment. Declared, an unclaimed role is simply absent."""
+
+    write(agents_dir(root) / "implement.yaml", SKILL % "flag-dont-flip")
+
+    assert role_equipment(root) == {}
+
+
+def test_a_role_two_profiles_claim_is_refused_naming_both(root: Path):
+    write(agents_dir(root) / "one.yaml", ROLE_SKILL % ("implement", "flag-dont-flip"))
+    write(agents_dir(root) / "two.yaml", ROLE_SKILL % ("implement", "ratchet-what-you-build"))
+
+    with pytest.raises(AgentError, match="both declare role 'implement'") as excinfo:
+        role_equipment(root)
+
+    assert "one.yaml" in str(excinfo.value)
+    assert "two.yaml" in str(excinfo.value)
+
+
+def test_a_role_the_engine_never_dispatches_is_refused(root: Path):
+    write(agents_dir(root) / "odd.yaml", ROLE_SKILL % ("archivist", "flag-dont-flip"))
+
+    with pytest.raises(AgentError, match="no role the engine dispatches"):
+        role_equipment(root)
 
 
 # ....................... #
-# The seam (S-0063): a manifest names an image and its knobs, never a shell line
+# Identity is declared, not read off a filename (S-0061/D-12)
 
 
-def test_a_manifest_naming_a_command_is_refused_with_what_replaced_it(root: Path):
-    """S-0063/D-1: the shell that knows how to start a harness lives beside the
-    harness. A reader who wrote the old key gets the new shape, not a list of
-    valid keys."""
+def test_a_declared_name_is_what_a_seat_resolves(root: Path):
+    """A file may be called anything; what a seat writes is the name. The seat
+    below names neither file by its stem and resolves both."""
 
-    write(harnesses_dir(root) / "old.yaml", "adapter: harness\ncommand: claude -p {prompt}\n")
-
-    with pytest.raises(AgentError, match=r"/opt/torve/run") as excinfo:
-        load_harness(root, "old")
-
-    assert "`kinds`" in str(excinfo.value)
-
-
-def test_the_seat_carries_the_knobs_its_image_reads(root: Path):
-    """S-0063/D-10: `env` reaches the image's environment and torve never
-    interprets it — a knob that is not there is a rebuild."""
-
+    write(harnesses_dir(root) / "01-dsh.yaml", "name: dsh\nadapter: fake\nkinds: [plugin]\n")
     write(
-        harnesses_dir(root) / "claude.yaml",
-        "adapter: harness\nimage: claude-sandbox:2.1.252\n"
-        "kinds: [plugin]\nenv: {CLAUDE_PERMISSION_MODE: bypassPermissions}\n",
+        agents_dir(root) / "profiles.d-heavy.yaml",
+        "name: heavy\nequipment: [{kind: plugin, source: 'github:o/r', ref: abc}]\n",
     )
-    seat = load(root, "tiers:\n  executor:\n    harness: claude\n    provider: anthropic\n").tiers[
+    config = load(root, "tiers:\n  executor:\n    harness: dsh\n    profile: heavy\n")
+
+    assert [item.source for item in config.tiers["executor"].equipment] == ["github:o/r"]
+
+
+def test_a_name_two_files_claim_is_refused_naming_both(root: Path):
+    """The half a directory cannot enforce: a filesystem will not take two
+    `twin.yaml`, but it takes two files both writing `name: twin` without
+    complaint, and the winner would be whichever `sorted()` reached first."""
+
+    write(harnesses_dir(root) / "a.yaml", "name: twin\nadapter: fake\n")
+    write(harnesses_dir(root) / "b.yaml", "name: twin\nadapter: fake\n")
+
+    with pytest.raises(AgentError, match="both named 'twin'") as excinfo:
+        load_harness(root, "fake")
+
+    assert "a.yaml" in str(excinfo.value)
+    assert "b.yaml" in str(excinfo.value)
+
+
+def test_identity_never_reaches_the_seat(root: Path):
+    """`name` and `role` say which file was read, never what the seat does, so
+    they are dropped before the merged body is validated as a `TierConfig`."""
+
+    write(agents_dir(root) / "seated.yaml", "name: seated\nrole: implement\nequipment: []\n")
+    # A `TierConfig` is STRICT, so reaching it is the failure this asserts against.
+    seat = load(root, "tiers:\n  executor:\n    harness: fake\n    profile: seated\n").tiers[
         "executor"
     ]
 
-    assert seat.kinds == ["plugin"]
-    assert seat.env == {"CLAUDE_PERMISSION_MODE": "bypassPermissions"}
+    assert not {"name", "role"} & set(type(seat).model_fields)

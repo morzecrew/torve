@@ -81,3 +81,75 @@ amendments:
       What it cost was a hand-kept copy of another program's internal state, to be held in step across that program's versions. `--plugin-dir` reaches the same result through a supported, repeatable session flag, measured on 2.1.252 against an image with no `~/.claude` at all. That was found after the renderer shipped, which is why S-0062/D-9 retired it the same day.
 
       T-0329 removes the whole road, not just the building: `seed_files`, both adapter write-backs, `Plugin` and `SandboxSpec.plugins` existed only to carry a declaration to it. `harness_kind` is the one survivor and moved beside `image_tag`, since it answers which definition an image was built from — a question `torve doctor` asks and a renderer never did.
+  - id: A-8
+    at: '2026-09-11T18:47:02Z'
+    title: Identity is declared, not read off a filename
+    changes:
+      - subject: D-12
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-12
+        field: paths
+        before: []
+        after: [src/torve/config/agents.py, .torve/agents/**, .torve/harnesses/**]
+      - subject: D-12
+        field: text
+        before: <decision>
+        after: >-
+          A profile or a manifest may carry `name`, and that is the identity a seat
+          resolves; a file that carries none is known by its filename stem. Two files
+          claiming one name are refused at load, naming both.
+      - subject: D-12
+        field: fingerprint
+        after: e8c2b7e3d60066d9/cd0da8a2b60e6802
+    md: |-
+      The filename was doing two jobs nothing checked. It is the identity a seat resolves — `harness: dsh` opens `dsh.yaml` — and it is the only part of a configuration file that no schema validates, no amendment records and no error message can name as wrong. A `git mv` breaks every seat that named the file, and the failure surfaces at dispatch rather than at load.
+
+      `name` is optional and the stem stands in when it is absent, so nothing here has to change and a file that wants to say what it is can. The dedupe half is the part the filesystem could never do: two files may not share a filename, but two files may certainly both write `name: dsh`, and that collision is refused at load naming both paths rather than settled by whichever `sorted()` reached first.
+  - id: A-9
+    at: '2026-09-11T18:47:05Z'
+    title: A role default declares its role
+    changes:
+      - subject: D-13
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-13
+        field: paths
+        before: []
+        after: [src/torve/config/agents.py, .torve/agents/**]
+      - subject: D-13
+        field: text
+        before: <decision>
+        after: >-
+          The profile that supplies a role's default equipment declares `role`; a
+          filename is never read as a role. Two profiles declaring one role are refused,
+          naming both.
+      - subject: D-13
+        field: fingerprint
+        after: a4ee26dc8fb053f5/33a9469f3cd3314f
+    md: |-
+      D-11 made a role's default equipment a profile named for the role, and `role_equipment` implemented that by testing each filename stem against `ROLES`. The four roles are ordinary English words, which is the whole defect: a profile written for a reviewer seat and sensibly called `review.yaml` becomes the review role's default for every seat in the repository, stacked under itself, and nothing says so. The mirror case is quieter still — a repository writing its implement defaults in `default-implement.yaml` gets no error and no equipment, because the lookup found no file it recognised.
+
+      Declared, both failures become one refusal with a path in it. `role` is the second half of D-12's argument rather than a separate idea: a filename is a fine label and a bad identity, and it was carrying two identities here, not one.
+  - id: A-10
+    at: '2026-09-11T18:47:11Z'
+    title: D-11 loses the clause D-13 replaces
+    changes:
+      - subject: D-11
+        field: text
+        before: >-
+          A seat naming no profile resolves the profile named for the task's role,
+          and SkillsConfig.sets retires.
+        after: >-
+          A seat naming no profile resolves the profile that declares the task's role,
+          and SkillsConfig.sets retires.
+      - subject: D-11
+        field: fingerprint
+        after: 9f6d811ed0c50015/262ceed4621792ab
+    md: >-
+      One clause, for consistency with D-13: the row said "the profile named for the
+      task's role", which is the inference D-13 retires. What D-11 decides — that
+      a seat naming no profile falls through to the role's, and that `SkillsConfig.sets`
+      is not written by hand — is unchanged.
