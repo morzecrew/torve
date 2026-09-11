@@ -152,3 +152,13 @@ amendments:
       `/opt/torve/equipment` was a constant in `adapters/agent/harness.py`, where the seam's other four variables live. It cannot stay there: the manifest written into that mount carries in-container paths, so the engine writing the manifest and the adapter naming the mount have to agree, and `application/session.py` may not import from an adapter.
 
       It moves to `application/equipment.py` beside the code that builds the mount, and the adapter imports it — one place to disagree instead of two.
+  - id: A-12
+    at: '2026-09-11T14:34:03Z'
+    title: >-
+      Phase 4 retires a plugin's whole road, and the prompt paragraph is already gone
+    md: |-
+      Two corrections, both from what landed between the phase being written and reached.
+
+      The scope named `.torve/sandbox/**`, which is `sandboxes/` since S-0063/D-6. And deleting the renderer reaches further than the renderer: `Plugin`, `SandboxSpec.plugins` and the seat field exist only to carry a declaration to it, so leaving them would be a road to a demolished building. `harness_kind` is the exception and moves rather than going — it answers which definition an image was built from, which `torve doctor` asks and a renderer never did.
+
+      The intent also still promised the prompt would stop naming `.torve/skills/` for a harness that takes the skill kind. S-0062/A-9 already settled that: all three harnesses this repository builds read skills, so the paragraph stands for none of them and there is nothing left here to do about it.

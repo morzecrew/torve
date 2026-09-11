@@ -82,19 +82,30 @@ phasing:
   - phase: 4
     title: the harness is told by its own flag
     intent: >-
-      S-0061/D-6's renderer goes: `seed_files` and the two adapter write-backs are
-      deleted, the claude image's seed keeps only its clones, and a plugin reaches
-      the harness through the capability map like every other kind. The prompt stops
-      naming `.torve/skills/` for a harness that takes the skill kind, and keeps it
-      for one that does not. The rows this supersedes are amended on S-0061.
+      S-0061/D-6's renderer goes, and so does the road it stood on: `seed_files` and
+      the two adapter write-backs, `Plugin`, `SandboxSpec.plugins` and the seat field
+      that fed them. A plugin is equipment like every other kind, and reaches its
+      harness through the image's own `equip` (S-0063/D-3). `harness_kind` survives
+      the module — it answers which definition an image was built from, which is the
+      sandbox verb's question, not a renderer's. The rows this supersedes are amended
+      on S-0061.
     scope:
       - src/torve/adapters/runtime/plugins.py
       - src/torve/adapters/runtime/docker.py
       - src/torve/adapters/runtime/opensandbox.py
       - src/torve/adapters/agent/harness.py
-      - .torve/sandbox/**
+      - src/torve/application/ports.py
+      - src/torve/application/session.py
+      - src/torve/cli/doctor.py
+      - src/torve/cli/sandbox.py
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - sandboxes/**
       - .torve/specs/S-0061/**
       - tests/test_runtime.py
+      - tests/test_agents.py
+      - tests/test_equipment.py
+      - tests/test_sandbox_defs.py
       - CHANGELOG.md
     acceptance:
       - uv run pytest
