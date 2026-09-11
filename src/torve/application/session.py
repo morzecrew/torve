@@ -31,6 +31,7 @@ from torve.application.dispatch import (
     cache_volumes,
     emit,
 )
+from torve.application.equipment import EQUIPMENT_MOUNT, mount_root, regime_keys
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -51,6 +52,8 @@ from torve.application.telemetry import (
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
+from torve.config.agents import role_equipment
+from torve.config.equipment import merge_equipment
 from torve.config.manifest import UNLABELED_AXIS, load_manifest
 from torve.config.runconfig import (
     TierConfig,
@@ -340,6 +343,18 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         layout.skills_vendor_dir(worktree),
     )
 
+    # The equipment this seat declares, warmed and made mountable (S-0062/D-4).
+    # Host-side, before the sandbox exists: an attempt that has to reach the
+    # internet to be equipped is an attempt whose failures include the
+    # internet's (S-0062/I-1).
+    #
+    # Two layers, role then seat (S-0062/D-12): the role's own profile is the
+    # lower one and varies per task, which is why it is resolved here rather
+    # than when the seat did.
+    equipment = merge_equipment(role_equipment(root).get(task.role, []), run.tier.equipment)
+    equipment_mount = mount_root(equipment, root=root) if equipment else None
+    run.meta["equipment"] = regime_keys(equipment)
+
     # The context pack (S-0054/the-context-pack, S-0054/D-10): the facts the corpus
     # cannot carry, written host-side from the record and the tree with no
     # model, beside the skills. A shadow run gets the time-invariant files
@@ -395,6 +410,11 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         # S-0061/D-5: the seat's profile declares them; the runtime renders them
         # into the harness's own seeding format once the sandbox exists.
         plugins=tuple(run.tier.plugins),
+        # The equipment cache, read-only (S-0062/D-5). Absent when the seat was
+        # given nothing, which is a seat running the bare harness.
+        readonly_binds=(
+            {str(equipment_mount): EQUIPMENT_MOUNT} if equipment_mount is not None else {}
+        ),
     )
 
     withheld = _withhold_never_send(worktree, config.providers.never_send)

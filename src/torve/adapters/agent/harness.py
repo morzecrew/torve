@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
+from torve.application.equipment import EQUIPMENT_MOUNT
 from torve.application.ports import AgentContext, AgentResult
 from torve.base import naming
 
@@ -52,10 +53,10 @@ PACK_RELPATH = ".torve/context"
 EQUIP = "/opt/torve/equip"
 RUN = "/opt/torve/run"
 
-# Where the equipment cache mounts (S-0062/D-5) and where `run` leaves the
-# result. Both are named to the image rather than assumed by it, so the one
-# place that decides them is this one.
-EQUIPMENT_MOUNT = "/opt/torve/equipment"
+# Where `run` leaves the result — named to the image rather than assumed by it.
+# The equipment mount is `application.equipment.EQUIPMENT_MOUNT`, because the
+# manifest written into that mount carries in-container paths and the two have
+# to agree.
 RESULT_RELPATH = ".torve/tmp/result-{attempt}.json"
 
 # The broker handle's fields reach the sandbox as `TORVE_BROKER_URL` and

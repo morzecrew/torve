@@ -294,6 +294,32 @@ class OpenSandboxRuntime:
             sandbox.destroy()
             raise RuntimeError(f"workspace seed failed in sandbox: {_exec_result(seed, 0).output}")
 
+        # The equipment mount (S-0062/D-5). This server has no bind mounts, so
+        # what docker does with `-v ...:ro` this does by sending the bytes and
+        # taking the write bit away — the same guarantee by a different route,
+        # which is the split the two adapters exist for.
+        for host, mount in spec.readonly_binds.items():
+            bind_staging = f"/tmp/torve-bind-{abs(hash(mount))}.b64"  # nosec B108
+            sandbox.files.write_files(
+                [
+                    self._sdk.models.WriteEntry(
+                        path=bind_staging,
+                        data=base64.b64encode(_workspace_tar(Path(host))).decode(),
+                    )
+                ]
+            )
+            bound = sandbox.commands.run(
+                f"mkdir -p {mount} && base64 -d {bind_staging} | tar xzf - -C {mount} "
+                f"&& rm {bind_staging} && chmod -R a-w {mount}"
+            )
+
+            if getattr(bound, "exit_code", 0) not in (0, None):
+                sandbox.destroy()
+
+                raise RuntimeError(
+                    f"equipment mount failed in sandbox: {_exec_result(bound, 0).output}"
+                )
+
         handle = SandboxHandle(id=str(sandbox.id), name=spec.name)
         self._live[handle.id] = (sandbox, spec.workdir)
 

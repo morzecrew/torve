@@ -223,6 +223,12 @@ class DockerRuntime:
         for volume, mount in spec.volumes.items():
             args += ["-v", f"{volume}:{mount}"]
 
+        for host, mount in spec.readonly_binds.items():
+            # `ro` is the point, not an optimisation (S-0062/D-5): the cache is
+            # shared between seats and the attempt must not be able to edit
+            # what it was equipped with, nor the manifest describing it.
+            args += ["-v", f"{host}:{mount}:ro"]
+
         args += [spec.image, "sleep", str(int(spec.timeout_s))]
 
         return args

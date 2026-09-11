@@ -61,6 +61,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bake.hcl` and `just images` are the build. `just image <name>` builds one;
   `just images-push <registry> <tag>` publishes.
 
+- `torve equip` warms the equipment cache for what this repository declares,
+  and `torve equip --check` audits it against the pin each source recorded.
+  Nothing is fetched while an attempt runs.
+
+- Equipment reaches a seat as a read-only mount at `/opt/torve/equipment`,
+  with `manifest.json` at its root naming every item and where it landed. Each
+  item is named as the thing is named, because a harness reads that name.
+
 - A subagent is an equipment kind. `agent` sits beside `skill`, `plugin`, `mcp`
   and `hook`, because a harness that takes `--agents <json>` has a channel for
   one like it has a channel for the rest.

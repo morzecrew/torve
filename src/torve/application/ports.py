@@ -70,6 +70,11 @@ class SandboxSpec:
     # (S-0061/D-6) — a spec carries the declaration, never the rendering, so
     # every adapter reads one shape and each answers for its own harness.
     plugins: tuple[Plugin, ...] = ()
+    # Host path -> mount point, read-only (S-0062/D-5). The equipment cache
+    # arrives this way: nothing inside an attempt may edit what it was equipped
+    # with, and the description of that equipment sits inside the same mount so
+    # it cannot be rewritten either (S-0063/D-12).
+    readonly_binds: dict[str, str] = field(default_factory=dict)
 
 
 # ....................... #

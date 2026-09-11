@@ -86,6 +86,20 @@ def config_hash(
         # code; a file needs its own part.
         parts["skills"] = json.dumps(config.skills.model_dump(), sort_keys=True)
 
+        # The lower of the two equipment layers, by key and never by contents
+        # (S-0062/D-8): the key is the declaration, and the declaration is what
+        # an operator chose — hashing bytes would make a regime depend on when a
+        # fetch happened, so two checkouts of one tree would disagree until both
+        # had warmed. The seat's own layer rides `tiers` above, where the same
+        # rule holds because a declaration is all a seat carries.
+        from torve.application.equipment import regime_keys
+        from torve.config.agents import role_equipment
+
+        parts["equipment"] = json.dumps(
+            {role: regime_keys(items) for role, items in sorted(role_equipment(root).items())},
+            sort_keys=True,
+        )
+
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
 
         # The egress regime (S-0021/what-this-does-not-change, S-0021/D-8): the broker adapter and

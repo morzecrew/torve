@@ -25,6 +25,7 @@ from torve.cli import (
     context,
     decisions,
     doctor,
+    equip,
     evals,
     feedback,
     fleet,
@@ -61,6 +62,7 @@ app = typer.Typer(
 gates_app = typer.Typer(no_args_is_help=True, help="Run or verify the gate set.")
 app.add_typer(gates_app, name="gates")
 app.add_typer(sandbox.sandbox_app, name="sandbox")
+app.add_typer(equip.equip_app, name="equip")
 app.add_typer(review.review_app, name="review")
 app.add_typer(fleet.fleet_app, name="fleet")
 app.add_typer(log.log_app, name="log")

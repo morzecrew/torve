@@ -276,3 +276,350 @@ def test_nothing_declared_means_nothing_attached(root: Path, tmp_path: Path):
     assert seat.equipment == []
     assert seat.skills is None
     assert seat.plugins == []
+
+
+# ....................... #
+# The cache: fetched host-side, mounted read-only (S-0062/D-4, S-0062/D-5)
+
+
+def test_nothing_is_fetched_while_an_attempt_runs_host_side(tmp_path: Path, monkeypatch) -> None:
+    """S-0062/I-1: every fetch is host-side, before the sandbox exists. The
+    check is that warming is reachable without a sandbox at all, and that a
+    warm cache fetches nothing the second time."""
+
+    from torve.application import equipment as equip_mod
+
+    cache = tmp_path / "cache"
+    repo = tmp_path / "repo"
+    (repo / "skills" / "house").mkdir(parents=True)
+    (repo / "skills" / "house" / "SKILL.md").write_text("---\nname: house\n---\n", encoding="utf-8")
+    item = Equipment(kind="skill", source="local:skills/house")
+
+    fetched: list[str] = []
+    real = equip_mod._fetch_local
+    monkeypatch.setattr(
+        equip_mod,
+        "_fetch_local",
+        lambda i, into, *, root: (fetched.append(i.source), real(i, into, root=root))[1],
+    )
+
+    first = equip_mod.warm([item], root=repo, cache=cache)
+    second = equip_mod.warm([item], root=repo, cache=cache)
+
+    assert first == second
+    assert (first[0] / "SKILL.md").is_file()
+    assert fetched == ["local:skills/house"], "a warm cache fetched again"
+
+
+def test_a_cache_key_is_the_declaration_so_two_refs_are_two_directories(tmp_path: Path) -> None:
+    from torve.application.equipment import item_path
+
+    cache = tmp_path / "cache"
+    old = Equipment(kind="plugin", source="github:owner/repo", ref="v1")
+    new = Equipment(kind="plugin", source="github:owner/repo", ref="v2")
+
+    assert item_path(old, cache) != item_path(new, cache)
+    assert item_path(old, cache).parent == cache / "plugin"
+
+
+def test_the_mount_carries_a_manifest_naming_in_container_paths(tmp_path: Path) -> None:
+    """S-0063/D-12: `manifest.json` at the root of the mount, and every path in
+    it is where the image will find that item — the image is told where the
+    mount landed and does not have to guess."""
+
+    import json
+
+    from torve.application.equipment import EQUIPMENT_MOUNT, MANIFEST, mount_root
+
+    cache = tmp_path / "cache"
+    repo = tmp_path / "repo"
+    (repo / "skills" / "house").mkdir(parents=True)
+    (repo / "skills" / "house" / "SKILL.md").write_text("x\n", encoding="utf-8")
+
+    where = mount_root(
+        [Equipment(kind="skill", source="local:skills/house")], root=repo, cache=cache
+    )
+
+    assert where is not None
+    document = json.loads((where / MANIFEST).read_text(encoding="utf-8"))
+    (entry,) = document["items"]
+
+    assert entry["kind"] == "skill"
+    assert entry["source"] == "local:skills/house"
+    assert entry["path"].startswith(EQUIPMENT_MOUNT + "/")
+    # And the bytes are actually there, under the name the manifest gave.
+    assert (where / entry["path"].removeprefix(EQUIPMENT_MOUNT + "/") / "SKILL.md").is_file()
+
+
+def test_a_seat_given_nothing_mounts_nothing(tmp_path: Path) -> None:
+    """A seat with no equipment runs the bare harness (S-0062/A-6), so there is
+    no mount and `TORVE_EQUIPMENT` names a path that is simply absent — which
+    every `equip` script treats as nothing to do."""
+
+    from torve.application.equipment import mount_root
+
+    assert mount_root([], root=tmp_path, cache=tmp_path / "cache") is None
+
+
+def test_the_regime_reads_keys_and_not_contents(tmp_path: Path) -> None:
+    """S-0062/D-8: two checkouts of one tree hash one regime without either
+    having fetched anything yet."""
+
+    from torve.application.equipment import regime_keys
+
+    items = [
+        Equipment(kind="plugin", source="github:owner/repo", ref="v1"),
+        Equipment(kind="skill", source="torve:flag-dont-flip"),
+    ]
+
+    assert regime_keys(items) == regime_keys(list(reversed(items))), "order changed the regime"
+    assert all("@" in key for key in regime_keys(items))
+
+
+def test_the_mount_is_reconstructable_from_its_keys(tmp_path: Path) -> None:
+    """S-0062/I-2: every item a run used is named by a cache key that resolves
+    to a source and a ref an operator wrote."""
+
+    from torve.application.equipment import regime_keys
+    from torve.config.equipment import parse_key
+
+    item = Equipment(kind="plugin", source="github:owner/repo", ref="v4.9.0")
+    (key,) = regime_keys([item])
+    kind, _, rest = key.partition("/")
+
+    assert kind == "plugin"
+    assert parse_key(rest) == ("github:owner/repo", "v4.9.0")
+
+
+def test_an_item_is_named_under_the_mount_as_it_is_named(tmp_path: Path) -> None:
+    """A directory name under the mount is not private bookkeeping: dsh refuses
+    a skill whose directory is not a valid skill name, and claude puts the name
+    in a flag an operator reads. So it is the thing's own name, not its key."""
+
+    from torve.application.equipment import mount_name
+
+    assert mount_name(Equipment(kind="skill", source="local:skills/house-voice")) == "house-voice"
+    assert mount_name(Equipment(kind="skill", source="torve:flag-dont-flip")) == "flag-dont-flip"
+    assert (
+        mount_name(Equipment(kind="plugin", source="github:JuliusBrussee/caveman", ref="abc"))
+        == "caveman"
+    )
+
+
+def test_two_items_of_one_name_do_not_collide(tmp_path: Path) -> None:
+    """The key disambiguates where the name cannot — two `caveman` from two
+    owners are two directories, and the second carries enough of its key to say
+    which it is."""
+
+    import json
+
+    from torve.application.equipment import MANIFEST, mount_root
+
+    cache = tmp_path / "cache"
+    repo = tmp_path / "repo"
+
+    for owner in ("one", "two"):
+        (repo / owner / "caveman").mkdir(parents=True)
+        (repo / owner / "caveman" / "SKILL.md").write_text(owner, encoding="utf-8")
+
+    where = mount_root(
+        [
+            Equipment(kind="skill", source="local:one/caveman"),
+            Equipment(kind="skill", source="local:two/caveman"),
+        ],
+        root=repo,
+        cache=cache,
+    )
+
+    assert where is not None
+    paths = {entry["path"] for entry in json.loads((where / MANIFEST).read_text())["items"]}
+
+    assert len(paths) == 2
+    assert sum(1 for one in where.iterdir() if one.is_dir()) == 2
+
+
+def test_the_bind_is_read_only_in_the_arguments_docker_runs(tmp_path: Path) -> None:
+    """S-0062/D-5, at the one place it is actually enforced. Everything the
+    read-only argument rests on is this flag: the cache is shared between
+    seats, and an attempt that could write to its mount could edit both what it
+    was equipped with and the manifest saying what that was."""
+
+    from torve.adapters.runtime.docker import DockerRuntime
+    from torve.application.ports import SandboxSpec
+
+    spec = SandboxSpec(
+        name="probe",
+        image="probe-sandbox",
+        labels={},
+        timeout_s=60.0,
+        readonly_binds={str(tmp_path / "mount"): "/opt/torve/equipment"},
+    )
+    args = DockerRuntime()._run_args(spec, tmp_path)
+    bind = f"{tmp_path / 'mount'}:/opt/torve/equipment:ro"
+
+    assert bind in args
+    # And the writable auth volume still is not, so the two channels stay apart.
+    assert not any(one.endswith(":/auth:ro") for one in args)
+
+
+# ....................... #
+# `torve equip` (S-0062/D-4) and its audit (S-0062/D-11)
+
+
+def _equip_repo(tmp_path: Path) -> Path:
+    """A repository declaring one local skill on a role and one on a seat."""
+
+    root = tmp_path / "repo"
+    # A harness with a skill channel: a `local:` skill is not package data, so
+    # the exemption that lets `torve:` through a channel-less harness does not
+    # apply and the refusal is right to fire (S-0062/A-3).
+    write(harnesses_dir(root) / "fake.yaml", "adapter: fake\nkinds: [skill, plugin]\n")
+    write(root / "skills" / "house-voice" / "SKILL.md", "---\nname: house-voice\n---\n")
+    write(root / "skills" / "ratchet" / "SKILL.md", "---\nname: ratchet\n---\n")
+    write(
+        agents_dir(root) / "implement.yaml",
+        "equipment: [{kind: skill, source: 'local:skills/house-voice'}]\n",
+    )
+    write(
+        agents_dir(root) / "seated.yaml",
+        "equipment: [{kind: skill, source: 'local:skills/ratchet'}]\n",
+    )
+    write(
+        root / ".torve" / "config.yaml",
+        "tiers:\n  executor:\n    harness: fake\n    profile: seated\n",
+    )
+    return root
+
+
+def test_equip_warms_both_layers(tmp_path: Path, monkeypatch) -> None:
+    """S-0062/D-12: a cache warmed for the seats alone would leave every
+    attempt fetching the role's, so the verb reads both."""
+
+    import json
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    root = _equip_repo(tmp_path)
+    monkeypatch.setenv("TORVE_EQUIPMENT_CACHE", str(tmp_path / "cache"))
+
+    result = CliRunner().invoke(app, ["equip", "--root", str(root), "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    sources = {item["source"] for item in json.loads(result.stdout)["items"]}
+
+    assert sources == {"local:skills/house-voice", "local:skills/ratchet"}
+    assert (tmp_path / "cache" / "skill").is_dir()
+
+
+def test_equip_check_finds_a_cache_that_does_not_hold_what_its_key_claims(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """S-0062/D-11: the audit reads the pin the fetch recorded, never the
+    network — confirming a directory holds what its key says is a different
+    thing from deciding what a version means."""
+
+    from typer.testing import CliRunner
+
+    from torve.application.equipment import PIN_FILE, item_path, warm
+    from torve.cli.main import app
+
+    root = _equip_repo(tmp_path)
+    cache = tmp_path / "cache"
+    monkeypatch.setenv("TORVE_EQUIPMENT_CACHE", str(cache))
+    write(
+        agents_dir(root) / "seated.yaml",
+        "equipment: [{kind: plugin, source: 'github:o/r', ref: v1}]\n",
+    )
+
+    # The role's own item is warmed for real; only the fetched one is staged,
+    # because the audit's subject is the pin a fetch recorded and never a clone.
+    warm([Equipment(kind="skill", source="local:skills/house-voice")], root=root, cache=cache)
+    where = item_path(Equipment(kind="plugin", source="github:o/r", ref="v1"), cache)
+    where.mkdir(parents=True)
+    (where / PIN_FILE).write_text("github:o/r@v9\n", encoding="utf-8")
+
+    result = CliRunner().invoke(app, ["equip", "--check", "--root", str(root)])
+
+    assert result.exit_code == 3
+    assert "github:o/r" in result.stdout
+
+    (where / PIN_FILE).write_text("github:o/r@v1\n", encoding="utf-8")
+
+    assert CliRunner().invoke(app, ["equip", "--check", "--root", str(root)]).exit_code == 0
+
+
+def test_a_source_that_cannot_be_fetched_names_itself(tmp_path: Path) -> None:
+    """The failure an operator sees when a declaration names something absent:
+    the source, and what was looked for."""
+
+    from torve.application.equipment import EquipmentError, warm
+
+    with pytest.raises(EquipmentError, match="does not exist"):
+        warm(
+            [Equipment(kind="skill", source="local:skills/absent")],
+            root=tmp_path,
+            cache=tmp_path / "cache",
+        )
+
+    with pytest.raises(EquipmentError, match="ships no"):
+        warm(
+            [Equipment(kind="skill", source="torve:not-a-shipped-skill")],
+            root=tmp_path,
+            cache=tmp_path / "cache",
+        )
+
+
+def test_a_fetch_that_fails_leaves_no_half_warm_directory(tmp_path: Path, monkeypatch) -> None:
+    """A half-fetched clone must never look like a warm one: the next attempt
+    would mount it and equip the agent with a partial checkout. The fetch lands
+    beside its destination and is renamed into place, so failure leaves nothing."""
+
+    import subprocess
+
+    from torve.application import equipment as equip_mod
+
+    cache = tmp_path / "cache"
+    item = Equipment(kind="plugin", source="github:owner/repo", ref="v1")
+
+    def clone_then_fail(args, **kwargs):
+        if args[1] == "clone":
+            Path(args[-1]).mkdir(parents=True)
+            (Path(args[-1]) / "half").write_text("x", encoding="utf-8")
+
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        return subprocess.CompletedProcess(args, 1, "", "fatal: reference is not a tree")
+
+    monkeypatch.setattr(equip_mod.subprocess, "run", clone_then_fail)
+
+    with pytest.raises(equip_mod.EquipmentError, match="reference is not a tree"):
+        equip_mod.warm([item], root=tmp_path, cache=cache)
+
+    assert not equip_mod.item_path(item, cache).exists()
+
+
+def test_a_fetch_records_the_pin_beside_the_bytes(tmp_path: Path, monkeypatch) -> None:
+    """S-0062/D-11: the pin travels with what was fetched, so an audit needs no
+    network — which is what makes `--check` a read rather than a resolution."""
+
+    import subprocess
+
+    from torve.application import equipment as equip_mod
+
+    cache = tmp_path / "cache"
+    item = Equipment(kind="plugin", source="github:owner/repo", ref="v4.9.0")
+
+    def clone(args, **kwargs):
+        if args[1] == "clone":
+            Path(args[-1]).mkdir(parents=True)
+
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(equip_mod.subprocess, "run", clone)
+    (where,) = equip_mod.warm([item], root=tmp_path, cache=cache)
+
+    assert (where / equip_mod.PIN_FILE).read_text(encoding="utf-8").strip() == (
+        "github:owner/repo@v4.9.0"
+    )
