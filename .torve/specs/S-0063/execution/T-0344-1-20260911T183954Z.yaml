@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0344
+base: 4e3fd79ee9cb41852c43586ff07cbc4d95888b8f
+commit: 05436c1b3a3a26af610d12c4b91f4a556c0717ab
+at: '2026-09-11T18:39:54Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-19
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-16
+    grade: LOCKED
+entries:
+  - decision: D-19
+    grade: LOCKED
+    class: drift
+    at: '2026-09-11T18:32:00Z'
+    claim: >-
+      The row said a harness reading equipment from the workspace declares its root,
+      and claude turned out to need one too — for a different reason and a better
+      place. Its skills load from a skills root under HOME, which in a sandbox is
+      /tmp: outside the workspace entirely, so nothing lands in the repository and
+      there is nothing to exclude. equip_root admits a leading ~ or / as exactly that
+      case, and the engine excludes only a root that is workspace-relative.
+    evidence: >-
+      src/torve/config/agents.py:94 — the field, and harness.py's _equip_root which
+      passes an outside path verbatim and makes a workspace-relative one absolute.
+    action: decided
+    notes: >-
+      So every seated harness declares one now, which was the owner's ask: equipment
+      never shares a root with the skills a repository keeps for itself.
+  - decision: D-3
+    grade: LOCKED
+    class: drift
+    at: '2026-09-11T18:32:00Z'
+    claim: >-
+      claude's equip composed --add-dir for a skill and that flag does not load skills.
+      Measured twice: a session given five through it listed only claude's built-ins,
+      and the same five copied into a skills root listed all of them beside the built-ins.
+      The skill equipment had never worked, and nothing in the suite could have caught
+      it — every test asserted on the flag string rather than on what the harness
+      loaded.
+    evidence: >-
+      sandboxes/claude/toolkit/equip:31 — the comment naming the flag and why it is
+      absent; no code path composes it.
+    action: decided
+    notes: >-
+      The other four kinds keep their flags, which are session channels that do what
+      they say.
+  - decision: D-16
+    grade: LOCKED
+    at: '2026-09-11T18:32:01Z'
+    claim: >-
+      A skill carries its supplementary files: the mount holds each selected skill's
+      whole directory, so tdd arrives with mocking.md, tests.md and agents/openai.yaml.
+      A plugin carried its whole git history too, which nothing reads once the pin
+      is recorded beside the bytes.
+    evidence: >-
+      src/torve/application/equipment.py:120 — the .git removal, after the pin is
+      written.
+    action: decided
+    notes: >-
+      Measured: the cache went from 37MB to 24MB, and no .git remains under it.
