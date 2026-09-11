@@ -34,9 +34,9 @@ phasing:
       `torve equip` warms a cache keyed by source and ref, through the source's own
       tool — `gh skill install --pin` for a skill, a pinned clone for a plugin — and
       dispatch warms what a seat needs before the sandbox exists. The cache mounts
-      read-only, one directory per item, and the harness's flag templates are composed
-      against the mount paths and appended to the command. The regime hash reads the
-      keys.
+      read-only, one directory per item, with the manifest at its root — and composing
+      is the image's `equip`, not the engine's (S-0063/D-3). The regime hash reads
+      the keys.
     scope:
       - src/torve/application/equipment.py
       - src/torve/application/session.py

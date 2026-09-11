@@ -140,3 +140,7 @@ amendments:
   - id: A-10
     at: '2026-09-11T13:05:12Z'
     title: Phase 2's intent says what its rows say now
+    md: |-
+      A-7 and A-8 moved composing into the image and the phase's own prose still said the engine does it. A contract minted from that prose would carry an instruction its rows contradict, which is worse than either: the executor reads both.
+
+      Nothing else about the phase changes — the cache, the mount and the hash are what they were.
