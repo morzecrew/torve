@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0327
+phase: 2
+base: 6db7e477830bf66f9136567aeb24a48ab540a98a
+commit: ce9abbbd16486e5f9288b126ce29ef842f88c0c5
+at: '2026-09-11T14:19:06Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-11T13:17:49Z'
+    claim: >-
+      The cache is warmed by torve equip and by dispatch, both host-side. What building
+      decided: a fetch lands in a sibling directory and is renamed into place, so
+      a half-fetched clone can never look like a warm one and a second attempt does
+      not repair it silently. The github fetch is a pinned clone rather than gh skill
+      install, because a clone is what every kind can be fetched by and the pin it
+      records travels with the bytes.
+    evidence: >-
+      src/torve/application/equipment.py:168 — warm, which fetches only what is cold
+      and returns where each item landed in declaration order.
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-11T13:17:50Z'
+    claim: >-
+      The mount is a per-seat directory of hard links to the shared cache, not the
+      cache root and not a copy. A copy would duplicate every skill for every attempt;
+      a symlink would point at a host path the container has not mounted. Hard links
+      cost a directory entry, survive a bind mount, and cannot be edited through a
+      read-only mount anyway. Measured: touch inside the mount reports Read-only file
+      system.
+    evidence: >-
+      src/torve/application/ports.py:77 — readonly_binds, host path to mount point;
+      docker binds it :ro and opensandbox sends the bytes and takes the write bit
+      away.
+    action: decided
+    notes: >-
+      The two adapters reach the same guarantee by different routes, which is the
+      split they exist for — that server has no bind mounts.
+  - decision: D-8
+    grade: ASSUMED
+    at: '2026-09-11T13:17:50Z'
+    claim: >-
+      The hash reads keys for both layers. The seat's ride the tiers part already,
+      because a declaration is all a seat carries; the role's needed a part of their
+      own, since skills.sets holds names rather than keys and will retire before the
+      equipment does.
+    evidence: >-
+      src/torve/application/telemetry.py:98 — parts['equipment'], role to sorted keys,
+      read from the role profiles rather than from any cache.
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-11T13:17:51Z'
+    claim: >-
+      The two layers merge at dispatch rather than at seat resolution, because the
+      role's profile varies per task and the seat does not. What building found: an
+      item's directory name under the mount is not private bookkeeping — dsh refuses
+      a skill whose directory is not a valid skill name, and claude puts the name
+      in a flag an operator reads. So the name is the thing's own and the key disambiguates
+      only a collision.
+    evidence: >-
+      src/torve/application/equipment.py:200 — mount_name, the locator's last segment
+      reduced to characters a harness will take.
+    action: decided
+    notes: >-
+      Measured after the change: dsh loads both skills with no invalid-skill complaint
+      and mimo debug skill lists them.
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-11T13:25:45Z'
+    claim: >-
+      The prepare command is untouched by this phase — it runs in phase 3, T-0328.
+      session.py appears in D-7's paths because that is where it will run, and what
+      changed there is the equipment warm two blocks above it.
+    evidence: >-
+      src/torve/application/session.py:336 — the warm and the mount, host-side before
+      the sandbox exists; the prepare step will sit after creation and before the
+      agent.
+    action: decided
