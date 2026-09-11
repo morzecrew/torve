@@ -3,7 +3,7 @@ id: S-0063
 title: The image knows how to equip itself
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0062]
 informed_by: [S-0017, S-0004, S-0055, S-0021, S-0035]
 supersedes: []

@@ -17,14 +17,6 @@ The equipment cache mounts read-only into the sandbox, one directory per item, a
 - Paths: `src/torve/adapters/runtime/**` `src/torve/application/ports.py`
 - Consequence: nothing inside an attempt can edit what it was equipped with, and the cache stays derived state that deleting costs only wall clock
 
-### S-0062/D-9 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
-
-S-0061/D-5 is superseded by D-1 and S-0061/D-6's renderer retires; the harness is told about a plugin by its own flag, not by files torve writes into its state.
-
-- Paths: `src/torve/adapters/runtime/plugins.py` `.torve/sandbox/**`
-- Consequence: torve stops keeping a second copy of a harness's internal bookkeeping in step with it across versions
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
 ### S-0063/D-11 — `LOCKED` (The image knows how to equip itself)
 
 `torve sandbox build` and `stage` retire, and `RuntimePort.build_image` with them; the verb keeps `list` and `digest`, and `just images` is the build.

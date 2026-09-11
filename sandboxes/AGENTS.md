@@ -2,6 +2,14 @@
 
 ## Decisions governing `sandboxes/`
 
+### S-0062/D-9 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+S-0061/D-5 is superseded by D-1 and S-0061/D-6's renderer retires; the harness is told about a plugin by its own flag, not by files torve writes into its state.
+
+- Paths: `sandboxes/**` `src/torve/cli/sandbox.py` `src/torve/application/ports.py`
+- Consequence: torve stops keeping a second copy of a harness's internal bookkeeping in step with it across versions
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0063/D-3 — `LOCKED` (The image knows how to equip itself)
 
 A sandbox image carries `/opt/torve/equip`, which translates the equipment manifest into whatever its harness needs; S-0062/D-2's flag templates retire and `kinds` is what remains of the capability map.

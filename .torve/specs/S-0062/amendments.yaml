@@ -170,3 +170,18 @@ amendments:
       Retiring S-0061/D-5 and S-0061/D-6 changes what governs `src/torve/adapters/runtime/`
       and `src/torve/config/`, and takes two rows out of the root index. Rendered,
       not written — the same reason the earlier phases needed theirs.
+  - id: A-14
+    at: '2026-09-11T14:53:55Z'
+    title: D-9 names where a plugin reaches its harness now
+    changes:
+      - subject: D-9
+        field: paths
+        before: [src/torve/adapters/runtime/plugins.py, .torve/sandbox/**]
+        after: [sandboxes/**, src/torve/cli/sandbox.py, src/torve/application/ports.py]
+      - subject: D-9
+        field: fingerprint
+        after: 5d93b194a2d54b54/cb805095029f2038
+    md: |-
+      The row named `src/torve/adapters/runtime/plugins.py` and `.torve/sandbox/**`, and marking the document implemented turned both into findings: an implemented document cites real areas (S-0001/D-32), and the first is the file this row deleted while the second moved to `sandboxes/` under S-0063/D-6.
+
+      The row is not retired, because it still stands and still governs — what changed is where. A plugin reaches its harness through the image's own `equip` under `sandboxes/`, the tag that names which definition an image came from is `src/torve/cli/sandbox.py`, and `src/torve/application/ports.py` is where the declaration the renderer read used to ride.

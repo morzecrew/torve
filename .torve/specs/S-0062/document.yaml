@@ -4,7 +4,7 @@ title: >-
   Equipment is declared, and the harness is told how to take it
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0061]
 informed_by: [S-0009, S-0004, S-0017, S-0035]
 supersedes: []

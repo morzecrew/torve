@@ -120,7 +120,7 @@ decisions:
     text: >-
       S-0061/D-5 is superseded by D-1 and S-0061/D-6's renderer retires; the harness
       is told about a plugin by its own flag, not by files torve writes into its state.
-    paths: [src/torve/adapters/runtime/plugins.py, .torve/sandbox/**]
+    paths: [sandboxes/**, src/torve/cli/sandbox.py, src/torve/application/ports.py]
     consequence: >-
       torve stops keeping a second copy of a harness's internal bookkeeping in step
       with it across versions
@@ -129,6 +129,7 @@ decisions:
       session flag, and a session with no `~/.claude` at all loads plugins through
       it, so the rendered files reach nothing a flag could not
     cites: [S-0061/D-5, S-0061/D-6]
+    fingerprint: 5d93b194a2d54b54/cb805095029f2038
   - id: D-10
     grade: ASSUMED
     text: >-

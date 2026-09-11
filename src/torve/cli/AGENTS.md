@@ -282,6 +282,14 @@ Equipment is fetched host-side into a cache keyed by source and ref, never insid
 - Consequence: an attempt's failures do not include the internet's, and a warmed cache makes dispatch touch no network at all
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0062/D-9 — `LOCKED` (Equipment is declared, and the harness is told how to take it)
+
+S-0061/D-5 is superseded by D-1 and S-0061/D-6's renderer retires; the harness is told about a plugin by its own flag, not by files torve writes into its state.
+
+- Paths: `sandboxes/**` `src/torve/cli/sandbox.py` `src/torve/application/ports.py`
+- Consequence: torve stops keeping a second copy of a harness's internal bookkeeping in step with it across versions
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0062/D-11 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
 
 `torve equip --check` audits the cache against what each source recorded — a skill's `github-pinned` frontmatter, a clone's HEAD — and reports; it never refetches and never resolves.
