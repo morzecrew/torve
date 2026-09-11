@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0342
+base: 2a0dd70111c4098ebe608c4397ec6e8396cce7bb
+commit: 21aa43080207888e7f5d1b155a6193c2f9f48750
+at: '2026-09-11T17:30:14Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-19
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+entries:
+  - decision: D-19
+    grade: LOCKED
+    at: '2026-09-11T17:18:09Z'
+    claim: >-
+      One declaration, two readers: the manifest names the root, the engine excludes
+      it and passes it, and equip writes where it was told. What building settled:
+      equip refuses rather than guessing when the engine names none, because a harness
+      that reads the workspace and silently writes nowhere is the failure this row
+      exists to stop, arriving from the other side.
+    evidence: >-
+      src/torve/config/agents.py:94 — equip_root, empty for a harness that reads the
+      mount itself.
+    action: decided
+    notes: >-
+      Measured after: dsh drops five skills into .dsh/skills and .agents does not
+      exist in the workspace at all.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-11T17:18:10Z'
+    claim: >-
+      A sixth variable, and it is absent rather than empty-meaning-something for a
+      harness that reads the mount. claude gets the empty string and its equip never
+      consults it, so the variable costs a harness that does not need it nothing.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:681 — TORVE_EQUIP_ROOT, absolute against
+      the workdir because the scripts run wherever the harness leaves them.
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-11T17:18:10Z'
+    claim: >-
+      The exclusion is the engine's and the copying stays the image's, which is the
+      split D-3 draws. The engine writes .git/info/exclude because that is per-worktree
+      and local — the repository's own .gitignore is a reviewed file and not torve's
+      to edit, and an image writing into a worktree's gitdir would be holding a far
+      larger capability than translating a manifest.
+    evidence: >-
+      src/torve/application/session.py:600 — _exclude_equip_root, before equip runs
+      and idempotent across retries.
+    action: decided
