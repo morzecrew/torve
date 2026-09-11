@@ -15,7 +15,6 @@ import os
 import subprocess
 from pathlib import Path
 
-from torve.adapters.runtime.plugins import seed_files
 from torve.application.ports import (
     PROXY_ENV,
     ExecResult,
@@ -275,42 +274,7 @@ class DockerRuntime:
                     or f"could not take ownership of the derived cache at {CACHE_MOUNT}"
                 )
 
-        self._seed_plugins(handle, spec)
-
         return handle
-
-    # ....................... #
-
-    def _seed_plugins(self, handle: SandboxHandle, spec: SandboxSpec) -> None:
-        """The profile's plugins, in the shape this harness's own installer
-        reads (S-0061/D-6).
-
-        Written as root into the image's seed, which the tier command copies
-        into HOME: the seed is where the harness looks, and writing it here
-        means the declaration and the clone the image already carries cannot
-        disagree about which ref is installed. Nothing is fetched — the
-        clones are the image's, pinned at build time.
-        """
-
-        for path, text in seed_files(spec.image, spec.plugins).items():
-            written = self._run(
-                "exec",
-                "-u",
-                "root",
-                "-i",
-                handle.id,
-                "sh",
-                "-c",
-                f"mkdir -p $(dirname {path}) && cat > {path} && chmod a+r {path}",
-                stdin=text,
-                timeout=60,
-            )
-
-            if written.returncode != 0:
-                raise DockerError(
-                    written.stderr.strip() or f"could not seed the harness plugin file {path}"
-                )
-
     # ....................... #
 
     def exec(self, handle: SandboxHandle, command: str, timeout_s: float) -> ExecResult:

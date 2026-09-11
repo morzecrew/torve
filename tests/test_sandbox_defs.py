@@ -231,17 +231,50 @@ def test_an_image_tag_names_its_definition_back() -> None:
     """S-0063/D-6: the tag and the directory are the same fact, so `doctor`
     can ask whether an image it finds is still defined here."""
 
-    from torve.adapters.runtime.plugins import harness_kind
-    from torve.cli.sandbox import image_tag
+    from torve.cli.sandbox import harness_kind, image_tag
 
     for name in EVERY:
         assert harness_kind(image_tag(name)) == name
-        assert harness_kind(f"ghcr.io/morzecrew/{image_tag(name)}:2.1.252") == name
 
-    # A reference that is not one of ours answers nothing rather than
-    # guessing: a stock base is nobody's definition to check.
-    assert harness_kind("python:3.13-slim") == ""
-    assert harness_kind("ghcr.io/morzecrew/torve-agent:0.1.1") == ""
+
+@pytest.mark.parametrize(
+    ("image", "kind"),
+    [
+        ("claude-sandbox:2.1.252", "claude"),
+        ("ghcr.io/morzecrew/claude-sandbox:2.1.252", "claude"),
+        ("registry.example.com:5000/org/claude-sandbox:2.1.252", "claude"),
+        ("claude-sandbox@sha256:abc", "claude"),
+        ("claude-sandbox", "claude"),
+        # Not one of ours: a stock base and the engine's own published image
+        # answer nothing rather than naming a harness by its version, which is
+        # what the old `torve-agent:<name>` spelling did (S-0063/D-6).
+        ("python:3.13-slim", ""),
+        ("ghcr.io/morzecrew/torve-agent:0.1.1", ""),
+        ("", ""),
+    ],
+)
+def test_the_name_is_what_survives_a_push(image: str, kind: str) -> None:
+    """A push changes the repository prefix and the version tag, so the name in
+    the middle is what names the definition under `sandboxes/`."""
+
+    from torve.cli.sandbox import harness_kind
+
+    assert harness_kind(image) == kind
+
+
+def test_the_claude_image_keeps_its_clones_and_no_bookkeeping() -> None:
+    """The clones stay baked, because a fetch at dispatch would put the network
+    inside every attempt (S-0062/D-4). What is gone is the hand-kept copy of
+    the harness's own installed-plugins state: `--plugin-dir` reaches the same
+    result through a supported flag, so S-0061/D-6's renderer retired with the
+    road that fed it (S-0062/D-9)."""
+
+    definition = DEFINITIONS / "claude"
+    dockerfile = (definition / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "git clone" in dockerfile
+    assert "installed_plugins.json" not in dockerfile
+    assert not list(definition.glob("seed-*.json"))
 
 
 def test_a_consuming_repository_keeps_its_own_hook(tmp_path: Path) -> None:

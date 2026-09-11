@@ -85,6 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Breaking:** the plugin renderer is gone, and so is the road that fed it —
+  `seed_files`, both adapter write-backs, the `Plugin` model and the seat field
+  it filled. A plugin is equipment like every other kind.
+
 - **Breaking:** the dsh image bakes no model. Its seven overlay files are gone;
   a seat carries `DSH_MODEL` in its `env` and `equip` renders the overlay, so
   adding a model is an edit to reviewed configuration rather than a rebuild.

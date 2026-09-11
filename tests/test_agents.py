@@ -97,9 +97,13 @@ def test_a_plugin_is_a_source_and_a_ref(root: Path):
         "    ref: 81536f57b330\n",
     )
     config = load(root, "tiers:\n  executor:\n    harness: plugged\n    profile: equipped\n")
-    (plugin,) = config.tiers["executor"].plugins
+    (plugin,) = config.tiers["executor"].equipment
 
-    assert (plugin.source, plugin.ref) == ("github:JuliusBrussee/caveman", "81536f57b330")
+    assert (plugin.kind, plugin.source, plugin.ref) == (
+        "plugin",
+        "github:JuliusBrussee/caveman",
+        "81536f57b330",
+    )
 
 
 # ....................... #
@@ -311,7 +315,7 @@ def test_a_profile_contributes_what_it_wrote_and_not_its_model_s_defaults(root: 
     assert effective_skill_sets(seat, "implement", config.skills.sets)["implement"] == [
         "flag-dont-flip"
     ]
-    assert [p.source for p in seat.plugins] == ["github:JuliusBrussee/caveman"]
+    assert [item.source for item in seat.equipment] == ["github:JuliusBrussee/caveman"]
 
     # An empty list written *is* a declaration: this agent equips nothing.
     write(agents_dir(root) / "bare.yaml", "equipment: []\n")

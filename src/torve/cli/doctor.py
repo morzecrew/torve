@@ -98,9 +98,8 @@ def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
 
 
 def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    from torve.adapters.runtime.plugins import harness_kind
     from torve.cli.options import runtime_for
-    from torve.cli.sandbox import definitions_root
+    from torve.cli.sandbox import definitions_root, harness_kind
     from torve.config.runconfig import configured_images
 
     config = load_config(root, config_path)

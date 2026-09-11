@@ -23,7 +23,6 @@ from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.agents import (
     AgentError,
-    Plugin,
     resolve_seats,
     role_skills,
 )
@@ -142,11 +141,6 @@ class TierConfig(BaseModel):
     prepare: str = ""
     """S-0062/D-7: the command run in the sandbox before the agent, on its own clock —
     a non-zero exit is an infrastructure failure and convicts nothing."""
-
-    plugins: list[Plugin] = Field(default_factory=list)
-    """Derived from `equipment`, not declared (S-0062/D-1): the items of kind `plugin`,
-    in the shape the sandbox spec and the renderer already read. Retires with the
-    renderer in S-0062 phase 4."""
 
     skills: list[str] | None = None
     """S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's

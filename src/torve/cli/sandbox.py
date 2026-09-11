@@ -16,6 +16,7 @@ visible regime change. Parsing and rendering only (S-0015/D-6).
 
 from __future__ import annotations
 
+import posixpath
 from pathlib import Path
 from typing import Annotated
 
@@ -159,6 +160,37 @@ def project_inputs(root: Path) -> list[str]:
     included = [str(one) for one in wheel.get("force-include", {})]
 
     return [*PROJECT_INPUTS[:4], *dict.fromkeys([*packages, *included])]
+
+
+# ....................... #
+
+
+SANDBOX_SUFFIX = "-sandbox"
+
+
+def harness_kind(image: str) -> str:
+    """The harness an image is: the definition directory under `sandboxes/`
+    it was built from — the inverse of `image_tag` above.
+
+    `claude-sandbox:2.1.252` and `ghcr.io/morzecrew/claude-sandbox:2.1.252`
+    are the same harness — publishing changes the repository prefix and the
+    version, and the name in the middle is what survives the move.
+
+    The `-sandbox` suffix is what makes this answerable at all. The old
+    `torve-agent:<name>` spelling put the name in the version position, so
+    every other image published under a `torve-agent` repository — the
+    engine's own among them — read as a harness called by its version. An
+    image that is not a sandbox this repository defines answers nothing,
+    which is the right answer for a stock base or a third party's image.
+    """
+
+    if not image:
+        return ""
+
+    tag = image.rsplit("@", 1)[0]  # a digest pin carries the tag before it
+    repository = posixpath.basename(tag).partition(":")[0]
+
+    return repository.removesuffix(SANDBOX_SUFFIX) if repository.endswith(SANDBOX_SUFFIX) else ""
 
 
 # ....................... #

@@ -10,13 +10,6 @@ The sandbox is the unit of lifecycle; the engine never executes agent code on th
 - Consequence: Killing a worker costs its lease and nothing else
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0061/D-6 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
-
-The runtime adapter renders the profile's plugins into the harness's own seeding format at dispatch, and refuses a non-empty list for a harness with no renderer.
-
-- Paths: `src/torve/adapters/runtime/**` `.torve/sandbox/**`
-- Consequence: a plugin list that cannot be honoured is a configuration error rather than an attempt that quietly ran without it
-
 ### S-0062/D-5 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
 
 The equipment cache mounts read-only into the sandbox, one directory per item, and the image's own `/opt/torve/equip` composes whatever its harness needs from the manifest at the mount root (S-0063/D-3, S-0063/D-12).

@@ -408,9 +408,6 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         timeout_s=sandbox_timeout_for(config, run.tier),
         env_passthrough=env_passthrough,
         volumes=volumes,
-        # S-0061/D-5: the seat's profile declares them; the runtime renders them
-        # into the harness's own seeding format once the sandbox exists.
-        plugins=tuple(run.tier.plugins),
         # The equipment cache, read-only (S-0062/D-5). Absent when the seat was
         # given nothing, which is a seat running the bare harness.
         readonly_binds=(

@@ -25,7 +25,6 @@ if TYPE_CHECKING:
 
     from forze.application.contracts.durable.function import DurableRunStorePort
 
-    from torve.config.agents import Plugin
     from torve.config.runconfig import StoreConfig
     from torve.domain.task import Task
 
@@ -65,11 +64,6 @@ class SandboxSpec:
     # the workspace bind mounts read-only. Host-side writes (the staged
     # prompt, the trace) stay visible through the mount.
     workspace_read_only: bool = False
-    # The plugins the seat's profile declares (S-0061/D-5). The runtime renders
-    # them into the harness's own seeding format after the sandbox exists
-    # (S-0061/D-6) — a spec carries the declaration, never the rendering, so
-    # every adapter reads one shape and each answers for its own harness.
-    plugins: tuple[Plugin, ...] = ()
     # Host path -> mount point, read-only (S-0062/D-5). The equipment cache
     # arrives this way: nothing inside an attempt may edit what it was equipped
     # with, and the description of that equipment sits inside the same mount so

@@ -319,13 +319,6 @@ The charter's base working rules stay unaddressable from configuration; a profil
 - Consequence: no file outside the repository under work can disarm the rules two blocking gates convict on
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0061/D-5 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
-
-A plugin is declared on the profile as a source and a ref, which torve neither resolves nor verifies.
-
-- Paths: `src/torve/config/agents.py`
-- Consequence: torve stops being a place where a pinned version is written down three times, without becoming a package manager
-
 ### S-0061/D-8 — `ASSUMED` (The agent profile, the harness manifest, and the seat that names them)
 
 One merge level survives the split — a seat merges its harness and its profile, and neither references another of its kind.

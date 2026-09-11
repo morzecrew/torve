@@ -275,7 +275,6 @@ def test_nothing_declared_means_nothing_attached(root: Path, tmp_path: Path):
 
     assert seat.equipment == []
     assert seat.skills is None
-    assert seat.plugins == []
 
 
 # ....................... #

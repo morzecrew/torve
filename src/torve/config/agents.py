@@ -5,11 +5,12 @@ meant to name a persona was validated against that whole body — so a file
 called `heavy.yaml` could legally decide where a conviction routes. They are
 three files now, one question each:
 
-- `.torve/agents/<name>.yaml` — what the agent *is*: its skills, its plugins,
-  the working rules it appends. Nothing about how it runs (S-0061/D-1).
+- `.torve/agents/<name>.yaml` — what the agent *is*: its equipment and the
+  working rules it appends. Nothing about how it runs (S-0061/D-1).
 - `.torve/harnesses/<name>.yaml` — how a model is *reached*: the adapter, the
-  command that runs in the sandbox, the image that is the harness's identity
-  (S-0017/D-4), and how auth arrives. No model (S-0061/D-2).
+  image that is the harness's identity (S-0017/D-4), the equipment kinds it
+  accepts, the knobs its scripts read, and how auth arrives. No model, and no
+  shell — the image's own `/opt/torve/run` starts it (S-0063/D-1).
 - the seat in `config.yaml` — which run gets which, plus what varies per run:
   the model, the routing, the clocks (S-0061/D-3).
 
@@ -44,30 +45,6 @@ SCHEMA_VERSION = 1
 
 AGENTS_DIR = "agents"
 HARNESSES_DIR = "harnesses"
-
-
-class Plugin(BaseModel):
-    """One plugin on a resolved seat, derived from the profile's equipment.
-
-    S-0062/D-1 folded plugins into `equipment`, so nothing declares this shape
-    any more — `resolve_seats` builds it from the items of kind `plugin` so the
-    renderer and the sandbox spec keep the shape they had. Both retire with the
-    renderer in S-0062 phase 4.
-
-    Was (S-0061/D-5):
-
-    A source and a ref, and nothing else: the ref is whatever the source's own
-    vocabulary pins with — a tag, a branch, a commit — and torve neither
-    resolves nor verifies it. Pinning is the source's job; torve's is to stop
-    the Dockerfile, the cache path and the installed-plugins file disagreeing
-    about what was pinned.
-    """
-
-    model_config = STRICT
-    source: str
-    """Where the plugin comes from, in the source's own spelling — `github:owner/repo`."""
-    ref: str = ""
-    """What the source pins it at; empty takes whatever the harness's installer resolves."""
 
 
 class AgentProfile(BaseModel):
@@ -409,8 +386,8 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
 
 
 def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str, Any]) -> None:
-    """Refuse a kind this harness cannot be given, then derive the shapes the
-    readers still have (S-0062/D-2).
+    """Refuse a kind this harness cannot be given, then derive the one shape a
+    reader still has (S-0063/D-4).
 
     The refusal is S-0061/D-6's generalised from plugins to every kind, and it
     exists for the same reason: an attempt quietly missing its equipment
@@ -419,9 +396,12 @@ def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str,
     wrong is the reader's call — the profile asked for something, the manifest
     says it cannot take it, and either could be the one to change.
 
-    `plugins` and `skills` are then written from the same list. Nothing declares
-    them any more; the sandbox spec and the materializer still read them, and
-    they retire with the renderer in phase 4.
+    `skills` is then written from the same list. Nothing declares it any more;
+    `materialize` still reads it, because a harness with no skill channel of its
+    own is a thing that can exist and the engine keeps an answer for it
+    (S-0062/D-10). `plugins` went with the renderer in phase 4 — a plugin is
+    equipment like every other kind, and reaches its harness through the
+    image's own `equip`.
     """
 
     try:
@@ -449,9 +429,6 @@ def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str,
             "still ran"
         )
 
-    merged["plugins"] = [
-        {"source": item.source, "ref": item.ref} for item in items if item.kind == "plugin"
-    ]
     names = skill_names(items)
 
     if names:
