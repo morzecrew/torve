@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0329
+phase: 4
+base: d6ab63617801908e15dc6e9a8ce72cb070a6863c
+commit: 0b50da09309053b492fbca061f964f1068b16ff5
+at: '2026-09-11T14:53:14Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: LOCKED
+entries:
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-11T14:42:51Z'
+    claim: >-
+      The renderer and everything that existed to feed it are deleted: seed_files,
+      both adapter write-backs, the Plugin model, SandboxSpec.plugins and the seat
+      field. Leaving the carriers would have been a road to a demolished building.
+      harness_kind is the one survivor and moves beside image_tag rather than dying
+      with the module — it answers which definition an image was built from, which
+      torve doctor asks and a renderer never did.
+    evidence: >-
+      src/torve/cli/sandbox.py:171 — harness_kind, beside image_tag, its inverse.
+    action: decided
+    notes: >-
+      tests/test_runtime.py went whole: every case in it was the renderer's. The two
+      that outlive it moved to tests/test_sandbox_defs.py, where the definitions they
+      describe live.
+  - decision: D-10
+    grade: ASSUMED
+    at: '2026-09-11T14:42:51Z'
+    claim: >-
+      The phase's other half was already done. The intent promised the prompt would
+      stop naming .torve/skills/ for a harness that takes the skill kind; S-0062/A-9
+      settled it first, because all three harnesses this repository builds read skills
+      — so the paragraph stands for none of them and materialize stays only for a
+      harness that has no skill channel at all.
+    evidence: >-
+      src/torve/config/agents.py:398 — the docstring says why skills is still derived
+      and plugins is not: materialize keeps an answer for a harness that reads none.
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-11T14:42:52Z'
+    claim: >-
+      The fold completes here. Until this phase a profile declared equipment and the
+      seat still carried a derived plugins list, so two shapes described one declaration;
+      only the derived skills list survives, and only because materialize reads it.
+    evidence: >-
+      src/torve/application/ports.py:71 — what a spec carries now: a read-only bind,
+      and no declaration for anything to render.
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-11T14:48:07Z'
+    claim: >-
+      The refusal is untouched; what left agents.py is the derived plugins list _equipped
+      used to write beside the derived skills. A manifest still declares the kinds
+      it accepts and a profile declaring one it has no channel for is still refused
+      naming both files.
+    evidence: >-
+      src/torve/config/agents.py:398 — the docstring, now naming one derived shape
+      instead of two and saying why the one is left.
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-11T14:48:07Z'
+    claim: >-
+      The prepare step landed in T-0328 and is untouched here. What changed in session.py
+      is one line: the spec stops carrying a plugins declaration, because nothing
+      renders one any more.
+    evidence: >-
+      src/torve/application/ports.py:71 — what a spec carries after the deletion,
+      and the prepare step runs between create and the agent regardless of it.
+    action: decided
+  - decision: D-12
+    grade: LOCKED
+    at: '2026-09-11T14:48:08Z'
+    claim: >-
+      The two layers are untouched; merge_equipment and role_equipment are where T-0327
+      left them. agents.py appears in this row's paths because _equipped lives there,
+      and what changed in _equipped is the derived plugins list going.
+    evidence: >-
+      src/torve/config/agents.py:398 — the same function, one derived shape lighter.
+    action: decided
