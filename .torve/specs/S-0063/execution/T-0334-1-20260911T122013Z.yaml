@@ -1,0 +1,164 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0334
+phase: 4
+base: 6bbbc3e86518bb9a9fa462d00ad8dca4ebc6e2ab
+commit: 484e22f312d21a5c4f1b5f5f085fda6cbaab4c8a
+at: '2026-09-11T12:20:13Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: LOCKED
+  - id: D-13
+    grade: LOCKED
+  - id: D-14
+    grade: LOCKED
+  - id: D-15
+    grade: LOCKED
+  - id: D-16
+    grade: LOCKED
+  - id: D-17
+    grade: LOCKED
+entries:
+  - decision: D-14
+    grade: LOCKED
+    at: '2026-09-11T12:09:48Z'
+    claim: >-
+      rootfs mirrors the container filesystem and one COPY installs it. What building
+      decided: the chmod stays explicit rather than relying on the archive's modes,
+      because git records only the executable bit and a file arriving non-executable
+      would fail at the seam rather than at the build.
+    evidence: >-
+      sandboxes/dsh/Dockerfile:15 — COPY rootfs/ / followed by one chmod naming the
+      three scripts, where a path used to appear in the COPY argument, the chmod and
+      the comment above both.
+    action: decided
+  - decision: D-15
+    grade: LOCKED
+    at: '2026-09-11T12:09:48Z'
+    claim: >-
+      DSH_MODEL is one JSON knob rather than four variables, because a catalog entry's
+      values only make sense together — split into provider, dialect, window and cap,
+      three can be right while the fourth goes stale. The generator adds the broker's
+      provider block only when TORVE_BROKER_URL is set, so one knob serves the direct
+      and the brokered seat.
+    evidence: >-
+      sandboxes/dsh/rootfs/opt/torve/equip:23 — the generator, guarded on the knob
+      being present so a seat that names no model gets no overlay rather than an empty
+      one.
+    action: decided
+    notes: >-
+      Measured after: the brokered path resolves its provider, passes the credential
+      check and reaches TRANSPORT: Connection error against a dead URL, which is the
+      whole path working.
+  - decision: D-16
+    grade: LOCKED
+    at: '2026-09-11T12:09:49Z'
+    claim: >-
+      Both paths are what the harness actually reads, not what its docs suggest: dsh's
+      skill-filesystem plugin names .agents/skills and .dsh/skills in its own strings,
+      and mimo found a probe skill copied to .mimocode/skill through mimo debug skill.
+      The copy is dirs_exist_ok so a repository that already has .agents/skills keeps
+      what it had.
+    evidence: >-
+      sandboxes/mimo/rootfs/opt/torve/equip:32 — SKILLS, the project-scoped path;
+      a global one is not read, which was probed and found empty.
+    action: decided
+    notes: >-
+      This is the correction: mimo's manifest said kinds: [plugin], which was wrong
+      about the harness rather than cautious about it.
+  - decision: D-17
+    grade: LOCKED
+    at: '2026-09-11T12:09:49Z'
+    claim: >-
+      The install precedes the patch, and equip does not try to verify that a non-plugin
+      fragment names an entry the profile carries — checking would mean booting dsh
+      to dump its config, and dsh's own refusal already names the entry more precisely
+      than anything repeated here would.
+    evidence: >-
+      sandboxes/dsh/rootfs/opt/torve/equip:112 — the install, before the fragments
+      are collected.
+    action: decided
+    notes: >-
+      The defect phase 3 landed: appending arbitrary fragments works only when the
+      item patches an id that already exists, which is why the model overlays tested
+      clean and nothing else would have.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-11T12:15:08Z'
+    claim: >-
+      The three equip scripts move under rootfs and gain the skill kind; what each
+      does with a manifest is unchanged in shape. dsh's grew a second job — rendering
+      the model overlay — which is the same script doing what its harness needs, since
+      for dsh a model is equipment in everything but name.
+    evidence: >-
+      sandboxes/dsh/rootfs/opt/torve/equip:95 — the skill copy, beside the plugin
+      install and the fragment collection, all reading one manifest.
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-11T12:15:09Z'
+    claim: >-
+      A definition directory is now a Dockerfile and a rootfs tree. dsh's seven yml
+      files leave it entirely rather than moving under rootfs, because a model is
+      the seat's and no longer the image's.
+    evidence: >-
+      sandboxes/dsh/Dockerfile:15 — COPY rootfs/ /, and nothing else copied; the overlays
+      and their symlink block are gone.
+    action: decided
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-11T12:15:09Z'
+    claim: >-
+      The base is untouched. It carries no rootfs of its own because it installs no
+      scripts — it contains no harness, so it has nothing to invoke and nothing to
+      equip, and a definition that inherits it without writing them is caught by the
+      seam test rather than by the build.
+    evidence: >-
+      tests/test_sandbox_defs.py:58 — SEATED, the three definitions a seat can name,
+      each asserted to carry both scripts under rootfs.
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-09-11T12:15:10Z'
+    claim: >-
+      claude keeps its plugin clones and its scripts; only their location moved. The
+      ordering the row set still holds — claude landed first and the two harnesses
+      whose equipment is not flags followed, and this phase is what running them for
+      real then asked for.
+    evidence: >-
+      sandboxes/claude/Dockerfile:15 — the same COPY rootfs/ / as the other two, so
+      the three definitions read alike.
+    action: decided
+  - decision: D-13
+    grade: LOCKED
+    at: '2026-09-11T12:15:10Z'
+    claim: >-
+      The battery still builds no image. Every case added here reads a definition's
+      files as text or loads a manifest through the config layer; the three images
+      were rebuilt and probed by hand, which is what TORVE_IMAGE_TESTS is for.
+    evidence: >-
+      tests/test_sandbox_defs.py:58 — the whole module is text and manifest reads,
+      with no daemon in any case.
+    action: decided
