@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0341
+base: 971e13686d2cefa799ae678801bd991383155f8a
+commit: 41fd29cd4c97954b6c75ac70dd2ecd8d8cc3aa55
+at: '2026-09-11T16:58:40Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: LOCKED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-11T16:40:59Z'
+    claim: >-
+      select is implemented and a skill source that holds many contributes one directory
+      per selected skill. What building decided: discovery is by SKILL.md anywhere
+      under the fetched tree, because a repository nests them however it likes — mattpocock/skills
+      keeps 37 at skills/<category>/<name>/. A source holding one is the whole tree,
+      which keeps torve: and local: sources unchanged.
+    evidence: >-
+      src/torve/application/equipment.py:200 — skills_in and selected, which together
+      turn one declaration into the directories a harness loads.
+    action: decided
+    notes: >-
+      Measured against the real repository at 3cca18b3: three of 37 selected, and
+      claude's equip composed --add-dir for each by name.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-11T16:40:59Z'
+    claim: >-
+      A selector matching nothing is refused and the refusal names what the source
+      does hold, so the fix is visible without cloning the repository by hand. Selecting
+      out of a source that holds one skill gets the same refusal rather than being
+      ignored.
+    evidence: >-
+      src/torve/application/equipment.py:224 — the two refusals, both naming the source
+      and its contents.
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-11T16:41:00Z'
+    claim: >-
+      The fetch is unchanged: one clone per source, pinned, host-side. What changed
+      is what a clone contributes to a mount — several directories rather than one
+      — so a repository of 37 skills is still fetched once and cached once.
+    evidence: >-
+      src/torve/application/equipment.py:280 — mount_root loops over selected(), inside
+      the same per-item warm.
+    action: decided
