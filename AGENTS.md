@@ -112,7 +112,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/architecture/` — 0 decision(s)
 - `sandboxes/` — 8 decision(s)
 - `sandboxes/base/` — 0 decision(s)
-- `sandboxes/claude/` — 0 decision(s)
+- `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/dsh/` — 1 decision(s)
 - `sandboxes/mimo/` — 0 decision(s)
 - `skills/` — 6 decision(s)

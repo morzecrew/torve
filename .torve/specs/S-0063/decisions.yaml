@@ -259,6 +259,22 @@ decisions:
       patches an id the profile already has — which is why the model overlays tested
       clean and nothing else would have
     cites: [D-3]
+  - id: D-18
+    grade: LOCKED
+    text: >-
+      A subscription seat authenticates by variable name and mounts no credential:
+      the claude image takes `CLAUDE_CODE_OAUTH_TOKEN` and no auth volume.
+    paths: [sandboxes/claude/**, .torve/harnesses/**]
+    consequence: >-
+      an attempt holds one token for its own lifetime instead of reading a refresh
+      token out of a volume that outlives every sandbox that ever mounted it
+    rationale: >-
+      the volume held `accessToken` and `refreshToken` in plaintext, mounted read-write
+      because refresh writes, and persisted across attempts — so an attempt that read
+      it held a standing credential rather than a bounded one. Measured: the same
+      prompt answers identically through the variable with no `/auth` in the container
+      at all, once the host's proxy environment reaches it
+    cites: [S-0055/D-4, S-0001/D-13]
 invariants:
   - id: I-1
     statement: >-

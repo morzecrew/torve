@@ -118,3 +118,12 @@ amendments:
       The row said `rootfs/`, mirroring the container filesystem, which is the convention `morzecrew/platform-images` runs and the right one when files land in several places. Here they do not: every file all three definitions install goes to `/opt/torve`, so the mirror bought three empty directory levels and a name that promised a generality nothing used.
 
       `toolkit/` is what `/opt/torve` has been called since S-0033/D-4, so the directory now says where its contents land. A definition that one day needs `/etc` or `/usr/local/bin` adds a `rootfs/` beside it and copies that separately; nothing here has to be decided in advance to allow it.
+  - id: A-12
+    at: '2026-09-11T15:26:33Z'
+    title: A subscription seat mounts no credential
+    md: |-
+      D-18, from the first live attempt. The subscription route was defined by its auth volume: a per-worker-slot volume mounted read-write at `/auth`, holding `.credentials.json`, linked into the harness's HOME so a refreshed token survived for the next attempt on that slot.
+
+      What that means in an attempt's hands is a standing credential. The file carries a refresh token as well as an access token, the mount is writable, and the volume outlives every sandbox that ever mounted it — so an attempt that reads it holds something that does not expire with the attempt. A variable carries one token, for one attempt, with no refresh beside it.
+
+      Measured both ways against the real image: the same prompt answers identically through `CLAUDE_CODE_OAUTH_TOKEN` with no `/auth` in the container at all. The `auth_volume` and `auth_mount` fields stay on the manifest — the codex route still uses one and has not been measured for an env form — but the harness this repository dispatches to uses neither.
