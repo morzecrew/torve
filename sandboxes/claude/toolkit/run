@@ -13,15 +13,15 @@ set -eu
 : "${TORVE_MODEL:?the engine names the model}"
 : "${TORVE_OUTPUT:?the engine names where the result goes}"
 
-# The credentials. HOME is /tmp — the container has no passwd entry — and the
-# auth volume is mounted read-write at /auth because token refresh writes;
-# linking it into HOME is what keeps a refreshed token for the next attempt on
-# this slot. A seat on the API route has no volume and skips this.
+# The credential arrives by name and nothing is mounted (S-0063/D-18):
+# `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt, which is the narrower
+# blast radius and costs this seat nothing. A harness with no env form mounts a
+# volume instead, read-write — it refreshes its token mid-session, and a mount
+# it cannot write to does not fail, it hangs.
+#
+# HOME is /tmp, because the container has no passwd entry and claude writes
+# state under it.
 mkdir -p "$HOME/.claude"
-
-if [ -e /auth/.credentials.json ]; then
-    ln -sf /auth/.credentials.json "$HOME/.claude/.credentials.json"
-fi
 
 # The broker, when the run has one: claude reaches its provider through
 # ANTHROPIC_BASE_URL, and mapping the engine's two names onto the harness's is

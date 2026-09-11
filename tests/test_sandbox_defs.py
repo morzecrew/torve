@@ -302,3 +302,27 @@ def test_no_definition_bakes_a_plugin() -> None:
 
         assert "git clone" not in dockerfile, f"{name} bakes a clone"
         assert "/opt/torve/seed" not in dockerfile
+
+
+def test_no_seated_definition_reads_a_mounted_credential() -> None:
+    """S-0063/D-18: the seats this repository dispatches to take a credential
+    by variable name — one token for one attempt, nothing persisted. The
+    volume route stays for a harness with no env form; where one is used it is
+    mounted read-write, because a harness that cannot persist a refreshed
+    token does not fail, it hangs."""
+
+    for name in SEATED:
+        run = (DEFINITIONS / name / "toolkit" / "run").read_text(encoding="utf-8")
+
+        assert "/auth/.credentials.json" not in run, f"{name} reads a mounted credential"
+
+
+def test_the_claude_manifest_names_its_credential_and_mounts_none() -> None:
+    from torve.config.agents import load_harness
+
+    manifest = load_harness(Path("."), "claude-subscription")
+
+    assert manifest.api_key_env == ["CLAUDE_CODE_OAUTH_TOKEN"]
+    # The fields keep their model defaults because this manifest names neither:
+    # they stay for a harness with no env form, such as the codex route.
+    assert manifest.auth_volume == "torve-auth"

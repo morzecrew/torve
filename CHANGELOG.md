@@ -85,6 +85,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Breaking:** the claude seat authenticates by variable name and mounts no
+  credential. `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt.
+
+- The auth volume route stays for a harness with no env form. Where one is
+  used it is mounted read-write: a harness that cannot persist a refreshed
+  token hangs rather than failing.
+
 - The claude image bakes no plugin. It carried pinned clones of caveman and
   ponytail so the retired renderer could write bookkeeping beside them; both
   are equipment now, fetched into a cache the seat mounts read-only.

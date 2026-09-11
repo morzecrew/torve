@@ -127,3 +127,28 @@ amendments:
       What that means in an attempt's hands is a standing credential. The file carries a refresh token as well as an access token, the mount is writable, and the volume outlives every sandbox that ever mounted it — so an attempt that reads it holds something that does not expire with the attempt. A variable carries one token, for one attempt, with no refresh beside it.
 
       Measured both ways against the real image: the same prompt answers identically through `CLAUDE_CODE_OAUTH_TOKEN` with no `/auth` in the container at all. The `auth_volume` and `auth_mount` fields stay on the manifest — the codex route still uses one and has not been measured for an env form — but the harness this repository dispatches to uses neither.
+  - id: A-13
+    at: '2026-09-11T15:30:19Z'
+    title: >-
+      The volume route stays, and read-write is what makes it safe to use
+    changes:
+      - subject: D-18
+        field: text
+        before: >-
+          A subscription seat authenticates by variable name and mounts no credential:
+          the claude image takes `CLAUDE_CODE_OAUTH_TOKEN` and no auth volume.
+        after: >-
+          The seats this repository dispatches to authenticate by variable name and
+          mount no credential — the claude image takes `CLAUDE_CODE_OAUTH_TOKEN`,
+          dsh takes `DEEPSEEK_API_KEY`. The auth-volume route stays for a harness
+          that has no env form, and where one is used it is mounted read-write: a
+          harness that cannot persist a refreshed token does not fail, it hangs.
+      - subject: D-18
+        field: fingerprint
+        after: 6ad7f5252e3f2864/4d1178442d9c9e65
+    md: |-
+      A-12 read as an argument against auth volumes, and that is not the finding. A volume is a fine way to carry a credential a harness has no other way to take; codex is such a harness and keeps one.
+
+      Two things are true instead. The seats this repository can actually experiment with — claude and dsh — both have an env form, so they use it: one token for one attempt, nothing persisted, which is the narrower blast radius and costs nothing here. And where a volume *is* used it has to be read-write, because the harness refreshes its token mid-session; a read-only mount does not produce a clean failure, it produces a sandbox that sits there until the agent clock kills it, which reads as a slow model rather than a broken mount.
+
+      The second half is the one worth carrying forward, because it is a failure mode nothing else in the loop would name.
