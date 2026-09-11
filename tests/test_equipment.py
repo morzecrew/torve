@@ -622,3 +622,108 @@ def test_a_fetch_records_the_pin_beside_the_bytes(tmp_path: Path, monkeypatch) -
     assert (where / equip_mod.PIN_FILE).read_text(encoding="utf-8").strip() == (
         "github:owner/repo@v4.9.0"
     )
+
+
+def test_equip_renders_a_table_naming_each_item_and_where_it_landed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The text surface is what an operator actually reads after warming: one
+    row per item, the source as declared, and the cache directory it landed in.
+    A ref nobody wrote is a dash rather than a blank, so a missing pin and an
+    unpinnable source do not look alike (S-0062/D-4)."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    root = _equip_repo(tmp_path)
+    cache = tmp_path / "cache"
+    monkeypatch.setenv("TORVE_EQUIPMENT_CACHE", str(cache))
+
+    result = CliRunner().invoke(app, ["equip", "--root", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert "torve equip · 2 item(s)" in result.output
+
+    for column in ("kind", "source", "ref", "cached"):
+        assert column in result.output
+
+    for source in ("local:skills/house-voice", "local:skills/ratchet"):
+        assert source in result.output
+
+    assert "—" in result.output, "a ref nobody wrote rendered as a blank"
+    # The path column is the answer to "where did it land", so it has to be a
+    # directory that now exists, not a name the verb intends to fetch into.
+    assert (cache / "skill").is_dir()
+
+
+def test_equip_seat_narrows_to_one_seat_and_still_warms_its_role_s_layer(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`--seat` narrows the seat layer, never the role's (S-0062/D-12): the
+    seat a dispatch picks decides which seat profile applies, and the role's
+    profile is underneath every one of them. A `--seat` that dropped the role
+    would warm a cache that the very seat it named still has to fetch into."""
+
+    import json
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    root = _equip_repo(tmp_path)
+    write(root / "skills" / "second-opinion" / "SKILL.md", "---\nname: second-opinion\n---\n")
+    write(
+        agents_dir(root) / "critic.yaml",
+        "equipment: [{kind: skill, source: 'local:skills/second-opinion'}]\n",
+    )
+    write(
+        root / ".torve" / "config.yaml",
+        "tiers:\n"
+        "  executor:\n    harness: fake\n    profile: seated\n"
+        "  reviewer:\n    harness: fake\n    profile: critic\n",
+    )
+    monkeypatch.setenv("TORVE_EQUIPMENT_CACHE", str(tmp_path / "cache"))
+
+    def sources(*extra: str) -> set[str]:
+        result = CliRunner().invoke(app, ["equip", "--root", str(root), "--format", "json", *extra])
+
+        assert result.exit_code == 0, result.output
+
+        return {item["source"] for item in json.loads(result.stdout)["items"]}
+
+    assert sources() == {
+        "local:skills/house-voice",
+        "local:skills/ratchet",
+        "local:skills/second-opinion",
+    }
+    assert sources("--seat", "executor") == {
+        "local:skills/house-voice",
+        "local:skills/ratchet",
+    }
+    assert sources("--seat", "reviewer") == {
+        "local:skills/house-voice",
+        "local:skills/second-opinion",
+    }
+
+
+def test_equip_refuses_a_seat_no_tier_carries_before_fetching_anything(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A misspelled seat is a configuration error, not an empty warm: warming
+    nothing exits 0 and looks like success, and the operator would go on to
+    dispatch against a cache that was never filled."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    root = _equip_repo(tmp_path)
+    cache = tmp_path / "cache"
+    monkeypatch.setenv("TORVE_EQUIPMENT_CACHE", str(cache))
+
+    result = CliRunner().invoke(app, ["equip", "--root", str(root), "--seat", "excutor"])
+
+    assert result.exit_code == 3
+    assert "excutor" in result.output
+    assert not cache.exists(), "a refused seat still warmed the cache"
