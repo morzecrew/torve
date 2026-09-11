@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0343
+base: a41691f2e2ba4371b6dedcb7addcd0bad8ce25fe
+commit: a9ca974b167ea53cfc40f68f60e02be9ca8af5c3
+at: '2026-09-11T17:53:21Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-19
+    grade: LOCKED
+entries:
+  - decision: D-19
+    grade: LOCKED
+    class: drift
+    at: '2026-09-11T17:48:21Z'
+    claim: >-
+      The rule was right and the file was wrong. git reads info/exclude from the common
+      gitdir and never from a linked worktree's own, which is what every attempt runs
+      in — so _exclude_equip_root wrote a file nothing consulted, check-ignore matched
+      nothing, and the first clean dsh run still had twelve equipment files headed
+      for the commit. The test passed because it read back the file it had just written
+      rather than asking git.
+    evidence: >-
+      src/torve/application/session.py:619 — rev-parse --git-common-dir, and the test
+      now asserts on check-ignore inside a real linked worktree.
+    action: decided
+    notes: >-
+      Repository-wide rather than per-worktree is the right scope anyway: the root
+      is torve's by declaration and no checkout should track equipment.
