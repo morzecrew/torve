@@ -673,7 +673,7 @@
         },
         "profile": {
           "default": "",
-          "description": "S-0061/D-1/D-3: the agent profile this seat runs, by name \u2014\n`.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty\nresolves the profile named for the task's role (S-0061/D-11).",
+          "description": "S-0061/D-1/D-3: the agent profile this seat runs, by name \u2014\n`.torve/agents/<name>.yaml`, merged the same way and kept for the same reason. Empty\nresolves the profile that declares the task's role (S-0061/D-11, S-0061/D-13).",
           "title": "Profile",
           "type": "string"
         },
@@ -737,7 +737,7 @@
             }
           ],
           "default": null,
-          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's\nagent materializes, derived from `equipment` (S-0062/D-1) \u2014 `None` is a seat whose\nprofile named none, which falls through to the profile named for the task's role\n(S-0061/D-11). Names resolve through the same `materialize` path with the same\nrefusals (S-0029/D-2).",
+          "description": "S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's\nagent materializes, derived from `equipment` (S-0062/D-1) \u2014 `None` is a seat whose\nprofile named none, which falls through to the profile declaring the task's role\n(S-0061/D-11). Names resolve through the same `materialize` path with the same\nrefusals (S-0029/D-2).",
           "title": "Skills"
         }
       },
