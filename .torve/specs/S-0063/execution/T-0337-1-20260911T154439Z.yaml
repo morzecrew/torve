@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0337
+base: dd5de7654efcd2e728fe445d688311dfd190f361
+commit: 03a2d6f2265789dc7b55bd7de139286736b6ac32
+at: '2026-09-11T15:44:39Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-18
+    grade: LOCKED
+  - id: D-1
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-18
+    grade: LOCKED
+    at: '2026-09-11T15:33:40Z'
+    claim: >-
+      The claude seat takes its credential by name and mounts none. What building
+      found and the owner corrected: this is not an argument against auth volumes.
+      A volume is the right carrier for a harness with no env form, and the operational
+      rule that matters is that it be read-write — the harness refreshes its token
+      mid-session, and a mount it cannot write to produces a sandbox that sits until
+      the agent clock kills it rather than a clean failure. That failure mode is named
+      in the row because nothing else in the loop would name it.
+    evidence: >-
+      .torve/harnesses/claude-subscription.yaml:3 — the manifest names the variable
+      and no volume; the auth_volume and auth_mount fields keep their model defaults,
+      unused here.
+    action: decided
+    notes: >-
+      Measured both ways against the real image: the same prompt answered identically
+      with and without /auth, once the host's proxy environment reached the container.
