@@ -4,9 +4,10 @@
 # task's role supplies those under this layer (S-0062/D-12) — this file adds,
 # it does not replace.
 #
-# The refs are the ones the image clones at. Until phase 2 mounts the cache the
-# harness still names those clones by path in its own command; the declaration
-# here is what the flag templates will be composed from.
+# The refs are the pins, and nothing else pins them: the image bakes no clone
+# (S-0063/D-9). `torve equip` fetches each into the cache host-side, the seat
+# mounts it read-only, and the image's own `equip` turns the manifest into the
+# flags claude takes (S-0063/D-3).
 equipment:
 - kind: plugin
   source: github:JuliusBrussee/caveman

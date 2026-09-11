@@ -262,17 +262,14 @@ def test_the_name_is_what_survives_a_push(image: str, kind: str) -> None:
     assert harness_kind(image) == kind
 
 
-def test_the_claude_image_keeps_its_clones_and_no_bookkeeping() -> None:
-    """The clones stay baked, because a fetch at dispatch would put the network
-    inside every attempt (S-0062/D-4). What is gone is the hand-kept copy of
-    the harness's own installed-plugins state: `--plugin-dir` reaches the same
-    result through a supported flag, so S-0061/D-6's renderer retired with the
-    road that fed it (S-0062/D-9)."""
+def test_the_claude_image_keeps_no_bookkeeping() -> None:
+    """The hand-kept copy of the harness's own installed-plugins state is gone:
+    `--plugin-dir` reaches the same result through a supported flag, so
+    S-0061/D-6's renderer retired with the road that fed it (S-0062/D-9)."""
 
     definition = DEFINITIONS / "claude"
     dockerfile = (definition / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "git clone" in dockerfile
     assert "installed_plugins.json" not in dockerfile
     assert not list(definition.glob("seed-*.json"))
 
@@ -292,3 +289,16 @@ def test_a_consuming_repository_keeps_its_own_hook(tmp_path: Path) -> None:
 
     assert definitions_root(consumer) == consumer / ".torve" / "sandbox"
     assert definition_names(consumer) == ["house"]
+
+
+def test_no_definition_bakes_a_plugin() -> None:
+    """S-0063/D-9: a plugin is equipment, fetched host-side into a cache the
+    seat mounts. The claude image used to carry pinned clones so the retired
+    renderer could write bookkeeping beside them; two copies of a repository
+    with one reader was the whole cost of keeping them."""
+
+    for name in SEATED:
+        dockerfile = (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8")
+
+        assert "git clone" not in dockerfile, f"{name} bakes a clone"
+        assert "/opt/torve/seed" not in dockerfile

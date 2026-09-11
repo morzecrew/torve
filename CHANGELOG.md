@@ -85,6 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The claude image bakes no plugin. It carried pinned clones of caveman and
+  ponytail so the retired renderer could write bookkeeping beside them; both
+  are equipment now, fetched into a cache the seat mounts read-only.
+
 - **Breaking:** the plugin renderer is gone, and so is the road that fed it —
   `seed_files`, both adapter write-backs, the `Plugin` model and the seat field
   it filled. A plugin is equipment like every other kind.
