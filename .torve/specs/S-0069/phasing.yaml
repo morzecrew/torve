@@ -3,11 +3,12 @@ phasing:
   - phase: 1
     title: the conviction reaches the prompt
     intent: >-
-      `build_prompt` gains a third mode beside continuation and revision: a block naming
-      the gate that convicted the previous attempt, the tail of its output, the paths the
-      diff touched and the inherited rows governing them — read from what the pack
-      already writes, and stated as evidence the contract outranks. Nothing routes to it
-      yet and no attempt starts anywhere new; this phase makes the facts sayable.
+      `build_prompt` gains a third mode beside continuation and revision: a block
+      naming the gate that convicted the previous attempt, the tail of its output,
+      the paths the diff touched and the inherited rows governing them — read from
+      what the pack already writes, and stated as evidence the contract outranks.
+      Nothing routes to it yet and no attempt starts anywhere new; this phase makes
+      the facts sayable.
     scope:
       - src/torve/adapters/agent/harness.py
       - src/torve/application/contextpack.py
@@ -27,10 +28,9 @@ phasing:
       from the convicted tree rather than from base, its acceptance gains the convicting
       gate's own command alongside everything the contract already declared, and it
       happens once — a second conviction on the same gate routes where it routes today.
-      The qualifying set starts at the gates whose checks are pure functions of the tree;
-      D-5 is settled in this phase and recorded with the evidence that settled it.
-    depends_on:
-      - 1
+      The qualifying set starts at the gates whose checks are pure functions of the
+      tree; D-5 is settled in this phase and recorded with the evidence that settled
+      it.
     scope:
       - src/torve/application/runner.py
       - src/torve/application/dispatch.py
@@ -43,4 +43,6 @@ phasing:
       - uv run pytest
       - uv run mypy src
       - uv run lint-imports
+    depends_on:
+      - 1
     character: structural

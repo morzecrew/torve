@@ -5,11 +5,8 @@ title: >-
 kind: design
 status: draft
 implementation: none
-depends_on:
-  - S-0063
-informed_by:
-  - S-0055
-  - S-0062
+depends_on: [S-0063]
+informed_by: [S-0055, S-0062]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
@@ -240,45 +237,48 @@ risks: |
   role at first, so a red result is attributable to the declaration rather than to the
   image.
 alternatives:
-  - option: Declare the worktree's files as equipment instead of shutting them out
+  - option: >-
+      Declare the worktree's files as equipment instead of shutting them out
     rejected_because: >-
-      It is the other half of the same decision and it stays available per item — the
-      `mcp` kind exists for exactly this. What it cannot do is stay accidental: the
-      default must be absent, because an input that arrives without a declaration is the
-      thing the regime digest cannot see.
-  - option: Use claude's `--bare`, which closes every door at once
+      It is the other half of the same decision and it stays available per item —
+      the `mcp` kind exists for exactly this. What it cannot do is stay accidental:
+      the default must be absent, because an input that arrives without a declaration
+      is the thing the regime digest cannot see.
+  - option: >-
+      Use claude's `--bare`, which closes every door at once
     rejected_because: >-
       It also skips plugin sync and carries authentication side effects, so it changes
-      more than the surface under discussion; the narrower switches close the same doors
-      without them.
-  - option: A `capabilities:` list on the harness manifest, beside `kinds`
+      more than the surface under discussion; the narrower switches close the same
+      doors without them.
+  - option: >-
+      A `capabilities:` list on the harness manifest, beside `kinds`
     rejected_because: >-
-      The right eventual shape and the wrong first move. `kinds` earned its place after
-      three images had demonstrably different channels and a profile had declared
+      The right eventual shape and the wrong first move. `kinds` earned its place
+      after three images had demonstrably different channels and a profile had declared
       something one of them could not take; a vocabulary written before its first
       capability is in use is a schema invented for hypothetical harnesses.
-    cites:
-      - S-0063/D-3
-  - option: Export each image's telemetry over OTLP rather than reading its trace
+    cites: [S-0063/D-3]
+  - option: >-
+      Export each image's telemetry over OTLP rather than reading its trace
     rejected_because: >-
-      A collector, an egress route out of a sandbox that is sealed on purpose, and a
-      second telemetry lineage. dsh's default endpoint is its vendor's and it ships no
-      redaction rules; the stream carries the same facts through a channel that exists.
-  - option: A real-time scope refusal for sessions as well as sandboxes
+      A collector, an egress route out of a sandbox that is sealed on purpose, and
+      a second telemetry lineage. dsh's default endpoint is its vendor's and it ships
+      no redaction rules; the stream carries the same facts through a channel that
+      exists.
+  - option: >-
+      A real-time scope refusal for sessions as well as sandboxes
     rejected_because: >-
-      Measured against a real session: four of one task's scope widenings would have been
-      blocked and all four were correct. A session author discovers scope as they work and
-      may legitimately rewrite the contract; a sandbox agent cannot, because its contract
-      is fixed before it starts.
+      Measured against a real session: four of one task's scope widenings would have
+      been blocked and all four were correct. A session author discovers scope as
+      they work and may legitimately rewrite the contract; a sandbox agent cannot,
+      because its contract is fixed before it starts.
 questions:
   - id: Q-1
     text: >-
-      Is `readable-code` re-declared as equipment or dropped? It is the one of the four
-      skills the door removes whose absence would not announce itself in a gate, and the
-      answer wants a measured landing rate rather than a preference.
-    status: open
+      Is `readable-code` re-declared as equipment or dropped? It is the one of the
+      four skills the door removes whose absence would not announce itself in a gate,
+      and the answer wants a measured landing rate rather than a preference.
   - id: Q-2
     text: >-
       What is `.agents/skills/forze-skills`, and does any role want it? It is vendored,
       it rides into every dsh and mimo attempt today, and nobody has opened it.
-    status: open

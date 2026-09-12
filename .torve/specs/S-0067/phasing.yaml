@@ -3,12 +3,12 @@ phasing:
   - phase: 1
     title: the verb that briefs
     intent: >-
-      One command that takes a contract and runs, in order, what dispatch runs before an
-      agent starts: the lint, the size estimate, the rows this scope crosses that the
-      contract has not inherited, the pack, and the battery with its blocking axes named.
-      It writes the pack where an attempt would find it and prints the rest. It refuses
-      nothing and exits zero on a contract that lints red, because a hand-minted contract
-      is already signed by the person reading the output.
+      One command that takes a contract and runs, in order, what dispatch runs before
+      an agent starts: the lint, the size estimate, the rows this scope crosses that
+      the contract has not inherited, the pack, and the battery with its blocking
+      axes named. It writes the pack where an attempt would find it and prints the
+      rest. It refuses nothing and exits zero on a contract that lints red, because
+      a hand-minted contract is already signed by the person reading the output.
     scope:
       - src/torve/cli/brief.py
       - src/torve/cli/main.py
@@ -24,14 +24,12 @@ phasing:
   - phase: 2
     title: the rules have one source
     intent: >-
-      Seven of the eight working-rule bullets leave `build_prompt` for
-      `skills/working-rules/`, packaged with the engine beside the other torve-owned
-      skills, declared as equipment on the roles that need it and symlinked into the
-      session's skill root. The eighth — the pointer saying the role's skills are under
-      `.torve/skills/` — stays, because a skill nothing points at is a file. The text
-      gains the rule that produced every measured lint refusal on this path.
-    depends_on:
-      - 1
+      Seven of the eight working-rule bullets leave `build_prompt` for `skills/working-rules/`,
+      packaged with the engine beside the other torve-owned skills, declared as equipment
+      on the roles that need it and symlinked into the session's skill root. The eighth
+      — the pointer saying the role's skills are under `.torve/skills/` — stays, because
+      a skill nothing points at is a file. The text gains the rule that produced every
+      measured lint refusal on this path.
     scope:
       - skills/working-rules/**
       - src/torve/adapters/agent/harness.py
@@ -43,21 +41,21 @@ phasing:
     acceptance:
       - uv run pytest
       - uv run mypy src
+    depends_on:
+      - 1
     character: structural
   - phase: 3
     title: the pack is askable
     intent: >-
-      One more read-only MCP tool returning the per-task facts the pack holds, so a
-      session can ask for what a sandbox is handed on disk — harness-agnostic, because
-      all three speak it. The server still registers nothing that writes. Last of the
-      three because it is the largest and because the first two are what make it useful.
-    depends_on:
-      - 2
-    scope:
-      - src/torve/cli/mcp.py
-      - tests/test_mcp.py
-      - CHANGELOG.md
+      One more read-only MCP tool returning the per-task facts the pack holds, so
+      a session can ask for what a sandbox is handed on disk — harness-agnostic, because
+      all three speak it. The server still registers nothing that writes. Last of
+      the three because it is the largest and because the first two are what make
+      it useful.
+    scope: [src/torve/cli/mcp.py, tests/test_mcp.py, CHANGELOG.md]
     acceptance:
       - uv run pytest
       - uv run mypy src
+    depends_on:
+      - 2
     character: structural

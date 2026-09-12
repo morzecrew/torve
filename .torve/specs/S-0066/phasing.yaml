@@ -3,12 +3,12 @@ phasing:
   - phase: 1
     title: the door, and what it was carrying
     intent: >-
-      Each image stops reading the worktree's own reader files, with its own switch —
-      claude's settings-source and MCP-config flags, mimo's per-root disables, dsh's
+      Each image stops reading the worktree's own reader files, with its own switch
+      — claude's settings-source and MCP-config flags, mimo's per-root disables, dsh's
       instruction-file candidate list. In the same phase, what the door removes is
-      re-declared as equipment on the roles that want it and dropped on purpose where no
-      role does, so the change is a visible regime rather than a silent regression. The
-      switches are probed in the built image rather than reasoned about: the measured
+      re-declared as equipment on the roles that want it and dropped on purpose where
+      no role does, so the change is a visible regime rather than a silent regression.
+      The switches are probed in the built image rather than reasoned about: the measured
       traps here are flag interactions and one environment knob that did nothing.
     scope:
       - sandboxes/claude/toolkit/run
@@ -26,14 +26,12 @@ phasing:
   - phase: 2
     title: the image says what it loaded
     intent: >-
-      Each image emits its trace in the form the engine's burn parser was written for,
-      with the result envelope still last so the parsing contract does not move — claude
-      switches format, dsh's `report-usage` counts the turn and tool events in the bytes
-      it already decompresses, mimo already emits them. The engine then compares the
-      inventory the harness reports against what the seat declared, and records the
-      difference on the attempt without reddening a gate.
-    depends_on:
-      - 1
+      Each image emits its trace in the form the engine's burn parser was written
+      for, with the result envelope still last so the parsing contract does not move
+      — claude switches format, dsh's `report-usage` counts the turn and tool events
+      in the bytes it already decompresses, mimo already emits them. The engine then
+      compares the inventory the harness reports against what the seat declared, and
+      records the difference on the attempt without reddening a gate.
     scope:
       - sandboxes/claude/toolkit/run
       - sandboxes/dsh/toolkit/report-usage
@@ -47,22 +45,21 @@ phasing:
       - uv run pytest
       - uv run mypy src
       - uv run lint-imports
+    depends_on:
+      - 1
     character: structural
   - phase: 3
     title: one hook, declared and capped
     intent: >-
       The `hook` kind gets its first declaration: a refusal for a write outside the
-      contract's `scope.allow`, and a finishing check that the attempt owes nothing and
-      leaves no projection drift. Declared on `implement` only at first, so a red result
-      is attributable to the declaration rather than to the image, and the finishing
-      check carries the ceiling that turns an unsatisfiable block into two turns instead
-      of a turn budget.
-    depends_on:
-      - 2
-    scope:
-      - .torve/agents/**
-      - tests/test_equipment.py
-      - CHANGELOG.md
+      contract's `scope.allow`, and a finishing check that the attempt owes nothing
+      and leaves no projection drift. Declared on `implement` only at first, so a
+      red result is attributable to the declaration rather than to the image, and
+      the finishing check carries the ceiling that turns an unsatisfiable block into
+      two turns instead of a turn budget.
+    scope: [.torve/agents/**, tests/test_equipment.py, CHANGELOG.md]
     acceptance:
       - uv run pytest
+    depends_on:
+      - 2
     character: structural

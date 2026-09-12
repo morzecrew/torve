@@ -5,21 +5,20 @@ decisions:
     text: >-
       A repair is a mode of an attempt, not a role, a task or a child — `build_prompt`
       gains a `conviction` beside its `continuation` and `revision`
-    paths:
-      - src/torve/adapters/agent/harness.py
+    paths: [src/torve/adapters/agent/harness.py]
     consequence: >-
-      the attempt ledger, the budget, the poison ceiling and the escalation reasons all
-      apply unchanged, and nothing new has to be configured for a repair to exist
+      the attempt ledger, the budget, the poison ceiling and the escalation reasons
+      all apply unchanged, and nothing new has to be configured for a repair to exist
     rationale: >-
-      the prompt already has two modes that change what an attempt is told and where it
-      starts; a fifth role would buy a profile, a seat and a task relationship for
-      something two flags already demonstrate
+      the prompt already has two modes that change what an attempt is told and where
+      it starts; a fifth role would buy a profile, a seat and a task relationship
+      for something two flags already demonstrate
   - id: D-2
     grade: ASSUMED
     text: >-
-      The conviction reaches the next attempt in the prompt — the gate, its output tail,
-      the paths the diff touched and the inherited rows governing them — as evidence the
-      contract still outranks
+      The conviction reaches the next attempt in the prompt — the gate, its output
+      tail, the paths the diff touched and the inherited rows governing them — as
+      evidence the contract still outranks
     paths:
       - src/torve/adapters/agent/harness.py
       - src/torve/application/contextpack.py
@@ -35,39 +34,38 @@ decisions:
     text: >-
       A repair's acceptance gains the convicting gate's own command, and keeps everything
       the contract already declared
-    paths:
-      - src/torve/application/runner.py
+    paths: [src/torve/application/runner.py]
     consequence: >-
-      a repair that leaves the gate red fails inside the attempt, and one that clears it
-      by breaking another gate still fails
+      a repair that leaves the gate red fails inside the attempt, and one that clears
+      it by breaking another gate still fails
     rationale: >-
-      finding out inside the attempt is the whole saving; replacing the acceptance rather
-      than adding to it would buy the repeat count down by breaking something else
+      finding out inside the attempt is the whole saving; replacing the acceptance
+      rather than adding to it would buy the repeat count down by breaking something
+      else
   - id: D-4
     grade: ASSUMED
     text: >-
       A repair starts from the convicted attempt's tree, not from base
-    paths:
-      - src/torve/application/runner.py
+    paths: [src/torve/application/runner.py]
     consequence: >-
       the work that was right survives the mistake, and the tree a mechanical conviction
       names is repaired rather than rebuilt
     rationale: >-
-      a retry restarts from base because the previous reasoning is not privileged, which
-      is right when the approach failed; for a path outside scope or a coordinate in a
-      user-facing string the tree is not what failed, and one property of it is
-    cites:
-      - S-0026/D-8
+      a retry restarts from base because the previous reasoning is not privileged,
+      which is right when the approach failed; for a path outside scope or a coordinate
+      in a user-facing string the tree is not what failed, and one property of it
+      is
+    cites: [S-0026/D-8]
   - id: D-5
     grade: OPEN
     text: >-
       Which convictions qualify for a repair — the set starts at the gates whose checks
       are pure functions of the tree and grows on the ledger's evidence
-    paths:
-      - src/torve/application/runner.py
+    paths: [src/torve/application/runner.py]
     consequence: >-
-      a repair is never offered for a conviction where the approach rather than the tree
-      is what failed, and widening the set is a decision with a number behind it
+      a repair is never offered for a conviction where the approach rather than the
+      tree is what failed, and widening the set is a decision with a number behind
+      it
     rationale: >-
       `acceptance` is the largest repeat class at 52 and the least obviously mechanical:
       a suite failing twice may be a tree worth keeping or an approach worth abandoning,
@@ -77,12 +75,11 @@ decisions:
     text: >-
       A repair is attempted once per conviction; a second conviction on the same gate
       routes exactly where it routes today
-    paths:
-      - src/torve/application/runner.py
+    paths: [src/torve/application/runner.py]
     consequence: >-
       the poison ceiling keeps meaning three failures the same way rather than three
-      attempts at one fix, and a repair cannot become a loop reading its own failure as
-      its input
+      attempts at one fix, and a repair cannot become a loop reading its own failure
+      as its input
     rationale: >-
       an unbounded repair is the shape that turns a budget into an escalation with
       nothing to show, and it would do it while looking like progress

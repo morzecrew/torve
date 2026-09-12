@@ -6,8 +6,7 @@ kind: design
 status: accepted
 implementation: none
 depends_on: []
-informed_by:
-  - S-0055
+informed_by: [S-0055]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
@@ -169,22 +168,27 @@ risks: |
   mechanism. That is a real cost and it is why the scope-narrowing path is written first;
   if it does not work, the amendment is the honest alternative rather than the default.
 alternatives:
-  - option: Warn rather than refuse on `auto_merge` with no criterion
+  - option: >-
+      Warn rather than refuse on `auto_merge` with no criterion
     rejected_because: >-
       The configuration is read once, at load, by a process that then runs unattended.
-      A warning is printed to a terminal nobody is watching, which is the condition the
-      hazard is defined by.
-  - option: Change the defaults so a criterion is on out of the box
+      A warning is printed to a terminal nobody is watching, which is the condition
+      the hazard is defined by.
+  - option: >-
+      Change the defaults so a criterion is on out of the box
     rejected_because: >-
       `approvals: 0` means "configuring nothing decides nothing", which is the correct
-      rule for the human-invoked verb that reads the same knobs. Changing a default to
-      protect a different caller makes the manual lane refuse things it should not.
-  - option: Relax the adoption check so a standing job may cross a locked row
+      rule for the human-invoked verb that reads the same knobs. Changing a default
+      to protect a different caller makes the manual lane refuse things it should
+      not.
+  - option: >-
+      Relax the adoption check so a standing job may cross a locked row
     rejected_because: >-
-      The check is why nothing has quietly edited the gate manifest, which is where the
-      battery's own states and axes are declared. Six refusals is the check working, and
-      the answer is to change the scope or the row.
-  - option: Retire `flake-quarantine` instead of answering it
+      The check is why nothing has quietly edited the gate manifest, which is where
+      the battery's own states and axes are declared. Six refusals is the check working,
+      and the answer is to change the scope or the row.
+  - option: >-
+      Retire `flake-quarantine` instead of answering it
     rejected_because: >-
       It stays available as an outcome of this work, but it is not the starting position:
       the job is the engine's only self-starting mechanism and it has never been allowed
@@ -192,8 +196,7 @@ alternatives:
 questions:
   - id: Q-1
     text: >-
-      Does the quarantine list belong in `.torve/gates.yaml` at all? Splitting it into a
-      file the job may write without touching a gate definition would answer the six
-      refusals by construction rather than by narrowing a glob — at the cost of a second
-      file the manifest has to read.
-    status: open
+      Does the quarantine list belong in `.torve/gates.yaml` at all? Splitting it
+      into a file the job may write without touching a gate definition would answer
+      the six refusals by construction rather than by narrowing a glob — at the cost
+      of a second file the manifest has to read.

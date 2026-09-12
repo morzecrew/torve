@@ -5,12 +5,8 @@ title: >-
 kind: design
 status: draft
 implementation: none
-depends_on:
-  - S-0066
-informed_by:
-  - S-0054
-  - S-0055
-  - S-0062
+depends_on: [S-0066]
+informed_by: [S-0054, S-0055, S-0062]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
@@ -201,47 +197,50 @@ risks: |
   fact that the pack is already a pure function; anything that needs a decision stays a
   verb.
 alternatives:
-  - option: A claude plugin with a `PreToolUse` hook, so a session's contract binds in real time
+  - option: >-
+      A claude plugin with a `PreToolUse` hook, so a session's contract binds in real
+      time
     rejected_because: >-
-      Measured against a real session: four of one task's scope widenings would have been
-      blocked and all four were correct — a row's own paths, a rendered projection, a test
-      fixture, the spec directory. The lint catches the contract defects that actually
-      landed; the hook would have caught none and cost four interruptions. It is also
-      claude-only, in a repository that dispatches to three harnesses.
-  - option: Put the working rules behind MCP rather than in a skill
+      Measured against a real session: four of one task's scope widenings would have
+      been blocked and all four were correct — a row's own paths, a rendered projection,
+      a test fixture, the spec directory. The lint catches the contract defects that
+      actually landed; the hook would have caught none and cost four interruptions.
+      It is also claude-only, in a repository that dispatches to three harnesses.
+  - option: >-
+      Put the working rules behind MCP rather than in a skill
     rejected_because: >-
-      A tool call is a thing an agent may not make; a skill in the role's set is
-      materialized whether or not it is asked for, and is hashed into the regime. The
-      rules are not a lookup, they are a premise.
-  - option: Leave the rules in `build_prompt` and copy them into a skill for the session
+      A tool call is a thing an agent may not make; a skill in the role's set is materialized
+      whether or not it is asked for, and is hashed into the regime. The rules are
+      not a lookup, they are a premise.
+  - option: >-
+      Leave the rules in `build_prompt` and copy them into a skill for the session
     rejected_because: >-
-      Two copies of a text that governs behaviour is the drift this document exists to
-      remove; the repository already has one-source symlinks for every other
-      torve-owned skill.
+      Two copies of a text that governs behaviour is the drift this document exists
+      to remove; the repository already has one-source symlinks for every other torve-owned
+      skill.
   - option: Extend `torve context` instead of adding a verb
     rejected_because: >-
-      `torve context` projects accumulated facts for a planning session — tasks by state,
-      escalations by reason, gate health across the programme. It is a fleet view, and
-      the brief is about one contract.
-  - option: Have the brief refuse a contract that lints red or sizes too large
+      `torve context` projects accumulated facts for a planning session — tasks by
+      state, escalations by reason, gate health across the programme. It is a fleet
+      view, and the brief is about one contract.
+  - option: >-
+      Have the brief refuse a contract that lints red or sizes too large
     rejected_because: >-
-      The size heuristic's own false-positive rate is measured and non-trivial, and under
-      S-0055/D-47 a `too_large` verdict routes to decomposition rather than to a stop. A
-      hand-minted contract is signed by the person reading the output; printing is the
-      protection, refusing is a different decision with a different owner.
-    cites:
-      - S-0055/D-47
+      The size heuristic's own false-positive rate is measured and non-trivial, and
+      under S-0055/D-47 a `too_large` verdict routes to decomposition rather than
+      to a stop. A hand-minted contract is signed by the person reading the output;
+      printing is the protection, refusing is a different decision with a different
+      owner.
+    cites: [S-0055/D-47]
 questions:
   - id: Q-1
     text: >-
       Does adherence to the two rules the battery scores — `decisions-reported` and
       `user-facing-text` — change when the rules move from the prompt into a loaded
-      skill? The ledger can answer it per seat once both exist, and until it does the
-      move is a bet rather than a measurement.
-    status: open
+      skill? The ledger can answer it per seat once both exist, and until it does
+      the move is a bet rather than a measurement.
   - id: Q-2
     text: >-
       Should a session attempt be recorded at all? The brief knows a contract, a scope
       and a battery, and the work that follows lands without an attempt record — which
       is a large part of why the engine's own rates describe a minority of its traffic.
-    status: open

@@ -1,14 +1,11 @@
 # yaml-language-server: $schema=../../schemas/document.json
 id: S-0069
-title: >-
-  A conviction is the next contract's input
+title: A conviction is the next contract's input
 kind: design
 status: draft
 implementation: none
-depends_on:
-  - S-0065
-informed_by:
-  - S-0055
+depends_on: [S-0065]
+informed_by: [S-0055]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
@@ -179,45 +176,48 @@ risks: |
   The mitigation is that it is evidence, not instruction, and the prompt says so — the
   contract governs, exactly as it does for the review threads a revision is handed.
 alternatives:
-  - option: A `repair` role, with its own profile, tier and dispatch path
+  - option: >-
+      A `repair` role, with its own profile, tier and dispatch path
     rejected_because: >-
-      It buys a fifth enum member, a profile to configure, a seat to resolve and a task
-      relationship to model, for something the prompt already does twice. The attempt
-      ledger, the budget, the poison ceiling and the escalation reasons all work
-      unchanged if a repair is an attempt.
-  - option: A repair task, minted as a child of the convicted one
+      It buys a fifth enum member, a profile to configure, a seat to resolve and a
+      task relationship to model, for something the prompt already does twice. The
+      attempt ledger, the budget, the poison ceiling and the escalation reasons all
+      work unchanged if a repair is an attempt.
+  - option: >-
+      A repair task, minted as a child of the convicted one
     rejected_because: >-
-      `decompose` and `adopt` exist for splitting work by scope, and a conviction is not
-      a scope split. A child task would need its own budget, its own landing and its own
-      relationship to the parent's battery, all to express "the same task, again, better
-      informed".
-  - option: Leave the conviction in the pack and tell the agent to read it
+      `decompose` and `adopt` exist for splitting work by scope, and a conviction
+      is not a scope split. A child task would need its own budget, its own landing
+      and its own relationship to the parent's battery, all to express "the same task,
+      again, better informed".
+  - option: >-
+      Leave the conviction in the pack and tell the agent to read it
     rejected_because: >-
-      That is the current state, and it is what the 196 repeats measure. The pack's own
-      index is already named in the working rules; the gap is not that the facts are
-      absent but that they arrive through a channel an attempt may skip.
-  - option: Start the repair from base, like every other retry
+      That is the current state, and it is what the 196 repeats measure. The pack's
+      own index is already named in the working rules; the gap is not that the facts
+      are absent but that they arrive through a channel an attempt may skip.
+  - option: >-
+      Start the repair from base, like every other retry
     rejected_because: >-
       Then the repair is a prompt change alone, and the work that was right is discarded
-      with the mistake. For a path outside scope or a coordinate in a string, the tree is
-      not what failed.
-  - option: Narrow the repair's scope to the paths the convicted attempt touched
+      with the mistake. For a path outside scope or a coordinate in a string, the
+      tree is not what failed.
+  - option: >-
+      Narrow the repair's scope to the paths the convicted attempt touched
     rejected_because: >-
-      A contract the engine did not agree to. The scope gate judges a diff against the
-      contract, and a repair working under a narrower one would be judged against a
-      different agreement than the task it belongs to.
+      A contract the engine did not agree to. The scope gate judges a diff against
+      the contract, and a repair working under a narrower one would be judged against
+      a different agreement than the task it belongs to.
 questions:
   - id: Q-1
     text: >-
       Which convictions qualify for a repair? The set starts at the four gates whose
-      checks are pure functions of the tree, and `acceptance` — the largest repeat class
-      at 52 — is deliberately outside it, because a suite that fails twice may be a tree
-      worth keeping or an approach worth abandoning and only the ledger can tell those
-      apart.
-    status: open
+      checks are pure functions of the tree, and `acceptance` — the largest repeat
+      class at 52 — is deliberately outside it, because a suite that fails twice may
+      be a tree worth keeping or an approach worth abandoning and only the ledger
+      can tell those apart.
   - id: Q-2
     text: >-
-      Should a repair report itself in the attempt record as a distinct mode? It costs a
-      field and it is what makes "did repairs reduce repeats" answerable without inferring
-      the mode from the prompt.
-    status: open
+      Should a repair report itself in the attempt record as a distinct mode? It costs
+      a field and it is what makes "did repairs reduce repeats" answerable without
+      inferring the mode from the prompt.
