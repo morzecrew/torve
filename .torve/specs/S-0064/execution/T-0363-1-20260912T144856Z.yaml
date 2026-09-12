@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0363
+phase: 4
+base: 3966afacda7d5670f87495beec692313127fa73c
+commit: ee2011f
+at: '2026-09-12T14:48:56Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-2
+    grade: LOCKED
+  - id: D-8
+    grade: LOCKED
+entries:
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-12T14:43:14Z'
+    claim: >-
+      The row holds and the thing it asks the broker for got a name. Brokered and
+      direct still differ only in the value of TORVE_BASE_URL and in which variable
+      TORVE_API_KEY_ENV points at, and no image tests for a broker. What changed underneath
+      is which route the base URL comes from: the broker keyed one per provider, and
+      a provider serving two dialects is two upstreams that answer differently. The
+      seat carries the name the broker knows its route by, so the seam asks for a
+      route rather than re-deriving one from a provider.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:779 — _wire asks the broker for the seat
+      route and names it in the refusal, where it named the provider before.
+    action: decided
+    proposal: >-
+      None for D-8. D-2 is where a route being provider-and-dialect belongs, and it
+      says so now.
