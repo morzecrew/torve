@@ -1,0 +1,191 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0070
+title: What is committed may not depend on what is not
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0054, S-0055, S-0056, S-0065]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Three things this repository commits and checks are rendered or judged from files it
+  deliberately does not commit, so each is stable only on the machine that happens to
+  hold the uncommitted half; measured, one of them made the acceptance command of every
+  task pass here and fail in a sandbox. A committed artefact is a function of committed
+  inputs, and what is derived from the record is served rather than rendered.
+motivation: |
+  `S-0056/D-10` stopped committing task directories and the retention leg went with
+  them: `.torve/.gitignore` now carries `tasks/`, `telemetry.jsonl`, `context/`,
+  `traces/` and the rest of what torve alone writes. That decision is right and this
+  document does not reopen it — git keeps the history and the record keeps the landings.
+
+  What nobody checked is what still reaches for them. Three artefacts that *are*
+  committed, and in two cases drift-checked or judged by a gate, read the uncommitted
+  half at render or assert time. Each is therefore stable only where the uncommitted
+  half happens to exist, which today means this one machine.
+
+  That is not a tidiness problem. It made a green mean nothing: an attempt passed
+  `uv run pytest` when its worktree had written a divergence entry and failed when it
+  had not, and the difference had nothing to do with the work.
+current_state: |
+  **The projection renders a live count.** `colocation.py:260` writes a "Contended now"
+  section into each governed directory's `AGENTS.md` — "`tests/**` — 1 blocked
+  dispatch(es) in the last 500 attempts" — derived from the telemetry stream's last
+  window. `AGENTS.md` is committed and drift-checked by `spec-projection` under
+  `S-0054/D-7`, and `.torve/telemetry.jsonl` is gitignored. There is no committed
+  content that satisfies both readers: inside a worktree the section renders empty and
+  the file drifts, and on the host it renders full, so stripping it makes the host
+  drift instead. Measured, `tests/AGENTS.md` drifted on 8 of 8 gate-running attempts.
+
+  **The acceptance command asserted a gitignored path.**
+  `test_repository_logs_parse_under_the_gate` asserted `.torve/tasks/*/log.yaml` was
+  non-empty. This host holds 58 such files and a clean checkout holds none, so
+  `uv run pytest` — the acceptance command of every task in the repository — passed here
+  and failed anywhere else. T-0366 went green on that accident; the lane rebased it onto
+  a moved base, re-ran the battery in a fresh worktree, and refused to land it. The lane
+  was right and the attempt's own battery was not.
+
+  **The attempt record names a contract that is not kept.** 264 of 276 attempts name a
+  task whose `contract.yaml` has left the tree. `S-0065/A-1` settled the reader half —
+  243 resolve from git at the attempt's own sha — and the writer half, which is that the
+  record carries the scope and the acceptance rather than pointing at a file nobody
+  keeps.
+goals: |
+  A committed artefact is a function of committed inputs, so it renders the same on a
+  laptop, in a sandbox and in a clean clone.
+
+  What is derived from the record reaches a reader through a channel that is not
+  committed — the pack, a verb, the ledger — rather than through a file a gate diffs.
+
+  A check that has nothing to judge says so, and never passes because a machine happens
+  to be holding the evidence.
+non_goals: |
+  No retention change. `S-0056/D-10` stands, and this document exists because it stands:
+  the fix is to stop committed artefacts reaching for what it stopped keeping.
+
+  No new telemetry lineage, and no committing of the record. The stream stays where it
+  is and stays out of git.
+
+  Nothing about what the projection is *for*. The rows it renders from the corpus are
+  the point and they are unaffected; only the section derived from the stream moves.
+
+  No change to `S-0065`'s ledger work, which is the third instance and already has its
+  own document and its own amendment.
+design:
+  - key: the-rule
+    md: |
+      A file the repository commits, and above all one a gate diffs against a fresh
+      render, is a pure function of files the repository commits. Anything derived from
+      the record — a count, a rate, a recent history — is served by a verb or written
+      into the pack, both of which are read where they are produced and never diffed
+      against a checkout.
+
+      The test is mechanical and worth stating as one: **if a clean clone renders it
+      differently, it does not belong in a committed file.**
+  - key: the-projection-loses-its-live-section
+    md: |
+      "Contended now" leaves `AGENTS.md`. It is not lost: `contextpack.py` already
+      writes a contended file into every attempt's pack, from the same source, through a
+      channel that is not committed and not diffed — so the information already reaches
+      the reader who needs it most, and the copy in the projection is the second one.
+
+      What the projection keeps is what the corpus determines: the rows governing the
+      directory, their grades, consequences and checks, and the invariants. Those are a
+      function of accepted documents, which are committed, which is what makes the drift
+      check meaningful.
+  - key: a-check-with-nothing-to-judge
+    md: |
+      A test that walks artefacts the repository may not be carrying has two honest
+      outcomes and "fail" is not one of them: judge what is there, or skip and say why.
+      Asserting the artefacts exist converts a property of the machine into a verdict on
+      the work.
+
+      This one is already fixed — the parse assertions are the test's point and they
+      stay, and with no logs present it skips naming the reason. It is written down here
+      because the next such test will be written by someone who has not read this.
+  - key: what-a-clean-clone-proves
+    md: |
+      The cheapest guard against all three is a check that renders the committed
+      artefacts in a tree that carries none of the uncommitted half, and compares. A
+      worktree cut from a commit is exactly that tree, and the battery already runs in
+      one — which is how the lane caught what the attempt's own battery missed.
+
+      So the guard is not new machinery: it is noticing that the sandbox is the honest
+      reader and that a gate passing on the host and failing there is a finding about
+      the host.
+tests: |
+  The projection is tested for the property rather than the content: rendering a
+  governed directory with a telemetry stream present and absent must produce identical
+  bytes. That is the whole rule, expressed once, and it fails today.
+
+  The skip is tested at its two shapes — a tree carrying logs judges them, a tree
+  carrying none skips rather than passing or failing.
+
+  The sweep is tested by its twin: a deliberately reintroduced dependency on an
+  uncommitted path must be named by the check that looks for them.
+docs: |
+  `sandboxes/AGENTS.md` and the operating guide gain the rule in one line each, because
+  the people most likely to violate it are writing a gate or a projection and will not
+  read this document first.
+out_of_scope: |
+  The ledger's own join, which `S-0065` owns and `S-0065/A-1` has already amended.
+
+  Committing the telemetry stream, or any argument about where the record should live.
+
+  The contended information itself — what counts as contention, over what window, and
+  whether the pack's copy is the right shape. This document moves it, it does not
+  redesign it.
+risks: |
+  Removing the section loses a signal a person was reading in `AGENTS.md`. Measured, the
+  same fact is already in every attempt's pack, and `torve context` projects contended
+  paths for a planning session — so the loss is a duplicate, not the fact.
+
+  A pure-function rule is easy to state and easy to violate again, since the violation
+  only shows up on a machine that does not hold the uncommitted half — which is never
+  the machine of the person writing the code. That is what the render-twice test is
+  for, and why it is the first thing in this document's tests rather than the last.
+
+  Three instances is a pattern, not a survey. There may be others; the sweep is the
+  cheapest way to find out and it is why this document has a phase for it rather than a
+  claim that three is all of them.
+alternatives:
+  - option: >-
+      Commit the telemetry stream and the task directories
+    rejected_because: >-
+      It reopens `S-0056/D-10`, grows the tree without bound, and would make every
+      attempt's own record a reviewable diff. The record is not a reviewed artefact
+      and the decision that it should not be is correct.
+  - option: >-
+      Exclude the live sections from the drift check rather than moving them
+    rejected_because: >-
+      It leaves a committed file carrying a number that is stale the moment it lands,
+      and it teaches that a committed artefact may contain unreviewable content as
+      long as nothing looks. The next reader cannot tell which half of the file is
+      checked.
+  - option: >-
+      Render the live section as empty inside a worktree, so both agree
+    rejected_because: >-
+      It makes the two readers agree by making one of them lie, and the committed
+      file still differs from what the host renders — the drift moves rather than
+      going away.
+  - option: >-
+      Keep the assertion and seed a task log into the repository as a fixture
+    rejected_because: >-
+      A fixture is the right shape for testing a parser, and that is worth doing —
+      but it does not answer why the acceptance command was reading the live directory,
+      and the same mistake is available to the next test that does.
+questions:
+  - id: Q-1
+    text: >-
+      Are there more than three? The sweep is a grep for the gitignored paths in anything
+      committed, and it is cheap; what it finds decides whether this document is a
+      rule with three corrections or a rule with a longer tail.
+  - id: Q-2
+    text: >-
+      Should the rule be a check rather than a convention — a gate that renders the
+      committed artefacts twice, once with the record present and once without, and
+      convicts on a difference? It is the only form that survives the person who has
+      not read this document.

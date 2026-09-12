@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: a committed file renders the same everywhere
+    intent: >-
+      The projection's "Contended now" section leaves `AGENTS.md`, which becomes a
+      pure function of the corpus — the rows governing a directory, their grades,
+      consequences and checks, and the invariants. The information is not lost: the
+      pack already carries it from the same source. The property is proved by rendering
+      a governed directory twice, with a telemetry stream present and absent, and
+      comparing the bytes.
+    scope:
+      - src/torve/application/colocation.py
+      - tests/test_colocation.py
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
+    title: the sweep, and what it finds
+    intent: >-
+      Settle Q-1. Every path `.torve/.gitignore` names is grepped for in everything
+      the repository commits, and each hit is judged by D-1 — moved to the pack, made
+      to skip, or recorded as admissible with the reason. Three instances are a pattern
+      and not a survey; this phase says whether the rule has a longer tail.
+    scope: [tests/test_layout.py, CHANGELOG.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: the rule reaches whoever writes the next gate
+    intent: >-
+      One line each in the sandbox guide and the operating guide, because the people
+      most likely to violate this are writing a projection or a gate and will not
+      read a document first. Routine, and waiting on the sweep so it can say what
+      the rule cost.
+    scope: [sandboxes/AGENTS.md, pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec check
+    depends_on:
+      - 2
+    character: routine

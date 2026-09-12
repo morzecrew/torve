@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A committed artefact is a function of committed inputs; anything derived from
+      the record reaches a reader through the pack or a verb, never through a file
+      a gate diffs against a fresh render
+    paths:
+      - src/torve/application/colocation.py
+      - src/torve/application/projections.py
+    consequence: >-
+      a committed file renders the same on a laptop, in a sandbox and in a clean clone,
+      which is what makes a drift check mean anything
+    rationale: >-
+      measured, `AGENTS.md` carries a contention count read from a gitignored telemetry
+      stream, so no committed content satisfies both readers — inside a worktree the
+      section is empty and the file drifts, and on the host it is full
+    cites: [S-0054/D-7, S-0056/D-10]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The projection's live sections move to the pack, which already carries the same
+      facts through a channel that is neither committed nor diffed
+    paths: [src/torve/application/colocation.py]
+    consequence: >-
+      the reader who most needs contention — an attempt about to touch a contended
+      path — keeps it, and the drift check stops judging a number nobody wrote
+    rationale: >-
+      `contextpack.py` already writes a contended file into every attempt's pack from
+      the same source; the copy in `AGENTS.md` is the second one and it is the one
+      being diffed
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A check that walks artefacts the repository may not be carrying judges what
+      is there or skips naming why, and never asserts that they exist
+    paths: [tests/test_gates.py]
+    consequence: >-
+      a verdict stops depending on which machine ran it, and a suite that has nothing
+      to judge says so instead of passing
+    rationale: >-
+      `test_repository_logs_parse_under_the_gate` asserted a gitignored path was non-empty;
+      this host holds 58 such files and a clean checkout holds none, so the acceptance
+      command of every task passed here and failed in the sandbox
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The rule is proved by rendering twice — once with the record present, once without
+      — and comparing the bytes
+    paths: [tests/test_colocation.py]
+    consequence: >-
+      the violation becomes visible on the machine of the person committing it, which
+      is the only machine where it is currently invisible
+    rationale: >-
+      the failure mode only appears where the uncommitted half is absent, and that
+      is never the author's own tree; a convention nobody can test is a convention
+      that returns
