@@ -1,0 +1,127 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0064
+title: >-
+  A provider is a record, and the seam carries scalars
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0063]
+informed_by: [S-0055, S-0061, S-0062]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Everything a harness needs to reach a model becomes a typed record the engine owns, and the seam between engine and image carries flat scalars instead of a JSON blob.
+
+  A provider is a file under `.torve/providers/`, holding one credential, one model roster, and a route per API dialect. A harness manifest declares which dialects it speaks, so a seat pairing one that cannot reach the other is refused at load rather than by an attempt that dialled and got a 404. The broker's provider table folds in, and brokered-versus-direct stops being a shape the images branch on: it becomes the value of one variable.
+motivation: |-
+  Retiring the seven baked dsh overlays (S-0063/D-15) moved a model's facts onto one environment knob and dropped every *endpoint* fact with the files. Five of the seven overlays had carried identical copies of those facts, which is the tell nobody read at the time: they were never properties of a model, they were properties of the route.
+
+  What that cost was measured on 2026-09-11. The live dsh seat ran a reasoning model with `reasoningEfforts: false` hardcoded into its generator, against a context window declared at an eighth of its real size, with no request cap and no compat block. Its own trace reads `reasoningTokens: 0` across 33 requests while the endpoint returns 33 reasoning tokens for a two-word prompt. T-0346 restored those six values to the knob, and said in its own divergence entry that they ride there because there is nowhere else to put them.
+
+  This document builds the somewhere else. The argument is not that a JSON blob is ugly — it is that torve cannot validate what it cannot name, so a value that goes stale inside `DSH_MODEL` is a value no gate can miss. Nothing in the engine could have told the operator that the knob had stopped carrying half of what the deleted files did.
+
+  The second half arrived from the same probes. ModelStudio serves two API dialects at two base URLs on one credential, and the same model behaves differently on each: the OpenAI route returns thinking as `reasoning_content` and rejects the `developer` role, the Anthropic route returns native `thinking` blocks and has no such role to reject. So the unit that owns an endpoint's quirks is a route, not a provider — and Claude Code drives qwen3.8-flash end to end over the Anthropic route with no translation anywhere in the stack, which is a seat this repository could run today and cannot express.
+current_state: |-
+  Three files hold pieces of one answer, and none of them holds a model's facts.
+
+  `.torve/config.yaml` carries `broker.providers.<name>` — `key_env`, `upstream`, `via_proxy` — which is the runner's routing table and nothing more. It knows how to reach a provider and nothing about what that provider serves.
+
+  `.torve/harnesses/<name>.yaml` carries `env`, a map torve sets and never interprets (S-0063/D-10). dsh's entry is a JSON document in a string: provider, dialect, window, cap, reasoning level, two timeouts and a compat block. claude's is a scalar, `CLAUDE_PERMISSION_MODE`. Same key, two vocabularies, one of them opaque.
+
+  The seat in `config.yaml` names `model` and `provider` as bare strings that nothing resolves against a roster — a seat may name a model its provider does not serve, and the first evidence is an error from the endpoint.
+
+  At the seam, `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN` are present or absent, and three images branch on that: claude maps them onto `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN` behind two `if`s, dsh's generator changes the *shape* of the overlay it writes, and mimo refuses a brokered seat outright with exit 78. Nine references across three definitions, all testing the same thing.
+goals: |-
+  - A provider's facts live once, in a file the engine validates and hashes.
+  - A seat naming a model, a dialect or a reasoning level its provider does not serve is refused at load, naming both files — the refusal S-0063/D-4 already performs for equipment kinds.
+  - Every parameter crosses the seam as a scalar in torve's vocabulary and units; each image assembles its own representation.
+  - Brokered and direct differ by the value of a variable, never by its presence — no image branches on the broker.
+  - A claude seat can run a non-Anthropic model through an Anthropic-dialect route, because that is measured to work and nothing but configuration prevents it.
+non_goals: |-
+  - Translating between dialects. The broker forwards; it does not rewrite a request from one API shape into another, and the measurement that makes this document possible is precisely that no translation is needed.
+  - Modelling every quirk. A value torve cannot validate rides through untouched and visibly so; inventing a name for it would be a schema the engine has to keep up with across three harnesses (S-0063/D-3's argument).
+  - Cost accounting. A harness that does not recognise its own model prices an attempt off the wrong rate card — measured, claude billed a qwen attempt at Anthropic rates — and the fix is to trust the broker's metering, which is a separate concern from this one.
+  - Per-role reasoning. The level is the seat's because it must validate against the model, and the model is the seat's.
+tests: |-
+  Every row here is provable without a model in the loop, which is what makes this document cheap to verify.
+
+  The refusals are unit tests over the loader: a seat whose harness speaks no dialect its provider serves, a model the roster does not list, a reasoning level the model does not declare, a provider file naming a route with no base URL. Each names both files.
+
+  The seam is a rendering test per image, run against the real definition rather than a copy of its logic — the shape T-0346 established after a copy of the dsh generator would have passed while the image shipped `reasoningEfforts: false`.
+
+  The end is a paired live run: one provider record, two seats, two dialects. claude on the Anthropic route and dsh on the OpenAI route, both reaching qwen3.8-flash through the same credential, both reporting reasoning tokens above zero.
+docs: |-
+  `pages/docs/operating.md` gains the provider record beside the harness manifest and the agent profile — the three files a seat is made of become four.
+
+  The seam's variable list is documented where S-0063/D-2 put it, and the retired names (`TORVE_BROKER_URL`, `TORVE_BROKER_TOKEN`, `DSH_MODEL`) are named with what replaced them, because a reader who wrote the old form deserves the new one rather than a list of valid keys.
+out_of_scope: |-
+  `auth_volume` and `auth_mount` stay on the harness manifest. A harness with no environment form for its credential is a fact about the harness, not about the provider, and codex is such a harness (S-0063/A-13).
+
+  `CLAUDE_PERMISSION_MODE` stays in `env`. It is genuinely a harness knob — it changes what an agent may do, not how a model is reached — and this document is about the values that never were.
+
+  The opensandbox runtime's own `api_key_env` is a runtime credential, unrelated to a provider's.
+risks: |-
+  **The refusal fires on a repository that was working.** A seat whose harness manifest does not yet declare `api`, or whose provider has no record, stops loading. That is the intended behaviour and it is still a migration: the phasing lands the record and the refusal together, so a tree is never half-converted, and `torve doctor` names what a seat is missing before `torve run` does.
+
+  **A route's compat facts are measured, and measurements go stale.** The record dates them; nothing re-measures them. A provider that fixes its `developer` role handling leaves a flag saying otherwise, and the cost is a request shaped more conservatively than it needed to be — a degradation, never a failure. The alternative, deriving them, is worse: it means probing an endpoint at dispatch.
+
+  **Cost telemetry is already wrong for a cross-dialect seat and this makes such seats easy.** claude priced a qwen attempt at `$0.174` off its own rate card. Making the seat expressible multiplies the occasions; the broker's metering is the number to trust and the anomaly check already compares the two (`broker.cost_tolerance`). Named here because the document would otherwise be the reason it starts mattering.
+alternatives:
+  - option: >-
+      A translating broker: one dialect in, whichever the provider speaks out
+    rejected_because: >-
+      Measured, no translation is needed. Claude Code drove qwen3.8-flash end to end
+      with tool use over ModelStudio's Anthropic route, with `ANTHROPIC_BASE_URL`
+      pointed at it and nothing between. A translator would be a second implementation
+      of every dialect's semantics — streaming, tool calls, thinking blocks — living
+      in the one component that must never be the reason an attempt failed.
+    cites: [D-2]
+  - option: >-
+      Keep it inline: extra fields on `broker.providers.<name>` plus a `models:` map
+    rejected_because: >-
+      The smaller diff, and it fixes the regression just as well — this is the closest
+      alternative, not a strawman. It loses on two counts. `--config` takes an arbitrary
+      path, so a component reached at dispatch with a root and no configuration in
+      hand cannot read a provider without being given one; and a provider record is
+      measured and dated, so it accretes, while `config.yaml` is already long. S-0061
+      split three files apart for the second reason alone.
+    cites: [D-1, S-0061/D-1]
+  - option: >-
+      Reasoning effort on the agent profile, so a role can ask for more thinking
+    rejected_because: >-
+      A profile is what the agent is and never how it runs, which is what makes it
+      portable across harnesses and models. A level seated on a model that does not
+      reason is either dropped silently — the failure this document exists to stop
+      — or refuses the pairing, at which point the profile is no longer portable.
+      The want behind it is already served: `character_routing` maps a phase's character
+      to a seat variant at dispatch.
+    cites: [D-6, S-0034/D-3]
+  - option: Model the `developer` role as a per-route flag
+    rejected_because: >-
+      torve never builds a request, so it is not torve's fact. Both OpenAI-compatible
+      third parties this repository reaches reject the role, so the flag would read
+      `false` almost everywhere it appeared, and the client that would send it — pi-ai
+      — lives inside one image.
+    cites: [D-11]
+  - option: >-
+      Derive a route's compat facts by probing the endpoint
+    rejected_because: >-
+      It puts a network call in the configuration path and a probe in front of every
+      dispatch, to replace values that change about once a year. A dated measurement
+      that goes stale costs a request shaped more conservatively than it needed to
+      be; a probe that fails costs the run.
+    cites: [D-2]
+questions:
+  - id: Q-1
+    text: >-
+      Should a model entry carry its price, so cost telemetry stops trusting a harness's
+      own rate card? Measured: claude does not recognise qwen3.8-flash, emits `unrecognized_model`,
+      and then prices the attempt at $0.174 off its Anthropic table. The broker meters
+      the same call correctly, and `broker.cost_tolerance` already compares the two
+      — so the engine can detect the disagreement today and cannot resolve it. Adding
+      price here would let it, and would also make the record something an operator
+      has to keep current against a vendor's billing page. Deliberately left open:
+      this document makes cross-dialect seats easy to express, which is what turns
+      an existing wrong number into a frequent one.

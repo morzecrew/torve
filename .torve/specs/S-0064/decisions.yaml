@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A provider is a file, `.torve/providers/<name>.yaml`, holding the credential's
+      variable name, the clocks, the routes and the model roster; `broker.providers`
+      folds into it and `upstream` is named `base_url`.
+    paths:
+      - src/torve/config/providers.py
+      - src/torve/config/runconfig.py
+      - .torve/providers/**
+    consequence: >-
+      a provider's facts are validated, hashed and reviewed like every other file
+      under `.torve/`, instead of being a string the engine sets and never reads
+    rationale: >-
+      the measured regression this document exists for was a value going stale inside
+      an opaque knob, and torve cannot gate what it cannot name
+    cites: [S-0055/D-4, S-0061/D-10, S-0063/D-15]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      A route owns a dialect. `routes` is keyed by api name — `openai`, `anthropic`
+      — and each carries its own `base_url` and its own compat facts; a provider serving
+      two dialects is two routes on one credential.
+    paths: [src/torve/config/providers.py, .torve/providers/**]
+    consequence: >-
+      the quirks that differ between two URLs of one provider stop being attributed
+      to the provider, so a seat on either route gets the facts that are true of it
+    rationale: >-
+      measured against ModelStudio on 2026-09-11 — `/compatible-mode` returns thinking
+      as `reasoning_content` and rejects the `developer` role, `/apps/anthropic` returns
+      native `thinking` blocks and has no such role, same credential and same models
+    cites: [D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A model entry's key is what a seat writes and its `id` is what reaches the provider
+      and what the regime hash records; a key with no `id` is its own id.
+    paths: [src/torve/config/providers.py, src/torve/application/telemetry.py]
+    consequence: >-
+      a slug that is awkward to type or to use as a path segment gets a local shorthand,
+      and renaming that shorthand cannot move a regime digest
+    rationale: >-
+      reproducibility is a property of what was sent, never of what the operator called
+      it
+    cites: [D-1]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      A harness manifest declares the dialects it speaks as `api`, and a seat whose
+      harness and provider share no dialect is refused at load, naming both files.
+    paths:
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - .torve/harnesses/**
+    consequence: >-
+      an unreachable pairing is a configuration error with two filenames in it rather
+      than a 404 from an attempt that had already started
+    rationale: >-
+      the identical refusal already exists for equipment kinds, for the identical
+      reason — a capability the manifest does not claim is one the seat must not assume
+    cites: [S-0063/D-4]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A model declares the reasoning levels it has and a seat names one of them; a
+      level the model does not declare is refused at load, and the level crosses the
+      seam as a word.
+    paths: [src/torve/config/providers.py, src/torve/config/runconfig.py]
+    consequence: >-
+      the engine refuses an unreachable effort before a sandbox exists, where the
+      endpoint would refuse it per request after one does
+    rationale: >-
+      the wire form is per-route and incompatible between routes — an enum on one,
+      a token budget on the other — so the only thing torve can name is the level
+      itself
+    cites: [D-2]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      Reasoning effort is the seat's and never the agent profile's.
+    paths: [src/torve/config/runconfig.py, src/torve/config/agents.py]
+    consequence: >-
+      a profile stays portable across harnesses and models, and an effort that cannot
+      be honoured is refused rather than dropped
+    rationale: >-
+      a profile is what the agent is and never how it runs, so it must survive being
+      seated elsewhere; a level must validate against the model, and the model is
+      the seat's
+    cites: [S-0061/D-1, S-0061/D-3]
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      Every parameter crosses the seam as a scalar in torve's own vocabulary and units,
+      and the image assembles its harness's representation from them; `DSH_MODEL`
+      retires.
+    paths: [src/torve/adapters/agent/harness.py, sandboxes/**]
+    consequence: >-
+      one uniform set of names reaches three harnesses, and a unit or a spelling that
+      only makes sense to one of them is converted in the file that knows which one
+      it is
+    rationale: >-
+      a renderer inside the engine has to keep up with three harnesses across versions
+      while each image only has to know itself — S-0063/D-3's argument, applied to
+      configuration rather than to equipment
+    cites: [S-0063/D-2, S-0063/D-3, S-0063/D-10, S-0063/D-15]
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY`
+      and never by a variable's presence; `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`
+      retire and no image tests whether a broker is in force.
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/session.py
+      - sandboxes/**
+    consequence: >-
+      nine broker branches across three definitions go, and mimo becomes brokerable
+      by deletion rather than by implementation
+    rationale: >-
+      the only differences a running image could see were a URL and a credential,
+      and the third — whether dsh declares its own catalog — disappears once a provider
+      record carries the roster
+    cites: [S-0055/D-4, S-0063/D-2]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `api_key_env` retires from the harness manifest: a credential is a property
+      of the provider, which names its own `key_env`. `auth_volume` and `auth_mount`
+      stay.
+    paths:
+      - src/torve/config/agents.py
+      - src/torve/application/session.py
+      - .torve/harnesses/**
+    consequence: >-
+      one file decides which credential reaches a sandbox, and the refusal that keeps
+      a brokered seat honest has one field to watch instead of two
+    rationale: >-
+      a harness dials whatever it is pointed at; which key opens the door was never
+      a fact about the dialer. A harness with no environment form for a credential
+      still is one
+    cites: [S-0055/D-4, S-0063/D-18]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A value torve has no name for rides through as a route's `extra`, handed to
+      the image verbatim, unvalidated, and visibly so.
+    paths: [src/torve/config/providers.py]
+    consequence: >-
+      a provider quirk nobody has modelled yet does not block a seat, and it is obvious
+      in review which values the engine is standing behind and which it is only carrying
+    rationale: >-
+      the escape hatch already exists in spirit — dsh's `equip` appends arbitrary
+      patch fragments for kinds torve does not model — and a schema torve invents
+      is one it has to keep up with
+    cites: [S-0063/D-3]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The `developer` role is not modelled anywhere in torve; dsh's own `equip` decides
+      it for an `api: openai` route, because the client that would send it lives there.
+    paths: [sandboxes/dsh/**]
+    consequence: >-
+      a quirk of one harness's LLM layer stops being a field every provider record
+      has to answer, and a provider that one day accepts the role costs one flag then
+    rationale: >-
+      torve never builds a request, and both OpenAI-compatible third parties this
+      repository reaches reject the role — so a modelled flag would say `false` almost
+      every time
+    cites: [D-7, D-10]
+invariants:
+  - id: I-1
+    statement: >-
+      Every dispatchable seat names a model its provider's roster lists and a dialect
+      its harness speaks; neither is discovered by an attempt.
+    paths: [src/torve/config/runconfig.py, src/torve/config/providers.py]
+    check: uv run pytest tests/test_providers.py -k pairing
+  - id: I-2
+    statement: >-
+      No sandbox definition tests whether a broker is in force.
+    paths: [sandboxes/**]
+    check: >-
+      uv run pytest tests/test_sandbox_defs.py -k broker

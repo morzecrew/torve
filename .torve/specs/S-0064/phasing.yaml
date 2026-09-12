@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the record, and the refusals it makes possible
+    intent: >-
+      `.torve/providers/<name>.yaml` and the loader that validates it, absorbing `broker.providers`
+      whole. The seat gains a pairing check — a model the roster does not list, a
+      dialect the harness does not speak, an effort the model does not declare — and
+      the harness manifest gains `api` and loses `api_key_env`. No image changes in
+      this phase and no seam variable moves: the tree still dispatches exactly as
+      it does now, through a configuration the engine can finally read.
+    scope:
+      - src/torve/config/providers.py
+      - src/torve/config/runconfig.py
+      - src/torve/config/agents.py
+      - src/torve/application/session.py
+      - src/torve/application/telemetry.py
+      - src/torve/cli/init.py
+      - src/torve/cli/doctor.py
+      - .torve/providers/**
+      - .torve/harnesses/**
+      - .torve/config.yaml
+      - .torve/schemas/**
+      - tests/test_providers.py
+      - tests/test_runconfig.py
+      - tests/test_agents.py
+      - tests/test_tiering.py
+      - tests/test_session.py
+      - tests/test_doctor.py
+      - tests/test_broker.py
+      - src/torve/config/AGENTS.md
+      - src/torve/application/AGENTS.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
+    title: the seam flattens, and the images stop branching
+    intent: >-
+      The engine names the attempt in scalars and each image assembles its own representation
+      from them. `DSH_MODEL` retires, `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`
+      collapse into `TORVE_BASE_URL` and `TORVE_API_KEY`, and the nine broker branches
+      across three definitions go with them — including mimo's refusal, which becomes
+      a deletion. The `developer`-role flag moves into dsh's `equip`, where the client
+      that would send it lives.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/session.py
+      - src/torve/application/ports.py
+      - sandboxes/**
+      - .torve/harnesses/**
+      - tests/test_sandbox_defs.py
+      - tests/test_session.py
+      - tests/test_run_loop.py
+      - tests/test_broker.py
+      - tests/test_tiering.py
+      - src/torve/adapters/agent/AGENTS.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: one provider, two dialects, two live seats
+    intent: |-
+      What the document is for, proved the way S-0063's third phase proved the seam: not against tests but against the real images. One ModelStudio record, two routes, two seats — claude on `anthropic` and dsh on `openai` — both reaching qwen3.8-flash through one credential, both reporting reasoning tokens above zero. A brokered and an unbrokered run of the same seat must differ in no file the image reads.
+      The scope is configuration and the definition test, deliberately: a repair the live run forces is an amendment that says what was found, the way S-0063's own third phase took the claude script after a pipe bug turned up in dsh.
+    scope:
+      - .torve/providers/**
+      - .torve/config.yaml
+      - .torve/harnesses/**
+      - tests/test_sandbox_defs.py
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
