@@ -204,6 +204,32 @@ a policy: every refusal below still refuses, and nothing is gated twice.
 | `promotion.approvals` | a candidate short of approvals **on its current tip** — a push after an approval approves nothing |
 | `promotion.quiet_window` | a candidate whose branch moved more recently than the window |
 
+**The switch does not go on alone.** `auto_merge: true` with all four
+criteria at their off values is refused when the configuration loads, naming
+the field and the four settings that would answer it. The bar is one
+criterion, deliberately: the refusal is there to catch the combination nobody
+meant to write, not to pick a landing policy for you. This file is read once,
+by a process that then runs unattended, so a warning would print to a
+terminal nobody is watching.
+
+`require_ci` needs a remote to be green on, and nothing is pushed from here
+yet, so **review and approvals are the two criteria available today**. The
+arming order that does not depend on anything being decided later:
+
+1. Set `promotion.require_review` (and `approvals` if you want a second pair
+   of eyes on the tip) with `auto_merge` still **off**.
+2. Run `torve merge --dry-run` over the ready queue and read what the lane
+   would refuse. Nothing lands; the refusals are the point.
+3. Only then arm `auto_merge`, and read `torve doctor` once more.
+
+`torve doctor` states what is armed before anything depends on it. One line
+names which criteria a served manager would land without, and says when the
+landing leg is off that no landing runs at all — a statement, not a verdict,
+so it never turns doctor red. A second line appears only when a standing job
+has been refused instantiation, with how many times and on what: a mechanism
+blocked for a reason nobody has read is worse than one that is absent,
+because the absence is at least visible.
+
 A conflict is reported and left for a human. The lane never resolves one,
 and it does not resolve one differently because a pass called it.
 

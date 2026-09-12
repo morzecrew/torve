@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Breaking:** `promotion.auto_merge: true` with no promotion criterion armed is
+  refused when the configuration loads, naming the field and the four settings
+  that would answer it. One boolean converted five unused criteria into five
+  unset ones, and nothing refused the combination.
+
+- `torve doctor` names which promotion criteria a served manager would land
+  without, and says when the landing leg is off that no landing runs at all.
+  Nothing in its output said what an armed pass would skip.
+
+- `torve doctor` reports a standing job that has been refused instantiation, how
+  many times, and on what. The refusal has been a typed record all along, and
+  the only reader of that stream was the job being refused.
+
 - A broker route is a provider and a dialect together, so one credential serving
   two dialects is two routes. Two seats on one provider over different dialects
   used to be refused; the refusal named the work and this is it.

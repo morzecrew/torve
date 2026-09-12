@@ -1264,6 +1264,15 @@ class PromotionConfig(BaseModel):
     """§3's quiet window, in seconds: a landing whose branch tip is younger than this
     refuses — pushing resets the window. Zero disables it."""
 
+    # ....................... #
+
+    def armed(self) -> bool:
+        """Whether any landing criterion is set. Deliberately weak
+        (S-0068/D-1): the refusal it feeds exists to catch the configuration
+        nobody meant to write, not to legislate a landing policy."""
+
+        return bool(self.require_ci or self.require_review or self.approvals or self.quiet_window)
+
 
 # ....................... #
 
@@ -1826,7 +1835,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
             }
 
     try:
-        return RunnerConfig.model_validate(config)
+        loaded = RunnerConfig.model_validate(config)
     except ValidationError as exc:
         # S-0028/D-3's fourth refusal class: a merged result invalid enough that
         # TierConfig itself refuses it. Pydantic's error names the field, not
@@ -1853,3 +1862,17 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
         )
 
         raise ValueError(f"{where}: invalid merged tier configuration — {exc}") from exc
+
+    # S-0068/D-1: the one boolean that converts five unused criteria into five
+    # unset ones is refused alone. A refusal rather than a warning because
+    # this file is read once, here, by a process that then runs unattended —
+    # the same shape, and the same voice, as the two refusals above.
+    if loaded.promotion.auto_merge and not loaded.promotion.armed():
+        raise ValueError(
+            f"{resolved}: promotion.auto_merge is on with no promotion criterion armed — "
+            "an unattended pass would land on the battery alone; set at least one of "
+            "promotion.require_ci, promotion.require_review, promotion.approvals "
+            "or promotion.quiet_window"
+        )
+
+    return loaded

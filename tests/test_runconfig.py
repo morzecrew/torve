@@ -701,3 +701,48 @@ def test_a_model_that_does_not_reason_cannot_be_asked_to_think_harder(tmp_path: 
             "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
             "  executor: {harness: dialled, provider: acme, model: plain, reasoning: low}\n",
         )
+
+
+# ....................... #
+# The landing leg's refusal (S-0068/D-1): `auto_merge` alone converts five unused
+# criteria into five unset ones, so it cannot be flipped alone. Tested by its
+# twin — every criterion off must refuse, any one armed must load.
+
+
+def test_auto_merge_with_no_criterion_armed_is_refused_naming_what_to_set(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=r"promotion\.auto_merge is on with no") as excinfo:
+        load(tmp_path, "schema_version: 1\npromotion:\n  auto_merge: true\n")
+
+    message = str(excinfo.value)
+
+    # The refusal names the file, the field, and every criterion that would
+    # answer it — a warning nobody reads at three in the morning is what it
+    # replaces, so the message has to carry the fix.
+    assert "config.yaml" in message
+
+    for criterion in ("require_ci", "require_review", "approvals", "quiet_window"):
+        assert f"promotion.{criterion}" in message
+
+
+@pytest.mark.parametrize(
+    "criterion",
+    ["require_ci: true", "require_review: true", "approvals: 1", "quiet_window: 3600"],
+)
+def test_any_one_promotion_criterion_arms_auto_merge(tmp_path: Path, criterion: str) -> None:
+    # The bar is deliberately weak: the refusal catches the configuration
+    # nobody meant to write, not a landing policy someone chose.
+    config = load(tmp_path, f"schema_version: 1\npromotion:\n  auto_merge: true\n  {criterion}\n")
+
+    assert config.promotion.auto_merge is True and config.promotion.armed()
+
+
+def test_a_criterion_loads_without_auto_merge_and_the_default_config_still_loads(
+    tmp_path: Path,
+) -> None:
+    # `torve merge` reads the same knobs and is a human act; arming a criterion
+    # for it must not need the pass's landing leg armed too, and the shape this
+    # repository is in — no `promotion:` block at all — still loads.
+    promotion = load(tmp_path, "schema_version: 1\npromotion:\n  require_review: true\n").promotion
+
+    assert promotion.require_review is True and promotion.auto_merge is False
+    assert load(tmp_path, "schema_version: 1\n").promotion.armed() is False

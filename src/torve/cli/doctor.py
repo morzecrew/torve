@@ -30,6 +30,16 @@ The equipment check is S-0029 S-0029/D-5: each tier whose resolved `skills`
 or `prompt_extras` differ from its role default gets one provenance line —
 no check attached, dispatch already owns the refusals (S-0029/D-2).
 
+Two lines state what is armed rather than judging whether it should be. The
+promotion line is S-0068/D-2: which criteria a served manager would land
+without, and that no landing leg runs at all while `auto_merge` is off — the
+load-time refusal (S-0068/D-1) only fires on a configuration someone wrote, and
+the likelier shape is no `promotion:` block at all. The standing-refusal
+line is S-0068/D-3: a standing job refused instantiation, how many times, and on
+what, read from the `standing_instantiate_refused` records the engine has
+been writing with no reader but the job being refused. Neither carries a
+check, so neither can turn doctor red.
+
 The image line also covers remote references (S-0033/doctor): a tier
 naming a registry reference — an image with an explicit registry host —
 that the runtime cannot resolve asks the registry itself for the digest,
@@ -496,6 +506,115 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
     return []
 
 
+# ....................... #
+
+# The four criteria the landing lane refuses on, in the order the settings
+# table in the operating page lists them (S-0068/D-1's "armed" set).
+_PROMOTION_CRITERIA = ("require_ci", "require_review", "approvals", "quiet_window")
+
+
+def _promotion_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """S-0068/D-2: what a served manager's landing leg is armed with, and what it
+    would land without. The refusal at load only fires on a configuration
+    someone wrote; the likelier case is no `promotion:` block at all, where
+    every criterion is unset and nothing says so.
+
+    A statement, never a verdict — no check is attached, so this can never
+    turn doctor red. Arming the leg is a separate act with its own evidence.
+    """
+
+    promotion = load_config(root, config_path).promotion
+    armed = [name for name in _PROMOTION_CRITERIA if getattr(promotion, name)]
+    unarmed = [name for name in _PROMOTION_CRITERIA if not getattr(promotion, name)]
+
+    leg = (
+        "auto_merge on — every pass runs the landing lane"
+        if promotion.auto_merge
+        else "auto_merge off — no landing leg runs at all and landing stays a human act"
+    )
+    without = f"would land without {', '.join(unarmed)}" if unarmed else "every criterion is armed"
+    tail = f"; armed: {', '.join(armed)}" if armed and unarmed else ""
+
+    return [("promotion", True, f"promotion: {leg}; a served manager {without}{tail}")]
+
+
+# ....................... #
+
+
+def _standing_refusals(root: Path) -> dict[str, tuple[int, str]]:
+    """Per standing job, how many times instantiation was refused and the most
+    recent reason, read from the engine's own telemetry stream (S-0068/D-3).
+
+    `standing_instantiate_refused` has been a typed record all along; the
+    only reader of that stream was the flake predicate — the job being
+    refused. A job blocked for a reason nobody has read is indistinguishable
+    from one that does not exist.
+    """
+
+    from torve.config.manifest import Manifest, load_manifest
+
+    manifest_path = layout.gates_file(root)
+    telemetry = root / (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
+
+    if not telemetry.is_file():
+        return {}
+
+    found: dict[str, tuple[int, str]] = {}
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        row = cast("dict[str, Any]", record)
+
+        if row.get("event") != "standing_instantiate_refused":
+            continue
+
+        job = str(row.get("job") or "")
+
+        if not job:
+            continue
+
+        # Append-only stream: the count is every refusal, the reason the latest.
+        count, _ = found.get(job, (0, ""))
+        found[job] = (count + 1, str(row.get("error") or "")[:200].splitlines()[0])
+
+    return found
+
+
+def _standing_refusal_check(root: Path) -> list[tuple[str, bool, str]]:
+    """S-0068/D-3: a standing job that has been refused instantiation, how many
+    times, and on what. Like the firing summary it rides beside, this is a
+    statement rather than a verdict — the leg fails closed toward not
+    creating work, so a refusal is the check doing what it exists for."""
+
+    refused = _standing_refusals(root)
+
+    if not refused:
+        return []
+
+    lines = [
+        f"{job} refused instantiation {count} time{'s' if count != 1 else ''}"
+        + (f" — {reason}" if reason else "")
+        for job, (count, reason) in sorted(refused.items())
+    ]
+
+    return [("standing-refused", True, f"standing: {'; '.join(lines)}")]
+
+
+# ....................... #
+
+
 def _standing_summary(root: Path) -> str:
     """How many standing contracts there are and when one last minted a task.
 
@@ -723,10 +842,12 @@ def doctor(
     checks += _store_checks(root, config_path)
     checks += _broker_check(root, config_path)
     checks += _review_bias_check(root, config_path)
+    checks += _promotion_check(root, config_path)
     checks += _profile_checks(root, config_path)
     checks += _equipment_checks(root, config_path)
     checks += _image_checks(root, config_path)
     checks += _init_checks(root, config_path)
+    checks += _standing_refusal_check(root)
     healthy = all(passed for _, passed, _ in checks)
 
     if fmt is Format.JSON:
