@@ -1,35 +1,28 @@
 # yaml-language-server: $schema=../../schemas/phasing.json
 phasing:
   - phase: 1
-    title: the record, and the refusals it makes possible
+    title: the record, and the number it makes computable
     intent: >-
       `.torve/providers/<name>.yaml` and the loader that validates it, absorbing `broker.providers`
-      whole. The seat gains a pairing check — a model the roster does not list, a
-      dialect the harness does not speak, an effort the model does not declare — and
-      the harness manifest gains `api` and loses `api_key_env`. No image changes in
-      this phase and no seam variable moves: the tree still dispatches exactly as
-      it does now, through a configuration the engine can finally read.
+      whole so `broker:` keeps only what is about the broker. The roster carries each
+      model's window, cap, reasoning levels and price, and `dispatch` computes an
+      attempt's cost from that price and the token counts instead of believing a harness
+      that may not recognise the model it was pointed at. Nothing resolves a seat
+      differently yet and no image changes: this phase writes down what the engine
+      has never been able to read.
     scope:
       - src/torve/config/providers.py
       - src/torve/config/runconfig.py
-      - src/torve/config/agents.py
-      - src/torve/application/session.py
-      - src/torve/application/telemetry.py
       - src/torve/application/dispatch.py
+      - src/torve/application/telemetry.py
       - src/torve/cli/init.py
-      - src/torve/cli/doctor.py
       - .torve/providers/**
-      - .torve/harnesses/**
       - .torve/config.yaml
       - .torve/schemas/**
       - tests/test_providers.py
       - tests/test_runconfig.py
-      - tests/test_agents.py
-      - tests/test_tiering.py
-      - tests/test_session.py
-      - tests/test_doctor.py
-      - tests/test_broker.py
       - tests/test_dispatch.py
+      - tests/test_broker.py
       - src/torve/config/AGENTS.md
       - src/torve/application/AGENTS.md
       - CHANGELOG.md
@@ -39,6 +32,35 @@ phasing:
       - uv run lint-imports
     character: structural
   - phase: 2
+    title: the refusals the record makes possible
+    intent: >-
+      The seat resolves against the roster. A harness manifest declares the dialects
+      it speaks and stops naming a credential; a seat pairing a harness with a provider
+      serving no dialect it speaks, naming a model the roster does not list, or asking
+      an effort the model does not declare, is refused at load naming both files.
+      Four things that were discovered by an attempt become configuration errors before
+      a sandbox exists.
+    scope:
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - src/torve/application/session.py
+      - src/torve/cli/doctor.py
+      - .torve/harnesses/**
+      - tests/test_agents.py
+      - tests/test_runconfig.py
+      - tests/test_tiering.py
+      - tests/test_session.py
+      - tests/test_doctor.py
+      - src/torve/config/AGENTS.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
     title: the seam flattens, and the images stop branching
     intent: >-
       The engine names the attempt in scalars and each image assembles its own representation
@@ -65,9 +87,9 @@ phasing:
       - uv run mypy src
       - uv run lint-imports
     depends_on:
-      - 1
+      - 2
     character: structural
-  - phase: 3
+  - phase: 4
     title: one provider, two dialects, two live seats
     intent: |-
       What the document is for, proved the way S-0063's third phase proved the seam: not against tests but against the real images. One ModelStudio record, two routes, two seats — claude on `anthropic` and dsh on `openai` — both reaching qwen3.8-flash through one credential, both reporting reasoning tokens above zero. A brokered and an unbrokered run of the same seat must differ in no file the image reads.
@@ -82,5 +104,5 @@ phasing:
       - uv run pytest
       - uv run mypy src
     depends_on:
-      - 2
+      - 3
     character: structural

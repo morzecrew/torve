@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-12T07:20:08Z'
+    title: Phase 1 was two phases wearing one number
+    md: |-
+      `torve plan` called the original phase 1 `too_large` at 23 allow globs, and reading it back the verdict was right about more than the count: the phase wrote a new module, folded the broker's provider table into it, changed how a seat resolves, took a field off the harness manifest and moved the cost ledger onto a new number. Five things, one contract, and a reviewer with no seam to stop at.
+
+      It is two now. The first writes down what the engine has never been able to read — the record, the roster, and the arithmetic a price makes possible — and changes nothing about how a seat resolves or what any image receives. The second spends it: the seat resolves against the roster, and four failures that were discovered by an attempt become configuration errors named before a sandbox exists. The old phases 2 and 3 shift to 3 and 4 with their contents untouched.
+
+      What this does not do is get under the threshold. Phase 1 is 15 globs against a bar of 10, and the remainder is one new module, the configuration it absorbs, the two places that render it and a test file per module that S-0055's own lint requires. Splitting further would separate a file from the code that reads it, which is a worse contract than a large one. The verdict is recorded rather than engineered away: `torve size` is advisory, and this is the case it is advising about.
