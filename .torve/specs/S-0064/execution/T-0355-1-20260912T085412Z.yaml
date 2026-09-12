@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0355
+base: 6876fc96ee235b008504933b489b287836425fc4
+commit: 25f29b8
+at: '2026-09-12T08:54:12Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-12T08:48:34Z'
+    claim: >-
+      The row makes the record the place a provider is described, and phase 1 proved
+      the obvious corollary the hard way: a record is only worth what was measured
+      into it. It landed `price: {input: 0.30, output: 1.20, cache_read: 0.06}` for
+      qwen3.8-flash under a file header stating that everything below was measured
+      on 2026-09-11, and nothing had measured it. The plan is a prepaid weekly token
+      quota reached by API key, so dollars-per-token is not a figure anyone is billed
+      by. The price is gone; the measured values around it stay.
+    evidence: >-
+      .torve/providers/modelstudio.yaml:41 — the entry now carries no price and says
+      why, and `load_providers` resolves price=None for every model in every record.
+    action: decided
+    proposal: >-
+      A record that distinguishes what was measured from what was copied would catch
+      this class, since the header claiming measurement and the value lacking it sat
+      four lines apart. Q-2 is the narrower question it raised: a quota plan is a
+      third case D-12 has no shape for.
