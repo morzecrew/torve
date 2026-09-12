@@ -4,7 +4,7 @@ title: >-
   A provider is a record, and the seam carries scalars
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0063]
 informed_by: [S-0055, S-0061, S-0062]
 supersedes: []

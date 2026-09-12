@@ -601,7 +601,7 @@
         },
         "agent_timeout": {
           "default": 1200,
-          "description": "Hard cap per agent attempt, on top of cooperative asks; a tier may name its own\n(S-0035/D-6).",
+          "description": "Hard cap per agent attempt, on top of cooperative asks; a tier may name its own\n(S-0035/D-6). Strictly inside `sandbox_timeout`: the sandbox is the outer bound, so an\nagent clock at or past it can never fire and the attempt is booked as an infrastructure\nfailure rather than as an agent that ran out of time.",
           "title": "Agent Timeout",
           "type": "number"
         },
@@ -969,6 +969,12 @@
           },
           "title": "Retry Variants",
           "type": "object"
+        },
+        "route": {
+          "default": "",
+          "description": "S-0064/D-2: what the broker calls this seat's route \u2014 provider and dialect together,\nbecause a provider serving two dialects is two upstreams. Derived, never written.",
+          "title": "Route",
+          "type": "string"
         },
         "sandbox_timeout": {
           "anyOf": [
