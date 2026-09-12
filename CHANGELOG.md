@@ -136,6 +136,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A decision row its own document replaced no longer renders beside the row that
+  replaced it. The projection skipped a superseded document and never looked at a
+  row, so an `AGENTS.md` could carry two rules with nothing to say which is live.
+
+- A row's history in the context pack carries only real changes. Every amendment
+  also re-stamps a fingerprint, and those stamps reached an agent as two hashes
+  where a rule should be — 17 of this corpus's 53 change entries.
+
 - The brokered dsh seat runs its reasoning model with reasoning on again.
   Retiring the seven baked overlays moved the model facts onto `DSH_MODEL` and
   dropped the endpoint facts with the files, so `equip` wrote

@@ -17,11 +17,14 @@ from typer.testing import CliRunner
 from torve.application.colocation import (
     MARK_CLOSE,
     directory_of,
+    governed_directories,
     project,
     splice,
     strip_section,
+    superseded_rows,
 )
 from torve.cli import app
+from torve.config.spec import load_corpus
 
 runner = CliRunner()
 
@@ -201,3 +204,41 @@ def test_splice_and_strip_are_inverse_around_the_markers() -> None:
     assert spliced == "mine\n\n" + section
     assert strip_section(spliced, "x") == "mine\n"
     assert splice(spliced, section.replace("body", "new"), "x").count("torve:managed x") == 1
+
+
+# ....................... #
+# A row its own document replaced is not projected beside its replacement
+
+
+def test_a_superseded_row_leaves_the_section_to_its_replacement(tmp_path: Path) -> None:
+    """The filter was document-level only: `standing()` skips a superseded
+    document, and nothing looked at the row. Two rows over one directory, one
+    replacing the other, rendered side by side — and a page has no way to say
+    which of them is live."""
+
+    _tree(tmp_path)
+    rfc_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [
+                    ("S-0001/D-1", "LOCKED", "The old rule", "`src/torve/cli/**`", "because"),
+                    ("S-0001/D-2", "LOCKED", "The rule that replaced it", "`src/torve/cli/**`"),
+                ],
+                details={"S-0001/D-1": {"superseded_by": "S-0001/D-2"}},
+            )
+        },
+    )
+    loaded = load_corpus(rfc_dir)
+
+    assert superseded_rows(loaded) == ["S-0001/D-1"]
+    governed = governed_directories(loaded, tmp_path, rfc_dir)
+
+    assert [row.id for _, row in governed["src/torve/cli"]] == ["S-0001/D-2"]
+
+    project(tmp_path, rfc_dir)
+    section = (tmp_path / "src/torve/cli/AGENTS.md").read_text(encoding="utf-8")
+
+    assert "The rule that replaced it" in section
+    assert "The old rule" not in section

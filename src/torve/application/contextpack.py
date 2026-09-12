@@ -98,7 +98,12 @@ def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str
                 }
                 for a in doc.amendments
                 for c in a.changes
-                if c.subject == decision.id
+                # Not the stamp the tool re-writes on every amendment: a
+                # fingerprint is how `spec check` catches a hand edit, and to an
+                # agent reading a row's history it is two hashes where a rule
+                # should be. A third of the change entries this corpus holds are
+                # these, and none of them says anything.
+                if c.subject == decision.id and c.field != "fingerprint"
             ]
 
         rows.append(entry)

@@ -35,7 +35,15 @@ AMENDMENTS = [
         "at": "2026-09-09",
         "title": "regraded",
         "changes": [
-            {"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"}
+            {"subject": "S-0001/D-1", "field": "grade", "before": "ASSUMED", "after": "LOCKED"},
+            # The stamp the amend verb re-writes on every change. It rides in the
+            # document beside the real changes and says nothing to a reader.
+            {
+                "subject": "S-0001/D-1",
+                "field": "fingerprint",
+                "before": "aaaa1111/bbbb2222",
+                "after": "cccc3333/dddd4444",
+            },
         ],
         "md": "words",
     }
@@ -143,6 +151,17 @@ def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
         }
     ]
     assert [s["id"] for s in payload["standing_over_scope"]] == ["S-0002/D-1"]
+
+
+def test_a_rows_history_carries_no_fingerprint_stamp(tmp_path: Path) -> None:
+    """A fingerprint is how `spec check` catches a hand edit. To an agent reading
+    why a rule says what it says it is two hashes where a rule should be, and a
+    third of the change entries this corpus holds are these."""
+
+    rfc_dir = _seed(tmp_path)
+    (row,) = decisions_file(_task(), load_corpus(rfc_dir), rfc_dir)["inherited"]
+
+    assert [change["field"] for change in row["amended_by"]] == ["grade"]
 
 
 def test_gates_list_the_battery_with_axes_and_the_contract_gates(tmp_path: Path) -> None:

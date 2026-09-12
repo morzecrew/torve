@@ -117,6 +117,14 @@ def governed_directories(
             continue
 
         for row in doc.decisions:
+            # A row its own document replaced, not a document another one did
+            # (S-0054/D-6). Both belong in the section only if the reader is
+            # meant to reconcile them, and a rendered page has no way to say
+            # which of two contradicting rows is live — so the replacement
+            # stands alone, the way an amended row's current text does.
+            if row.superseded_by:
+                continue
+
             for glob in row.paths:
                 where = directory_of(glob)
 
@@ -149,6 +157,19 @@ def invariants_over(corpus: Corpus, where: str) -> list[tuple[Document, Invarian
         for invariant in doc.invariants
         if any(directory_of(glob) == where for glob in invariant.paths)
     ]
+
+
+def superseded_rows(corpus: Corpus) -> list[str]:
+    """Every standing document's rows that a later row replaced — what the
+    projection now withholds, so a reader can see the filter did something."""
+
+    return sorted(
+        row.id
+        for doc in corpus.standing()
+        if not doc.superseded_by
+        for row in doc.decisions
+        if row.superseded_by
+    )
 
 
 # ....................... #
