@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: an attempt record that can be joined
+    intent: >-
+      The writer stops accepting a row that names no base sha, and starts recording the
+      two fields the harness already hands back. `terminal_reason` splits the one
+      attempt-failure class the runner books today into a model that finished and a
+      harness that was capped or errored; `session_id` is written and nothing reads it.
+      Both are absent rather than invented on the two images that return neither.
+      Nothing derives a rate yet — this phase makes the rows readable.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/runner.py
+      - tests/test_attempt_record.py
+      - tests/test_runner.py
+      - tests/test_dispatch.py
+      - src/torve/adapters/AGENTS.md
+      - src/torve/application/AGENTS.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
+    title: the verb that derives, and the contract read from history
+    intent: >-
+      `torve ledger` folds the record into rates per seat and per gate, reading each
+      attempt's contract at the attempt's own sha through git rather than from the
+      working tree. A seat is a tier and its image together; attempts on a `fake` adapter
+      and shadow replays are excluded and the exclusion is printed. A seat whose provider
+      record carries no price reports its cost as unreported, never as zero.
+    depends_on:
+      - 1
+    scope:
+      - src/torve/application/ledger.py
+      - src/torve/cli/ledger.py
+      - src/torve/cli/main.py
+      - tests/test_ledger.py
+      - src/torve/cli/AGENTS.md
+      - pages/docs/operating.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 3
+    title: one carrier is the landing
+    intent: >-
+      Settle D-7. The store, the lane's events and the landing files disagree about how
+      many landings this repository has had; one becomes the carrier the ledger counts,
+      the others are reconciled against it or stop being written, and the choice is
+      recorded as a divergence entry with the evidence that produced it. The rates from
+      phase 2 acquire a denominator that does not depend on which reader was asked.
+    depends_on:
+      - 2
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/application/projections.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural

@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      A sandbox attempt's inputs are what its profile declared; the files the worktree
+      carries for other readers — `.mcp.json`, `.claude/skills`, `.agents/skills`,
+      `AGENTS.md` — are shut out by each image's own switch
+    paths:
+      - sandboxes/claude/toolkit/run
+      - sandboxes/dsh/toolkit/run
+      - sandboxes/mimo/toolkit/run
+    consequence: >-
+      the regime digest means what it claims, so two attempts recorded under one digest
+      saw one set of inputs; a session is unaffected, because it makes no such claim
+    rationale: >-
+      measured, all three harnesses read some of those files unasked, none is equipment,
+      none is hashed, none is refused — and `eval` and `shadow` both depend on the digest
+      meaning something
+    cites:
+      - S-0063/D-3
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      What the door removes is re-declared as equipment where a role wants it, and
+      dropped on purpose where no role does, with the drop recorded
+    paths:
+      - .torve/agents/**
+    consequence: >-
+      shutting the door stops being a silent regression, and what a seat is given is
+      readable in one place
+    rationale: >-
+      measured, the overlap between this repository's five worktree skills and the
+      `implement` profile's declared equipment is exactly one item
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Each image emits a machine-readable trace whose last line is still the result
+      envelope the engine parses, so the burn parser is fed without moving the seam
+    paths:
+      - sandboxes/claude/toolkit/run
+      - sandboxes/dsh/toolkit/report-usage
+      - sandboxes/mimo/toolkit/run
+    consequence: >-
+      `parse_burn` produces its first profile in the engine's history, and the per-turn
+      and per-tool facts every later seat comparison needs start being recorded
+    rationale: >-
+      the parsing contract is that the last JSON object line wins, and a stream's last
+      line is the same envelope — so the format adds lines above it and removes nothing;
+      0 profiles in 364 attempts is the measured baseline
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The engine compares what a seat declared against the inventory the harness reports
+      it loaded; a mismatch is a fact on the attempt record, never a conviction
+    paths:
+      - src/torve/adapters/agent/harness.py
+    consequence: >-
+      the door becomes a checked fact rather than an assertion about three images, and
+      `shadow`'s determinism claim acquires its missing half
+    rationale: >-
+      claude's stream opens with an inventory of every tool, skill, plugin and MCP server
+      actually loaded; dsh's log opens with the complete system prompt and every tool
+      schema — and the engine has never compared either to `run.meta`
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A hook ships as a declared equipment item, never as an image edit; it refuses an
+      action and never decides an outcome, writes a verdict, or touches the record
+    paths:
+      - .torve/agents/**
+    consequence: >-
+      an existing verdict moves from after the attempt to before the file is written,
+      with the reason attached, and the battery stays the only judge
+    rationale: >-
+      measured, a `PreToolUse` refusal holds under `bypassPermissions`, its reason
+      reaches the model as a tool error, and the denial lands in the receipt; as
+      equipment it is merged per role, refused where a harness has no channel, and
+      carried in the regime digest
+    cites:
+      - S-0062/D-7
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A finishing hook runs a check that can pass and carries its own ceiling on how many
+      times it may block
+    paths:
+      - .torve/agents/**
+    consequence: >-
+      a condition the model cannot clear costs two turns instead of a turn budget, and an
+      unattended night is not spent on one attempt saying "blocked"
+    rationale: >-
+      measured, an unsatisfiable finishing hook ran eleven turns on a trivial task and
+      the binary's own block cap cut it to three

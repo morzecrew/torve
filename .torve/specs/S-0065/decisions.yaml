@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `torve ledger` folds the record into rates — cost per landed task, attempts per
+      landing, convictions before landing, duty cycle — printed per seat and per gate,
+      and never lists rows a renderer already prints
+    paths:
+      - src/torve/application/ledger.py
+      - src/torve/cli/ledger.py
+    consequence: >-
+      the four numbers the engine's case rests on become a command rather than a hand
+      computation in a document, and every later comparison has one arithmetic to cite
+    rationale: >-
+      `projections.py` feeds per-tier facts to a renderer and derives nothing; three
+      passes over the same file counted 364, 536 and 252 attempts because each reader
+      invented its own denominator
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A seat is a tier and the image it was pointed at together; a rate is never reported
+      across seats
+    paths:
+      - src/torve/application/ledger.py
+    consequence: >-
+      one tier name aimed at three images over the record stops averaging into a figure
+      that describes nothing that exists
+    rationale: >-
+      measured, `executor` has been claude, then a unified `torve-agent` image, then
+      claude again; a dsh arm cannot be judged against a claude average
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      An attempt's contract is read at the attempt's own base sha, from git, whether or
+      not it is still in the working tree
+    paths:
+      - src/torve/application/ledger.py
+    consequence: >-
+      the whole record becomes joinable retroactively rather than only what comes after
+      a policy change; a deleted task directory costs a `git cat-file`, not a fact
+    rationale: >-
+      measured, 243 of the 264 attempts whose contract has left the tree resolve at the
+      sha the row already carries — S-0056/D-10's consequence says git keeps the history
+      and this is the reader that makes it true
+    cites:
+      - S-0056/D-10
+      - S-0055/D-8
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      An attempt record without a base sha is refused at the writer, naming the field;
+      the rows already written that carry none are reported as unjoinable and excluded
+      from every rate
+    paths:
+      - src/torve/application/telemetry.py
+    consequence: >-
+      a cost and a duration attached to nothing stops entering the record, and the
+      eighteen that exist stop silently moving an average
+    rationale: >-
+      the sha is resolved host-side before the agent starts, so a missing one is a
+      caller's bug rather than a condition to tolerate; a record that cannot be read is
+      worse than an absent one because it is counted
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      A derived rate counts only attempts that ran a model — `fake` adapters and shadow
+      replays are excluded, and the exclusion is reported rather than silent
+    paths:
+      - src/torve/application/ledger.py
+    consequence: >-
+      every later comparison rests on the same denominator, and a seat cannot be made to
+      look catastrophic by fixture traffic that never called a provider
+    rationale: >-
+      twenty-four records in this repository were produced by a `fake` adapter in six
+      minutes, red on every gate including `secrets`; nothing a shadow replay produces
+      is ever merged, so it lands nothing and belongs to no landing rate
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `terminal_reason` and `session_id` are recorded on the attempt when the harness
+      returns them, absent when it does not, and never synthesised
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/runner.py
+    consequence: >-
+      a three-second boot failure and a twenty-minute clock stop being the same class,
+      and the continuation question becomes answerable without committing to an answer
+    rationale: >-
+      both arrive in every claude receipt and are parsed away; `session_id` appears
+      nowhere in `src/`, and the other two images return neither, so the field is
+      best-effort per harness exactly as an equipment kind is
+    cites:
+      - S-0063/D-4
+  - id: D-7
+    grade: OPEN
+    text: >-
+      One carrier is the landing, and the other two are reconciled against it or dropped
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/projections.py
+    consequence: >-
+      duty cycle and landings-through-the-lane acquire a denominator that does not
+      depend on which reader was asked
+    rationale: >-
+      the store records 263 landings, the lane emits 49 `lane_landed` events and 58
+      landing files exist; each counts something real and none says which, so the choice
+      is the implementation's to make and to record

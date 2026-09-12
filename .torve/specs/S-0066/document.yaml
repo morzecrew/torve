@@ -1,0 +1,284 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0066
+title: >-
+  An attempt's inputs are declared, and the image says what it loaded
+kind: design
+status: draft
+implementation: none
+depends_on:
+  - S-0063
+informed_by:
+  - S-0055
+  - S-0062
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Every harness reads files out of the worktree that no profile declared, no validator
+  refused and no regime digest carries; each image closes its own door, and what the door
+  was carrying is re-declared as equipment or dropped on purpose. Then each image streams
+  its own trace, so the engine can compare what a seat declared against what the harness
+  reports it actually loaded.
+motivation: |
+  S-0062 and S-0063 built an apparatus to make an undeclared input impossible: an
+  equipment item is pinned, cached by declaration, mounted read-only, hashed into the
+  regime, and refused at load if the harness has no channel for its kind. Then the
+  worktree arrives carrying `.mcp.json`, `.claude/skills`, `.agents/skills` and an
+  `AGENTS.md` in most directories, and every one of the three harnesses reads some of
+  them unasked.
+
+  That is not untidiness. It makes the regime digest false. Two attempts recorded under
+  the same digest can have seen different skills, and the two verbs that depend on the
+  digest meaning something — `torve eval`, which lands a paired verdict, and
+  `torve shadow`, which expects a deterministic pack — are measuring a variable nobody
+  declared.
+
+  It has already cost attempts. T-0279 reached for this repository's own MCP tools twice,
+  was refused twice, and the attempt burned $1.47 with nothing in the engine reading the
+  field that recorded the refusal. T-0340's first two attempts died on the scope gate
+  because the dsh harness minted skill scratch under `.dsh/skills` and the judged diff
+  folded it in.
+
+  The asymmetry with session mode is not a difference of taste. A session never claims to
+  know its own regime; the engine does. The sandbox is the only mode that makes a claim
+  this surface falsifies.
+current_state: |
+  Measured across the three images: claude reads `.claude/skills`, `.mcp.json`,
+  `CLAUDE.md` and `.claude/agents`; dsh reads `AGENTS.md` and `CLAUDE.md` from the
+  project root down to cwd plus `$DSH_HOME`, and `.agents/skills` and `.dsh/skills`,
+  delivering them as a user-role message with a per-file sha1 in its session log; mimo
+  reads skills from `.claude`, `.agents`, `.codex` and `.opencode` roots, and agents and
+  commands from `.claude/agent(s)`.
+
+  This repository carries five skills under `.claude/skills`, six vendored under
+  `.agents/skills`, `AGENTS.md` in most directories, and a two-server `.mcp.json`. The
+  declared equipment for the `implement` profile is `flag-dont-flip`,
+  `ratchet-what-you-build` and three selected from a vendored repository. The overlap
+  between what is declared and what the worktree carries is exactly one item.
+
+  Nothing observes the attempt while it runs. `harness.py` is one blocking `exec`, and
+  `parse_burn` — a parser written to count turns, tool calls and the heaviest turns from
+  a typed event stream — has produced zero profiles in 364 attempts, because no image
+  streams. claude passes `--output-format json`, one line; dsh prints one line of
+  assistant text and keeps 48 event types in a compressed session log the engine does not
+  read; mimo already emits the events and nothing reads those either.
+
+  And a gate says so quietly: `tests/AGENTS.md` drifts on 8 of 8 gate-running attempts
+  across three seats and two images, while `spec project --check` is clean on the base.
+  `spec-projection` is a shadow gate, so nothing has ever convicted on it.
+goals: |
+  An attempt's inputs are declared or absent, per image, so the regime digest means what
+  it claims.
+
+  What the door was carrying is re-declared where it is wanted and dropped where it is
+  not, with the drop recorded rather than silent.
+
+  A machine-readable trace out of each image, so `parse_burn` produces its first profile
+  and the engine can compare what a seat declared against what the harness loaded.
+
+  One hook item, shipped as equipment, that moves an existing verdict from after the
+  attempt to before the file is written.
+non_goals: |
+  No change to the seam. S-0063/D-1 put the command line inside the image on purpose, and
+  every switch here is an image edit or an equipment declaration, not a new environment
+  variable the engine composes.
+
+  No `capabilities:` vocabulary on the harness manifest. It is the right eventual shape
+  and the wrong first move: `kinds` earned its place after three images had demonstrably
+  different channels and a profile had declared something one of them could not take.
+  Nothing here has two readers yet.
+
+  Nothing changes for a session. The files stay where they are and a person working in
+  the repository keeps reading them; only the sandbox shuts the door.
+
+  No OTLP, no collector, no second telemetry lineage. The trace each image already
+  produces is the channel.
+
+  The engine does not talk back into the stream. It reads.
+design:
+  - key: declared-or-absent
+    md: |
+      A sandbox attempt's inputs are what its profile declared. The files the worktree
+      carries for other readers are shut out, per image, with each image's own switch —
+      three switches, one intent, which is what S-0063/D-3 is for.
+
+      The four are not one thing and only one of them costs anything. `.mcp.json` is free
+      to shut: the pack already carries on disk the read-only facts `torve mcp` serves,
+      and a door shut loudly beats a door open and broken. `AGENTS.md` is free too, and
+      is the subtler case — it is torve's own projection arriving through a channel torve
+      does not hash, and it is per-directory, so it feeds an agent rows governing files it
+      merely reads while `decisions-reported` judges it on the rows its contract
+      inherited.
+
+      The skill roots are where the cost sits, and the next section carries it.
+  - key: what-the-door-was-carrying
+    md: |
+      Shutting a door that was delivering something is a silent regression unless what it
+      delivered is re-declared. Measured, the overlap between this repository's five
+      worktree skills and the `implement` profile's declared equipment is exactly one:
+      `flag-dont-flip`.
+
+      Three of the four that would be lost cost nothing, and each was checked rather than
+      assumed. A sandbox agent never writes a commit message — the engine mints them. No
+      gate reads `CHANGELOG.md`. Corpus authoring has no agent writer at all, so a
+      document-authoring skill is dead weight on an `implement` seat and will be declared
+      properly when a role exists that needs it.
+
+      That leaves one item whose absence would not announce itself, and one vendored
+      directory nobody has opened. Both are decided in the open, with the drop recorded,
+      rather than disappearing with the door.
+  - key: the-image-says-what-it-loaded
+    md: |
+      Closing a door in three different materials is an assertion until something checks
+      it. Each image already produces the evidence: claude's stream opens with an
+      inventory line naming every tool, skill, plugin and MCP server actually loaded;
+      dsh's session log opens with a `request/header` event carrying the complete system
+      prompt and every tool schema the model was given.
+
+      The engine records what it *declared* — the profile's skills, the regime keys — and
+      has never compared the two. The comparison is the check that makes the previous two
+      sections true rather than stated, and it is also the missing half of `torve
+      shadow`'s determinism claim: a replay that cannot say the model saw the same thing
+      is replaying a hope.
+
+      A mismatch is a fact on the attempt record, not a conviction. The battery judges
+      the tree; this judges the claim.
+  - key: the-stream-costs-one-word
+    md: |
+      The engine's parsing contract is that the last JSON object line of stdout wins, and
+      a stream's last line is the same result envelope the single-line mode prints. So
+      switching the format adds lines above it and removes nothing: `parse_metadata` is
+      untouched and `parse_burn`, written for exactly these lines, produces its first
+      profile in the engine's history.
+
+      The three images reach it differently, as always. claude changes one word. dsh's
+      `report-usage` already decompresses the session log to synthesise the usage line the
+      engine demands, and the turn and tool-call counts are in the bytes it is already
+      reading. mimo already emits `step_finish` and needs nothing.
+  - key: one-hook-declared-as-equipment
+    md: |
+      The `hook` equipment kind is wired to claude's settings channel and has zero
+      declarations. Two checks are worth one item: a refusal for a write outside the
+      contract's `scope.allow`, and a finishing check that the attempt owes nothing —
+      measured, a `PreToolUse` refusal holds even under `bypassPermissions`, the reason
+      reaches the model as a tool error it can act on, and the denial lands in the
+      receipt the engine already captures.
+
+      Two guardrails follow from rules the engine already holds. The battery stays the
+      judge: a hook refuses an action, never decides an outcome, never writes a verdict,
+      and never touches the record, so the replay discipline is untouched. And it ships as
+      equipment rather than as an image edit, so it is declared, merged per role, refused
+      at load where a harness has no channel for it, and carried in the regime digest.
+
+      A finishing hook that cannot become satisfied is an infinite loop with a meter
+      running — measured at eleven turns on a trivial task, cut to three by the binary's
+      own block cap. So the check must be one that can pass, and the ceiling is set.
+
+      What it is justified on is not what it was proposed for. The class of attempts that
+      failed only on gates a command answers in milliseconds is three, not fifty-six, and
+      all three are the scratch-file bug the first section closes. What survives is the
+      projection: `tests/AGENTS.md` drifts on 8 of 8 gate-running attempts and nothing
+      says so, because the gate that would is shadow.
+tests: |
+  The door is tested per image, in the image: an attempt in a worktree carrying a skill
+  root and an `.mcp.json` reports an inventory that names neither. This is a probe
+  against the built image rather than a unit test, because the measured traps here are
+  all flag interactions — a narrowed tool set silently killed a computing skill, zero
+  turns and no output, and one undocumented environment knob did nothing at all.
+
+  The re-declaration is tested by the regime: a profile that declares what the door
+  removed produces a digest that differs from one that does not, which is the property
+  that makes the change visible in telemetry rather than invisible.
+
+  The inventory comparison is tested against a fixture stream whose loaded set differs
+  from the declared set, and the mismatch must reach the attempt record without
+  reddening a gate.
+
+  The hook is tested by its twin: a write outside `scope.allow` is refused with the
+  reason reaching the model, and a finishing check that cannot pass must stop at the
+  ceiling rather than at the turn budget.
+docs: |
+  `sandboxes/AGENTS.md` gains the door — which switch each image uses and why the three
+  differ — because an operator building a fourth image needs to know it is expected to
+  close one.
+
+  The equipment documentation gains the `hook` kind's first real example, and the note
+  that a hook refuses and never decides.
+out_of_scope: |
+  In-process interception on dsh or mimo. Both are strictly more powerful than claude's
+  declarative hooks and both need an authored, mounted npm package; after the intent is
+  proved on the harness that takes it declaratively, not before.
+
+  Session mode. The same files stay readable by a person in the repository, and a
+  real-time scope refusal there was measured against and rejected: four scope widenings
+  in one session would have been blocked and all four were correct.
+
+  The per-seat experiments that consume the burn profile — Code Mode, the reasoning
+  ladder, the tool roster. They are a separate document and they are not mintable until
+  the seats have accumulated enough attempts to tell apart.
+
+  A dollar ceiling, a typed output schema, and a confined reviewer. Each is a real item
+  on the same harness surface and each belongs to the stage that has a number to judge it
+  against.
+risks: |
+  The door removes something nobody noticed was load-bearing, and the seat gets quietly
+  worse. The mitigation is the regime digest: the change is visible in telemetry as a new
+  regime rather than as an unexplained drift, and the ledger reports per seat.
+
+  A switch is probed wrong and the door is not actually shut. The mitigation is the
+  inventory comparison, which is why it is in this document rather than a later one — an
+  assertion about three images is worth exactly as much as the check behind it.
+
+  An undocumented environment knob moves the regime digest while changing no behaviour,
+  which is worse than not setting it. Measured: one of the two knobs probed did nothing.
+  So the rule is probe first, declare second, and prefer a documented flag to an
+  environment name wherever both exist.
+
+  The hook's finishing check blocks an attempt that was about to go green. The mitigation
+  is the ceiling and the choice of check: one that a verb can satisfy, declared on one
+  role at first, so a red result is attributable to the declaration rather than to the
+  image.
+alternatives:
+  - option: Declare the worktree's files as equipment instead of shutting them out
+    rejected_because: >-
+      It is the other half of the same decision and it stays available per item — the
+      `mcp` kind exists for exactly this. What it cannot do is stay accidental: the
+      default must be absent, because an input that arrives without a declaration is the
+      thing the regime digest cannot see.
+  - option: Use claude's `--bare`, which closes every door at once
+    rejected_because: >-
+      It also skips plugin sync and carries authentication side effects, so it changes
+      more than the surface under discussion; the narrower switches close the same doors
+      without them.
+  - option: A `capabilities:` list on the harness manifest, beside `kinds`
+    rejected_because: >-
+      The right eventual shape and the wrong first move. `kinds` earned its place after
+      three images had demonstrably different channels and a profile had declared
+      something one of them could not take; a vocabulary written before its first
+      capability is in use is a schema invented for hypothetical harnesses.
+    cites:
+      - S-0063/D-3
+  - option: Export each image's telemetry over OTLP rather than reading its trace
+    rejected_because: >-
+      A collector, an egress route out of a sandbox that is sealed on purpose, and a
+      second telemetry lineage. dsh's default endpoint is its vendor's and it ships no
+      redaction rules; the stream carries the same facts through a channel that exists.
+  - option: A real-time scope refusal for sessions as well as sandboxes
+    rejected_because: >-
+      Measured against a real session: four of one task's scope widenings would have been
+      blocked and all four were correct. A session author discovers scope as they work and
+      may legitimately rewrite the contract; a sandbox agent cannot, because its contract
+      is fixed before it starts.
+questions:
+  - id: Q-1
+    text: >-
+      Is `readable-code` re-declared as equipment or dropped? It is the one of the four
+      skills the door removes whose absence would not announce itself in a gate, and the
+      answer wants a measured landing rate rather than a preference.
+    status: open
+  - id: Q-2
+    text: >-
+      What is `.agents/skills/forze-skills`, and does any role want it? It is vendored,
+      it rides into every dsh and mimo attempt today, and nobody has opened it.
+    status: open

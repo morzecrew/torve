@@ -1,0 +1,242 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0065
+title: >-
+  The record is read, and what looks lost is unjoined
+kind: design
+status: draft
+implementation: none
+depends_on:
+  - S-0064
+informed_by:
+  - S-0053
+  - S-0055
+  - S-0056
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  The engine accumulates attempts, gate runs, landings and metered requests, and derives
+  no rate from any of them; a verb folds the record into cost per landing, attempts per
+  landing, convictions before landing and duty cycle, per seat and per gate. Nothing
+  changes about what is written except two fields the harness already hands back and a
+  refusal for the one row shape that cannot be joined to anything.
+motivation: |
+  Every later decision about this engine is a comparison — one seat against another, a
+  hook against no hook, an arm against its incumbent — and a comparison needs a rate.
+  The engine has never computed one. `projections.py` feeds per-tier facts to a renderer
+  and stops there: attempts, cost, escalations, digests, listed rather than divided.
+
+  So the four numbers that would say whether torve is worth its cost have only ever been
+  computed by hand, in a research document, once, by a person reading JSON. Measured that
+  way the record says $1.37 per landed task, 2.05 attempts per landing, 7.1% duty cycle,
+  and 85 landed tasks that a blocking gate stopped at least once. Those are the engine's
+  own case for existing and none of them is reachable from a verb.
+
+  Worse, the numbers disagree with each other. Three passes over the same file counted
+  364, 536 and 252 attempts; the store, the lane events and the landing files say 263, 49
+  and 58 landings. Not one of those readers is wrong — each counts a different thing and
+  none says which thing it counts. A rate computed over an ambiguous denominator is not a
+  measurement, and a document that mints work against it is guessing.
+current_state: |
+  `torve status`, `torve show` and the projection feed render the record. Nothing folds
+  it. There is no verb whose output is a rate, and `application/standing.py` is the only
+  module anywhere that reads `.torve/telemetry.jsonl` to decide something rather than to
+  display it — the flake predicate, which has never fired.
+
+  An attempt record carries a seat, an image and its digest, token counts, wall time, the
+  broker's own metering and the battery's per-gate results. It does not carry two fields
+  that arrive in every claude receipt and are parsed and discarded: `terminal_reason`,
+  which separates a model that finished from a harness that was capped or errored, and
+  `session_id`, which appears nowhere in `src/`. The runner books both a three-second boot
+  failure and a twenty-minute clock as the same non-zero exit.
+
+  And the join from an attempt to what was agreed looks broken. 264 of 276 recorded
+  attempts name a task whose `contract.yaml` is not on disk, deleted under S-0056/D-10
+  when the documents they cited were archived. Measured, the loss is smaller than it
+  looks: 243 of those 264 resolve from git at the sha the attempt row already carries.
+  Twenty-one do not, and eighteen of those carry no sha at all — an empty `merge_base`
+  and an empty `head`, written by a path that did not record one.
+goals: |
+  One verb that prints rates rather than rows, over seats and gates, from the record as
+  it stands — including the attempts whose contract left the working tree.
+
+  An attempt record that can be joined: to its contract, through git; to its harness
+  session, by id; and to a cause of death more specific than a non-zero exit.
+
+  One answer to what a landing is, so a duty cycle has a denominator.
+non_goals: |
+  No new telemetry lineage. Everything here reads `.torve/telemetry.jsonl` and the event
+  store, and nothing exports to a collector — the sandbox is sealed on purpose and a
+  second lineage beside the first is the thing that produced the disagreement in the
+  first place.
+
+  No retention change. S-0056/D-10 stands: a task directory whose contract names an
+  archived document is deleted, and git keeps the history. This document tests that
+  row's own consequence rather than reopening it.
+
+  Nothing resumes on a `session_id`. Recording it costs a field and commits to nothing;
+  whether a continuation should reuse a harness session is a separate question with its
+  own measurement.
+
+  No routing, no policy, no rule that acts on a rate. This document makes the rate
+  computable. What reads it comes later, and later is a different document.
+design:
+  - key: the-ledger-derives
+    md: |
+      `torve ledger` folds the record into named rates and prints them per seat and per
+      gate. A seat is a tier and the image it was pointed at together, because one tier
+      name has been aimed at three different images over the record and a rate that
+      blends them describes nothing that exists.
+
+      The rates are the four the engine's case rests on — cost per landed task, attempts
+      per landing, convictions before landing, duty cycle — plus, per gate, the wall time
+      it spent and the convictions it produced, which is the pair that says whether a
+      gate is worth what it costs to run.
+
+      What the verb must not do is invent a figure. A seat whose provider record carries
+      no price reports its cost as unreported, exactly as dispatch already does: a
+      subscription seat genuinely has no per-token cost, and a zero would be a lie that
+      averages.
+  - key: the-join-through-history
+    md: |
+      An attempt names a task and a base sha. The contract is read at that sha, from git,
+      whether or not it is still in the working tree. S-0056/D-10's consequence already
+      says this in as many words — "git keeps the history" — and this is the reader that
+      makes the claim true rather than merely stated.
+
+      Measured against the record as it stands, that resolves 243 of the 264 attempts
+      whose contract has left the tree. The reader is a `git cat-file` against
+      `<sha>:.torve/tasks/<id>/contract.yaml` and a cache, not a retention policy, and it
+      works retroactively over the whole record rather than only over what comes next.
+
+      Three of the twenty-one that remain ran before their contract was committed, which
+      is a fact about those attempts and not a defect. The other eighteen are the subject
+      of the next section.
+  - key: a-row-without-a-sha
+    md: |
+      Eighteen attempt records carry an empty `merge_base` and an empty `head`. Such a
+      row can never be joined to a contract, to a diff, or to a landing: it is a cost and
+      a duration attached to nothing, and it will sit in the record forever looking like
+      data.
+
+      The writer refuses instead. An attempt record without a base sha is a programming
+      error in the caller, not a condition to be tolerated, and the refusal names the
+      field — the same shape as the seat refusals S-0064 writes, and for the same reason:
+      a record that cannot be read is worse than an absent one, because it is counted.
+
+      The eighteen already written are not rewritten. They are reported by the ledger as
+      unjoinable and excluded from every rate, which is the honest treatment of a row
+      whose denominator is unknown.
+  - key: the-receipt-says-how-it-died
+    md: |
+      Two fields already arrive and are already parsed away. `terminal_reason` separates
+      a model that finished from a harness that was capped, budget-exhausted or errored;
+      the runner currently reads both as one non-zero exit and books the attempt as an
+      infrastructure failure. The record holds three-second boot failures and
+      twenty-minute clocks in the same class.
+
+      `session_id` is the handle a continuation could resume. It is recorded and nothing
+      reads it, deliberately: the field costs nothing, and it is what makes the
+      continuation question answerable at all.
+
+      Both are best-effort per harness, exactly as equipment kinds are. claude's receipt
+      carries them; the other two images do not, and a seat on those images records the
+      field as absent rather than the engine inventing a value for it.
+  - key: what-counts-as-an-attempt
+    md: |
+      A rate counts only attempts that ran a model. Twenty-four records in this
+      repository were produced by a `fake` adapter in six minutes, red on every gate
+      including `secrets`, and counting them makes a seat look catastrophic for free.
+      Shadow replays are excluded for the same reason — nothing a replay produces is
+      merged, so it lands nothing and belongs to no landing rate.
+
+      This is the row that every later comparison rests on, which is why it is written
+      down rather than left to whoever computes the first average. A verdict about a seat
+      computed over fixture traffic is not a weaker verdict; it is a different claim
+      wearing the same words.
+tests: |
+  The join is tested against a contract that is not in the working tree: commit one,
+  delete it, and assert the ledger still reports what was agreed. That is the whole
+  finding, and it is the one behaviour a fixture can prove cheaply.
+
+  The refusal is tested by its twin — an attempt record with an empty base sha must
+  raise, and one with a sha must not.
+
+  The rate arithmetic is tested over a fixture record with two seats, one of them on a
+  provider with no price: the priced seat reports a cost per landing, the unpriced one
+  reports unreported, and neither reports zero.
+
+  `terminal_reason` is tested at the three shapes measured in the traces on disk —
+  a completed run, a budget-exhausted run, and a receipt that carries no such field.
+docs: |
+  `pages/docs/operating.md` gains the verb and what each rate counts, because a rate
+  whose denominator is undocumented is the disagreement this document exists to end.
+
+  The projections beside `application/` and `cli/` are regenerated; the ledger is a
+  reader of the record and its rows belong next to the record's other readers.
+out_of_scope: |
+  The per-seat experiments that consume these rates. They are a separate document and
+  they are not mintable until the current seats have accumulated enough attempts to tell
+  apart — measured, they hold twelve between them.
+
+  A burn profile per attempt. `parse_burn` is written and has never been fed, and feeding
+  it is an image change on three toolkits, which is its own document.
+
+  Anything that acts on a rate: routing, retry variants, a standing job that reads the
+  ledger. Each of those is a rule replacing a judgement, and none of them is decidable
+  before the rate exists.
+risks: |
+  The ledger becomes a fourth reader that disagrees with the other three. The mitigation
+  is that it is the only one that says what it counts, and that Q-1 settles which carrier
+  a landing is before the verb reports one.
+
+  A git read per attempt is slow over a long record. The mitigation is a cache keyed by
+  sha and path, and the measured shape of the problem — 264 lookups over the whole
+  history to date, not per invocation.
+
+  The refusal lands in a writer that runs at the end of every attempt, where a raise
+  costs an attempt's work. The mitigation is that the sha is resolved host-side long
+  before the agent starts, so a missing one is a bug that would have been caught at
+  dispatch, and the twin test pins it.
+alternatives:
+  - option: Keep the contract on disk — retain task directories instead of deleting them
+    rejected_because: >-
+      S-0056/D-10 is LOCKED and its consequence already claims git keeps the history;
+      measured, that claim holds for 243 of 264 attempts. A retention change would
+      recover nothing that history does not already hold, would grow the tree forever,
+      and would fix only the attempts that come after it — where the reader fixes the
+      whole record retroactively.
+    cites:
+      - S-0056/D-10
+  - option: Compute the rates inside `projections.py` beside the per-tier feed
+    rejected_because: >-
+      The feed renders; a fold decides. Putting a derivation behind the renderer is what
+      produced a record with no reader, and the projection's callers want rows.
+  - option: Export the record over OTLP and let a collector do the arithmetic
+    rejected_because: >-
+      A collector, an egress route out of a sandbox that is sealed on purpose, and a
+      second telemetry lineage beside the first — which is the exact shape of the
+      disagreement this document exists to end.
+  - option: Record a cost for a seat whose provider carries no price, from the harness's own figure
+    rejected_because: >-
+      Measured, claude priced a qwen attempt off its Anthropic rate card after emitting
+      `unrecognized_model`. S-0064/D-12 already settled that an absent price stays absent;
+      a rate computed from a rate card the seat is not on is fiction that averages.
+    cites:
+      - S-0064/D-12
+questions:
+  - id: Q-1
+    text: >-
+      Which carrier is a landing? The store records 263, the lane emits 49 `lane_landed`
+      events and 58 landing files exist. Each counts something real — every recorded
+      landing, every landing through the serialized lane, every landing a task directory
+      wrote — and until one is named the denominator of every rate here is ambiguous.
+    status: open
+  - id: Q-2
+    text: >-
+      Should duty cycle count wall time inside an attempt, or wall time inside a task's
+      lifetime? The first measures the agent, the second measures the engine; the record
+      holds 37.8 agent-hours and 296 further hours of idle inside task lifetimes, and the
+      two answers differ by an order of magnitude.
+    status: open
