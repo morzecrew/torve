@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import subprocess
 from datetime import UTC, datetime, timedelta
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -718,3 +719,46 @@ def test_doctor_says_how_many_standing_contracts_and_when_one_last_fired(seeded)
 
     assert summary.startswith("2 contract(s), last fired ")
     assert summary.endswith("; 1 never fired")
+
+
+# ----------------------- #
+# What a standing scope may not name (S-0068/D-4, amended by S-0068/A-1).
+
+# The gate manifest declares the state, axis and sabotage twin of every gate
+# that judges the work, so a job free to edit it is a job free to disarm its
+# own judge. `flake-quarantine` reached for exactly that and was refused six
+# times; the rule that refused it is this list.
+CONVICTION_FILES = (".torve/gates.yaml",)
+
+
+def conviction_files_in_scope(job: StandingContract) -> list[str]:
+    """The allow globs of `job` that reach a file declaring what convicts.
+    Empty is the only admissible answer; a job with any is retired, never
+    narrowed, and the adoption check that catches it is never relaxed."""
+
+    return [
+        glob
+        for glob in job.scope.allow
+        for target in CONVICTION_FILES
+        if fnmatch(target, glob) or fnmatch(target, f"{glob.rstrip('/')}/*")
+    ]
+
+
+def test_no_committed_standing_job_names_what_declares_the_convictions():
+    root = Path(__file__).resolve().parents[1]
+    jobs, errors = load_standing_contracts(root)
+
+    assert errors == []
+    assert [job.name for job in jobs] == ["lockfile-drift"]
+    assert {job.name: conviction_files_in_scope(job) for job in jobs} == {"lockfile-drift": []}
+
+
+def test_the_check_refuses_a_scope_that_reaches_the_gate_manifest():
+    """The twin that proves the check can convict: the retired job's own
+    scope, and the directory glob that covers it without naming it."""
+
+    named = StandingContract.model_validate(job_dict(allow=[".torve/gates.yaml"]))
+    assert conviction_files_in_scope(named) == [".torve/gates.yaml"]
+
+    covered = StandingContract.model_validate(job_dict(allow=[".torve"]))
+    assert conviction_files_in_scope(covered) == [".torve"]

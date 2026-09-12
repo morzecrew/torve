@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The `flake-quarantine` standing job is retired. Its predicate worked, but what
+  it minted was an edit to the gate manifest's quarantine list for the command
+  that is the acceptance of nearly every task here — a job reaching, unattended,
+  for what convicts the work. A standing job may no longer name, in its scope, a
+  file that declares what convicts; `lockfile-drift` rides clean under the rule.
+  Nothing replaces the retired job: a flaky acceptance command means the suite
+  wants fixing, and `torve doctor` already puts that in front of a person.
+
 ### Added
 
 - **Breaking:** `promotion.auto_merge: true` with no promotion criterion armed is
