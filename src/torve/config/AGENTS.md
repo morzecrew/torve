@@ -515,6 +515,13 @@ A model entry may carry `price`, and where it does the attempt's cost is compute
 - Paths: `src/torve/config/providers.py` `src/torve/application/dispatch.py`
 - Consequence: the ledger stops depending on whether a harness recognises the model it was pointed at, and the divergence check compares two numbers that are both about this call — torve's arithmetic against the broker's metering — instead of comparing a rate card to reality
 
+### S-0068/D-1 — `ASSUMED` (The refusal that is missing, and the one nobody answered)
+
+`auto_merge: true` with no promotion criterion armed is refused at load, naming the field and what to set; any one of `require_ci`, `require_review`, `approvals` or `quiet_window` counts as armed
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: the one boolean that converts five unused criteria into five unset ones can no longer be flipped alone, and a deliberate choice stays one line away
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

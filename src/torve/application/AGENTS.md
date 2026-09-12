@@ -733,6 +733,56 @@ A model entry may carry `price`, and where it does the attempt's cost is compute
 - Paths: `src/torve/config/providers.py` `src/torve/application/dispatch.py`
 - Consequence: the ledger stops depending on whether a harness recognises the model it was pointed at, and the divergence check compares two numbers that are both about this call — torve's arithmetic against the broker's metering — instead of comparing a rate card to reality
 
+### S-0065/D-1 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+`torve ledger` folds the record into rates — cost per landed task, attempts per landing, convictions before landing, duty cycle — printed per seat and per gate, and never lists rows a renderer already prints
+
+- Paths: `src/torve/application/ledger.py` `src/torve/cli/ledger.py`
+- Consequence: the four numbers the engine's case rests on become a command rather than a hand computation in a document, and every later comparison has one arithmetic to cite
+
+### S-0065/D-2 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+A seat is a tier and the image it was pointed at together; a rate is never reported across seats
+
+- Paths: `src/torve/application/ledger.py`
+- Consequence: one tier name aimed at three images over the record stops averaging into a figure that describes nothing that exists
+
+### S-0065/D-3 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+An attempt's record carries what it was fenced by and judged against — the inherited rows, the scope and the acceptance — and where the contract is still in git history it is additionally read at the attempt's own sha
+
+- Paths: `src/torve/application/ledger.py` `src/torve/application/telemetry.py`
+- Consequence: the whole record becomes joinable retroactively rather than only what comes after a policy change; a deleted task directory costs a `git cat-file`, not a fact
+
+### S-0065/D-4 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+An attempt record without a base sha is refused at the writer, naming the field; the rows already written that carry none are reported as unjoinable and excluded from every rate
+
+- Paths: `src/torve/application/telemetry.py`
+- Consequence: a cost and a duration attached to nothing stops entering the record, and the eighteen that exist stop silently moving an average
+
+### S-0065/D-5 — `LOCKED` (The record is read, and what looks lost is unjoined)
+
+A derived rate counts only attempts that ran a model — `fake` adapters and shadow replays are excluded, and the exclusion is reported rather than silent
+
+- Paths: `src/torve/application/ledger.py`
+- Consequence: every later comparison rests on the same denominator, and a seat cannot be made to look catastrophic by fixture traffic that never called a provider
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0065/D-6 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+`terminal_reason` and `session_id` are recorded on the attempt when the harness returns them, absent when it does not, and never synthesised
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py`
+- Consequence: a three-second boot failure and a twenty-minute clock stop being the same class, and the continuation question becomes answerable without committing to an answer
+
+### S-0065/D-7 — `OPEN` (The record is read, and what looks lost is unjoined)
+
+One carrier is the landing, and the other two are reconciled against it or dropped
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/projections.py`
+- Consequence: duty cycle and landings-through-the-lane acquire a denominator that does not depend on which reader was asked
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

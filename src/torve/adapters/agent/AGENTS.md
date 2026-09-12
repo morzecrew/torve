@@ -84,6 +84,13 @@ Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` 
 - Consequence: nine broker branches across three definitions go, and mimo becomes brokerable by deletion rather than by implementation
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0065/D-6 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+`terminal_reason` and `session_id` are recorded on the attempt when the harness returns them, absent when it does not, and never synthesised
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py`
+- Consequence: a three-second boot failure and a twenty-minute clock stop being the same class, and the continuation question becomes answerable without committing to an answer
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.

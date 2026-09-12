@@ -320,4 +320,25 @@ Image definitions live at `sandboxes/<name>/` in the repository root and build t
 - Consequence: the engine loses its last way to build an image, which is the rule S-0017/D-3 already stated and could not enforce while a verb of its own did it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0065/D-1 — `ASSUMED` (The record is read, and what looks lost is unjoined)
+
+`torve ledger` folds the record into rates — cost per landed task, attempts per landing, convictions before landing, duty cycle — printed per seat and per gate, and never lists rows a renderer already prints
+
+- Paths: `src/torve/application/ledger.py` `src/torve/cli/ledger.py`
+- Consequence: the four numbers the engine's case rests on become a command rather than a hand computation in a document, and every later comparison has one arithmetic to cite
+
+### S-0068/D-2 — `ASSUMED` (The refusal that is missing, and the one nobody answered)
+
+`doctor` names which promotion criteria a served manager would land without, and says when the landing leg is off entirely
+
+- Paths: `src/torve/cli/doctor.py`
+- Consequence: the configuration nobody wrote becomes as visible as the one someone did, before a pass lands anything
+
+### S-0068/D-3 — `ASSUMED` (The refusal that is missing, and the one nobody answered)
+
+`doctor` reports a standing job that has been refused instantiation, how many times, and on what
+
+- Paths: `src/torve/cli/doctor.py`
+- Consequence: a mechanism blocked for a reason stops being indistinguishable from one that does not exist
+
 <!-- /torve:managed -->
