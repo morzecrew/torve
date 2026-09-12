@@ -23,20 +23,16 @@ phasing:
       - uv run lint-imports
     character: structural
   - phase: 2
-    title: the six refusals are answered
+    title: the job that reached for the judge is retired
     intent: >-
-      `flake-quarantine` has been refused six times because its scope crosses locked
-      rows from four documents. Either the scope narrows to the part of the gate manifest
-      a quarantine actually touches, or those rows are amended to admit that one edit
-      with the amendment naming the job. The acceptance is the job instantiating —
-      the first firing of a standing contract in this engine's history — not the edit
-      compiling.
-    scope:
-      - .torve/standing/**
-      - .torve/gates.yaml
-      - tests/test_standing.py
-      - tests/test_manifest.py
-      - CHANGELOG.md
+      `flake-quarantine` is removed, and the rule that refused it six times becomes
+      a check. Its predicate worked — two commands are over the flake threshold —
+      but what it minted was an edit to the list that stops a command blocking, and
+      the command it wanted was the acceptance command of nearly every task here.
+      The check walks the standing jobs and refuses any whose scope names a file that
+      declares what convicts; `lockfile-drift` passes it, and nothing replaces the
+      retired job because the signal already reaches a person through `doctor`.
+    scope: [.torve/standing/**, tests/test_standing.py, CHANGELOG.md]
     acceptance:
       - uv run pytest
     depends_on:

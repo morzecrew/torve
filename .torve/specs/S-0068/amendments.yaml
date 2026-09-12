@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-12T18:48:43Z'
+    title: >-
+      the job is retired: a standing scope may not name what declares the convictions
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          A standing job whose scope crosses a locked row is answered by narrowing
+          the job's scope or amending the row — never by relaxing the adoption check
+        after: >-
+          A standing job may not name, in its scope, a file that declares what convicts
+          — the gate manifest above all; such a job is retired rather than made to
+          fit, and the adoption check is never relaxed
+      - subject: D-4
+        field: fingerprint
+        after: 6559ec5b8417f12b/50a8e628f04df6df
+    md: |
+      D-4 offered two answers and neither exists. A scope glob names a file, not a key
+      inside one, and `flake-quarantine`'s scope is already exactly `.torve/gates.yaml`
+      — so there is no narrower form of it. Amending does not reach it either: the
+      threshold is two documents and that file is crossed by locked rows from five,
+      including D-4 itself, which this document added to the count on the day it was
+      written.
+
+      Measuring it settled the rest. The job is not idle — `uv run pytest` has been
+      flaky five times and the coverage command three, both over the trigger's threshold
+      of three, so the predicate evaluated correctly and minted a draft on each of the
+      six occasions it was refused.
+
+      What it was minting is the point. Quarantining a command stops it blocking, and
+      the command it wanted to quarantine is the acceptance command of essentially every
+      task in this repository. The job was reaching, unattended, for the thing that
+      convicts the work, and the adoption check refused it every time — by proxy,
+      because the manifest is heavily governed, but for exactly the right reason.
+
+      So the refusal was never friction to be engineered away. Moving the quarantine
+      list to its own lightly-governed file, which is what Q-1 asked about, would have
+      removed the only thing standing between a predicate and the acceptance gate.
+
+      The row now states the rule that was actually protecting us, and it is stronger
+      than the one it replaces: a standing job may not name what declares the
+      convictions. `lockfile-drift` rides clean under it, scoped to `uv.lock`;
+      `flake-quarantine` was never admissible and is retired rather than adapted.
+
+      The signal it was built on survives and is worth more than the response it
+      proposed. A flaky acceptance command means the suite wants fixing, not that the
+      suite should stop being believed — and T-0364 already landed the `doctor` line
+      that names a refused standing job and what it crossed, so the fact now reaches a
+      person instead of a queue.

@@ -200,3 +200,5 @@ questions:
       into a file the job may write without touching a gate definition would answer
       the six refusals by construction rather than by narrowing a glob — at the cost
       of a second file the manifest has to read.
+    status: settled
+    settled_by: A-1

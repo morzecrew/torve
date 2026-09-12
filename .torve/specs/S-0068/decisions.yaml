@@ -43,8 +43,9 @@ decisions:
   - id: D-4
     grade: LOCKED
     text: >-
-      A standing job whose scope crosses a locked row is answered by narrowing the
-      job's scope or amending the row — never by relaxing the adoption check
+      A standing job may not name, in its scope, a file that declares what convicts
+      — the gate manifest above all; such a job is retired rather than made to fit,
+      and the adoption check is never relaxed
     paths: [.torve/standing/**, .torve/gates.yaml]
     consequence: >-
       the check that has kept anything from quietly editing the battery's own manifest
@@ -53,3 +54,4 @@ decisions:
       `.torve/gates.yaml` declares the states and axes of the gates that judge the
       work; a job free to edit it is a job free to disarm its own judge, and six refusals
       is the check doing what it exists for
+    fingerprint: 6559ec5b8417f12b/50a8e628f04df6df
