@@ -17,3 +17,30 @@ amendments:
       in a document about checks that pass where they should not, one commit after
       accepting it. The drafted path caught it before anything was minted, which is the
       asymmetry S-0067 is about.
+  - id: A-2
+    at: '2026-09-12T20:38:24Z'
+    title: D-5 names the second reader of its own rule
+    changes:
+      - subject: D-5
+        field: paths
+        before: [src/torve/application/decisions.py]
+        after: [src/torve/application/decisions.py, src/torve/config/spec.py]
+      - subject: D-5
+        field: fingerprint
+        after: 1e433fe5e58198c1/d8378fcb3f97fac7
+    md: |
+      The rule has two readers and D-5 named one. `application/decisions.py::path_rot`
+      reports rot for a row whose globs all match nothing; `config/spec.py` refuses a
+      LOCKED row on an implemented document whose glob matches nothing, and it is the
+      second that produces the problem and the non-zero exit.
+
+      T-0370 fixed the reader its contract allowed, correctly and completely, and the
+      blocker survived because the contract could not reach the other one. The scope
+      gate would have convicted an attempt that went looking, which is the system
+      working — the defect is upstream of it, in a row whose paths described half the
+      surface its text governs.
+
+      Worth naming for what it is: this is the third contract tonight where the work
+      came back right and the thing that was wrong was what I asked for. The lint and
+      the size verdict read a scope; nothing reads a decision's paths against the text
+      beside it.

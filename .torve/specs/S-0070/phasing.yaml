@@ -67,3 +67,21 @@ phasing:
     depends_on:
       - 3
     character: routine
+  - phase: 5
+    title: the rule's second reader
+    intent: >-
+      Phase 1 taught `path_rot` to tell a glob that governs nothing from a glob whose
+      files the repository does not commit, and the corpus check kept refusing, because
+      `config/spec.py` asks the same question in its own words and D-5 named only
+      the first module. This completes phase 1 rather than extending it: the same
+      skip, in the reader that produces the problem and the non-zero exit. It is numbered
+      last and runs first — everything else in this document waits on `spec check`
+      passing in the tree the lane rebases into.
+    scope: [src/torve/config/spec.py, tests/test_rfc_check.py, CHANGELOG.md]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    depends_on:
+      - 1
+    character: structural
