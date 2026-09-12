@@ -40,7 +40,6 @@ phasing:
       - src/torve/cli/main.py
       - tests/test_ledger.py
       - src/torve/cli/AGENTS.md
-      - pages/docs/operating.md
       - CHANGELOG.md
     acceptance:
       - uv run pytest
@@ -71,3 +70,19 @@ phasing:
     depends_on:
       - 2
     character: structural
+  - phase: 4
+    title: the operating guide catches up
+    intent: >-
+      One routine task documents the ledger for whoever runs it: the verb, and what
+      each rate counts — which is the half a reader cannot infer, because a rate whose
+      denominator is undocumented is the disagreement this document exists to end.
+      It waits on phase 3 because the denominator is not settled until the carrier
+      is, and it carries no source: prose about a landed verb is a different competence
+      from writing the verb, and a task that mixes the two has to run on the seat
+      the harder half needs.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec check
+    depends_on:
+      - 3
+    character: routine

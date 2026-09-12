@@ -62,3 +62,39 @@ amendments:
       reader alone. A row governs what its paths name — that is what the silence check
       reads — so a row obliging the attempt writer to carry the scope and the acceptance
       has to name the module that writes it, or `decisions-reported` would never ask.
+  - id: A-3
+    at: '2026-09-12T19:15:16Z'
+    title: >-
+      documentation is its own phase, so it can be routed
+    md: |
+      Phase 2 carried `pages/docs/operating.md` beside the verb it documents, and the
+      size heuristic called the phase `too_large` for one reason: it touched two
+      top-level modules, `pages` and `src`. The same thing happened to S-0068's phase 1
+      earlier the same evening.
+
+      My first reading was that the heuristic was wrong and `pages` should join `tests`
+      and `.torve` on the carried list. That reading does not survive the exemption's own
+      rationale: those two are exempt because they accompany *every* change mechanically
+      — a change to `src/` needs its test, and every task carries its own contract.
+      Documentation accompanies some changes, and when it does it is a different job.
+
+      The stronger reason to split is that the engine already has a mechanism that only
+      pays off when a task is one competence. `character_routing` maps a phase's
+      character to a seat variant, is validated at load, and has never been set in this
+      repository or in its configuration's entire git history — while 65 of 74 contracts
+      declare a character. A task that is both engine code and prose cannot be routed at
+      all: it has to run on the seat the harder half needs, so the prose is written at
+      the price of the code.
+
+      So the documentation becomes a `routine` phase of its own, waiting on phase 3
+      because the denominator it has to describe is not settled until the carrier is.
+      What stays with the code is the record rather than the reference: the reasoning
+      behind a change belongs in its commit body and its changelog entry, written by
+      whoever found it out.
+
+      The reading that produced this also settled a larger question. A phase already
+      mints more than one task — the planner groups entries by phase number, refuses
+      same-phase scopes that intersect, and resolves a `depends_on` to every task id in
+      the named phase. S-0053 uses it today and six archived documents used it before.
+      Nothing needs building for tasks to outnumber phases; the five documents written
+      this session simply never used it.
