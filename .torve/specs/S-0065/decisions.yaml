@@ -33,7 +33,7 @@ decisions:
       An attempt's record carries what it was fenced by and judged against — the inherited
       rows, the scope and the acceptance — and where the contract is still in git
       history it is additionally read at the attempt's own sha
-    paths: [src/torve/application/ledger.py]
+    paths: [src/torve/application/ledger.py, src/torve/application/telemetry.py]
     consequence: >-
       the whole record becomes joinable retroactively rather than only what comes
       after a policy change; a deleted task directory costs a `git cat-file`, not
@@ -43,7 +43,7 @@ decisions:
       the sha the row already carries — S-0056/D-10's consequence says git keeps the
       history and this is the reader that makes it true
     cites: [S-0056/D-10, S-0055/D-8]
-    fingerprint: e8a5ed03fc8e2336/7c320184354f32fb
+    fingerprint: 7f75a33a403798e3/df44d8263967949a
   - id: D-4
     grade: ASSUMED
     text: >-

@@ -45,3 +45,20 @@ amendments:
 
       The row's consequence and rationale are left as written. Both remain true of the
       half of the row they describe, and the words that correct them are these.
+  - id: A-2
+    at: '2026-09-12T16:59:25Z'
+    title: D-3's paths follow its text to the writer
+    changes:
+      - subject: D-3
+        field: paths
+        before: [src/torve/application/ledger.py]
+        after: [src/torve/application/ledger.py, src/torve/application/telemetry.py]
+      - subject: D-3
+        field: fingerprint
+        before: e8a5ed03fc8e2336/7c320184354f32fb
+        after: 7f75a33a403798e3/df44d8263967949a
+    md: |
+      A-1 moved the row's obligation from a reader to a writer and left its paths on the
+      reader alone. A row governs what its paths name — that is what the silence check
+      reads — so a row obliging the attempt writer to carry the scope and the acceptance
+      has to name the module that writes it, or `decisions-reported` would never ask.
