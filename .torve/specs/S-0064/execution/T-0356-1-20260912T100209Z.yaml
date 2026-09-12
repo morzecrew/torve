@@ -1,0 +1,131 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0356
+phase: 2
+base: 43de659d4d3111f4a57911e88753932259eefba9
+commit: 4d846e3
+at: '2026-09-12T10:02:09Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-12T09:50:29Z'
+    claim: >-
+      The refusal landed as written and one consequence the row did not anticipate
+      came with it. A harness and a provider may share *two* dialects, not zero or
+      one — every provider this repository now records serves both — so the intersection
+      being non-empty is not enough to resolve a seat. The engine could have picked,
+      and picking would have been a dialect decided in the one place nobody would
+      look for it. So a seat gained `dialect`, empty resolving to the single shared
+      one and refused when there is a choice to make. ModelStudio and dsh are the
+      live case: both speak both, and the seat now says `openai`.
+    evidence: >-
+      src/torve/config/runconfig.py:1299 — _dialect refuses an empty intersection
+      naming both files; .torve/config.yaml names `dialect: openai` on executor.dsh
+      because dsh and ModelStudio share two.
+    action: decided
+    proposal: >-
+      D-4 could say that a seat names the dialect when the intersection is not a singleton,
+      which is what the code does and what the row implies rather than states.
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-12T09:50:29Z'
+    claim: >-
+      Held exactly. `reasoning` is a seat key and nothing lets an agent profile carry
+      one — `SEAT_KEYS` gained it and `PROFILE_KEYS` did not, so a profile writing
+      it is refused by name with the seat named as its home, which is the same machinery
+      S-0061/I-2 already uses for every key that has one home. The portability argument
+      the row rests on is what made the refusal cheap: because the level validates
+      against the model and the model is the seat s, there was never a second place
+      it could have gone.
+    evidence: >-
+      src/torve/config/agents.py:164 — SEAT_KEYS carries `reasoning` and `dialect`;
+      the profile model has neither, so `_refuse_foreign` names the seat as the home
+      of both.
+    action: decided
+    proposal: None. The row is implemented as written.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-12T09:50:51Z'
+    claim: >-
+      The record is where a provider is described, and this phase found the seam between
+      a record and the broker that reads it. Phase 1 projected one wire-facts entry
+      per record and refused a record with two routes, because nothing named the dialect
+      a seat reached. Now something does — and the resolution is not per record but
+      per seat, so the projection asks the seats rather than the records. Two consequences:
+      a provider nothing is seated on gets no loopback route at all, which is honest
+      since the broker forwards what seats use; and two seats on one provider over
+      two dialects is refused, because the broker keys a route by provider and would
+      need to key it by both.
+    evidence: >-
+      src/torve/config/runconfig.py:1577 — _dialects_wanted reads the seats before
+      validation and _wire_facts projects only what a seat reaches; doctor now reports
+      two routed providers where three records exist.
+    action: decided
+    proposal: >-
+      The broker keying routes by provider and dialect together is real work this
+      phase deliberately did not do — the refusal names it in the words of the thing
+      that would have to change. Worth a row when a seat needs it.
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-12T09:50:51Z'
+    claim: >-
+      Not implemented here, and not contradicted. The row collapses the brokers two
+      variables into TORVE_BASE_URL and TORVE_API_KEY and deletes every image branch,
+      which is phase 3 — `sandboxes/**` and `harness.py` are outside this scope and
+      no seam variable moved. What landed is the half D-8 will stand on: a credential
+      is resolved from the provider record rather than the manifest, and `credential_names`
+      already returns nothing at all while a broker is in force, so the value the
+      seam will carry is decided in one place before the seam is asked to carry it.
+    evidence: >-
+      src/torve/config/runconfig.py:1278 — credential_names returns () under a broker
+      and the providers key_env otherwise; grep TORVE_BROKER src/torve/adapters/agent/harness.py
+      still returns the two variables phase 3 retires.
+    action: decided
+    proposal: >-
+      None. The row is phase 3 s and its record half is in place.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-12T09:56:52Z'
+    claim: >-
+      The row said a provider serving two dialects is two routes on one credential,
+      argued from one measurement. Three providers now say it: ModelStudio at /compatible-mode/v1
+      and /apps/anthropic, DeepSeek at api.deepseek.com and /anthropic, OpenRouter
+      at /api/v1 and /api/v1/messages — every one measured on 2026-09-12, every Anthropic
+      route returning native thinking blocks. What that turned from a claim into a
+      constraint is that the two-dialect case is the common one rather than the exception:
+      not one provider this repository records serves a single dialect, so a seat
+      resolving against a provider almost always has a choice, and the engine never
+      gets to make it.
+    evidence: >-
+      .torve/providers/openrouter.yaml:1 — its roster and every price read from GET
+      /api/v1/models rather than copied; deepseek.yaml carries the two models GET
+      /models actually serves, against the three a reading from memory expected.
+    action: decided
+    proposal: >-
+      None for D-2. The measurement it rests on now has three independent instances
+      rather than one, which is worth the rows consequence saying so.
