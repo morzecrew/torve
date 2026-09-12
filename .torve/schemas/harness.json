@@ -8,12 +8,12 @@
       "title": "Adapter",
       "type": "string"
     },
-    "api_key_env": {
-      "description": "The names of the variables the runtime forwards from its own environment \u2014\nnames, never values, so a secret never transits a spec (S-0001/D-13).",
+    "api": {
+      "description": "The API dialects this harness speaks (S-0064/D-4). A seat whose provider serves no\ndialect named here is refused when the seat resolves, naming both files \u2014 the same\nrefusal `kinds` performs for equipment, for the same reason: a capability the manifest\ndoes not claim is one the seat must not assume.\n\ntorve's own keys, never a harness's spelling: `openai` means Chat Completions, and an\nimage maps it to whatever its harness calls it. A harness naming none speaks none,\nwhich is what `fake` is.",
       "items": {
         "type": "string"
       },
-      "title": "Api Key Env",
+      "title": "Api",
       "type": "array"
     },
     "auth_mount": {

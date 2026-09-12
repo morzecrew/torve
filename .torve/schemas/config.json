@@ -787,12 +787,12 @@
           "description": "S-0035/the-tier-clock, S-0035/D-6: the tier's own agent attempt clock. `None`\n(absent) falls through to the RuntimeConfig global, exactly as today; a named value \u2014\neven 0 \u2014 is the tier's, so the heavy rung and the reviewer seat carry their own clocks\nwithout the operator editing global configuration mid-incident. Rides the profile merge\nlike every other field; read through `agent_timeout_for` where the runner's attempt\nhook takes its timeout.",
           "title": "Agent Timeout"
         },
-        "api_key_env": {
-          "description": "The names of the environment variables the runtime forwards from its own\nenvironment into this tier's sandbox \u2014 names, never values, so the secret never\ntransits a spec (S-0001/D-13).",
+        "api": {
+          "description": "S-0064/D-4: the API dialects this seat's harness speaks, merged off the manifest. A\nprovider serving none of them is refused when the seat resolves, naming both files.",
           "items": {
             "type": "string"
           },
-          "title": "Api Key Env",
+          "title": "Api",
           "type": "array"
         },
         "auth_mount": {
@@ -820,6 +820,12 @@
           "description": "S-0034 S-0034/D-3: character -> variant, resolved once at dispatch\n(`resolve_character_tier`) before anything reads `tier_name_for`. A value is this\nseat's own variant suffix, the same bare shape a contract's `tier_variant` already\ncarries (S-0027/D-3) \u2014 character routing never reassigns a task to a different seat.\nAn unmapped or undeclared character falls through to the seat default.",
           "title": "Character Routing",
           "type": "object"
+        },
+        "dialect": {
+          "default": "",
+          "description": "S-0064/D-4: which of its harness's dialects this seat reaches, when the harness and\nthe provider share more than one. Empty resolves to the single shared dialect, and is\nrefused when there is a choice to make \u2014 the engine picking would be a decision in the\none place nobody would look for it.",
+          "title": "Dialect",
+          "type": "string"
         },
         "env": {
           "additionalProperties": {
@@ -891,6 +897,12 @@
           "default": "",
           "description": "The routing identity (\u00a76b); empty only for fake.",
           "title": "Provider",
+          "type": "string"
+        },
+        "reasoning": {
+          "default": "",
+          "description": "S-0064/D-5, S-0064/D-6: how hard this seat's model should think, as one of the levels\nthat model declares. The seat's and never the profile's: a profile is what the agent is\nand must survive being seated on a model that does not reason at all, and a level has to\nvalidate against the model. Empty leaves the harness's own default in force.",
+          "title": "Reasoning",
           "type": "string"
         },
         "retry_variant": {
