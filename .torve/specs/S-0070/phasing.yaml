@@ -77,7 +77,11 @@ phasing:
       skip, in the reader that produces the problem and the non-zero exit. It is numbered
       last and runs first — everything else in this document waits on `spec check`
       passing in the tree the lane rebases into.
-    scope: [src/torve/config/spec.py, tests/test_rfc_check.py, CHANGELOG.md]
+    scope:
+      - src/torve/config/spec.py
+      - tests/test_spec.py
+      - tests/test_rfc_check.py
+      - CHANGELOG.md
     acceptance:
       - uv run pytest
       - uv run mypy src

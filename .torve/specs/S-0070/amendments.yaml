@@ -44,3 +44,11 @@ amendments:
       came back right and the thing that was wrong was what I asked for. The lint and
       the size verdict read a scope; nothing reads a decision's paths against the text
       beside it.
+  - id: A-3
+    at: '2026-09-12T20:39:30Z'
+    title: phase 5 names its test file too
+    md: |
+      The T-0113 rule, twice in one document, by the same author, ten minutes apart —
+      recorded rather than fixed quietly because the repetition is the finding. Both
+      times the lint refused before anything was minted, which is the drafted path's
+      protection and the reason S-0067 exists for the other one.
