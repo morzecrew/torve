@@ -4,7 +4,7 @@ title: >-
   The refusal that is missing, and the one nobody answered
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0055]
 supersedes: []
