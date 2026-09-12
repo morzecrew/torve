@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0357
+phase: 3
+base: 25f4314d21a8bbc33eac93541d9134a48f86df9c
+commit: c6ac1d0
+at: '2026-09-12T13:04:39Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: LOCKED
+    at: '2026-09-12T12:58:21Z'
+    claim: >-
+      Implemented, and the translation direction earned its keep immediately. Nine
+      scalars cross in torve units and each image assembles its own representation:
+      dsh turns seconds into milliseconds and `openai` into `openai-completions`,
+      claude maps a base URL onto ANTHROPIC_BASE_URL, mimo onto OPENAI_BASE_URL. A
+      renderer in the engine would have had to know all three and their versions.
+      One thing the row did not anticipate: a number nobody measured must be absent
+      rather than zero, because an image handed a window of 0 would configure a cap
+      no endpoint agreed to — so the seam omits an unstated value instead of carrying
+      it.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:114 — _measured omits an unstated number
+      and writes a whole duration whole; sandboxes/dsh/toolkit/model_overlay.py:20
+      is where torve units become pi-ai units.
+    action: decided
+    proposal: >-
+      The row could say that an unstated value is absent from the seam rather than
+      zero — it is the difference between a fact and a default, and only the record
+      can tell them apart.
+  - decision: D-8
+    grade: LOCKED
+    at: '2026-09-12T12:58:21Z'
+    claim: >-
+      Held, with one shape the row assumed wrong. It said brokered and direct differ
+      in the value of TORVE_BASE_URL and TORVE_API_KEY, one variable carrying the
+      credential either way. That is impossible for the direct case without breaking
+      S-0001/D-13: `docker -e NAME` reads the value out of the invoking environment
+      precisely so the secret never transits torve or the spec, and the engine deliberately
+      never holds a provider key. So the credential is named rather than carried —
+      TORVE_API_KEY_ENV says which variable holds it, and an image dereferences one
+      name whichever way the seat reaches its provider. The binding half of the row,
+      that no image tests for a broker, is satisfied exactly: nine references across
+      three definitions are zero, and mimos exit 78 refusal is a deletion.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:733 — _wire returns the same two keys either
+      way, adding TORVE_RUN_TOKEN only when the engine holds a token it minted; grep
+      TORVE_BROKER over sandboxes/ returns nothing.
+    action: decided
+    proposal: >-
+      D-8 should name TORVE_API_KEY_ENV rather than TORVE_API_KEY: the credential
+      is named, not carried, and the reason is the custody rule the row sits beside.
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-12T12:58:40Z'
+    claim: >-
+      The record is where a provider is described, and this phase found where those
+      facts have to arrive. `HarnessAgent` is constructed with a tier and nothing
+      else, and its three call sites live in `cli/` outside every phase of this document
+      — so the record merges onto the *seat*, exactly as the harness manifest and
+      the agent profile already do. A reader still receives one object carrying every
+      field, which is what S-0061 settled when it split the files: three objects at
+      every call site would be the split leaking out of the files it belongs in.
+    evidence: >-
+      src/torve/config/runconfig.py:1297 — merge_records folds base_url, key_env,
+      model_id, the window, the cap and the clocks onto each seat after resolve_seats,
+      so a seat cannot restate one and disagree with it.
+    action: decided
+    proposal: >-
+      None. The row is silent on where the facts land, and the seat is where every
+      other file already lands them.
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-12T12:58:41Z'
+    claim: >-
+      Not changed here, and reached the image. The effort the seat names crosses as
+      TORVE_REASONING and dsh renders both the level and the map that makes any level
+      reachable; absent, it writes `reasoningEfforts: false`, which is the state that
+      once left a reasoning model reporting zero reasoning tokens. Nothing on the
+      profile can carry an effort, so the value that reached the image came from the
+      only place that could validate it against a model.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:114 — TORVE_REASONING is written only when
+      the seat names one; sandboxes/dsh/toolkit/model_overlay.py renders the map when
+      it arrives and `false` when it does not.
+    action: decided
+    proposal: None.
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-12T12:59:09Z'
+    claim: >-
+      Not changed here, and used for the first time. The dialect the seat resolved
+      to is what crosses the seam as TORVE_API, and dsh maps it onto pi-ai own spelling
+      — so the refusal has now paid for itself rather than just standing there. The
+      manifest that carried DSH_MODEL carries no `env` at all: every value in that
+      JSON string is a scalar the engine validates against a record, so the knob that
+      was opaque to torve is gone rather than shortened.
+    evidence: >-
+      .torve/harnesses/dsh.yaml:25 — the env block is replaced by the reason it went,
+      and model_overlay.py maps torve dialect keys onto pi-ai own.
+    action: decided
+    proposal: >-
+      None. The row is implemented as written and this phase is its first consumer.
