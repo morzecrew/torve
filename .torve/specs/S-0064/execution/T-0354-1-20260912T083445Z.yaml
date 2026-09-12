@@ -1,0 +1,113 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0354
+phase: 1
+base: 630bfb5984d180189bf3f4ee53520215b2023089
+commit: fd73001
+at: '2026-09-12T08:34:45Z'
+agent: executor/claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: LOCKED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-12T08:22:23Z'
+    claim: >-
+      Recorded by T-0350 attempt 2, which produced this work and was convicted on
+      a contract whose scope omitted two files a new schema reaches (S-0064/A-2);
+      re-filed here because the tree landed under this task rather than that one.
+      The executor's words follow. A provider is a file under .torve/providers/ and
+      broker.providers folded into it whole: providers.py validates the credential
+      variable, the clocks, the routes and the roster, load_runner_config projects
+      the broker's three wire facts from the records, and a configuration still writing
+      broker.providers or provider_records is refused naming where the values went.
+      upstream is named base_url on the route; broker: keeps adapter, mode and cost_tolerance.
+    evidence: >-
+      src/torve/config/runconfig.py:1546-1568 — broker.providers is refused naming
+      the record, every record is loaded and the broker's wire facts are projected
+      from it; src/torve/config/providers.py:1-376 is the record and its loader, and
+      .torve/providers/{anthropic,deepseek,modelstudio}.yaml are this repository's
+      three
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-12T08:22:23Z'
+    claim: >-
+      Recorded by T-0350 attempt 2, which produced this work and was convicted on
+      a contract whose scope omitted two files a new schema reaches (S-0064/A-2);
+      re-filed here because the tree landed under this task rather than that one.
+      The executor's words follow. routes is keyed by api name and each route carries
+      its own base_url and its own compat facts, so a provider serving two dialects
+      is two routes on one credential. A key that is no api dialect the engine knows
+      is refused naming the ones it does, and a base_url nothing can dial is refused
+      too. ModelStudio's compatible-mode route carries thinking_format deepseek and
+      its Anthropic route carries none, which is the quirk no longer being attributed
+      to the provider.
+    evidence: >-
+      src/torve/config/providers.py:260-276 — the route keys are checked against the
+      api dialects the engine knows; :153-182 is the route with its own base_url and
+      compat, and .torve/providers/modelstudio.yaml:31-38 is the measured compat fact
+      that belongs to one of its two URLs
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-12T08:22:24Z'
+    claim: >-
+      Recorded by T-0350 attempt 2, which produced this work and was convicted on
+      a contract whose scope omitted two files a new schema reaches (S-0064/A-2);
+      re-filed here because the tree landed under this task rather than that one.
+      The executor's words follow. Not contradicted, and not implemented here: runconfig.py
+      is touched only to read the provider records and project the broker's wire facts.
+      The harness-dialect refusal D-4 asks for needs api on the harness manifest,
+      which lives in src/torve/config/agents.py and .torve/harnesses/**, and neither
+      is in this task's scope.allow. The contract phases it — nothing resolves a seat
+      differently yet, so no seat is paired against a dialect and no pairing is silently
+      allowed either. The record half D-4 will refuse against is what landed: routes
+      keyed by api name.
+    evidence: >-
+      src/torve/config/runconfig.py:1536-1570 — every line this task added to the
+      file reads the records and projects the broker's three wire facts, and none
+      of it resolves a seat; src/torve/config/providers.py:54 is the dialect vocabulary
+      the phase-2 refusal will compare a harness's api against
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-12T08:22:24Z'
+    claim: >-
+      Recorded by T-0350 attempt 2, which produced this work and was convicted on
+      a contract whose scope omitted two files a new schema reaches (S-0064/A-2);
+      re-filed here because the tree landed under this task rather than that one.
+      The executor's words follow. Not contradicted, and not implemented here: no
+      reasoning-effort field was added to the seat or to the agent profile. A model's
+      declared levels landed on the record so a seat's choice has something to be
+      refused against, and the seat field that names one of them is phase 2's, whose
+      other path — src/torve/config/agents.py, where the profile would have to refuse
+      it — is outside this task's scope.allow. Nothing in what landed lets an agent
+      profile carry an effort.
+    evidence: >-
+      src/torve/config/providers.py:211-214 — reasoning is the model's declared levels,
+      a list rather than a flag; grep -n 'reasoning' src/torve/config/runconfig.py
+      returns nothing, so no seat names an effort yet and no profile can
+    action: decided
