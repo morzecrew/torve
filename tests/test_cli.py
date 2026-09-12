@@ -1054,6 +1054,7 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "landing.json",
         "log.json",
         "phasing.json",
+        "provider.json",
         "sources.json",
         "standing.json",
     ]

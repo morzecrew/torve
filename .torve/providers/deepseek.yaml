@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../schemas/provider.json
+# DeepSeek, reached directly (S-0064/D-1). No seat is on it today, so the
+# roster is empty: a provider nothing is seated on is a configuration, not an
+# error, and a model written here before anyone measured it would be a value
+# going stale where nothing can see it — which is the failure this record
+# exists to stop.
+name: deepseek
+key_env: DEEPSEEK_API_KEY
+via_proxy: false
+
+routes:
+  openai:
+    base_url: https://api.deepseek.com

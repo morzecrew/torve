@@ -21,6 +21,7 @@ from torve.application.ports import AgentResult, BrokerUsage
 from torve.base.clock import stamp
 from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
+from torve.config.providers import Price
 from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
 from torve.domain.task import InheritedDecision, Task
@@ -101,6 +102,26 @@ def config_hash(
         )
 
         parts["providers"] = json.dumps(config.providers.model_dump(), sort_keys=True)
+
+        # The provider records beside the policy over them (S-0064/D-1): a
+        # window, a cap, a route's compat facts and a price are all part of
+        # what a number was measured under. Keyed by the id that reaches the
+        # provider rather than by the roster's local shorthand (S-0064/D-3) —
+        # reproducibility is a property of what was sent, so renaming a
+        # shorthand must not move a digest.
+        parts["provider-records"] = json.dumps(
+            {
+                name: {
+                    **record.model_dump(exclude={"models", "name", "schema_version"}),
+                    "models": {
+                        record.id_for(key): entry.model_dump(exclude={"id"})
+                        for key, entry in record.models.items()
+                    },
+                }
+                for name, record in sorted(config.provider_records.items())
+            },
+            sort_keys=True,
+        )
 
         # The egress regime (S-0021/what-this-does-not-change, S-0021/D-8): the broker adapter and
         # the run's routing are part of what a number was measured under —
@@ -229,6 +250,50 @@ def agent_token_counts(result: AgentResult) -> dict[str, int]:
             counts[name] = int(value)
 
     return counts
+
+
+def attempt_cost(agent: Mapping[str, Any]) -> float | None:
+    """What the attempt cost by torve's own arithmetic (S-0064/D-12): the price
+    the dispatch resolved from the provider record, applied to the counts the
+    adapter reported.
+
+    None where the seat resolved no price — a subscription genuinely has no
+    per-token cost — and None where the adapter reported no counts. Both are
+    unreported, and unreported is never zero (S-0004/D-6).
+    """
+
+    price: Any = agent.get("price")
+
+    if not isinstance(price, dict):
+        return None
+
+    return Price.model_validate(price).cost(agent)
+
+
+def priced(agent: Mapping[str, Any]) -> dict[str, Any]:
+    """The agent block with the cost the engine computed (S-0064/D-12), keeping
+    the harness's own number beside it as the adapter's claim.
+
+    The claim is never the cost: measured, claude emits `unrecognized_model`
+    for qwen3.8-flash and then prices the attempt off its own Anthropic table.
+    A block the roster said nothing about is passed through untouched —
+    resolving a seat against the roster is the next phase's, and until then a
+    seat with no record keeps reporting what its harness reported.
+    """
+
+    block = dict(agent)
+
+    if "price" not in block:
+        return block
+
+    claim = block.get("cost_usd")
+
+    if claim is not None:
+        block["adapter_cost_usd"] = claim
+
+    block["cost_usd"] = attempt_cost(block)
+
+    return block
 
 
 def agent_burn(result: AgentResult) -> dict[str, Any]:
@@ -405,7 +470,7 @@ def build_record(
         # gate (S-0004/telemetry-staged, S-0004/D-6) — None on runs with no agent (human PRs,
         # bare `torve gates run`). model_version None inside the block marks
         # an uncontrolled regime.
-        "agent": agent,
+        "agent": None if agent is None else priced(agent),
         # The workspace transfer's cost, booked by a transferring runtime for
         # this attempt (S-0041/the-transfer-measured) — a sibling of the agent block because
         # it is the runtime's measurement, not the agent's self-report.
@@ -457,7 +522,7 @@ def build_attempt_row(
         "config_hash": None,  # gates never ran; no manifest pass
         "torve_version": torve.__version__,
         "task_id": task.id,
-        "agent": dict(agent),
+        "agent": priced(agent),
         # The runtime's booked transfer legs ride beside the agent block
         # exactly as on the gate-pass row (S-0041/the-transfer-measured): the spend on
         # moving the workspace happened even if nothing else did.

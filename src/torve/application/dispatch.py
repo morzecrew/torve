@@ -46,6 +46,7 @@ from torve.application.ports import (
 )
 from torve.application.telemetry import (
     append_record,
+    attempt_cost,
     broker_block,
     build_attempt_row,
     engine_event,
@@ -240,8 +241,8 @@ def run_routing(
 
         if provider is None:
             raise ValueError(
-                f"tier {tier_name!r} uses provider {tier.provider!r} but the broker "
-                "configuration routes no such provider — add it under broker.providers"
+                f"tier {tier_name!r} uses provider {tier.provider!r} but no provider "
+                f"record routes it — write .torve/providers/{tier.provider}.yaml"
             )
 
         routes.append(
@@ -324,6 +325,31 @@ def _refuse_credentialed_tier(config: RunnerConfig, name: str, candidate: TierCo
 # ....................... #
 
 
+def _seat_price(config: RunnerConfig, tier: TierConfig) -> tuple[bool, dict[str, Any] | None]:
+    """The rate card the seat's attempts are priced from (S-0064/D-12), and
+    whether the roster had anything to say at all.
+
+    Three cases, and they are three different facts. A provider with no record
+    or a model the roster does not list resolves nothing — the attempt keeps
+    whatever the harness reported, because nothing here has an opinion yet and
+    resolving a seat against the roster is the next phase's. A listed model
+    with no price resolves to no price, which is a subscription seat saying it
+    has no per-token cost. A listed model with one resolves to the number the
+    engine computes from.
+    """
+
+    record = config.provider_records.get(tier.provider)
+    entry = record.models.get(tier.model) if record is not None else None
+
+    if entry is None:
+        return False, None
+
+    return True, None if entry.price is None else entry.price.model_dump()
+
+
+# ....................... #
+
+
 def open_dispatch(
     root: Path,
     task: Task,
@@ -357,6 +383,13 @@ def open_dispatch(
     # dispatch; None is recorded as unresolved, never invented.
     image = image_for(config, tier)
     image_digest = deps.runtime.resolve_image(image)
+    # S-0064/D-12: the attempt's cost is computed from the record and the token
+    # counts rather than believed from a harness that may not recognise the
+    # model it was pointed at. Resolved once, for the task's own seat: the
+    # attempt leg restamps provider and model for a conviction-routed rung,
+    # and the price follows them when the seat itself resolves against the
+    # roster (phase 2).
+    priced, price = _seat_price(config, tier) if real else (False, None)
 
     # S-0027/D-7: a candidate configuration displaces the incumbent default only
     # through a paired replay verdict recorded in the eval ledger citing both
@@ -429,6 +462,11 @@ def open_dispatch(
             "model": (tier.model or None) if real else None,
             "model_version": None,
             "cost_usd": None,
+            # Present — null included — only where the roster listed the
+            # model: a null price is the record saying this seat has no
+            # per-token cost, which is not the same fact as a seat the roster
+            # says nothing about (S-0064/D-12).
+            **({"price": price} if priced else {}),
             "trace_ref": None,
             # The image tag beside its digest: harness identity is the image
             # (S-0017/D-4), and a projection labeling "which harness" reads the
@@ -507,12 +545,19 @@ def close_dispatch(run: Dispatch) -> None:
             },
         )
 
+    # S-0064/D-12 repairs the comparison rather than adding a second one: it
+    # weighed a harness's rate card against reality, and now it weighs torve's
+    # arithmetic against the broker's metering — two numbers that are both
+    # about this call. Where no price is written there is no arithmetic, and
+    # the adapter's claim is still the only other number there is.
     adapter_cost = run.meta.get("cost_usd")
+    engine_cost = attempt_cost(run.meta)
+    ours = engine_cost if engine_cost is not None else adapter_cost
 
-    if usage.cost_usd is not None and isinstance(adapter_cost, (int, float)):
-        scale = max(abs(usage.cost_usd), abs(adapter_cost)) or 1.0
+    if usage.cost_usd is not None and isinstance(ours, (int, float)):
+        scale = max(abs(usage.cost_usd), abs(ours)) or 1.0
 
-        if abs(usage.cost_usd - adapter_cost) / scale > run.config.broker.cost_tolerance:
+        if abs(usage.cost_usd - ours) / scale > run.config.broker.cost_tolerance:
             engine_event(
                 run.root,
                 "cost_divergence",
@@ -520,6 +565,7 @@ def close_dispatch(run: Dispatch) -> None:
                     "task": run.task.id,
                     "broker": broker.name,
                     "broker_cost_usd": usage.cost_usd,
+                    "engine_cost_usd": engine_cost,
                     "adapter_cost_usd": adapter_cost,
                     "tolerance": run.config.broker.cost_tolerance,
                 },

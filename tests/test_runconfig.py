@@ -464,3 +464,106 @@ def test_the_old_rfcs_key_is_refused_naming_specs() -> None:
     # a converted repository's engine at a corpus that no longer exists.
     with pytest.raises(ValidationError, match=r"`rfcs` is `specs`"):
         RunnerConfig.model_validate({"rfcs": {"path": "rfcs"}})
+
+
+# ....................... #
+# The provider record (S-0064/D-1): `broker.providers` folded into
+# `.torve/providers/<name>.yaml`, and the broker's three wire facts are
+# projected from there at load rather than written twice.
+
+
+def provider(root: Path, name: str, body: str) -> Path:
+    return write(root / layout.TORVE_DIR / "providers" / f"{name}.yaml", body)
+
+
+def test_a_provider_record_is_projected_onto_the_broker_at_load(tmp_path: Path):
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "modelstudio",
+        "key_env: MODELSTUDIO_CODING_API_KEY\n"
+        "via_proxy: true\n"
+        "routes:\n"
+        "  openai:\n"
+        "    base_url: https://p.example/compatible-mode/v1\n"
+        "models:\n"
+        "  qwen3.8-flash: {price: {input: 0.3, output: 1.2}}\n",
+    )
+    config = load(tmp_path, "schema_version: 1\nbroker: {adapter: local}\n")
+
+    # The broker forwards, so it gets exactly the three facts it needs.
+    routed = config.broker.providers["modelstudio"]
+    assert routed.upstream == "https://p.example/compatible-mode/v1"
+    assert routed.key_env == "MODELSTUDIO_CODING_API_KEY"
+    assert routed.via_proxy is True
+
+    # The roster and the clocks stay on the record, where the dispatch reads
+    # them: the broker has no business knowing what a token costs.
+    entry = config.provider_records["modelstudio"].models["qwen3.8-flash"]
+    assert entry.price is not None
+    assert entry.price.input == 0.3
+
+
+def test_a_record_needs_no_broker_block_to_be_read(tmp_path: Path):
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "deepseek",
+        "key_env: DEEPSEEK_API_KEY\nroutes: {openai: {base_url: https://api.deepseek.com}}\n",
+    )
+    config = load(tmp_path, "schema_version: 1\n")
+
+    assert set(config.provider_records) == {"deepseek"}
+    assert config.broker.providers["deepseek"].upstream == "https://api.deepseek.com"
+
+
+def test_broker_providers_in_the_configuration_is_refused_naming_where_it_went(tmp_path: Path):
+    with pytest.raises(ValueError, match=r"\.torve/providers"):
+        load(
+            tmp_path,
+            "schema_version: 1\n"
+            "broker:\n"
+            "  adapter: local\n"
+            "  providers:\n"
+            "    p: {upstream: https://p.example, key_env: P_API_KEY}\n",
+        )
+
+
+def test_provider_records_is_read_from_the_records_and_never_written_here(tmp_path: Path):
+    with pytest.raises(ValueError, match="never written in this file"):
+        load(
+            tmp_path,
+            "schema_version: 1\n"
+            "provider_records:\n"
+            "  p: {key_env: P_API_KEY, routes: {openai: {base_url: https://p.example}}}\n",
+        )
+
+
+def test_a_record_serving_two_dialects_is_refused_rather_than_picked_from(tmp_path: Path):
+    # Nothing names the dialect a seat reaches yet (S-0064 phase 2), so the
+    # broker cannot choose one — and picking would be the engine deciding a
+    # dialect in the one place nobody would look for it.
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "modelstudio",
+        "key_env: MODELSTUDIO_CODING_API_KEY\n"
+        "routes:\n"
+        "  openai: {base_url: https://p.example/compatible-mode/v1}\n"
+        "  anthropic: {base_url: https://p.example/apps/anthropic}\n",
+    )
+
+    with pytest.raises(ValueError, match="cannot choose"):
+        load(tmp_path, "schema_version: 1\nbroker: {adapter: local}\n")
+
+
+def test_a_malformed_record_refuses_the_whole_load_by_path(tmp_path: Path):
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(root, "broken", "routes: {openai: {base_url: https://p.example}}\n")
+
+    with pytest.raises(ValueError, match="key_env"):
+        load(tmp_path, "schema_version: 1\n")

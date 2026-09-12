@@ -23,6 +23,8 @@ phasing:
       - tests/test_runconfig.py
       - tests/test_dispatch.py
       - tests/test_broker.py
+      - tests/test_cli.py
+      - tests/test_rfc_check.py
       - src/torve/config/AGENTS.md
       - src/torve/application/AGENTS.md
       - CHANGELOG.md

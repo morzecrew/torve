@@ -9,3 +9,13 @@ amendments:
       It is two now. The first writes down what the engine has never been able to read — the record, the roster, and the arithmetic a price makes possible — and changes nothing about how a seat resolves or what any image receives. The second spends it: the seat resolves against the roster, and four failures that were discovered by an attempt become configuration errors named before a sandbox exists. The old phases 2 and 3 shift to 3 and 4 with their contents untouched.
 
       What this does not do is get under the threshold. Phase 1 is 15 globs against a bar of 10, and the remainder is one new module, the configuration it absorbs, the two places that render it and a test file per module that S-0055's own lint requires. Splitting further would separate a file from the code that reads it, which is a worse contract than a large one. The verdict is recorded rather than engineered away: `torve size` is advisory, and this is the case it is advising about.
+  - id: A-2
+    at: '2026-09-12T08:20:39Z'
+    title: >-
+      Phase 1 writes a schema, and two assertions count the schemas
+    md: |-
+      T-0350 attempt 2 was convicted on `scope` and `no-test-tampering`, and the conviction was correct against a contract that was not. The phase adds `provider.json` to what `torve init` writes, and two tests assert the full roster of schema filenames — `tests/test_cli.py` and `tests/test_rfc_check.py`, one line each, a sorted list gaining one entry. Neither was in the phase's scope, so the only way to leave the suite green was to leave the scope.
+
+      Worth stating plainly because the failure is an authoring failure, not an execution one: the executor wrote 376 lines of the module and 402 of its tests, left every acceptance command green, and correctly declined to invent a roster for a provider nothing is seated on. It was convicted for adding one string to a sorted list in a file the contract had not thought of.
+
+      The general shape is worth carrying: a phase that adds a file the engine *writes* reaches every assertion that enumerates what the engine writes. Phases 2 through 4 add no schema, so the correction is phase 1's alone.

@@ -27,6 +27,7 @@ from torve.config.agents import (
     role_skills,
 )
 from torve.config.equipment import Equipment
+from torve.config.providers import Provider, ProviderError, load_providers
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
 
@@ -642,7 +643,12 @@ class BrokerProvider(BaseModel):
     """One routed provider's wire facts (S-0021/two-modes-because-custody-and-containment-are-different-problems): where the broker
     forwards and which environment variable in the broker's own environment
     holds the key — a name, never a value. The configuration names the
-    credential once; a brokered tier names none (S-0021/D-1)."""
+    credential once; a brokered tier names none (S-0021/D-1).
+
+    Derived since S-0064/D-1, never written: the provider record under
+    `.torve/providers/` holds these three values beside the roster and the
+    clocks, and `load_runner_config` projects them here for the broker, which
+    needs exactly this much and nothing else."""
 
     model_config = STRICT
 
@@ -758,7 +764,8 @@ class BrokerConfig(BaseModel):
     sealed."""
     providers: dict[str, BrokerProvider] = Field(default_factory=dict)
     """provider -> wire facts; the run's routing is a dispatch-checked subset (S-0021/D-4:
-    the broker exposes one loopback route per routed provider)."""
+    the broker exposes one loopback route per routed provider). Projected from the
+    provider records at load and not written in the configuration (S-0064/D-1)."""
     pass_through: list[str] = Field(default_factory=list)
     """Sealed mode only: named hosts the broker will CONNECT to without inspection — a
     package index, the forge. An undeclared destination is refused loudly, and the run
@@ -1300,6 +1307,10 @@ class RunnerConfig(BaseModel):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     """Which providers a repository's contents may reach, enforced at dispatch
     (S-0004/D-8)."""
+    provider_records: dict[str, Provider] = Field(default_factory=dict)
+    """Every provider record under `.torve/providers/`, resolved at load and never written
+    in this file (S-0064/D-1) — what one credential buys: the clocks, the routes and the
+    model roster. `providers` above is the policy over these; this is the facts."""
     broker: BrokerConfig = Field(default_factory=BrokerConfig)
     """The egress broker: which adapter is in force and what it is fed (S-0021/the-port)."""
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
@@ -1454,6 +1465,31 @@ class RunnerConfig(BaseModel):
 # ....................... #
 
 
+def _wire_facts(name: str, record: Provider) -> dict[str, Any]:
+    """One provider record as the broker's three wire facts (S-0064/D-1).
+
+    The broker forwards; it needs one upstream per provider and nothing about
+    the roster. A record declaring two dialects has two upstreams and no seat
+    yet names which one it reaches — that resolution is the next phase's, so
+    this refuses rather than picks, because picking would be the engine
+    deciding a dialect in the one place nobody would look for it.
+    """
+
+    if len(record.routes) != 1:
+        raise ValueError(
+            f"provider {name!r} declares routes {', '.join(sorted(record.routes)) or 'none'} — "
+            "nothing names the dialect a seat reaches yet, so the broker cannot choose "
+            "one; a provider record carries exactly one route for now"
+        )
+
+    (route,) = record.routes.values()
+
+    return {"upstream": route.base_url, "key_env": record.key_env, "via_proxy": record.via_proxy}
+
+
+# ....................... #
+
+
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     """Explicit `path` is a flag-level override (S-0013/D-4); otherwise the file
     is `.torve/config.yaml` and nowhere else. A missing default file means
@@ -1493,6 +1529,44 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     if roles:
         config.setdefault("skills", {})["sets"] = roles
+
+    # S-0064/D-1: a provider's facts live in its own record. The two keys below
+    # are read from `.torve/providers/`, so writing either here is refused
+    # naming where the values went rather than silently losing to the loader.
+    if "provider_records" in config:
+        raise ValueError(
+            f"{resolved}: `provider_records` is read from .torve/providers/<name>.yaml "
+            "and never written in this file"
+        )
+
+    broker_block = config.get("broker")
+
+    if isinstance(broker_block, dict) and "providers" in broker_block:
+        raise ValueError(
+            f"{resolved}: `broker.providers` moved to .torve/providers/<name>.yaml — "
+            "a provider's credential and base URL now sit beside its model roster and "
+            "its clocks, and `broker:` keeps adapter, mode and cost_tolerance"
+        )
+
+    try:
+        records = load_providers(root)
+
+    except ProviderError as exc:
+        raise ValueError(str(exc)) from None
+
+    if records:
+        config["provider_records"] = {name: record.model_dump() for name, record in records.items()}
+
+        if broker_block is None:
+            broker_block = {}
+            config["broker"] = broker_block
+
+        if isinstance(broker_block, dict):
+            # Anything else is a malformed `broker:` and stays that way — the
+            # model's own refusal names it better than this injection could.
+            broker_block["providers"] = {
+                name: _wire_facts(name, record) for name, record in records.items()
+            }
 
     try:
         return RunnerConfig.model_validate(config)

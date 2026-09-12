@@ -22,6 +22,7 @@ from torve.cli.console import STYLE_DIM, STYLE_PASS, closing, out
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.config import layout
 from torve.config.agents import agents_dir, harnesses_dir
+from torve.config.providers import providers_dir
 from torve.config.sources import SOURCE_SCHEMA, source_files
 from torve.config.sources import schema_text as source_schema_text
 from torve.config.spec import SCHEMA_HEADER, schema_file, schema_text, schemas_dir
@@ -59,6 +60,7 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     from torve.config.agents import AgentProfile, HarnessManifest
     from torve.config.fleet import FleetManifest
     from torve.config.manifest import Manifest
+    from torve.config.providers import Provider
     from torve.config.runconfig import RunnerConfig
     from torve.config.spec import LANDING_SCHEMA, landing_schema_text
     from torve.domain.spec import TaskLog
@@ -79,6 +81,8 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     # S-0061/D-1, S-0061/D-2: the two files a seat names.
     texts[where / "agent.json"] = _json(AgentProfile.model_json_schema())
     texts[where / "harness.json"] = _json(HarnessManifest.model_json_schema())
+    # S-0064/D-1: and the third file a seat is made of.
+    texts[where / "provider.json"] = _json(Provider.model_json_schema())
 
     return texts
 
@@ -210,6 +214,10 @@ def init_cmd(
     # S-0061/D-1, S-0061/D-2: so do both files a seat names.
     lined += [(path, where / "agent.json") for path in sorted(agents_dir(root).glob("*.yaml"))]
     lined += [(path, where / "harness.json") for path in sorted(harnesses_dir(root).glob("*.yaml"))]
+    # S-0064/D-1: so does every provider record.
+    lined += [
+        (path, where / "provider.json") for path in sorted(providers_dir(root).glob("*.yaml"))
+    ]
 
     for target, schema in lined:
         if _add_header(target, schema):

@@ -94,26 +94,15 @@ tiers:
 # provider keys straight through, which is what `torve doctor` has been calling
 # an unmet credential-custody requirement.
 #
-# `key_env` names a variable; no value is ever written here (S-0001/D-13).
-# Anthropic goes `via_proxy` because this host's egress to it is region-blocked
-# without one; the other two reach their endpoints directly.
+# Which providers exist, where they are reached and on whose credential is no
+# longer written here: a provider is a record, `.torve/providers/<name>.yaml`,
+# holding the key's variable name, the clocks, the routes and the model roster
+# (S-0064/D-1). `broker:` keeps the three things that are about the broker, and
+# the wire facts it needs are projected from those records at load.
 broker:
   adapter: local
   mode: endpoint
   cost_tolerance: 0.25
-  providers:
-    anthropic:
-      key_env: CLAUDE_CODE_OAUTH_TOKEN
-      upstream: https://api.anthropic.com
-      via_proxy: true
-    deepseek:
-      key_env: DEEPSEEK_API_KEY
-      upstream: https://api.deepseek.com
-      via_proxy: false
-    modelstudio:
-      key_env: MODELSTUDIO_CODING_API_KEY
-      upstream: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
-      via_proxy: false
 
 providers:
   # Silence is not a policy (S-0004/D-8): this is what the seats below may

@@ -17,6 +17,7 @@ from torve.application.dispatch import (
     open_broker,
     open_dispatch,
 )
+from torve.config.providers import Provider
 from torve.config.runconfig import BrokerConfig, BrokerProvider, RunnerConfig, TierConfig
 from torve.domain.task import Task
 
@@ -213,3 +214,101 @@ def test_the_attempt_row_is_rendered_from_the_record_it_reports(tmp_path):
     for key, value in payload.items():
         if key != "attempt":
             assert rows[0][key] == value
+
+
+# ....................... #
+# The price the seat resolves (S-0064/D-12): three different facts, and the
+# attempt's cost computed from the record rather than believed from a harness
+# that may not recognise the model it was pointed at.
+
+
+def _priced(roster: dict) -> RunnerConfig:
+    return RunnerConfig(
+        tiers={"executor": TierConfig(adapter="api", provider="p", model="m")},
+        provider_records={
+            "p": Provider.model_validate(
+                {
+                    "key_env": KEY_ENV,
+                    "routes": {"openai": {"base_url": "https://p.example"}},
+                    "models": roster,
+                }
+            )
+        },
+    )
+
+
+def _agent_block(tmp_path, config: RunnerConfig) -> dict:
+    run = open_dispatch(
+        tmp_path,
+        Task(id=TASK_ID, decisions=[]),
+        config,
+        _deps(),
+        tmp_path / "wt",
+    )
+
+    return run.meta
+
+
+def test_the_seats_rate_card_is_resolved_once_at_dispatch(tmp_path):
+    meta = _agent_block(tmp_path, _priced({"m": {"price": {"input": 0.3, "output": 1.2}}}))
+
+    assert meta["price"] == {"input": 0.3, "output": 1.2, "cache_read": None, "cache_write": None}
+
+
+def test_a_listed_model_with_no_price_resolves_to_no_price(tmp_path):
+    """A subscription seat genuinely has no per-token cost, and a null price is
+    the record saying so — not the same fact as a roster that says nothing."""
+
+    meta = _agent_block(tmp_path, _priced({"m": {"context_window": 200000}}))
+
+    assert meta["price"] is None
+
+
+def test_a_model_the_roster_does_not_list_carries_no_price_key_at_all(tmp_path):
+    """Resolving a seat against the roster is the next phase's refusal; until
+    then a seat with no record keeps reporting what its harness reported."""
+
+    meta = _agent_block(tmp_path, _priced({"other": {}}))
+
+    assert "price" not in meta
+
+
+def test_the_engines_arithmetic_is_the_cost_and_the_harnesss_is_its_claim(tmp_path):
+    """Measured, claude emits `unrecognized_model` for qwen3.8-flash and then
+    prices the attempt off its own Anthropic table. The claim is kept beside
+    the number and is never the number (S-0064/D-12)."""
+
+    from torve.application.telemetry import priced
+
+    block = priced(
+        {
+            "price": {"input": 0.3, "output": 1.2},
+            "cost_usd": 47.0,
+            "input_tokens": 1_000_000,
+            "output_tokens": 1_000_000,
+        }
+    )
+
+    assert block["cost_usd"] == 1.5
+    assert block["adapter_cost_usd"] == 47.0
+
+
+def test_a_seat_the_roster_says_nothing_about_keeps_its_harnesss_number():
+    from torve.application.telemetry import priced
+
+    block = priced({"cost_usd": 47.0, "input_tokens": 1_000_000})
+
+    assert block["cost_usd"] == 47.0
+    assert "adapter_cost_usd" not in block
+
+
+def test_a_priced_seat_that_reported_no_counts_stays_unreported():
+    """Unreported is never zero (S-0004/D-6): an adapter that counted nothing
+    leaves the cost absent, even where the rate card is known."""
+
+    from torve.application.telemetry import priced
+
+    block = priced({"price": {"input": 0.3}, "cost_usd": 47.0})
+
+    assert block["cost_usd"] is None
+    assert block["adapter_cost_usd"] == 47.0

@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../schemas/provider.json
+# The ModelStudio token plan (S-0064/D-1). Everything below was measured against
+# it on 2026-09-11 and had been riding inside `DSH_MODEL`, a JSON document in a
+# string that torve set and never read — which is how half of it went stale
+# without any gate being able to miss it.
+#
+# The clocks sit on the provider rather than on a route because a wedged stream
+# is a property of the network path to a vendor: a trickling stream once idled
+# two attempts to the full agent cap, and it did not care which URL it was
+# trickling from. The hard cap is the fix, the idle one the backstop.
+#
+# One route for now. The same credential also serves the Anthropic dialect at
+# /apps/anthropic — measured, Claude Code drives qwen3.8-flash over it end to
+# end with no translation anywhere — and it lands once a seat names the dialect
+# it reaches (S-0064 phase 2), because until then nothing could choose between
+# two base URLs.
+name: modelstudio
+key_env: MODELSTUDIO_CODING_API_KEY
+via_proxy: false
+request_timeout_s: 600
+stream_idle_timeout_s: 120
+
+routes:
+  openai:
+    base_url: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+    compat:
+      # This route returns thinking as `reasoning_content`; the Anthropic one
+      # returns native `thinking` blocks and carries no such flag.
+      thinking_format: deepseek
+
+models:
+  # The levels came out of a 400 that enumerated them. The endpoint returns
+  # reasoning tokens (33 for a two-word reply) — the value that was lost when
+  # the overlays were deleted, leaving a reasoning model running with reasoning
+  # off and every trace reading zero.
+  qwen3.8-flash:
+    context_window: 1000000
+    max_tokens: 65536
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
+    price: {input: 0.30, output: 1.20, cache_read: 0.06}

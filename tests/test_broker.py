@@ -683,12 +683,21 @@ def test_config_hash_moves_with_the_broker_block(tmp_path):
     assert config_hash(manifest, tmp_path, brokered) != config_hash(manifest, tmp_path, rerouted)
 
 
-def _doctor_repo(tmp_path: Path, config: dict) -> Path:
+def _doctor_repo(tmp_path: Path, config: dict, record: dict | None = None) -> Path:
     root = tmp_path / "repo"
     (root / ".torve").mkdir(parents=True)
     (root / ".torve" / "config.yaml").write_text(
         yaml.safe_dump({"schema_version": 1, **config}), encoding="utf-8"
     )
+
+    # The wire facts the broker routes on are a provider record now
+    # (S-0064/D-1), and `broker.providers` in the configuration is refused.
+    if record is not None:
+        (root / ".torve" / "providers").mkdir()
+        (root / ".torve" / "providers" / f"{PROVIDER}.yaml").write_text(
+            yaml.safe_dump(record), encoding="utf-8"
+        )
+
     return root
 
 
@@ -704,14 +713,10 @@ def test_doctor_names_the_none_broker_and_its_ceiling(tmp_path):
 def test_doctor_names_the_local_broker_in_force(tmp_path):
     root = _doctor_repo(
         tmp_path,
-        {
-            "runtime": {"adapter": "opensandbox"},
-            "broker": {
-                "adapter": "local",
-                "providers": {
-                    PROVIDER: {"upstream": "https://api.example.com", "key_env": KEY_ENV}
-                },
-            },
+        {"runtime": {"adapter": "opensandbox"}, "broker": {"adapter": "local"}},
+        record={
+            "key_env": KEY_ENV,
+            "routes": {"openai": {"base_url": "https://api.example.com"}},
         },
     )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])

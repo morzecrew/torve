@@ -108,7 +108,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its failure is booked as a failing gate; declared, it is an infrastructure
   failure that convicts nothing.
 
+- A provider is a file, `.torve/providers/<name>.yaml`, holding the credential's
+  variable name, the clocks, the routes and the model roster. A provider's facts
+  are validated, hashed and reviewed like every other file under `.torve/`,
+  instead of being a string the engine set and never read.
+
+- A route owns a dialect. `routes` is keyed by api name — `openai`, `anthropic` —
+  each with its own `base_url` and compat facts, so a provider serving two
+  dialects is two routes on one credential.
+
+- A model entry may carry `price`, in US dollars per million tokens, and where
+  it does the attempt's cost is computed from the record and the token counts.
+  The harness's own number is kept beside it as `adapter_cost_usd` and is never
+  the cost. Where no price is written the cost stays unreported rather than
+  invented.
+
+- A roster entry's key is what a seat writes and its `id` is what reaches the
+  provider, so an awkward slug gets a local shorthand that can be renamed
+  without moving a regime digest.
+
+- A model declares the reasoning levels it has as a list of words, and a value
+  torve has no name for rides through as a route's `extra`, handed on verbatim
+  and unvalidated — visibly so, so review can tell which values the engine
+  stands behind from which it only carries.
+
 ### Removed
+
+- **Breaking:** `broker.providers` is gone from `.torve/config.yaml`. The wire
+  facts the broker routes on are projected at load from the provider records,
+  where `upstream` is named `base_url`; a configuration still writing the block
+  is refused naming where it went.
 
 - **Breaking:** the claude seat authenticates by variable name and mounts no
   credential. `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt.
