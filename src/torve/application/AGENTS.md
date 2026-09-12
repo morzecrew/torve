@@ -783,6 +783,28 @@ One carrier is the landing, and the other two are reconciled against it or dropp
 - Paths: `src/torve/application/lane.py` `src/torve/application/projections.py`
 - Consequence: duty cycle and landings-through-the-lane acquire a denominator that does not depend on which reader was asked
 
+### S-0070/D-1 — `LOCKED` (What is committed may not depend on what is not)
+
+A committed artefact is a function of committed inputs; anything derived from the record reaches a reader through the pack or a verb, never through a file a gate diffs against a fresh render
+
+- Paths: `src/torve/application/colocation.py` `src/torve/application/projections.py`
+- Consequence: a committed file renders the same on a laptop, in a sandbox and in a clean clone, which is what makes a drift check mean anything
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0070/D-5 — `ASSUMED` (What is committed may not depend on what is not)
+
+Path rot is a glob that governs nothing, not a glob whose files the repository deliberately does not commit; the check reads `.torve/.gitignore` and says which it found
+
+- Paths: `src/torve/application/decisions.py` `src/torve/config/spec.py`
+- Consequence: `torve spec check` passes in a clean clone, so `spec-valid` and the acceptance command stop depending on a task directory that dispatch happens to have written
+
+### S-0070/D-2 — `ASSUMED` (What is committed may not depend on what is not)
+
+The projection's live sections move to the pack, which already carries the same facts through a channel that is neither committed nor diffed
+
+- Paths: `src/torve/application/colocation.py`
+- Consequence: the reader who most needs contention — an attempt about to touch a contended path — keeps it, and the drift check stops judging a number nobody wrote
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

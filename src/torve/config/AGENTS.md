@@ -522,6 +522,13 @@ A model entry may carry `price`, and where it does the attempt's cost is compute
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: the one boolean that converts five unused criteria into five unset ones can no longer be flipped alone, and a deliberate choice stays one line away
 
+### S-0070/D-5 — `ASSUMED` (What is committed may not depend on what is not)
+
+Path rot is a glob that governs nothing, not a glob whose files the repository deliberately does not commit; the check reads `.torve/.gitignore` and says which it found
+
+- Paths: `src/torve/application/decisions.py` `src/torve/config/spec.py`
+- Consequence: `torve spec check` passes in a clean clone, so `spec-valid` and the acceptance command stop depending on a task directory that dispatch happens to have written
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

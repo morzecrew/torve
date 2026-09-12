@@ -25,6 +25,20 @@ Building a sandbox image is an operator's act and never an attempt's: the batter
 - Consequence: the acceptance battery stays under its clock, and a definition that would not build is an operator's finding rather than a timed-out gate
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0070/D-3 — `ASSUMED` (What is committed may not depend on what is not)
+
+A check that walks artefacts the repository may not be carrying judges what is there or skips naming why, and never asserts that they exist
+
+- Paths: `tests/test_gates.py`
+- Consequence: a verdict stops depending on which machine ran it, and a suite that has nothing to judge says so instead of passing
+
+### S-0070/D-4 — `ASSUMED` (What is committed may not depend on what is not)
+
+The rule is proved by rendering twice — once with the record present, once without — and comparing the bytes
+
+- Paths: `tests/test_colocation.py`
+- Consequence: the violation becomes visible on the machine of the person committing it, which is the only machine where it is currently invisible
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green
