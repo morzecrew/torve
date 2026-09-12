@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0358
+base: 9297e5cc8d7516d112a7561e5d239c736ffd8c77
+commit: e6b53f3
+at: '2026-09-12T13:33:49Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: LOCKED
+entries:
+  - decision: D-15
+    grade: LOCKED
+    at: '2026-09-12T13:28:23Z'
+    claim: >-
+      The twin requirement did its job at the moment of writing, which is the interesting
+      part. Building the green case surfaced that `Repo.seed` plants `print(changed)`
+      — a file the formatter would rewrite — so the first clean run reddened. The
+      gate was right and the fixture was the unformatted thing, which is precisely
+      the demonstration a twin exists to force: a gate whose green case nobody constructed
+      is a gate nobody knows can pass either. Two red cases rather than one, because
+      the two halves fail independently and a file that lints clean can still be unformatted.
+    evidence: >-
+      tests/test_lint.py:60 — the green case overwrites the fixture s own unformatted
+      file, and the two red cases separate a lint violation from an unformatted one.
+    action: decided
+    proposal: >-
+      None. The row is why this gate has three cases instead of an entry in a manifest.
