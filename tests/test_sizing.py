@@ -49,6 +49,28 @@ def test_tests_are_not_a_module():
     assert verdict.size == "ok"
 
 
+def test_the_corpus_a_task_records_itself_in_is_not_a_module():
+    """The same argument as `tests`, and the same cost. A session-authored task
+    carries its own contract and the amendment its landing records, so `.torve`
+    is in the allow-set of nearly every one — and under S-0055/D-47 a too_large
+    verdict is not a number, it is a route to a decomposition run. Counting it
+    split a task for being properly recorded."""
+
+    verdict = sizing.estimate_scope(
+        Scope(allow=["src/torve/config/agents.py", "tests/test_agents.py", ".torve/agents/**"]), []
+    )
+
+    assert verdict.size == "ok"
+
+    # Two real modules still count, whatever else the task carries.
+    spanning = sizing.estimate_scope(
+        Scope(allow=["src/a.py", "sandboxes/x", "tests/a.py", ".torve/agents/**"]), []
+    )
+
+    assert spanning.size == "too_large"
+    assert "sandboxes" in spanning.reasons[0] and ".torve" not in spanning.reasons[0]
+
+
 def test_estimate_scope_too_small_on_nothing_declared():
     verdict = sizing.estimate_scope(Scope(), [])
     assert verdict.size == "too_small"

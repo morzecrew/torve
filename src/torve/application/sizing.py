@@ -23,6 +23,9 @@ MAX_ALLOW_GLOBS = 10
 MAX_ACCEPTANCE = 6
 MAX_MODULES = 1
 
+# Not modules a task spans — what any task carries, and so no evidence of size.
+CARRIED = frozenset({"tests", ".torve"})
+
 
 # ....................... #
 
@@ -41,11 +44,16 @@ def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
     if len(acceptance) > MAX_ACCEPTANCE:
         reasons.append(f"{len(acceptance)} acceptance commands (threshold {MAX_ACCEPTANCE})")
 
-    # tests accompany any change (every minted phase carries tests/**) — a
-    # module count that includes them calls every task in the repository
-    # too_large, which S-0026/D-7's route turned from a wrong number into a
-    # blocked dispatch.
-    modules = {glob.split("/", 1)[0] for glob in scope.allow if "/" in glob} - {"tests"}
+    # `tests` and `.torve` are not modules a task spans, they are what any task
+    # carries. Tests accompany every change (every minted phase carries
+    # `tests/**`); `.torve` holds the task's own contract, the amendment its
+    # landing records and the configuration it may touch. Counting either calls
+    # a correctly-sized task too_large — which under S-0055/D-47 is not a
+    # cosmetic number but a route to a decomposition run, so the estimate would
+    # split a task for being properly recorded. Measured over this repository's
+    # 61 contracts: counting `.torve` calls 9 of them oversized on that ground
+    # alone, and 33 stay oversized for reasons that are real.
+    modules = {glob.split("/", 1)[0] for glob in scope.allow if "/" in glob} - CARRIED
 
     if len(modules) > MAX_MODULES:
         listed = ", ".join(sorted(modules))

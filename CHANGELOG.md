@@ -136,6 +136,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The size estimate no longer counts `.torve` as a module a task spans. A task
+  carries its own contract and the amendment its landing records, so 9 of this
+  repository's 61 contracts were called oversized on that ground alone.
+
 - A decision row its own document replaced no longer renders beside the row that
   replaced it. The projection skipped a superseded document and never looked at a
   row, so an `AGENTS.md` could carry two rules with nothing to say which is live.
