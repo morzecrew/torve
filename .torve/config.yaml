@@ -9,7 +9,11 @@ runtime:
   adapter: docker            # docker | opensandbox
   image: python:3.13-slim
   sandbox_timeout: 1800      # platform-enforced lifecycle bound, seconds
-  agent_timeout: 1200        # hard cap per agent attempt
+  # Raised from 1200 after T-0350: attempt 1 hit the cap at 1200.3s mid-write on a
+  # structural task and attempt 2 finished the same work in 987s, so the phase needed
+  # ~2200s and got it as two attempts and a continuation. A seat may name its own
+  # `agent_timeout`; this is the fallback for one that does not.
+  agent_timeout: 2200        # hard cap per agent attempt
   network: host              # this host's egress runs through a local proxy
                              # (Outline VPN): "host" shares the host stack AND
                              # forwards the standard proxy env (http_proxy et

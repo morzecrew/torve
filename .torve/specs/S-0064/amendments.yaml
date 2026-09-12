@@ -19,3 +19,14 @@ amendments:
       Worth stating plainly because the failure is an authoring failure, not an execution one: the executor wrote 376 lines of the module and 402 of its tests, left every acceptance command green, and correctly declined to invent a roster for a provider nothing is seated on. It was convicted for adding one string to a sorted list in a file the contract had not thought of.
 
       The general shape is worth carrying: a phase that adds a file the engine *writes* reaches every assertion that enumerates what the engine writes. Phases 2 through 4 add no schema, so the correction is phase 1's alone.
+  - id: A-3
+    at: '2026-09-12T08:47:50Z'
+    title: Two questions the first live phase raised
+    md: |-
+      Both came out of running phase 1 and reading what it wrote, and both are recorded rather than answered because neither blocks the remaining phases.
+
+      Q-2 is a case D-12 does not have. The row offers a price or no per-token cost, and the ModelStudio seat is neither: it is reached by API key and billed against a prepaid weekly token quota, so its attempts cost something real that dollars-per-token does not describe. The record now carries no price for it, which is the honest half — the dishonest half was there until this amendment, because phase 1 wrote `price: {input: 0.30, output: 1.20, cache_read: 0.06}` under a header claiming everything below was measured, and nothing had measured that. A figure invented on a plan that is not billed per token is exactly the failure this document was written about, arriving inside the fix for it.
+
+      Q-3 asks whether a price should be fetched at all. Measured while asking, and the split is clean enough to record: OpenRouter publishes prices for all 445 of its models, ModelStudio's plan publishes nothing, and neither Anthropic nor OpenAI has a public pricing API. So fetching cannot be the mechanism; at most it is an optional source a record names.
+
+      The clock moves here too, for the same reason and from the same run: `runtime.agent_timeout` was 1200 and T-0350's first attempt hit it at 1200.3s mid-write, while its second finished the same work in 987s. 2200 is what the phase actually needed. A seat may already name its own `agent_timeout`, so this is the fallback for one that does not — and a task whose character deserves a longer clock reaches one the way it reaches a heavier model, through a seat variant.

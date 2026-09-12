@@ -242,3 +242,30 @@ questions:
       Settled by the owner: worth adding. A record an operator keeps current against a vendor's page is a smaller cost than a ledger nobody can trust, and an absent price is already a shape the telemetry has — a subscription seat has no per-token cost and says so.
     status: settled
     settled_by: D-12
+  - id: Q-2
+    text: >-
+      What does a record say for a plan billed by quota rather than by token? D-12
+      has two cases — a price, or no per-token cost at all — and the ModelStudio seat
+      is a third it collapses into the second. It is reached by API key, it bills
+      against a prepaid weekly token quota, and its attempts therefore have a real
+      and finite cost that dollars-per-token does not describe. Absent price is the
+      honest answer today, and it loses the fact that a quota is being consumed. What
+      the record would need is a plan kind and a quota to count against, and what
+      an operator would want is the remaining balance before a long unattended run
+      rather than after it. Measured while asking: the token plan's OpenAI-compatible
+      surface publishes nothing to read it from — `/models` returns `created`, `id`,
+      `object`, `owned_by` and no pricing or quota key of any kind.
+  - id: Q-3
+    text: >-
+      Should a price be fetched rather than written? A figure in a reviewed file goes
+      stale against a vendor's billing page, and the mitigation D-12 leans on is detection
+      rather than freshness — the broker meters, `cost_tolerance` compares, a stale
+      price surfaces as `cost_divergence`. Fetching would remove the staleness instead
+      of catching it. Measured: it depends entirely on the provider and the split
+      is clean. OpenRouter publishes prices for all 445 of its models on `/api/v1/models`
+      as `pricing: {prompt, completion}` in dollars per token; ModelStudio's plan
+      publishes none, and neither Anthropic nor OpenAI has a public pricing API. So
+      a fetch cannot be the mechanism — at best it is an optional source a provider
+      record names, with the written figure as the fallback, and it trades a value
+      that goes stale for a network call in the configuration path (the objection
+      that already closed probing for compat facts, in the alternatives above).
