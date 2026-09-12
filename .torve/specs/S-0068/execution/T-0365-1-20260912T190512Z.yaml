@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0365
+phase: 2
+base: 4bac9afffe866f665abc53a146710fa82618e44b
+commit: aa4c56528aac42837b39ca8b54feb2f544e12bd9
+at: '2026-09-12T19:05:12Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+entries:
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-12T18:56:42Z'
+    claim: >-
+      flake-quarantine is retired rather than narrowed: its scope named .torve/gates.yaml,
+      the file declaring every gate's state, axis and sabotage twin, and the adoption
+      check that refused it six times is now a repository check no committed job may
+      fail
+    evidence: >-
+      tests/test_standing.py:604-643 — the check walks the committed jobs and admits
+      only an empty list of conviction files; lockfile-drift passes on uv.lock
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-09-12T18:56:58Z'
+    claim: >-
+      restating entry 1 under the decision's full identifier, which is the form the
+      silence check reads: flake-quarantine is retired rather than narrowed, and the
+      rule that refused it is now a check over the committed jobs
+    evidence: >-
+      tests/test_standing.py:604-643 — the check walks the committed jobs and admits
+      only an empty list of conviction files; lockfile-drift passes on uv.lock
+    action: decided
+    notes: >-
+      entry 1 cited the row as D-4; entries are append-only, so this one carries the
+      qualified id rather than editing it
