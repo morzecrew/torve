@@ -162,6 +162,13 @@ ignore = [
     "RUF003", # see RUF001
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# A standalone analysis script is invoked as `python3 scripts/<name>.py`, so
+# stdout *is* its output contract — the same reason T20 does not reach the CLI,
+# which prints through rich. S-0055/D-59 already exempts `scripts/` from the
+# type floor for the same reason: it is not code the engine imports.
+"scripts/*" = ["T201"]
+
 # ....................... #
 # Dead code
 
