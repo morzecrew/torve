@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0364
+phase: 1
+base: fb9a781e9d5b0962bea64f1b59c059ca3af4940f
+commit: 03e8fcc3466919f18957db81a9aabd44b091d5d8
+at: '2026-09-12T18:38:12Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-12T18:23:28Z'
+    attempt: 3
+    claim: >-
+      The refusal is the file's, not the model's: it fires in load_runner_config after
+      RunnerConfig validates, so it covers every configuration an operator writes
+      and every path that reads .torve/config.yaml. A validator on PromotionConfig
+      would also refuse in-process construction, which the residency suite uses to
+      exercise the landing leg itself with no criteria set — five tests outside this
+      task's scope.allow, unfixable without a licence to edit them. The chosen placement
+      matches the row's words ('refused at load') and the precedent it cites: the
+      broker.providers and provider_records refusals live in the same function and
+      name the file the same way.
+    evidence: >-
+      tests/test_residency.py:1110-1115 — the armed() helper builds RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+      with no criteria, the exact shape a model-level validator would refuse; src/torve/config/runconfig.py:1800-1812
+      holds the two precedent refusals in load_runner_config
+    action: decided
+    notes: >-
+      Consequence of the narrower placement: a caller constructing PromotionConfig
+      in code is not refused. That caller is not an operator's configuration file,
+      and the hazard the row names is the file read once by a process that then runs
+      unattended.
