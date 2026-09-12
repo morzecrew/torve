@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0349
+base: d1df46d6ccaf78cb33a2090d50b8aaff19cac8b3
+commit: abcad94
+at: '2026-09-12T06:42:03Z'
+agent: session/claude-opus-5
+decisions:
+  - id: D-47
+    grade: ASSUMED
+entries:
+  - decision: D-47
+    grade: ASSUMED
+    at: '2026-09-12T06:36:21Z'
+    claim: >-
+      Not owed — the row is ASSUMED and nothing here departs from it — but its consequence
+      is worth recording. D-47 makes the size verdict consequential: too_large is
+      not a label, it routes a contract to a decomposition run instead of an attempt.
+      That raises the cost of a false positive from cosmetic to behavioural, and the
+      module count had one. It already excluded tests for exactly this reason; .torve
+      is the same case and was missed, so a contract was called oversized for carrying
+      its own contract and the amendment its landing records.
+    evidence: >-
+      src/torve/application/sizing.py:47 — the exclusion set, and its own comment
+      giving the argument that applies to both names; measured over 61 contracts,
+      42 too_large today against 33 with .torve excluded.
+    action: decided
+    proposal: >-
+      None. The row stands and the estimate now agrees with the reason its own exclusion
+      list already gave.
