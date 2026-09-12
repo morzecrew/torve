@@ -2,7 +2,7 @@
 id: S-0070
 title: What is committed may not depend on what is not
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by: [S-0054, S-0055, S-0056, S-0065]
