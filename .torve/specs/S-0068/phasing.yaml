@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the refusal, and what doctor says is armed
+    intent: >-
+      A configuration arming the landing leg with no criterion set is refused at load,
+      naming the field and what to set. Beside it, `doctor` gains two statements about
+      what is armed rather than verdicts on whether it should be: which promotion
+      criteria a served manager would land without, and whether a standing job has been
+      refused instantiation and how often. Nothing is armed here; the point is that
+      arming it becomes a thing an operator can see the shape of first.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/cli/doctor.py
+      - tests/test_runconfig.py
+      - tests/test_doctor.py
+      - src/torve/config/AGENTS.md
+      - pages/docs/operating.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
+    title: the six refusals are answered
+    intent: >-
+      `flake-quarantine` has been refused six times because its scope crosses locked rows
+      from four documents. Either the scope narrows to the part of the gate manifest a
+      quarantine actually touches, or those rows are amended to admit that one edit with
+      the amendment naming the job. The acceptance is the job instantiating — the first
+      firing of a standing contract in this engine's history — not the edit compiling.
+    depends_on:
+      - 1
+    scope:
+      - .torve/standing/**
+      - .torve/gates.yaml
+      - tests/test_standing.py
+      - tests/test_manifest.py
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+    character: structural

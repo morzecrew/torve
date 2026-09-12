@@ -1,0 +1,223 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0069
+title: >-
+  A conviction is the next contract's input
+kind: design
+status: draft
+implementation: none
+depends_on:
+  - S-0065
+informed_by:
+  - S-0055
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  When the battery convicts, the engine re-dispatches the same contract from base with
+  the same profile and hopes; measured, the same gate failed again on the next attempt
+  196 times across 28 tasks. A repair attempt takes the conviction as its input — the
+  failing gate, its output, the rows it governs, the tree that failed — and its
+  acceptance is the gate itself.
+motivation: |
+  A conviction is the most specific thing the engine ever learns about a task. It names
+  a gate, a verdict, an output tail, the paths the diff touched and the rows governing
+  them, and it is all already written to `attempts.json` in the context pack, where the
+  next attempt can read it.
+
+  Then the next attempt starts from base with the same prompt, and rediscovers what went
+  wrong on its own budget. Measured over this repository's record, counting blocking
+  gates and excluding attempts that never called a model, the same gate convicted the
+  next attempt of the same task 196 times across 28 tasks — `acceptance` 52,
+  `layering` 41, `user-facing-text` 39, `decisions-reported` 26, `scope` 14.
+
+  That number is the cost of throwing the specific thing away and starting from the
+  general one. It is also the reason the poison ceiling exists: an attempt that fails
+  the same way three times is an escalation, which is the engine correctly refusing to
+  keep paying for a loop it cannot break.
+
+  The repair is how the loop breaks. Nothing about it is new mechanism — the prompt
+  already has two modes that change what an attempt is told and where it starts, and
+  this is a third.
+current_state: |
+  `build_prompt` takes two flags that already do most of the shape. `continuation` tells
+  an attempt the commits in its worktree are its own and to keep building — the worktree
+  was cut from the previous attempt's candidate tip because it ran out of budget, not out
+  of correctness. `revision` tells an attempt a previous one was reviewed and the threads
+  are in the workspace as untrusted data.
+
+  Neither fires on a conviction. A red battery routes to a fresh attempt from base,
+  where the previous reasoning is deliberately not privileged.
+
+  The pack already carries what a repair would need: `attempts.json` holds the prior
+  attempts and the gates that convicted them, and `_red_gates` reads exactly that.
+  Nothing reads it as an input to the next prompt; it is rendered for a human and for an
+  agent that may or may not open it.
+
+  The four roles are `implement`, `review`, `revert` and `draft`, and only two are
+  dispatchable. `plan` can mint only `implement`.
+goals: |
+  An attempt that follows a conviction is told what convicted the last one, in the prompt
+  rather than in a file it may not open, with the gate's own output and the rows the
+  touched paths are governed by.
+
+  Its acceptance includes the gate that convicted, so a repair that does not clear the
+  conviction is not a repair.
+
+  The loop is bounded: a repair is attempted once per conviction, and a second conviction
+  on the same gate goes where it goes today.
+non_goals: |
+  No new role. `repair` is a mode of an attempt, not a fifth member of an enum with a
+  profile, a tier and a dispatch path of its own — the two modes that already exist are
+  the precedent and the whole of the mechanism.
+
+  No new task. A repair is the task's next attempt, so the attempt ledger, the budget,
+  the poison ceiling and the escalation reasons all apply unchanged and none of them has
+  to learn a new shape.
+
+  No repair after a review blocker. That is what `revision` is, it exists, and the thing
+  in question there is the reasoning rather than a property of the tree.
+
+  Nothing decides whether to repair from a model's opinion. The gate's verdict routes it,
+  the configuration bounds it, and the battery judges the result — the same division the
+  engine already holds everywhere.
+design:
+  - key: the-third-mode
+    md: |
+      `build_prompt` gains a `conviction` the way it has a `continuation` and a
+      `revision`: a block naming the gate that convicted the previous attempt, the tail of
+      its output, the paths the diff touched, and the rows governing those paths that the
+      contract inherited.
+
+      Everything in that block is already in the pack. The change is that it arrives in
+      the prompt, which an attempt cannot skip, rather than in a file it can.
+
+      The contract does not change. The scope, the acceptance and the inherited rows are
+      the task's, exactly as they were, because a repair that narrows its own contract is
+      a contract the engine did not agree to.
+  - key: the-gate-is-the-acceptance
+    md: |
+      A repair attempt's acceptance gains the command the convicting gate runs. A repair
+      that leaves the gate red has not repaired anything, and finding that out inside the
+      attempt is the entire saving.
+
+      This is an addition, not a replacement: the rest of the acceptance stays, because a
+      repair that clears one gate by breaking another is the failure mode this must not
+      buy.
+  - key: where-a-repair-starts
+    md: |
+      Here is the real decision, and it cuts against a rule the engine holds on purpose.
+      A retry after a red battery starts from base because the previous reasoning is not
+      privileged — that is the point of restarting, and it is right when what failed is
+      the approach.
+
+      A repair starts from the convicted tree. For a conviction whose fix is mechanical
+      and locally checkable — a path outside scope, a corpus coordinate in a user-facing
+      string, a silent log over a governed file, an import crossing a layer — the tree is
+      not wrong; one property of it is, and throwing the tree away throws away the work
+      that was right along with the mistake.
+
+      Which convictions qualify is not settled here. `acceptance` is the largest repeat
+      class and the least obviously mechanical: a test suite that fails twice may be a
+      tree worth keeping or an approach worth abandoning, and the ledger is what can tell
+      those apart. So the qualifying set starts at the four gates whose checks are pure
+      functions of the tree, and grows on evidence.
+  - key: once
+    md: |
+      A repair is attempted once per conviction. If the same gate convicts the repair,
+      the attempt routes exactly where it routes today — a fresh attempt from base, and
+      then the poison ceiling.
+
+      Without that bound a repair is a loop that reads its own failure as its input,
+      which is the shape that turns a budget into an escalation with nothing to show. The
+      bound is also what keeps the poison ceiling meaning what it means: three failures
+      the same way, not three attempts at the same fix.
+tests: |
+  The prompt is tested for the three modes being distinct and composable: a continuation
+  says the commits are yours, a revision says the threads are untrusted data, and a
+  conviction says which gate failed and what it printed — and a continuation that is also
+  a repair says both without contradicting itself.
+
+  The acceptance addition is tested by its failure: a repair whose tree still fails the
+  convicting gate must not pass, and one that clears it while breaking a different gate
+  must not pass either.
+
+  The bound is tested by counting: two consecutive convictions on the same gate produce
+  one repair and then the ordinary path, never two repairs.
+
+  The base is tested at the seam: a repair attempt's worktree contains the convicted
+  attempt's commits, and an ordinary retry's does not.
+docs: |
+  The working rules gain nothing — a repair is told what it needs in the prompt, and an
+  agent does not need to know the mode has a name.
+
+  The operating documentation gains what a conviction now routes to, because an operator
+  reading an attempt chain will see a shape that did not exist before.
+out_of_scope: |
+  Which gates qualify beyond the initial four. That is D-5's job and it wants the
+  ledger's per-gate repeat counts, which is why this document depends on the one that
+  derives them.
+
+  Routing a conviction to a different seat — a heavier model for a repair, a cheaper one
+  for a mechanical fix. `retry_variants` exists in the configuration model for exactly
+  that and has never been set; it is a different decision with its own evidence.
+
+  Anything about review blockers. The revision loop is that, it is built, and it is off
+  for reasons recorded elsewhere.
+risks: |
+  A repair entrenches a wrong approach, because it starts from the tree that produced it.
+  This is the real risk and the mitigation is the qualifying set: the four gates it
+  starts with are ones where the tree's correctness is not what failed. Widening the set
+  without the ledger's evidence is how this goes wrong.
+
+  The repeat-conviction count falls while attempts per landing does not, because repairs
+  succeed at clearing gates and fail at finishing work. That is why the acceptance
+  addition keeps the rest of the acceptance: a repair is judged by the whole battery, not
+  by the gate it was sent to fix.
+
+  The conviction block grows into a second contract in the prompt, outranking the first.
+  The mitigation is that it is evidence, not instruction, and the prompt says so — the
+  contract governs, exactly as it does for the review threads a revision is handed.
+alternatives:
+  - option: A `repair` role, with its own profile, tier and dispatch path
+    rejected_because: >-
+      It buys a fifth enum member, a profile to configure, a seat to resolve and a task
+      relationship to model, for something the prompt already does twice. The attempt
+      ledger, the budget, the poison ceiling and the escalation reasons all work
+      unchanged if a repair is an attempt.
+  - option: A repair task, minted as a child of the convicted one
+    rejected_because: >-
+      `decompose` and `adopt` exist for splitting work by scope, and a conviction is not
+      a scope split. A child task would need its own budget, its own landing and its own
+      relationship to the parent's battery, all to express "the same task, again, better
+      informed".
+  - option: Leave the conviction in the pack and tell the agent to read it
+    rejected_because: >-
+      That is the current state, and it is what the 196 repeats measure. The pack's own
+      index is already named in the working rules; the gap is not that the facts are
+      absent but that they arrive through a channel an attempt may skip.
+  - option: Start the repair from base, like every other retry
+    rejected_because: >-
+      Then the repair is a prompt change alone, and the work that was right is discarded
+      with the mistake. For a path outside scope or a coordinate in a string, the tree is
+      not what failed.
+  - option: Narrow the repair's scope to the paths the convicted attempt touched
+    rejected_because: >-
+      A contract the engine did not agree to. The scope gate judges a diff against the
+      contract, and a repair working under a narrower one would be judged against a
+      different agreement than the task it belongs to.
+questions:
+  - id: Q-1
+    text: >-
+      Which convictions qualify for a repair? The set starts at the four gates whose
+      checks are pure functions of the tree, and `acceptance` — the largest repeat class
+      at 52 — is deliberately outside it, because a suite that fails twice may be a tree
+      worth keeping or an approach worth abandoning and only the ledger can tell those
+      apart.
+    status: open
+  - id: Q-2
+    text: >-
+      Should a repair report itself in the attempt record as a distinct mode? It costs a
+      field and it is what makes "did repairs reduce repeats" answerable without inferring
+      the mode from the prompt.
+    status: open

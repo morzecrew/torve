@@ -1,0 +1,199 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0068
+title: >-
+  The refusal that is missing, and the one nobody answered
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by:
+  - S-0055
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Arming automatic landing on this repository as configured would land with no CI, no
+  review, no approvals and no quiet window, because one boolean converts five unused
+  criteria into five unset ones and nothing refuses the combination. Meanwhile the
+  engine's only self-starting mechanism has been refused six times for crossing locked
+  rows, and the refusal has never been answered.
+motivation: |
+  `PromotionConfig` holds six knobs. Five are criteria the landing lane refuses on; the
+  sixth decides whether a manager pass lands at all. Every one defaults to off, and the
+  only code that reads the sixth is a single `if not config.promotion.auto_merge` in the
+  manager command.
+
+  Each default is individually defensible — `approvals: 0` documents itself as
+  "configuring nothing decides nothing", which is the right rule for a knob read by a
+  human-invoked `torve merge`. The hazard is the interaction, and the engine refuses
+  exactly this shape elsewhere: a brokered tier that names a credential is a refused
+  configuration rather than a warning, because a second channel for a secret is the leak
+  the broker exists to remove. Automatic landing with zero criteria is the same shape of
+  mistake with the same cheap fix.
+
+  The second half is the opposite failure. `flake-quarantine` is one of two committed
+  standing jobs and the only self-starting mechanism in the engine: a predicate over the
+  engine's own telemetry that mints a task to quarantine a gate whose flake count has
+  crossed a threshold. It has fired zero times and been refused six, because its scope —
+  `.torve/gates.yaml` — crosses locked decisions from four documents.
+
+  That is the governance working. What is not working is that the refusal was recorded
+  six times and answered zero. A mechanism blocked for a reason nobody has read is
+  indistinguishable from a mechanism that does not exist.
+current_state: |
+  `promotion:` is absent from this repository's configuration entirely, so all six knobs
+  hold their defaults. `scm.open_pr` is false and nothing is pushed, which means
+  `require_ci` has nothing to be green on: review and approvals are the only two criteria
+  actually available here today.
+
+  `pause_escalations: 1` is the one default that is on, and it is the right one — a pass
+  mints nothing while the root's escalation queue holds an entry, so an unattended loop
+  runs until the first thing goes wrong and then stops minting.
+
+  `torve doctor` reports sixteen checks and passes all of them. One of them says
+  "standing: 2 contract(s), none has ever fired" — which is true, and reads as
+  information rather than as the six-times-refused mechanism it describes. Nothing in
+  doctor's output says which promotion criteria a served manager would land without.
+
+  The refusal itself is recorded as `standing_instantiate_refused` in telemetry, six
+  times, and the engine's only reader of that stream is the flake predicate — the job
+  being refused.
+goals: |
+  A configuration that arms automatic landing without arming a single criterion is
+  refused, by name, with what to set.
+
+  An operator can see, before serving a manager, which criteria a landing would happen
+  without.
+
+  The six refusals are answered — the job's scope narrowed or the rows it crosses
+  amended — so the engine's one self-starting mechanism either runs or is retired for a
+  stated reason.
+non_goals: |
+  Arming `auto_merge`. This document makes the unsafe combination unreachable; deciding
+  to land automatically is a separate act with its own evidence, and that evidence does
+  not exist yet.
+
+  Relaxing the adoption check that produced the refusal. A standing job whose scope
+  crosses a locked row is exactly what the check is for, and the answer is to change the
+  scope or the row, never the check.
+
+  Pushing. `require_ci` stays unavailable until that is decided, and this document
+  neither asks for it nor works around it.
+
+  A general policy for unattended spend. The dollar ceiling and the night window belong
+  to the stage that has a tasks-per-escalation number to plan against.
+design:
+  - key: the-combination-is-refused
+    md: |
+      `auto_merge: true` with no criterion armed is a configuration error, refused at
+      load, naming the field and what to set — the same voice as the brokered-credential
+      refusal, which is the nearest precedent in the engine and the reason this is a
+      refusal rather than a warning.
+
+      Anything softer is a warning nobody reads at three in the morning, which is
+      precisely when an armed manager is running.
+
+      What counts as armed is deliberately weak: any one of `require_ci`,
+      `require_review`, `approvals` or `quiet_window` set to something other than its
+      off value. The refusal exists to catch the configuration nobody meant to write, not
+      to legislate a landing policy.
+  - key: doctor-says-what-a-landing-would-skip
+    md: |
+      A refusal only fires on a configuration someone wrote. The likelier case is the
+      one this repository is in — nothing configured, and no way to see what that means
+      until a pass lands something.
+
+      So `doctor` names, in one line, which promotion criteria a served manager would
+      land without, and says when `auto_merge` is off that no landing leg runs at all.
+      The check passes either way; it is a statement of what is armed, not a verdict on
+      whether it should be.
+  - key: a-refusal-that-was-never-read
+    md: |
+      The same line of reasoning applies to the standing job from the other direction.
+      `doctor` already counts standing contracts and says none has fired. It should also
+      say that one of them has been refused, how many times, and on what — the
+      instantiation refusal is already a typed record, and reading it costs a query.
+
+      A mechanism that is blocked and silent is worse than one that is absent, because
+      the absence is at least visible.
+  - key: answering-the-six
+    md: |
+      `flake-quarantine`'s scope is `.torve/gates.yaml`, and that file is governed by
+      locked rows from four documents — which is correct, because the gate manifest is
+      where the battery's own axes and states are declared and an agent editing it freely
+      could disarm the thing judging it.
+
+      Two honest answers, and the work is to pick one and record it. Either the job's
+      scope narrows to the part of the manifest a quarantine actually touches — the
+      quarantine list, not the gate definitions — so it stops crossing the rows that
+      govern the rest; or the rows are amended to admit that one edit, with the
+      amendment naming the job.
+
+      The third option, relaxing the adoption check, is not on the table. The check is
+      the reason nothing has quietly edited the battery, and six refusals is it working.
+tests: |
+  The refusal is tested by its twin: `auto_merge: true` with every criterion at its off
+  value must raise a configuration error naming the field, and the same configuration
+  with any one criterion armed must load.
+
+  The doctor lines are tested for the two shapes that matter: a configuration with no
+  `promotion:` block at all, and one with `auto_merge` armed and two criteria set.
+
+  The standing answer is tested by the job instantiating: whichever of the two paths is
+  taken, the acceptance is that `flake-quarantine` adopts rather than refuses, which is
+  the first firing in the engine's history and the only proof that matters.
+docs: |
+  The operating documentation gains the arming order — which criteria are available
+  before pushing, and that arming them with `auto_merge` still off and running the lane's
+  dry run is how a refusal is observed before anything depends on it.
+out_of_scope: |
+  The arming ladder itself — setting the criteria, running the dry run over the queue,
+  and eventually turning the landing leg on. That is a later stage and it wants the
+  escalation-rate number this document does not produce.
+
+  `conflict_disposal`, the reaper's requeue, and the other mechanical escalations that
+  could decide themselves. Each is a rule replacing a judgement and belongs with the
+  night, not with the refusals.
+risks: |
+  The refusal fires on a configuration someone meant to write — an operator who has
+  decided, deliberately, to land on the battery alone. The mitigation is that the bar is
+  any one criterion, and that a deliberate choice is cheap to express; the refusal names
+  what to set.
+
+  Narrowing the standing job's scope makes it unable to do its job, and the quarantine it
+  mints does not quarantine. The mitigation is that the acceptance is the job firing and
+  its own task landing, not the scope edit compiling.
+
+  Amending four documents' rows to admit one job is a large governance change for a small
+  mechanism. That is a real cost and it is why the scope-narrowing path is written first;
+  if it does not work, the amendment is the honest alternative rather than the default.
+alternatives:
+  - option: Warn rather than refuse on `auto_merge` with no criterion
+    rejected_because: >-
+      The configuration is read once, at load, by a process that then runs unattended.
+      A warning is printed to a terminal nobody is watching, which is the condition the
+      hazard is defined by.
+  - option: Change the defaults so a criterion is on out of the box
+    rejected_because: >-
+      `approvals: 0` means "configuring nothing decides nothing", which is the correct
+      rule for the human-invoked verb that reads the same knobs. Changing a default to
+      protect a different caller makes the manual lane refuse things it should not.
+  - option: Relax the adoption check so a standing job may cross a locked row
+    rejected_because: >-
+      The check is why nothing has quietly edited the gate manifest, which is where the
+      battery's own states and axes are declared. Six refusals is the check working, and
+      the answer is to change the scope or the row.
+  - option: Retire `flake-quarantine` instead of answering it
+    rejected_because: >-
+      It stays available as an outcome of this work, but it is not the starting position:
+      the job is the engine's only self-starting mechanism and it has never been allowed
+      to run once, so retiring it would be a verdict on evidence that does not exist.
+questions:
+  - id: Q-1
+    text: >-
+      Does the quarantine list belong in `.torve/gates.yaml` at all? Splitting it into a
+      file the job may write without touching a gate definition would answer the six
+      refusals by construction rather than by narrowing a glob — at the cost of a second
+      file the manifest has to read.
+    status: open

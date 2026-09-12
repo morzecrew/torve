@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the conviction reaches the prompt
+    intent: >-
+      `build_prompt` gains a third mode beside continuation and revision: a block naming
+      the gate that convicted the previous attempt, the tail of its output, the paths the
+      diff touched and the inherited rows governing them — read from what the pack
+      already writes, and stated as evidence the contract outranks. Nothing routes to it
+      yet and no attempt starts anywhere new; this phase makes the facts sayable.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/contextpack.py
+      - tests/test_contextpack.py
+      - tests/test_runner.py
+      - src/torve/adapters/AGENTS.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
+    title: the gate routes a repair, once
+    intent: >-
+      A conviction on a qualifying gate routes the next attempt as a repair: it starts
+      from the convicted tree rather than from base, its acceptance gains the convicting
+      gate's own command alongside everything the contract already declared, and it
+      happens once — a second conviction on the same gate routes where it routes today.
+      The qualifying set starts at the gates whose checks are pure functions of the tree;
+      D-5 is settled in this phase and recorded with the evidence that settled it.
+    depends_on:
+      - 1
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/dispatch.py
+      - tests/test_runner.py
+      - tests/test_dispatch.py
+      - src/torve/application/AGENTS.md
+      - pages/docs/operating.md
+      - CHANGELOG.md
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural

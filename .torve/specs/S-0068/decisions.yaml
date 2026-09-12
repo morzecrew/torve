@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `auto_merge: true` with no promotion criterion armed is refused at load, naming the
+      field and what to set; any one of `require_ci`, `require_review`, `approvals` or
+      `quiet_window` counts as armed
+    paths:
+      - src/torve/config/runconfig.py
+    consequence: >-
+      the one boolean that converts five unused criteria into five unset ones can no
+      longer be flipped alone, and a deliberate choice stays one line away
+    rationale: >-
+      the configuration is read once by a process that then runs unattended, so a warning
+      prints to a terminal nobody is watching; the engine already refuses the same shape
+      when a brokered tier names a credential
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `doctor` names which promotion criteria a served manager would land without, and
+      says when the landing leg is off entirely
+    paths:
+      - src/torve/cli/doctor.py
+    consequence: >-
+      the configuration nobody wrote becomes as visible as the one someone did, before a
+      pass lands anything
+    rationale: >-
+      the refusal only fires on a written configuration; this repository's hazard is an
+      absent `promotion:` block, where every criterion is unset and nothing says so
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `doctor` reports a standing job that has been refused instantiation, how many
+      times, and on what
+    paths:
+      - src/torve/cli/doctor.py
+    consequence: >-
+      a mechanism blocked for a reason stops being indistinguishable from one that does
+      not exist
+    rationale: >-
+      `standing_instantiate_refused` is already a typed record written six times, and the
+      engine's only reader of that stream is the predicate belonging to the job being
+      refused
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      A standing job whose scope crosses a locked row is answered by narrowing the job's
+      scope or amending the row — never by relaxing the adoption check
+    paths:
+      - .torve/standing/**
+      - .torve/gates.yaml
+    consequence: >-
+      the check that has kept anything from quietly editing the battery's own manifest
+      stays intact, and the six refusals are resolved in the open
+    rationale: >-
+      `.torve/gates.yaml` declares the states and axes of the gates that judge the work;
+      a job free to edit it is a job free to disarm its own judge, and six refusals is
+      the check doing what it exists for
