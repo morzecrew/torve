@@ -308,23 +308,6 @@ def _measured_config_eval_digests(root: Path, tier_name: str) -> tuple[str, str]
 # ....................... #
 
 
-def _refuse_credentialed_tier(config: RunnerConfig, name: str, candidate: TierConfig) -> None:
-    # S-0021/D-1's second line: the configuration validator already refuses a
-    # brokered tier that names a credential; the runner refuses again so
-    # a programmatically-built configuration cannot slip a key name past
-    # the validator into the sandbox's env. Checked for every retry rung
-    # too (S-0027/D-11, S-0034/D-6) — a run never dispatches under a regime it
-    # hasn't already validated (S-0027/D-1's spirit, applied ahead of time).
-    if broker_in_force(config) and candidate.api_key_env:
-        raise ValueError(
-            f"tier {name!r} names api_key_env {candidate.api_key_env} under broker "
-            f"{config.broker.adapter!r} — a brokered tier names no credential"
-        )
-
-
-# ....................... #
-
-
 def _seat_price(config: RunnerConfig, tier: TierConfig) -> tuple[bool, dict[str, Any] | None]:
     """The rate card the seat's attempts are priced from (S-0064/D-12), and
     whether the roster had anything to say at all.
@@ -369,11 +352,12 @@ def open_dispatch(
     tier_name = tier_name_for(task)
     tier = tier_for(config, tier_name)
 
-    _refuse_credentialed_tier(config, tier_name, tier)
-
-    if deps.retry_agent is not None:
-        for rung in tier.resolved_retry_variants().values():
-            _refuse_credentialed_tier(config, rung, tier_for(config, rung))
+    # No credential refusal here any more. It refused a brokered tier that named
+    # `api_key_env`, belt-and-braces against a programmatically-built configuration
+    # slipping a key name past the validator into a sandbox's env. S-0064/D-9 closed
+    # it structurally instead: a credential is the provider's, and `credential_names`
+    # hands a sandbox nothing while a broker is in force, so there is nowhere left
+    # for the mistake to be made.
 
     # What actually runs, not what the tier configured — an --agent fake
     # override must not masquerade as a model in the telemetry.

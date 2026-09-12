@@ -58,8 +58,10 @@ from torve.config.agents import role_equipment
 from torve.config.equipment import merge_equipment
 from torve.config.manifest import UNLABELED_AXIS, load_manifest
 from torve.config.runconfig import (
+    RunnerConfig,
     TierConfig,
     agent_timeout_for,
+    credential_names,
     effective_skill_sets,
     image_for,
     sandbox_timeout_for,
@@ -246,7 +248,9 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 # ....................... #
 
 
-def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], dict[str, str]]:
+def _sandbox_auth(
+    config: RunnerConfig, tier: TierConfig, worker_slot: int
+) -> tuple[tuple[str, ...], dict[str, str]]:
     """(env_passthrough, volumes) for the seat's authentication route
     (S-0004/adapters, S-0063/D-18).
 
@@ -264,14 +268,18 @@ def _sandbox_auth(tier: TierConfig, worker_slot: int) -> tuple[tuple[str, ...], 
     This used to key on the adapter, so a `subscription` seat had its
     `api_key_env` dropped and got a volume whether it declared one or not. The
     first live dispatch mounted an empty volume and the agent said `Not logged
-    in`.
+    in`. The name itself now comes off the provider record rather than off the
+    manifest (S-0064/D-9): a harness dials whatever it is pointed at, and which
+    key opens the door was never a fact about the dialer.
     """
 
     if tier.adapter == "fake":
         return (), {}
 
-    if tier.api_key_env:
-        return tuple(tier.api_key_env), {}
+    names = credential_names(config, tier)
+
+    if names:
+        return names, {}
 
     if tier.adapter == "subscription":
         return (), {f"{tier.auth_volume}-{worker_slot}": tier.auth_mount}
@@ -410,7 +418,9 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         planted.parent.mkdir(parents=True, exist_ok=True)
         _shutil.copyfile(captured, planted)
 
-    env_passthrough, volumes = _sandbox_auth(run.tier, config.worker_slot) if run_real else ((), {})
+    env_passthrough, volumes = (
+        _sandbox_auth(config, run.tier, config.worker_slot) if run_real else ((), {})
+    )
     # The slot-suffixed derived cache this regime names — the runtime
     # adapter, not the agent adapter, is what makes a sandbox warm, so a
     # fake adapter's live sandbox carries it too. Empty under shadow, and

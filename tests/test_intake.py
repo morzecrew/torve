@@ -715,11 +715,7 @@ def test_a_real_tier_under_no_broker_drafts_without_a_provider_table(seeded):
 
     config = RunnerConfig(
         tiers={
-            "planner": TierConfig(
-                adapter="harness",
-                provider="anthropic",
-                api_key_env=["X"],
-            ),
+            "planner": TierConfig(adapter="harness", provider="anthropic"),
             "executor": TierConfig(),
             "reviewer": TierConfig(),
         },

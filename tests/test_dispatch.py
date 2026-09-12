@@ -10,6 +10,7 @@ so each of them is now a test with no runtime, no agent and no store in it.
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from torve.application.dispatch import (
     RunDeps,
@@ -74,78 +75,60 @@ def _deps(**overrides: object) -> RunDeps:
 # ....................... #
 
 
-def _brokered(**tiers: TierConfig) -> RunnerConfig:
-    """A validated brokered configuration. The refusals below then reach in
-    and name a credential on a tier, which is the case the dispatch's own
-    check exists for: the validator has already run, and a configuration
-    built in code rather than read from a file never passed it."""
+def _record(models: dict | None = None):
+    """A provider record for `p`, which every seat below is on. A seat resolves
+    against the roster now (S-0064/D-5), so a configuration built in code owes
+    the same record one read from files would have."""
+
+    from torve.config.providers import Model, Provider, Route
+
+    return Provider(
+        name="p",
+        key_env=KEY_ENV,
+        routes={"openai": Route(base_url="https://p.example")},
+        models=models if models is not None else {"m": Model()},
+    )
+
+
+def _brokered(models: dict | None = None, **tiers: TierConfig) -> RunnerConfig:
+    """A validated brokered configuration, seat and record together."""
 
     return RunnerConfig(
         tiers={
-            "executor": TierConfig(
-                adapter="api",
-                provider="p",
-            ),
+            "executor": TierConfig(adapter="api", provider="p", api=["openai"], model="m"),
             **tiers,
         },
         broker=BrokerConfig(
             adapter="local",
             providers={"p": BrokerProvider(upstream="https://p.example", key_env=KEY_ENV)},
         ),
+        provider_records={"p": _record(models)},
     )
 
 
 # ....................... #
 
 
-def test_a_brokered_tier_naming_a_credential_is_refused_before_the_broker_opens(tmp_path):
-    """S-0021/D-1's second line: the validator refuses this, and the dispatch
-    refuses it again so a programmatically-built configuration cannot slip a
-    key name past the validator into the sandbox's env."""
+def test_a_brokered_dispatch_hands_the_sandbox_no_provider_key(tmp_path):
+    """Two refusals used to stand here: the validator's, and the dispatch's own
+    so a programmatically-built configuration could not slip a key name past it
+    into a sandbox's env. S-0064/D-9 removed the field both were about — a
+    credential is the provider's — so what is left to assert is the guarantee
+    rather than the guard."""
 
-    broker = _CountingBroker()
+    from torve.config.runconfig import credential_names
+
     config = _brokered()
-    config.tiers["executor"].api_key_env = [KEY_ENV]
 
-    with pytest.raises(ValueError, match="names no credential"):
-        open_dispatch(
-            tmp_path,
-            Task(id=TASK_ID, decisions=[]),
-            config,
-            _deps(broker=broker),
-            tmp_path / "wt",
-        )
-
-    assert broker.opens == 0
-
-
-# ....................... #
-
-
-def test_a_retry_rung_naming_a_credential_is_refused_too(tmp_path):
-    """A run never dispatches under a regime it has not already validated
-    (S-0027/D-11, S-0034/D-6) — the rung the next attempt would route to is checked
-    at open, not when the conviction arrives."""
+    assert credential_names(config, config.tiers["executor"]) == ()
 
     broker = _CountingBroker()
-    config = _brokered(
-        executor=TierConfig(adapter="api", provider="p", retry_variants={"functional": "heavy"}),
-        heavy=TierConfig(
-            adapter="api",
-            provider="p",
-        ),
+    open_dispatch(
+        tmp_path, Task(id=TASK_ID, decisions=[]), config, _deps(broker=broker), tmp_path / "wt"
     )
-    config.tiers["heavy"].api_key_env = [KEY_ENV]
 
-    with pytest.raises(ValueError, match="names no credential"):
-        open_dispatch(
-            tmp_path,
-            Task(id=TASK_ID, decisions=[]),
-            config,
-            _deps(broker=broker, retry_agent=lambda tier: object()),
-            tmp_path / "wt",
-        )
-
+    # `open_dispatch` performs every fallible step of setup and the broker opens
+    # afterwards, so a refusal can never leak a live credential route.
     assert broker.opens == 0
 
 
@@ -224,7 +207,7 @@ def test_the_attempt_row_is_rendered_from_the_record_it_reports(tmp_path):
 
 def _priced(roster: dict) -> RunnerConfig:
     return RunnerConfig(
-        tiers={"executor": TierConfig(adapter="api", provider="p", model="m")},
+        tiers={"executor": TierConfig(adapter="api", provider="p", api=["openai"], model="m")},
         provider_records={
             "p": Provider.model_validate(
                 {
@@ -264,13 +247,14 @@ def test_a_listed_model_with_no_price_resolves_to_no_price(tmp_path):
     assert meta["price"] is None
 
 
-def test_a_model_the_roster_does_not_list_carries_no_price_key_at_all(tmp_path):
-    """Resolving a seat against the roster is the next phase's refusal; until
-    then a seat with no record keeps reporting what its harness reported."""
+def test_a_seat_naming_a_model_the_roster_does_not_list_never_reaches_dispatch():
+    """Phase 1 resolved no price for an unlisted model and let the attempt keep
+    whatever the harness reported. Phase 2 makes that state unreachable for a
+    real seat (S-0064/D-5): the roster is what a seat may reach, so the question
+    of how to price something undeclared stops being asked."""
 
-    meta = _agent_block(tmp_path, _priced({"other": {}}))
-
-    assert "price" not in meta
+    with pytest.raises(ValidationError, match="never one it does not"):
+        _priced({"other": {}})
 
 
 def test_the_engines_arithmetic_is_the_cost_and_the_harnesss_is_its_claim(tmp_path):

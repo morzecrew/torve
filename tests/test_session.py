@@ -213,29 +213,43 @@ def test_the_first_attempt_has_no_previous_pass_to_route_from(tmp_path, history)
 
 
 # ....................... #
-# Which authentication route a seat takes (S-0063/D-18)
+# Which authentication route a seat takes (S-0063/D-18, S-0064/D-9)
 
 
-def test_a_seat_that_names_a_variable_mounts_nothing():
-    """The manifest decides, not the adapter. One token for one attempt is the
-    narrower blast radius, and every harness this repository dispatches to has
-    an env form."""
+def _auth(tier, slot=0, *, key_env="K"):
+    """`_sandbox_auth` against a config whose record names the credential — the
+    name comes off the provider now, never off the harness that dials it."""
 
     from torve.application.session import _sandbox_auth
+    from torve.config.providers import Provider, Route
+
+    record = Provider(
+        name=tier.provider or "p",
+        key_env=key_env,
+        routes={"openai": Route(base_url="https://p.test/v1")},
+    )
+    config = RunnerConfig(provider_records={tier.provider: record} if tier.provider else {})
+
+    return _sandbox_auth(config, tier, slot)
+
+
+def test_a_seat_whose_provider_names_a_variable_mounts_nothing():
+    """The record decides, not the adapter and not the manifest. One token for
+    one attempt is the narrower blast radius, and every harness this repository
+    dispatches to has an env form."""
 
     seat = TierConfig(
         adapter="subscription",
         provider="anthropic",
         image="claude-sandbox:2.1.252",
-        api_key_env=["CLAUDE_CODE_OAUTH_TOKEN"],
     )
-    names, volumes = _sandbox_auth(seat, 0)
+    names, volumes = _auth(seat, key_env="CLAUDE_CODE_OAUTH_TOKEN")
 
     assert names == ("CLAUDE_CODE_OAUTH_TOKEN",)
     assert volumes == {}
 
 
-def test_a_seat_that_names_none_falls_back_to_its_volume():
+def test_a_seat_whose_provider_has_no_record_falls_back_to_its_volume():
     """The route for a harness with no env form. Read-write, because the
     harness refreshes its token mid-session and a mount it cannot write to
     hangs rather than failing."""
@@ -243,7 +257,7 @@ def test_a_seat_that_names_none_falls_back_to_its_volume():
     from torve.application.session import _sandbox_auth
 
     seat = TierConfig(adapter="subscription", provider="openai", image="codex-sandbox:1")
-    names, volumes = _sandbox_auth(seat, 3)
+    names, volumes = _sandbox_auth(RunnerConfig(), seat, 3)
 
     assert names == ()
     assert volumes == {"torve-auth-3": "/auth"}
@@ -258,13 +272,9 @@ def test_the_adapter_no_longer_decides_the_route():
     from torve.application.session import _sandbox_auth
 
     for adapter in ("api", "harness", "subscription"):
-        names, volumes = _sandbox_auth(
-            TierConfig(adapter=adapter, provider="p", image="i", api_key_env=["K"]), 0
-        )
+        assert _auth(TierConfig(adapter=adapter, provider="p", image="i")) == (("K",), {}), adapter
 
-        assert (names, volumes) == (("K",), {}), adapter
-
-    assert _sandbox_auth(TierConfig(), 0) == ((), {})
+    assert _sandbox_auth(RunnerConfig(), TierConfig(), 0) == ((), {})
 
 
 # ....................... #

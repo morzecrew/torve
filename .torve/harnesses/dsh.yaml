@@ -44,6 +44,8 @@ env:
   #                 for reasoning models, and returns thinking as
   #                 `reasoning_content`
   DSH_MODEL: '{"provider": "torve-broker", "api": "openai-completions", "context_window": 1000000, "max_tokens": 65536, "reasoning": "medium", "timeout_ms": 600000, "stream_idle_timeout_ms": 120000, "compat": {"supportsDeveloperRole": false, "thinkingFormat": "deepseek"}}'
-# Brokered: the run-scoped token is the only credential that reaches the
-# sandbox, so this names none (S-0021/D-1).
-api_key_env: []
+
+# pi-ai speaks both: measured inside the image, 582 references to
+# `openai-completions` and 315 to `anthropic-messages`. torve's keys are the
+# short ones and `equip` maps them to pi-ai's spelling (S-0064/D-4).
+api: [openai, anthropic]

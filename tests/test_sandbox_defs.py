@@ -406,21 +406,23 @@ def test_no_seated_definition_reads_a_mounted_credential() -> None:
         assert "/auth/.credentials.json" not in run, f"{name} reads a mounted credential"
 
 
-def test_a_brokered_manifest_names_no_credential_and_mounts_none() -> None:
+def test_a_manifest_declares_its_dialects_and_names_no_credential() -> None:
     """Under a broker the seat names none at all (S-0021/D-1): the run-scoped
     token arrives as `TORVE_BROKER_TOKEN` and the image's own `run` maps it
     onto the harness's variable, so the real key never leaves the host.
 
     Unbrokered, a seat names its variable and it is forwarded by name
     (S-0063/D-18) — which route a seat takes is the run's business, not this
-    file's."""
+    file's. A manifest names no credential at all now: a credential is the
+    provider's, and what a manifest owes instead is the dialects its harness
+    speaks (S-0064/D-4, S-0064/D-9)."""
 
     from torve.config.agents import load_harness
 
     for name in ("claude-subscription", "dsh"):
         manifest = load_harness(Path("."), name)
 
-        assert manifest.api_key_env == [], name
+        assert manifest.api, f"{name} names no dialect its harness speaks"
         # The auth fields keep their model defaults because neither manifest
         # names one: they stay for a harness with no env form, such as codex.
         assert manifest.auth_volume == "torve-auth"

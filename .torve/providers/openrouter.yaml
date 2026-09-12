@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../schemas/provider.json
+# OpenRouter (S-0064/D-1). Alone among this repository's providers it publishes
+# its own roster and prices: every figure below was read from
+# `GET /api/v1/models` on 2026-09-12 rather than copied from a page, which is
+# also why S-0064/Q-3 asks whether a price should be fetched instead of written
+# — and why the answer cannot be "always", since no other provider here offers
+# one to fetch.
+#
+# Both dialects on one credential, measured: `/api/v1/chat/completions` and
+# `/api/v1/messages`, the second returning native `thinking` blocks.
+name: openrouter
+key_env: OPENROUTER_API_KEY
+via_proxy: false
+
+routes:
+  openai:
+    base_url: https://openrouter.ai/api/v1
+  anthropic:
+    base_url: https://openrouter.ai/api
+
+models:
+  # Cheap reasoning models, keyed short because an OpenRouter slug carries a
+  # slash and is a poor thing to type into a seat or use as a path segment —
+  # the key selects, the id travels and hashes (S-0064/D-3). The effort enum is
+  # measured: a bogus one is refused naming max, xhigh, high, medium, low,
+  # minimal, none.
+  qwen-flash:
+    id: qwen/qwen3.7-flash
+    context_window: 1000000
+    max_tokens: 65536
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
+    price: {input: 0.03, output: 0.13, cache_read: 0.006, cache_write: 0.038}
+  ling-flash:
+    id: inclusionai/ling-3.0-flash
+    context_window: 262144
+    max_tokens: 32768
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
+    price: {input: 0.021, output: 0.063, cache_read: 0.0042}
+  deepseek-flash:
+    id: deepseek/deepseek-v4-flash
+    context_window: 1048576
+    max_tokens: 384000
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
+    price: {input: 0.0668, output: 0.1336, cache_read: 0.013356}
+  glm-flash:
+    id: z-ai/glm-5.3-flash
+    context_window: 1310720
+    max_tokens: 131072
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
+    price: {input: 0.15, output: 0.50, cache_read: 0.03}

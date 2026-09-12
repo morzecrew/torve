@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field, model_validator
 from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.equipment import KINDS, Equipment, skill_names
+from torve.config.providers import APIS
 from torve.domain.vocabulary import ROLES
 
 # ----------------------- #
@@ -145,13 +146,33 @@ class HarnessManifest(BaseModel):
     image: str = ""
     """The sandbox image, which is what harness identity actually is (S-0017/D-4).
     Empty falls back to `runtime.image`."""
-    api_key_env: list[str] = Field(default_factory=list)
-    """The names of the variables the runtime forwards from its own environment —
-    names, never values, so a secret never transits a spec (S-0001/D-13)."""
+    api: list[str] = Field(default_factory=list)
+    """The API dialects this harness speaks (S-0064/D-4). A seat whose provider serves no
+    dialect named here is refused when the seat resolves, naming both files — the same
+    refusal `kinds` performs for equipment, for the same reason: a capability the manifest
+    does not claim is one the seat must not assume.
+
+    torve's own keys, never a harness's spelling: `openai` means Chat Completions, and an
+    image maps it to whatever its harness calls it. A harness naming none speaks none,
+    which is what `fake` is."""
     auth_volume: str = "torve-auth"
     """The subscription route's volume; one per worker slot, `-<slot>` appended."""
     auth_mount: str = "/auth"
     """Where that volume is mounted, read-write because token refresh writes."""
+
+    @model_validator(mode="after")
+    def _dialects(self) -> HarnessManifest:
+        """A dialect the engine has no name for is wrong in one visible line, rather than
+        in a seat that resolved against a route nothing serves (S-0064/D-4)."""
+
+        for name in sorted(set(self.api)):
+            if name not in APIS:
+                raise ValueError(
+                    f"`api` names {name!r}, which is no dialect this engine knows — "
+                    f"the dialects are {', '.join(APIS)}"
+                )
+
+        return self
 
     @model_validator(mode="after")
     def _kinds(self) -> HarnessManifest:
@@ -186,6 +207,8 @@ SEAT_KEYS = frozenset(
         "character_routing",
         "agent_timeout",
         "sandbox_timeout",
+        "reasoning",
+        "dialect",
         "cache_volume",
     }
 )
@@ -267,6 +290,14 @@ FOLDED: dict[str, str] = {
     ),
     # S-0063/D-4: the capability map keeps the refusal and loses the templates.
     "equips": "`kinds`, a list — the flag per kind is the image's `/opt/torve/equip`",
+    # S-0064/D-9: a credential is a property of the provider, not of the harness that
+    # dials it. `auth_volume` and `auth_mount` stay — a harness with no env form for a
+    # credential is a fact about the harness.
+    "api_key_env": (
+        "`key_env` on the provider record, `.torve/providers/<name>.yaml` — a harness "
+        "dials whatever it is pointed at, and which key opens the door was never a fact "
+        "about the dialer"
+    ),
 }
 
 
@@ -429,6 +460,22 @@ def load_harness(root: Path, name: str) -> HarnessManifest:
 
 
 # ....................... #
+
+
+def all_harnesses(root: Path) -> dict[str, HarnessManifest]:
+    """Every manifest by the identity it answers to (S-0061/D-12).
+
+    The broker needs this before any seat validates: which dialect it forwards
+    to for a provider is decided by the seats, and a seat says which harness it
+    is on rather than which dialect it speaks.
+    """
+
+    found: dict[str, HarnessManifest] = {}
+
+    for name in _named(harnesses_dir(root), "harness manifest"):
+        found[name] = load_harness(root, name)
+
+    return found
 
 
 def role_equipment(root: Path) -> dict[str, list[Equipment]]:

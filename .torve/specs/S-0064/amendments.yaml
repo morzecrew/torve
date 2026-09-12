@@ -30,3 +30,13 @@ amendments:
       Q-3 asks whether a price should be fetched at all. Measured while asking, and the split is clean enough to record: OpenRouter publishes prices for all 445 of its models, ModelStudio's plan publishes nothing, and neither Anthropic nor OpenAI has a public pricing API. So fetching cannot be the mechanism; at most it is an optional source a record names.
 
       The clock moves here too, for the same reason and from the same run: `runtime.agent_timeout` was 1200 and T-0350's first attempt hit it at 1200.3s mid-write, while its second finished the same work in 987s. 2200 is what the phase actually needed. A seat may already name its own `agent_timeout`, so this is the fallback for one that does not — and a task whose character deserves a longer clock reaches one the way it reaches a heavier model, through a seat variant.
+  - id: A-4
+    at: '2026-09-12T09:48:17Z'
+    title: >-
+      Phase 2's scope, as wide as removing a field actually is
+    md: |-
+      The third scope correction on this document, and the first where the pattern is clear enough to name rather than just fix. A-2 widened phase 1 because adding a file the engine *writes* reaches every assertion that enumerates what it writes. This widens phase 2 because **removing a field from a configuration model reaches every place that reads it and every test that constructs one** — `api_key_env` had four readers in `src` and appeared in nine test modules, against a phase that named one reader and five modules.
+
+      Both corrections share a cause worth stating plainly: a phase's scope was written from the decisions it implements rather than from the surfaces those decisions touch, and a decision's own `paths` are where it is *decided*, never the full set of places that consult it. Nothing automatic catches this — `lint-contract` checks a contract against the tree, not against work that has not happened yet — so the honest mitigation is to widen at authoring and let the scope gate convict a phase that reaches past what it declared, rather than the reverse.
+
+      The scope also takes `.torve/providers/**`, which is not strictly this phase's work. Three records land with it — OpenRouter, DeepSeek's own two models, and the Anthropic route on ModelStudio — and they are what made the refusals real rather than theoretical: every one of those providers serves two dialects, which is precisely what forced a seat to say which it reaches instead of the engine picking. A phase that could only be tested against one single-dialect provider would have shipped a refusal nobody had seen fire.

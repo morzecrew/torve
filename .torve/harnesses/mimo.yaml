@@ -23,4 +23,7 @@ image: mimo-sandbox:0.1.13
 # (S-0063/D-19): the engine excludes it so an attempt commits its own work.
 equip_root: .mimocode/skill
 kinds: [skill, plugin]
-api_key_env: []
+
+# mimo reaches a provider through its own configuration, which is
+# OpenAI-dialect (S-0064/D-4).
+api: [openai]

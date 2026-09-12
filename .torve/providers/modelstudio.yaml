@@ -9,11 +9,12 @@
 # two attempts to the full agent cap, and it did not care which URL it was
 # trickling from. The hard cap is the fix, the idle one the backstop.
 #
-# One route for now. The same credential also serves the Anthropic dialect at
-# /apps/anthropic — measured, Claude Code drives qwen3.8-flash over it end to
-# end with no translation anywhere — and it lands once a seat names the dialect
-# it reaches (S-0064 phase 2), because until then nothing could choose between
-# two base URLs.
+# Two routes, one credential. Measured 2026-09-11: Claude Code drives
+# qwen3.8-flash over /apps/anthropic end to end, with tool use, and no
+# translation anywhere in the stack. The two differ in what they return —
+# `reasoning_content` on one, native `thinking` blocks on the other — which is
+# the whole reason a route owns its compat facts rather than the provider
+# (S-0064/D-2).
 name: modelstudio
 key_env: MODELSTUDIO_CODING_API_KEY
 via_proxy: false
@@ -27,6 +28,10 @@ routes:
       # This route returns thinking as `reasoning_content`; the Anthropic one
       # returns native `thinking` blocks and carries no such flag.
       thinking_format: deepseek
+  anthropic:
+    base_url: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic
+    # No compat: this route returns Anthropic's own thinking blocks, so there is
+    # nothing for torve to name.
 
 models:
   # The levels came out of a 400 that enumerated them. The endpoint returns

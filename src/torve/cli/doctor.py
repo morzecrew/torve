@@ -543,16 +543,35 @@ def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, boo
 
     config = load_config(root, config_path)
 
+    def detail(name: str, tier: Any) -> str:
+        parts = [
+            f"tier {name}: harness '{tier.harness}'",
+            f", profile '{tier.profile}'" if tier.profile else ", the role's own profile",
+        ]
+
+        # What the seat resolved to, now that it resolves against a record: the
+        # model it reaches and the dialect it reaches it over, so an operator can
+        # read the pairing the load already refused to get wrong (S-0064/D-4).
+        if tier.provider and tier.model:
+            reached = tier.dialect or (", ".join(sorted(set(tier.api) & _routes(config, tier))))
+            parts.append(f" — {tier.model} on {tier.provider}")
+
+            if reached:
+                parts.append(f" over {reached}")
+
+        return "".join(parts)
+
     return [
-        (
-            f"seat {name}",
-            True,
-            f"tier {name}: harness '{tier.harness}'"
-            + (f", profile '{tier.profile}'" if tier.profile else ", the role's own profile"),
-        )
+        (f"seat {name}", True, detail(name, tier))
         for name, tier in sorted(config.tiers.items(), key=lambda item: item[0])
         if tier.harness
     ]
+
+
+def _routes(config: Any, tier: Any) -> set[str]:
+    record = config.provider_records.get(tier.provider)
+
+    return set(record.routes) if record is not None else set()
 
 
 # ....................... #

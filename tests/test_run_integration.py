@@ -213,7 +213,7 @@ def test_harness_tier_end_to_end(repo, monkeypatch):
         adapter="api",
         provider="test-vendor",
         model="fake-model-9",
-        api_key_env=["TORVE_TEST_KEY"],
+        api=["openai"],
         env=seam(
             'grep -q "Torve task" "$TORVE_PROMPT" && echo FEATURE = True > src/feature.py'
             ' && echo \'{"total_cost_usd": 0.05, "model": "\'"$TORVE_MODEL"\'"}\'',

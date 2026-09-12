@@ -41,18 +41,32 @@ phasing:
       serving no dialect it speaks, naming a model the roster does not list, or asking
       an effort the model does not declare, is refused at load naming both files.
       Four things that were discovered by an attempt become configuration errors before
-      a sandbox exists.
+      a sandbox exists — and an undeclared model stops reaching a provider under whatever
+      name was typed. Retiring `api_key_env` reaches every place a sandbox is handed
+      an environment, which is why the scope is wide: the reviewer's, the drafter's
+      and the attempt's are three call sites of one question.
     scope:
       - src/torve/config/agents.py
       - src/torve/config/runconfig.py
       - src/torve/application/session.py
+      - src/torve/application/dispatch.py
+      - src/torve/application/review.py
+      - src/torve/application/intake.py
       - src/torve/cli/doctor.py
       - .torve/harnesses/**
+      - .torve/providers/**
+      - .torve/config.yaml
       - tests/test_agents.py
       - tests/test_runconfig.py
       - tests/test_tiering.py
       - tests/test_session.py
       - tests/test_doctor.py
+      - tests/test_broker.py
+      - tests/test_dispatch.py
+      - tests/test_intake.py
+      - tests/test_run_integration.py
+      - tests/test_runner.py
+      - tests/test_sandbox_defs.py
       - src/torve/config/AGENTS.md
       - CHANGELOG.md
     acceptance:

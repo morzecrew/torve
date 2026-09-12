@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A harness manifest declares the API dialects it speaks as `api`, and a seat is
+  refused at load when its harness and its provider share none — the refusal
+  `kinds` already performs for equipment, pointed at a second capability.
+
+- A seat reaches only a model its provider's record lists. An undeclared model
+  used to reach the provider under whatever name was typed, and the regime hash
+  recorded a model nobody had written down.
+
+- A seat may name `reasoning`, one of the levels its model declares. An effort
+  the model does not have is refused before a sandbox exists, where the endpoint
+  would refuse it per request after one does.
+
+- A seat may name `dialect` when its harness and provider share more than one.
+  The engine never picks: that would be a decision in the one place nobody would
+  look for it.
+
+- Provider records for OpenRouter and DeepSeek, and the Anthropic route on
+  ModelStudio. All three serve two dialects on one credential, every figure
+  measured against the endpoint rather than copied from a page.
+
 - `.torve/pins.yaml` names an equipment ref once, keyed by source. A profile that
   omits `ref` takes the pin; one that writes a ref keeps it. A fetched source
   with neither is refused, naming both places it could come from.
@@ -133,6 +153,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stands behind from which it only carries.
 
 ### Removed
+
+- **Breaking:** `api_key_env` is gone from the harness manifest. A credential is
+  a property of the provider, which names its own `key_env`; a harness dials
+  whatever it is pointed at. `auth_volume` and `auth_mount` stay.
+
+- The broker routes what seats reach rather than what the records declare, so a
+  provider nothing is seated on gets no loopback route at all.
 
 - **Breaking:** `broker.providers` is gone from `.torve/config.yaml`. The wire
   facts the broker routes on are projected at load from the provider records,

@@ -34,4 +34,8 @@ equip_root: ~/.claude/skills
 kinds: [skill, plugin, mcp, hook, agent]
 env:
   CLAUDE_PERMISSION_MODE: bypassPermissions
-api_key_env: []
+
+# Claude Code speaks the Anthropic Messages dialect and only that, so a seat
+# pairing it with a provider serving no anthropic route is refused at load
+# (S-0064/D-4) rather than by an attempt that dialled and got a 404.
+api: [anthropic]

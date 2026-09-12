@@ -49,6 +49,7 @@ from torve.config.runconfig import (
     TierConfig,
     broker_in_force,
     configured_images,
+    credential_names,
     image_for,
     tier_for,
 )
@@ -1351,7 +1352,7 @@ def _attempt_intake_draft(
         image=image_for(config, tier),
         labels=naming.labels(task.id, state.run_id, root),
         timeout_s=config.runtime.sandbox_timeout,
-        env_passthrough=tuple(tier.api_key_env),
+        env_passthrough=credential_names(config, tier),
         workspace_read_only=True,
     )
 

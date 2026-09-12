@@ -87,6 +87,10 @@ tiers:
     harness: dsh
     model: qwen3.8-flash
     provider: modelstudio
+    # dsh speaks both dialects and ModelStudio serves both, so the seat says
+    # which it reaches (S-0064/D-4). pi-ai's overlay is openai-completions
+    # today; the anthropic route is the same credential and a different seat.
+    dialect: openai
   reviewer: {harness: fake}
 
 # RFC 0004 §6b, D-4.8: which providers this repository's contents may reach,

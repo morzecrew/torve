@@ -483,7 +483,7 @@ def test_a_failed_attempt_still_appends_its_cost(tmp_path):
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
+            "executor": TierConfig(adapter="harness", provider="p", model="m"),
         },
     )
     task = Task(id="T-9020", decisions=[])
@@ -576,7 +576,7 @@ def test_a_red_attempt_row_carries_the_burn_profile(tmp_path):
             tiers={
                 "planner": TierConfig(),
                 "reviewer": TierConfig(),
-                "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
+                "executor": TierConfig(adapter="harness", provider="p", model="m"),
             },
         )
         task = Task(id="T-9020", decisions=[])
@@ -1548,38 +1548,36 @@ def test_an_axis_rung_the_broker_cannot_route_is_a_configuration_error():
         run_routing(config, Task(id="T-9102", decisions=[]), review_on=False, include_retry=True)
 
 
-def test_a_credentialed_compliance_rung_is_refused_under_a_broker():
-    """The runner-side re-check walks every resolved rung, not only the
-    scalar's — the programmatically-built configuration the re-check exists
-    for slips the credential past the validator on a non-functional axis."""
-    from torve.application.runner import RunDeps, real_hooks
-    from torve.config.runconfig import BrokerConfig
-    from torve.domain.task import Task
+def test_every_resolved_rung_is_handed_no_provider_key_under_a_broker():
+    """The runner used to walk every resolved rung re-checking `api_key_env`,
+    because a programmatically-built configuration could slip a credential past
+    the validator on a non-functional axis. S-0064/D-9 removed the field: a
+    credential is the provider's, so what is left to assert is that no rung —
+    scalar or axis-keyed — is handed one while a broker is in force."""
 
-    calm = TierConfig(adapter="api", provider="p", model="m", api_key_env=["CALM_KEY"])
+    from torve.config.providers import Model, Provider, Route
+    from torve.config.runconfig import BrokerConfig, credential_names
+
+    record = Provider(
+        name="p",
+        key_env="CALM_KEY",
+        routes={"openai": Route(base_url="https://p.example")},
+        models={"m": Model()},
+    )
+    seat = TierConfig(adapter="api", provider="p", api=["openai"], model="m")
     config = RunnerConfig(
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(retry_variants={"compliance": "executor.calm"}),
-            "executor.calm": calm,
-        }
-    )
-    brokered = config.model_copy(update={"broker": BrokerConfig(adapter="local")})
-    deps = RunDeps(
-        workspace=None,  # type: ignore[arg-type]
-        runtime=_StubRuntime(None),
-        agent=object(),  # type: ignore[arg-type]
-        vcs=object(),  # type: ignore[arg-type]
-        scm=None,  # type: ignore[arg-type]
-        store=None,  # type: ignore[arg-type]
-        retry_agent=lambda tier: object(),
+            "executor": seat.model_copy(update={"retry_variants": {"compliance": "executor.calm"}}),
+            "executor.calm": seat,
+        },
+        provider_records={"p": record},
+        broker=BrokerConfig(adapter="local"),
     )
 
-    with pytest.raises(ValueError, match=r"executor\.calm"):
-        real_hooks(
-            Path("/unused"), Task(id="T-9103", decisions=[]), brokered, deps, Path("/unused/wt")
-        )
+    for name in ("executor", "executor.calm"):
+        assert credential_names(config, config.tiers[name]) == (), name
 
 
 # ....................... #
@@ -2059,7 +2057,7 @@ def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
-            "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
+            "executor": TierConfig(adapter="harness", provider="p", model="m"),
         },
     )
     task = Task(

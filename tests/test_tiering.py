@@ -218,30 +218,51 @@ def test_repository_name_parses_https_remotes(tmp_path):
 
 
 # ....................... #
-# Sandbox authentication routes (§1, §2)
+# Sandbox authentication routes (§1, §2, S-0064/D-9)
+
+
+def _recorded(tier: TierConfig, key_env: str = "ANTHROPIC_API_KEY") -> RunnerConfig:
+    """A config whose record names the credential for this seat's provider. The
+    name is the provider's now: a harness dials whatever it is pointed at, and
+    which key opens the door was never a fact about the dialer."""
+
+    from torve.config.providers import Provider, Route
+
+    if not tier.provider:
+        return RunnerConfig()
+
+    return RunnerConfig(
+        provider_records={
+            tier.provider: Provider(
+                name=tier.provider,
+                key_env=key_env,
+                routes={"openai": Route(base_url="https://p.test/v1")},
+            )
+        }
+    )
 
 
 def test_api_and_harness_pass_key_names_never_values():
-    tier = TierConfig(adapter="api", provider="p", api_key_env=["ANTHROPIC_API_KEY"])
-    env_passthrough, volumes = _sandbox_auth(tier, worker_slot=0)
+    tier = TierConfig(adapter="api", provider="p")
+    env_passthrough, volumes = _sandbox_auth(_recorded(tier), tier, worker_slot=0)
     assert env_passthrough == ("ANTHROPIC_API_KEY",)
     assert volumes == {}
 
 
 def test_subscription_mounts_one_volume_per_worker_slot():
-    """The route for a seat that names no variable — a harness with no env
-    form (S-0063/D-18). One that names one is forwarded by name and mounts
-    nothing; see tests/test_session.py."""
+    """The route for a seat whose provider record names no credential — a
+    harness with no env form (S-0063/D-18). One whose record names a variable
+    is forwarded by name and mounts nothing; see tests/test_session.py."""
 
     tier = TierConfig(adapter="subscription", provider="p")
-    _, volumes = _sandbox_auth(tier, worker_slot=2)
+    _, volumes = _sandbox_auth(RunnerConfig(), tier, worker_slot=2)
     assert volumes == {"torve-auth-2": "/auth"}
-    env_passthrough, _ = _sandbox_auth(tier, worker_slot=2)
+    env_passthrough, _ = _sandbox_auth(RunnerConfig(), tier, worker_slot=2)
     assert env_passthrough == ()
 
 
 def test_fake_gets_no_auth():
-    assert _sandbox_auth(TierConfig(), worker_slot=0) == ((), {})
+    assert _sandbox_auth(RunnerConfig(), TierConfig(), worker_slot=0) == ((), {})
 
 
 # ....................... #
@@ -457,7 +478,7 @@ def seeded_run_repo(tmp_path, tier: dict, providers_yaml="providers: {default: [
     for the case (S-0061/D-2).
 
     The case still describes one tier; the helper splits it where the files
-    now split — `adapter`, `command` and `api_key_env` into the manifest,
+    now split — `adapter`, `api` and `image` into the manifest,
     `provider` and the rest onto the seat — so a case reads as it always did
     while the tree carries the three files.
     """
@@ -492,7 +513,7 @@ def seeded_run_repo(tmp_path, tier: dict, providers_yaml="providers: {default: [
 def test_run_refuses_an_unrouted_provider_with_exit_3(tmp_path):
     root = seeded_run_repo(
         tmp_path,
-        {"adapter": "api", "image": "probe-sandbox", "provider": "anthropic", "api_key_env": ["K"]},
+        {"adapter": "api", "image": "probe-sandbox", "provider": "anthropic", "api": ["openai"]},
     )
     result = CliRunner().invoke(app, ["run", "T-0042", "--root", str(root)])
     assert result.exit_code == 3
@@ -1289,7 +1310,7 @@ def test_attempt_record_carries_reported_token_counts(tmp_path):
             tiers={
                 "planner": TierConfig(),
                 "reviewer": TierConfig(),
-                "executor": TierConfig(adapter="harness", provider="p", model="m", api_key_env=[]),
+                "executor": TierConfig(adapter="harness", provider="p", model="m"),
             },
         )
         task = Task(id="T-9020", decisions=[])

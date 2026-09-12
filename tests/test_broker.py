@@ -111,26 +111,45 @@ def test_none_broker_is_the_phase_one_default():
     assert RunnerConfig().broker.mode == "endpoint"
 
 
-def test_brokered_tier_naming_api_key_env_is_refused():
-    # S-0021/D-1: a non-empty api_key_env under a broker is a refused
-    # configuration, not a warning — a second channel for the key is the
-    # leak the broker exists to remove.
-    tier = TierConfig(adapter="api", provider=PROVIDER, api_key_env=[KEY_ENV])
-    with pytest.raises(ValidationError, match="brokered tier names no credential"):
-        RunnerConfig(
-            tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
-            broker=broker_config("http://127.0.0.1:1"),
-        )
+def test_a_seat_cannot_name_a_credential_at_all():
+    """S-0064/D-9 closed this structurally. There used to be a validator refusing
+    `api_key_env` on a brokered seat — a second channel for the key is the leak
+    the broker exists to remove — and the field it refused no longer exists: a
+    credential is a property of the provider, so there is nowhere to name one."""
+
+    with pytest.raises(ValidationError, match="api_key_env"):
+        TierConfig(adapter="api", provider=PROVIDER, api_key_env=[KEY_ENV])
 
 
-def test_none_broker_allows_the_existing_key_name_channel():
-    # Under `none` — today's behaviour, named — the tier keeps naming its
-    # key's env var exactly as before (S-0021/D-9: none stays legal).
-    tier = TierConfig(adapter="api", provider=PROVIDER, api_key_env=[KEY_ENV])
-    config = RunnerConfig(
-        tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier}
+def test_a_brokered_seat_is_handed_no_provider_key():
+    """What the retired refusal was protecting, now a property of the code that
+    hands a sandbox its environment rather than a check somewhere else."""
+
+    from torve.config.providers import Model, Provider, Route
+    from torve.config.runconfig import credential_names
+
+    record = Provider(
+        name=PROVIDER,
+        key_env=KEY_ENV,
+        routes={"openai": Route(base_url="https://p.test/v1")},
+        models={"fast": Model()},
     )
-    assert config.tiers["executor"].api_key_env == [KEY_ENV]
+    tier = TierConfig(adapter="api", provider=PROVIDER, api=["openai"], model="fast")
+    brokered = RunnerConfig(
+        tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
+        broker=broker_config("http://127.0.0.1:1"),
+        provider_records={PROVIDER: record},
+    )
+
+    assert credential_names(brokered, tier) == ()
+
+    # Unbrokered, the same seat is handed the provider's variable by name.
+    direct = RunnerConfig(
+        tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
+        provider_records={PROVIDER: record},
+    )
+
+    assert credential_names(direct, tier) == (KEY_ENV,)
 
 
 def test_opensandbox_adapter_is_refused_until_a_server_exists():
@@ -701,6 +720,28 @@ def _doctor_repo(tmp_path: Path, config: dict, record: dict | None = None) -> Pa
     return root
 
 
+def _seated(tmp_path: Path, config: dict, record: dict) -> Path:
+    """A repository whose record has a seat on it. The broker routes what seats
+    reach rather than what the records declare (S-0064/D-4), so a provider
+    nothing is seated on is deliberately not routed."""
+
+    root = _doctor_repo(tmp_path, config, record=record)
+    (root / ".torve" / "harnesses").mkdir()
+    (root / ".torve" / "harnesses" / "fake.yaml").write_text("adapter: fake\n", encoding="utf-8")
+    (root / ".torve" / "harnesses" / "h.yaml").write_text(
+        "adapter: api\napi: [openai]\nimage: i\n", encoding="utf-8"
+    )
+    body = yaml.safe_load((root / ".torve" / "config.yaml").read_text())
+    body["tiers"] = {
+        "planner": {"harness": "fake"},
+        "reviewer": {"harness": "fake"},
+        "executor": {"harness": "h", "provider": PROVIDER, "model": "fast"},
+    }
+    (root / ".torve" / "config.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
+
+    return root
+
+
 def test_doctor_names_the_none_broker_and_its_ceiling(tmp_path):
     root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"}})
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
@@ -711,12 +752,13 @@ def test_doctor_names_the_none_broker_and_its_ceiling(tmp_path):
 
 
 def test_doctor_names_the_local_broker_in_force(tmp_path):
-    root = _doctor_repo(
+    root = _seated(
         tmp_path,
         {"runtime": {"adapter": "opensandbox"}, "broker": {"adapter": "local"}},
-        record={
+        {
             "key_env": KEY_ENV,
             "routes": {"openai": {"base_url": "https://api.example.com"}},
+            "models": {"fast": {}},
         },
     )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
@@ -1114,7 +1156,6 @@ def test_none_broker_dispatches_a_real_tier_with_no_provider_table():
                     "image": "probe-sandbox",
                     "model": "m",
                     "provider": "deepseek",
-                    "api_key_env": ["DEEPSEEK_API_KEY"],
                 }
             },
         }

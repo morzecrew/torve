@@ -120,7 +120,6 @@ def test_a_plugin_is_a_source_and_a_ref(root: Path):
         ("adapter", "harness", "harness manifest"),
         ("kinds", "[plugin]", "harness manifest"),
         ("image", "img:1", "harness manifest"),
-        ("api_key_env", "[FOO]", "harness manifest"),
         ("equipment", "[]", "agent profile"),
         ("prepare", "index --yes", "agent profile"),
         ("prompt_extras", "be brief", "agent profile"),
@@ -503,3 +502,33 @@ def test_a_pin_that_is_not_a_ref_is_refused_with_the_file(root: Path):
 
 def test_no_pins_file_is_no_pins(root: Path):
     assert pins(root) == {}
+
+
+# ....................... #
+# A manifest says which dialects its harness speaks (S-0064/D-4, S-0064/D-9)
+
+
+def test_a_manifest_declares_its_dialects(root: Path):
+    write(harnesses_dir(root) / "both.yaml", "adapter: api\napi: [openai, anthropic]\n")
+
+    assert load_harness(root, "both").api == ["openai", "anthropic"]
+
+
+def test_a_dialect_the_engine_has_no_name_for_is_refused(root: Path):
+    write(harnesses_dir(root) / "odd.yaml", "adapter: api\napi: [grpc]\n")
+
+    with pytest.raises(AgentError, match="no dialect this engine knows"):
+        load_harness(root, "odd")
+
+
+def test_a_manifest_naming_a_credential_is_refused_with_where_it_went(root: Path):
+    """A credential is a property of the provider, which names its own `key_env`
+    — a harness dials whatever it is pointed at, and which key opens the door
+    was never a fact about the dialer (S-0064/D-9)."""
+
+    write(harnesses_dir(root) / "old.yaml", "adapter: api\napi_key_env: [FOO]\n")
+
+    with pytest.raises(AgentError, match="`key_env` on the provider record") as excinfo:
+        load_harness(root, "old")
+
+    assert ".torve/providers/" in str(excinfo.value)

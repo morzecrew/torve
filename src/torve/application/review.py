@@ -47,6 +47,7 @@ from torve.config import layout
 from torve.config.runconfig import (
     RunnerConfig,
     agent_timeout_for,
+    credential_names,
     effective_skill_sets,
     image_for,
     sandbox_timeout_for,
@@ -676,7 +677,7 @@ def run_review(
         # clock is also the bound on whatever the reviewer executes (S-0005/D-16) —
         # no budget or timeout of its own exists to widen it.
         timeout_s=sandbox_timeout_for(config, tier),
-        env_passthrough=tuple(tier.api_key_env),
+        env_passthrough=credential_names(config, tier),
     )
 
     handle = runtime.create(spec, copy)

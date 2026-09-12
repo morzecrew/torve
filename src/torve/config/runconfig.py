@@ -23,11 +23,12 @@ from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.agents import (
     AgentError,
+    all_harnesses,
     resolve_seats,
     role_skills,
 )
 from torve.config.equipment import Equipment
-from torve.config.providers import Provider, ProviderError, load_providers
+from torve.config.providers import APIS, Provider, ProviderError, load_providers
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
 
@@ -73,10 +74,19 @@ class TierConfig(BaseModel):
     """The tier's sandbox image — harness identity is the image
     (S-0017/configuration-routes-by-nature, S-0017/D-4). Empty falls back to
     runtime.image."""
-    api_key_env: list[str] = Field(default_factory=list)
-    """The names of the environment variables the runtime forwards from its own
-    environment into this tier's sandbox — names, never values, so the secret never
-    transits a spec (S-0001/D-13)."""
+    api: list[str] = Field(default_factory=list)
+    """S-0064/D-4: the API dialects this seat's harness speaks, merged off the manifest. A
+    provider serving none of them is refused when the seat resolves, naming both files."""
+    dialect: str = ""
+    """S-0064/D-4: which of its harness's dialects this seat reaches, when the harness and
+    the provider share more than one. Empty resolves to the single shared dialect, and is
+    refused when there is a choice to make — the engine picking would be a decision in the
+    one place nobody would look for it."""
+    reasoning: str = ""
+    """S-0064/D-5, S-0064/D-6: how hard this seat's model should think, as one of the levels
+    that model declares. The seat's and never the profile's: a profile is what the agent is
+    and must survive being seated on a model that does not reason at all, and a level has to
+    validate against the model. Empty leaves the harness's own default in force."""
     auth_volume: str = "torve-auth"
     """The subscription route's volume (§2, S-0004/D-2): one volume per worker slot,
     `-<slot>` appended."""
@@ -1256,6 +1266,95 @@ class IntakeConfig(BaseModel):
 # ....................... #
 
 
+# ....................... #
+# The seat's four refusals (S-0064/D-4, S-0064/D-5). Free functions rather than
+# methods: they are about a seat and a record together, and neither owns the pair.
+
+
+def _where(seat: str) -> str:
+    return f"tier {seat!r}"
+
+
+def credential_names(config: RunnerConfig, tier: TierConfig) -> tuple[str, ...]:
+    """The environment variables a sandbox on this seat is given (S-0064/D-9).
+
+    A credential is a property of the provider, so the name comes off the
+    record rather than off the harness that dials it. Under a broker it comes
+    off nothing: the run-scoped token is the only credential that reaches a
+    sandbox, and the leak the old `api_key_env` refusal guarded is closed by
+    there being no second place to name one.
+    """
+
+    if tier.adapter == "fake" or not tier.provider or config.broker.adapter != "none":
+        return ()
+
+    record = config.provider_records.get(tier.provider)
+
+    return (record.key_env,) if record is not None and record.key_env else ()
+
+
+# ....................... #
+
+
+def _dialect(seat: str, tier: TierConfig, record: Provider) -> None:
+    """The harness and the provider must share a dialect (S-0064/D-4)."""
+
+    if not tier.api:
+        raise ValueError(
+            f"{_where(seat)} names harness dialects nowhere — its manifest owes `api`, "
+            f"one or more of {', '.join(APIS)}, naming what the harness speaks"
+        )
+
+    shared = sorted(set(tier.api) & set(record.routes))
+
+    if not shared:
+        raise ValueError(
+            f"{_where(seat)}: its harness speaks {', '.join(sorted(tier.api))} and provider "
+            f"{tier.provider!r} serves {', '.join(sorted(record.routes))} — a seat whose "
+            "harness cannot speak to its provider would dial a route nothing answers on. "
+            f"Either the manifest names another dialect or .torve/providers/{tier.provider}"
+            ".yaml serves one"
+        )
+
+
+def _model(seat: str, tier: TierConfig, record: Provider) -> None:
+    """The roster is what a seat may reach, and the effort is what the model has
+    (S-0064/D-5). A model the record does not list is refused rather than passed
+    through: an undeclared model reaches the provider under whatever name was
+    typed, and the regime hash records a model nobody wrote down."""
+
+    entry = record.models.get(tier.model)
+
+    if entry is None:
+        listed = ", ".join(sorted(record.models)) or "no model at all"
+        raise ValueError(
+            f"{_where(seat)} names model {tier.model!r}, and provider {tier.provider!r} "
+            f"declares {listed} — a seat reaches a model its provider's record lists, "
+            f"never one it does not. Add it to .torve/providers/{tier.provider}.yaml or "
+            "name one that is there"
+        )
+
+    if not tier.reasoning:
+        return
+
+    if not entry.reasoning:
+        raise ValueError(
+            f"{_where(seat)} asks reasoning {tier.reasoning!r} and model {tier.model!r} "
+            "declares no reasoning levels — a model that does not reason cannot be asked "
+            "to think harder"
+        )
+
+    if tier.reasoning not in entry.reasoning:
+        raise ValueError(
+            f"{_where(seat)} asks reasoning {tier.reasoning!r} and model {tier.model!r} "
+            f"has {', '.join(entry.reasoning)} — the endpoint would refuse this per "
+            "request, after a sandbox exists; this refuses it before one does"
+        )
+
+
+# ....................... #
+
+
 class RunnerConfig(BaseModel):
     model_config = STRICT
 
@@ -1333,23 +1432,33 @@ class RunnerConfig(BaseModel):
     # ....................... #
 
     @model_validator(mode="after")
-    def _brokered_tiers_name_no_credential(self) -> RunnerConfig:
-        """S-0021/D-1: a brokered tier names no credential. `api_key_env` must be
-        empty and a non-empty one is a refused configuration, not a warning —
-        a second channel for a secret is the leak the broker exists to
-        remove (S-0017/D-4)."""
+    def _seats_resolve_against_the_roster(self) -> RunnerConfig:
+        """Every seat reaches a model its provider declares, over a dialect its
+        harness speaks, at an effort that model has (S-0064/D-4, S-0064/D-5).
 
-        if self.broker.adapter == "none":
-            return self
+        Four failures that were discovered by an attempt become configuration
+        errors named before a sandbox exists. Each names both files, because
+        which of them is wrong is the reader's call: the provider offered
+        something, the manifest says it cannot take it, and either could be the
+        one to change.
 
-        offenders = sorted(name for name, tier in self.tiers.items() if tier.api_key_env)
+        `api_key_env` no longer exists to refuse (S-0064/D-9), and the leak it
+        guarded is closed structurally rather than by a check: a credential is
+        a property of the provider now, so there is no second place for a seat
+        to name one.
+        """
 
-        if offenders:
-            raise ValueError(
-                f"broker adapter {self.broker.adapter!r} is in force but tier(s) "
-                f"{', '.join(offenders)} name api_key_env — a brokered tier names "
-                "no credential; the broker's provider table is the one channel"
-            )
+        for name, tier in sorted(self.tiers.items()):
+            if tier.adapter == "fake" or not tier.provider:
+                continue
+
+            record = self.provider_records.get(tier.provider)
+
+            if record is None:
+                continue  # the routing check already refuses this, with better words
+
+            _dialect(name, tier, record)
+            _model(name, tier, record)
 
         return self
 
@@ -1465,24 +1574,68 @@ class RunnerConfig(BaseModel):
 # ....................... #
 
 
-def _wire_facts(name: str, record: Provider) -> dict[str, Any]:
+def _dialects_wanted(tiers: dict[str, Any], manifests: dict[str, list[str]]) -> dict[str, set[str]]:
+    """Which dialect each provider's seats reach, off the raw mapping.
+
+    Read before validation because the broker's routes are injected before it:
+    a seat names a harness, the manifest says what that harness speaks, and the
+    provider record says what it serves. The intersection is what this seat
+    could reach, and a seat naming `dialect` narrows it to one.
+    """
+
+    wanted: dict[str, set[str]] = {}
+
+    for entry in tiers.values():
+        if not isinstance(entry, dict):
+            continue
+
+        provider = str(entry.get("provider") or "")
+        speaks = manifests.get(str(entry.get("harness") or ""), [])
+
+        if not provider or not speaks:
+            continue
+
+        named = str(entry.get("dialect") or "")
+        wanted.setdefault(provider, set()).update([named] if named else speaks)
+
+    return wanted
+
+
+# ....................... #
+
+
+def _wire_facts(name: str, record: Provider, wanted: set[str]) -> dict[str, Any]:
     """One provider record as the broker's three wire facts (S-0064/D-1).
 
     The broker forwards; it needs one upstream per provider and nothing about
-    the roster. A record declaring two dialects has two upstreams and no seat
-    yet names which one it reaches — that resolution is the next phase's, so
-    this refuses rather than picks, because picking would be the engine
-    deciding a dialect in the one place nobody would look for it.
+    the roster. A record may declare two dialects at two base URLs, and which
+    one the broker forwards to is decided by the seats rather than here —
+    picking would be the engine choosing a dialect in the one place nobody
+    would look for it.
+
+    Two seats on one provider wanting different dialects is refused rather than
+    guessed: the broker would need a route per pair, which is real work and not
+    this phase's. Nothing in this repository does it yet, and the refusal says
+    so in the words of the thing that would have to change.
     """
 
-    if len(record.routes) != 1:
+    served = sorted(record.routes)
+    reachable = sorted(set(served) & wanted)
+
+    if not reachable:
+        # The seat cannot speak to this provider at all, which `_dialect` refuses
+        # by name once the model validates. Saying it here first would say it worse.
+        return {}
+
+    if len(reachable) > 1:
         raise ValueError(
-            f"provider {name!r} declares routes {', '.join(sorted(record.routes)) or 'none'} — "
-            "nothing names the dialect a seat reaches yet, so the broker cannot choose "
-            "one; a provider record carries exactly one route for now"
+            f"provider {name!r} serves {', '.join(served)} and its seats reach "
+            f"{', '.join(reachable)} — the broker forwards to one upstream per provider, so "
+            "two seats on one provider over two dialects need a route per pair. Name "
+            "`dialect` on the seats so they agree, until the broker keys routes by both"
         )
 
-    (route,) = record.routes.values()
+    route = record.routes[reachable[0]]
 
     return {"upstream": route.base_url, "key_env": record.key_env, "via_proxy": record.via_proxy}
 
@@ -1564,8 +1717,19 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
         if isinstance(broker_block, dict):
             # Anything else is a malformed `broker:` and stays that way — the
             # model's own refusal names it better than this injection could.
+            speaks = {name: list(manifest.api) for name, manifest in all_harnesses(root).items()}
+            wanted = _dialects_wanted(config.get("tiers") or {}, speaks)
+            # A provider no seat reaches gets no route. The broker forwards what
+            # seats actually use; `providers.default` is the policy of what the
+            # repository's contents *may* reach, which is a different question and
+            # answered in a different place.
             broker_block["providers"] = {
-                name: _wire_facts(name, record) for name, record in records.items()
+                name: _wire_facts(name, record, wanted[name])
+                for name, record in records.items()
+                if wanted.get(name)
+            }
+            broker_block["providers"] = {
+                name: facts for name, facts in broker_block["providers"].items() if facts
             }
 
     try:

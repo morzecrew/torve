@@ -476,6 +476,18 @@ def provider(root: Path, name: str, body: str) -> Path:
     return write(root / layout.TORVE_DIR / "providers" / f"{name}.yaml", body)
 
 
+def seated(tmp_path: Path) -> Path:
+    """A repository whose record has a seat on it. The broker routes what seats
+    reach rather than what the records declare (S-0064/D-4), so a record nothing
+    is seated on is deliberately not routed at all."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai, anthropic]\n")
+
+    return root
+
+
 def test_a_provider_record_is_projected_onto_the_broker_at_load(tmp_path: Path):
     root = tmp_path / "repo"
     root.mkdir(exist_ok=True)
@@ -490,7 +502,14 @@ def test_a_provider_record_is_projected_onto_the_broker_at_load(tmp_path: Path):
         "models:\n"
         "  qwen3.8-flash: {price: {input: 0.3, output: 1.2}}\n",
     )
-    config = load(tmp_path, "schema_version: 1\nbroker: {adapter: local}\n")
+    seated(tmp_path)
+    config = load(
+        tmp_path,
+        "schema_version: 1\nbroker: {adapter: local}\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        "  executor: {harness: dialled, provider: modelstudio, model: qwen3.8-flash,"
+        " dialect: openai}\n",
+    )
 
     # The broker forwards, so it gets exactly the three facts it needs.
     routed = config.broker.providers["modelstudio"]
@@ -511,9 +530,16 @@ def test_a_record_needs_no_broker_block_to_be_read(tmp_path: Path):
     provider(
         root,
         "deepseek",
-        "key_env: DEEPSEEK_API_KEY\nroutes: {openai: {base_url: https://api.deepseek.com}}\n",
+        "key_env: DEEPSEEK_API_KEY\nroutes: {openai: {base_url: https://api.deepseek.com}}\n"
+        "models: {deepseek-flash: {}}\n",
     )
-    config = load(tmp_path, "schema_version: 1\n")
+    seated(tmp_path)
+    config = load(
+        tmp_path,
+        "schema_version: 1\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        "  executor: {harness: dialled, provider: deepseek, model: deepseek-flash}\n",
+    )
 
     assert set(config.provider_records) == {"deepseek"}
     assert config.broker.providers["deepseek"].upstream == "https://api.deepseek.com"
@@ -541,23 +567,40 @@ def test_provider_records_is_read_from_the_records_and_never_written_here(tmp_pa
         )
 
 
-def test_a_record_serving_two_dialects_is_refused_rather_than_picked_from(tmp_path: Path):
-    # Nothing names the dialect a seat reaches yet (S-0064 phase 2), so the
-    # broker cannot choose one — and picking would be the engine deciding a
-    # dialect in the one place nobody would look for it.
+TWO_DIALECTS = (
+    "key_env: MODELSTUDIO_CODING_API_KEY\n"
+    "routes:\n"
+    "  openai: {base_url: https://p.example/compatible-mode/v1}\n"
+    "  anthropic: {base_url: https://p.example/apps/anthropic}\n"
+    "models: {qwen3.8-flash: {}}\n"
+)
+
+
+def test_a_seat_that_could_reach_two_dialects_says_which(tmp_path: Path):
+    """The broker forwards to one upstream per provider, so a seat whose harness
+    and provider share two dialects has a choice to make and makes it
+    (S-0064/D-4). The engine picking would be a decision in the one place nobody
+    would look for it."""
+
     root = tmp_path / "repo"
     root.mkdir(exist_ok=True)
-    provider(
-        root,
-        "modelstudio",
-        "key_env: MODELSTUDIO_CODING_API_KEY\n"
-        "routes:\n"
-        "  openai: {base_url: https://p.example/compatible-mode/v1}\n"
-        "  anthropic: {base_url: https://p.example/apps/anthropic}\n",
-    )
+    provider(root, "modelstudio", TWO_DIALECTS)
+    seated(tmp_path)
 
-    with pytest.raises(ValueError, match="cannot choose"):
-        load(tmp_path, "schema_version: 1\nbroker: {adapter: local}\n")
+    def seat(extra: str = "") -> str:
+        return (
+            "schema_version: 1\nbroker: {adapter: local}\ntiers:\n"
+            "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+            "  executor: {harness: dialled, provider: modelstudio,"
+            f" model: qwen3.8-flash{extra}}}\n"
+        )
+
+    with pytest.raises(ValueError, match="need a route per pair"):
+        load(tmp_path, seat())
+
+    chosen = load(tmp_path, seat(", dialect: anthropic"))
+
+    assert chosen.broker.providers["modelstudio"].upstream == "https://p.example/apps/anthropic"
 
 
 def test_a_malformed_record_refuses_the_whole_load_by_path(tmp_path: Path):
@@ -567,3 +610,84 @@ def test_a_malformed_record_refuses_the_whole_load_by_path(tmp_path: Path):
 
     with pytest.raises(ValueError, match="key_env"):
         load(tmp_path, "schema_version: 1\n")
+
+
+# ....................... #
+# The refusals the record makes possible (S-0064/D-4, S-0064/D-5)
+
+
+ACME = (
+    "key_env: ACME_KEY\n"
+    "routes: {openai: {base_url: https://acme.test/v1}}\n"
+    "models: {fast: {reasoning: [low, high]}}\n"
+)
+
+
+def _paired(tmp_path: Path, seat: str, api: str = "[openai]") -> RunnerConfig:
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(root, "acme", ACME)
+    harness(root, "dialled", f"adapter: api\nimage: probe-sandbox\napi: {api}\n")
+
+    return load(
+        tmp_path,
+        "schema_version: 1\nproviders: {default: [acme]}\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        f"  executor: {{harness: dialled, provider: acme, {seat}}}\n",
+    )
+
+
+def test_a_seat_reaches_only_a_model_its_provider_declares(tmp_path: Path):
+    """The roster is what a seat may reach. An undeclared model would reach the
+    provider under whatever name was typed, and the regime hash would record a
+    model nobody wrote down."""
+
+    with pytest.raises(ValueError, match="never one it does not"):
+        _paired(tmp_path, "model: ghost")
+
+    assert _paired(tmp_path, "model: fast").tiers["executor"].model == "fast"
+
+
+def test_a_seat_whose_harness_cannot_speak_to_its_provider_is_refused(tmp_path: Path):
+    with pytest.raises(ValueError, match="serves openai") as excinfo:
+        _paired(tmp_path, "model: fast", api="[anthropic]")
+
+    # Both files, because which of them is wrong is the reader's call.
+    assert "manifest names another dialect" in str(excinfo.value)
+    assert ".torve/providers/acme.yaml" in str(excinfo.value)
+
+
+def test_a_seat_on_a_harness_declaring_no_dialect_is_refused(tmp_path: Path):
+    with pytest.raises(ValueError, match="owes `api`"):
+        _paired(tmp_path, "model: fast", api="[]")
+
+
+def test_an_effort_the_model_does_not_have_is_refused_before_a_sandbox_exists(tmp_path: Path):
+    """The endpoint refuses this per request, after a sandbox exists. The engine
+    can refuse it before one does, which is the whole argument for the model
+    declaring its levels rather than carrying a flag."""
+
+    with pytest.raises(ValueError, match="has low, high"):
+        _paired(tmp_path, "model: fast, reasoning: max")
+
+    assert _paired(tmp_path, "model: fast, reasoning: high").tiers["executor"].reasoning == "high"
+
+
+def test_a_model_that_does_not_reason_cannot_be_asked_to_think_harder(tmp_path: Path):
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\nroutes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {plain: {}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    with pytest.raises(ValueError, match="declares no reasoning levels"):
+        load(
+            tmp_path,
+            "schema_version: 1\ntiers:\n"
+            "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+            "  executor: {harness: dialled, provider: acme, model: plain, reasoning: low}\n",
+        )

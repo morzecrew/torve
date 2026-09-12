@@ -1,9 +1,12 @@
 # yaml-language-server: $schema=../schemas/provider.json
-# DeepSeek, reached directly (S-0064/D-1). No seat is on it today, so the
-# roster is empty: a provider nothing is seated on is a configuration, not an
-# error, and a model written here before anyone measured it would be a value
-# going stale where nothing can see it — which is the failure this record
-# exists to stop.
+# DeepSeek, reached directly (S-0064/D-1). Both dialects on one credential, and
+# both measured on 2026-09-12: `/chat/completions` and `/anthropic/v1/messages`
+# each answer, and the Anthropic route returns native `thinking` blocks.
+#
+# The roster is what the endpoint serves, asked rather than assumed — `GET
+# /models` returns exactly these two. A third model written here from memory
+# would be a seat that resolves and then 404s, which is the failure the roster
+# exists to refuse (S-0064/D-5).
 name: deepseek
 key_env: DEEPSEEK_API_KEY
 via_proxy: false
@@ -11,3 +14,14 @@ via_proxy: false
 routes:
   openai:
     base_url: https://api.deepseek.com
+  anthropic:
+    base_url: https://api.deepseek.com/anthropic
+
+models:
+  # The reasoning levels came out of a 400 that enumerated them; both models
+  # return reasoning. No window, cap or price: this endpoint publishes none of
+  # them, and a figure written from memory is the thing S-0064 exists to stop.
+  deepseek-flash:
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
+  deepseek-v4-pro:
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
