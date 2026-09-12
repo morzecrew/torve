@@ -271,9 +271,18 @@ def test_decisions_no_paths_is_skipped_never_passed(repo):
 def test_repository_logs_parse_under_the_gate():
     # Every execution log this repository carries must satisfy its own gate's
     # parser (A-1 format; per-task directories per A-12).
+    #
+    # `.torve/tasks/` is gitignored, so a clean checkout carries none and this
+    # has nothing to judge — it skips rather than failing. Asserting they exist
+    # made the acceptance command of every task pass on a machine that happens
+    # to hold leftover task directories and fail in the sandbox that does not,
+    # which is a green that means nothing.
     root = Path(__file__).resolve().parent.parent
     logs = sorted((root / ".torve" / "tasks").glob("*/log.yaml"))
-    assert logs, "the repository's own execution logs moved — update this path"
+
+    if not logs:
+        pytest.skip("no execution logs in this checkout — `.torve/tasks/` is not committed")
+
     for log in logs:
         document, error = parse_log(log.read_text(encoding="utf-8"))
         assert error is None, f"{log.name}: {error}"
