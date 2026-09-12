@@ -21,8 +21,10 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
+from pathspec import GitIgnoreSpec
 from pydantic import ValidationError
 
+from torve.config.layout import TORVE_DIR
 from torve.domain.spec import (
     AMENDMENTS_FILE,
     DECISIONS_FILE,
@@ -752,6 +754,55 @@ def _glob_matches(root: Path, pattern: str) -> bool:
         return False
 
 
+def _uncommitted_globs(root: Path) -> list[str]:
+    """What the ignore file torve writes under its own directory claims, as
+    globs relative to *root* (S-0070/D-5). Each entry is read the way git
+    reads it — the name itself and everything beneath it."""
+
+    try:
+        lines = (root / TORVE_DIR / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+    globs: list[str] = []
+
+    for line in lines:
+        entry = line.strip()
+
+        # A negation re-commits what an earlier line ignored; reading it as
+        # one more ignored area would be backwards, so it is left out.
+        if not entry or entry.startswith(("#", "!")):
+            continue
+
+        under = f"{TORVE_DIR}/{entry.strip('/')}"
+        globs += [under, f"{under}/**"]
+
+    return globs
+
+
+def _reaches_uncommitted(pattern: str, globs: list[str]) -> bool:
+    """Whether *pattern* reaches into an area *globs* claims — the same
+    conservative overlap `torve.application.planner.globs_intersect` applies
+    (identical globs, or one read as a literal path with its wildcard tail
+    stripped), asked one pattern at a time because this layer may not import
+    the application (S-0055/D-23)."""
+
+    if pattern in globs:
+        return True
+
+    def literal(glob: str) -> str:
+        return glob.split("*", 1)[0].rstrip("/")
+
+    head = literal(pattern)
+
+    if head and GitIgnoreSpec.from_lines(globs).match_file(head):
+        return True
+
+    own = GitIgnoreSpec.from_lines([pattern])
+
+    return any(literal(glob) and own.match_file(literal(glob)) for glob in globs)
+
+
 def check_directory(spec_dir: Path) -> list[str]:
     """Only documents live in the corpus path and the archive (S-0016/D-24,
     S-0057/I-1): one directory per number, holding only the four file names."""
@@ -984,6 +1035,11 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
     # once implemented an unmatched LOCKED glob is rot.
     check_globs = doc.status == "accepted" and doc.implementation != "none" and not doc.archived
     unbuilt: list[str] = []
+    # S-0070/D-5: a glob whose files the repository deliberately does not
+    # commit matches nothing in a clean clone, which is a clean tree and not
+    # a lock over nothing. The ignore file torve writes says which.
+    uncommitted = _uncommitted_globs(root) if check_globs else []
+    deliberate: list[str] = []
 
     for row in doc.decisions:
         if row.grade not in GRADES:
@@ -1006,6 +1062,10 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
             if _glob_matches(root, pattern):
                 continue
 
+            if uncommitted and _reaches_uncommitted(pattern, uncommitted):
+                deliberate.append(f"{row.id} -> {pattern}")
+                continue
+
             if doc.implementation == "complete":
                 problems.append(
                     f"{where}: LOCKED row {row.id!r} paths glob {pattern!r} matches nothing "
@@ -1018,6 +1078,13 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
         warnings.append(
             f"{where}: {len(unbuilt)} LOCKED glob(s) name unbuilt areas — intended modules "
             "awaiting implementation (S-0001/D-32): " + "; ".join(unbuilt)
+        )
+
+    if deliberate:
+        warnings.append(
+            f"{where}: {len(deliberate)} LOCKED glob(s) name areas the ignore file under "
+            ".torve/ says this repository deliberately does not commit — an empty match "
+            "there is a clean tree, not governance over nothing: " + "; ".join(deliberate)
         )
 
     for row in doc.decisions:

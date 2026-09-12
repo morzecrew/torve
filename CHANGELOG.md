@@ -232,7 +232,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes and reads a glob reaching into what it claims as a clean tree rather
   than as governance that governs nothing — so a row over `.torve/tasks/**`
   reads the same in a fresh clone as on the host that happens to hold the task
-  directories, and `--fix-rot` cannot retire a live row over one.
+  directories, and `--fix-rot` cannot retire a live row over one. `torve spec
+  check` reads the same ignore file for the LOCKED globs it reddens on, and
+  warns naming the row and the glob it spared — the reader that produced the
+  problem and the non-zero exit, so `spec check` passes in a clean clone.
 
 - The size estimate no longer counts `.torve` as a module a task spans. A task
   carries its own contract and the amendment its landing records, so 9 of this

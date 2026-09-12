@@ -309,6 +309,35 @@ def test_a_complete_rfc_citing_a_missing_area_reddens(tmp_path: Path) -> None:
     assert "matches nothing" in result.output
 
 
+def test_a_complete_rfc_citing_an_uncommitted_area_stays_green(tmp_path: Path) -> None:
+    """S-0070/D-5: a glob matching nothing because the repository deliberately
+    does not commit those files is a clean tree, not governance over nothing.
+    This is the only reason the check passed on the host that wrote the task
+    directories and reddened in a fresh clone."""
+
+    uncommitted = rfc_text(
+        "0001",
+        "Widget",
+        status="accepted",
+        implementation="complete",
+        rows=[("D-1", "LOCKED", "Something is decided", "`.torve/tasks/**`")],
+    )
+    seed(tmp_path, ("0001", uncommitted))
+    ignore = tmp_path / ".torve" / ".gitignore"
+    ignore.write_text("# minted\ntasks/\n", encoding="utf-8")
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "deliberately does not commit" in result.output
+
+    # Without the ignore file nothing is known to be deliberate, and the same
+    # tree reddens — the state a clean clone was in.
+    ignore.unlink()
+
+    assert invoke(tmp_path, "check").exit_code == EXIT_CONFIG
+
+
 def test_a_partial_rfc_warns_once_about_unbuilt_areas(tmp_path: Path) -> None:
     seed(tmp_path, ("0001", locked_doc("partial")))
     result = invoke(tmp_path, "check")
