@@ -414,6 +414,54 @@ def _drain_transfer(task_id: str | None) -> dict[str, Any]:
 
 # ....................... #
 
+# The harness receipt's own account of the attempt (S-0065/D-6), booked by the
+# adapter that read it and drained by whichever row ends the attempt — the
+# transfer ledger's route above, for the same reason: the receipt is parsed
+# where the harness output lives, and the record is built three modules away.
+# A harness whose receipt names neither field books nothing, so the row lacks
+# the keys outright — absent stays absent (S-0004/D-6), and an ending the engine
+# was not told is never invented. Process-local, like the transfer ledger.
+
+_RECEIPT_LOCK = threading.Lock()
+_pending_receipts: dict[str, dict[str, str]] = {}
+
+
+def record_receipt(
+    task_id: str,
+    *,
+    terminal_reason: str | None = None,
+    session_id: str | None = None,
+) -> None:
+    """Book what a harness receipt said against a task: how the harness says
+    the run ended, and the session it ran under. Either may be missing, and a
+    missing one is not recorded."""
+
+    named = {
+        key: value
+        for key, value in {"terminal_reason": terminal_reason, "session_id": session_id}.items()
+        if value
+    }
+
+    if not named:
+        return
+
+    with _RECEIPT_LOCK:
+        _pending_receipts.setdefault(task_id, {}).update(named)
+
+
+def _drain_receipt(task_id: str | None) -> dict[str, str]:
+    """Pop a task's booking as the agent block's extra keys — once only,
+    which is what keeps one attempt's ending off the next attempt's row."""
+
+    if task_id is None:
+        return {}
+
+    with _RECEIPT_LOCK:
+        return _pending_receipts.pop(task_id, {})
+
+
+# ....................... #
+
 # What the stream keeps of a gate's output and a contract's rows. Both are
 # already written down once — the gate's own output rides the attempt to the
 # operator's terminal and the task log, the row is in the contract — and a
@@ -455,7 +503,24 @@ def build_record(
     config_hash: str,
     agent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    transfer = _drain_transfer(ctx.task.id if ctx.task else None)
+    task_id = ctx.task.id if ctx.task else None
+    transfer = _drain_transfer(task_id)
+
+    # S-0065/D-4: an attempt row that names no sha at all can never be joined
+    # to a contract, a diff or a landing — it is a cost and a duration attached
+    # to nothing, and it costs more in the record than it would have as an
+    # absence, because it is counted. The eighteen unjoinable rows in the
+    # stream are exactly this shape: merge_base and head both empty. Either sha
+    # is enough for the join, so the refusal fires only when both are missing,
+    # which is the caller handing over a context it never resolved. A bare gate
+    # run over a human PR is not an attempt and has no agent block.
+    if agent is not None and not ctx.merge_base and not ctx.head_sha:
+        raise ValueError(
+            f"attempt record for {task_id or 'no task'} names no base sha "
+            "(merge_base and head are both empty): such a row can never be "
+            "joined to a contract, a diff or a landing — resolve the base "
+            "before the attempt runs"
+        )
 
     return {
         "schema_version": RECORD_SCHEMA_VERSION,
@@ -465,12 +530,13 @@ def build_record(
         "base": ctx.base,
         "merge_base": ctx.merge_base,
         "head": ctx.head_sha,
-        "task_id": ctx.task.id if ctx.task else None,
+        "task_id": task_id,
         # Which adapter, model and provider version produced the work under
         # gate (S-0004/telemetry-staged, S-0004/D-6) — None on runs with no agent (human PRs,
         # bare `torve gates run`). model_version None inside the block marks
-        # an uncontrolled regime.
-        "agent": None if agent is None else priced(agent),
+        # an uncontrolled regime. What the harness receipt said about the
+        # ending joins it (S-0065/D-6), where the harness returned it.
+        "agent": None if agent is None else priced({**agent, **_drain_receipt(task_id)}),
         # The workspace transfer's cost, booked by a transferring runtime for
         # this attempt (S-0041/the-transfer-measured) — a sibling of the agent block because
         # it is the runtime's measurement, not the agent's self-report.
@@ -522,7 +588,10 @@ def build_attempt_row(
         "config_hash": None,  # gates never ran; no manifest pass
         "torve_version": torve.__version__,
         "task_id": task.id,
-        "agent": priced(agent),
+        # The receipt's account of the ending rides the block here too
+        # (S-0065/D-6) — the endings this row describes are exactly the ones a
+        # terminal reason tells apart.
+        "agent": priced({**agent, **_drain_receipt(task.id)}),
         # The runtime's booked transfer legs ride beside the agent block
         # exactly as on the gate-pass row (S-0041/the-transfer-measured): the spend on
         # moving the workspace happened even if nothing else did.

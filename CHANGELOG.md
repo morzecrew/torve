@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An attempt record that names no sha at all — both the base sha and the
+  attempt's own head empty — is refused where it is written, naming the two
+  fields. Such a row is a cost and a duration attached to nothing: it can never
+  be joined to a contract, a diff or a landing, and the rows already written
+  that carry none are unjoinable. Either sha is enough for the join, so a
+  repository with no base to resolve still records normally.
+
+- An attempt row carries `terminal_reason` and `session_id` when the harness
+  receipt returns them. The terminal reason splits the one failure class the
+  runner books today into a model that finished its turn and a harness that was
+  capped or errored; the session id is recorded and nothing reads it yet. Both
+  are absent, never invented, on the harnesses that return neither.
+
 - **Breaking:** `promotion.auto_merge: true` with no promotion criterion armed is
   refused when the configuration loads, naming the field and the four settings
   that would answer it. One boolean converted five unused criteria into five

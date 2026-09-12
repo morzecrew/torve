@@ -10,19 +10,25 @@ field the payload defaults that the row deliberately omitted.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from conftest import context_for
 from pydantic import ValidationError
 
+from torve.adapters.agent.harness import parse_metadata
 from torve.application.telemetry import (
     build_attempt_row,
     build_record,
     record_payload,
+    record_receipt,
     record_row,
 )
+from torve.config.manifest import Manifest
 from torve.domain.attempt import GateResult
 from torve.domain.events import EventKind, gate_outcomes, validate_payload
 from torve.domain.task import Task
+from torve.gates.context import GateContext
 from torve.gates.runner import RunReport
 from torve.gates.sabotage import base_task
 
@@ -140,3 +146,90 @@ def test_a_payload_with_an_unknown_field_is_refused(gated):
 
     with pytest.raises(ValidationError):
         validate_payload(EventKind.GATES_EVALUATED, payload)
+
+
+# ....................... #
+# A row with no base sha (S-0065/D-4) and the receipt's own account of the
+# ending (S-0065/D-6) — what makes a row joinable, and what makes it readable.
+
+
+def _ctx(head_sha: str = "", merge_base: str | None = None) -> GateContext:
+    return GateContext(
+        root=Path("."),
+        manifest=Manifest(gates=[]),
+        head_sha=head_sha,
+        base=None,
+        merge_base=merge_base,
+        task=Task.model_validate(base_task(allow=["src/**"])),
+    )
+
+
+def test_an_attempt_record_naming_no_sha_at_all_is_refused(gated):
+    # The twin: a record that names a sha is written, one that names none
+    # raises with the fields in the message. Such a row can never be joined
+    # to a contract, a diff or a landing, and it would sit in the record
+    # looking like data.
+    with pytest.raises(ValueError, match="merge_base and head"):
+        build_record(_ctx(), RunReport(exit_code=0), "cafe1234", agent=AGENT)
+
+    assert gated["merge_base"]
+
+
+def test_either_sha_is_enough_for_the_join():
+    # A repository with no base to resolve still writes its own sha, and that
+    # is the one the contract is read at — a row is refused for naming
+    # nothing, never for naming one of the two.
+    report = RunReport(exit_code=0)
+
+    assert build_record(_ctx(head_sha="abc"), report, "cafe1234", agent=AGENT)["head"] == "abc"
+    assert build_record(_ctx(merge_base="def"), report, "cafe1234", agent=AGENT)["merge_base"]
+    # A bare gate pass over a human PR is not an attempt at all.
+    assert build_record(_ctx(), report, "cafe1234")["agent"] is None
+
+
+def test_the_receipt_rides_the_agent_block_and_drains_once():
+    task = Task.model_validate(base_task(allow=["src/**"]))
+    record_receipt(task.id, terminal_reason="error_max_turns", session_id="s-1")
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert row["agent"]["terminal_reason"] == "error_max_turns"
+    assert row["agent"]["session_id"] == "s-1"
+
+    # The booking belongs to the attempt that produced it: the next row of
+    # the same task carries no ending it was not told (S-0004/D-6).
+    again = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "terminal_reason" not in again["agent"]
+    assert "session_id" not in again["agent"]
+
+
+def test_a_receipt_naming_neither_field_records_neither():
+    task = Task.model_validate(base_task(allow=["src/**"]))
+    record_receipt(task.id, terminal_reason=None, session_id=None)
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "terminal_reason" not in row["agent"]
+    assert "session_id" not in row["agent"]
+    # And the block still round-trips: the agent block is loose on purpose.
+    validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))
+
+
+def test_the_three_receipt_shapes_the_traces_carry():
+    # A completed run, a capped one, and a receipt that names no ending —
+    # claude spells the first two in the result envelope's `subtype`, and
+    # the images that carry neither field report nothing.
+    def reason(line: str) -> str | None:
+        return parse_metadata(line).terminal_reason
+
+    assert reason('{"type":"result","subtype":"success","session_id":"abc"}') == "success"
+    assert reason('{"type":"result","subtype":"error_max_turns"}') == "error_max_turns"
+    assert reason('{"total_cost_usd":0.4,"usage":{"output_tokens":9}}') is None
+
+    # The opening system line spells `init` in the same key and names no
+    # ending: a stream that stops there is unreported, never "init".
+    assert reason('{"type":"system","subtype":"init","tools":["Bash"]}') is None
+    assert parse_metadata(
+        '{"type":"result","subtype":"success","session_id":"abc"}'
+    ).session_id == ("abc")

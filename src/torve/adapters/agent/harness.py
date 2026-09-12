@@ -33,6 +33,7 @@ from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
 from torve.application.equipment import EQUIPMENT_MOUNT
 from torve.application.ports import AgentContext, AgentResult
+from torve.application.telemetry import record_receipt
 from torve.base import naming
 
 if TYPE_CHECKING:
@@ -275,6 +276,12 @@ class AgentMetadata:
     cache_read_tokens: int | None = None
     cache_creation_tokens: int | None = None
     output_tokens: int | None = None
+    # What the receipt says about the ending and the session it ran under
+    # (S-0065/D-6). Best-effort per harness like everything else here: claude's
+    # result envelope carries both, the other images carry neither, and
+    # neither is ever invented for them.
+    terminal_reason: str | None = None
+    session_id: str | None = None
 
 
 # The claude CLI's usage block spells these in snake_case; the dsh reporter's
@@ -305,6 +312,44 @@ def _usage_tokens(sources: tuple[dict[str, Any], ...], names: tuple[str, ...]) -
 
             if isinstance(value, (int, float)):
                 return int(value)
+
+    return None
+
+
+def _terminal_reason(sources: tuple[dict[str, Any], ...]) -> str | None:
+    """How the harness says the run ended: a field named for it, or the
+    `subtype` of a *result* envelope — claude spells `success`,
+    `error_max_turns` and `error_during_execution` there, which is the split
+    between a model that finished and a harness that was capped or errored.
+
+    The type check is what keeps the opening `system`/`init` line's own
+    `subtype` out of the record: a stream that ends there names no ending,
+    and an invented one is worse than none (S-0004/D-6)."""
+
+    for source in sources:
+        named: Any = source.get("terminal_reason")
+
+        if isinstance(named, str) and named:
+            return named
+
+        subtype: Any = source.get("subtype")
+
+        if source.get("type") == "result" and isinstance(subtype, str) and subtype:
+            return subtype
+
+    return None
+
+
+def _session_id(sources: tuple[dict[str, Any], ...]) -> str | None:
+    """The harness session this attempt ran under, in either spelling the
+    harnesses use. Recorded and read by nothing (S-0065/D-6)."""
+
+    for source in sources:
+        for name in ("session_id", "sessionId"):
+            value: Any = source.get(name)
+
+            if isinstance(value, str) and value:
+                return value
 
     return None
 
@@ -383,6 +428,8 @@ def parse_metadata(output: str) -> AgentMetadata:
             cache_read_tokens=cache_read_tokens,
             cache_creation_tokens=cache_creation_tokens,
             output_tokens=output_tokens,
+            terminal_reason=_terminal_reason(sources),
+            session_id=_session_id(sources),
         )
 
     return AgentMetadata()
@@ -860,6 +907,13 @@ class HarnessAgent:
             trace.write_text(result.output, encoding="utf-8")
 
         meta = parse_metadata(result.output)
+        # The receipt's two fields reach the attempt record by the route the
+        # transfer ledger already takes (S-0065/D-6): booked here against the
+        # task, drained once by whichever row ends the attempt. A receipt that
+        # named neither books nothing, and the row says so by silence.
+        record_receipt(
+            ctx.task.id, terminal_reason=meta.terminal_reason, session_id=meta.session_id
+        )
         # The burn profile is derived from the store's own file, never from
         # result.output: every runtime clips the exec string mid-stream, and
         # a profile of a clipped stream is silently wrong counts (S-0039/D-4's
