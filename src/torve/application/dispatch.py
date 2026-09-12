@@ -231,7 +231,12 @@ def run_routing(
         if tier.adapter == "fake" or not tier.provider:
             continue
 
-        provider = config.broker.providers.get(tier.provider)
+        # A route is a provider and a dialect together (S-0064/D-2), because a
+        # provider may serve two and they are different upstreams. The seat
+        # carries the name the broker knows its route by, so nothing here
+        # re-derives it.
+        route = tier.route or tier.provider
+        provider = config.broker.providers.get(route)
 
         if provider is None and not broker_in_force(config):
             # The none adapter routes nothing at the wire: keys keep their
@@ -241,13 +246,15 @@ def run_routing(
 
         if provider is None:
             raise ValueError(
-                f"tier {tier_name!r} uses provider {tier.provider!r} but no provider "
-                f"record routes it — write .torve/providers/{tier.provider}.yaml"
+                f"tier {tier_name!r} reaches {tier.provider!r} over "
+                f"{tier.dialect or 'no named dialect'} and the broker routes "
+                f"{sorted(config.broker.providers) or 'nothing'} — write "
+                f".torve/providers/{tier.provider}.yaml, or name the dialect it serves"
             )
 
         routes.append(
             BrokerRoute(
-                provider=tier.provider,
+                provider=route,
                 upstream=provider.upstream,
                 key_env=provider.key_env,
                 via_proxy=provider.via_proxy,

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A broker route is a provider and a dialect together, so one credential serving
+  two dialects is two routes. Two seats on one provider over different dialects
+  used to be refused; the refusal named the work and this is it.
+
+- **Breaking:** an `agent_timeout` at or past its `sandbox_timeout` is refused.
+  The sandbox is the outer bound, so such a clock never fires and its attempt is
+  booked as an infrastructure failure rather than an agent that ran out of time.
+
 - A `lint` gate runs `ruff check` and `ruff format --check` over the whole tree.
   The linter previously ran only for a run with no task contract, and the
   formatter was checked nowhere — an unformatted file landed and came back twice.

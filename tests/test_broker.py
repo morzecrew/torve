@@ -692,12 +692,18 @@ def test_harness_refuses_a_provider_the_broker_does_not_route(tmp_path):
     routing is missing the seat's provider is a configuration error, not a
     seat that quietly reaches the provider itself."""
 
-    tier = TierConfig(adapter="api", provider="unrouted-vendor", model="m", image="probe-sandbox")
+    tier = TierConfig(
+        adapter="api",
+        provider="unrouted-vendor",
+        route="unrouted-vendor.openai",
+        model="m",
+        image="probe-sandbox",
+    )
     ctx, agent = harness_ctx(
         tmp_path, tier, BrokerHandle(token="t", base_urls={PROVIDER: "http://127.0.0.1:1/x"})
     )
 
-    with pytest.raises(ValueError, match="but not the tier's provider"):
+    with pytest.raises(ValueError, match="but not the tier's route"):
         agent._command(ctx)
 
 

@@ -77,6 +77,9 @@ class TierConfig(BaseModel):
     api: list[str] = Field(default_factory=list)
     """S-0064/D-4: the API dialects this seat's harness speaks, merged off the manifest. A
     provider serving none of them is refused when the seat resolves, naming both files."""
+    route: str = ""
+    """S-0064/D-2: what the broker calls this seat's route — provider and dialect together,
+    because a provider serving two dialects is two upstreams. Derived, never written."""
     base_url: str = ""
     """S-0064/D-1: where this seat's dialect is served, merged off the provider record. The
     broker's loopback route replaces it at dispatch when one is in force — brokered and
@@ -940,7 +943,32 @@ class RuntimeConfig(BaseModel):
     (S-0035/D-6)."""
     agent_timeout: float = 1200
     """Hard cap per agent attempt, on top of cooperative asks; a tier may name its own
-    (S-0035/D-6)."""
+    (S-0035/D-6). Strictly inside `sandbox_timeout`: the sandbox is the outer bound, so an
+    agent clock at or past it can never fire and the attempt is booked as an infrastructure
+    failure rather than as an agent that ran out of time."""
+
+    @model_validator(mode="after")
+    def _the_agent_clock_fits_inside_the_sandbox(self) -> RuntimeConfig:
+        """An agent clock the sandbox outlives is a clock, and one the sandbox
+        does not is a decoration.
+
+        Measured: `agent_timeout` was raised to 2200 while `sandbox_timeout`
+        stayed at 1800, and the next long attempt died at 1800.2s as
+        `agent_error` — an infrastructure failure where the truth was a slow
+        model. The two numbers are not independent and the engine should not
+        pretend they are.
+        """
+
+        if self.agent_timeout >= self.sandbox_timeout:
+            raise ValueError(
+                f"agent_timeout {self.agent_timeout} is not inside sandbox_timeout "
+                f"{self.sandbox_timeout} — the sandbox is the outer bound, so an agent "
+                "clock at or past it never fires and its attempt is booked as an "
+                "infrastructure failure rather than as an agent that ran out of time"
+            )
+
+        return self
+
     network: str = ""
     """Docker network mode ("" = the daemon's default bridge). "host" shares the host's
     network stack, which is what lets a sandbox reach a proxy or VPN listening on the
@@ -1322,6 +1350,7 @@ def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
 
         entry.update(
             {
+                "route": route_name(str(entry.get("provider") or ""), dialect),
                 "key_env": record.key_env,
                 "request_timeout_s": record.request_timeout_s,
                 "stream_idle_timeout_s": record.stream_idle_timeout_s,
@@ -1643,68 +1672,57 @@ class RunnerConfig(BaseModel):
 # ....................... #
 
 
-def _dialects_wanted(tiers: dict[str, Any], manifests: dict[str, list[str]]) -> dict[str, set[str]]:
-    """Which dialect each provider's seats reach, off the raw mapping.
+def route_name(provider: str, dialect: str) -> str:
+    """What the broker calls one route (S-0064/D-2).
 
-    Read before validation because the broker's routes are injected before it:
-    a seat names a harness, the manifest says what that harness speaks, and the
-    provider record says what it serves. The intersection is what this seat
-    could reach, and a seat naming `dialect` narrows it to one.
+    Provider and dialect together, because a provider may serve two and they are
+    different upstreams that answer differently. It was the provider alone while
+    every record served one dialect; the first seat to want the other found the
+    refusal this replaces.
     """
 
-    wanted: dict[str, set[str]] = {}
+    return f"{provider}.{dialect}" if dialect else provider
+
+
+def _resolve_dialects(
+    tiers: dict[str, Any], manifests: dict[str, list[str]], records: dict[str, Provider]
+) -> None:
+    """Write each seat's resolved dialect onto it, in place.
+
+    A seat may name one; a seat that does not gets the single dialect its
+    harness and its provider share. Resolved here rather than left implied,
+    because everything downstream — the broker's route, the seam's `TORVE_API`,
+    the doctor's line — needs the answer and none of them should re-derive it.
+    Where the choice is real and unmade this leaves it empty, and the seat's own
+    refusal says so in better words than a guess would.
+    """
 
     for entry in tiers.values():
         if not isinstance(entry, dict):
             continue
 
-        provider = str(entry.get("provider") or "")
+        record = records.get(str(entry.get("provider") or ""))
         speaks = manifests.get(str(entry.get("harness") or ""), [])
 
-        if not provider or not speaks:
+        if record is None or not speaks or entry.get("dialect"):
             continue
 
-        named = str(entry.get("dialect") or "")
-        wanted.setdefault(provider, set()).update([named] if named else speaks)
+        shared = sorted(set(speaks) & set(record.routes))
 
-    return wanted
-
-
-# ....................... #
+        if len(shared) == 1:
+            entry["dialect"] = shared[0]
 
 
-def _wire_facts(name: str, record: Provider, wanted: set[str]) -> dict[str, Any]:
-    """One provider record as the broker's three wire facts (S-0064/D-1).
+def _wire_facts(record: Provider, dialect: str) -> dict[str, Any]:
+    """One route of one provider as the broker's three wire facts (S-0064/D-1).
 
-    The broker forwards; it needs one upstream per provider and nothing about
-    the roster. A record may declare two dialects at two base URLs, and which
-    one the broker forwards to is decided by the seats rather than here —
-    picking would be the engine choosing a dialect in the one place nobody
-    would look for it.
-
-    Two seats on one provider wanting different dialects is refused rather than
-    guessed: the broker would need a route per pair, which is real work and not
-    this phase's. Nothing in this repository does it yet, and the refusal says
-    so in the words of the thing that would have to change.
+    The broker forwards; it needs one upstream per route and nothing about the
+    roster. A record serving two dialects is two entries on one credential,
+    because they are two upstreams that answer differently — the same reason a
+    route owns its compat facts rather than the provider.
     """
 
-    served = sorted(record.routes)
-    reachable = sorted(set(served) & wanted)
-
-    if not reachable:
-        # The seat cannot speak to this provider at all, which `_dialect` refuses
-        # by name once the model validates. Saying it here first would say it worse.
-        return {}
-
-    if len(reachable) > 1:
-        raise ValueError(
-            f"provider {name!r} serves {', '.join(served)} and its seats reach "
-            f"{', '.join(reachable)} — the broker forwards to one upstream per provider, so "
-            "two seats on one provider over two dialects need a route per pair. Name "
-            "`dialect` on the seats so they agree, until the broker keys routes by both"
-        )
-
-    route = record.routes[reachable[0]]
+    route = record.routes[dialect]
 
     return {"upstream": route.base_url, "key_env": record.key_env, "via_proxy": record.via_proxy}
 
@@ -1778,7 +1796,12 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     if records:
         config["provider_records"] = {name: record.model_dump() for name, record in records.items()}
-        merge_records(config.get("tiers") or {}, records)
+        # Order matters: a seat's dialect is what its route is named after, so it
+        # is resolved before the record's facts fold onto the seat.
+        tiers = config.get("tiers") or {}
+        speaks = {name: list(manifest.api) for name, manifest in all_harnesses(root).items()}
+        _resolve_dialects(tiers, speaks, records)
+        merge_records(tiers, records)
 
         if broker_block is None:
             broker_block = {}
@@ -1787,19 +1810,19 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
         if isinstance(broker_block, dict):
             # Anything else is a malformed `broker:` and stays that way — the
             # model's own refusal names it better than this injection could.
-            speaks = {name: list(manifest.api) for name, manifest in all_harnesses(root).items()}
-            wanted = _dialects_wanted(config.get("tiers") or {}, speaks)
-            # A provider no seat reaches gets no route. The broker forwards what
+            # A route no seat reaches gets no entry. The broker forwards what
             # seats actually use; `providers.default` is the policy of what the
             # repository's contents *may* reach, which is a different question and
             # answered in a different place.
-            broker_block["providers"] = {
-                name: _wire_facts(name, record, wanted[name])
-                for name, record in records.items()
-                if wanted.get(name)
+            reached = {
+                (str(entry.get("provider") or ""), str(entry.get("dialect") or ""))
+                for entry in tiers.values()
+                if isinstance(entry, dict) and entry.get("provider") and entry.get("dialect")
             }
             broker_block["providers"] = {
-                name: facts for name, facts in broker_block["providers"].items() if facts
+                route_name(provider, dialect): _wire_facts(records[provider], dialect)
+                for provider, dialect in sorted(reached)
+                if provider in records and dialect in records[provider].routes
             }
 
     try:

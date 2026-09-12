@@ -52,3 +52,18 @@ amendments:
       The second is the owner's, and it is worth recording as more than a preference. Every toolkit shipped its real work as a heredoc inside a shell script — dsh's model renderer, and all three equipment translators. A heredoc is a program nothing can run but the shell around it, and the cost had already been paid: the test covering dsh's renderer *split the heredoc back out of the script and exec'd it*, which is a copy of the shipped thing pretending to be the shipped thing. They are four `.py` files now, each runnable on its own, and the test runs the file the image installs. The seam's own test also stops reading `equip` alone and reads the whole toolkit, since that is what "how this image equips itself" has always meant.
 
       One thing this did not fix and should not pretend to: `src/torve/config/providers.py` has been reverted twice now because a repo-wide `ruff format` reformats one line of it. The gate battery runs `ruff check`, not `ruff format --check`, so an unformatted file can and did land. That is a gate gap rather than this phase's work.
+  - id: A-6
+    at: '2026-09-12T13:58:43Z'
+    title: >-
+      The broker keys a route by provider and dialect, as phase 2 said it would have
+      to
+    md: |-
+      Phase 4 is a measurement phase and its scope was configuration and a definition test, deliberately: a repair the live run forces is an amendment that says what was found. This is that amendment, and what was found is the thing phase 2 wrote down when it declined to do it.
+
+      That phase keyed a broker route by provider and refused two seats on one provider wanting different dialects, in the words of the change that would have to happen: *the broker forwards to one upstream per provider, so two seats on one provider over two dialects need a route per pair*. Configuring the seat this document exists to make expressible — claude on ModelStudio's Anthropic route, beside dsh on its OpenAI one — hit exactly that refusal on the first load. A route is a provider and a dialect together now, and a seat carries the name the broker knows its route by so nothing downstream re-derives it.
+
+      Two things the change surfaced that a test would not have. A seat's dialect has to be *resolved* rather than left implied, because the route is named after it and a seat that named none was getting a route named after nothing — which meant resolution had to move ahead of the record merge, not after it. And `open_dispatch` was still looking a route up by provider name, which no test caught because until now those were the same string; the live run found it in one line.
+
+      The seats are proved rather than argued: claude reached qwen3.8-flash over `/apps/anthropic` through the broker in one attempt, 16 brokered requests, and dsh reached the same model on the same credential over `/compatible-mode/v1`. The cost reads `unreported` on both, which is S-0064/D-12 behaving: ModelStudio carries no price because it is billed by quota, so the ledger says nothing rather than inventing a number.
+
+      The live run found one more thing, and it was mine. T-0355 raised `agent_timeout` to 2200 and left `sandbox_timeout` at 1800, so the agent clock became unreachable: the dsh seat died at 1800.2s booked as `agent_error`, an infrastructure failure, where the truth was a model that needed eight minutes more. The two numbers are not independent and the engine no longer pretends they are — an `agent_timeout` at or past its sandbox is refused with the reason. Re-run inside the corrected clocks, dsh finished in 504.9s.

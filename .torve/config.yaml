@@ -8,7 +8,10 @@ schema_version: 1
 runtime:
   adapter: docker            # docker | opensandbox
   image: python:3.13-slim
-  sandbox_timeout: 1800      # platform-enforced lifecycle bound, seconds
+  # Strictly outside `agent_timeout`, and refused otherwise: T-0361 died at
+  # 1800.2s as an infrastructure failure while the agent clock said 2200,
+  # which read as a broken sandbox where the truth was a slow model.
+  sandbox_timeout: 2700      # platform-enforced lifecycle bound, seconds
   # Raised from 1200 after T-0350: attempt 1 hit the cap at 1200.3s mid-write on a
   # structural task and attempt 2 finished the same work in 987s, so the phase needed
   # ~2200s and got it as two attempts and a continuation. A seat may name its own
@@ -91,6 +94,14 @@ tiers:
     # which it reaches (S-0064/D-4). pi-ai's overlay is openai-completions
     # today; the anthropic route is the same credential and a different seat.
     dialect: openai
+  # The same credential and the same model, reached over the other dialect
+  # (S-0064 phase 4). claude speaks only Anthropic Messages; ModelStudio serves
+  # it at /apps/anthropic, so this seat is a configuration rather than a port.
+  executor.qwen-claude:
+    harness: claude-subscription
+    model: qwen3.8-flash
+    provider: modelstudio
+    dialect: anthropic
   reviewer: {harness: fake}
 
 # RFC 0004 §6b, D-4.8: which providers this repository's contents may reach,

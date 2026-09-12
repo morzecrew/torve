@@ -512,7 +512,7 @@ def test_a_provider_record_is_projected_onto_the_broker_at_load(tmp_path: Path):
     )
 
     # The broker forwards, so it gets exactly the three facts it needs.
-    routed = config.broker.providers["modelstudio"]
+    routed = config.broker.providers["modelstudio.openai"]
     assert routed.upstream == "https://p.example/compatible-mode/v1"
     assert routed.key_env == "MODELSTUDIO_CODING_API_KEY"
     assert routed.via_proxy is True
@@ -542,7 +542,7 @@ def test_a_record_needs_no_broker_block_to_be_read(tmp_path: Path):
     )
 
     assert set(config.provider_records) == {"deepseek"}
-    assert config.broker.providers["deepseek"].upstream == "https://api.deepseek.com"
+    assert config.broker.providers["deepseek.openai"].upstream == "https://api.deepseek.com"
 
 
 def test_broker_providers_in_the_configuration_is_refused_naming_where_it_went(tmp_path: Path):
@@ -576,31 +576,41 @@ TWO_DIALECTS = (
 )
 
 
-def test_a_seat_that_could_reach_two_dialects_says_which(tmp_path: Path):
-    """The broker forwards to one upstream per provider, so a seat whose harness
-    and provider share two dialects has a choice to make and makes it
-    (S-0064/D-4). The engine picking would be a decision in the one place nobody
-    would look for it."""
+def test_two_seats_on_one_provider_get_a_route_each(tmp_path: Path):
+    """The broker keyed a route by provider while every record served one
+    dialect, and refused two seats that wanted different ones — naming the work
+    in the words of the thing that had to change. A route is a provider and a
+    dialect together now (S-0064/D-2): two upstreams that answer differently are
+    two routes on one credential."""
 
     root = tmp_path / "repo"
     root.mkdir(exist_ok=True)
     provider(root, "modelstudio", TWO_DIALECTS)
     seated(tmp_path)
+    harness(root, "anthropic-only", "adapter: api\nimage: probe-sandbox\napi: [anthropic]\n")
+    config = load(
+        tmp_path,
+        "schema_version: 1\nbroker: {adapter: local}\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        "  executor: {harness: dialled, provider: modelstudio, model: qwen3.8-flash,"
+        " dialect: openai}\n"
+        "  executor.other: {harness: anthropic-only, provider: modelstudio,"
+        " model: qwen3.8-flash}\n",
+    )
 
-    def seat(extra: str = "") -> str:
-        return (
-            "schema_version: 1\nbroker: {adapter: local}\ntiers:\n"
-            "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
-            "  executor: {harness: dialled, provider: modelstudio,"
-            f" model: qwen3.8-flash{extra}}}\n"
-        )
+    assert sorted(config.broker.providers) == ["modelstudio.anthropic", "modelstudio.openai"]
+    assert (
+        config.broker.providers["modelstudio.anthropic"].upstream
+        == "https://p.example/apps/anthropic"
+    )
 
-    with pytest.raises(ValueError, match="need a route per pair"):
-        load(tmp_path, seat())
+    # The seat carries the name the broker knows its route by, so nothing
+    # downstream has to re-derive it.
+    assert config.tiers["executor"].route == "modelstudio.openai"
 
-    chosen = load(tmp_path, seat(", dialect: anthropic"))
-
-    assert chosen.broker.providers["modelstudio"].upstream == "https://p.example/apps/anthropic"
+    # A seat that names no dialect where its harness and provider share only
+    # one gets it resolved rather than left implied.
+    assert config.tiers["executor.other"].dialect == "anthropic"
 
 
 def test_a_malformed_record_refuses_the_whole_load_by_path(tmp_path: Path):

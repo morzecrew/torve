@@ -781,12 +781,13 @@ class HarnessAgent:
             # the base URL its record names, with its own credential.
             return {"TORVE_BASE_URL": self.tier.base_url, "TORVE_API_KEY_ENV": self.tier.key_env}
 
-        url = ctx.broker.url_for(self.tier.provider)
+        route = self.tier.route or self.tier.provider
+        url = ctx.broker.url_for(route)
 
         if url is None:
             raise ValueError(
                 f"the broker routes {sorted(ctx.broker.base_urls)} but not the tier's "
-                f"provider {self.tier.provider!r} — the run's routing is missing it"
+                f"route {route!r} — the run's routing is missing it"
             )
 
         # The run-scoped token is a value the engine minted and legitimately

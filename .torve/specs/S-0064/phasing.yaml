@@ -114,12 +114,20 @@ phasing:
     title: one provider, two dialects, two live seats
     intent: |-
       What the document is for, proved the way S-0063's third phase proved the seam: not against tests but against the real images. One ModelStudio record, two routes, two seats — claude on `anthropic` and dsh on `openai` — both reaching qwen3.8-flash through one credential, both reporting reasoning tokens above zero. A brokered and an unbrokered run of the same seat must differ in no file the image reads.
-      The scope is configuration and the definition test, deliberately: a repair the live run forces is an amendment that says what was found, the way S-0063's own third phase took the claude script after a pipe bug turned up in dsh.
+      The scope is configuration and the definition test, deliberately: a repair the live run forces is an amendment that says what was found, the way S-0063's own third phase took the claude script after a pipe bug turned up in dsh. The repair it forced is the one phase 2 named when it refused: the broker keyed a route by provider, and two seats on one provider over two dialects need one per pair.
     scope:
+      - src/torve/config/runconfig.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/dispatch.py
       - .torve/providers/**
       - .torve/config.yaml
       - .torve/harnesses/**
+      - tests/test_runconfig.py
+      - tests/test_broker.py
+      - tests/test_dispatch.py
       - tests/test_sandbox_defs.py
+      - tests/test_runner.py
+      - tests/test_tiering.py
       - CHANGELOG.md
     acceptance:
       - uv run pytest
