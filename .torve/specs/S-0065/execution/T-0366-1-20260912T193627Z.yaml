@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0366
+phase: 1
+base: 3bb8678b5d4cacbda16626760904f26d3b654da2
+commit: 38f8b467537d3c07c720fa672bb7b72a14871515
+at: '2026-09-12T19:36:27Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-12T19:28:06Z'
+    claim: >-
+      D-4 says an attempt record without a base sha is refused at the writer. Implemented
+      as: refused when the record names no sha at all — merge_base and head both empty,
+      which is the exact shape of the eighteen unjoinable rows in the stream. A repository
+      whose base does not resolve (a fresh repo with no origin/main and no main) still
+      writes its own head sha, and the contract is readable at that sha, so such a
+      row is joinable and is written. Refusing on merge_base alone would refuse real
+      attempts that a rate can count.
+    evidence: >-
+      tests/test_broker.py:908 - the brokered-attempt case drives a worktree built
+      by 'git init' with one commit and no origin/main, so resolve_base returns None
+      and a merge_base-only refusal escalates a real attempt that is joinable at its
+      head sha.
+    action: departed
+    proposal: >-
+      An attempt record that names no sha at all — neither the base sha nor the attempt's
+      own head — is refused at the writer, naming both fields.
