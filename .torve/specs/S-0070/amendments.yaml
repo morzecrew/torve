@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-12T20:16:39Z'
+    title: >-
+      phase 1 names the test file of the module it allows
+    md: |
+      `torve plan` refused to mint phase 1: the scope allowed
+      `src/torve/application/decisions.py` and not `tests/test_decisions.py`, which is
+      the T-0113 rule — a contract that may change a module but not that module's tests
+      has quietly forbidden test-driven work on it, and the battery cannot catch it
+      because the scope gate judges a diff against the contract.
+
+      Worth recording rather than fixing quietly: this is the same rule that produced
+      every measured lint refusal on the hand-minted path, and S-0067/D-6 exists to
+      state it where a session reads it. It was violated here by the author of that row,
+      in a document about checks that pass where they should not, one commit after
+      accepting it. The drafted path caught it before anything was minted, which is the
+      asymmetry S-0067 is about.
