@@ -15,6 +15,7 @@ phasing:
       - src/torve/config/agents.py
       - src/torve/application/session.py
       - src/torve/application/telemetry.py
+      - src/torve/application/dispatch.py
       - src/torve/cli/init.py
       - src/torve/cli/doctor.py
       - .torve/providers/**
@@ -28,6 +29,7 @@ phasing:
       - tests/test_session.py
       - tests/test_doctor.py
       - tests/test_broker.py
+      - tests/test_dispatch.py
       - src/torve/config/AGENTS.md
       - src/torve/application/AGENTS.md
       - CHANGELOG.md

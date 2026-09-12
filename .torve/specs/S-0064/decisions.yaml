@@ -169,6 +169,25 @@ decisions:
       repository reaches reject the role — so a modelled flag would say `false` almost
       every time
     cites: [D-7, D-10]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      A model entry may carry `price`, and where it does the attempt's cost is computed
+      from the record and the token counts; a harness's self-reported cost is kept
+      beside it as the adapter's claim and is never the number. Where it does not,
+      cost stays unreported rather than invented.
+    paths: [src/torve/config/providers.py, src/torve/application/dispatch.py]
+    consequence: >-
+      the ledger stops depending on whether a harness recognises the model it was
+      pointed at, and the divergence check compares two numbers that are both about
+      this call — torve's arithmetic against the broker's metering — instead of comparing
+      a rate card to reality
+    rationale: >-
+      measured: claude emits `unrecognized_model` for qwen3.8-flash and then prices
+      the attempt at $0.174 off its Anthropic table, while the broker meters the same
+      call correctly — the engine could already see the disagreement and had nothing
+      to resolve it with
+    cites: [D-1, D-3, S-0055/D-4]
 invariants:
   - id: I-1
     statement: >-

@@ -42,7 +42,7 @@ goals: |-
 non_goals: |-
   - Translating between dialects. The broker forwards; it does not rewrite a request from one API shape into another, and the measurement that makes this document possible is precisely that no translation is needed.
   - Modelling every quirk. A value torve cannot validate rides through untouched and visibly so; inventing a name for it would be a schema the engine has to keep up with across three harnesses (S-0063/D-3's argument).
-  - Cost accounting. A harness that does not recognise its own model prices an attempt off the wrong rate card — measured, claude billed a qwen attempt at Anthropic rates — and the fix is to trust the broker's metering, which is a separate concern from this one.
+  - The cost surfaces themselves — the evals ledger, the per-regime medians, the anomaly thresholds. What this document adds is the one fact those surfaces lack (D-12): a price beside the model, so the number they read is computed rather than believed. How they present it is unchanged.
   - Per-role reasoning. The level is the seat's because it must validate against the model, and the model is the seat's.
 tests: |-
   Every row here is provable without a model in the loop, which is what makes this document cheap to verify.
@@ -67,7 +67,7 @@ risks: |-
 
   **A route's compat facts are measured, and measurements go stale.** The record dates them; nothing re-measures them. A provider that fixes its `developer` role handling leaves a flag saying otherwise, and the cost is a request shaped more conservatively than it needed to be — a degradation, never a failure. The alternative, deriving them, is worse: it means probing an endpoint at dispatch.
 
-  **Cost telemetry is already wrong for a cross-dialect seat and this makes such seats easy.** claude priced a qwen attempt at `$0.174` off its own rate card. Making the seat expressible multiplies the occasions; the broker's metering is the number to trust and the anomaly check already compares the two (`broker.cost_tolerance`). Named here because the document would otherwise be the reason it starts mattering.
+  **A price in the record is a number that goes stale against a vendor's billing page.** D-12 moves the ledger off a harness's rate card and onto torve's own, which is only an improvement while someone maintains it. The mitigation is already in the loop rather than in a process: the broker meters every call, and `broker.cost_tolerance` compares that against what the record computes — so a stale price shows up as a `cost_divergence` event on the next attempt, not as a quiet drift in the medians.
 alternatives:
   - option: >-
       A translating broker: one dialect in, whichever the provider speaks out
@@ -82,11 +82,14 @@ alternatives:
       Keep it inline: extra fields on `broker.providers.<name>` plus a `models:` map
     rejected_because: >-
       The smaller diff, and it fixes the regression just as well — this is the closest
-      alternative, not a strawman. It loses on two counts. `--config` takes an arbitrary
-      path, so a component reached at dispatch with a root and no configuration in
-      hand cannot read a provider without being given one; and a provider record is
-      measured and dated, so it accretes, while `config.yaml` is already long. S-0061
-      split three files apart for the second reason alone.
+      alternative, not a strawman. It loses on two mechanical counts and one the owner
+      settled. `--config` takes an arbitrary path, so a component reached at dispatch
+      with a root and no configuration in hand cannot read a provider without being
+      handed one; and a provider record is measured and dated, so it accretes, while
+      `config.yaml` is already long. The third is the standing preference this document
+      was written under: stable and coherent over small. A smaller diff that leaves
+      one more thing living somewhere it does not belong is not the cheaper option,
+      it is the deferred one.
     cites: [D-1, S-0061/D-1]
   - option: >-
       Reasoning effort on the agent profile, so a role can ask for more thinking
@@ -115,13 +118,9 @@ alternatives:
     cites: [D-2]
 questions:
   - id: Q-1
-    text: >-
-      Should a model entry carry its price, so cost telemetry stops trusting a harness's
-      own rate card? Measured: claude does not recognise qwen3.8-flash, emits `unrecognized_model`,
-      and then prices the attempt at $0.174 off its Anthropic table. The broker meters
-      the same call correctly, and `broker.cost_tolerance` already compares the two
-      — so the engine can detect the disagreement today and cannot resolve it. Adding
-      price here would let it, and would also make the record something an operator
-      has to keep current against a vendor's billing page. Deliberately left open:
-      this document makes cross-dialect seats easy to express, which is what turns
-      an existing wrong number into a frequent one.
+    text: |-
+      Should a model entry carry its price, so cost telemetry stops trusting a harness's own rate card? Measured: claude does not recognise qwen3.8-flash, emits `unrecognized_model`, and then prices the attempt at $0.174 off its Anthropic table. The broker meters the same call correctly, and `broker.cost_tolerance` already compares the two — so the engine can detect the disagreement today and cannot resolve it. Adding price here would let it, and would also make the record something an operator has to keep current against a vendor's billing page. Deliberately left open: this document makes cross-dialect seats easy to express, which is what turns an existing wrong number into a frequent one.
+
+      Settled by the owner: worth adding. A record an operator keeps current against a vendor's page is a smaller cost than a ledger nobody can trust, and an absent price is already a shape the telemetry has — a subscription seat has no per-token cost and says so.
+    status: settled
+    settled_by: D-12
