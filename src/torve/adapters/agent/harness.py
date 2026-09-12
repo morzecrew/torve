@@ -50,6 +50,11 @@ PACK_RELPATH = ".torve/context"
 # turns the equipment manifest into whatever its harness needs, the other
 # invokes the harness. The engine runs `equip` and then `run`, and knows
 # nothing about either beyond their paths.
+# The variable a brokered run's token rides in. `TORVE_API_KEY_ENV` names it, so
+# an image dereferences one name whether the credential is the run's or the
+# provider's own (S-0064/D-8).
+RUN_TOKEN = "TORVE_RUN_TOKEN"
+
 EQUIP = "/opt/torve/equip"
 RUN = "/opt/torve/run"
 
@@ -59,10 +64,11 @@ RUN = "/opt/torve/run"
 # to agree.
 RESULT_RELPATH = ".torve/tmp/result-{attempt}.json"
 
-# The broker handle's fields reach the sandbox as `TORVE_BROKER_URL` and
-# `TORVE_BROKER_TOKEN` (S-0063/D-5), where a placeholder substituted into a
-# shell string used to carry them. A broker URL and a run-scoped token are
-# operator non-secret knobs, exactly the channel S-0017/configuration-routes-by-nature already assigns them.
+# The broker handle's fields used to reach the sandbox as `TORVE_BROKER_URL` and
+# `TORVE_BROKER_TOKEN` (S-0063/D-5), which told an image whether a broker was in
+# force by their presence and gave three of them something to branch on. They
+# fold into `TORVE_BASE_URL` and `TORVE_API_KEY_ENV` (S-0064/D-8): the same two
+# facts, carried whichever way the seat reaches its provider.
 
 
 # ....................... #
@@ -594,6 +600,43 @@ class HarnessResult(AgentResult):
 RAW_TRACE_RELPATH = ".torve/tmp/harness-output.a{attempt}.raw"
 
 
+def _only(tier: TierConfig) -> str:
+    """The dialect a seat reaches when it names none: the single one its harness
+    and its provider share. More than one is refused when the seat resolves, so
+    by here there is nothing to choose between."""
+
+    return tier.api[0] if len(tier.api) == 1 else ""
+
+
+def _plain(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def _measured(tier: TierConfig) -> dict[str, str]:
+    """The record's numbers, in torve's units, omitted when unstated.
+
+    Absent rather than zero: a window nobody measured is not a window of zero,
+    and an image asked to configure one would write a cap no endpoint agreed
+    to. Seconds, because that is what a duration is here — an image talking to
+    a harness that wants milliseconds multiplies in the file that knows it.
+    """
+
+    stated = {
+        "TORVE_CONTEXT_WINDOW": tier.context_window,
+        "TORVE_MAX_TOKENS": tier.max_tokens,
+        "TORVE_REQUEST_TIMEOUT_S": tier.request_timeout_s,
+        "TORVE_STREAM_IDLE_TIMEOUT_S": tier.stream_idle_timeout_s,
+    }
+    # `600.0` is the same duration as `600` and a worse thing to hand a shell,
+    # so a whole number is written whole.
+    env = {name: _plain(value) for name, value in stated.items() if value}
+
+    if tier.reasoning:
+        env["TORVE_REASONING"] = tier.reasoning
+
+    return env
+
+
 def _equip_root(declared: str, workdir: str) -> str:
     """Where the image should write equipment it cannot read from the mount.
 
@@ -683,11 +726,16 @@ class HarnessAgent:
         return f"export {exported}; {EQUIP} && {RUN}"
 
     def _env(self, ctx: AgentContext) -> dict[str, str]:
-        """The seam (S-0063/D-2), in the order an image reads it.
+        """The seam (S-0063/D-2, S-0064/D-7): one flat set of scalars in torve's
+        own vocabulary and units, which each image assembles into whatever its
+        harness reads.
 
-        `TORVE_BROKER_*` are absent when no broker is in force — an absent
-        variable is how an image is told there is none, and an empty one would
-        read as a broker at the empty URL.
+        Nothing here says whether a broker is in force. Brokered and direct
+        differ in the *value* of `TORVE_BASE_URL` and in which variable
+        `TORVE_API_KEY_ENV` names, never in whether a variable is present
+        (S-0064/D-8) — so no image has anything left to branch on, and mimo's
+        refusal of a brokered seat became a deletion rather than an
+        implementation.
         """
 
         # Absolute, from the workdir the runtime mounted the worktree at: the
@@ -695,7 +743,6 @@ class HarnessAgent:
         # would be one `cd` away from naming nothing.
         env = {
             "TORVE_PROMPT": f"{ctx.workdir}/{PROMPT_RELPATH}",
-            "TORVE_MODEL": self.tier.model,
             "TORVE_EQUIPMENT": EQUIPMENT_MOUNT,
             # Where this harness reads equipment from inside the workspace
             # (S-0063/D-19). Empty for a harness that reads the mount itself,
@@ -704,13 +751,35 @@ class HarnessAgent:
             "TORVE_OUTPUT": f"{ctx.workdir}/{RESULT_RELPATH}".replace(
                 "{attempt}", str(ctx.attempt)
             ),
+            "TORVE_PROVIDER": self.tier.provider,
+            "TORVE_API": self.tier.dialect or _only(self.tier),
+            # What travels, not what the seat typed: a roster key may be a local
+            # shorthand for a slug awkward to write into a seat (S-0064/D-3).
+            "TORVE_MODEL": self.tier.model_id or self.tier.model,
+            **_measured(self.tier),
+            **self._wire(ctx),
             **self.tier.env,
         }
 
+        return env
+
+    # ....................... #
+
+    def _wire(self, ctx: AgentContext) -> dict[str, str]:
+        """Where this attempt dials and which variable holds the key for it.
+
+        The credential is named rather than carried. `docker -e NAME` reads the
+        value out of the invoking environment, so the secret never transits
+        torve or the spec (S-0001/D-13) — which is exactly why one variable
+        cannot hold the value in both cases, and why the image dereferences a
+        name it is given instead of testing for a broker.
+        """
+
         if ctx.broker is None or not ctx.broker.base_urls:
             # The none adapter's handle routes nothing (S-0021/D-9), which is
-            # the same as no handle: the seat reaches its provider directly.
-            return env
+            # the same as no handle: the seat reaches its provider directly, at
+            # the base URL its record names, with its own credential.
+            return {"TORVE_BASE_URL": self.tier.base_url, "TORVE_API_KEY_ENV": self.tier.key_env}
 
         url = ctx.broker.url_for(self.tier.provider)
 
@@ -720,7 +789,14 @@ class HarnessAgent:
                 f"provider {self.tier.provider!r} — the run's routing is missing it"
             )
 
-        return {**env, "TORVE_BROKER_URL": url, "TORVE_BROKER_TOKEN": ctx.broker.token}
+        # The run-scoped token is a value the engine minted and legitimately
+        # holds, so it is set rather than forwarded; the image dereferences the
+        # same way either way.
+        return {
+            "TORVE_BASE_URL": url,
+            "TORVE_API_KEY_ENV": RUN_TOKEN,
+            RUN_TOKEN: ctx.broker.token,
+        }
 
     # ....................... #
 

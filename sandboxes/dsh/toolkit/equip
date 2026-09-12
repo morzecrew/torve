@@ -9,7 +9,7 @@
 #     add one; an unknown id fails at boot with `patch: entry "..." not found`.
 #     So a plugin is installed first and patched after (S-0063/D-17).
 #   * A model is a patch like everything else, so no model file is baked: this
-#     renders one from the seat's `env` (S-0063/D-15).
+#     renders one from the scalars the engine names (S-0063/D-15, S-0064/D-7).
 set -eu
 
 ARGS=/tmp/torve-equip.args
@@ -18,98 +18,9 @@ MODEL=/tmp/torve-model.yml
 : > "$MODEL"
 
 # ....................... #
-# The model, from the seat rather than from the image
+# The model, from the scalars the engine names (S-0064/D-7)
 
-if [ -n "${DSH_MODEL:-}" ]; then
-    python3 - "$MODEL" <<'PY'
-import json
-import os
-import sys
-
-# One knob, because a model catalog entry is several values that only make
-# sense together — a provider, an API dialect, a window and a cap. Splitting it
-# into four variables would let three of them be right and one stale.
-spec = json.loads(os.environ["DSH_MODEL"])
-model = os.environ.get("TORVE_MODEL") or spec["model"]
-provider = spec["provider"]
-brokered = bool(os.environ.get("TORVE_BROKER_URL"))
-lines = []
-
-# A provider reached through the broker declares its own catalog: overriding a
-# baseURL detaches the installed one, so the route has to say what it serves.
-if brokered:
-    lines += [
-        "- id: llm-pi-ai",
-        "  config:",
-        "    providers:",
-        f"      {provider}:",
-        f"        api: {spec.get('api', 'openai-completions')}",
-        "        baseURL: !!js process.env.TORVE_BROKER_URL",
-        "        apiKeyEnv: TORVE_BROKER_TOKEN",
-    ]
-
-    # Facts about the endpoint, not about the model: the same four values were
-    # copy-pasted identically into five of the seven overlays this knob
-    # replaced, and dropping the files dropped them. A hard per-request cap with
-    # an idle backstop is the fix for a wedged-but-trickling stream, which once
-    # idled two attempts to the full agent cap and reads as a slow model.
-    for key, field in (
-        ("timeout_ms", "timeoutMs"),
-        ("stream_idle_timeout_ms", "streamIdleTimeoutMs"),
-    ):
-        if spec.get(key):
-            lines.append(f"        {field}: {spec[key]}")
-
-    # Written in dsh's own vocabulary and passed through: torve has no provider
-    # record to own these yet, and inventing names for them here would be a
-    # schema this image would have to keep up with.
-    if spec.get("compat"):
-        lines.append("        compat:")
-        lines += [
-            f"          {key}: {json.dumps(value)}" for key, value in spec["compat"].items()
-        ]
-
-    # `reasoningEfforts: false` strips the capability from a reasoning model:
-    # measured, every trace of the seat that ran without this read
-    # `reasoningTokens: 0` while the endpoint itself returned reasoning tokens
-    # for the same prompt. The effort level is the seat's; the map is what makes
-    # any level reachable.
-    effort = spec.get("reasoning") or ""
-
-    if effort:
-        lines.append(f"        reasoning: {effort}")
-
-    lines += [
-        "        models:",
-        f"          - id: {model}",
-        f"            name: {model}",
-        f"            contextWindow: {spec.get('context_window', 128000)}",
-        f"            maxTokens: {spec.get('max_tokens', 8192)}",
-        "            input: [text]",
-    ]
-
-    if effort:
-        lines += [
-            "            reasoningEfforts:",
-            "              off:",
-            "              low: low",
-            "              medium: medium",
-            "              high: high",
-        ]
-    else:
-        lines.append("            reasoningEfforts: false")
-
-lines += [
-    "- id: agent-default-model",
-    "  config:",
-    f"    provider: {provider}",
-    f"    model: {model}",
-]
-
-with open(sys.argv[1], "w", encoding="utf-8") as handle:
-    handle.write("\n".join(lines) + "\n")
-PY
-fi
+python3 /opt/torve/model_overlay.py "$MODEL"
 
 # ....................... #
 # The equipment
@@ -120,64 +31,7 @@ fi
 OVERLAY=/tmp/torve-equipment.yml
 : > "$OVERLAY"
 
-python3 - "$TORVE_EQUIPMENT/manifest.json" "$OVERLAY" <<'PY'
-import json
-import os
-import shutil
-import subprocess
-import sys
-
-manifest, overlay = sys.argv[1], sys.argv[2]
-
-with open(manifest, encoding="utf-8") as handle:
-    items = json.load(handle).get("items", [])
-
-# Where the engine told this harness to put equipment (S-0063/D-19). dsh's
-# skill plugin watches `.agents/skills` and `.dsh/skills`; the first is the
-# convention a repository keeps its *own* reviewed skills in — writing there
-# overwrites them, and `git add -A` commits the overwrite before any gate can
-# object. So the manifest names the second and the engine excludes it.
-SKILLS = os.environ.get("TORVE_EQUIP_ROOT") or ""
-
-fragments = []
-
-for item in items:
-    kind, path = item["kind"], item["path"]
-
-    if kind == "skill":
-        if not SKILLS:
-            raise SystemExit(
-                "this harness reads skills from the workspace and the engine named no "
-                "`TORVE_EQUIP_ROOT` — the manifest owes an `equip_root` (S-0063/D-19)"
-            )
-
-        target = os.path.join(SKILLS, os.path.basename(path.rstrip("/")))
-        shutil.copytree(path, target, dirs_exist_ok=True)
-        continue
-
-    if kind == "plugin":
-        # Installed before it is patched, because `--patch` cannot add an entry
-        # (S-0063/D-17). pnpm reads the mount, never the registry: the fetch
-        # already happened host-side (S-0062/D-4).
-        subprocess.run(
-            ["dsh", "plugin", "--profile", "headless", "add", path],
-            check=True,
-        )
-        continue
-
-    # Every other kind is a patch the operator wrote in dsh's own vocabulary:
-    # an MCP server, a hook and an agent are all plugin entries here, and a
-    # document torve invented would be a schema it does not know. It must name
-    # an entry the profile already carries — `equip` cannot check that without
-    # booting dsh, so a wrong one fails at boot with dsh's own message, which
-    # names the entry and is clearer than anything repeated here.
-    with open(path, encoding="utf-8") as handle:
-        fragments.append(handle.read().rstrip("\n"))
-
-if fragments:
-    with open(overlay, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(fragments) + "\n")
-PY
+python3 /opt/torve/equip_patch.py "$TORVE_EQUIPMENT/manifest.json" "$OVERLAY"
 
 if [ -s "$OVERLAY" ]; then
     printf -- '--patch %s' "$OVERLAY" > "$ARGS"

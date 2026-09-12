@@ -40,3 +40,15 @@ amendments:
       Both corrections share a cause worth stating plainly: a phase's scope was written from the decisions it implements rather than from the surfaces those decisions touch, and a decision's own `paths` are where it is *decided*, never the full set of places that consult it. Nothing automatic catches this — `lint-contract` checks a contract against the tree, not against work that has not happened yet — so the honest mitigation is to widen at authoring and let the scope gate convict a phase that reaches past what it declared, rather than the reverse.
 
       The scope also takes `.torve/providers/**`, which is not strictly this phase's work. Three records land with it — OpenRouter, DeepSeek's own two models, and the Anthropic route on ModelStudio — and they are what made the refusals real rather than theoretical: every one of those providers serves two dialects, which is precisely what forced a seat to say which it reaches instead of the engine picking. A phase that could only be tested against one single-dialect provider would have shipped a refusal nobody had seen fire.
+  - id: A-5
+    at: '2026-09-12T12:57:03Z'
+    title: >-
+      Phase 3 reaches the seat, and the toolkits stop hiding python in heredocs
+    md: |-
+      Two widenings, one of them a change of shape rather than of scope.
+
+      `src/torve/config/runconfig.py` joins the phase because the record's facts have to reach the *seat*, not the adapter. `HarnessAgent` is constructed with a tier and nothing else, and its three call sites live in `cli/`, outside every phase of this document — so a base URL, a credential's variable name, a model id and the measured numbers merge onto the seat exactly the way the harness manifest's fields already do. The alternative was threading a configuration through an adapter constructor to reach fields the seat could simply carry, which is the split leaking out of the files it belongs in.
+
+      The second is the owner's, and it is worth recording as more than a preference. Every toolkit shipped its real work as a heredoc inside a shell script — dsh's model renderer, and all three equipment translators. A heredoc is a program nothing can run but the shell around it, and the cost had already been paid: the test covering dsh's renderer *split the heredoc back out of the script and exec'd it*, which is a copy of the shipped thing pretending to be the shipped thing. They are four `.py` files now, each runnable on its own, and the test runs the file the image installs. The seam's own test also stops reading `equip` alone and reads the whole toolkit, since that is what "how this image equips itself" has always meant.
+
+      One thing this did not fix and should not pretend to: `src/torve/config/providers.py` has been reverted twice now because a repo-wide `ruff format` reformats one line of it. The gate battery runs `ruff check`, not `ruff format --check`, so an unformatted file can and did land. That is a gate gap rather than this phase's work.

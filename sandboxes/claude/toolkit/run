@@ -11,6 +11,8 @@ set -eu
 
 : "${TORVE_PROMPT:?the engine names the prompt file}"
 : "${TORVE_MODEL:?the engine names the model}"
+: "${TORVE_BASE_URL:?the engine names where to dial}"
+: "${TORVE_API_KEY_ENV:?the engine names the variable holding the credential}"
 : "${TORVE_OUTPUT:?the engine names where the result goes}"
 
 # The credential arrives by name and nothing is mounted (S-0063/D-18):
@@ -23,18 +25,17 @@ set -eu
 # state under it.
 mkdir -p "$HOME/.claude"
 
-# The broker, when the run has one: claude reaches its provider through
-# ANTHROPIC_BASE_URL, and mapping the engine's two names onto the harness's is
-# exactly the translation this file exists for.
-if [ -n "${TORVE_BROKER_URL:-}" ]; then
-    ANTHROPIC_BASE_URL="$TORVE_BROKER_URL"
-    export ANTHROPIC_BASE_URL
-fi
+# Where this attempt dials, and the key for it. Nothing here asks whether a
+# broker is in force (S-0064/D-8): brokered or direct, the engine names one base
+# URL and one variable holding the credential, and mapping those onto the
+# harness's own names is exactly the translation this file exists for.
+ANTHROPIC_BASE_URL="$TORVE_BASE_URL"
+export ANTHROPIC_BASE_URL
 
-if [ -n "${TORVE_BROKER_TOKEN:-}" ]; then
-    ANTHROPIC_AUTH_TOKEN="$TORVE_BROKER_TOKEN"
-    export ANTHROPIC_AUTH_TOKEN
-fi
+# The engine names the variable rather than carrying the value: `docker -e NAME`
+# reads it out of the invoking environment, so the secret never transits torve.
+eval "ANTHROPIC_AUTH_TOKEN=\${$TORVE_API_KEY_ENV:-}"
+export ANTHROPIC_AUTH_TOKEN
 
 # `bypassPermissions`, not `acceptEdits`: acceptEdits auto-approves file writes
 # and a handful of filesystem commands, and *denies* every other Bash call. In

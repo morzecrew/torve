@@ -594,7 +594,7 @@ def test_sandbox_proxy_env_stays_forwarded_without_a_bind(tmp_path, monkeypatch)
 
 def harness_ctx(tmp_path: Path, tier: TierConfig, handle: BrokerHandle | None) -> AgentContext:
     workspace = tmp_path / "wt"
-    workspace.mkdir()
+    workspace.mkdir(parents=True, exist_ok=True)
     task = Task(id="T-9199", intent="x", scope=Scope(allow=["src/**"]), decisions=[])
     return AgentContext(
         task=task,
@@ -608,10 +608,10 @@ def harness_ctx(tmp_path: Path, tier: TierConfig, handle: BrokerHandle | None) -
     ), HarnessAgent(tier)
 
 
-def test_the_broker_reaches_the_image_as_two_variables(tmp_path):
-    """S-0063/D-5: `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`, where a
-    placeholder substituted into a shell string used to carry them. A
-    run-scoped token no longer passes through `str.replace` over shell."""
+def test_a_brokered_seat_dials_the_route_and_is_told_which_variable_holds_the_key(tmp_path):
+    """S-0064/D-8. The broker's two variables are gone; what an image gets is
+    one base URL and the name of one variable, and the run-scoped token rides in
+    the variable that name points at."""
 
     tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
     handle = BrokerHandle(
@@ -620,30 +620,71 @@ def test_the_broker_reaches_the_image_as_two_variables(tmp_path):
     ctx, agent = harness_ctx(tmp_path, tier, handle)
     env = agent._env(ctx)
 
-    assert env["TORVE_BROKER_URL"] == "http://127.0.0.1:9999/test-vendor"
-    assert env["TORVE_BROKER_TOKEN"] == "run-token"
+    assert env["TORVE_BASE_URL"] == "http://127.0.0.1:9999/test-vendor"
+    assert env["TORVE_API_KEY_ENV"] == "TORVE_RUN_TOKEN"
+    assert env["TORVE_RUN_TOKEN"] == "run-token"
+    assert "TORVE_BROKER_URL" not in env and "TORVE_BROKER_TOKEN" not in env
 
 
-def test_no_broker_sets_neither_variable(tmp_path):
-    """Absent, not empty: an absent variable is how an image is told there is
-    no broker, and an empty one reads as a broker at the empty URL."""
+def test_a_direct_seat_dials_its_record_and_names_its_provider_s_variable(tmp_path):
+    """The same two variables, different values — which is the point. An image
+    has nothing to branch on, so mimo's refusal of a brokered seat became a
+    deletion rather than an implementation.
 
-    tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
+    The credential is named, never carried: `docker -e NAME` reads the value out
+    of the invoking environment, so the secret never transits torve or the spec.
+    """
+
+    tier = TierConfig(
+        adapter="api",
+        provider=PROVIDER,
+        model="m",
+        image="probe-sandbox",
+        base_url="https://vendor.example/v1",
+        key_env="VENDOR_API_KEY",
+    )
     ctx, agent = harness_ctx(tmp_path, tier, None)
     env = agent._env(ctx)
 
-    assert "TORVE_BROKER_URL" not in env
-    assert "TORVE_BROKER_TOKEN" not in env
+    assert env["TORVE_BASE_URL"] == "https://vendor.example/v1"
+    assert env["TORVE_API_KEY_ENV"] == "VENDOR_API_KEY"
+    assert "TORVE_RUN_TOKEN" not in env
+
+    # The none adapter's handle routes nothing, which is the same as no handle.
+    routes_nothing, agent = harness_ctx(
+        tmp_path / "none", tier, BrokerHandle(token="", base_urls={})
+    )
+
+    assert agent._env(routes_nothing)["TORVE_BASE_URL"] == "https://vendor.example/v1"
 
 
-def test_the_none_broker_routes_nothing_and_sets_neither(tmp_path):
-    """S-0021/D-9's handle routes nothing, which is the same as no handle:
-    the seat reaches its provider directly."""
+def test_the_seam_carries_what_the_record_measured(tmp_path):
+    """The numbers an image would otherwise have had to be rebuilt to change
+    (S-0064/D-7), in torve's own units — and absent rather than zero where
+    nobody measured one."""
 
-    tier = TierConfig(adapter="api", provider=PROVIDER, model="m", image="probe-sandbox")
-    ctx, agent = harness_ctx(tmp_path, tier, BrokerHandle(token="", base_urls={}))
+    tier = TierConfig(
+        adapter="api",
+        provider=PROVIDER,
+        model="short",
+        model_id="vendor/long-slug-nobody-wants-to-type",
+        image="probe-sandbox",
+        api=["openai"],
+        context_window=1000000,
+        max_tokens=65536,
+        reasoning="medium",
+        request_timeout_s=600,
+    )
+    ctx, agent = harness_ctx(tmp_path, tier, None)
+    env = agent._env(ctx)
 
-    assert "TORVE_BROKER_URL" not in agent._env(ctx)
+    # What travels is the id, not the shorthand the seat writes (S-0064/D-3).
+    assert env["TORVE_MODEL"] == "vendor/long-slug-nobody-wants-to-type"
+    assert env["TORVE_PROVIDER"] == PROVIDER and env["TORVE_API"] == "openai"
+    assert env["TORVE_CONTEXT_WINDOW"] == "1000000"
+    assert env["TORVE_REASONING"] == "medium"
+    assert env["TORVE_REQUEST_TIMEOUT_S"] == "600"
+    assert "TORVE_STREAM_IDLE_TIMEOUT_S" not in env
 
 
 def test_harness_refuses_a_provider_the_broker_does_not_route(tmp_path):
@@ -673,7 +714,7 @@ def test_the_command_is_the_image_s_two_scripts(tmp_path):
     assert command.endswith("/opt/torve/equip && /opt/torve/run")
     assert "TORVE_PROMPT=" in command
     # The token is exported, not spliced into a flag someone has to quote.
-    assert "TORVE_BROKER_TOKEN=t" in command
+    assert "TORVE_RUN_TOKEN=t" in command
 
 
 # ....................... #
@@ -889,10 +930,10 @@ def _two_request_body() -> str:
 
     return (
         'python3 -c "import os,urllib.request,json;'
-        "H={'Authorization':'Bearer '+os.environ['TORVE_BROKER_TOKEN'],"
+        "H={'Authorization':'Bearer '+os.environ['TORVE_RUN_TOKEN'],"
         "'Content-Type':'application/json'};"
         "D=json.dumps({'model':'x'}).encode();"
-        "U=os.environ['TORVE_BROKER_URL']+'/v1/chat/completions';"
+        "U=os.environ['TORVE_BASE_URL']+'/v1/chat/completions';"
         "print(urllib.request.urlopen(urllib.request.Request(U,data=D,headers=H)).read().decode());"
         'print(urllib.request.urlopen(urllib.request.Request(U,data=D,headers=H)).read().decode())"'
     )
@@ -955,11 +996,11 @@ def test_brokered_attempt_reaches_ready_and_records_both_costs(tmp_path, upstrea
             # S-0063/D-5: the broker's URL and the run-scoped token reach the image
             # as two variables, where a placeholder in a shell string carried them.
             'python3 -c "import os,urllib.request,json;'
-            "H={'Authorization':'Bearer '+os.environ['TORVE_BROKER_TOKEN'],"
+            "H={'Authorization':'Bearer '+os.environ['TORVE_RUN_TOKEN'],"
             "'Content-Type':'application/json'};"
             "D=json.dumps({'model':'x'}).encode();"
             "print(urllib.request.urlopen(urllib.request.Request("
-            "os.environ['TORVE_BROKER_URL']+'/v1/chat/completions',data=D,headers=H)).read().decode());"
+            "os.environ['TORVE_BASE_URL']+'/v1/chat/completions',data=D,headers=H)).read().decode());"
             "print(json.dumps({'total_cost_usd':0.5,'model':'fake-model-9'}));"
             "print('ok')\" "
             "&& mkdir -p src && echo FEATURE = True > src/feature.py",
@@ -967,8 +1008,9 @@ def test_brokered_attempt_reaches_ready_and_records_both_costs(tmp_path, upstrea
         ),
         image="probe-sandbox",
     )
-    # S-0063/D-5: the broker's URL and the run-scoped token reach the image as
-    # two variables, where a placeholder in a shell string carried them.
+    # S-0064/D-8: the route and the run-scoped token reach the image as
+    # `TORVE_BASE_URL` and whatever `TORVE_API_KEY_ENV` names, which is the
+    # same pair a direct seat gets with different values.
     config = RunnerConfig(
         poison_ceiling=3,
         tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": tier},
@@ -1048,11 +1090,11 @@ def test_brokered_docker_run_sandbox_holds_no_key(repo, upstream, monkeypatch):
         model="fake-model-9",
         env=seam(
             'python3 -c "import os,urllib.request,json;'
-            "H={'Authorization':'Bearer '+os.environ['TORVE_BROKER_TOKEN'],"
+            "H={'Authorization':'Bearer '+os.environ['TORVE_RUN_TOKEN'],"
             "'Content-Type':'application/json'};"
             "D=json.dumps({'model':'x'}).encode();"
             "print(urllib.request.urlopen(urllib.request.Request("
-            "os.environ['TORVE_BROKER_URL']+'/v1/chat/completions',data=D,headers=H)).read().decode())\" "
+            "os.environ['TORVE_BASE_URL']+'/v1/chat/completions',data=D,headers=H)).read().decode())\" "
             "&& mkdir -p src && echo FEATURE = True > src/feature.py",
             monkeypatch,
         ),

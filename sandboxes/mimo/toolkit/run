@@ -5,15 +5,17 @@ set -eu
 : "${TORVE_PROMPT:?the engine names the prompt file}"
 : "${TORVE_OUTPUT:?the engine names where the result goes}"
 
-# A brokered seat is refused rather than run. mimo reaches a provider through
-# its own configuration, and torve has no mapping for the broker's two names
-# here — so a seat told to go through the broker would reach the provider
-# directly instead, which is the leak S-0055/D-4 exists to prevent. Better a
-# seat that will not start than one that quietly bypasses the wire.
-if [ -n "${TORVE_BROKER_URL:-}" ]; then
-    echo "this image has no broker route — a brokered mimo seat is not supported yet" >&2
-    exit 78  # EX_CONFIG
-fi
+# This image used to refuse a brokered seat outright: torve had no mapping for
+# the broker's two names here, so a seat told to go through the broker would
+# have reached the provider directly instead — the leak S-0055/D-4 exists to
+# prevent. There is nothing left to map (S-0064/D-8). One base URL and one named
+# variable arrive whether a broker is in force or not, so the refusal became a
+# deletion rather than an implementation.
+OPENAI_BASE_URL="$TORVE_BASE_URL"
+export OPENAI_BASE_URL
+
+eval "OPENAI_API_KEY=\${$TORVE_API_KEY_ENV:-}"
+export OPENAI_API_KEY
 
 set -- mimo run --format json --dangerously-skip-permissions
 

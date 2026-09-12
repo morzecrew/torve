@@ -13,7 +13,6 @@ that quietly stops existing.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
@@ -29,6 +28,22 @@ DEFINITIONS = Path("sandboxes")
 MANIFESTS = Path(".torve/harnesses")
 
 
+def toolkit(name: str) -> str:
+    """Everything a definition installs, as one text.
+
+    A test that means "what this image does when it equips itself" means the
+    whole toolkit: the shell entry point and the python it calls. Reading only
+    `equip` was right while the python was a heredoc inside it, and stopped
+    being right the moment the python became a file a test could run.
+    """
+
+    return "".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((DEFINITIONS / name / "toolkit").iterdir())
+        if path.is_file()
+    )
+
+
 class _Tolerant(yaml.SafeLoader):
     """dsh's overlay carries `!!js process.env...`, which is dsh's own tag and
     not this test's business — the shape around it is."""
@@ -37,30 +52,24 @@ class _Tolerant(yaml.SafeLoader):
 _Tolerant.add_constructor("tag:yaml.org,2002:js", lambda loader, node: node.value)
 
 
-def _render_dsh_model(spec: dict[str, Any], *, model: str, brokered: bool) -> Any:
-    """The overlay the shipped `equip` writes for this knob.
+def _render_dsh_model(**env: str) -> Any:
+    """The overlay the shipped renderer writes for this environment.
 
-    The generator is lifted out of the script and run, rather than
-    reimplemented here: a copy of the rendering logic would pass while the image
-    shipped something else, which is exactly how `reasoningEfforts: false`
-    survived a green suite.
+    It used to be lifted out of `equip` as a heredoc and exec'd, because a
+    heredoc is not a file. It is a file now, so this runs the thing the image
+    ships rather than a copy of it — which is the whole reason the split was
+    worth making.
     """
 
-    script = (DEFINITIONS / "dsh" / "toolkit" / "equip").read_text(encoding="utf-8")
-    body = script.split("python3 - \"$MODEL\" <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
-    env = {
-        **os.environ,
-        "DSH_MODEL": json.dumps(spec),
-        "TORVE_MODEL": model,
-    }
-    env.pop("TORVE_BROKER_URL", None)
-
-    if brokered:
-        env["TORVE_BROKER_URL"] = "http://127.0.0.1:1/route"
+    script = DEFINITIONS / "dsh" / "toolkit" / "model_overlay.py"
 
     with tempfile.TemporaryDirectory() as scratch:
         written = Path(scratch) / "model.yml"
-        subprocess.run([sys.executable, "-c", body, str(written)], env=env, check=True)
+        subprocess.run(
+            [sys.executable, str(script), str(written)],
+            env={**os.environ, **env},
+            check=True,
+        )
 
         return yaml.load(written.read_text(encoding="utf-8"), Loader=_Tolerant)
 
@@ -123,9 +132,9 @@ def test_every_seated_definition_answers_the_seam(name: str) -> None:
 
 @pytest.mark.parametrize("name", SEATED)
 def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> None:
-    """The contract is five variables (S-0063/D-2). A script reaching for a
-    sixth is a harness's shape leaking back into the engine's vocabulary —
-    which is the mistake S-0062/D-2 made once and phase 3 exists to catch."""
+    """A script reaching for a variable the engine never sets is a harness's
+    shape leaking back into the engine's vocabulary — the mistake S-0062/D-2
+    made once (S-0063/D-2, S-0064/D-7)."""
 
     NAMED = {
         "TORVE_PROMPT",
@@ -133,26 +142,47 @@ def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> Non
         "TORVE_EQUIPMENT",
         "TORVE_EQUIP_ROOT",
         "TORVE_OUTPUT",
-        "TORVE_BROKER_URL",
-        "TORVE_BROKER_TOKEN",
+        "TORVE_PROVIDER",
+        "TORVE_API",
+        "TORVE_BASE_URL",
+        "TORVE_API_KEY_ENV",
+        "TORVE_CONTEXT_WINDOW",
+        "TORVE_MAX_TOKENS",
+        "TORVE_REASONING",
+        "TORVE_REQUEST_TIMEOUT_S",
+        "TORVE_STREAM_IDLE_TIMEOUT_S",
     }
-    scripts = "".join(
-        (DEFINITIONS / name / "toolkit" / script).read_text(encoding="utf-8")
-        for script in ("run", "equip")
-    )
-    reached = set(re.findall(r"TORVE_[A-Z_]+", scripts))
+    reached = set(re.findall(r"TORVE_[A-Z_]+", toolkit(name)))
 
     assert reached <= NAMED, f"{name} reads {sorted(reached - NAMED)}, which the engine never sets"
+
+
+@pytest.mark.parametrize("name", SEATED)
+def test_no_definition_asks_whether_a_broker_is_in_force(name: str) -> None:
+    """S-0064/D-8. Nine references across three definitions tested for the
+    broker's two variables, and one of them refused a brokered seat outright.
+    Brokered and direct differ in the value of `TORVE_BASE_URL` and in which
+    variable `TORVE_API_KEY_ENV` names, so there is nothing left to branch on
+    — mimo became brokerable by deletion rather than by implementation."""
+
+    assert "TORVE_BROKER" not in toolkit(name)
+
+
+@pytest.mark.parametrize("name", SEATED)
+def test_a_definition_ships_its_python_as_files_it_could_be_tested_through(name: str) -> None:
+    """A heredoc is a program nothing can run but the shell around it. The test
+    below had to split one out of `equip` and exec it, which is a copy of the
+    shipped thing pretending to be the shipped thing."""
+
+    assert "<<'PY" not in toolkit(name), f"{name} still inlines python a test cannot run"
+    assert list((DEFINITIONS / name / "toolkit").glob("*.py")), f"{name} ships no python"
 
 
 def test_each_harness_answers_the_manifest_its_own_way() -> None:
     """The finding phase 3 exists for, kept where it can be read: one manifest,
     three translations, and no variable had to change to admit them."""
 
-    equip = {
-        name: (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
-        for name in SEATED
-    }
+    equip = {name: toolkit(name) for name in SEATED}
 
     # claude has a session flag per kind.
     assert "--plugin-dir" in equip["claude"]
@@ -179,40 +209,49 @@ def test_no_definition_bakes_a_model(name: str = "dsh") -> None:
     assert "/opt/torve/overlays" not in (definition / "Dockerfile").read_text(encoding="utf-8")
 
     # And the generator that replaced them reads the knob rather than a roster.
-    equip = (definition / "toolkit" / "equip").read_text(encoding="utf-8")
+    equip = toolkit(definition.name)
 
     assert "DSH_MODEL" in equip
 
 
-def test_the_dsh_knob_renders_every_endpoint_fact_the_overlays_carried() -> None:
-    """The regression retiring the overlays left behind, and the reason it was
-    invisible: the knob carried the *model* facts and dropped the *endpoint*
-    ones, which five of the seven deleted files had carried identical copies of.
+SEAM = {
+    "TORVE_MODEL": "qwen3.8-flash",
+    "TORVE_PROVIDER": "modelstudio",
+    "TORVE_API": "openai",
+    "TORVE_CONTEXT_WINDOW": "1000000",
+    "TORVE_MAX_TOKENS": "65536",
+    "TORVE_REASONING": "medium",
+    "TORVE_REQUEST_TIMEOUT_S": "600",
+    "TORVE_STREAM_IDLE_TIMEOUT_S": "120",
+}
 
-    Measured against the ModelStudio token plan on 2026-09-11 — the endpoint
-    returns 33 reasoning tokens for a two-word reply, HTTP 400s the `developer`
-    role, and returns thinking as `reasoning_content` — while the seat's own
-    trace read `reasoningTokens: 0` across 33 requests, because this generator
-    wrote `reasoningEfforts: false` no matter what the seat asked for.
+
+def test_the_overlay_carries_every_endpoint_fact_the_deleted_files_did() -> None:
+    """The regression retiring the seven baked overlays left behind: the knob
+    carried the *model* facts and dropped the *endpoint* ones, which five of the
+    deleted files had carried identical copies of. Measured against the
+    ModelStudio token plan — 33 reasoning tokens for a two-word reply, HTTP 400
+    on the `developer` role — while the seat's own trace read
+    `reasoningTokens: 0` across 33 requests, because the generator wrote
+    `reasoningEfforts: false` whatever the seat asked for.
+
+    They arrive as scalars the engine validated against a provider record now
+    (S-0064/D-7), so a value going stale is a gate's problem rather than
+    nobody's.
     """
 
-    spec = json.loads(
-        yaml.safe_load(MANIFESTS.joinpath("dsh.yaml").read_text())["env"]["DSH_MODEL"]
-    )
+    route = _render_dsh_model(**SEAM)[0]["config"]["providers"]["modelstudio"]
 
-    # The knob says them,
-    assert spec["reasoning"] == "medium"
-    assert spec["timeout_ms"] and spec["stream_idle_timeout_ms"]
-    assert spec["compat"] == {"supportsDeveloperRole": False, "thinkingFormat": "deepseek"}
-
-    # and the generator renders them rather than a constant.
-    rendered = _render_dsh_model(spec, model="qwen3.8-flash", brokered=True)
-    route = rendered[0]["config"]["providers"][spec["provider"]]
-
-    assert route["timeoutMs"] == spec["timeout_ms"]
-    assert route["streamIdleTimeoutMs"] == spec["stream_idle_timeout_ms"]
-    assert route["compat"] == spec["compat"]
+    # Seconds in torve's vocabulary, milliseconds in pi-ai's: the conversion
+    # belongs in the file that knows which harness it is talking to.
+    assert route["timeoutMs"] == 600000
+    assert route["streamIdleTimeoutMs"] == 120000
     assert route["reasoning"] == "medium"
+    assert route["api"] == "openai-completions"
+
+    # The `developer`-role flag is dsh's, not torve's: the client that would
+    # send it lives here (S-0064/D-11).
+    assert route["compat"] == {"supportsDeveloperRole": False}
 
     # The map is what makes any effort reachable; `false` strips the capability.
     efforts = route["models"][0]["reasoningEfforts"]
@@ -220,10 +259,33 @@ def test_the_dsh_knob_renders_every_endpoint_fact_the_overlays_carried() -> None
     assert efforts is not False
     assert {"low", "medium", "high"} <= set(map(str, efforts))
 
-    # A seat that names no effort still gets a well-formed catalog.
-    off = _render_dsh_model({**spec, "reasoning": ""}, model="m", brokered=True)
+    off = _render_dsh_model(**{**SEAM, "TORVE_REASONING": ""})[0]
+    assert off["config"]["providers"]["modelstudio"]["models"][0]["reasoningEfforts"] is False
 
-    assert off[0]["config"]["providers"][spec["provider"]]["models"][0]["reasoningEfforts"] is False
+
+def test_an_unmeasured_number_is_absent_rather_than_zero() -> None:
+    """A window nobody measured is not a window of zero, and an image asked to
+    configure one would write a cap no endpoint agreed to."""
+
+    bare = {k: v for k, v in SEAM.items() if k in {"TORVE_MODEL", "TORVE_PROVIDER", "TORVE_API"}}
+    entry = _render_dsh_model(**{**dict.fromkeys(SEAM, ""), **bare})[0]
+    route = entry["config"]["providers"]["modelstudio"]
+
+    assert "timeoutMs" not in route and "streamIdleTimeoutMs" not in route
+    assert "contextWindow" not in route["models"][0]
+    assert "maxTokens" not in route["models"][0]
+
+
+def test_the_anthropic_dialect_carries_no_developer_role_flag() -> None:
+    """It is an OpenAI-dialect quirk: the Anthropic schema has no such role to
+    reject, which is why the flag is a route's business and not a provider's."""
+
+    route = _render_dsh_model(**{**SEAM, "TORVE_API": "anthropic"})[0]["config"]["providers"][
+        "modelstudio"
+    ]
+
+    assert route["api"] == "anthropic-messages"
+    assert "compat" not in route
 
 
 @pytest.mark.parametrize("name", ("dsh", "mimo"))
@@ -234,7 +296,7 @@ def test_a_skill_reaches_the_harness_that_reads_one(name: str) -> None:
 
     from torve.config.agents import load_harness
 
-    equip = (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
+    equip = toolkit(name)
     expected = {"dsh": ".agents/skills", "mimo": ".mimocode/skill"}[name]
 
     assert expected in equip
@@ -246,7 +308,7 @@ def test_dsh_installs_before_it_patches() -> None:
     the profile already carries and refuses an unknown id with `patch: entry
     "..." not found`. An item that would add a plugin has to install it first."""
 
-    equip = (DEFINITIONS / "dsh" / "toolkit" / "equip").read_text(encoding="utf-8")
+    equip = toolkit("dsh")
     install = equip.index('"dsh", "plugin"')
     patch = equip.index("fragments.append")
 
@@ -435,7 +497,7 @@ def test_no_equip_writes_to_a_path_the_repository_owns() -> None:
     committed the overwrite before any gate could object."""
 
     for name in SEATED:
-        equip = (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
+        equip = toolkit(name)
         code = [
             line
             for line in equip.splitlines()
@@ -455,7 +517,7 @@ def test_a_harness_reading_the_workspace_declares_its_root(name: str) -> None:
     from torve.config.agents import load_harness
 
     manifest = load_harness(Path("."), name)
-    equip = (DEFINITIONS / name / "toolkit" / "equip").read_text(encoding="utf-8")
+    equip = toolkit(name)
 
     assert manifest.equip_root
     assert "TORVE_EQUIP_ROOT" in equip
@@ -478,7 +540,7 @@ def test_claude_declares_a_root_outside_the_workspace() -> None:
 
     # The flag is named in a comment saying why it is not used; what matters is
     # that no code path composes it.
-    equip = (DEFINITIONS / "claude" / "toolkit" / "equip").read_text(encoding="utf-8")
+    equip = toolkit("claude")
     code = [ln for ln in equip.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
 
     assert not any("--add-dir" in line for line in code)

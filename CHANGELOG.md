@@ -225,6 +225,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** the engine names an attempt in flat scalars — the provider, the
+  dialect, the base URL, the credential's variable name, the model id, and the
+  window, cap, effort and clocks the record measured. `DSH_MODEL`, a JSON
+  document in a string torve set and never read, is gone.
+
+- **Breaking:** `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN` fold into
+  `TORVE_BASE_URL` and `TORVE_API_KEY_ENV`. No image asks whether a broker is in
+  force; mimo, which refused a brokered seat outright, became brokerable by
+  deletion.
+
+- Each sandbox definition ships its python as files rather than heredocs inside
+  a shell script, so the thing a test runs is the thing the image installs.
+
 - **Breaking:** the profile that supplies a role's default equipment declares
   `role:`. Read off the filename, a seat's own profile called `review.yaml`
   became the review role's default for every seat, and a role default called

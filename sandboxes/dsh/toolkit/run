@@ -19,9 +19,9 @@ if [ -s /tmp/torve-model.yml ]; then
     set -- "$@" --patch /tmp/torve-model.yml
 fi
 
-# The broker needs no mapping of its own: the rendered overlay reads
-# TORVE_BROKER_URL and TORVE_BROKER_TOKEN from the environment, which is what
-# makes a brokered dsh seat a choice of `env` rather than a different command.
+# Nothing here asks whether a broker is in force (S-0064/D-8). The rendered
+# overlay reads TORVE_BASE_URL and the variable TORVE_API_KEY_ENV names, and
+# both arrive with a value whichever way this seat reaches its provider.
 
 if [ -s /tmp/torve-equip.args ]; then
     eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"

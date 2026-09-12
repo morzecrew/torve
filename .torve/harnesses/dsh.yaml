@@ -21,29 +21,12 @@ image: dsh-sandbox:0.1.1-rc.2
 # equipment takes the second, which is torve's (S-0063/D-19).
 equip_root: .dsh/skills
 kinds: [skill, plugin, mcp, hook, agent]
-env:
-  # Brokered: the provider block points at the run's loopback route, which the
-  # generator adds when `TORVE_BROKER_URL` is set. The catalog entry is the
-  # operator's, because torve does not know what a model's window is.
-  #
-  # Everything after `max_tokens` is a fact about the *endpoint* rather than
-  # about the model — measured against the ModelStudio token plan on
-  # 2026-09-11, and true of every model it serves. Five of the seven overlays
-  # this knob replaced carried identical copies of them, and the knob dropped
-  # them with the files: the seat ran a reasoning model with reasoning off, no
-  # request cap, and no compat block. They ride here until a provider record
-  # exists to own them once.
-  #
-  #   reasoning     the endpoint returns `reasoning_tokens` (33 for a two-word
-  #                 reply); `reasoningEfforts: false` had stripped it and every
-  #                 trace read `reasoningTokens: 0`
-  #   timeouts      a wedged-but-trickling stream once idled two attempts to the
-  #                 full agent cap — the hard cap is the fix, the idle one the
-  #                 backstop
-  #   compat        the endpoint 400s on the `developer` role pi-ai switches to
-  #                 for reasoning models, and returns thinking as
-  #                 `reasoning_content`
-  DSH_MODEL: '{"provider": "torve-broker", "api": "openai-completions", "context_window": 1000000, "max_tokens": 65536, "reasoning": "medium", "timeout_ms": 600000, "stream_idle_timeout_ms": 120000, "compat": {"supportsDeveloperRole": false, "thinkingFormat": "deepseek"}}'
+# No `env`. `DSH_MODEL` carried a JSON document in a string — a provider, a
+# dialect, a window, a cap, an effort, two timeouts and a compat block — that
+# torve set and never read, which is how half of it went stale without any gate
+# being able to miss it. Every one of those values is a scalar the engine now
+# validates against a provider record and names across the seam (S-0064/D-7),
+# and `equip` assembles pi-ai's own representation from them.
 
 # pi-ai speaks both: measured inside the image, 582 references to
 # `openai-completions` and 315 to `anthropic-messages`. torve's keys are the

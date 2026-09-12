@@ -77,6 +77,25 @@ class TierConfig(BaseModel):
     api: list[str] = Field(default_factory=list)
     """S-0064/D-4: the API dialects this seat's harness speaks, merged off the manifest. A
     provider serving none of them is refused when the seat resolves, naming both files."""
+    base_url: str = ""
+    """S-0064/D-1: where this seat's dialect is served, merged off the provider record. The
+    broker's loopback route replaces it at dispatch when one is in force — brokered and
+    direct differ in this value and never in whether a variable is there (S-0064/D-8)."""
+    key_env: str = ""
+    """S-0064/D-9: the variable holding this provider's credential, merged off the record. A
+    name, never a value: the runtime forwards it by name and the secret never transits
+    torve or the spec."""
+    model_id: str = ""
+    """S-0064/D-3: what actually reaches the provider. The seat writes a roster key, which
+    may be a local shorthand for a slug that is awkward to type; this is what travels."""
+    context_window: int = 0
+    """S-0064/D-1: the model's window, merged off the roster; 0 is unstated."""
+    max_tokens: int = 0
+    """S-0064/D-1: the cap on one response, merged off the roster; 0 is unstated."""
+    request_timeout_s: float | None = None
+    """S-0064/D-1: how long one request may take, merged off the record."""
+    stream_idle_timeout_s: float | None = None
+    """S-0064/D-1: how long a started stream may go silent, merged off the record."""
     dialect: str = ""
     """S-0064/D-4: which of its harness's dialects this seat reaches, when the harness and
     the provider share more than one. Empty resolves to the single shared dialect, and is
@@ -1275,6 +1294,56 @@ def _where(seat: str) -> str:
     return f"tier {seat!r}"
 
 
+def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
+    """Fold each seat's provider record onto the seat, in place (S-0064/D-1).
+
+    The same shape the harness manifest and the agent profile already use: a
+    reader receives one object carrying every field, because three objects at
+    every call site would be the split leaking out of the files it belongs in.
+    Run after `resolve_seats` so a seat cannot write any of these itself — they
+    are the record's, and a seat that could restate one could disagree with it.
+    """
+
+    for entry in tiers.values():
+        if not isinstance(entry, dict):
+            continue
+
+        record = records.get(str(entry.get("provider") or ""))
+
+        if record is None:
+            continue
+
+        model = record.models.get(str(entry.get("model") or ""))
+        dialect = str(entry.get("dialect") or "")
+        route = record.routes.get(dialect) if dialect else None
+
+        if route is None and len(record.routes) == 1:
+            (route,) = record.routes.values()
+
+        entry.update(
+            {
+                "key_env": record.key_env,
+                "request_timeout_s": record.request_timeout_s,
+                "stream_idle_timeout_s": record.stream_idle_timeout_s,
+            }
+        )
+
+        if route is not None:
+            entry["base_url"] = route.base_url
+
+        if model is not None:
+            entry.update(
+                {
+                    "model_id": model.id or str(entry.get("model") or ""),
+                    "context_window": model.context_window,
+                    "max_tokens": model.max_tokens,
+                }
+            )
+
+
+# ....................... #
+
+
 def credential_names(config: RunnerConfig, tier: TierConfig) -> tuple[str, ...]:
     """The environment variables a sandbox on this seat is given (S-0064/D-9).
 
@@ -1709,6 +1778,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     if records:
         config["provider_records"] = {name: record.model_dump() for name, record in records.items()}
+        merge_records(config.get("tiers") or {}, records)
 
         if broker_block is None:
             broker_block = {}

@@ -84,16 +84,21 @@ phasing:
       collapse into `TORVE_BASE_URL` and `TORVE_API_KEY`, and the nine broker branches
       across three definitions go with them — including mimo's refusal, which becomes
       a deletion. The `developer`-role flag moves into dsh's `equip`, where the client
-      that would send it lives.
+      that would send it lives. The record's facts reach the seat rather than the
+      adapter: `HarnessAgent` takes a tier and its call sites are outside this phase,
+      so a base URL, a credential's variable name, a model id and the measured numbers
+      merge onto the seat the way the manifest's fields already do.
     scope:
       - src/torve/adapters/agent/harness.py
       - src/torve/application/session.py
+      - src/torve/config/runconfig.py
       - src/torve/application/ports.py
       - sandboxes/**
       - .torve/harnesses/**
       - tests/test_sandbox_defs.py
       - tests/test_session.py
       - tests/test_run_loop.py
+      - tests/test_runconfig.py
       - tests/test_broker.py
       - tests/test_tiering.py
       - src/torve/adapters/agent/AGENTS.md
