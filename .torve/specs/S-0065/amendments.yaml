@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-12T16:58:13Z'
+    title: >-
+      the record carries what was agreed, because the contract is not kept
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          An attempt's contract is read at the attempt's own base sha, from git, whether
+          or not it is still in the working tree
+        after: >-
+          An attempt's record carries what it was fenced by and judged against — the
+          inherited rows, the scope and the acceptance — and where the contract is
+          still in git history it is additionally read at the attempt's own sha
+      - subject: D-3
+        field: fingerprint
+        after: e8a5ed03fc8e2336/7c320184354f32fb
+    md: |
+      D-3 was written on a measurement that is true and a premise that is not.
+
+      The measurement stands: 243 of the 264 attempts whose `contract.yaml` has left
+      the working tree still resolve at the sha the attempt row carries, and
+      S-0056/D-10's consequence — "git keeps the history" — held for every one of them.
+
+      The premise does not. `.torve/.gitignore` carries `tasks/`, and `git ls-files
+      .torve/tasks` returns nothing: contracts have not been committed since the task
+      history was pruned, which is the other half of the same locked row. So the git
+      read repairs the past and can never reach the future. Every contract minted from
+      here — including the two this document's own acceptance produced — exists as an
+      untracked file on one machine and nowhere else.
+
+      What makes the join durable is that the record is self-describing, which is what
+      the document's title already argues for. Measured, most of that is already true:
+      250 of 276 attempt records carry their inherited rows inline as id, grade and
+      paths. What no attempt record has ever carried is the scope it was fenced by and
+      the acceptance it was judged against — precisely the two facts the git read was
+      being asked to recover.
+
+      So the row now names the record as the carrier and the git read as what it always
+      was: a way to recover more than the record holds, for the attempts old enough to
+      have it. Nothing about phase 1 moves — the writer it changes is the one already in
+      that phase's scope.
+
+      The row's consequence and rationale are left as written. Both remain true of the
+      half of the row they describe, and the words that correct them are these.

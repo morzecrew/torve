@@ -5,12 +5,8 @@ title: >-
 kind: design
 status: accepted
 implementation: none
-depends_on:
-  - S-0064
-informed_by:
-  - S-0053
-  - S-0055
-  - S-0056
+depends_on: [S-0064]
+informed_by: [S-0053, S-0055, S-0056]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
@@ -200,31 +196,35 @@ risks: |
   before the agent starts, so a missing one is a bug that would have been caught at
   dispatch, and the twin test pins it.
 alternatives:
-  - option: Keep the contract on disk — retain task directories instead of deleting them
+  - option: >-
+      Keep the contract on disk — retain task directories instead of deleting them
     rejected_because: >-
       S-0056/D-10 is LOCKED and its consequence already claims git keeps the history;
       measured, that claim holds for 243 of 264 attempts. A retention change would
       recover nothing that history does not already hold, would grow the tree forever,
-      and would fix only the attempts that come after it — where the reader fixes the
-      whole record retroactively.
-    cites:
-      - S-0056/D-10
-  - option: Compute the rates inside `projections.py` beside the per-tier feed
+      and would fix only the attempts that come after it — where the reader fixes
+      the whole record retroactively.
+    cites: [S-0056/D-10]
+  - option: >-
+      Compute the rates inside `projections.py` beside the per-tier feed
     rejected_because: >-
-      The feed renders; a fold decides. Putting a derivation behind the renderer is what
-      produced a record with no reader, and the projection's callers want rows.
-  - option: Export the record over OTLP and let a collector do the arithmetic
+      The feed renders; a fold decides. Putting a derivation behind the renderer is
+      what produced a record with no reader, and the projection's callers want rows.
+  - option: >-
+      Export the record over OTLP and let a collector do the arithmetic
     rejected_because: >-
-      A collector, an egress route out of a sandbox that is sealed on purpose, and a
-      second telemetry lineage beside the first — which is the exact shape of the
+      A collector, an egress route out of a sandbox that is sealed on purpose, and
+      a second telemetry lineage beside the first — which is the exact shape of the
       disagreement this document exists to end.
-  - option: Record a cost for a seat whose provider carries no price, from the harness's own figure
+  - option: >-
+      Record a cost for a seat whose provider carries no price, from the harness's
+      own figure
     rejected_because: >-
       Measured, claude priced a qwen attempt off its Anthropic rate card after emitting
-      `unrecognized_model`. S-0064/D-12 already settled that an absent price stays absent;
-      a rate computed from a rate card the seat is not on is fiction that averages.
-    cites:
-      - S-0064/D-12
+      `unrecognized_model`. S-0064/D-12 already settled that an absent price stays
+      absent; a rate computed from a rate card the seat is not on is fiction that
+      averages.
+    cites: [S-0064/D-12]
 questions:
   - id: Q-1
     text: >-
@@ -232,11 +232,9 @@ questions:
       events and 58 landing files exist. Each counts something real — every recorded
       landing, every landing through the serialized lane, every landing a task directory
       wrote — and until one is named the denominator of every rate here is ambiguous.
-    status: open
   - id: Q-2
     text: >-
       Should duty cycle count wall time inside an attempt, or wall time inside a task's
-      lifetime? The first measures the agent, the second measures the engine; the record
-      holds 37.8 agent-hours and 296 further hours of idle inside task lifetimes, and the
-      two answers differ by an order of magnitude.
-    status: open
+      lifetime? The first measures the agent, the second measures the engine; the
+      record holds 37.8 agent-hours and 296 further hours of idle inside task lifetimes,
+      and the two answers differ by an order of magnitude.
