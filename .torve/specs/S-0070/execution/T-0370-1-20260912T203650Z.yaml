@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0370
+phase: 1
+base: 6a822ca5bb3fab91e76e6a90dfd26a5244dbb345
+commit: 4d81a688a4f69d37faff256a2e46fcb219c4dd57
+at: '2026-09-12T20:36:50Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-12T20:30:15Z'
+    claim: >-
+      The row this task implements declares only src/torve/application/decisions.py,
+      but the check that actually fails a clean tree is the per-glob LOCKED check
+      in the config layer, which the scope allow-list does not carry. The application-layer
+      path_rot is now ignore-aware and flags nothing either way on this corpus, so
+      the phase's stated consequence — spec check passing in a clean clone — is still
+      unmet. Implemented the in-scope half only; the config-layer half needs a widened
+      scope, and it cannot reuse the new helper because the Config-stands-alone import
+      contract forbids config importing application.
+    evidence: >-
+      src/torve/config/spec.py:1009-1013 — the problem that fails a clean tree is
+      raised here, not in decisions.py; `uv run torve spec check --root /tmp/cleantree`
+      over a copy of this tree with the gitignored .torve directories removed prints
+      'PROBLEM S-0055: LOCKED row S-0055/D-10 paths glob .torve/tasks/** matches nothing
+      in the repository' and 'FAIL 18 document(s), 2 problem(s)' both before and after
+      this change
+    action: decided
+    proposal: >-
+      S-0070/D-5 should declare src/torve/config/spec.py beside src/torve/application/decisions.py,
+      and the task's scope.allow should carry it; the ignore-reading helper belongs
+      in torve.config (layout or spec) so both layers can call it without breaking
+      the Config-stands-alone contract
