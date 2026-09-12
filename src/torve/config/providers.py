@@ -256,9 +256,7 @@ class Provider(BaseModel):
     @model_validator(mode="after")
     def _a_provider_is_a_credential_and_somewhere_to_spend_it(self) -> Provider:
         if not self.key_env:
-            raise ValueError(
-                "key_env must name the environment variable holding the credential"
-            )
+            raise ValueError("key_env must name the environment variable holding the credential")
 
         if not self.routes:
             raise ValueError(

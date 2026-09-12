@@ -80,6 +80,21 @@ gates:
     origin: S-0011
     axis: compliance
     sabotage: user-facing-text
+  # Style over the whole tree, which the battery did not check. `ruff check`
+  # lived only in the `acceptance` fallback below — the list a run with no task
+  # contract falls back to — so a task-contract run linted whatever its contract
+  # happened to name, and none of them named ruff. `--check` on the formatter is
+  # the other half: an unformatted file landed in S-0064 phase 1 and came back
+  # twice, because nothing but a person running `ruff format` ever noticed.
+  #
+  # Enters at shadow and is promoted on soak evidence (S-0055/D-14).
+  - name: lint
+    run: "uv run ruff check . && uv run ruff format --check ."
+    state: shadow
+    origin: S-0015
+    input: worktree
+    timeout: 120
+    sabotage: tests/test_lint.py
   # The layer contracts over the whole package. A self-development gate
   # (S-0015/D-10): the tool is a dev dependency and never ships.
   - name: layering
@@ -125,6 +140,7 @@ gates:
     sabotage: acceptance
     # Fallback for runs with no task contract (human pull requests).
     commands:
-      - "uv run ruff check src tests"
+      - "uv run ruff check ."
+      - "uv run ruff format --check ."
       - "uv run mypy src"
       - "uv run pytest"

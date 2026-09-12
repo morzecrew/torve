@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `lint` gate runs `ruff check` and `ruff format --check` over the whole tree.
+  The linter previously ran only for a run with no task contract, and the
+  formatter was checked nowhere — an unformatted file landed and came back twice.
+
 - A harness manifest declares the API dialects it speaks as `api`, and a seat is
   refused at load when its harness and its provider share none — the refusal
   `kinds` already performs for equipment, pointed at a second capability.
