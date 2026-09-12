@@ -68,6 +68,22 @@ Broker placeholders retire into `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`; the
 - Paths: `src/torve/adapters/agent/harness.py`
 - Consequence: a run-scoped token stops being spliced into a shell string, and a seat whose provider the broker does not route is still refused before dispatch
 
+### S-0064/D-7 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+Every parameter crosses the seam as a scalar in torve's own vocabulary and units, and the image assembles its harness's representation from them; `DSH_MODEL` retires.
+
+- Paths: `src/torve/adapters/agent/harness.py` `sandboxes/**`
+- Consequence: one uniform set of names reaches three harnesses, and a unit or a spelling that only makes sense to one of them is converted in the file that knows which one it is
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-8 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` and never by a variable's presence; `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN` retire and no image tests whether a broker is in force.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/session.py` `sandboxes/**`
+- Consequence: nine broker branches across three definitions go, and mimo becomes brokerable by deletion rather than by implementation
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.

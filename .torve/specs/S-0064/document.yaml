@@ -3,7 +3,7 @@ id: S-0064
 title: >-
   A provider is a record, and the seam carries scalars
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0063]
 informed_by: [S-0055, S-0061, S-0062]
@@ -44,6 +44,124 @@ non_goals: |-
   - Modelling every quirk. A value torve cannot validate rides through untouched and visibly so; inventing a name for it would be a schema the engine has to keep up with across three harnesses (S-0063/D-3's argument).
   - The cost surfaces themselves — the evals ledger, the per-regime medians, the anomaly thresholds. What this document adds is the one fact those surfaces lack (D-12): a price beside the model, so the number they read is computed rather than believed. How they present it is unchanged.
   - Per-role reasoning. The level is the seat's because it must validate against the model, and the model is the seat's.
+design:
+  - key: the-provider-record
+    md: |-
+      A provider is one file, and the sample below is entirely values this repository has either already written down or measured:
+
+      ```yaml
+      name: modelstudio
+      key_env: MODELSTUDIO_CODING_API_KEY
+      via_proxy: false
+      request_timeout_s: 600
+      stream_idle_timeout_s: 120
+
+      routes:
+        openai:
+          base_url: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+          compat: {thinking_format: deepseek}
+        anthropic:
+          base_url: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic
+
+      models:
+        qwen3.8-flash:
+          context_window: 1000000
+          max_tokens: 65536
+          reasoning: [none, minimal, low, medium, high, xhigh, max]
+          price: {input: 0.30, output: 1.20, cache_read: 0.06}
+        opus:
+          id: anthropic/claude-opus-4
+          context_window: 200000
+          max_tokens: 32000
+      ```
+
+      Three strata, and the point of the file is that each value sits in exactly one of them.
+
+      The **provider** holds what one credential buys: the key's variable name, whether the runner's own upstream leg tunnels through a proxy, and the clocks. The clocks are here rather than per route because a wedged stream is a property of the network path to a vendor, and the incident that produced these two numbers — a trickling stream that idled two attempts to the full agent cap — did not care which URL it was trickling from.
+
+      A **route** holds what a dialect changes. The reasoning levels above came out of a 400 that enumerated them, and the `thinking_format` flag exists on the OpenAI route and not the Anthropic one because the Anthropic route returns native `thinking` blocks. That asymmetry is the whole argument for routes existing: the same model, on the same credential, differs by URL.
+
+      A **model** holds what is true of the model wherever it is reached. `reasoning` is a list rather than a boolean so the seat's choice has something to be refused against, and `price` is optional because a subscription seat has no per-token cost and must say so rather than report zero.
+
+      `broker.providers.<name>` folds in whole, leaving `broker:` with `adapter`, `mode` and `cost_tolerance` — the three things that are about the broker rather than about a provider.
+  - key: the-pairing-refusal
+    md: |-
+      A harness manifest gains one field:
+
+      ```yaml
+      # .torve/harnesses/claude-subscription.yaml
+      api: [anthropic]
+
+      # .torve/harnesses/dsh.yaml
+      api: [openai, anthropic]
+      ```
+
+      and the seat resolves against it. Four things are now checkable before a sandbox exists, where all four were previously discovered by an attempt that had already started:
+
+      - the harness speaks a dialect the provider serves,
+      - the provider's roster lists the model the seat names,
+      - the model declares the reasoning level the seat asks for,
+      - the provider has a credential and the route a base URL.
+
+      Each refusal names both files, because which of them is wrong is the reader's call — the provider offered something, the manifest says it cannot take it, and either could be the one to change. This is S-0063/D-4's refusal for equipment kinds, pointed at a second capability, and it is worth noting that the two are the same sentence with one noun swapped.
+
+      `openai` and `anthropic` are torve's keys, not any harness's spelling. dsh's own vocabulary distinguishes `openai-completions` from `openai-responses`, so `openai` here means Chat Completions and a provider serving the Responses API would earn a third key rather than an overloaded first one. The set is not closed, which is why nothing about it has to be decided now.
+  - key: the-seam
+    md: |-
+      The engine names the attempt in scalars, in torve's units, and each image assembles whatever its harness reads:
+
+      ```
+      TORVE_PROVIDER=modelstudio          TORVE_CONTEXT_WINDOW=1000000
+      TORVE_API=openai                    TORVE_MAX_TOKENS=65536
+      TORVE_BASE_URL=<resolved>           TORVE_REASONING=medium
+      TORVE_API_KEY=<resolved>            TORVE_REQUEST_TIMEOUT_S=600
+      TORVE_MODEL=qwen3.8-flash           TORVE_STREAM_IDLE_TIMEOUT_S=120
+      ```
+
+      Multiplying seconds by a thousand belongs in the file that knows it is talking to pi-ai. Mapping `TORVE_REASONING=medium` onto an effort enum on one route and a token budget on the other belongs there too — measured, those are the two incompatible wire forms the same model takes on the same provider, which is exactly why the engine names the level and not the parameter.
+
+      What retires: `DSH_MODEL`, a JSON document in a string that torve set and never read. What arrives in its place is nine variables the engine validates, hashes and can refuse.
+
+      The direction of translation is the load-bearing part. A renderer inside the engine has to track three harnesses across their versions; an image has to know one harness, the one it contains. S-0063/D-3 already settled that for equipment and the argument transfers without modification — this document is the same decision applied to the other half of what a sandbox needs.
+  - key: brokered-is-a-value
+    md: |-
+      Today three images ask whether a broker is in force, in nine places, and answer by changing shape. claude wraps two assignments in `if` blocks; dsh's generator writes a structurally different overlay; mimo refuses outright with exit 78.
+
+      Only two things ever actually differed: which URL, and which credential. A third — whether dsh must declare its own model catalog, because overriding `baseURL` detaches pi-ai's installed one — disappears the moment a provider record carries the roster, since torve then always declares it. That difference was never about brokering; it was an artefact of having nowhere to write a model's facts.
+
+      So both differences become the *value* of a variable whose name never changes, and every branch has nothing left to test:
+
+      ```
+      # dsh's overlay, unconditionally
+          baseURL: !!js process.env.TORVE_BASE_URL
+          apiKeyEnv: TORVE_API_KEY
+
+      # claude's run, unconditionally
+          ANTHROPIC_BASE_URL=$TORVE_BASE_URL
+          ANTHROPIC_AUTH_TOKEN=$TORVE_API_KEY
+      ```
+
+      mimo's refusal is then deleted rather than implemented: it refuses today only because nothing maps the broker's two names onto its configuration, and with one base URL and one key there is nothing to map.
+
+      What must not become uniform, and is called out here so the simplification stops in the right place: the refusal that keeps a brokered seat honest is a configuration check, not a variable name. Under a broker the engine fills `TORVE_API_KEY` from the run-scoped token and never from a provider's `key_env`, and egress sealing stays a runtime decision keyed on the run. The image learns a URL; it never learns a policy, and it must have no way to influence one.
+  - key: what-torve-does-not-name
+    md: |-
+      The rule that keeps this from becoming a schema the engine must chase: **anything torve can validate gets a torve name; anything it cannot is passed through untouched and visibly so.**
+
+      A route's `extra` is the untouched half. It is handed to the image verbatim, and the fact that it is unvalidated is legible in review rather than buried — which matters, because the failure this whole document exists to fix was a value going stale where nothing could see it. The escape hatch already exists in spirit: dsh's `equip` appends arbitrary patch fragments for equipment kinds torve does not model.
+
+      The `developer` role is the worked example of a value that should never have been offered a name. pi-ai switches to that role for reasoning models; both OpenAI-compatible third parties this repository reaches answer with HTTP 400. It is not a fact torve needs, because **torve never builds a request** — the client that would send it lives inside one image, so the decision lives there too, defaulted off for an `api: openai` route. A provider that one day accepts the role costs one flag at that point, and nothing until then.
+
+      The cost of being wrong here is worth stating because it is small and asymmetric: a dsh seat pointed at real OpenAI would use `system` where it could have used `developer`. That is a request shaped conservatively, not a failure, and it is reversible in one line.
+  - key: the-number-the-ledger-reads
+    md: |-
+      A harness reports what it thinks an attempt cost, and for a cross-dialect seat that is fiction. Measured: claude emits `[claude-code:unrecognized_model]` for qwen3.8-flash and then prices the attempt at `$0.174` off its own Anthropic rate card, having primed 27,823 cache-creation tokens on a one-line prompt.
+
+      The engine could already *see* the disagreement — `dispatch.py` compares the adapter's self-report against the broker's metered figure and emits `cost_divergence` past `broker.cost_tolerance` — and had nothing to resolve it with. A price beside the model resolves it: cost is computed from the record and the attempt's token counts, and the harness's number is kept beside it as the adapter's claim.
+
+      That also repairs the comparison rather than adding a second one. Today it weighs a rate card against reality; afterwards it weighs torve's arithmetic against the broker's metering, two numbers that are both about this call. A stale price is then not a quiet drift in the medians — it is a `cost_divergence` event on the next attempt.
+
+      Where no price is written, cost stays unreported. That is not a gap to fill later: a subscription seat genuinely has no per-token cost, and `AgentMetadata` already defaults every field to `None` so that a harness reporting nothing stays visibly unreported rather than silently zeroed.
 tests: |-
   Every row here is provable without a model in the loop, which is what makes this document cheap to verify.
 

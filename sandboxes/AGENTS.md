@@ -74,10 +74,29 @@ Equipment never writes into a path the repository owns. A harness that reads equ
 - Consequence: an attempt commits its own work and nothing else, and a repository's reviewed skills are never overwritten by a packaged copy of the same name
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0064/D-7 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+Every parameter crosses the seam as a scalar in torve's own vocabulary and units, and the image assembles its harness's representation from them; `DSH_MODEL` retires.
+
+- Paths: `src/torve/adapters/agent/harness.py` `sandboxes/**`
+- Consequence: one uniform set of names reaches three harnesses, and a unit or a spelling that only makes sense to one of them is converted in the file that knows which one it is
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-8 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` and never by a variable's presence; `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN` retire and no image tests whether a broker is in force.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/session.py` `sandboxes/**`
+- Consequence: nine broker branches across three definitions go, and mimo becomes brokerable by deletion rather than by implementation
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `sandboxes/`
 
 - **S-0063/I-2**: Every image definition answers `/opt/torve/equip` and `/opt/torve/run`, and none carries its own copy of the CLI layer.
   - Paths: `sandboxes/**`
   - Check: `uv run pytest tests/test_sandbox_defs.py -k seam`
+- **S-0064/I-2**: No sandbox definition tests whether a broker is in force.
+  - Paths: `sandboxes/**`
+  - Check: `uv run pytest tests/test_sandbox_defs.py -k broker`
 
 <!-- /torve:managed -->

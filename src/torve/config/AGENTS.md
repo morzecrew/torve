@@ -448,6 +448,73 @@ Equipment never writes into a path the repository owns. A harness that reads equ
 - Consequence: an attempt commits its own work and nothing else, and a repository's reviewed skills are never overwritten by a packaged copy of the same name
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0064/D-1 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+A provider is a file, `.torve/providers/<name>.yaml`, holding the credential's variable name, the clocks, the routes and the model roster; `broker.providers` folds into it and `upstream` is named `base_url`.
+
+- Paths: `src/torve/config/providers.py` `src/torve/config/runconfig.py` `.torve/providers/**`
+- Consequence: a provider's facts are validated, hashed and reviewed like every other file under `.torve/`, instead of being a string the engine sets and never reads
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-2 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+A route owns a dialect. `routes` is keyed by api name — `openai`, `anthropic` — and each carries its own `base_url` and its own compat facts; a provider serving two dialects is two routes on one credential.
+
+- Paths: `src/torve/config/providers.py` `.torve/providers/**`
+- Consequence: the quirks that differ between two URLs of one provider stop being attributed to the provider, so a seat on either route gets the facts that are true of it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-3 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+A model entry's key is what a seat writes and its `id` is what reaches the provider and what the regime hash records; a key with no `id` is its own id.
+
+- Paths: `src/torve/config/providers.py` `src/torve/application/telemetry.py`
+- Consequence: a slug that is awkward to type or to use as a path segment gets a local shorthand, and renaming that shorthand cannot move a regime digest
+
+### S-0064/D-4 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+A harness manifest declares the dialects it speaks as `api`, and a seat whose harness and provider share no dialect is refused at load, naming both files.
+
+- Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py` `.torve/harnesses/**`
+- Consequence: an unreachable pairing is a configuration error with two filenames in it rather than a 404 from an attempt that had already started
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-5 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+A model declares the reasoning levels it has and a seat names one of them; a level the model does not declare is refused at load, and the level crosses the seam as a word.
+
+- Paths: `src/torve/config/providers.py` `src/torve/config/runconfig.py`
+- Consequence: the engine refuses an unreachable effort before a sandbox exists, where the endpoint would refuse it per request after one does
+
+### S-0064/D-6 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+Reasoning effort is the seat's and never the agent profile's.
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/config/agents.py`
+- Consequence: a profile stays portable across harnesses and models, and an effort that cannot be honoured is refused rather than dropped
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-9 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+`api_key_env` retires from the harness manifest: a credential is a property of the provider, which names its own `key_env`. `auth_volume` and `auth_mount` stay.
+
+- Paths: `src/torve/config/agents.py` `src/torve/application/session.py` `.torve/harnesses/**`
+- Consequence: one file decides which credential reaches a sandbox, and the refusal that keeps a brokered seat honest has one field to watch instead of two
+
+### S-0064/D-10 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+A value torve has no name for rides through as a route's `extra`, handed to the image verbatim, unvalidated, and visibly so.
+
+- Paths: `src/torve/config/providers.py`
+- Consequence: a provider quirk nobody has modelled yet does not block a seat, and it is obvious in review which values the engine is standing behind and which it is only carrying
+
+### S-0064/D-12 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+A model entry may carry `price`, and where it does the attempt's cost is computed from the record and the token counts; a harness's self-reported cost is kept beside it as the adapter's claim and is never the number. Where it does not, cost stays unreported rather than invented.
+
+- Paths: `src/torve/config/providers.py` `src/torve/application/dispatch.py`
+- Consequence: the ledger stops depending on whether a harness recognises the model it was pointed at, and the divergence check compares two numbers that are both about this call — torve's arithmetic against the broker's metering — instead of comparing a rate card to reality
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
@@ -465,5 +532,8 @@ Equipment never writes into a path the repository owns. A harness that reads equ
 - **S-0063/I-1**: No harness manifest carries a shell line, and no engine code substitutes into one.
   - Paths: `src/torve/config/agents.py` `src/torve/adapters/agent/harness.py`
   - Check: `uv run pytest tests/test_agents.py -k no_shell`
+- **S-0064/I-1**: Every dispatchable seat names a model its provider's roster lists and a dialect its harness speaks; neither is discovered by an attempt.
+  - Paths: `src/torve/config/runconfig.py` `src/torve/config/providers.py`
+  - Check: `uv run pytest tests/test_providers.py -k pairing`
 
 <!-- /torve:managed -->

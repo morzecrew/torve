@@ -704,6 +704,35 @@ Equipment never writes into a path the repository owns. A harness that reads equ
 - Consequence: an attempt commits its own work and nothing else, and a repository's reviewed skills are never overwritten by a packaged copy of the same name
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0064/D-3 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+A model entry's key is what a seat writes and its `id` is what reaches the provider and what the regime hash records; a key with no `id` is its own id.
+
+- Paths: `src/torve/config/providers.py` `src/torve/application/telemetry.py`
+- Consequence: a slug that is awkward to type or to use as a path segment gets a local shorthand, and renaming that shorthand cannot move a regime digest
+
+### S-0064/D-8 — `LOCKED` (A provider is a record, and the seam carries scalars)
+
+Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` and never by a variable's presence; `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN` retire and no image tests whether a broker is in force.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/session.py` `sandboxes/**`
+- Consequence: nine broker branches across three definitions go, and mimo becomes brokerable by deletion rather than by implementation
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0064/D-9 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+`api_key_env` retires from the harness manifest: a credential is a property of the provider, which names its own `key_env`. `auth_volume` and `auth_mount` stay.
+
+- Paths: `src/torve/config/agents.py` `src/torve/application/session.py` `.torve/harnesses/**`
+- Consequence: one file decides which credential reaches a sandbox, and the refusal that keeps a brokered seat honest has one field to watch instead of two
+
+### S-0064/D-12 — `ASSUMED` (A provider is a record, and the seam carries scalars)
+
+A model entry may carry `price`, and where it does the attempt's cost is computed from the record and the token counts; a harness's self-reported cost is kept beside it as the adapter's claim and is never the number. Where it does not, cost stays unreported rather than invented.
+
+- Paths: `src/torve/config/providers.py` `src/torve/application/dispatch.py`
+- Consequence: the ledger stops depending on whether a harness recognises the model it was pointed at, and the divergence check compares two numbers that are both about this call — torve's arithmetic against the broker's metering — instead of comparing a rate card to reality
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
