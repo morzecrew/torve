@@ -3,7 +3,7 @@ id: S-0068
 title: >-
   The refusal that is missing, and the one nobody answered
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by:

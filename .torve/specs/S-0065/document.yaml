@@ -3,7 +3,7 @@ id: S-0065
 title: >-
   The record is read, and what looks lost is unjoined
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on:
   - S-0064
