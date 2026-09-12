@@ -1,0 +1,247 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0067
+title: >-
+  A session is briefed, and the working rules have one source
+kind: design
+status: draft
+implementation: none
+depends_on:
+  - S-0066
+informed_by:
+  - S-0054
+  - S-0055
+  - S-0062
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  A person and a harness working in the repository get none of what the engine assembles
+  before a sandbox attempt — no lint, no size verdict, no pack, no battery named in
+  advance — and it is the path most of this repository's work actually takes. One verb
+  assembles the same briefing without dispatching anything, and the working rules that
+  only exist inside a Python string become a skill both modes read.
+motivation: |
+  Before a sandbox agent sees a prompt, the engine has minted the contract, linted it
+  where it was drafted, built the context pack, composed the working rules, materialized
+  the role's skills and mounted its equipment; afterwards the battery judges what it
+  left. Every one of those steps is a function or a verb, and something calls them in
+  order.
+
+  For a session there is nothing between intent and editing. The same verbs exist and
+  nobody runs them, which is not a hypothetical: of the last eight contracts written in
+  a session, three carried a lint refusal and all eight landed green. Every refusal was
+  one rule — a contract that may change a module but not that module's test file, which
+  has quietly forbidden test-driven work on it. The battery cannot catch this, because
+  the scope gate judges the diff *against* the contract, so a contract that forbids the
+  right file is self-consistent and green all the way down.
+
+  `torve lint-contract` is written for exactly this case and says so in its own help
+  text — "the same mechanical protection a drafted contract gets, for the hand-minted
+  path". It is wired into `torve intake`, the drafted path, and reaches the hand-minted
+  one only if a person remembers a standalone verb. The asymmetry was never
+  sandbox-versus-session. It is drafted-versus-hand-minted, and a session is always
+  hand-minted.
+
+  Meanwhile the eight bullets that tell a sandbox agent how to behave here — how to
+  record a divergence, to run `torve log owed` before finishing, that user-facing strings
+  carry no corpus coordinates — are a string literal inside `build_prompt`. They are the
+  best short statement of how to work in this repository and the only way to read them is
+  to open the engine's source.
+current_state: |
+  A session has an MCP read surface with three tools, five skills under
+  `.claude/skills`, a rendered `AGENTS.md` in each governed directory, and the whole CLI
+  — thirty-odd verbs, unranked, with nothing saying which are for it. It has no contract
+  it did not write itself, no pack, and no advisory it has ever seen.
+
+  It also rewrites its own contract mid-flight. One task's `scope.allow` grew four
+  entries across two gate runs, each time because the scope gate had just reddened. A
+  sandbox agent cannot do that; the contract is fixed before it starts.
+
+  `lint-contract` computes more than it prints has ever been read: alongside the
+  refusals it derives the rows whose declared paths intersect a scope but which the
+  contract never inherited. Nobody has ever seen one.
+
+  The skills a session reads are already symlinks into one source — `skills/` at the
+  repository root, packaged into the wheel as `torve/_skills` — so the one-source pattern
+  this document needs for the working rules is the pattern already in use for every other
+  torve-owned skill.
+goals: |
+  One verb that assembles for a session what dispatch assembles for a sandbox, and
+  prints it.
+
+  One text of the working rules, read by both modes, reviewable in a diff.
+
+  The per-task facts a sandbox is handed on disk, askable by a session through the
+  surface every harness can speak.
+non_goals: |
+  No refusal. The verb prints what the engine knows and blocks nothing: the size verdict
+  is advisory today and stays so, and a lint refusal on a hand-minted contract is a
+  warning because the contract is already signed by the person reading it.
+
+  No real-time scope enforcement for a session. It was measured against and rejected:
+  four scope widenings in one session would have been blocked and all four were correct.
+  A session author discovers scope as they work and may legitimately rewrite the
+  contract; that is the difference from a sandbox, not a defect to close.
+
+  No write tool behind MCP. Putting `spec amend` or `log divergence` there would mean
+  reimplementing each verb's refusals behind a second interface, and the refusals are the
+  valuable part.
+
+  No plugin. A `PreToolUse` hook is the sandbox's answer, decided in S-0066, and the
+  evidence against it for a session is in the alternatives below.
+design:
+  - key: the-verb-that-briefs
+    md: |
+      `torve brief <contract>` runs, in order, what dispatch runs before an agent starts:
+      the contract lint, the size estimate, the rows whose paths this scope crosses that
+      the contract has not inherited, the context pack, and the battery this task will
+      face with its blocking axes named.
+
+      It writes the pack where a sandbox attempt would find it and prints everything
+      else. Nothing is refused — a refusal printed before the work is worth a hundred
+      after it, and a hand-minted contract is already signed by the person reading the
+      output.
+
+      The verb is `brief` rather than `session` because `application/session.py` already
+      means what one attempt does inside its sandbox, and a second meaning for that word
+      in the CLI would cost more than the word saves.
+  - key: the-advisory-nobody-has-seen
+    md: |
+      The line worth most in that output is the one the lint already computes and no
+      caller prints: the rows whose declared paths intersect the scope and which the
+      contract never inherited.
+
+      A contract that does not inherit a row still gets judged by `decisions-reported`,
+      the most convicting gate in the battery. So a session that has not seen this line
+      is working against rows it does not know it is governed by, and finds out from a
+      conviction.
+  - key: the-rules-have-one-source
+    md: |
+      The working rules move to `skills/working-rules/`, beside the other torve-owned
+      skills, packaged into the wheel with the engine. A sandbox receives it the way it
+      receives every other skill — as a declared equipment item, materialized under
+      `.torve/skills/`, merged per role, hashed into the regime. A session reads the same
+      directory through the symlink in its skill root, exactly as it already reads
+      `spec-writer` and `flag-dont-flip`.
+
+      This is a deletion. Seven of the eight bullets leave `build_prompt`, and the prompt
+      names the skill instead of inlining it.
+
+      It also carries the one line a session did not have and that three landed contracts
+      needed: a scope naming a module names that module's test file.
+
+      The interaction with S-0066 is the point rather than an accident. That document
+      shuts `.claude/skills` out of a sandbox attempt, so the rules cannot reach an agent
+      that way — and they should not. They reach it as equipment, which is declared,
+      refusable at load, and visible in the digest.
+  - key: the-bullet-that-stays
+    md: |
+      One bullet does not move: the one telling an agent that skills for its role are
+      under `.torve/skills/` and to read every `SKILL.md` there before writing code.
+
+      That is the bootstrap. A skill nothing points at is a file, and moving the pointer
+      into the thing it points at is the failure this section exists to prevent.
+  - key: the-pack-over-mcp
+    md: |
+      The MCP surface grows one read-only tool returning the per-task facts the pack
+      holds, so a session can ask for what a sandbox is handed on disk. It is
+      harness-agnostic by construction — claude, dsh and mimo all speak it — so anything
+      served here serves every session whichever harness the operator drove up in.
+
+      It stays read-only, and that is a property to defend rather than an accident of how
+      much has been built. The pack is already a pure function of record, tree and
+      contract, which is exactly the shape a read tool wants.
+
+      It comes last of the three because it is the largest, and because the first two are
+      what make it useful.
+tests: |
+  The brief is tested on a contract carrying the refusal that actually landed three
+  times: a scope allowing a module but not its existing test file. The verb must name it,
+  and must exit zero, because it refuses nothing.
+
+  The uninherited-rows advisory is tested with a row whose paths intersect the scope and
+  which the contract does not carry — the line nobody has ever seen must appear.
+
+  The rules-as-a-skill move is tested by absence and presence together: `build_prompt` no
+  longer contains the seven bullets, still contains the pointer, and a role that declares
+  the item materializes it under `.torve/skills/`.
+
+  The MCP tool is tested for shape and for refusal: it returns the pack's sections, and
+  the server registers no tool that writes.
+docs: |
+  `pages/docs/operating.md` gains the verb, positioned as the first thing a session runs
+  after minting a contract — the ordering is the finding, not the flags.
+
+  The working-rules skill is itself the documentation of how to work here, which is most
+  of why it should not be a string literal.
+out_of_scope: |
+  A session's own contract discipline beyond printing. Whether a session should be
+  forbidden from widening its scope after a red gate is a real question and the measured
+  answer so far is no.
+
+  The ledger's rates over session work. S-0065 makes them computable; whether a session
+  attempt and a sandbox attempt belong in one denominator is a question for whoever
+  reads them.
+
+  Any second interface to a write verb. The refusals live in the verbs.
+risks: |
+  The prompt is the one channel an agent cannot skip, and a skill is not. Moving seven
+  bullets out of it is a bet that a loaded skill is read, and the bet is measurable
+  rather than assumed: `decisions-reported` and `user-facing-text` are the two rules the
+  battery scores, the regime digest changes when the item is declared, and the ledger
+  reports both per seat. If adherence drops, the move reverts to a prompt that names the
+  skill *and* keeps the two scored bullets.
+
+  The brief becomes a verb nobody runs, which is the failure it exists to fix, one level
+  up. The mitigation is that it is one command with one argument and it prints something
+  useful on every contract — including the advisory that has never been seen.
+
+  The MCP tool grows into a second engine. The mitigation is the read-only rule and the
+  fact that the pack is already a pure function; anything that needs a decision stays a
+  verb.
+alternatives:
+  - option: A claude plugin with a `PreToolUse` hook, so a session's contract binds in real time
+    rejected_because: >-
+      Measured against a real session: four of one task's scope widenings would have been
+      blocked and all four were correct — a row's own paths, a rendered projection, a test
+      fixture, the spec directory. The lint catches the contract defects that actually
+      landed; the hook would have caught none and cost four interruptions. It is also
+      claude-only, in a repository that dispatches to three harnesses.
+  - option: Put the working rules behind MCP rather than in a skill
+    rejected_because: >-
+      A tool call is a thing an agent may not make; a skill in the role's set is
+      materialized whether or not it is asked for, and is hashed into the regime. The
+      rules are not a lookup, they are a premise.
+  - option: Leave the rules in `build_prompt` and copy them into a skill for the session
+    rejected_because: >-
+      Two copies of a text that governs behaviour is the drift this document exists to
+      remove; the repository already has one-source symlinks for every other
+      torve-owned skill.
+  - option: Extend `torve context` instead of adding a verb
+    rejected_because: >-
+      `torve context` projects accumulated facts for a planning session — tasks by state,
+      escalations by reason, gate health across the programme. It is a fleet view, and
+      the brief is about one contract.
+  - option: Have the brief refuse a contract that lints red or sizes too large
+    rejected_because: >-
+      The size heuristic's own false-positive rate is measured and non-trivial, and under
+      S-0055/D-47 a `too_large` verdict routes to decomposition rather than to a stop. A
+      hand-minted contract is signed by the person reading the output; printing is the
+      protection, refusing is a different decision with a different owner.
+    cites:
+      - S-0055/D-47
+questions:
+  - id: Q-1
+    text: >-
+      Does adherence to the two rules the battery scores — `decisions-reported` and
+      `user-facing-text` — change when the rules move from the prompt into a loaded
+      skill? The ledger can answer it per seat once both exist, and until it does the
+      move is a bet rather than a measurement.
+    status: open
+  - id: Q-2
+    text: >-
+      Should a session attempt be recorded at all? The brief knows a contract, a scope
+      and a battery, and the work that follows lands without an attempt record — which
+      is a large part of why the engine's own rates describe a minority of its traffic.
+    status: open

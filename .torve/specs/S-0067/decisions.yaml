@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `torve brief <contract>` runs what dispatch runs before an agent starts — the
+      lint, the size estimate, the uninherited rows, the pack, the battery — prints it,
+      and refuses nothing
+    paths:
+      - src/torve/cli/brief.py
+    consequence: >-
+      the hand-minted path gets the protection the drafted path already has, printed
+      before the work rather than convicted after it
+    rationale: >-
+      of the last eight session-authored contracts three carried a lint refusal and all
+      eight landed green; the verb that would have caught them exists, is written for
+      this case in its own help text, and only `torve intake` calls it
+    cites:
+      - S-0030/D-4
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The brief prints the rows whose declared paths intersect the scope and which the
+      contract has not inherited
+    paths:
+      - src/torve/cli/brief.py
+    consequence: >-
+      a session stops learning from a conviction that it was governed by a row it never
+      carried
+    rationale: >-
+      the lint already computes this as an advisory and no caller has ever printed it,
+      while `decisions-reported` is the most convicting gate in the battery
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The working rules live once, at `skills/working-rules/`, reaching a sandbox as a
+      declared equipment item and a session through its skill root; `build_prompt` names
+      the skill instead of inlining it
+    paths:
+      - skills/working-rules/**
+      - src/torve/adapters/agent/harness.py
+      - .torve/agents/**
+    consequence: >-
+      the best short statement of how to work in this repository stops being readable
+      only by opening the engine's source, and both modes read one text that a diff can
+      refuse
+    rationale: >-
+      S-0066 shuts `.claude/skills` out of a sandbox attempt, so the rules must arrive as
+      equipment — declared, refusable at load, hashed into the regime; every other
+      torve-owned skill already has exactly this one-source shape
+    cites:
+      - S-0066/D-1
+      - S-0062/D-7
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      One bullet stays in the prompt: that the role's skills are under `.torve/skills/`
+      and every `SKILL.md` there is read before writing code
+    paths:
+      - src/torve/adapters/agent/harness.py
+    consequence: >-
+      the skill remains reachable; without it the rules are a file nothing points at
+    rationale: >-
+      moving a pointer into the thing it points at is the one way this change can fail
+      silently, and it fails for every attempt at once
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      The MCP surface serves the per-task pack as one more read-only tool and registers
+      no tool that writes
+    paths:
+      - src/torve/cli/mcp.py
+    consequence: >-
+      every session gets the facts a sandbox is handed on disk, whichever harness it
+      drove up in, and no verb's refusals are reimplemented behind a second interface
+    rationale: >-
+      the pack is already a pure function of record, tree and contract, which is the
+      shape a read tool wants; the refusals are the valuable part of a write verb and
+      they live in the verb
+    cites:
+      - S-0054/D-9
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The working-rules skill states that a scope naming a module names that module's
+      test file
+    paths:
+      - skills/working-rules/**
+    consequence: >-
+      the one rule that produced every measured lint refusal on the hand-minted path is
+      written where a session reads it, not only where a lint reports it
+    rationale: >-
+      all four refusals across the last eight session contracts were this rule, and a
+      contract that forbids its own test file is self-consistent and green all the way
+      down
