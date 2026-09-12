@@ -27,6 +27,7 @@ from torve.application.decisions import (
     import_sources,
     load_corpus,
     path_rot,
+    uncommitted_globs,
 )
 from torve.base.clock import for_name, from_day
 from torve.config.spec import archive_dir, landing_header, load_document, schema_header
@@ -457,6 +458,66 @@ def test_path_rot_names_rows_whose_every_glob_matches_nothing(tmp_path: Path) ->
 
     assert [(r.identifier, r.grade) for r in rotted] == [("S-0001/D-3", "ASSUMED")]
     assert "torve spec amend S-0001 --row S-0001/D-3 --retire --reason path-rot" in rotted[0].line()
+
+
+# ....................... #
+
+
+def test_path_rot_spares_a_row_over_what_the_tree_deliberately_does_not_commit(
+    tmp_path: Path,
+) -> None:
+    """S-0070/D-5: a glob matching nothing because the repository never carries
+    those files is a clean tree, not governance that governs nothing — and
+    the only reason a fresh clone reads differently from the host that wrote
+    the task directories."""
+
+    rfc_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [
+                    ("S-0001/D-1", "LOCKED", "uncommitted", "`.torve/tasks/**`"),
+                    ("S-0001/D-2", "LOCKED", "committed", "`.torve/specs/**`"),
+                    ("S-0001/D-3", "ASSUMED", "rotted", "`src/gone/**`"),
+                ],
+            )
+        },
+    )
+    (tmp_path / ".torve" / ".gitignore").write_text("# minted\ntasks/\n", encoding="utf-8")
+
+    rotted = path_rot(load_corpus(rfc_dir), tmp_path)
+
+    assert [r.identifier for r in rotted] == ["S-0001/D-3"]
+
+    # Without the ignore file nothing is known to be deliberate, and the same
+    # tree reads as two more rotted rows — the state that fails a clean clone.
+    (tmp_path / ".torve" / ".gitignore").unlink()
+
+    assert [r.identifier for r in path_rot(load_corpus(rfc_dir), tmp_path)] == [
+        "S-0001/D-1",
+        "S-0001/D-3",
+    ]
+
+
+# ....................... #
+
+
+def test_uncommitted_globs_reads_the_ignore_file_and_skips_negations(tmp_path: Path) -> None:
+    torve = tmp_path / ".torve"
+    torve.mkdir(parents=True)
+    (torve / ".gitignore").write_text(
+        "\n# what torve alone writes\ntasks/\ntelemetry.jsonl\n!tasks/keep.md\n",
+        encoding="utf-8",
+    )
+
+    assert uncommitted_globs(tmp_path) == [
+        ".torve/tasks",
+        ".torve/tasks/**",
+        ".torve/telemetry.jsonl",
+        ".torve/telemetry.jsonl/**",
+    ]
+    assert uncommitted_globs(tmp_path / "elsewhere") == []
 
 
 # ....................... #

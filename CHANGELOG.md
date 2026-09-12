@@ -227,6 +227,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Path rot no longer fires on a row whose declared files the repository
+  deliberately does not commit. The check reads the ignore file `torve init`
+  writes and reads a glob reaching into what it claims as a clean tree rather
+  than as governance that governs nothing — so a row over `.torve/tasks/**`
+  reads the same in a fresh clone as on the host that happens to hold the task
+  directories, and `--fix-rot` cannot retire a live row over one.
+
 - The size estimate no longer counts `.torve` as a module a task spans. A task
   carries its own contract and the amendment its landing records, so 9 of this
   repository's 61 contracts were called oversized on that ground alone.

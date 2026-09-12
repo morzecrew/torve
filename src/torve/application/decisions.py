@@ -39,7 +39,7 @@ from pathspec import GitIgnoreSpec
 from pydantic import ValidationError
 
 from torve.application.planner import PlanError, globs_intersect
-from torve.config import spec
+from torve.config import layout, spec
 from torve.config.sources import load_sources as filed_sources
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.source import Source, corpus_source_id
@@ -566,13 +566,42 @@ def _matches(root: Path, pattern: str) -> bool:
         return False
 
 
+def uncommitted_globs(root: Path) -> list[str]:
+    """What the ignore file torve writes under its own directory claims, as
+    globs relative to *root* (S-0070/D-5). Each entry is read the way git
+    reads it — the name itself and everything beneath it."""
+
+    try:
+        lines = (root / layout.TORVE_DIR / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+    globs: list[str] = []
+
+    for line in lines:
+        entry = line.strip()
+
+        # A negation re-commits what an earlier line ignored; reading it as
+        # one more ignored area would be backwards, so it is left out.
+        if not entry or entry.startswith(("#", "!")):
+            continue
+
+        under = f"{layout.TORVE_DIR}/{entry.strip('/')}"
+        globs += [under, f"{under}/**"]
+
+    return globs
+
+
 def path_rot(corpus: Corpus, root: Path) -> list[RottedRow]:
     """Every standing row on an accepted, implemented document whose globs
     all match nothing under *root* — governance that governs nothing. A
     document not yet implemented names areas that do not exist yet, which
-    is intent, not rot (S-0001/D-32)."""
+    is intent, not rot (S-0001/D-32). Neither is a row reaching into what
+    the repository deliberately does not commit: an empty match there says
+    the tree is clean, not that the row governs nothing (S-0070/D-5)."""
 
     rotted: list[RottedRow] = []
+    uncommitted = uncommitted_globs(root)
 
     for doc in corpus.standing():
         if doc.implementation == "none" or doc.superseded_by:
@@ -583,6 +612,9 @@ def path_rot(corpus: Corpus, root: Path) -> list[RottedRow]:
                 continue
 
             if any(_matches(root, pattern) for pattern in row.paths):
+                continue
+
+            if uncommitted and globs_intersect(row.paths, uncommitted):
                 continue
 
             rotted.append(
@@ -953,4 +985,5 @@ __all__ = [
     "path_rot",
     "project",
     "record_all",
+    "uncommitted_globs",
 ]
