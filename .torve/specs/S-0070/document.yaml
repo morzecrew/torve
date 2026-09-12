@@ -48,6 +48,16 @@ current_state: |
   a moved base, re-ran the battery in a fresh worktree, and refused to land it. The lane
   was right and the attempt's own battery was not.
 
+  **The corpus check calls a governed path rot.** `S-0055/D-10` and `S-0059/D-1` are
+  LOCKED rows declaring `.torve/tasks/**`, which is gitignored — so in a fresh tree the
+  globs match nothing and `torve spec check` reports path rot and exits non-zero. This
+  host holds 76 such directories, so it passes here. `spec-valid` is a blocking gate and
+  `test_the_corpus_of_this_repository_is_clean` runs the same verb inside the acceptance
+  command, and both pass in an attempt only because dispatch writes a `contract.yaml`
+  into the worktree. This is the mirror of the first two: not a committed artefact
+  depending on what is uncommitted, but a check refusing because something deliberately
+  uncommitted is absent.
+
   **The attempt record names a contract that is not kept.** 264 of 276 attempts name a
   task whose `contract.yaml` has left the tree. `S-0065/A-1` settled the reader half —
   243 resolve from git at the attempt's own sha — and the writer half, which is that the
@@ -180,7 +190,7 @@ alternatives:
 questions:
   - id: Q-1
     text: >-
-      Are there more than three? The sweep is a grep for the gitignored paths in anything
+      Are there more than four? The sweep is a grep for the gitignored paths in anything
       committed, and it is cheap; what it finds decides whether this document is a
       rule with three corrections or a rule with a longer tail.
   - id: Q-2

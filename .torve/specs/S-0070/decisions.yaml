@@ -17,6 +17,22 @@ decisions:
       stream, so no committed content satisfies both readers — inside a worktree the
       section is empty and the file drifts, and on the host it is full
     cites: [S-0054/D-7, S-0056/D-10]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Path rot is a glob that governs nothing, not a glob whose files the repository
+      deliberately does not commit; the check reads `.torve/.gitignore` and says which
+      it found
+    paths: [src/torve/application/decisions.py]
+    consequence: >-
+      `torve spec check` passes in a clean clone, so `spec-valid` and the acceptance
+      command stop depending on a task directory that dispatch happens to have written
+    rationale: >-
+      measured, `S-0055/D-10` and `S-0059/D-1` declare `.torve/tasks/**` and are called
+      rot in any fresh tree; this host holds 76 such directories, so the corpus check
+      passes here and fails everywhere else — and `--fix-rot` would retire two live
+      LOCKED rows
+    cites: [S-0053/D-7]
   - id: D-2
     grade: ASSUMED
     text: >-

@@ -1,6 +1,23 @@
 # yaml-language-server: $schema=../../schemas/phasing.json
 phasing:
   - phase: 1
+    title: >-
+      a check refuses what is absent, not what is unkept
+    intent: >-
+      Path rot stops firing on a glob whose files the repository deliberately does
+      not commit. The check reads the ignore file torve itself writes and distinguishes
+      a row that governs nothing from a row that governs something uncommitted, naming
+      which it found. This phase is first because it is the blocker: `spec check`
+      fails in any clean tree today, so `spec-valid` and every acceptance command
+      pass only where a task directory happens to exist — which is the host, and never
+      the tree the lane rebases into.
+    scope: [src/torve/application/decisions.py, tests/test_rfc_check.py, CHANGELOG.md]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+      - uv run lint-imports
+    character: structural
+  - phase: 2
     title: a committed file renders the same everywhere
     intent: >-
       The projection's "Contended now" section leaves `AGENTS.md`, which becomes a
@@ -17,8 +34,10 @@ phasing:
       - uv run pytest
       - uv run mypy src
       - uv run lint-imports
+    depends_on:
+      - 1
     character: structural
-  - phase: 2
+  - phase: 3
     title: the sweep, and what it finds
     intent: >-
       Settle Q-1. Every path `.torve/.gitignore` names is grepped for in everything
@@ -29,9 +48,9 @@ phasing:
     acceptance:
       - uv run pytest
     depends_on:
-      - 1
+      - 2
     character: structural
-  - phase: 3
+  - phase: 4
     title: the rule reaches whoever writes the next gate
     intent: >-
       One line each in the sandbox guide and the operating guide, because the people
@@ -42,5 +61,5 @@ phasing:
     acceptance:
       - uv run torve spec check
     depends_on:
-      - 2
+      - 3
     character: routine
