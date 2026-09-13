@@ -783,6 +783,42 @@ One carrier is the landing, and the other two are reconciled against it or dropp
 - Paths: `src/torve/application/lane.py` `src/torve/application/projections.py`
 - Consequence: duty cycle and landings-through-the-lane acquire a denominator that does not depend on which reader was asked
 
+### S-0069/D-2 — `ASSUMED` (A conviction is the next contract's input)
+
+The conviction reaches the next attempt in the prompt — the gate, its output tail, the paths the diff touched and the inherited rows governing them — as evidence the contract still outranks
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
+- Consequence: the most specific thing the engine ever learns about a task stops arriving through a channel an attempt may skip
+
+### S-0069/D-3 — `ASSUMED` (A conviction is the next contract's input)
+
+A repair's acceptance gains the convicting gate's own command, and keeps everything the contract already declared
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: a repair that leaves the gate red fails inside the attempt, and one that clears it by breaking another gate still fails
+
+### S-0069/D-4 — `ASSUMED` (A conviction is the next contract's input)
+
+A repair starts from the convicted attempt's tree, not from base
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: the work that was right survives the mistake, and the tree a mechanical conviction names is repaired rather than rebuilt
+
+### S-0069/D-5 — `OPEN` (A conviction is the next contract's input)
+
+Which convictions qualify for a repair — the set starts at the gates whose checks are pure functions of the tree and grows on the ledger's evidence
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: a repair is never offered for a conviction where the approach rather than the tree is what failed, and widening the set is a decision with a number behind it
+
+### S-0069/D-6 — `LOCKED` (A conviction is the next contract's input)
+
+A repair is attempted once per conviction; a second conviction on the same gate routes exactly where it routes today
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: the poison ceiling keeps meaning three failures the same way rather than three attempts at one fix, and a repair cannot become a loop reading its own failure as its input
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0070/D-1 — `LOCKED` (What is committed may not depend on what is not)
 
 A committed artefact is a function of committed inputs; anything derived from the record reaches a reader through the pack or a verb, never through a file a gate diffs against a fresh render

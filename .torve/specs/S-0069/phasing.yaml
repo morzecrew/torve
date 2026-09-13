@@ -15,7 +15,6 @@ phasing:
       - tests/test_contextpack.py
       - tests/test_runner.py
       - src/torve/adapters/AGENTS.md
-      - CHANGELOG.md
     acceptance:
       - uv run pytest
       - uv run mypy src
@@ -37,8 +36,6 @@ phasing:
       - tests/test_runner.py
       - tests/test_dispatch.py
       - src/torve/application/AGENTS.md
-      - pages/docs/operating.md
-      - CHANGELOG.md
     acceptance:
       - uv run pytest
       - uv run mypy src
@@ -46,3 +43,16 @@ phasing:
     depends_on:
       - 1
     character: structural
+  - phase: 3
+    title: the repair mode reaches the guide
+    intent: >-
+      The operating guide gains the third prompt mode: what a repair is handed, when
+      the gate routes one, and why it happens once. Written after both phases land,
+      from their landing records.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 1
+      - 2
+    character: routine

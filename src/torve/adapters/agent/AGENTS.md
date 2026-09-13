@@ -113,6 +113,20 @@ One bullet stays in the prompt: that the role's skills are under `.torve/skills/
 - Consequence: the skill remains reachable; without it the rules are a file nothing points at
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0069/D-1 — `ASSUMED` (A conviction is the next contract's input)
+
+A repair is a mode of an attempt, not a role, a task or a child — `build_prompt` gains a `conviction` beside its `continuation` and `revision`
+
+- Paths: `src/torve/adapters/agent/harness.py`
+- Consequence: the attempt ledger, the budget, the poison ceiling and the escalation reasons all apply unchanged, and nothing new has to be configured for a repair to exist
+
+### S-0069/D-2 — `ASSUMED` (A conviction is the next contract's input)
+
+The conviction reaches the next attempt in the prompt — the gate, its output tail, the paths the diff touched and the inherited rows governing them — as evidence the contract still outranks
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
+- Consequence: the most specific thing the engine ever learns about a task stops arriving through a channel an attempt may skip
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
