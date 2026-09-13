@@ -13,8 +13,10 @@ that quietly stops existing.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -494,6 +496,54 @@ def test_a_manifest_declares_its_dialects_and_names_no_credential() -> None:
         # The auth fields keep their model defaults because neither manifest
         # names one: they stay for a harness with no env form, such as codex.
         assert manifest.auth_volume == "torve-auth"
+
+
+def test_the_hook_flag_points_at_the_settings_file_not_its_directory(tmp_path: Path) -> None:
+    """T-0389 died three times at `wall 0s` on
+    `Cannot use settings file (EISDIR ...): /opt/torve/equipment/implement`.
+
+    Every other flag here reads the directory an item was fetched into, and
+    `--settings` reads a file — so the one mapping that differs had no test,
+    and the first `hook` declaration met an image that handed it the folder.
+    Nothing in the battery caught it: the profile's own test asserts the bytes
+    exist, and the script that turns them into arguments had no twin at all.
+    """
+
+    equipment = tmp_path / "equipment" / "implement"
+    equipment.mkdir(parents=True)
+
+    for name in ("settings.json", "scope_guard.py", "finish_check.py"):
+        (equipment / name).write_text("{}", encoding="utf-8")
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "items": [
+                    {"kind": "hook", "path": str(equipment)},
+                    {"kind": "plugin", "path": str(tmp_path / "equipment")},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    args = tmp_path / "args"
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(DEFINITIONS / "claude" / "toolkit" / "equip_flags.py"),
+            str(manifest),
+            str(args),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    words = shlex.split(args.read_text(encoding="utf-8"))
+
+    assert words[words.index("--settings") + 1] == str(equipment / "settings.json")
+    # The plugin flag still takes the directory — this fixes one kind, not all.
+    assert words[words.index("--plugin-dir") + 1] == str(tmp_path / "equipment")
 
 
 def test_no_equip_writes_to_a_path_the_repository_owns() -> None:

@@ -50,6 +50,19 @@ for item in items:
         shutil.copytree(path, os.path.join(root, os.path.basename(path)), dirs_exist_ok=True)
         continue
 
+    if kind == "hook":
+        # `--settings` reads a file; every other flag here reads the directory the
+        # item was fetched into. A hook item is a directory because the settings
+        # reference scripts beside them by name, so the flag points at the one
+        # file and the scripts stay reachable from it.
+        path = os.path.join(path, "settings.json")
+
+        if not os.path.isfile(path):
+            raise SystemExit(
+                f"hook item {item['kind']!r} has no settings.json at {path} — a hook is a "
+                "directory holding the settings and the scripts they name"
+            )
+
     words += [FLAG[kind], path]
 
 with open(args, "w", encoding="utf-8") as handle:

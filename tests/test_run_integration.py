@@ -114,6 +114,13 @@ def test_reap_cleans_up_after_kill_nine(repo):
             str(repo.root),
             "--scenario",
             str(scenario),
+            # `base_task` carries no intent and no acceptance, which dispatch has
+            # refused since S-0067/D-9. This test is about the reaper, not the
+            # lint. It failed as "run never reached a live sandbox" because the
+            # refusal went to a discarded stderr — and the battery could not have
+            # caught it, since this file is docker-gated and skips in a sandbox
+            # (S-0070/D-6).
+            "--lint-red",
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

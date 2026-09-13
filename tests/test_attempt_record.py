@@ -161,9 +161,7 @@ def test_a_payload_with_an_unknown_field_is_refused(gated):
 # ending (S-0065/D-6) — what makes a row joinable, and what makes it readable.
 
 
-def _ctx(
-    head_sha: str = "", merge_base: str | None = None, base: str | None = None
-) -> GateContext:
+def _ctx(head_sha: str = "", merge_base: str | None = None, base: str | None = None) -> GateContext:
     return GateContext(
         root=Path("."),
         manifest=Manifest(gates=[]),

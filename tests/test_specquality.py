@@ -668,10 +668,15 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
     # in-sandbox battery masked this: a nested socket-mode run's worktree
     # mount resolves against the host daemon, so the write landed in a void
     # and the diff came back empty.)
+    # `--lint-red` because this fixture is deliberately minimal — `base_task`
+    # carries no intent and no acceptance, and `src/**` reaches a module whose
+    # test file it does not name. Dispatch refuses all three since S-0067/D-9,
+    # and this test is about the envelope beside the size verdict, not about
+    # what the lint refuses; `tests/test_intake.py` is where that lives.
     json_repo.task(base_task(allow=["src/**", "TORVE_FAKE.md"]), None)
 
     result = CliRunner().invoke(
-        app, ["run", TASK_ID, "--root", str(json_repo.root), "--format", "json"]
+        app, ["run", TASK_ID, "--root", str(json_repo.root), "--format", "json", "--lint-red"]
     )
     assert result.exit_code == 0, result.output
     document = json.loads(result.stdout)
@@ -684,7 +689,9 @@ def test_run_cli_prints_the_envelope_beside_the_size_verdict(tmp_path):
     text_repo.seed()
     text_repo.task(base_task(allow=["src/**", "TORVE_FAKE.md"]), None)
 
-    text_result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(text_repo.root)])
+    text_result = CliRunner().invoke(
+        app, ["run", TASK_ID, "--root", str(text_repo.root), "--lint-red"]
+    )
     assert text_result.exit_code == 0, text_result.output
     assert "size ok envelope" in text_result.output
 
