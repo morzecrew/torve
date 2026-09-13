@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-13T16:06:54Z'
+    title: >-
+      The qualifying set is the gates whose checks are pure functions of the tree
+    changes:
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-5
+        field: fingerprint
+        after: f32af45201583e8e/14bd8ed0a79735ba
+    md: |
+      The row was `OPEN` because the document could name the mechanism and not the
+      membership: which convictions are worth handing back with the tree intact, and
+      which mean the approach itself was wrong. T-0390 decided it against the record
+      and wrote down the arithmetic.
+
+      The qualifying set is `layering`, `scope`, `user-facing-text` and
+      `decisions-reported` — the gates whose checks are pure functions of the tree,
+      pinned as `REPAIR_GATES` in `runner.py`. A conviction from any of them says the
+      work is close and one thing about it is wrong, which is exactly the case a
+      repair is for.
+
+      `acceptance` stays out, and it is the largest repeat class: of the 196 repeat
+      convictions across 28 tasks, acceptance is 52 against layering's 41,
+      user-facing-text's 39, decisions-reported's 26 and scope's 14. The reason to
+      exclude the biggest number is that a failing suite does not distinguish a tree
+      worth keeping from an approach worth abandoning — and handing back a broken
+      approach with its own failure attached is how a repair loop becomes a way to
+      spend three attempts instead of two.
+
+      `ASSUMED` rather than `LOCKED`: the membership is a judgement about what a
+      conviction means, and the per-gate repeat counts the ledger now derives are
+      what would revise it.

@@ -804,7 +804,7 @@ A repair starts from the convicted attempt's tree, not from base
 - Paths: `src/torve/application/runner.py`
 - Consequence: the work that was right survives the mistake, and the tree a mechanical conviction names is repaired rather than rebuilt
 
-### S-0069/D-5 — `OPEN` (A conviction is the next contract's input)
+### S-0069/D-5 — `ASSUMED` (A conviction is the next contract's input)
 
 Which convictions qualify for a repair — the set starts at the gates whose checks are pure functions of the tree and grows on the ledger's evidence
 

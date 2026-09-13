@@ -57,7 +57,7 @@ decisions:
       is
     cites: [S-0026/D-8]
   - id: D-5
-    grade: OPEN
+    grade: ASSUMED
     text: >-
       Which convictions qualify for a repair — the set starts at the gates whose checks
       are pure functions of the tree and grows on the ledger's evidence
@@ -70,6 +70,7 @@ decisions:
       `acceptance` is the largest repeat class at 52 and the least obviously mechanical:
       a suite failing twice may be a tree worth keeping or an approach worth abandoning,
       and only per-gate repeat counts can tell those apart
+    fingerprint: f32af45201583e8e/14bd8ed0a79735ba
   - id: D-6
     grade: LOCKED
     text: >-
