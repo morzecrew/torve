@@ -21,6 +21,11 @@ import sys
 # set and does *not* load skills: measured, a session given five skills through
 # it listed only claude's built-ins. Skills load from a skills root, so they are
 # copied to the one the engine named.
+#
+# The directory a hook item carries per harness (S-0072/D-1), named after the
+# harness this image is — `claude-sandbox` reads `claude/`. This script lives in
+# the claude image, so it reaches for claude's and knows nothing of the others.
+HARNESS_DIR = "claude"
 FLAG = {
     "plugin": "--plugin-dir",
     "mcp": "--mcp-config",
@@ -51,16 +56,18 @@ for item in items:
         continue
 
     if kind == "hook":
-        # `--settings` reads a file; every other flag here reads the directory the
-        # item was fetched into. A hook item is a directory because the settings
-        # reference scripts beside them by name, so the flag points at the one
-        # file and the scripts stay reachable from it.
-        path = os.path.join(path, "settings.json")
+        # `--settings` reads a file; every other flag here reads the directory an
+        # item was fetched into. A hook item keeps its payload at the root and one
+        # directory per harness beside it (S-0072/D-1), so the flag points at the
+        # harness's own file, and the scripts the settings name stay reachable at
+        # the item's root.
+        path = os.path.join(path, HARNESS_DIR, "settings.json")
 
         if not os.path.isfile(path):
             raise SystemExit(
-                f"hook item {item['kind']!r} has no settings.json at {path} — a hook is a "
-                "directory holding the settings and the scripts they name"
+                f"hook item {item['kind']!r} has no {HARNESS_DIR} settings at {path} — a "
+                "hook is a directory of scripts with one settings file per harness "
+                "beside them"
             )
 
     words += [FLAG[kind], path]

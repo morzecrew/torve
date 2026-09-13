@@ -915,8 +915,13 @@ def test_the_hook_kind_is_declared_on_implement_and_nowhere_else() -> None:
 
     assert hook.source == "local:.torve/agents/hooks/implement"
 
-    for name in ("settings.json", "scope_guard.py", "finish_check.py"):
+    # The payload stays at the item's root, and the harness reads its own
+    # directory beside it (S-0072/D-1): the settings the claude image points
+    # `--settings` at live under `claude/`.
+    for name in ("scope_guard.py", "finish_check.py"):
         assert (HOOK_DIR / name).is_file(), name
+
+    assert (HOOK_DIR / "claude" / "settings.json").is_file()
 
 
 def test_the_refusal_reads_the_contract_and_blocks_only_inside_scope(tmp_path: Path) -> None:

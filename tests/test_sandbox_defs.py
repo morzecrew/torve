@@ -498,21 +498,23 @@ def test_a_manifest_declares_its_dialects_and_names_no_credential() -> None:
         assert manifest.auth_volume == "torve-auth"
 
 
-def test_the_hook_flag_points_at_the_settings_file_not_its_directory(tmp_path: Path) -> None:
+def test_the_hook_flag_points_inside_the_harness_directory(tmp_path: Path) -> None:
     """T-0389 died three times at `wall 0s` on
     `Cannot use settings file (EISDIR ...): /opt/torve/equipment/implement`.
 
     Every other flag here reads the directory an item was fetched into, and
     `--settings` reads a file — so the one mapping that differs had no test,
     and the first `hook` declaration met an image that handed it the folder.
-    Nothing in the battery caught it: the profile's own test asserts the bytes
-    exist, and the script that turns them into arguments had no twin at all.
+    A hook item keeps its payload at the root and one directory per harness
+    beside it, so the flag points at the harness's own file (S-0072/D-1).
     """
 
     equipment = tmp_path / "equipment" / "implement"
     equipment.mkdir(parents=True)
+    (equipment / "claude").mkdir()
+    (equipment / "claude" / "settings.json").write_text("{}", encoding="utf-8")
 
-    for name in ("settings.json", "scope_guard.py", "finish_check.py"):
+    for name in ("scope_guard.py", "finish_check.py"):
         (equipment / name).write_text("{}", encoding="utf-8")
 
     manifest = tmp_path / "manifest.json"
@@ -541,7 +543,7 @@ def test_the_hook_flag_points_at_the_settings_file_not_its_directory(tmp_path: P
     )
     words = shlex.split(args.read_text(encoding="utf-8"))
 
-    assert words[words.index("--settings") + 1] == str(equipment / "settings.json")
+    assert words[words.index("--settings") + 1] == str(equipment / "claude" / "settings.json")
     # The plugin flag still takes the directory — this fixes one kind, not all.
     assert words[words.index("--plugin-dir") + 1] == str(tmp_path / "equipment")
 
