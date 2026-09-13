@@ -4,7 +4,7 @@ title: >-
   A session is briefed, and the working rules have one source
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0066]
 informed_by: [S-0054, S-0055, S-0062]
 supersedes: []
