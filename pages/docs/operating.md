@@ -25,6 +25,7 @@ shell has not set is filled in.
 | `torve intake "…" --source <id>` | draft against a request and record what asked — an audit, an incident, an ask |
 | `torve intake "<request>"` | draft contracts from prose in a read-only sandbox; a human adopts or refuses |
 | `torve adopt <task>` | the human signature: ids are minted here, under the engine lock |
+| `torve brief <contract>` | print what dispatch settles before an attempt starts — the lint, the size, the rows, the pack, the battery. Refuses nothing; see below |
 | `torve run <task>` | one task, synchronously, sandboxed — the exit code carries the outcome |
 | `torve manager serve <partition> --dsn …` | the resident manager: import contracts, claim one task at a time, execute, record |
 | `torve fleet serve` | the same, over every repository the manifest names, one attention budget across all of them |
@@ -41,6 +42,72 @@ shell has not set is filled in.
 **Retired, and not coming back by that name:** `torve tick` and
 `torve fleet tick`. The standing loop they drove is abandoned (S-0019
 S-0019/A-8); the manager runs its legs. Nothing scheduled the tick anyway.
+
+## Briefing a contract
+
+A drafted contract passes a contract lint before a human signs anything. A
+hand-minted one should get the same protection, and `torve brief <contract>`
+is that: it runs what dispatch runs before an agent starts, and prints it
+(S-0067/D-1) — before the work, rather than as a conviction after it:
+
+```bash
+torve brief T-0387                 # a task id, resolved the way `torve run` resolves one
+torve brief contracts/draft.yaml   # a path, for a draft that has no id yet
+```
+
+The print is five things, in the order dispatch consults them:
+
+- **the contract lint** — advisory here. The person reading the output has
+  already signed the contract, so a red lint prints and the exit stays zero.
+  Dispatch itself refuses a red lint, and `--lint-red` bypasses that refusal
+  with the act recorded on the run.
+- **the size estimate** — `ok`, `too_small` or `too_large`, with its reasons:
+  the same verdict that routes a `too_large` contract to decomposition.
+- **the rows your scope crosses that the contract has not inherited**
+  (S-0067/D-2) — standing rows whose declared paths intersect the scope,
+  which is what `decisions-reported` convicts on when the log stays silent
+  over them. Named while the answer is still an edit, not a thrown attempt.
+- **the context pack** — written to `.torve/context/`, replacing what stood
+  there: the same files, built by the same function dispatch calls, where an
+  attempt will find them.
+- **the battery** — every gate with its axis, its state, and what it convicts
+  on; the blocking axes named at the foot.
+
+`--format json` carries the same fields. That the verb refuses nothing is the
+design, not an omission: a hand-minted contract is already signed by the
+person reading the output, which is the same ground the lint's own advisories
+stand on.
+
+## Where the working rules live
+
+The rules an attempt works by — where the engine's facts are, which verbs
+read and write them, what a scope names, the two rules about tests that
+convict most often — live once, in `skills/working-rules/SKILL.md`
+(S-0067/D-3), and reach every mode from that one file:
+
+- A sandbox receives it as a declared equipment item: the implement, review
+  and revert profiles under `.torve/agents/` name it, so it lands under
+  `.torve/skills/` in the attempt's workspace — refusable at load and hashed
+  into the regime, like any other piece of equipment.
+- A session reads the same directory through its own skill root. In this
+  repository that is a symlink into `skills/working-rules/`, so there is no
+  second text to drift from the first.
+
+The prompt an attempt carries keeps the bullet that points at the skill
+(S-0067/D-4, LOCKED): your role's skills are under `.torve/skills/`, and
+every `SKILL.md` there is read before code is written. The pointer stays in
+the prompt because a skill nothing points at is a file; the rule bullets
+beside it summarize the skill, and neither the summary nor the skill
+outranks the contract.
+
+That one file is where the three rules live that most often explain a
+refusal a hand-minted contract collects: a scope naming a module names that
+module's test file (S-0067/D-6); a scope never names the changelog — the
+entry is written afterwards, from the landing records, once review has
+settled what the change was (S-0067/D-7); and a test may not assume it is
+the only one on the machine — what it creates on a shared daemon it finds by
+its own name or root, never a literal another test also uses (S-0067/D-8),
+which is a correctness rule once the suite runs in parallel, not a courtesy.
 
 ## Which carrier answers a report
 
@@ -75,6 +142,25 @@ What the record derives reaches its reader through the pack or through a verb
 — never through a committed file a gate diffs against a fresh render. A
 committed artefact is a function of committed inputs: if a clean clone renders
 it differently, it does not belong in one (S-0070/D-1, LOCKED).
+
+## What the pack answers over MCP
+
+`torve mcp` serves the read surface to a planning session on this machine,
+over stdio. It registers four tools and all four are read-only
+(S-0067/D-5, LOCKED): `context`, `show`, `why` — and `pack`.
+
+`pack` takes a task id, and optionally one file name, and answers with the
+very files a dispatched sandbox is handed on disk: `index.md`,
+`decisions.json`, `gates.json`, `tests.json`, `attempts.json`,
+`contended.json`, `schema/*.json`. They are built there by the same pure
+function dispatch calls — the builder derives and the caller writes, so a
+query materializes nothing: no file on disk moves because you asked.
+
+Until that tool existed the pack was a sandbox fact: a session read it off a
+worktree or not at all. Now every session gets the facts a sandbox is handed,
+whichever harness it drove up in. Which is why the server still registers
+nothing that writes: the refusals are the valuable part of a verb, and behind
+a second interface they would only be a second, weaker copy of them.
 
 ## What each rate counts
 
