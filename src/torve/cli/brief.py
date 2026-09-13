@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import typer
 from rich.text import Text
@@ -35,7 +35,13 @@ from torve.cli.console import (
     make_table,
     out,
 )
-from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
+from torve.cli.options import (
+    ConfigOption,
+    FormatOption,
+    RootOption,
+    load_config,
+)
+from torve.cli.run import ContractArgument, contract_for
 from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 from torve.gates.context import load_task
@@ -44,7 +50,7 @@ from torve.gates.context import load_task
 
 
 def brief_cmd(
-    contract: Annotated[Path, typer.Argument(help="A contract.yaml to brief a session on.")],
+    contract: ContractArgument,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -64,18 +70,16 @@ def brief_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
-
-    if not contract.is_file():
-        raise fail(f"configuration error: no contract at {contract}", EXIT_CONFIG)
+    path = contract_for(root, contract)
 
     try:
-        task = load_task(contract)
+        task = load_task(path)
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     specs = root / config.specs.path
-    errors = lint_contract(root, contract)
-    uninherited = standing_warnings(root, contract, specs)
+    errors = lint_contract(root, path)
+    uninherited = standing_warnings(root, path, specs)
     verdict = estimate(task)
     # The pack an attempt reads is the pack a session gets, built by the same
     # function dispatch calls and written where the prompt says it is
@@ -88,7 +92,7 @@ def brief_cmd(
         emit_json(
             {
                 "schema_version": 1,
-                "contract": str(contract),
+                "contract": str(path),
                 "task": task.id,
                 "lint": {"ok": not errors, "errors": errors},
                 "size": {"size": verdict.size, "reasons": verdict.reasons},

@@ -75,6 +75,25 @@ def test_the_battery_prints_with_its_blocking_axes_named(repo) -> None:
     assert "S-0001/D-1" in result.output
 
 
+def test_a_task_id_resolves_to_the_contract_the_repository_holds(repo) -> None:
+    """S-0067/D-10: the verb addresses work the way `torve run` does — the id
+    resolves under the repository's task directory, and the path a draft
+    needs keeps working beside it."""
+
+    contract = _repo_with_a_red_contract(repo)
+
+    by_id = CliRunner().invoke(
+        app, ["brief", TASK_ID, "--root", str(repo.root), "--format", "json"]
+    )
+    by_path = CliRunner().invoke(
+        app, ["brief", str(contract), "--root", str(repo.root), "--format", "json"]
+    )
+
+    assert by_id.exit_code == 0, by_id.output
+    assert json.loads(by_id.stdout)["contract"] == str(contract)
+    assert json.loads(by_id.stdout) == json.loads(by_path.stdout)
+
+
 def test_a_contract_that_is_not_there_is_a_configuration_error(repo) -> None:
     repo.seed()
 

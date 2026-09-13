@@ -30,7 +30,12 @@ from torve.cli.console import (
     mark,
     out,
 )
-from torve.cli.options import FormatOption, RootOption, load_config
+from torve.cli.options import (
+    FormatOption,
+    RootOption,
+    load_config,
+)
+from torve.cli.run import ContractArgument, contract_for
 from torve.config import layout
 from torve.config.manifest import load_manifest
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
@@ -263,12 +268,13 @@ def gates_check(fmt: FormatOption = Format.TEXT) -> None:
 
 
 def size(
-    task_file: Annotated[Path, typer.Argument(exists=True)],
+    contract: ContractArgument,
+    root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """Estimate whether a task contract is the right size to dispatch."""
 
-    verdict = sizing.estimate(load_task(task_file))
+    verdict = sizing.estimate(load_task(contract_for(root.resolve(), contract)))
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "size": verdict.size, "reasons": verdict.reasons})

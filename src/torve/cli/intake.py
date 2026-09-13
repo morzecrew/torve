@@ -33,6 +33,7 @@ from torve.cli.options import (
     load_config,
     runtime_for,
 )
+from torve.cli.run import ContractArgument, contract_for
 from torve.domain.states import EXIT_CONFIG, EXIT_ESCALATED, EXIT_GATES_RED, EXIT_OK
 
 # ----------------------- #
@@ -291,7 +292,7 @@ def adopt_cmd(
 
 
 def lint_contract_cmd(
-    contract: Annotated[Path, typer.Argument(help="A contract.yaml to lint against the tree.")],
+    contract: ContractArgument,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -307,24 +308,22 @@ def lint_contract_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
+    path = contract_for(root, contract)
 
-    if not contract.is_file():
-        raise fail(f"configuration error: no contract at {contract}", EXIT_CONFIG)
-
-    errors = lint_contract(root, contract)
+    errors = lint_contract(root, path)
     # S-0030/D-4: advisory only — a hand-minted contract is already signed, so
     # crossing the document threshold warns here rather than refusing. The
     # standing rows whose paths this scope crosses warn on the same terms
     # (S-0030/standing-inheritance); the advisory existed and nothing printed it (S-0048/A-1).
-    warnings = document_threshold_warnings(root, contract, config) + standing_warnings(
-        root, contract, root / config.specs.path
+    warnings = document_threshold_warnings(root, path, config) + standing_warnings(
+        root, path, root / config.specs.path
     )
 
     if fmt is Format.JSON:
         emit_json(
             {
                 "schema_version": 1,
-                "contract": str(contract),
+                "contract": str(path),
                 "ok": not errors,
                 "errors": errors,
                 "warnings": warnings,
@@ -334,7 +333,7 @@ def lint_contract_cmd(
         raise typer.Exit(EXIT_OK if not errors else EXIT_GATES_RED)
 
     console = out(fmt)
-    header(console, "lint-contract", contract.name)
+    header(console, "lint-contract", path.name)
 
     for warning in warnings:
         console.print(Text(f"  {warning}", DIM))

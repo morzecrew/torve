@@ -48,6 +48,44 @@ from torve.gates.context import load_task
 
 # ....................... #
 
+# The contract argument the reading verbs take — `brief`, `size`,
+# `lint-contract` — resolved the way this module resolves one for `torve run`
+# (S-0067/D-10), so that where a contract file lives stops being the caller's
+# problem.
+ContractArgument = Annotated[
+    str,
+    typer.Argument(
+        metavar="CONTRACT",
+        help="A task id, resolved to its contract the way `torve run` "
+        "resolves one; a path is accepted for a draft that has no id yet.",
+    ),
+]
+
+
+def contract_for(root: Path, contract: str) -> Path:
+    """Resolve a contract argument to the file it names.
+
+    A task id goes through the repository's task layout, the same resolution
+    `torve run` does; a path stays accepted for a draft that has no id yet.
+    Exits 3 when neither is a file — a bad argument is the operator's to fix,
+    not a red gate.
+    """
+
+    resolved = layout.task_file(root, contract)
+
+    if resolved.is_file():
+        return resolved
+
+    given = Path(contract)
+
+    if given.is_file():
+        return given
+
+    raise fail(f"configuration error: no contract at {given} or {resolved}", EXIT_CONFIG)
+
+
+# ....................... #
+
 
 def run_cmd(
     task_id: Annotated[str, typer.Argument()],
@@ -71,6 +109,13 @@ def run_cmd(
             "--oversize",
             help="Dispatch a too_large contract anyway, bypassing the "
             "await-decomposition route. Recorded on the run.",
+        ),
+    ] = False,
+    lint_red: Annotated[
+        bool,
+        typer.Option(
+            "--lint-red",
+            help="Dispatch a contract the lint refuses anyway. Recorded on the run.",
         ),
     ] = False,
     runtime_name: Annotated[
@@ -161,6 +206,26 @@ def run_cmd(
 
     except (ProviderDenied, ValueError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    # S-0067/D-9: a contract the lint refuses can never go green, so dispatch
+    # refuses it before an attempt is paid for rather than after three of
+    # them — the rung the size check stands on: the reasons named, and an
+    # explicit override recorded for the operator who means it. It stands
+    # below the seat's own refusals so that a misconfigured repository still
+    # hears about its configuration first; nothing has run yet either way.
+    from torve.application.intake import lint_contract
+
+    lint_errors = lint_contract(root, task_file)
+
+    if lint_errors and not lint_red:
+        raise fail(
+            "contract lint refuses this contract: " + "; ".join(lint_errors) + " — "
+            "amend the contract, or pass --lint-red to dispatch it as-is",
+            EXIT_CONFIG,
+        )
+
+    if lint_errors:
+        engine_event(root, "lint_red_dispatch", {"task": task.id, "errors": lint_errors})
 
     review_agent: Agent | None = None
 

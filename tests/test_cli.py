@@ -144,6 +144,25 @@ def test_size_json(tmp_path):
     assert json.loads(result.stdout)["size"] == "ok"
 
 
+def test_size_takes_a_task_id_and_says_where_it_looked(repo):
+    """S-0067/D-10: the id resolves under the repository's task directory;
+    an id that names nothing is a configuration error naming both places."""
+
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+
+    result = CliRunner().invoke(
+        app, ["size", TASK_ID, "--root", str(repo.root), "--format", "json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["size"] == "ok"
+
+    missing = CliRunner().invoke(app, ["size", "T-9999", "--root", str(repo.root)])
+    assert missing.exit_code == 3
+    assert "configuration error" in missing.stderr
+    assert "T-9999" in missing.stderr
+
+
 def test_status_json_carries_persisted_records(tmp_path):
     result = CliRunner().invoke(app, ["status", "--root", str(tmp_path), "--format", "json"])
     assert result.exit_code == 0
@@ -410,6 +429,36 @@ def test_run_oversize_override_dispatches_and_is_recorded(repo):
     ]
     recorded = [e for e in events if e.get("event") == "oversize_dispatch"]
     assert recorded and recorded[0]["task"] == TASK_ID
+
+
+def test_run_refuses_a_contract_the_lint_refuses(repo):
+    # S-0067/D-9: a contract that can never go green is refused before an
+    # attempt is paid for, with the lint's own reasons named and the way out.
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
+    assert result.exit_code == 3
+    assert "contract lint refuses" in result.stderr
+    assert "acceptance is empty" in result.stderr
+    assert "--lint-red" in result.stderr
+
+
+def test_run_lint_red_override_dispatches_and_is_recorded(repo):
+    # The override bypasses the refusal and is recorded on the run, asserted
+    # from telemetry alone — independent of what the attempt goes on to do.
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+
+    CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root), "--lint-red"])
+    events = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    recorded = [e for e in events if e.get("event") == "lint_red_dispatch"]
+    assert recorded and recorded[0]["task"] == TASK_ID
+    assert recorded[0]["errors"]
 
 
 def base_task_model():

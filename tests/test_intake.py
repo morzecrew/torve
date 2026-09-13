@@ -486,6 +486,47 @@ def test_lint_contract_standalone_and_role_guard(tree: Path):
     assert lint_contract(tree, review) == []
 
 
+def test_lint_contract_cmd_takes_a_task_id_or_a_drafts_path(tree: Path):
+    """S-0067/D-10: the verb resolves an id through the repository's task
+    directory, and still takes the path a draft with no id needs."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    body = yaml.safe_dump(
+        {
+            "schema_version": 1,
+            "id": "T-0001",
+            "role": "implement",
+            "intent": "do",
+            "scope": {"allow": ["src/app.py", "tests/test_app.py"], "deny": []},
+            "acceptance": ["true"],
+            "decisions": [],
+        }
+    )
+    minted = tree / ".torve" / "tasks" / "T-0001"
+    minted.mkdir(parents=True)
+    (minted / "contract.yaml").write_text(body, encoding="utf-8")
+    draft = tree / "draft.yaml"
+    draft.write_text(body, encoding="utf-8")
+
+    run = CliRunner()
+    by_id = run.invoke(app, ["lint-contract", "T-0001", "--root", str(tree), "--format", "json"])
+    assert by_id.exit_code == 0, by_id.output
+    assert json.loads(by_id.stdout)["contract"] == str(minted / "contract.yaml")
+
+    by_path = run.invoke(
+        app, ["lint-contract", str(draft), "--root", str(tree), "--format", "json"]
+    )
+    assert by_path.exit_code == 0, by_path.output
+    assert json.loads(by_path.stdout)["contract"] == str(draft)
+
+    missing = run.invoke(app, ["lint-contract", "T-9999", "--root", str(tree)])
+    assert missing.exit_code == 3
+    assert "configuration error" in missing.stderr
+
+
 def test_standing_warnings_name_missing_rows_and_silence_carried_ones(tree: Path):
     place(tree / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
 
