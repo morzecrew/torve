@@ -224,6 +224,21 @@ alternatives:
       state, escalations by reason, gate health across the programme. It is a fleet
       view, and the brief is about one contract.
   - option: >-
+      Keep the changelog entry inside the task, where the agent has the reasoning
+    rejected_because: >-
+      It puts one exact literal in most of the board's allow-sets — 55 of 86 live
+      contracts — so every pair of tasks naming it clashes and cannot run together,
+      and it asks an agent to describe an implementation before anyone has reviewed
+      it. Nothing enforced it in the first place: no row, no gate, no line of `src/`.
+  - option: Write the entry afterwards from the diff
+    rejected_because: >-
+      The entries agents wrote are good, and they are good because they carry the
+      rationale of the rows the contract inherited — which a patch does not contain.
+      A session reading `git diff` writes an entry that restates the diff, which is
+      the one failure the changelog skill exists to prevent. The record is the input:
+      every landing writes an execution file naming what the task found, beside rows
+      that carry the why.
+  - option: >-
       Have the brief refuse a contract that lints red or sizes too large
     rejected_because: >-
       The size heuristic's own false-positive rate is measured and non-trivial, and

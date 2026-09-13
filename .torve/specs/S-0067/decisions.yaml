@@ -85,3 +85,20 @@ decisions:
       all four refusals across the last eight session contracts were this rule, and
       a contract that forbids its own test file is self-consistent and green all the
       way down
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The working-rules skill states that a task's scope does not name the changelog;
+      the entry is written afterwards, from the landing records, once the work it
+      describes has been reviewed
+    paths: [skills/working-rules/**]
+    consequence: >-
+      the same exact literal stops appearing in most of the board's allow-sets, where
+      it makes every pair of tasks naming it clash and serialise; and an entry stops
+      describing an implementation that review may still change
+    rationale: >-
+      measured: 55 of 86 live contracts and 40 phasing entries name `CHANGELOG.md`,
+      while no decision row governs it, no gate reads it and nothing in `src/` mentions
+      it — the only thing that ever asked an agent for an entry is the `keep-a-changelog`
+      skill, which arrives as undeclared equipment that S-0066 shuts
+    cites: [S-0066/D-1]
