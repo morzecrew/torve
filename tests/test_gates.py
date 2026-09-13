@@ -502,3 +502,81 @@ def test_scope_implicitly_allows_the_named_documents_execution_directory(repo):
     assert "execution/" not in outcome.output
     # the author's file is not the task's, and stays outside allow
     assert ".torve/specs/S-0001/document.yaml" in outcome.output
+
+
+# ----------------------- #
+# S-0070/D-6: the acceptance verdict names the suite it judged — a battery
+# that ran fewer tests than the tree holds reports how many and why, so
+# `pass` never stands for two different suites.
+
+
+def _acceptance_over(tmp_path, output: str, exit_code: int = 0):
+    from torve.config.manifest import Manifest
+    from torve.domain.task import Task
+    from torve.gates.acceptance import check_acceptance
+    from torve.gates.context import GateContext
+
+    gate = Gate(name="acceptance", run="@task.acceptance", state="blocking", origin="structural")
+    task = Task(id="T-0001", role="implement", decisions=[], acceptance=["uv run pytest"])
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[gate]),
+        head_sha="",
+        base=None,
+        merge_base=None,
+        task=task,
+        execute=lambda command, timeout: (exit_code, output),
+    )
+    return check_acceptance(gate, ctx)
+
+
+def test_acceptance_reports_how_many_tests_it_skipped_and_why(tmp_path):
+    outcome = _acceptance_over(
+        tmp_path,
+        "SKIPPED [33] tests/test_runtime.py:12: no docker daemon\n"
+        "120 passed, 33 skipped in 4.53s\n",
+    )
+    assert outcome.outcome == "pass"
+    # the count leads the verdict, before any command log
+    assert outcome.output.startswith("suite: 33 tests in the tree did not run")
+    assert "suite: 120 of 153 tests ran, 33 skipped" in outcome.output
+    assert "[33] tests/test_runtime.py:12: no docker daemon" in outcome.output
+
+
+def test_acceptance_says_when_the_skips_carry_no_reason(tmp_path):
+    # A command that was never asked for reasons has none to give; the gate
+    # names that rather than inventing one (S-0070/D-3).
+    outcome = _acceptance_over(tmp_path, "120 passed, 33 skipped in 4.53s\n")
+    assert "33 skipped" in outcome.output
+    assert "no reason reported" in outcome.output
+
+
+def test_acceptance_names_a_whole_suite_and_flags_nothing(tmp_path):
+    outcome = _acceptance_over(tmp_path, "153 passed in 4.53s\n")
+    assert outcome.outcome == "pass"
+    assert "suite: 153 of 153 tests ran, none skipped" in outcome.output
+    assert "did not run" not in outcome.output
+
+
+def test_acceptance_reports_an_empty_suite_rather_than_a_silent_green(tmp_path):
+    outcome = _acceptance_over(tmp_path, "no tests ran in 0.01s\n")
+    assert outcome.outcome == "pass"
+    assert "no tests ran" in outcome.output
+
+
+def test_acceptance_counts_deselected_tests_as_absent_too(tmp_path):
+    outcome = _acceptance_over(tmp_path, "10 passed, 4 deselected in 0.30s\n")
+    assert outcome.output.startswith("suite: 4 tests in the tree did not run")
+    assert "4 deselected" in outcome.output
+
+
+def test_acceptance_over_a_command_with_no_summary_says_nothing_about_a_suite(tmp_path):
+    # A build or a linter is not a test suite; the gate does not invent counts.
+    outcome = _acceptance_over(tmp_path, "Success: no issues found in 42 source files\n")
+    assert "suite:" not in outcome.output
+
+
+def test_acceptance_reports_the_suite_on_a_red_verdict_too(tmp_path):
+    outcome = _acceptance_over(tmp_path, "1 failed, 119 passed, 33 skipped in 4.53s\n", exit_code=1)
+    assert outcome.outcome == "fail"
+    assert "33 skipped" in outcome.output
