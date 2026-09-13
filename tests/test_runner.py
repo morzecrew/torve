@@ -1842,6 +1842,266 @@ def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeyp
 
 
 # ....................... #
+# Conviction-routed repair (T-0390, S-0069/D-3, D-4, D-5, D-6): a conviction
+# on a qualifying gate routes the next attempt as a repair — from the
+# convicted tree, with the convicting gate's own command beside everything
+# the contract declared — and one gate earns one repair. The qualifying set
+# (D-5) is the gates whose checks are pure functions of the tree:
+# layering, scope, user-facing-text, decisions-reported; `acceptance` — the
+# largest repeat-conviction class in the ledger — is deliberately outside it.
+
+
+REPAIR_MANIFEST = {
+    "schema_version": 1,
+    "gates": [
+        {
+            "name": "acceptance",
+            "run": "true",
+            "state": "blocking",
+            "origin": "structural",
+            "axis": "functional",
+        },
+        {
+            "name": "scope",
+            "run": "@scope",
+            "state": "blocking",
+            "origin": "structural",
+            "axis": "compliance",
+        },
+        {
+            "name": "decisions-reported",
+            "run": "@decisions-reported",
+            "state": "blocking",
+            "origin": "structural",
+            "axis": "boundary",
+        },
+        {
+            "name": "layering",
+            "run": "uv run lint-imports",
+            "state": "blocking",
+            "origin": "structural",
+            "axis": "form",
+        },
+    ],
+}
+
+
+def _repair_passes(monkeypatch, repo, passes, seen):
+    """The scripted pass, repair edition: the manifest carries the qualifying
+    names, and what each attempt is asked under is recorded — the meta it is
+    stamped with and the acceptance its prompt would carry."""
+    import torve.application.runner as run_module
+
+    outcomes = list(passes)
+
+    def scripted(run, _state):
+        manifest_file = run.worktree / ".torve" / "gates.yaml"
+        manifest_file.parent.mkdir(parents=True, exist_ok=True)
+        manifest_file.write_text(yaml.safe_dump(REPAIR_MANIFEST), encoding="utf-8")
+
+        entry = outcomes.pop(0)
+        results = [] if entry is None else entry
+        code = 0 if entry == [] else 1
+        seen.append({"meta": dict(run.meta), "acceptance": list(run.task.acceptance)})
+        summary = ", ".join(f"{r.name}={r.outcome}" for r in results)
+        return code, summary or "all green", "cafecafe1234", results, ""
+
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted)
+
+
+def _repair_deps(repo):
+    """Like `_loop_deps`, but handing back the MockVcs: the convicted tree's
+    record is the fact under test."""
+    from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace, ScriptedAgent
+
+    from torve.adapters.store.durable import open_store
+    from torve.application.dispatch import RunDeps
+
+    vcs = MockVcs()
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=vcs,
+        scm=MockScm(),
+        store=open_store,
+    )
+    return vcs, deps
+
+
+def _contract_task():
+    return Task(id="T-9001", scope=Scope(), decisions=[], acceptance=["uv run pytest"])
+
+
+def _convicted_commits(vcs):
+    return [message for message in vcs.commits if "convicted by" in message]
+
+
+def test_a_qualifying_conviction_routes_the_next_attempt_as_a_repair(repo, monkeypatch):
+    """D-3 and D-4 at the one place they are both visible: the attempt after
+    the conviction carries the gate's command beside the contract's own, and
+    the convicted tree stands committed behind it."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(monkeypatch, repo, [[conviction("scope")], []], seen)
+    vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    # The convicted attempt is asked under the contract alone: routing is a
+    # verdict about the next attempt, not a retrorection of the last.
+    assert "repair" not in seen[0]["meta"]
+    assert seen[0]["acceptance"] == ["uv run pytest"]
+    # The repair attempt carries the gate's command alongside everything the
+    # contract declared, and says which gate it repairs.
+    assert seen[1]["meta"]["repair"] == "scope"
+    assert seen[1]["acceptance"] == ["uv run pytest", "torve gates run --only scope"]
+    # The convicted tree is the repair's starting tree: committed on the
+    # attempt that was convicted, trailed so no one reads it as landed.
+    convicted = _convicted_commits(vcs)
+    assert len(convicted) == 1
+    assert "convicted by scope" in convicted[0]
+    assert "Torve-Checkpoint: T-9001 attempt 1" in convicted[0]
+
+
+def test_a_second_conviction_on_the_same_gate_routes_where_it_routed_today(repo, monkeypatch):
+    """D-6, once per gate: the repair happens once, and the routing back to
+    the ordinary path is complete — the added command is gone, the stamp is
+    gone, and no second conviction commit appears."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(
+        monkeypatch,
+        repo,
+        [[conviction("scope")], [conviction("scope")], []],
+        seen,
+    )
+    vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    assert seen[1]["meta"]["repair"] == "scope"
+    # The second conviction of the same gate: no repair, the contract's own
+    # acceptance exactly, and the tree left as the retry finds it today.
+    assert "repair" not in seen[2]["meta"]
+    assert seen[2]["acceptance"] == ["uv run pytest"]
+    assert len(_convicted_commits(vcs)) == 1
+
+
+def test_an_acceptance_conviction_is_not_qualifying(repo, monkeypatch):
+    """D-5's exclusion made testable: acceptance — the biggest repeat class —
+    routes no repair whatever the red says."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(monkeypatch, repo, [[conviction("acceptance")], []], seen)
+    vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    assert "repair" not in seen[1]["meta"]
+    assert seen[1]["acceptance"] == ["uv run pytest"]
+    assert _convicted_commits(vcs) == []
+
+
+def test_a_non_blocking_failure_on_a_qualifying_gate_is_not_a_conviction(repo, monkeypatch):
+    """The shadow rule the ladder already reads: a red pass whose qualifying
+    gate failed only in shadow convicts nothing and routes nothing."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(monkeypatch, repo, [[conviction("scope", state="shadow")], []], seen)
+    vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    assert "repair" not in seen[1]["meta"]
+    assert _convicted_commits(vcs) == []
+
+
+def test_a_shell_gate_repairs_with_its_own_command_verbatim(repo, monkeypatch):
+    """D-3 names the gate's own command: a shell gate declares the command it
+    runs, and that is the command the repair's acceptance gains."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(monkeypatch, repo, [[conviction("layering")], []], seen)
+    _vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    assert seen[1]["meta"]["repair"] == "layering"
+    assert seen[1]["acceptance"] == ["uv run pytest", "uv run lint-imports"]
+
+
+def test_the_most_severe_qualifying_conviction_is_repaired_first(repo, monkeypatch):
+    """One repair per red: among qualifying convictions present together, the
+    severity ladder the retry selection already reads picks which one."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(
+        monkeypatch,
+        repo,
+        [[conviction("layering"), conviction("decisions-reported")], []],
+        seen,
+    )
+    _vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    # boundary outranks form.
+    assert seen[1]["meta"]["repair"] == "decisions-reported"
+    assert seen[1]["acceptance"] == ["uv run pytest", "torve gates run --only decisions-reported"]
+
+
+def test_a_different_gate_still_earns_its_own_repair(repo, monkeypatch):
+    """D-6 binds once per gate, not once per run: a second conviction on a
+    different gate routes a second repair — and its acceptance extends the
+    contract, not the previous repair."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    _repair_passes(
+        monkeypatch,
+        repo,
+        [[conviction("scope")], [conviction("layering")], []],
+        seen,
+    )
+    vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    assert seen[1]["meta"]["repair"] == "scope"
+    assert seen[2]["meta"]["repair"] == "layering"
+    assert seen[2]["acceptance"] == ["uv run pytest", "uv run lint-imports"]
+    assert len(_convicted_commits(vcs)) == 2
+
+
+# ....................... #
 # The derived-cache volume (S-0035/the-derived-cache-volume, S-0035/D-4): slot-suffixed naming
 # like the auth volume, a fixed mount outside the workspace, and the gates
 # lane of a live run carrying the same warmth the attempt got. S-0035/D-3's

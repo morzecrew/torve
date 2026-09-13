@@ -173,6 +173,16 @@ class Dispatch:
     convictions: list[GateResult] = field(default_factory=list)
     last_pass: GatePass = field(default_factory=GatePass)
 
+    # The repair routing's own facts (S-0069/D-3, D-6), restamped by the gate
+    # leg every red pass like `convictions`: `contract_acceptance` is what the
+    # contract declared — sealed at open, the base a repair's acceptance is
+    # extended from and an ordinary routing returns to, so no addition leaks
+    # into an attempt that was not routed as one. `repaired_gates` is the once
+    # bound: a second conviction on a gate already in it routes exactly where
+    # it routes today.
+    contract_acceptance: tuple[str, ...] = ()
+    repaired_gates: set[str] = field(default_factory=set)
+
     # ....................... #
 
     @property
@@ -435,6 +445,7 @@ def open_dispatch(
         shadow=shadow,
         gates_base=gates_base,
         resume=resume,
+        contract_acceptance=tuple(task.acceptance),
         tier_name=tier_name,
         tier=tier,
         image=image,

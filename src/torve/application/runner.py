@@ -30,6 +30,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+import yaml
 from forze.application.contracts.durable.function import (
     DurableRunStatus,
     current_durable_run,
@@ -60,6 +61,7 @@ from torve.application.ports import (
 from torve.application.review import review_step, reviewer_for
 from torve.application.runstate import Escalation, RunState
 from torve.application.session import (
+    AXIS_SEVERITY,
     RevertConflict,
     halted,
     revert_leg,
@@ -78,7 +80,7 @@ from torve.application.telemetry import (
 from torve.base import naming
 from torve.base.clock import parse
 from torve.config import layout
-from torve.config.manifest import load_manifest
+from torve.config.manifest import UNLABELED_AXIS, Gate, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
@@ -558,9 +560,10 @@ def _work_message(task: Task, attempts: int) -> str:
 
 
 async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
-    """One gate pass over the tree the attempt just left, and the two facts
-    the rest of the run reads off it: the convictions retry selection uses
-    (S-0034/D-5) and the pass the reviewer is handed."""
+    """One gate pass over the tree the attempt just left, and the facts the
+    rest of the run reads off it: the convictions retry selection uses
+    (S-0034/D-5), the pass the reviewer is handed, and — on a red — whether
+    the next attempt is routed as a repair."""
 
     # Deliberately not guarded: a sync that fails leaves the battery judging
     # a log nobody vouched for, and the gates are fail-closed. The raise
@@ -592,7 +595,158 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
     run.convictions = list(results)
     run.last_pass = GatePass(results=list(results), patch=patch, digest=digest)
 
+    if exit_code != 0:
+        await asyncio.to_thread(_route_repair, run, state)
+
     return exit_code, summary, digest
+
+
+# ....................... #
+
+# S-0069/D-5, settled at this phase: the qualifying set for a repair starts at
+# the gates whose checks are pure functions of the tree. The evidence that
+# settled it is `.torve/specs/S-0069/document.yaml`'s motivation — the same
+# gate convicted the next attempt of the same task 196 times across 28 tasks:
+# `acceptance` 52, `layering` 41, `user-facing-text` 39, `decisions-reported`
+# 26, `scope` 14. The four gates here are those checks: a red from one names a
+# property of the tree, not a verdict on the approach, and the tree a
+# mechanical conviction names is repaired rather than rebuilt. `acceptance` —
+# the largest class — stays deliberately outside the set: a suite that fails
+# twice may be a tree worth keeping or an approach worth abandoning, and only
+# the ledger's per-gate repeat counts can tell those apart. Widening this set
+# is a decision with those counts behind it (S-0069/D-5's own consequence);
+# it does not happen by editing this line.
+REPAIR_GATES: frozenset[str] = frozenset(
+    {"layering", "scope", "user-facing-text", "decisions-reported"}
+)
+
+
+# ....................... #
+
+
+def _repair_command(gate: Gate) -> str:
+    """The convicting gate's own command, as the repair's acceptance names it
+    (S-0069/D-3). A shell gate declares the command it runs and gains it
+    verbatim; a builtin is declared by reference (`@scope` is not a command),
+    so its repair command is the battery's own per-gate verb — what the
+    attempt can run to see exactly the check that convicted it."""
+
+    return f"torve gates run --only {gate.name}" if gate.run.startswith("@") else gate.run
+
+
+# ....................... #
+
+
+def _severity_rank(axis: str) -> int:
+    return AXIS_SEVERITY.index(axis) if axis in AXIS_SEVERITY else len(AXIS_SEVERITY)
+
+
+def _repair_gate(run: Dispatch) -> tuple[str, str] | None:
+    """The gate the next attempt is a repair of, with its repair command, or
+    None when this red routes where it routes today. A conviction qualifies
+    when it blocks on a gate in `REPAIR_GATES` — a shadow or quarantined
+    failure is a fact, not a conviction, the same rule the ladder reads — and
+    only for as long as that gate has not already routed one: a repair is
+    attempted once per conviction (S-0069/D-6), and a second conviction on the
+    same gate must not let the repair read its own failure as its input. When
+    several gates qualify, the most severe axis present is repaired first —
+    the ladder's own order."""
+
+    try:
+        resolved = load_manifest(layout.gates_file(run.worktree)).resolved_gates()
+
+    except (OSError, ValueError, yaml.YAMLError):
+        # Nothing classified, nothing qualified: an unreadable manifest
+        # convicts, but it cannot vouch for what a repair would be for.
+        return None
+
+    declared = {gate.name: gate for gate in resolved}
+
+    convicted = sorted(
+        {
+            result.name
+            for result in run.convictions
+            if result.name in REPAIR_GATES
+            and result.name in declared
+            and result.outcome in ("fail", "error")
+            and result.state == "blocking"
+        },
+        key=lambda name: (_severity_rank(declared[name].axis or UNLABELED_AXIS), name),
+    )
+
+    return next(
+        ((name, _repair_command(declared[name]))
+         for name in convicted
+         if name not in run.repaired_gates),
+        None,
+    )
+
+
+# ....................... #
+
+
+def _route_repair(run: Dispatch, state: RunState) -> None:
+    """A conviction on a qualifying gate routes the next attempt as a repair
+    (S-0069/D-3, D-4, D-6): the tree it starts from is the convicted one, its
+    acceptance is the gate's own command beside everything the contract
+    already declared, and one gate earns one repair per dispatch. Every other
+    red routes where it routed before: the contract's own acceptance, and the
+    ladder untouched — what tier runs next stays outcome and axis alone
+    (S-0054/D-12).
+
+    The contract does not change: the battery judges the task file on disk,
+    and this mutates only the in-memory copy the attempt is prompted from."""
+
+    picked = _repair_gate(run)
+
+    if picked is None:
+        run.meta.pop("repair", None)
+        run.task = run.task.model_copy(update={"acceptance": list(run.contract_acceptance)})
+        return
+
+    gate, command = picked
+    run.repaired_gates.add(gate)
+    run.meta["repair"] = gate
+    run.task = run.task.model_copy(
+        update={"acceptance": [*run.contract_acceptance, command]}
+    )
+    _commit_convicted_tree(run, state, gate)
+
+
+# ....................... #
+
+
+def _commit_convicted_tree(run: Dispatch, state: RunState, gate: str) -> None:
+    """A repair starts from the convicted attempt's tree, not from base
+    (S-0069/D-4): the work that was right survives the mistake. The loop
+    carries the worktree into the next attempt either way; the commit is what
+    makes the convicted tree the repair's base at the seam — the repair
+    attempt's worktree contains the convicted attempt's commits, and an
+    ordinary retry's does not — and it leaves the tree on the task's branch
+    whatever the rest of the run does.
+
+    Like the budget checkpoint it is kin to (S-0026/D-9), this commit writes
+    no landing, and carries the same trailer so nothing mistakes it for a
+    landed candidate (S-0059/D-12). A failed commit does not undo the
+    routing: the tree is the same one the repair would carry anyway, the
+    commit is only its record, and the conviction must not be replaced by an
+    infrastructure escalation."""
+
+    message = (
+        f"torve({run.task.id}): attempt {state.attempts} convicted by {gate}\n\n"
+        f"Torve-Checkpoint: {run.task.id} attempt {state.attempts}"
+    )
+    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
+
+    try:
+        run.deps.vcs.commit_all(run.worktree, message, author, run.config.vcs.signing_key)
+
+    except Exception as exc:
+        engine_event(
+            run.root,
+            "repair_tree_uncommitted",
+            {"task": run.task.id, "attempt": state.attempts, "gate": gate, "error": repr(exc)},
+        )
 
 
 # ....................... #

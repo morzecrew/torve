@@ -161,6 +161,27 @@ def test_open_dispatch_opens_no_broker_of_its_own(tmp_path):
 # ....................... #
 
 
+def test_dispatch_seals_the_contract_acceptance_and_holds_the_once_bound(tmp_path):
+    """S-0069/D-3 and D-6: the base a repair's acceptance is extended from,
+    and the set that keeps a repair once-per-gate, are dispatch state — read
+    off the contract at open, so a repair's additions never leak into an
+    attempt that was not routed as one."""
+
+    run = open_dispatch(
+        tmp_path,
+        Task(id=TASK_ID, decisions=[], acceptance=["uv run pytest"]),
+        RunnerConfig(),
+        _deps(),
+        tmp_path / "wt",
+    )
+
+    assert run.contract_acceptance == ("uv run pytest",)
+    assert run.repaired_gates == set()
+
+
+# ....................... #
+
+
 def test_the_attempt_row_is_rendered_from_the_record_it_reports(tmp_path):
     """One record, both carriers (A-85). The stream is written from the
     record rather than built beside it, so a field added to one carrier and
