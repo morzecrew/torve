@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0368
+phase: 3
+base: 38baebb337855a6ec4db3c7ed7ad54ec84d3d89d
+commit: 8c70c1fb3f7c4db8f92db30e10aa7e3c4930a461
+at: '2026-09-13T06:11:14Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-13T06:04:32Z'
+    claim: >-
+      the landing files in the tree are the carrier: a landing file is present at
+      a base only because the commit carrying it landed there, so it answers 'did
+      this task land' with no store, no telemetry and no git; the record's landing.recorded
+      events are already minted from those same files, and the lane's lane_landed
+      is reconciled against them at the landing rather than tallied beside them
+    evidence: >-
+      src/torve/application/ledger.py:454 — the ledger already divides by the landing
+      files through shipped_ids; src/torve/application/decisions.py:951 mints the
+      record's landing.recorded from the same files, leaving only src/torve/application/lane.py:542
+      unreconciled, which now carries the carrier's verdict
+    action: decided
+    notes: >-
+      the three counts measure different things — the record counts landing commits,
+      the lane counts its own merges, the files count landed tasks; only the last
+      is the denominator a rate needs
