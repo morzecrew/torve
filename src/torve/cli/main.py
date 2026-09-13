@@ -21,6 +21,7 @@ import typer
 
 import torve
 from torve.cli import (
+    brief,
     console,
     context,
     decisions,
@@ -117,6 +118,7 @@ app.command("intake")(intake.intake_cmd)
 app.command("decompose")(intake.decompose_cmd)
 app.command("adopt")(intake.adopt_cmd)
 app.command("lint-contract")(intake.lint_contract_cmd)
+app.command("brief")(brief.brief_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
 app.command("shadow")(shadow.shadow_cmd)
