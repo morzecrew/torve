@@ -18,3 +18,24 @@ equipment:
 - kind: skill
   source: github:mattpocock/skills
   select: [tdd, diagnosing-bugs, code-review]
+# What the door was carrying (S-0066/D-1, S-0066/D-2). Three harnesses used to
+# read this repository's own skill roots unasked, so an implement seat was given
+# five skills nobody declared. The door is shut in each image; the one of the
+# five a seat wants is declared here instead, and the four that no role wants
+# are dropped on purpose, recorded rather than disappearing with the door:
+#
+#   gitmoji-conventional  a sandbox agent never writes a commit message — the
+#                         engine mints them from the landing record
+#   keep-a-changelog      no gate reads `CHANGELOG.md`, and a scope never names
+#                         it (S-0067/D-7), so an attempt cannot write one
+#   spec-writer           corpus authoring has no agent writer; it is declared
+#                         when a role exists that does the writing
+#   forze-skills          vendored, read by dsh and mimo on every attempt, and
+#                         wanted by no role — it enters by declaration or not
+#                         at all
+#
+# `local:`, because it is a path this repository already versions (S-0062/D-3):
+# the re-declaration is a fetch of tracked bytes into the cache, not a second
+# copy of a third party's repository.
+- kind: skill
+  source: local:.agents/skills/readable-code

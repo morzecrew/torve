@@ -27,6 +27,21 @@ if [ -n "${MIMO_AGENT:-}" ]; then
     set -- "$@" --agent "$MIMO_AGENT"
 fi
 
+# The door (S-0066/D-1). mimo reads skills out of four roots it did not put
+# there — `.claude`, `.agents`, `.codex` and `.opencode` — and agents and
+# commands out of `.claude` as well. This repository's worktree carries five
+# skills under the first and six under the second, one of which any seat
+# declared; none is pinned, none is hashed, so the regime digest claims more
+# than it knows.
+#
+# One disable per root rather than one switch for all of them, because the root
+# the engine named is a root too: equipment is copied into `.mimocode/skill`
+# (S-0063/D-19) and shutting that would shut the door on what the profile
+# declared. Each image closes its own door with the switch it has (S-0063/D-3).
+for root in .claude .agents .codex .opencode; do
+    set -- "$@" --disable-root "$root"
+done
+
 mkdir -p "$(dirname "$TORVE_OUTPUT")"
 
 # The harness's own exit code, not `tee`'s: a pipeline reports its last

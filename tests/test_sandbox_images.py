@@ -337,6 +337,96 @@ def test_toolkit_contract_answers_in_the_container(name):
 
 
 # ....................... #
+# The door (S-0066/D-1): an attempt's inputs are what its profile declared, so
+# the files the worktree carries for other readers are shut out — by each
+# image's own switch, because the three harnesses have three channels and
+# nothing in the engine composes them (S-0063/D-3).
+#
+# Two checks for two failures. The switch going missing is a regression a file
+# read answers, and it is the one that matters: a door quietly reopened is a
+# regime digest that claims more than it knows. The switch going *stale* — a
+# flag renamed or a value no longer accepted by a bumped harness — is the trap
+# only the built image can answer, which is why the probe below builds one.
+
+# What each image's own door reads like in its own `run`.
+DOOR = {
+    "claude": [
+        "--setting-sources user",
+        "--mcp-config '{\"mcpServers\":{}}'",
+        "--strict-mcp-config",
+    ],
+    "dsh": ["candidates: []", '--patch "$DOOR"'],
+    "mimo": ["--disable-root"],
+}
+
+
+@pytest.mark.parametrize("name", sorted(DOOR))
+def test_every_seated_definition_shuts_its_own_door(name: str) -> None:
+    run = (REPO_ROOT / "sandboxes" / name / "toolkit" / "run").read_text(encoding="utf-8")
+
+    for switch in DOOR[name]:
+        assert switch in run, f"{name} no longer shuts the door with {switch}"
+
+
+def test_the_door_is_shut_before_the_seat_s_own_equipment() -> None:
+    """Order is load-bearing in both directions. claude's `--strict-mcp-config`
+    keeps every server `--mcp-config` names, so the empty document is the door
+    and `equip`'s own servers are appended after it rather than replaced by it.
+    dsh takes the last `--patch` that speaks about an entry, so a door that
+    narrows a list has to be patched before an item that configures the same
+    one."""
+
+    for name in ("claude", "dsh"):
+        run = (REPO_ROOT / "sandboxes" / name / "toolkit" / "run").read_text(encoding="utf-8")
+        door = run.index(DOOR[name][-1])
+
+        assert door < run.index("torve-equip.args"), f"{name} equips before it shuts the door"
+
+
+# The door's switches as a command line the harness itself parses. `--help`
+# exits before anything dials, and the flags are still validated: measured on
+# claude 2.1.x, `--setting-sources bogus --help` exits 1. dsh's door is a
+# `--patch` overlay naming entries its profile carries rather than a flag, so
+# what it would prove here is a boot with a credential — it is read above.
+DOOR_PROBE = {
+    "claude": [
+        "claude",
+        "--setting-sources",
+        "user",
+        "--mcp-config",
+        '{"mcpServers":{}}',
+        "--strict-mcp-config",
+        "--help",
+    ],
+    "mimo": ["mimo", "run", "--disable-root", ".claude", "--help"],
+}
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
+@pytest.mark.timeout(1800)
+@pytest.mark.parametrize("name", sorted(DOOR_PROBE))
+def test_the_door_switches_are_accepted_by_the_built_harness(name: str) -> None:
+    """Probed rather than reasoned about: an undocumented knob that does
+    nothing moves the regime digest without moving the behaviour, which is
+    worse than not setting it."""
+
+    tag = f"{name}-door-probe-{uuid.uuid4().hex[:8]}"
+    bake(name, tag)
+
+    try:
+        probe = subprocess.run(
+            ["docker", "run", "--rm", "-e", "HOME=/tmp", tag, *DOOR_PROBE[name]],
+            capture_output=True,
+            text=True,
+        )
+        assert probe.returncode == 0, probe.stderr[-2000:]
+
+    finally:
+        unbake(tag)
+
+
+# ....................... #
 # The engine's CLI inside the image (S-0017/A-2): the prompt tells an attempt
 # to record divergence and to poll for notes with `torve`, so the image has to
 # have it — installed in an environment of its own, and readable by the uid

@@ -48,6 +48,33 @@ set -- claude -p "$(cat "$TORVE_PROMPT")" \
     --output-format json \
     --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
 
+# The door (S-0066/D-1). The worktree arrives carrying files other readers
+# wrote — `.mcp.json`, `.claude/skills`, `.claude/agents`, `CLAUDE.md` — and
+# claude reads every one of them unasked. None is equipment, none is pinned,
+# none is in the regime digest, so two attempts recorded under one digest could
+# have seen different skills. What this seat is given is what its profile
+# declared; the rest is shut here, in the image, because each harness closes
+# its door with its own switch (S-0063/D-3).
+#
+# `user` and not the empty list: the sources gate the *project* tree —
+# `.claude/skills`, `.claude/agents`, `CLAUDE.md` and the two project settings
+# files — while equipment lands under `$HOME/.claude/skills`, which is the user
+# source (S-0063/D-19). Dropping that too would shut the door on what the
+# profile declared, which is the flag interaction to get wrong here.
+#
+# `--strict-mcp-config` ignores every MCP configuration it was not handed, and
+# it needs one to be handed: the empty document is the door, and `equip`
+# appends the seat's own `--mcp-config` after it, so a declared server still
+# loads and `.mcp.json` does not.
+#
+# Not `--bare`, which shuts these doors and others with them — it skips plugin
+# sync and reads no OAuth token, so this seat's own credential route stops
+# working and the equipment goes with it.
+set -- "$@" \
+    --setting-sources user \
+    --mcp-config '{"mcpServers":{}}' \
+    --strict-mcp-config
+
 # What `equip` decided, if anything. Word-splitting is the point: the file
 # holds shell-quoted arguments, one flag pair per equipment item.
 if [ -s /tmp/torve-equip.args ]; then

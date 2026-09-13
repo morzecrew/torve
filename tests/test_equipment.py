@@ -375,6 +375,44 @@ def test_the_regime_reads_keys_and_not_contents(tmp_path: Path) -> None:
     assert all("@" in key for key in regime_keys(items))
 
 
+def test_re_declaring_what_the_door_removed_is_a_different_regime() -> None:
+    """S-0066/D-2: shutting the door is only a visible change if what came
+    through it is declared. A skill the worktree used to hand a harness unasked
+    contributes nothing to the regime; declared, it contributes a key — which is
+    what makes the change readable in telemetry rather than a seat that quietly
+    got worse."""
+
+    from torve.application.equipment import regime_keys
+
+    declared = [Equipment(kind="skill", source="torve:working-rules")]
+    re_declared = [*declared, Equipment(kind="skill", source="local:.agents/skills/readable-code")]
+
+    assert regime_keys(declared) != regime_keys(re_declared)
+
+
+def test_this_repository_re_declares_the_skill_the_door_takes_from_it() -> None:
+    """The drop is on purpose and the re-declaration is on purpose (S-0066/D-2).
+    Four of the five skills the worktree used to deliver are dropped with the
+    reason recorded beside the profile; the one two roles want is declared, and
+    a door shut without it would be a silent regression."""
+
+    wanted = "local:.agents/skills/readable-code"
+
+    for role in ("implement", "review"):
+        sources = {item.source for item in load_profile(Path("."), role).equipment}
+        assert wanted in sources, f"{role} lost `readable-code` with the door"
+
+    # Dropped, not forgotten: no profile picks them up again by accident.
+    dropped = {"gitmoji-conventional", "keep-a-changelog", "spec-writer", "forze-skills"}
+    every = {
+        item.source
+        for name in ("implement", "review", "revert")
+        for item in load_profile(Path("."), name).equipment
+    }
+
+    assert not {one for one in dropped if any(one in source for source in every)}
+
+
 def test_the_mount_is_reconstructable_from_its_keys(tmp_path: Path) -> None:
     """S-0062/I-2: every item a run used is named by a cache key that resolves
     to a source and a ref an operator wrote."""

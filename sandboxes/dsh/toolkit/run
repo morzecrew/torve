@@ -23,6 +23,35 @@ fi
 # overlay reads TORVE_BASE_URL and the variable TORVE_API_KEY_ENV names, and
 # both arrive with a value whichever way this seat reaches its provider.
 
+# The door (S-0066/D-1). dsh walks the project root down to cwd collecting
+# every `AGENTS.md` and `CLAUDE.md` it finds, and its skill plugin watches
+# `.agents/skills` as well as the root the engine named. None of that is
+# equipment, none of it is in the regime digest, and the `AGENTS.md` case is
+# the worst of the four: it is torve's own projection arriving through a
+# channel torve does not hash, per directory, so a seat reads rows governing
+# files it only happens to look at.
+#
+# dsh has one configuration channel, so the door is an overlay like everything
+# else — emptying the instruction-file candidate list, and narrowing the skill
+# roots to the one the engine named (S-0063/D-19). Both ids are entries the
+# headless profile already carries: `--patch` configures an entry and cannot add
+# one (S-0063/D-17), so a renamed entry fails at boot with dsh's own message
+# naming it.
+#
+# First of the three patches, because a later one wins: the seat's own
+# equipment overlay may say more about an entry this one only narrows.
+DOOR=/tmp/torve-door.yml
+cat > "$DOOR" <<YAML
+- id: agent-instructions
+  config:
+    candidates: []
+- id: skill-filesystem
+  config:
+    roots:
+      - ${TORVE_EQUIP_ROOT:-.dsh/skills}
+YAML
+set -- "$@" --patch "$DOOR"
+
 if [ -s /tmp/torve-equip.args ]; then
     eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
 fi
