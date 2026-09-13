@@ -1,0 +1,215 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0393
+phase: 2
+base: 7f268e8e1fe061e04131b3ba570fc8647221b30e
+commit: ac58fb922e85148a11f37eec8be229b2164f813d
+at: '2026-09-13T19:03:03Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0061/D-12
+    grade: ASSUMED
+  - id: S-0061/D-13
+    grade: ASSUMED
+  - id: S-0062/D-1
+    grade: LOCKED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0062/D-13
+    grade: ASSUMED
+  - id: S-0063/D-3
+    grade: LOCKED
+  - id: S-0063/D-6
+    grade: LOCKED
+  - id: S-0063/D-7
+    grade: LOCKED
+  - id: S-0063/D-9
+    grade: LOCKED
+  - id: S-0063/D-13
+    grade: LOCKED
+  - id: S-0063/D-14
+    grade: LOCKED
+  - id: S-0063/D-15
+    grade: LOCKED
+  - id: S-0063/D-16
+    grade: LOCKED
+  - id: S-0063/D-18
+    grade: LOCKED
+  - id: S-0063/D-19
+    grade: LOCKED
+  - id: S-0064/D-7
+    grade: LOCKED
+  - id: S-0064/D-8
+    grade: LOCKED
+  - id: S-0066/D-2
+    grade: ASSUMED
+  - id: S-0066/D-5
+    grade: ASSUMED
+  - id: S-0066/D-6
+    grade: ASSUMED
+  - id: S-0067/D-3
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-13T18:58:40Z'
+    claim: >-
+      the hooks item keeps its payload at the item root and the claude settings under
+      a per-harness  beside them;  points  inside the harness directory, and the engine's
+      load-time refusal already names the profile and the manifest
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:64 — path joins HARNESS_DIR before settings.json
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-13T18:58:41Z'
+    claim: >-
+      the judgement stays one implementation: scope_guard and finish_check move in
+      no substance, and the claude declaration only names how to reach them
+    evidence: >-
+      .torve/agents/hooks/implement/claude/settings.json:1 — the declaration calls
+      the same scripts the item root carries
+    action: decided
+  - decision: S-0062/D-1
+    grade: LOCKED
+    at: '2026-09-13T18:58:41Z'
+    claim: >-
+      the hook remains one typed item — a kind and a source as before; the change
+      is to the item's internal layout only
+    evidence: >-
+      .torve/agents/implement.yaml:50 — the hook item still declares kind and source
+    action: decided
+  - decision: S-0062/D-9
+    grade: LOCKED
+    at: '2026-09-13T18:58:42Z'
+    claim: >-
+      claude is told about the hook through its own  flag composed by its own equip;
+      no state file is written beside the harness
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:64 — the flag composes a path, nothing
+      is rendered
+    action: decided
+  - decision: S-0063/D-3
+    grade: LOCKED
+    at: '2026-09-13T18:58:42Z'
+    claim: >-
+      the image's own equip still translates the equipment manifest into the flags
+      claude takes; the hook mapping now points inside the harness directory
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:28 — HARNESS_DIR names the directory
+      this image reads
+    action: decided
+  - decision: S-0063/D-6
+    grade: LOCKED
+    at: '2026-09-13T18:58:43Z'
+    claim: >-
+      the definition stays at sandboxes/claude/ and the edit stays inside its own
+      toolkit; no image definition moved
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:1 — the edited file lives under the
+      claude definition
+    action: decided
+  - decision: S-0063/D-7
+    grade: LOCKED
+    at: '2026-09-13T18:58:43Z'
+    claim: >-
+      claude still inherits the base image; the change adds no CLI layer and touches
+      no Dockerfile
+    evidence: >-
+      tests/test_sandbox_defs.py:546 — the equip flag test asserts argument shape
+      only
+    action: decided
+  - decision: S-0063/D-9
+    grade: LOCKED
+    at: '2026-09-13T18:58:44Z'
+    claim: >-
+      the flag change is confined to the claude image's equip; no other definition
+      carries a hook mapping yet
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:64 — only the claude image's equip changes
+    action: decided
+  - decision: S-0063/D-13
+    grade: LOCKED
+    at: '2026-09-13T18:58:44Z'
+    claim: >-
+      the shape battery asserts equip output without building any image
+    evidence: >-
+      tests/test_sandbox_defs.py:546 — assertion on the emitted argv
+    action: decided
+  - decision: S-0063/D-14
+    grade: LOCKED
+    at: '2026-09-13T18:59:12Z'
+    claim: >-
+      the hook mapping lives in equip_flags.py under the definition toolkit; no COPY
+      line or destination was added to a dockerfile
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:1 — the edited file sits under the toolkit
+      directory
+    action: decided
+  - decision: S-0063/D-15
+    grade: LOCKED
+    at: '2026-09-13T18:59:13Z'
+    claim: >-
+      per-model configuration still reaches the seat as env rendered by its harness;
+      the edit changes no image-baked model file
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:1 — the edit composes equipment paths,
+      nothing more
+    action: decided
+  - decision: S-0063/D-16
+    grade: LOCKED
+    at: '2026-09-13T18:59:13Z'
+    claim: >-
+      the skill branch of equip_flags is untouched; the change alters only how the
+      hook kind is composed into a flag
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:64 — the hook mapping alone changed
+    action: decided
+  - decision: S-0063/D-18
+    grade: LOCKED
+    at: '2026-09-13T18:59:14Z'
+    claim: >-
+      credential handling is untouched; the edit composes equipment paths and reads
+      or mounts no credential
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:1 — no env or credential reference changed
+    action: decided
+  - decision: S-0063/D-19
+    grade: LOCKED
+    at: '2026-09-13T18:59:14Z'
+    claim: >-
+      the hook settings are read from the read-only mount by flag, and the equip_root
+      skill copy path is untouched
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:64 — the flag points into the mounted
+      item
+    action: decided
+  - decision: S-0064/D-7
+    grade: LOCKED
+    at: '2026-09-13T18:59:15Z'
+    claim: >-
+      no new cross-seam variable was introduced; the harness directory name is internal
+      to the image that knows which harness it is
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:28 — HARNESS_DIR lives in the translation,
+      not at the seam
+    action: decided
+  - decision: S-0064/D-8
+    grade: LOCKED
+    at: '2026-09-13T18:59:15Z'
+    claim: >-
+      no broker branch was added or removed, and the edited test checks nothing about
+      whether a broker is in force
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:1 — the edit never tests TORVE_BASE_URL
+      or a broker token
+    action: decided
