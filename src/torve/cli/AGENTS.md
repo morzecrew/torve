@@ -349,6 +349,20 @@ The MCP surface serves the per-task pack as one more read-only tool and register
 - Consequence: every session gets the facts a sandbox is handed on disk, whichever harness it drove up in, and no verb's refusals are reimplemented behind a second interface
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0067/D-9 — `ASSUMED` (A session is briefed, and the working rules have one source)
+
+Dispatch refuses a contract the lint refuses, at the rung the size check already stands on: named reasons, and a recorded override for the operator who means it
+
+- Paths: `src/torve/cli/run.py`
+- Consequence: a contract that can never go green is refused before an attempt is paid for, rather than after three of them
+
+### S-0067/D-10 — `ASSUMED` (A session is briefed, and the working rules have one source)
+
+A verb that takes a contract takes its task id, resolving through `layout.task_file`; a path stays accepted for a draft that has no id yet
+
+- Paths: `src/torve/cli/brief.py` `src/torve/cli/gates.py` `src/torve/cli/intake.py`
+- Consequence: the three reading verbs address work the way `torve run` does, and where a contract file lives stops being the caller's problem
+
 ### S-0068/D-2 — `ASSUMED` (The refusal that is missing, and the one nobody answered)
 
 `doctor` names which promotion criteria a served manager would land without, and says when the landing leg is off entirely

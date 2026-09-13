@@ -86,6 +86,8 @@ phasing:
       - src/torve/cli/run.py
       - tests/test_brief.py
       - tests/test_cli.py
+      - tests/test_intake.py
+      - tests/test_gates.py
     acceptance:
       - uv run pytest
       - uv run mypy src
