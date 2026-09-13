@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0388
+phase: 5
+attempt: 2
+base: 44dea6982675a0adc6226b5492bba24bf7afbaab
+commit: c80d559f5e5c071fcb3d5d3d13c3921721ef4dab
+at: '2026-09-13T13:25:30Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-5
+    grade: LOCKED
+  - id: S-0070/D-3
+    grade: ASSUMED
+  - id: S-0070/D-6
+    grade: ASSUMED
+entries:
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-09-13T13:16:59Z'
+    claim: >-
+      every string added is free of corpus coordinates: the shared contract argument's
+      help names the rule in the operator's words and the run refusal names the flag,
+      with the coordinates in code comments beside them
+    evidence: >-
+      src/torve/cli/options.py:62-72 — the argument's help text; src/torve/cli/run.py:171-190
+      carries the coordinate in a comment and none in the message
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T13:17:11Z'
+    claim: >-
+      the shared resolver lives in the cli layer and imports config only, so no import
+      direction is crossed; import-linter over the package stays green
+    evidence: >-
+      src/torve/cli/options.py:75-94 — the resolver, importing torve.config.layout,
+      the direction cli to config already takes
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T13:17:11Z'
+    claim: >-
+      every identifier written is in the current grammar; no legacy identifier is
+      introduced anywhere the check reads
+    evidence: >-
+      src/torve/cli/run.py:171-177 — the comment cites S-0067/D-9 in the one grammar;
+      src/torve/cli/options.py:75-83 cites S-0067/D-10 the same way
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-09-13T13:17:12Z'
+    claim: >-
+      nothing here reads or writes a contract's document key; the resolver returns
+      the contract file and every reader of it is unchanged
+    evidence: >-
+      src/torve/cli/options.py:75-94 — the resolver touches the path alone, never
+      the contract's fields
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-09-13T13:17:12Z'
+    claim: >-
+      no landing is read and no git subprocess is added; the dispatch refusal reads
+      the contract file and the telemetry stream only
+    evidence: >-
+      src/torve/cli/run.py:180-190 — the lint refusal and its recorded override, neither
+      touching git
+    action: decided
+  - decision: S-0060/D-5
+    grade: LOCKED
+    at: '2026-09-13T13:17:13Z'
+    claim: >-
+      the lint verb's source handling is untouched: only the contract argument's resolution
+      changed, and intake's own source recording is not on that path
+    evidence: >-
+      src/torve/cli/intake.py:293-320 — the lint verb, whose only change is resolving
+      its argument through the shared resolver
+    action: decided
+  - decision: D-9
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-13T13:17:21Z'
+    claim: >-
+      the refusal is built at the rung the size check stands on — named reasons, explicit
+      recorded override — but placed below the seat's own refusals rather than beside
+      the size check, because three contracts dispatched in tests outside this scope
+      lint red and assert the seat refusal they hit today; nothing has run either
+      way, so the refusal still precedes any paid attempt
+    evidence: >-
+      tests/test_tiering.py:493-495 — the contract those cases dispatch carries no
+      intent, scope or acceptance, so the lint refuses it before tier_for is reached
+    action: departed
+    notes: >-
+      the scope allows tests/test_cli.py, test_brief.py, test_intake.py and test_gates.py,
+      not test_tiering.py, so the three cases could not be amended to carry a green
+      contract
