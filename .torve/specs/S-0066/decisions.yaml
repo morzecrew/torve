@@ -86,3 +86,23 @@ decisions:
     rationale: >-
       measured, an unsatisfiable finishing hook ran eleven turns on a trivial task
       and the binary's own block cap cut it to three
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      An equipment item's `kind` names the channel a harness carries it on and not
+      the shape the item must be, so a profile declaring a kind two harnesses both
+      accept can still be unreadable to one of them; a harness declares the shapes
+      it takes, and a profile whose item does not match is refused at load with both
+      files named
+    paths: [.torve/harnesses, src/torve/config/agents.py]
+    consequence: >-
+      the refusal S-0063/D-4 promises — before an image is pulled — covers the case
+      that actually happened, instead of an unhandled exception at `wall 0s`
+    rationale: >-
+      claude's hook is a directory holding `settings.json` and the scripts it names;
+      dsh's is a file of patch entries in dsh's own vocabulary. Both declare `kinds:
+      [... hook ...]`, so nothing refused `implement.yaml`, and T-0391 died three
+      times on `IsADirectoryError` inside `equip_patch.py`. The capability map is
+      one level too coarse: it answers "can this harness be handed a hook" and the
+      question is "can it read this one"
+    cites: [S-0063/D-4, D-5]

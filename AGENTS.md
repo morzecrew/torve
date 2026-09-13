@@ -144,7 +144,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/application/` — 114 decision(s)
 - `src/torve/base/` — 2 decision(s)
 - `src/torve/cli/` — 50 decision(s)
-- `src/torve/config/` — 69 decision(s)
+- `src/torve/config/` — 70 decision(s)
 - `src/torve/domain/` — 34 decision(s)
 - `src/torve/gates/` — 25 decision(s)
 - `tests/` — 6 decision(s)

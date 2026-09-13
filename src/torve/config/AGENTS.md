@@ -515,6 +515,13 @@ A model entry may carry `price`, and where it does the attempt's cost is compute
 - Paths: `src/torve/config/providers.py` `src/torve/application/dispatch.py`
 - Consequence: the ledger stops depending on whether a harness recognises the model it was pointed at, and the divergence check compares two numbers that are both about this call — torve's arithmetic against the broker's metering — instead of comparing a rate card to reality
 
+### S-0066/D-7 — `ASSUMED` (An attempt's inputs are declared, and the image says what it loaded)
+
+An equipment item's `kind` names the channel a harness carries it on and not the shape the item must be, so a profile declaring a kind two harnesses both accept can still be unreadable to one of them; a harness declares the shapes it takes, and a profile whose item does not match is refused at load with both files named
+
+- Paths: `.torve/harnesses` `src/torve/config/agents.py`
+- Consequence: the refusal S-0063/D-4 promises — before an image is pulled — covers the case that actually happened, instead of an unhandled exception at `wall 0s`
+
 ### S-0068/D-1 — `ASSUMED` (The refusal that is missing, and the one nobody answered)
 
 `auto_merge: true` with no promotion criterion armed is refused at load, naming the field and what to set; any one of `require_ci`, `require_review`, `approvals` or `quiet_window` counts as armed

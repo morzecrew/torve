@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-13T16:08:57Z'
+    title: A kind names a channel, not a shape
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: paths
+        before: []
+        after: [.torve/harnesses, src/torve/config/agents.py]
+      - subject: D-7
+        field: fingerprint
+        after: 42cd10adf2a2cb28/1ac32c463793fc9d
+    md: |
+      The register parked a `capabilities:` vocabulary on the manifest as "the right
+      eventual shape and the wrong first move", on the grounds that nothing had two
+      readers yet. It has two now, and they disagree.
+
+      `S-0066/D-5` declared the first `hook` and T-0383 built it claude-shaped, which
+      is the only shape claude can read: `--settings` takes a file, and the scripts it
+      names sit beside it, so the item is a directory. dsh has one configuration
+      channel — `--patch <file>`, a list of plugin entries — and appends every kind it
+      does not special-case verbatim, so it opened the directory and raised
+      `IsADirectoryError` before the agent started. Three attempts, `wall 0s`, no
+      tokens, and no refusal anywhere: both manifests declare the `hook` kind, so the
+      load-time check S-0063/D-4 promises had nothing to object to.
+
+      `routine: dsh` is withdrawn from the routing rather than retired. dsh is not a
+      broken seat — it cannot run the `implement` role while that role declares a
+      hook, which is a different and narrower statement, and it is exactly what a
+      per-harness shape would let the engine say at load instead of at boot.
