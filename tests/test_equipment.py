@@ -952,3 +952,92 @@ def test_the_finishing_check_carries_a_ceiling_of_one_block() -> None:
     check = _hook_script("finish_check")
 
     assert check.CEILING == 1
+
+
+# ............................. #
+# The dsh half of the hook kind (S-0072/D-3)
+
+DSH_PLUGIN = (
+    Path(__file__).resolve().parent.parent
+    / "sandboxes" / "dsh" / "toolkit" / "scope-guard-policy" / "index.js"
+)
+
+
+def test_dsh_and_claude_reach_the_same_script_by_contact() -> None:
+    """S-0072/D-2, D-3: the judgement is one implementation both harnesses
+    invoke, so the script claude's settings.json runs from the mount and the
+    script the dsh plugin shells out to are the same file, on both names of
+    the mounted path — the dsh side restates how to reach it, never what it
+    decides."""
+
+    settings = (HOOK_DIR / "claude" / "settings.json").read_text(encoding="utf-8")
+    plugin = DSH_PLUGIN.read_text(encoding="utf-8")
+
+    assert "implement/scope_guard.py" in settings
+    assert "scope_guard.py" in plugin
+    assert "TORVE_EQUIPMENT" in plugin
+    assert (HOOK_DIR / "scope_guard.py").is_file()
+
+
+def test_dsh_equip_installs_the_guard_through_dsh_s_own_verb_then_patches_it_in(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """S-0072/D-3, Q-1 by contact: for a `hook` kind, dsh's equip installs the
+    image's guard plugin through dsh's own verb and the patch it writes turns
+    that package on. The overlay's `- insert:` is the directive that reaches a
+    package equipped in this same pass — the configure form cannot add an
+    entry the profile does not carry (S-0063/D-17) — and the item's own bytes
+    are never read, so nothing but the listed package can start on the seat."""
+
+    import json
+    import os
+    import subprocess
+    import sys
+
+    calls = tmp_path / "dsh-calls.txt"
+    stub = tmp_path / "bin" / "dsh"
+    stub.parent.mkdir()
+    stub.write_text("#!/bin/sh\necho \"$@\" >> \"$DSH_STUB_RECORD\"\n", encoding="utf-8")
+    stub.chmod(0o755)
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {"items": [{"kind": "hook", "source": "local:.torve/agents/hooks/implement", "path": str(HOOK_DIR)}]}
+        ),
+        encoding="utf-8",
+    )
+    overlay = tmp_path / "overlay.yml"
+    equip_patch = Path(__file__).resolve().parent.parent / "sandboxes" / "dsh" / "toolkit" / "equip_patch.py"
+
+    subprocess.run(
+        [sys.executable, str(equip_patch), str(manifest), str(overlay)],
+        env=dict(
+            os.environ,
+            PATH=str(stub.parent) + os.pathsep + os.environ.get("PATH", ""),
+            DSH_STUB_RECORD=str(calls),
+        ),
+        check=True,
+    )
+
+    commands = calls.read_text(encoding="utf-8").splitlines()
+    assert "plugin --profile headless add /opt/torve/scope-guard-policy" in commands, commands
+
+    text = overlay.read_text(encoding="utf-8")
+    assert "- insert:" in text
+    assert "'@torve/scope-guard-policy'" in text
+    # The kind's payload for dsh is the plugin, not the item's bytes.
+    assert "def " not in text
+
+
+def test_the_dsh_seat_blocks_at_write_time_and_names_no_finisher() -> None:
+    """Q-2: on a write-time gate there is no room for a finish-shaped check.
+    The plugin wires exactly the intents the seat can refuse, and nothing in
+    the dsh toolkit names a finisher — the ceiling the claude Stop hook
+    carries is the claude seat's, reached from settings.json alone."""
+
+    plugin = DSH_PLUGIN.read_text(encoding="utf-8")
+
+    assert "fs/write-intent" in plugin
+    assert "fs/edit-intent" in plugin
+    assert "finish" not in plugin

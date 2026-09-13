@@ -1,0 +1,14 @@
+{
+  "name": "@torve/scope-guard-policy",
+  "version": "0.1.1-rc.2",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "description": "dsh's half of the hook kind (S-0072/D-3): a thin fs/* gate plugin whose body shells out to the hook item's scope_guard.py",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-fs": "^0.1.1-rc.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
