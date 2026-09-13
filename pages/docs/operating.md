@@ -78,6 +78,88 @@ design, not an omission: a hand-minted contract is already signed by the
 person reading the output, which is the same ground the lint's own advisories
 stand on.
 
+## When a conviction routes a repair
+
+A red battery routes one way by default: a fresh attempt from base, the same
+prompt, the same contract, the previous reasoning deliberately not
+privileged. Measured over this repository's record that is expensive — the
+same gate convicted the next attempt of the same task 196 times across 28
+tasks: `acceptance` 52, `layering` 41, `user-facing-text` 39,
+`decisions-reported` 26, `scope` 14. A **repair** is the other route: the
+same task's next attempt, starting from the tree that was convicted and
+judged by the convicting gate as well as by everything its contract already
+declared.
+
+A repair is a mode of an attempt, not a role and not a task (S-0069/D-1).
+Nothing is configured to turn it on and nothing new is minted: the attempt
+ledger, the budget, the poison ceiling and the escalation reasons all count
+a repair exactly as they count any other attempt.
+
+**Which convictions qualify.** Four gates, fixed in the engine rather than
+in configuration: `layering`, `scope`, `user-facing-text` and
+`decisions-reported` (S-0069/D-5). Those are the checks that are pure
+functions of the tree — a red from one names a property of the diff, not a
+verdict on the approach, so the tree is worth repairing rather than
+rebuilding. `acceptance` stays outside the set although it is the largest
+repeat class: a suite that fails twice may be a tree worth keeping or an
+approach worth abandoning, and only the ledger's per-gate repeat counts tell
+those apart, so widening the set is a decision with a number behind it. The
+red also has to be a conviction — a `shadow` or quarantined failure is a
+fact and routes nothing — and the gate has to be one this repository's
+manifest declares. When several qualify at once, the most severe axis is
+repaired first, in the ladder's own order.
+
+**What the acceptance becomes.** The convicting gate's own command, added to
+everything the contract already declared (S-0069/D-3): a builtin gate
+contributes the battery's per-gate verb — `torve gates run --only scope` —
+and a shell gate its declared command verbatim. Added, never substituted. A
+repair that leaves the gate red fails inside the attempt, which is the whole
+saving, and one that clears it by breaking another gate still fails. The
+contract on disk is untouched — the battery judges the task file as written,
+and the addition is rebuilt on every red from the acceptance sealed at
+dispatch, so it never accumulates and never leaks into an attempt that was
+not routed as a repair.
+
+**Where it starts.** From the convicted attempt's tree, not from base
+(S-0069/D-4): the work that was right survives the mistake. Routing commits
+whatever that attempt left, so the repair's worktree carries those commits
+and an ordinary retry's does not:
+
+```
+torve(T-0390): attempt 2 convicted by scope
+
+Torve-Checkpoint: T-0390 attempt 2
+```
+
+That commit is kin to the budget checkpoint and is not a landing: same
+trailer, no execution record, nothing to mistake for a candidate. If the
+commit itself fails the routing still stands and the engine records
+`repair_tree_uncommitted` — the tree is the one the repair would carry
+anyway, and an infrastructure failure must not replace the conviction.
+
+**Once.** One gate earns one repair per dispatch (S-0069/D-6). A second
+conviction on the same gate restores the contract's own acceptance and
+routes exactly where it routed before, and the ladder that picks the next
+tier is untouched either way. Without that bound a repair is a loop reading
+its own failure as its input, and the poison ceiling stops meaning three
+failures the same way. Reading a chain: the gate a repair was routed for is
+stamped as `repair` on the attempt and rides the agent block of the attempt
+record, so a repair is visible in the record rather than inferred from a
+prompt — two convictions on one gate show one repair and then the ordinary
+path.
+
+**What a repair is handed.** `build_prompt` has a third mode beside
+`continuation` and `revision` (S-0069/D-2): a block naming the gate that
+convicted the previous attempt, the tail of its output, the paths that
+attempt's diff touched and the inherited rows governing those paths, stated
+as evidence the contract still outranks — data, not instruction, the same
+footing the review threads a revision is handed stand on. The contract
+itself does not narrow: same scope, same rows, same declared acceptance.
+The mode and the pack function that fills it are both built; no dispatch
+path passes a conviction to the prompt yet, so a repair attempt today is an
+ordinary prompt run against the convicted tree with the convicting gate's
+command in its acceptance.
+
 ## Where the working rules live
 
 The rules an attempt works by — where the engine's facts are, which verbs
