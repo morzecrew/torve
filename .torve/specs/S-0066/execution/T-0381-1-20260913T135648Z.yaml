@@ -1,0 +1,249 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0381
+phase: 1
+base: 2fe5f441d18037b6fa8862be3ff3af9e4d0b5a5e
+commit: 38076bf0f3fd17ae14fda04598f57d10fc83ae1d
+at: '2026-09-13T13:56:48Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0061/D-12
+    grade: ASSUMED
+  - id: S-0061/D-13
+    grade: ASSUMED
+  - id: S-0062/D-1
+    grade: LOCKED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0062/D-13
+    grade: ASSUMED
+  - id: S-0063/D-3
+    grade: LOCKED
+  - id: S-0063/D-6
+    grade: LOCKED
+  - id: S-0063/D-7
+    grade: LOCKED
+  - id: S-0063/D-9
+    grade: LOCKED
+  - id: S-0063/D-13
+    grade: LOCKED
+  - id: S-0063/D-14
+    grade: LOCKED
+  - id: S-0063/D-15
+    grade: LOCKED
+  - id: S-0063/D-16
+    grade: LOCKED
+  - id: S-0063/D-17
+    grade: LOCKED
+  - id: S-0063/D-18
+    grade: LOCKED
+  - id: S-0063/D-19
+    grade: LOCKED
+  - id: S-0064/D-7
+    grade: LOCKED
+  - id: S-0064/D-8
+    grade: LOCKED
+  - id: S-0064/D-11
+    grade: ASSUMED
+  - id: S-0067/D-3
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-13T13:53:46Z'
+    claim: >-
+      the door is shut per image and the three switches are the harnesses' own: claude
+      narrows --setting-sources to user and hands --strict-mcp-config an empty --mcp-config,
+      dsh patches its instruction-file candidate list empty and narrows its skill
+      roots to the engine's, mimo disables the four skill roots it reads that the
+      engine did not name
+    evidence: >-
+      sandboxes/claude/toolkit/run:74-76 — the claude switches; sandboxes/dsh/toolkit/run:43-53
+      is the dsh overlay and sandboxes/mimo/toolkit/run:41-43 the mimo disables
+    action: decided
+    notes: >-
+      claude's two flags were probed against the installed CLI (`claude --setting-sources
+      user --mcp-config '{"mcpServers":{}}' --strict-mcp-config --help` exits 0, --setting-sources
+      bogus exits 1); dsh's and mimo's could not be probed here — no docker daemon
+      in this worktree — so the in-image probe ships gated behind TORVE_IMAGE_TESTS
+      at tests/test_sandbox_images.py and an operator runs it on a host with a daemon
+  - decision: S-0062/D-1
+    grade: LOCKED
+    at: '2026-09-13T13:53:57Z'
+    claim: >-
+      the re-declaration is a typed equipment item — a kind, a source and no ref,
+      because a tracked path is versioned by git — rather than a second field beside
+      the list
+    evidence: >-
+      .torve/agents/implement.yaml:39-41 — readable-code re-declared as an item; .torve/agents/review.yaml:15-16
+      is the same item on the reviewing role
+    action: decided
+  - decision: S-0062/D-9
+    grade: LOCKED
+    at: '2026-09-13T13:53:58Z'
+    claim: >-
+      the door is told to each harness by the harness's own switch on its own command
+      line; torve writes no file into any harness's state to close it
+    evidence: >-
+      sandboxes/claude/toolkit/run:74-76 — flags on the command line, no file written
+      into claude's state
+    action: decided
+  - decision: S-0063/D-3
+    grade: LOCKED
+    at: '2026-09-13T13:53:58Z'
+    claim: >-
+      each image translates one intent into what its harness takes: a pair of flags
+      for claude, a --patch overlay for dsh, one disable per root for mimo — decided
+      beside the harness, not by a renderer in the engine
+    evidence: >-
+      sandboxes/dsh/toolkit/run:43-53 — the door as an overlay because dsh has one
+      configuration channel
+    action: decided
+  - decision: S-0063/D-6
+    grade: LOCKED
+    at: '2026-09-13T13:53:59Z'
+    claim: >-
+      the door is edited in the definitions at sandboxes/<name>/ and nothing moved
+    evidence: >-
+      sandboxes/claude/toolkit/run:68 — the door lives in the definition that builds
+      claude-sandbox
+    action: decided
+  - decision: S-0063/D-7
+    grade: LOCKED
+    at: '2026-09-13T13:53:59Z'
+    claim: >-
+      no definition grew a layer; the change is three shell edits inside toolkit/
+      and the base is untouched
+    evidence: >-
+      sandboxes/mimo/toolkit/run:41-43 — the door is shell in the toolkit, not a Dockerfile
+      line
+    action: decided
+  - decision: S-0063/D-9
+    grade: LOCKED
+    at: '2026-09-13T13:54:00Z'
+    claim: >-
+      the door landed on all three at once rather than claude-first, which is what
+      proves the switch is per harness and the intent is not claude-shaped
+    evidence: >-
+      sandboxes/dsh/toolkit/run:53 — dsh's answer to the same intent; sandboxes/mimo/toolkit/run:42
+      is mimo's
+    action: decided
+  - decision: S-0063/D-13
+    grade: LOCKED
+    at: '2026-09-13T13:54:14Z'
+    claim: >-
+      the in-image probe of the door builds an image, so it is gated behind TORVE_IMAGE_TESTS
+      and the battery reads the definitions instead
+    evidence: >-
+      tests/test_sandbox_images.py:398-403 — the probe carries builds_images; tests/test_sandbox_images.py:363-368
+      is what runs on every attempt
+    action: decided
+  - decision: S-0063/D-14
+    grade: LOCKED
+    at: '2026-09-13T13:54:15Z'
+    claim: >-
+      everything the door adds is inside toolkit/ and lands through the one COPY;
+      no definition gained a file outside it
+    evidence: >-
+      sandboxes/dsh/toolkit/run:43 — the overlay is written at run time under /tmp,
+      not baked beside the image
+    action: decided
+  - decision: S-0063/D-15
+    grade: LOCKED
+    at: '2026-09-13T13:54:15Z'
+    claim: >-
+      no model file is baked and none was added: dsh's door is a second overlay rendered
+      at run time beside the model one
+    evidence: >-
+      sandboxes/dsh/toolkit/run:44-52 — an overlay written at run time, not a file
+      in the definition
+    action: decided
+  - decision: S-0063/D-16
+    grade: LOCKED
+    at: '2026-09-13T13:54:16Z'
+    claim: >-
+      skill stays a kind every image takes: each door leaves the root the engine named
+      open and shuts only the roots the worktree carries
+    evidence: >-
+      sandboxes/mimo/toolkit/run:41-43 — .mimocode/skill is absent from the disabled
+      roots; sandboxes/dsh/toolkit/run:48-49 narrows to TORVE_EQUIP_ROOT
+    action: decided
+  - decision: S-0063/D-17
+    grade: LOCKED
+    at: '2026-09-13T13:54:16Z'
+    claim: >-
+      the door patches entries dsh's headless profile already carries and adds none,
+      so it cannot fail at boot with patch: entry not found for a plugin it installed
+      nowhere
+    evidence: >-
+      sandboxes/dsh/toolkit/run:36-41 — the comment stating both ids are the profile's
+      own entries
+    action: decided
+  - decision: S-0063/D-18
+    grade: LOCKED
+    at: '2026-09-13T13:54:17Z'
+    claim: >-
+      the credential still arrives by name and nothing is mounted; the door touches
+      no auth path, and --bare was rejected precisely because it reads no OAuth token
+    evidence: >-
+      sandboxes/claude/toolkit/run:70-72 — why --bare is not the switch here
+    action: decided
+  - decision: S-0063/D-19
+    grade: LOCKED
+    at: '2026-09-13T13:54:17Z'
+    claim: >-
+      equipment still writes only into the root the harness declared, and the door
+      is what makes that root the only one read
+    evidence: >-
+      sandboxes/dsh/toolkit/run:48-49 — the skill roots narrowed to TORVE_EQUIP_ROOT
+    action: decided
+  - decision: S-0064/D-7
+    grade: LOCKED
+    at: '2026-09-13T13:54:18Z'
+    claim: >-
+      the door introduced no new variable across the seam; it reads TORVE_EQUIP_ROOT,
+      which the engine already names
+    evidence: >-
+      sandboxes/dsh/toolkit/run:49 — the only variable the door reads
+    action: decided
+  - decision: S-0064/D-8
+    grade: LOCKED
+    at: '2026-09-13T13:54:18Z'
+    claim: >-
+      no door branches on whether a broker is in force; the switches are the same
+      either way
+    evidence: >-
+      sandboxes/claude/toolkit/run:74-76 — no TORVE_BROKER anywhere in the door
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-13T13:54:30Z'
+    claim: >-
+      the document's two open questions are answered in the profiles: readable-code
+      is re-declared on implement and review, because it names both roles itself and
+      its absence would not announce itself in any gate; gitmoji-conventional, keep-a-changelog,
+      spec-writer and the vendored forze-skills are dropped, each with its reason
+      recorded beside the declaration
+    evidence: >-
+      .torve/agents/implement.yaml:22-41 — the four drops with their reasons and the
+      one re-declaration
+    action: decided
+    notes: >-
+      no landing rate exists to decide Q-1 on, so it is decided on cost: the skill
+      is two roles' own declaration and one cache entry, while a silent loss is only
+      visible as a seat that got worse. Q-2 answered by dropping — nobody has opened
+      forze-skills and no role asks for it, so it enters by declaration or not at
+      all
