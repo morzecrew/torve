@@ -39,10 +39,9 @@ dev = [
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
     "pytest-timeout>=2.3",
-    # Makes parallel test execution available to the two gates that run the
-    # suite (S-0071/D-1). Dev-only like pytest-timeout: how this repository
-    # runs its own tests is no concern of a consumer. This phase installs it
-    # and nothing more — `addopts` still carries no worker count.
+    # Backs the worker count in `addopts` below (S-0071/D-1). Dev-only like
+    # pytest-timeout: how this repository runs its own tests is no concern of
+    # a consumer.
     "pytest-xdist>=3",
     "ruff>=0.6",
     "types-pyyaml>=6.0.12",
@@ -222,7 +221,11 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 pythonpath = ["src", "tests"]
-addopts = ["-q", "--tb=short", "--strict-markers", "--strict-config"]
+# The worker count lives here and not in a gate's command (S-0071/D-1): both
+# gates that run the suite spell it `uv run pytest` and neither names one, so
+# this reaches both without a contract changing. `-n 0` on the command line
+# still buys a serial run.
+addopts = ["-q", "--tb=short", "--strict-markers", "--strict-config", "-n", "auto"]
 # Safety net: no test may hang the run indefinitely. On timeout, dump all
 # thread stacks and kill the process (the `thread` method guarantees the run
 # can't stick). Generous enough for container startup on a cold runner.
