@@ -1,0 +1,243 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0392
+phase: 1
+base: 561e903b669805f0c4453dab15cd8eab1b4178aa
+commit: c81673add1b6f57ea3a7795ec8f00d8da4ae8721
+at: '2026-09-13T18:48:09Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0061/D-1
+    grade: LOCKED
+  - id: S-0061/D-2
+    grade: LOCKED
+  - id: S-0061/D-4
+    grade: LOCKED
+  - id: S-0061/D-8
+    grade: ASSUMED
+  - id: S-0061/D-10
+    grade: LOCKED
+  - id: S-0061/D-11
+    grade: ASSUMED
+  - id: S-0061/D-12
+    grade: ASSUMED
+  - id: S-0061/D-13
+    grade: ASSUMED
+  - id: S-0062/D-1
+    grade: LOCKED
+  - id: S-0062/D-2
+    grade: LOCKED
+  - id: S-0062/D-12
+    grade: LOCKED
+  - id: S-0062/D-13
+    grade: ASSUMED
+  - id: S-0063/D-1
+    grade: LOCKED
+  - id: S-0063/D-3
+    grade: LOCKED
+  - id: S-0063/D-4
+    grade: LOCKED
+  - id: S-0063/D-10
+    grade: ASSUMED
+  - id: S-0063/D-19
+    grade: LOCKED
+  - id: S-0064/D-4
+    grade: LOCKED
+  - id: S-0064/D-6
+    grade: LOCKED
+  - id: S-0064/D-9
+    grade: ASSUMED
+  - id: S-0066/D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-13T18:44:46Z'
+    claim: >-
+      Implements the refusal half: a seat whose profile declares a local hook item
+      is refused at load when the item's payload carries no directory for the seat's
+      harness, the directory name read off the manifest's image; the message names
+      the profile and the manifest.
+    evidence: >-
+      src/torve/config/agents.py:683 — the per-harness shape check added to _equipped
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T18:44:53Z'
+    claim: >-
+      The change lives entirely inside torve.config.agents, which the Layers contract
+      places beside the stack as it already was; no import was added, so no direction
+      is crossed.
+    evidence: >-
+      src/torve/config/agents.py:613 — the new helper, an addition within the existing
+      module
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T18:44:54Z'
+    claim: >-
+      No identifier is added or converted; the only corpus coordinates the change
+      writes are comments citing S-0072/D-1 beside the refusal.
+    evidence: >-
+      src/torve/config/agents.py:683 — the S-0072/D-1 citation in the added comment
+    action: decided
+  - decision: S-0059/D-5
+    grade: LOCKED
+    at: '2026-09-13T18:44:55Z'
+    claim: >-
+      No closed-vocabulary word is spelled inline: the check reads kind and scheme
+      off Equipment's own fields, which are the vocabulary's members.
+    evidence: >-
+      src/torve/config/agents.py:687 — item.kind and item.scheme, existing Kind vocabulary
+    action: decided
+  - decision: S-0059/D-6
+    grade: LOCKED
+    at: '2026-09-13T18:44:56Z'
+    claim: >-
+      No model field was added, so nothing gains a description; the refusal is a statement
+      in the loader, not a new property of any schema.
+    evidence: >-
+      src/torve/config/agents.py:631 — the changed _equipped signature, fields untouched
+    action: decided
+  - decision: S-0061/D-1
+    grade: LOCKED
+    at: '2026-09-13T18:45:03Z'
+    claim: >-
+      The profile's shape is untouched; the refusal reads the profile's equipment
+      at the seat, where the harness is known, and adds no key to the profile.
+    evidence: >-
+      src/torve/config/agents.py:599 — the seat merge calling the shape check
+    action: decided
+  - decision: S-0061/D-2
+    grade: LOCKED
+    at: '2026-09-13T18:45:04Z'
+    claim: >-
+      The manifest's shape is untouched; the refusal reads the harness's own image
+      field from the merged seat as written, and names no model.
+    evidence: >-
+      src/torve/config/agents.py:688 — merged.get("image"), the manifest's own field
+    action: decided
+  - decision: S-0061/D-4
+    grade: LOCKED
+    at: '2026-09-13T18:45:05Z'
+    claim: >-
+      The working-rules surface is untouched: the change adds no key a profile may
+      write, and prompt/prompt_extras are exactly as they were.
+    evidence: >-
+      src/torve/config/agents.py:631 — _equipped, no profile-key change
+    action: decided
+  - decision: S-0061/D-10
+    grade: LOCKED
+    at: '2026-09-13T18:45:06Z'
+    claim: >-
+      Profiles and manifests remain committed files under .torve; the check reads
+      the item's payload path from the operating repository, the same tree the files
+      are committed to.
+    evidence: >-
+      src/torve/config/agents.py:691 — root / item.locator, resolved against the repository
+    action: decided
+  - decision: S-0062/D-1
+    grade: LOCKED
+    at: '2026-09-13T18:45:13Z'
+    claim: >-
+      Equipment stays typed items; the refusal inspects kind and scheme on the Equipment
+      object, fields the declaration already carries.
+    evidence: >-
+      src/torve/config/agents.py:687 — item.kind and item.scheme on the validated
+      item
+    action: decided
+  - decision: S-0062/D-2
+    grade: LOCKED
+    at: '2026-09-13T18:45:14Z'
+    claim: >-
+      The kinds refusal is untouched; the new shape check is the same load-time guarantee
+      extended from the kind to the item, as S-0072/D-1 does, and still refuses before
+      an image is pulled.
+    evidence: >-
+      src/torve/config/agents.py:631 — the shape refusal beside the kinds loop
+    action: decided
+  - decision: S-0062/D-12
+    grade: LOCKED
+    at: '2026-09-13T18:45:15Z'
+    claim: >-
+      The two-layer equipment resolution is untouched; the refusal acts on the merged
+      seat, whichever layer supplied the item.
+    evidence: >-
+      src/torve/config/agents.py:599 — the seat merge, layered equipment already merged
+    action: decided
+  - decision: S-0063/D-1
+    grade: LOCKED
+    at: '2026-09-13T18:45:16Z'
+    claim: >-
+      No command surface is touched or added: the check is a path test at load and
+      the image's own run still starts the harness.
+    evidence: >-
+      src/torve/config/agents.py:691 — a path test, no command line
+    action: decided
+  - decision: S-0063/D-3
+    grade: LOCKED
+    at: '2026-09-13T18:45:24Z'
+    claim: >-
+      No flag template is added or changed; the per-harness directory is the shape
+      the image's own equip reads, which S-0063/D-3 already made the image's business.
+    evidence: >-
+      src/torve/config/agents.py:683 — the check names a directory, never a flag
+    action: decided
+  - decision: S-0063/D-4
+    grade: LOCKED
+    at: '2026-09-13T18:45:25Z'
+    claim: >-
+      The kinds refusal keeps its exact behaviour; the item-shape question this task
+      adds is the other half of the same promise, still without pulling an image.
+    evidence: >-
+      src/torve/config/agents.py:631 — _equipped, both refusals in one place
+    action: decided
+  - decision: S-0063/D-19
+    grade: LOCKED
+    at: '2026-09-13T18:45:26Z'
+    claim: >-
+      No equip_root or TORVE_EQUIP_ROOT surface is changed; the check reads the payload
+      in the operating repository, which the engine's equipment machinery never treats
+      as a workspace path.
+    evidence: >-
+      src/torve/config/agents.py:691 — root-relative payload path, not a mount
+    action: decided
+  - decision: S-0064/D-4
+    grade: LOCKED
+    at: '2026-09-13T18:45:27Z'
+    claim: >-
+      No dialect surface is touched; the refusal reuses the seat-load pass where the
+      api/dialect refusals already stand, and adds no manifest key.
+    evidence: >-
+      src/torve/config/agents.py:599 — the seat merge, where api is already refused
+    action: decided
+  - decision: S-0064/D-6
+    grade: LOCKED
+    at: '2026-09-13T18:45:27Z'
+    claim: >-
+      No seat key is added: reasoning effort and the seat's other knobs are exactly
+      as they were.
+    evidence: >-
+      src/torve/config/agents.py:613 — the helper, no seat-key change
+    action: decided
