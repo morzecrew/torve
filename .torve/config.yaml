@@ -82,6 +82,11 @@ tiers:
     profile: claude-equipped
     model: claude-opus-5
     provider: anthropic
+    # S-0034/D-3: a phase declared `routine` — docs, a changelog, a rename that
+    # carries no design — is one competence, so it runs on the cheap seat rather
+    # than the one that costs opus. Structural work is unmapped and falls through.
+    character_routing:
+      routine: dsh
   # A second live seat, on the ModelStudio token plan through the broker.
   # `model` is the overlay's model id; `DSH_MODEL` on the manifest carries the
   # catalog entry, because a dsh model is a provider and a catalog and a
