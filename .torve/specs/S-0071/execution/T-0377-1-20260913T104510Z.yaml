@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0377
+phase: 3
+base: 6d1d96822572b9c7da17df7c3f9a7736874bd460
+commit: 96000fd617509f2941a854230cebe6f72860f9cf
+at: '2026-09-13T10:45:10Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0054/D-7
+    grade: LOCKED
+  - id: S-0055/D-14
+    grade: ASSUMED
+  - id: S-0055/D-15
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-54
+    grade: ASSUMED
+  - id: S-0057/D-4
+    grade: LOCKED
+  - id: S-0059/D-4
+    grade: LOCKED
+  - id: S-0068/D-4
+    grade: LOCKED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-13T10:42:25Z'
+    claim: >-
+      the acceptance entry keeps its 900s cap: it runs whatever commands the contract
+      under work names, so it has no measured p90 of its own to round up; every other
+      entry's value is measured here
+    evidence: >-
+      .torve/gates.yaml:165-173 — the entry and the comment saying why; src/torve/gates/builtins.py
+      is the acceptance builtin running the contract's own commands
+    action: departed
+    proposal: >-
+      the row reads: every gate entry declares a timeout at its measured p90 rounded
+      up, except where the command comes from the contract rather than the manifest,
+      where the cap stands and says so
+  - decision: S-0054/D-7
+    grade: LOCKED
+    at: '2026-09-13T10:42:41Z'
+    claim: >-
+      the spec-projection entry keeps its command, state, axis and twin; only its
+      timeout is declared, so the projection gate that drift-checks the rendered sections
+      is untouched
+    evidence: >-
+      .torve/gates.yaml:156-164 — the entry, changed by one added timeout line and
+      its measurement comment
+    action: decided
+  - decision: S-0055/D-15
+    grade: LOCKED
+    at: '2026-09-13T10:42:41Z'
+    claim: >-
+      every entry still names its sabotage twin and none was added or removed; the
+      diff adds a timeout to eight entries and retunes four
+    evidence: >-
+      .torve/gates.yaml:31-173 — every entry carries its sabotage field unchanged;
+      tests/test_manifest.py:232 — the shipped-twin resolution test is untouched and
+      green
+    action: decided
+  - decision: S-0057/D-4
+    grade: LOCKED
+    at: '2026-09-13T10:42:42Z'
+    claim: >-
+      the spec-valid entry keeps the name the absorption gave it and still runs torve
+      spec check; only its timeout is declared
+    evidence: >-
+      .torve/gates.yaml:95-104 — the entry, changed by one timeout value and its measurement
+      comment
+    action: decided
+  - decision: S-0059/D-4
+    grade: LOCKED
+    at: '2026-09-13T10:42:42Z'
+    claim: >-
+      every origin is unchanged: structural or an S-NNNN citation, exactly as the
+      rows left them
+    evidence: >-
+      .torve/gates.yaml:31-173 — no origin field is added, removed or edited in the
+      diff
+    action: decided
+  - decision: S-0068/D-4
+    grade: LOCKED
+    at: '2026-09-13T10:42:47Z'
+    claim: >-
+      no standing job is named or edited and the adoption check is untouched; this
+      change is a task contract scoped to the manifest, not a standing scope that
+      names the file declaring what convicts
+    evidence: >-
+      .torve/gates.yaml:1-29 — the manifest header, the only prose added; nothing
+      under .torve/standing is in this diff
+    action: decided
+  - decision: S-0057/D-4
+    grade: LOCKED
+    at: '2026-09-13T10:43:03Z'
+    claim: >-
+      correcting the citation in entry 4: the spec-valid entry is at lines 78-87,
+      not 95-104, which is the user-facing-text entry; the claim itself stands — the
+      gate keeps the name the absorption gave it and still runs torve spec check,
+      and only its timeout changed
+    evidence: >-
+      .torve/gates.yaml:78-87 — the spec-valid entry, changed by one timeout value
+      and its measurement comment
+    action: decided
