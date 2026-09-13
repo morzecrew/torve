@@ -884,3 +884,66 @@ def test_a_fetch_keeps_no_repository_history(tmp_path: Path, monkeypatch) -> Non
     assert (where / "plugin.json").is_file()
     assert not (where / ".git").exists()
     assert (where / equip_mod.PIN_FILE).is_file()
+
+
+# ....................... #
+# The first hook declaration (S-0066/D-5, S-0066/D-6)
+
+HOOK_DIR = Path(__file__).resolve().parent.parent / ".torve" / "agents" / "hooks" / "implement"
+
+
+def _hook_script(name: str):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, HOOK_DIR / f"{name}.py")
+    assert spec and spec.loader
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_hook_kind_is_declared_on_implement_and_nowhere_else() -> None:
+    """A red result must read against the declaration, not the image, so the
+    kind appears on exactly one role profile — and the declared bytes exist
+    under the name the settings reference from the mount."""
+
+    for role in ("review", "revert"):
+        assert not [i for i in load_profile(Path("."), role).equipment if i.kind == "hook"]
+
+    (hook,) = [i for i in load_profile(Path("."), "implement").equipment if i.kind == "hook"]
+
+    assert hook.source == "local:.torve/agents/hooks/implement"
+
+    for name in ("settings.json", "scope_guard.py", "finish_check.py"):
+        assert (HOOK_DIR / name).is_file(), name
+
+
+def test_the_refusal_reads_the_contract_and_blocks_only_inside_scope(tmp_path: Path) -> None:
+    """The refusal is the hook's whole job: in-scope writes pass, a write
+    outside them is refused with the allowed globs attached, and a hook that
+    cannot read its contract refuses nothing — the gate stays the judge."""
+
+    guard = _hook_script("scope_guard")
+    contract = tmp_path / "contract.yaml"
+    contract.write_text(
+        "scope:\n  allow:\n  - .torve/agents/**\n  - tests/test_equipment.py\n  deny: []\n",
+        encoding="utf-8",
+    )
+
+    patterns = guard.allow_patterns(contract)
+
+    assert patterns == [".torve/agents/**", "tests/test_equipment.py"]
+    assert guard.is_allowed(".torve/agents/implement.yaml", patterns)
+    assert guard.is_allowed("tests/test_equipment.py", patterns)
+    assert not guard.is_allowed("src/torve/config/equipment.py", patterns)
+    assert guard.allow_patterns(tmp_path / "missing.yaml") == []
+
+
+def test_the_finishing_check_carries_a_ceiling_of_one_block() -> None:
+    """Two turns, not a turn budget: the count the check may hand out is the
+    ceiling itself, read off the module the Stop hook runs."""
+
+    check = _hook_script("finish_check")
+
+    assert check.CEILING == 1

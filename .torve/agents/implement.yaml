@@ -39,3 +39,12 @@ equipment:
 # copy of a third party's repository.
 - kind: skill
   source: local:.agents/skills/readable-code
+# The first `hook` declaration (S-0066/D-5): declared equipment, never an
+# image edit, and the battery stays the judge — the refusal says a write is
+# outside the contract's scope before the bytes land, and the finishing
+# check blocks a stop that still owes an entry or leaves projection drift,
+# once. The ceiling is what turns a block the model cannot clear into two
+# turns instead of a turn budget (S-0066/D-6). `implement` only, so a red
+# result reads against this declaration and not against the image.
+- kind: hook
+  source: local:.torve/agents/hooks/implement
