@@ -278,6 +278,45 @@ def test_this_repositorys_manifest_names_the_projection_gate_and_its_twin():
     assert gate.sabotage == "tests/test_colocation.py"
 
 
+def test_the_computed_order_puts_no_gate_before_one_declaring_less(repo):
+    """S-0071/D-3: the runner orders the battery cheapest-first on the declared
+    timeout, so an entry declaring nothing sorts as whatever default gets filled
+    in — which is how the dearest gate in this battery came to run ahead of the
+    cheapest. Every entry declares a value, and the order the runner computes
+    over this repository's own manifest never puts a gate before one that
+    declares less.
+
+    The order is read from the runner rather than restated here: the live
+    manifest runs in a scratch repository with its shell commands stubbed, so
+    the sort under test is the one that runs the battery, and no gate's command
+    runs. The manifest's own order is not sorted by timeout, so a runner that
+    stopped sorting on the field reddens this too.
+    """
+
+    from conftest import context_for
+
+    from torve.gates.runner import run_gates
+
+    root = Path(__file__).resolve().parents[1]
+    data = yaml.safe_load((root / ".torve" / "gates.yaml").read_text(encoding="utf-8"))
+    declared = {gate["name"]: gate.get("timeout") for gate in data["gates"]}
+
+    undeclared = [name for name, value in declared.items() if value is None]
+    assert undeclared == [], f"gate entries declaring no timeout: {', '.join(undeclared)}"
+
+    for gate in data["gates"]:
+        if not gate["run"].startswith("@"):
+            gate["run"] = f"echo {gate['name']}"
+
+    repo.seed(data)
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+    report = run_gates(context_for(repo))
+
+    ran = [(result.name, declared[result.name]) for result in report.results]
+    assert [cost for _, cost in ran] == sorted(cost for _, cost in ran), ran
+
+
 def test_the_coverage_entry_says_which_of_its_two_halves_went_red():
     """The entry runs the suite before it can measure anything, so a failing
     test and a coverage shortfall both redden one gate. It says which — the

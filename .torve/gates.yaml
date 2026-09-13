@@ -17,6 +17,13 @@
 # entry in a manifest that names any twin — deleting one line below bricks
 # `torve gates run`.
 #
+# `timeout` is on every entry (S-0071/D-3), because the runner sorts the battery
+# cheapest-first on it and an entry that declares nothing sorts as its filled-in
+# default — which is how the dearest gate in the battery came to run ahead of the
+# cheapest. The value is the gate's own measured cost rounded up with headroom,
+# never a round number picked at the keyboard: a round number is what the field
+# was before it was measured. Each value below carries what it was measured from.
+#
 # What actually runs, with input, timeout and axis resolved and the contract's
 # own gates included: `torve gates list [--task ...]`.
 schema_version: 1
@@ -28,33 +35,42 @@ scope:
   deny: []
 
 gates:
+  # The builtins run in the runner's own process over the diff, and measure
+  # under 10ms each on a one-file change; 6 is three orders of magnitude of
+  # headroom over that, and equal values keep them in manifest order, which is
+  # the order a reader of this file predicts.
   - name: scope
     run: "@scope"
     state: blocking
     origin: structural
     axis: boundary
+    timeout: 6
     sabotage: scope
   - name: secrets
     run: "@secrets"
     state: blocking
     origin: structural
+    timeout: 6
     sabotage: secrets
   - name: no-test-tampering
     run: "@no-test-tampering"
     state: blocking
     origin: structural
+    timeout: 6
     sabotage: no-test-tampering
   - name: decisions-reported
     run: "@decisions-reported"
     state: blocking
     origin: structural
     axis: compliance
+    timeout: 6
     sabotage: decisions-reported
   - name: self-audit
     run: "@self-audit"
     state: shadow
     origin: structural
     axis: compliance
+    timeout: 6
     sabotage: self-audit
   # The corpus validator (S-0007/D-14), and the only place the corpus is
   # checked since CI stopped running the battery twice (S-0002/A-4) — named, so
@@ -65,13 +81,16 @@ gates:
     state: blocking
     origin: S-0007
     axis: form
-    timeout: 20
+    # 4.4s over three runs of the whole corpus, so 41 — the dearest gate that
+    # is not one of the two suite runs, and it now sorts as one.
+    timeout: 41
     sabotage: tests/test_rfc_check.py
   - name: source-layout
     run: "@source-layout"
     state: shadow
     origin: S-0014
     axis: form
+    timeout: 6
     sabotage: source-layout
   # No corpus identifiers in user-facing strings (S-0011/D-11, S-0011/A-1).
   - name: user-facing-text
@@ -79,6 +98,7 @@ gates:
     state: blocking
     origin: S-0011
     axis: compliance
+    timeout: 6
     sabotage: user-facing-text
   # Style over the whole tree, which the battery did not check. `ruff check`
   # lived only in the `acceptance` fallback below — the list a run with no task
@@ -93,7 +113,10 @@ gates:
     state: shadow
     origin: S-0015
     input: worktree
-    timeout: 120
+    # Both halves together measure 0.05s over three runs of the whole tree —
+    # ruff is the cheapest thing in the battery, and 120 had it sorting eleventh
+    # of thirteen. 7 is what a process start costs when nothing is cached.
+    timeout: 7
     sabotage: tests/test_lint.py
   # The layer contracts over the whole package. A self-development gate
   # (S-0015/D-10): the tool is a dev dependency and never ships.
@@ -102,7 +125,8 @@ gates:
     state: blocking
     origin: S-0015
     input: worktree
-    timeout: 60
+    # 0.17s over three runs of the contracts across the package.
+    timeout: 9
     sabotage: tests/test_layering.py
   # Does the suite meet the attempt's changed lines (S-0036/D-1)? diff-cover
   # intersects coverage with the diff against {base} — the merge-base the
@@ -124,7 +148,7 @@ gates:
     # Measured, not guessed: 164s median over 228 runs, 271s at p90, 600s at
     # worst. The runner sorts the battery cheapest-first on this field, so an
     # absent timeout read as zero cost and put the dearest gate in the pass
-    # ahead of every gate that declares one — spec-valid at 20s included.
+    # ahead of every gate that declares one — spec-valid included.
     timeout: 600
     sabotage: coverage-delta
   # The managed AGENTS.md sections beside the code, rendered from the corpus
@@ -135,12 +159,17 @@ gates:
     state: shadow
     origin: S-0054
     axis: form
-    timeout: 30
+    # 1.5s over three runs of the projection across 32 governed directories.
+    timeout: 17
     sabotage: tests/test_colocation.py
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
     origin: structural
+    # The one entry whose cost is not this file's to measure: it runs whatever
+    # commands the contract under work names, so its p90 is a property of the
+    # contracts and not of the gate. The cap stands where it was, and the gate
+    # sorts last, which is where the dearest gate belongs.
     timeout: 900
     sabotage: acceptance
     # Fallback for runs with no task contract (human pull requests).
