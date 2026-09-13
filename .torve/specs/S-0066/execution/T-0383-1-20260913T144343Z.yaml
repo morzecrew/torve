@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0383
+phase: 3
+base: 5fd9d760b8f44e84fb7a8277cd7363e16f88d361
+commit: 6fd9a9efa138c620ade8222e38e8b4a1fcb91c7b
+at: '2026-09-13T14:43:43Z'
+agent: subscription/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0061/D-12
+    grade: ASSUMED
+  - id: S-0061/D-13
+    grade: ASSUMED
+  - id: S-0062/D-1
+    grade: LOCKED
+  - id: S-0062/D-13
+    grade: ASSUMED
+  - id: S-0067/D-3
+    grade: ASSUMED
+entries:
+  - decision: S-0062/D-1
+    grade: LOCKED
+    at: '2026-09-13T14:41:24Z'
+    claim: >-
+      the hook enters as a typed equipment item — a kind and a source, no ref for
+      a tracked path — exactly the shape the row declares, and the first time the
+      kind is written down
+    evidence: >-
+      .torve/agents/implement.yaml:49 — the item; its bytes are .torve/agents/hooks/implement/settings.json:1,
+      scope_guard.py:1 and finish_check.py:1
+    action: decided
