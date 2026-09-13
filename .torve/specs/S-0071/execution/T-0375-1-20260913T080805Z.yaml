@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0375
+phase: 1
+base: b592d3959267ccfac40200d8d147683a16eaf888
+commit: 80c4a36a7031f98c07cd022b3bbf839f6ff1c22b
+at: '2026-09-13T08:08:05Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-59
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-09-13T08:00:57Z'
+    claim: >-
+      The lockfile moved, so the battery image must be rebuilt and its digest recorded.
+      The image definition needed no edit: the battery Dockerfile copies pyproject.toml
+      and uv.lock from the repository-root context and syncs from them under --locked,
+      so the added pytest-xdist and execnet entries change the keyed layer by themselves
+      and a stale warm layer cannot survive the change. The rebuild itself is an act
+      outside this diff, and it could not be executed from this session: no docker
+      client is present, so 'just image battery' and 'torve sandbox digest battery'
+      have nothing to talk to. The rebuild and the digest record are owed to the operator,
+      not waived.
+    evidence: >-
+      sandboxes/battery/Dockerfile:23-30 — COPY of the two files followed by uv sync
+      --locked --all-extras, so the lockfile bytes are the layer key and no Dockerfile
+      edit is required; uv.lock gained pytest-xdist 3.8.0 and execnet 2.1.2
+    action: decided
+    notes: >-
+      Docker is absent from the executing sandbox: `command -v docker` prints nothing
+      and `docker info` reports 'docker: command not found'. The lockfile change is
+      complete and verified (`uv lock --check` clean, `uv run pytest` 1707 passed
+      / 44 skipped), and `uv run pytest -n 2 --collect-only` confirms the plugin loads
+      from the synced environment. What remains is 'just image battery' on a host
+      with a daemon and the moved digest recorded.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T08:01:03Z'
+    claim: >-
+      The five-layer import contracts are untouched. The change adds one entry to
+      the dev dependency group; it moves no module, adds no import, and edits none
+      of the import-linter contracts or their layer order, so the layering gate reads
+      exactly what it read before.
+    evidence: >-
+      pyproject.toml:60-64 — the added pytest-xdist entry sits in [dependency-groups]
+      dev, below the [tool.importlinter] contracts at pyproject.toml:88 which are
+      unchanged
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T08:01:14Z'
+    claim: >-
+      Correcting the citation in the earlier S-0055/D-23 entry, which named the wrong
+      lines: the added dependency is at pyproject.toml:46 and the layer contracts
+      start at pyproject.toml:83, not 60-64 and 88. The claim itself stands — the
+      five-layer contracts are untouched by a dev dependency group entry.
+    evidence: >-
+      pyproject.toml:42-46 — the pytest-xdist entry and its comment inside [dependency-groups]
+      dev; the [tool.importlinter] block at pyproject.toml:83-131 is unchanged by
+      this diff
+    action: decided
+  - decision: S-0055/D-24
+    grade: LOCKED
+    at: '2026-09-13T08:01:20Z'
+    claim: >-
+      The gates-only install is unaffected. pytest-xdist enters [dependency-groups]
+      dev, which a gates-only install does not resolve — the same placement import-linter
+      and pytest-cov already carry for the same reason. No entry moved into [project]
+      dependencies or into any extra, so what a consumer installing the gates gets
+      is byte-identical.
+    evidence: >-
+      pyproject.toml:42-46 — the new entry is in the dev group; [project] dependencies
+      at pyproject.toml:9-16 and [project.optional-dependencies] at pyproject.toml:18-27
+      are unchanged
+    action: decided
+  - decision: S-0055/D-26
+    grade: LOCKED
+    at: '2026-09-13T08:01:25Z'
+    claim: >-
+      Format containment is unaffected. The forbidden contract that keeps torve.config.spec
+      away from gates, runtime adapters and agent adapters is unedited, and a test
+      runner plugin in the dev group creates no import path between them: pytest-xdist
+      is loaded by pytest, not by the package.
+    evidence: >-
+      pyproject.toml:112-120 — the 'The RFC format stays at the planner' forbidden
+      contract, unchanged by this diff, which touches only pyproject.toml:42-46 and
+      uv.lock
+    action: decided
