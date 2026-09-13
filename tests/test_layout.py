@@ -3,6 +3,8 @@ the file exists (S-0013/D-1, A-48). `--config` is the only override (S-0013/D-4)
 
 from __future__ import annotations
 
+import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -92,3 +94,142 @@ def test_the_trace_path_helper_ensures_the_store_directory(tmp_path: Path) -> No
     assert naming.trace_file(naming.worktree(tmp_path, "T-2"), 1) == (
         tmp_path / ".torve" / "traces" / "T-2.a1.trace.log"
     )
+
+
+# ....................... #
+# The sweep (S-0070/D-1): `.torve/.gitignore` names what this repository
+# deliberately does not commit, and nothing it does commit may be a function
+# of those paths. Every reference is judged once and carries its verdict here,
+# so a new one is a judgement owed rather than a silent dependency.
+#
+# The surface is Python string literals. Prose — a comment, a docstring, a
+# governance glob in a document — names a path without reading it, and every
+# renderer of a committed artefact in this repository is Python, so a literal
+# is the only shape a dependency can take.
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+_UNSCANNED = {".git", ".venv", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cache"}
+
+_RUNTIME = "where the engine writes the record at runtime; no committed file is rendered from it"
+_SCRATCH = "a path inside a scratch tree the test builds, never this repository's own"
+_PROMPT = "text of a prompt naming a path in the attempt's workspace; a prompt is not committed"
+_GLOB = "a governance glob in a fixture decision row — a path pattern, not a file anything reads"
+
+_ADMISSIBLE = {
+    "scripts/e3_failure_mix.py": "a query that reads the stream and prints; it writes nothing committed",
+    "src/torve/adapters/agent/fake.py": _RUNTIME,
+    "src/torve/adapters/agent/harness.py": _RUNTIME,
+    "src/torve/application/review.py": _PROMPT,
+    "src/torve/base/naming.py": _RUNTIME,
+    "src/torve/cli/gates.py": _RUNTIME,
+    "src/torve/config/manifest.py": _RUNTIME,
+    "src/torve/gates/sabotage.py": _SCRATCH,
+    "tests/test_context.py": _SCRATCH,
+    "tests/test_decisions.py": _GLOB,
+    "tests/test_divergence.py": _SCRATCH,
+    "tests/test_gates.py": "a scratch repository's tree, and the reason the live-log check skips with none",
+    "tests/test_intake.py": _SCRATCH,
+    "tests/test_lane.py": _SCRATCH,
+    "tests/test_layout.py": "this ledger, and the dependency its twin plants in a scratch tree",
+    "tests/test_ledger.py": _SCRATCH,
+    "tests/test_provenance.py": _SCRATCH,
+    "tests/test_residency.py": _SCRATCH,
+    "tests/test_review_run.py": _PROMPT,
+    "tests/test_rfc_check.py": _GLOB,
+    "tests/test_run_loop.py": _SCRATCH,
+    "tests/test_runner.py": _SCRATCH,
+    "tests/test_specquality.py": _SCRATCH,
+    "tests/test_tiering.py": _PROMPT,
+}
+
+
+def _uncommitted_patterns(root: Path) -> list[re.Pattern[str]]:
+    """`.torve/.gitignore`'s lines, as regexes over a repository-relative path."""
+    patterns = []
+    for line in (root / ".torve" / ".gitignore").read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "*" in line:
+            body = "".join("[^/]*" if ch == "*" else re.escape(ch) for ch in line)
+        else:
+            # A name matches itself and never a longer sibling: `skills/` is
+            # not committed, `skills-vendor/` is.
+            body = re.escape(line.rstrip("/")) + r"(?![-\w])"
+        patterns.append(re.compile(r"\.torve/" + body))
+    return patterns
+
+
+def _literal_references(root: Path) -> dict[str, list[int]]:
+    """Every Python string literal under `root` that names an uncommitted path."""
+    patterns = _uncommitted_patterns(root)
+    found: dict[str, list[int]] = {}
+    for path in sorted(root.rglob("*.py")):
+        relative = path.relative_to(root)
+        if _UNSCANNED & set(relative.parts):
+            continue
+        name = relative.as_posix()
+        if any(pattern.match(name) for pattern in patterns):
+            continue  # the file itself is not committed
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        prose = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+            and isinstance(node.body[0].value.value, str)
+        }
+        lines = [
+            node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in prose
+            and any(pattern.search(node.value) for pattern in patterns)
+        ]
+        if lines:
+            found[name] = lines
+    return found
+
+
+def test_every_reference_to_an_uncommitted_path_carries_a_verdict() -> None:
+    if not (_REPO_ROOT / ".torve" / ".gitignore").is_file():
+        pytest.skip("no `.torve/.gitignore` in this checkout — nothing names what is uncommitted")
+
+    referencing = _literal_references(_REPO_ROOT)
+
+    unjudged = sorted(set(referencing) - set(_ADMISSIBLE))
+    assert not unjudged, (
+        "these name a path the repository does not commit and carry no verdict; judge "
+        "each one — move it to the context pack, make it skip, or record why it is "
+        f"admissible: {unjudged}"
+    )
+    stale = sorted(set(_ADMISSIBLE) - set(referencing))
+    assert not stale, f"a verdict outlived its reference; drop it: {stale}"
+
+
+def test_the_sweep_names_a_reintroduced_dependency(tmp_path: Path) -> None:
+    # The twin: a projection reading an uncommitted path is the violation the
+    # sweep exists to name, and it is reachable again the moment someone writes
+    # one. Prose naming the same path is not, and neither is a sibling the
+    # repository does commit.
+    (tmp_path / ".torve").mkdir()
+    (tmp_path / ".torve" / ".gitignore").write_text("telemetry.jsonl\nskills/\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "render.py").write_text(
+        '"""A projection of `.torve/telemetry.jsonl`."""\n'
+        "def render(root):\n"
+        '    return (root / ".torve/telemetry.jsonl").read_text()\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "src" / "vendored.py").write_text(
+        'SKILLS = ".torve/skills-vendor"\n', encoding="utf-8"
+    )
+
+    assert _literal_references(tmp_path) == {"src/render.py": [3]}
