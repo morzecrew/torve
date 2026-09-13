@@ -3,7 +3,7 @@ id: S-0067
 title: >-
   A session is briefed, and the working rules have one source
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0066]
 informed_by: [S-0054, S-0055, S-0062]

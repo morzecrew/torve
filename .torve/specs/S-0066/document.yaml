@@ -3,7 +3,7 @@ id: S-0066
 title: >-
   An attempt's inputs are declared, and the image says what it loaded
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0063]
 informed_by: [S-0055, S-0062]

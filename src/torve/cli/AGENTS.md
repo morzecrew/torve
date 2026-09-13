@@ -327,6 +327,28 @@ Image definitions live at `sandboxes/<name>/` in the repository root and build t
 - Paths: `src/torve/application/ledger.py` `src/torve/cli/ledger.py`
 - Consequence: the four numbers the engine's case rests on become a command rather than a hand computation in a document, and every later comparison has one arithmetic to cite
 
+### S-0067/D-1 — `ASSUMED` (A session is briefed, and the working rules have one source)
+
+`torve brief <contract>` runs what dispatch runs before an agent starts — the lint, the size estimate, the uninherited rows, the pack, the battery — prints it, and refuses nothing
+
+- Paths: `src/torve/cli/brief.py`
+- Consequence: the hand-minted path gets the protection the drafted path already has, printed before the work rather than convicted after it
+
+### S-0067/D-2 — `ASSUMED` (A session is briefed, and the working rules have one source)
+
+The brief prints the rows whose declared paths intersect the scope and which the contract has not inherited
+
+- Paths: `src/torve/cli/brief.py`
+- Consequence: a session stops learning from a conviction that it was governed by a row it never carried
+
+### S-0067/D-5 — `LOCKED` (A session is briefed, and the working rules have one source)
+
+The MCP surface serves the per-task pack as one more read-only tool and registers no tool that writes
+
+- Paths: `src/torve/cli/mcp.py`
+- Consequence: every session gets the facts a sandbox is handed on disk, whichever harness it drove up in, and no verb's refusals are reimplemented behind a second interface
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0068/D-2 — `ASSUMED` (The refusal that is missing, and the one nobody answered)
 
 `doctor` names which promotion criteria a served manager would land without, and says when the landing leg is off entirely

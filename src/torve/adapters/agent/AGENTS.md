@@ -91,6 +91,28 @@ Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` 
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py`
 - Consequence: a three-second boot failure and a twenty-minute clock stop being the same class, and the continuation question becomes answerable without committing to an answer
 
+### S-0066/D-4 — `ASSUMED` (An attempt's inputs are declared, and the image says what it loaded)
+
+The engine compares what a seat declared against the inventory the harness reports it loaded; a mismatch is a fact on the attempt record, never a conviction
+
+- Paths: `src/torve/adapters/agent/harness.py`
+- Consequence: the door becomes a checked fact rather than an assertion about three images, and `shadow`'s determinism claim acquires its missing half
+
+### S-0067/D-3 — `ASSUMED` (A session is briefed, and the working rules have one source)
+
+The working rules live once, at `skills/working-rules/`, reaching a sandbox as a declared equipment item and a session through its skill root; `build_prompt` names the skill instead of inlining it
+
+- Paths: `skills/working-rules/**` `src/torve/adapters/agent/harness.py` `.torve/agents/**`
+- Consequence: the best short statement of how to work in this repository stops being readable only by opening the engine's source, and both modes read one text that a diff can refuse
+
+### S-0067/D-4 — `LOCKED` (A session is briefed, and the working rules have one source)
+
+One bullet stays in the prompt: that the role's skills are under `.torve/skills/` and every `SKILL.md` there is read before writing code
+
+- Paths: `src/torve/adapters/agent/harness.py`
+- Consequence: the skill remains reachable; without it the rules are a file nothing points at
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
