@@ -1,0 +1,210 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0395
+phase: 4
+base: a63ec1d7a3e35bc56e32505e652f93b1fe21e75f
+commit: 9087f9124a8105cb2ed6792c52de674828d715c0
+at: '2026-09-13T22:01:16Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-4
+    grade: LOCKED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-48
+    grade: ASSUMED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0063/D-3
+    grade: LOCKED
+  - id: S-0063/D-6
+    grade: LOCKED
+  - id: S-0063/D-7
+    grade: LOCKED
+  - id: S-0063/D-9
+    grade: LOCKED
+  - id: S-0063/D-14
+    grade: LOCKED
+  - id: S-0063/D-15
+    grade: LOCKED
+  - id: S-0063/D-16
+    grade: LOCKED
+  - id: S-0063/D-19
+    grade: LOCKED
+  - id: S-0064/D-7
+    grade: LOCKED
+  - id: S-0064/D-8
+    grade: LOCKED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-13T21:58:05Z'
+    claim: >-
+      the route returns without the proof D-4 asks it to carry. D-4 wants `routine:
+      dsh` restored in the same change that proves a documentation phase lands on
+      that seat with the hook enforced, and no such landing exists: the hook reached
+      dsh when phase 3 landed at 21:00:31Z, while the four landings on the dsh seat
+      in the whole record are all earlier the same day, the newest at 13:43:14Z, so
+      every one of them ran before dsh had a hook to enforce. The proof is unobtainable
+      from inside this phase — routine was unrouted when this attempt dispatched,
+      so this documentation phase is itself landing on the opus seat, and a phase
+      cannot route to a seat its own diff is what restores. Departed: the line goes
+      back and the first proof is the next routine phase's landing record, which is
+      evidence a reader can check rather than a claim this change makes about itself
+    evidence: >-
+      .torve/specs/S-0072/execution/T-0394-1-20260913T210031Z.yaml:6-7 — the hook's
+      landing at 21:00:31Z; the newest dsh-seat landing is .torve/specs/S-0067/execution/T-0387-1-20260913T134314Z.yaml:6
+      at 13:43:14Z, seven hours earlier
+    action: departed
+    proposal: >-
+      ASSUMED — the return and its proof are two changes: the route goes back on the
+      strength of D-1 and D-3 having landed, and the next routine phase's landing
+      record on the dsh seat is what proves it
+  - decision: S-0055/D-4
+    grade: LOCKED
+    at: '2026-09-13T21:58:18Z'
+    claim: >-
+      the restored routing line names a seat, never a credential: `routine: dsh` is
+      a character mapped to a seat key, and the seat it names carries a model, a provider
+      and a dialect whose key still arrives by variable name from the provider record.
+      Nothing added here is a value the broker would otherwise inject
+    evidence: >-
+      .torve/config.yaml:107 — the added line is a character-to-seat mapping and carries
+      no key, token or URL
+    action: decided
+  - decision: S-0062/D-9
+    grade: LOCKED
+    at: '2026-09-13T21:58:19Z'
+    claim: >-
+      the layout line says the harness is told by its own mechanism, not by files
+      torve writes into its state: claude is handed a settings file by flag and dsh's
+      declaration is a plugin its own image ships and its own verb installs. The sentence
+      records no torve-side copy of a harness's bookkeeping, because there is none
+      to record
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the line attributes each harness's declaration to that
+      harness's own channel
+    action: decided
+  - decision: S-0063/D-3
+    grade: LOCKED
+    at: '2026-09-13T21:58:19Z'
+    claim: >-
+      the line is written from the image's side of the seam: what a harness reads
+      out of an item is decided by that image's own `equip`, and the prose names no
+      renderer and no capability template. It documents the shape `equip` reads, which
+      is the half of D-3 a reader of this directory needs
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the layout is described as what each image's equip reaches
+      for, not as something rendered for it
+    action: decided
+  - decision: S-0063/D-6
+    grade: LOCKED
+    at: '2026-09-13T21:58:29Z'
+    claim: >-
+      the per-harness directory name is the definition's own name, which is what D-6
+      made nameable: `claude-sandbox` reads `claude/`, so the directory an item carries
+      is read off the image the definition at `sandboxes/<name>/` builds to. The line
+      adds no second naming scheme
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the directory is named for the sandbox definition the
+      image was built from
+    action: decided
+  - decision: S-0063/D-7
+    grade: LOCKED
+    at: '2026-09-13T21:58:29Z'
+    claim: >-
+      nothing here touches the inheritance: this change is one prose line in the directory's
+      AGENTS.md and one routing key, so no definition gains a layer, none stops inheriting
+      the base image, and the test that stood in for inheritance is untouched
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the only change under sandboxes/ is prose; no Dockerfile
+      is edited
+    action: decided
+  - decision: S-0063/D-9
+    grade: LOCKED
+    at: '2026-09-13T21:58:30Z'
+    claim: >-
+      the line is the generality D-9 asked to be tested rather than asserted, written
+      down after it was: claude's half is a settings file, dsh's is a gate plugin,
+      and the sentence describes them as two translations of one item rather than
+      as a claude shape the others copy
+    evidence: >-
+      sandboxes/AGENTS.md:5 — both harnesses' halves are named, neither in the other's
+      vocabulary
+    action: decided
+  - decision: S-0063/D-14
+    grade: LOCKED
+    at: '2026-09-13T21:58:39Z'
+    claim: >-
+      the line records where dsh's declaration lives without moving it: the gate plugin
+      stays under the definition's `toolkit/` and arrives in the image by the one
+      COPY, and this change adds no file to any image
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the declaration is described as shipping in the harness's
+      own image, which is where toolkit/ puts it
+    action: decided
+  - decision: S-0063/D-15
+    grade: LOCKED
+    at: '2026-09-13T21:58:40Z'
+    claim: >-
+      the restored route adds a seat's worth of configuration and no baked file: `routine:
+      dsh` reaches the existing executor.dsh seat, whose model, provider and dialect
+      are already the seat's own keys rendered by dsh's equip. No image gains a model
+      file here
+    evidence: >-
+      .torve/config.yaml:107 — the route names a seat whose per-model configuration
+      is already the seat's env
+    action: decided
+  - decision: S-0063/D-16
+    grade: LOCKED
+    at: '2026-09-13T21:58:40Z'
+    claim: >-
+      the layout line is about the hook kind and leaves the skill kind alone: it describes
+      a payload root and per-harness directories on an item, and says nothing about
+      skill roots, which each harness still reads the way it reads skills
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the sentence names the hook item's shape and no skill
+      channel
+    action: decided
+  - decision: S-0063/D-19
+    grade: LOCKED
+    at: '2026-09-13T21:58:50Z'
+    claim: >-
+      the line describes reads, never writes into the repository: a harness reaches
+      into the item's mount for its own directory and dsh shells out to the payload's
+      root, and the one path this change could have put equipment on — the restored
+      dsh route — reaches a seat whose equip_root the engine already names and excludes
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the layout is a read of the mounted item; no repository
+      path is written by it
+    action: decided
+  - decision: S-0064/D-7
+    grade: LOCKED
+    at: '2026-09-13T21:58:50Z'
+    claim: >-
+      no new parameter crosses the seam: the restored route is a character-to-seat
+      mapping read host-side before dispatch, and the layout line names a directory
+      convention inside the mount rather than a scalar the engine hands an image
+    evidence: >-
+      .torve/config.yaml:107 — the added key is routing, not a value named across
+      the seam
+    action: decided
+  - decision: S-0064/D-8
+    grade: LOCKED
+    at: '2026-09-13T21:58:51Z'
+    claim: >-
+      nothing added tests whether a broker is in force: the routing line names a seat
+      and the layout line names a directory, and neither the prose nor the config
+      introduces a branch on a variable's presence
+    evidence: >-
+      sandboxes/AGENTS.md:5 — the line names no broker variable and no condition on
+      one
+    action: decided
