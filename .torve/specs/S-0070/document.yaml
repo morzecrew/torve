@@ -190,12 +190,23 @@ alternatives:
 questions:
   - id: Q-1
     text: >-
-      Are there more than four? The sweep is a grep for the gitignored paths in anything
-      committed, and it is cheap; what it finds decides whether this document is a
-      rule with three corrections or a rule with a longer tail.
+      Are there more than four? Settled by T-0372: about twenty files reference an
+      uncommitted path and every one of them is legitimate — a runtime path the engine
+      writes, a scratch repository a test builds, a glob, a prompt. None is a committed
+      artefact rendered from the record, which was the class. The sweep did not stay
+      a grep: it became a ledger of verdicts with a test that refuses an unjudged
+      reference and a verdict that outlived its reference, so the answer holds rather
+      than ages.
+    status: settled
+    settled_by: T-0372
   - id: Q-2
     text: >-
-      Should the rule be a check rather than a convention — a gate that renders the
-      committed artefacts twice, once with the record present and once without, and
-      convicts on a difference? It is the only form that survives the person who has
-      not read this document.
+      Should the rule be a check rather than a convention? Settled by T-0372, and
+      in a cheaper shape than the render-twice gate this asked for. The ledger names
+      each reference and why it is allowed, its twin plants a violation in a scratch
+      tree and proves the check sees it, and both run inside `uv run pytest` rather
+      than as new gate machinery. A render-twice gate stays available if the ledger
+      ever stops holding, but it is not needed to survive the person who has not read
+      this.
+    status: settled
+    settled_by: T-0372
