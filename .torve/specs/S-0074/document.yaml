@@ -1,0 +1,193 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0074
+title: What the engine is worth against a bare harness
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0065]
+informed_by: [S-0026, S-0035, S-0055]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  The engine has never been run against its own null hypothesis: every eval on record varies an image, a tier or a skill set, and none removes the apparatus. Three arms over the same replayed tasks — the harness alone, the harness under the battery, and torve as configured — produce the first honest answer to what the apparatus is worth.
+motivation: |
+  Everything torve does costs something: a context pack, a contract, inherited rows, a
+  battery, a lane. The case for all of it is that a bare harness hands over work that looks
+  finished and is not — 85 landed tasks were stopped at least once by a blocking gate, and
+  that number is the closest thing to proof the repository has.
+
+  It is not proof. It says the gates fired; it does not say the work would have shipped
+  broken without them, and it cannot, because nobody has ever run the same task without
+  them. Ten evals are on record and every one varies a configuration inside the apparatus
+  rather than removing it.
+
+  The comparison is also cheaper now than when it was first proposed. The battery costs 78
+  seconds instead of 370, and the seat carrying the work is a token-plan model rather than
+  opus, so the arms are affordable to run more than once.
+current_state: |
+  **`eval` is two-arm and varies configuration.** It replays each named task twice — a skill
+  against its without-skill baseline, or a candidate image or variant against the incumbent
+  — and lands one paired record. The record already carries `arms`, `configs`, `digests`
+  and `candidate_matched`, so the vocabulary for a third arm exists; the axis does not.
+
+  **`shadow` can swap the agent and not the judge.** It replays a completed task from its
+  parent commit in a truncated-history workspace and merges nothing, which is exactly the
+  isolation an arm needs. Its `--agent` override reaches the adapter; nothing reaches the
+  battery, so "run this without the gates" is currently unsayable.
+
+  **The prompt already has modes.** `build_prompt` takes `revision`, `continuation` and
+  `conviction` — the last added by S-0069 — so what an arm removes from the prompt is a
+  fourth mode rather than a new mechanism.
+
+  **Nothing has a parent.** 0 of 126 contracts carry one, `decompose` and `adopt` both ship,
+  and S-0026's own exit criterion — one live `too_large` contract decomposed end to end —
+  has been unmet since it was written.
+goals: |
+  Three arms over one task set, differing only in how much apparatus is present, with four
+  numbers each.
+
+  An arm is a recorded thing: what it removed, what it ran, what it produced — so the table
+  can be rebuilt from the ledger rather than from whoever ran it.
+
+  `torve decompose` runs once, end to end, on work that was going to be minted anyway.
+non_goals: |
+  No verdict written in advance. This document builds the instrument and states what would
+  count as an answer; it does not say which arm should win.
+
+  No change to what the battery judges. An arm removes the apparatus wholesale or not at
+  all; tuning a gate to make an arm look better is the one thing that would void the result.
+
+  No review arm. What the judge costs is the other half of this stage and has its own
+  document — the reviewer is `fake` today, so including it here would measure an absence.
+design:
+  - key: an-arm-is-what-was-removed
+    md: |
+      An arm names the apparatus it runs without, and there are three:
+
+          bare        the intent, and nothing else. No inherited rows, no context
+                      pack, no working rules, and no battery — the agent is handed
+                      a sentence and a worktree.
+          gated       the same prompt, and the battery judges what comes back.
+          configured  today: rows, pack, rules, battery, lane.
+
+      The axis is subtractive on purpose. A configuration comparison asks which
+      setting is better and answers inside the apparatus; this asks what the
+      apparatus is for, and the only way to ask it is to take it away.
+  - key: the-seam-is-already-there
+    md: |
+      `build_prompt` takes `revision`, `continuation` and `conviction` — three modes that
+      decide what an attempt is told. A fourth that tells it almost nothing is the same
+      mechanism pointed the other way, and it costs no new concept.
+
+      The battery is the harder half: nothing today can run an attempt without it, because
+      running it is what makes an attempt an attempt. The arm carries that as a flag through
+      the replay rather than as a manifest edit — a manifest with gates removed would be a
+      different regime, and the regime digest would be right to say so.
+
+      `shadow` supplies the isolation either way. It replays from the parent commit into a
+      truncated clone and merges nothing, which is exactly what an arm needs and is the reason
+      this builds on replays rather than on dispatches.
+  - key: read-it-per-task-or-not-at-all
+    md: |
+      The aggregate will mislead, and it is worth writing down why before there are numbers to
+      argue with.
+
+      A bare arm never breaks a corpus it was not given, never trips a projection it does not
+      render, and never reports on rows it never inherited. Several of this repository's recent
+      red batteries were the engine catching its own author rather than its agent. Those are
+      real costs of the apparatus, and they are also not what the apparatus is for.
+
+      So the table is per task, three rows deep, and the summary is a distribution rather than
+      a mean. A task where the bare arm shipped something the battery would have refused is the
+      finding; a task where all three landed identically is also the finding, and the second is
+      the one that would argue for less apparatus.
+  - key: minted-by-decomposing-it
+    md: |
+      This document is the `C1` candidate. It is cross-cutting, its parts are naturally
+      disjoint — an axis, a prompt mode, a replay leg, a reader — and it was going to be minted
+      either way, so running it through `torve decompose` costs nothing beyond the drafting run.
+
+      What that proves is not that decomposition is clever. It is that the path works end to
+      end: a read-only drafting run, four lint rules, a human at `adopt`, ids minted under the
+      engine lock. 0 of 126 contracts carry a parent and S-0026 wrote its own exit criterion
+      long before this; if the split fails, the failure names which part could not be made
+      disjoint, which is worth as much as the success.
+tests: |
+  The arm axis is tested by what it removes: a bare arm's prompt carries the intent and
+  neither the inherited rows nor the pack, asserted directly rather than by reading a
+  transcript.
+
+  The isolation is tested where it matters — an arm that runs without the battery still
+  merges nothing, because `shadow` is what the arms are built on and merging is what it
+  refuses.
+
+  The record is tested for reconstructability: an eval row names its arms, and the table in
+  the exit can be computed from the ledger with no other input.
+docs: |
+  The operating guide gains what an arm is and how to read a three-arm record, because the
+  result is the kind of number someone will quote a year later without rerunning it.
+out_of_scope: |
+  The review arms — `R8`, `E14`, `E15`, `R9`. The reviewer seat is `fake`, so measuring it
+  here would measure nothing; it is the other half of this stage.
+
+  Acting on the answer. If the bare arm wins on some axis, what to do about it is a
+  decision this document deliberately does not pre-empt.
+
+  The `too_large` thresholds. The sizing join is answerable now and says the rule is wrong,
+  which is real and is not this.
+risks: |
+  **The arms are not equally exposed to the same failures, and the aggregate will hide it.**
+  Five of the interruptions this repository saw in one recent day were the engine catching
+  the author's errors — a corpus edit, an acceptance command, a projection — not an agent's.
+  A bare harness would not have made them because it would never have been handed a corpus
+  to break. The reading has to be per task, and the document says so before the numbers
+  exist rather than after.
+
+  A bare arm on a task whose contract was the only thing keeping it narrow may sprawl, and
+  sprawl reads as failure on a diff-scoped comparison. That is a real cost of removing the
+  apparatus and also a way to make the apparatus look better than it is; the per-task
+  reading is the guard.
+
+  Replaying a landed task means the answer is already in the history the arm can see.
+  `shadow`'s truncated clone is what keeps that honest, and its depth is the knob that
+  decides it — an arm that can read its own answer measures nothing.
+alternatives:
+  - option: >-
+      Compare against a bare harness run by hand, outside the engine
+    rejected_because: >-
+      Unreproducible and unrecorded. The whole complaint about the ten existing evals
+      is that they vary the wrong thing; replacing them with an unrecorded comparison
+      trades one gap for a worse one.
+  - option: >-
+      Infer the answer from the 85 tasks a blocking gate stopped
+    rejected_because: >-
+      It says the gates fired, which nobody disputes. It cannot say what would have
+      shipped without them, because the counterfactual was never run — which is the
+      entire reason this document exists.
+  - option: Add the arm axis to `shadow` rather than `eval`
+    rejected_because: >-
+      `shadow` replays one task and records a comparison; `eval` pairs replays and
+      lands one row against a ledger. A three-arm result is a pairing, so it belongs
+      where pairings already live.
+  - option: >-
+      Run two arms — configured and bare — and skip the middle
+    rejected_because: >-
+      Then a difference cannot be attributed. The battery and the contract are separable
+      and cost different things; collapsing them means the result says 'the apparatus
+      helps' without saying which half.
+questions:
+  - id: Q-1
+    text: >-
+      What counts as a win for an arm? Attempts to green, wall-clock, tokens and convictions
+      are the four numbers, and they will not agree — the bare arm should be fastest
+      and the configured arm greenest. The exit is the table, not a scalar, and whether
+      a scalar is even wanted is a decision for whoever reads it.
+  - id: Q-2
+    text: >-
+      How deep may an arm's clone be before it can read its own answer? `shadow` defaults
+      to 50 commits of truncated history and the landing that solved the task is the
+      parent of the replay's base — so the answer is excluded by construction, but
+      a task whose solution was described in a document the clone still carries is
+      a different leak, and the corpus is in the clone.

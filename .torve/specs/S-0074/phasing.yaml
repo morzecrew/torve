@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: an arm is a recorded thing
+    intent: >-
+      The eval record gains the arm axis: which apparatus each result ran without,
+      carried beside the configs and digests it already holds, and a reader that rebuilds
+      the three-arm table from the ledger alone. Settles D-1.
+    scope: [src/torve/application/evals.py, tests/test_evals.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: the prompt that carries almost nothing
+    intent: >-
+      A fourth `build_prompt` mode whose output is the intent and no more — no rows,
+      no pack, no working rules — with the absence asserted directly. Settles D-2.
+    scope: [src/torve/adapters/agent/harness.py, tests/test_tiering.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 3
+    title: an arm that runs without the judge
+    intent: >-
+      The replay leg carries the battery's removal as a property of the arm, never
+      as a manifest edit, and a bare arm still merges nothing. Settles D-3.
+    scope:
+      - src/torve/application/evals.py
+      - src/torve/application/runner.py
+      - tests/test_evals.py
+      - tests/test_runner.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+      - 2
+    character: structural
+  - phase: 4
+    title: three rows, four columns, per task
+    intent: >-
+      The reader reports each task across its three arms with the four numbers, and
+      any summary is a distribution. Settles D-4 and produces this stage's exit.
+    scope: [src/torve/cli/evals.py, tests/test_evals.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 3
+    character: structural
+  - phase: 5
+    title: the guide says how to read an arm
+    intent: >-
+      The operating guide gains what an arm is and why the table is read per task.
+      Written from the landing records once the arms have run.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 4
+    character: routine

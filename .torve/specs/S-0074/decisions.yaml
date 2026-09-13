@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      An arm is named by the apparatus it removes — bare, gated, configured — and
+      an eval record carries which arm produced each result, so the comparison is
+      rebuildable from the ledger alone
+    paths: [src/torve/application/evals.py, .torve/evals.jsonl]
+    consequence: >-
+      the three-arm table can be recomputed a year later without the person who ran
+      it, which is the difference between a measurement and an anecdote
+    rationale: >-
+      the record already carries `arms`, `configs` and `digests`; every one of the
+      ten on disk varies an image, a tier or a skill set, and none removes the apparatus,
+      so the vocabulary exists and the axis does not
+    cites: [S-0035/D-3]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The bare arm's prompt carries the task's intent and nothing else — no inherited
+      rows, no context pack, no working rules — as a fourth `build_prompt` mode beside
+      revision, continuation and repair
+    paths: [src/torve/adapters/agent/harness.py, tests/test_tiering.py]
+    consequence: >-
+      what an arm removed is a property of the prompt a test can assert, rather than
+      something read back out of a transcript
+    rationale: >-
+      the prompt already has three modes and a fourth is the same mechanism pointed
+      the other way; asserting the absence directly is what keeps an arm honest
+    cites: [S-0069/D-1]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      An arm that runs without the battery still merges nothing, and the removal travels
+      as a property of the replay rather than as an edit to the gate manifest
+    paths: [src/torve/application/evals.py, src/torve/application/runner.py]
+    consequence: >-
+      a bare arm cannot land anything, and the manifest every other attempt is judged
+      by is never the thing that changed
+    rationale: >-
+      `shadow` replays from the parent commit into a truncated clone and merges nothing,
+      which is the isolation an arm needs; a manifest with gates removed would be
+      a different regime and the digest would be right to say so
+    cites: [S-0035/D-3, S-0055/D-35]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The result is reported per task across three rows, and any aggregate is a distribution
+      rather than a mean
+    paths: [src/torve/application/evals.py]
+    consequence: >-
+      a task where the bare arm shipped what the battery would have refused stays
+      visible instead of averaging into a percentage
+    rationale: >-
+      the arms are not equally exposed to the same failures — a bare arm never breaks
+      a corpus it was not given — so a mean over unlike tasks answers a question nobody
+      asked

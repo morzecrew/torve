@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      `build_prompt` names the working-rules skill and does not restate it; the test
+      over it asserts that property rather than the words, so a bullet added back
+      fails instead of passing quietly beside the skill
+    paths: [src/torve/adapters/agent/harness.py, tests/test_tiering.py]
+    consequence: >-
+      one copy of the text that governs behaviour, and a test that cannot be satisfied
+      by two
+    rationale: >-
+      T-0385 landed the skill and departed from D-3 because `tests/test_tiering.py`
+      pins each bullet to the prompt string and was outside its scope. The duplication
+      is still there, and S-0067 was marked complete over it
+    cites: [S-0067/D-3, S-0067/D-4]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The working rules reach the agent in system position, through each harness's
+      own channel, carrying the same text
+    paths: [src/torve/adapters/agent/harness.py, .torve/harnesses]
+    consequence: >-
+      the rules are read before the contract rather than below it, and they join the
+      cached prefix
+    rationale: >-
+      all three images have the channel and the text is identical across them; the
+      two readings of the benefit — obedience and cache — are both testable against
+      the ledger afterwards and neither is assumed
+    cites: [S-0029/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `num_turns`, `permission_denials` and `subagent_stats` are recorded on the attempt
+      when the receipt carries them, absent when it does not, and never invented
+    paths: [src/torve/adapters/agent/harness.py, src/torve/application/telemetry.py]
+    consequence: >-
+      an attempt at 113 turns and an attempt at 12 stop reading as the same attempt
+    rationale: >-
+      all three are already in the receipts on disk — 55 trace files carry them —
+      so this is a parse, not a harness change; absent-stays-absent is the rule every
+      other count on that row follows (S-0055/D-41)
+    cites: [S-0065/D-6, S-0055/D-41]
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      No cap is placed on subagent fan-out: measured over every receipt that reports
+      it, none has ever been spawned, so the bound is refused as a knob that would
+      move the regime digest while changing nothing
+    paths: [.torve/harnesses]
+    consequence: >-
+      E13 closes on evidence instead of shipping, and the question reopens only if
+      the recorded number stops being zero
+    rationale: >-
+      55 receipts carrying `subagent_stats`, every one `spawned: 0` and `max_depth:
+      0`. The register's own condition was that zero closes the question
+    cites: [S-0063/D-10]

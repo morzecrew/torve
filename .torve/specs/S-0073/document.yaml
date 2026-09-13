@@ -1,0 +1,161 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0073
+title: >-
+  The working rules live once, and the receipt is read
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0067]
+informed_by: [S-0065, S-0029]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  S-0067 gave the working rules one source and the seven bullets stayed inlined anyway, because the test pinning them sat outside the phase's scope — so the drift that document exists to remove is still in the prompt. The same change moves what survives to system position, and reads three receipt fields that have been on disk unparsed all along.
+motivation: |
+  `S-0067/D-3` said the working rules live once. T-0385 landed the skill, the equipment
+  declarations and the symlink, and then recorded a departure: the seven bullets could not
+  leave `build_prompt` because `tests/test_tiering.py` pins each one to the prompt string
+  and was not in scope. Deleting them would have reddened pytest; editing the test would
+  have reddened scope.
+
+  The agent was right to flag rather than flip. The consequence is that the repository now
+  has two copies of the text that governs behaviour — the skill and the inline bullets —
+  which is precisely the drift `D-3` was written against, and `S-0067` was marked complete
+  over it.
+
+  Separately and cheaply: three fields the claude receipt has always carried have never
+  been read. One of them answers a question the register has been holding open.
+current_state: |
+  **The bullets are still in the prompt.** `harness.py` carries the departure in a
+  comment — "the seven bullets below are the skill's text inlined, and naming the skill
+  was meant to delete them" — and `tests/test_tiering.py` and `:1439-1454` pin
+  their content and their order.
+
+  **The rules sit in the user prompt.** They arrive below the contract and are re-sent
+  every turn. `decisions-reported` and `user-facing-text` are the two rules the battery
+  measures most often, and both are stated there rather than in system position, which is
+  also the cached prefix.
+
+  **Three receipt fields are unread, and the data is already on disk.** `num_turns`,
+  `permission_denials` and `subagent_stats` appear in 55 trace files in
+  `.torve/traces/`. Measured over all of them: **no attempt has ever spawned a subagent**
+  — `spawned: 0` and `max_depth: 0`, 55 of 55 — while `num_turns` runs to a median of 38,
+  p90 83 and a maximum of 113. Three permission denials are recorded, all of them this
+  repository's own guard refusing: a `Write` outside scope and two read-only MCP surfaces.
+goals: |
+  One copy of the working rules, in the place a harness reads first.
+
+  Three fields recorded because they are already being sent, at the cost of parsing them.
+
+  The fan-out question answered from the record rather than carried as an open item.
+non_goals: |
+  No change to what the rules say. The skill's text is the text; this moves it and deletes
+  its duplicate.
+
+  No subagent policy. Measuring that none are spawned is not an argument that some should
+  be, and the lever that would change it is a separate question with its own evidence.
+
+  No `R6` battery staging. The ordering half landed with S-0071 and the exit-early half was
+  tried and reverted under T-0234; neither belongs here.
+design:
+  - key: the-deletion-needs-the-test-in-scope
+    md: |
+      Nothing clever is required. `build_prompt` keeps the bootstrap bullet that names the
+      skill — `S-0067/D-4` is `LOCKED` on that, because a skill nothing points at is a file —
+      and the seven bullets below it go.
+
+      What made this a second phase rather than a line is `tests/test_tiering.py`, which
+      asserts the bullets' content and their order against the prompt string. That test has to
+      change in the same breath, and it has to change into a different kind of test: the
+      property is that the prompt names the skill and does not restate it. A test that pins
+      prose is what turned one deletion into two attempts and a departure.
+  - key: system-position-is-a-channel-per-harness
+    md: |
+      All three images have somewhere to put it: claude's `--append-system-prompt`, dsh's
+      persona row, mimo's agent body. The text is identical and the seam is not, which is the
+      same shape as `S-0072`'s hook and the same reason it is a per-harness declaration rather
+      than a per-harness text.
+
+      Two readings of why it is worth doing, and this document commits to neither: rules above
+      the contract may be obeyed more often, and system position is the cached prefix so it may
+      be cheaper. Both are testable against the ledger afterwards, which is `Q-1`.
+  - key: reading-what-is-already-arriving
+    md: |
+      `num_turns`, `permission_denials` and `subagent_stats` are in the receipts on disk right
+      now. The register scoped `E2` as an engine-side parse and even that overstates it: this
+      is reading a file the engine already writes.
+
+      `subagent_stats` earned its place before being built. Across 55 receipts that carry it,
+      no attempt has ever spawned a subagent — so the question `E13` was written to answer is
+      answered, and the item closes rather than shipping a cap on a behaviour nobody has seen.
+      What remains is worth recording because an attempt at 113 turns and an attempt at 12 are
+      not the same attempt, and the record currently cannot tell them apart.
+tests: |
+  The deletion is tested by the property, not the string: `build_prompt`'s output names the
+  skill and does not restate it, so a bullet added back to the prompt fails rather than
+  passing quietly alongside the skill.
+
+  System position is tested per harness at the seam each one offers, since the channel
+  differs and the text does not.
+
+  The receipt parse is tested against a real receipt with the three fields present and one
+  with them absent — absent stays absent and is never invented, which is the rule every
+  other count on that row already follows.
+docs: |
+  None. The skill is the documentation, which is the point of it having one source.
+out_of_scope: |
+  `E13`, bounding the fan-out. It is closed by this document's own measurement rather than
+  built: nothing to bound.
+
+  Whether one agent per task is the bottleneck. 55 attempts at a median of 38 turns with no
+  subagent is the strongest evidence the repository has on that, and it argues for a
+  question rather than for a change.
+
+  The `mimo` harness's system channel, which has no seat to test it on.
+risks: |
+  Moving the rules to system position moves the cached prefix, so cost readings either side
+  of it are not comparable. That is a property of the change and the regime digest records
+  it; it is worth saying because someone will read the ledger across the boundary.
+
+  A test that pins prose to a string is what caused this, and the replacement test must not
+  repeat it. Asserting the skill is named and its text is absent is a property; asserting
+  which words appear is the same trap one level along.
+
+  Three fields recorded is three fields someone may start deciding on. `subagent_stats`
+  being zero is a fact about how the agent has behaved, not a cap that has been enforced.
+alternatives:
+  - option: >-
+      Edit `tests/test_tiering.py` from the original phase
+    rejected_because: >-
+      That is what the agent correctly refused: the file was outside its scope, and
+      widening a scope mid-attempt to delete the test that constrains you is the shape
+      of every gate being talked out of its answer. The fix is a phase that names
+      the file, which is this one.
+  - option: >-
+      Leave the bullets and treat the skill as the canonical copy
+    rejected_because: >-
+      Two copies of behaviour-governing text drift, and the one in the prompt wins
+      because it is what the model reads first. S-0067 exists because that had already
+      happened once.
+  - option: >-
+      Build `E13` anyway, to bound a fan-out that might appear later
+    rejected_because: >-
+      55 of 55 attempts spawned nothing. A cap on a behaviour never observed is a
+      knob that moves the regime digest while changing nothing — the failure the register
+      names as `probe, then declare`.
+questions:
+  - id: Q-1
+    text: >-
+      Does system position change anything measurable? The register's second reading
+      is that it is the cached prefix, so cost should fall; the first is that rules
+      the model reads before the contract are obeyed more often, so `decisions-reported`
+      convictions should fall. Both are testable against the ledger and neither is
+      assumed here.
+  - id: Q-2
+    text: >-
+      Is there a fan-out to bound? No. Across 55 receipts carrying `subagent_stats`,
+      every one reports `spawned: 0` and `max_depth: 0`. E13 closes unbuilt.
+    status: settled
+    settled_by: measurement

@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      the bullets leave, and the test asserts the property
+    intent: >-
+      The seven inlined bullets go from `build_prompt`; the bootstrap bullet naming
+      the skill stays. `tests/test_tiering.py` stops pinning prose and asserts instead
+      that the prompt names the skill and does not restate it. Settles D-1 and closes
+      the departure T-0385 recorded against S-0067/D-3.
+    scope: [src/torve/adapters/agent/harness.py, tests/test_tiering.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: the rules move to system position
+    intent: >-
+      What survives reaches the agent through each harness's own system channel —
+      claude's `--append-system-prompt`, dsh's persona row — carrying the same text.
+      Settles D-2.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - .torve/harnesses
+      - tests/test_tiering.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: three fields the receipt already carries
+    intent: >-
+      `num_turns`, `permission_denials` and `subagent_stats` are parsed onto the attempt
+      row, absent when the harness sends none. Settles D-3; D-4 needs no code.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/telemetry.py
+      - tests/test_attempt_record.py
+      - tests/test_tiering.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
