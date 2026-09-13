@@ -1,0 +1,210 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0394
+phase: 3
+base: cdfb42f7a68835fac2a13375e2280fcab7c28c6e
+commit: 6671996645366cfb2a2bf5f840ab27e8a68336e7
+at: '2026-09-13T21:00:31Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0063/D-3
+    grade: LOCKED
+  - id: S-0063/D-6
+    grade: LOCKED
+  - id: S-0063/D-7
+    grade: LOCKED
+  - id: S-0063/D-9
+    grade: LOCKED
+  - id: S-0063/D-14
+    grade: LOCKED
+  - id: S-0063/D-15
+    grade: LOCKED
+  - id: S-0063/D-16
+    grade: LOCKED
+  - id: S-0063/D-17
+    grade: LOCKED
+  - id: S-0063/D-19
+    grade: LOCKED
+  - id: S-0064/D-7
+    grade: LOCKED
+  - id: S-0064/D-8
+    grade: LOCKED
+  - id: S-0064/D-11
+    grade: ASSUMED
+  - id: S-0066/D-1
+    grade: LOCKED
+  - id: S-0066/D-3
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-13T20:57:35Z'
+    claim: >-
+      The wording holds by contact and the two questions get their answers. toolkit/scope-guard-policy/index.js
+      is a thin cordis plugin on the fs event gate (fs/write-intent and fs/edit-intent,
+      both prepended) whose whole body shells out via python3 to /opt/torve/equipment/implement/scope_guard.py
+      — the same script the claude hook's settings.json names — and dsh equip installs
+      it through dsh's own verb (dsh plugin --profile headless add) before the overlay's
+      insert turns the package on. Q-1: an id-less insert reaches a package equipped
+      in the same pass, and a lone id: configure cannot add a row, which is why the
+      install runs first. Q-2: only the two write intents are wired and nothing in
+      the dsh toolkit names a finisher, so no finish-shaped check is reachable on
+      dsh — the write-time refusal is the whole of dsh's half of the hook kind.
+    evidence: >-
+      sandboxes/dsh/toolkit/scope-guard-policy/index.js:37-42 - the gate wires only
+      the two write intents and the refusal owns the decision
+    action: decided
+  - decision: S-0062/D-9
+    grade: LOCKED
+    at: '2026-09-13T20:57:36Z'
+    claim: >-
+      The harness is told about a plugin by its own verb, not by state files torve
+      writes: the plugin and hook arms both run dsh plugin --profile headless add,
+      and the overlay the run produces is a --patch in dsh's own config form — torve
+      keeps no second copy of the profile's entry list to reconcile across versions.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:77-80 - both armed installs go through
+      dsh's own verb
+    action: decided
+  - decision: S-0063/D-3
+    grade: LOCKED
+    at: '2026-09-13T20:57:36Z'
+    claim: >-
+      The /opt/torve/equip translator is where the manifest meets dsh's idiom: one
+      pass over the mounted items routes each to the arm for its kind — skill to TORVE_EQUIP_ROOT,
+      plugin to pnpm, hook to the image package plus an insert row — so kinds is all
+      the capability map keeps and nothing dsh-shaped is rendered elsewhere.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:68 - the hook arm lives inside this harness's
+      equip
+    action: decided
+  - decision: S-0063/D-6
+    grade: LOCKED
+    at: '2026-09-13T20:57:37Z'
+    claim: >-
+      The image definition's own directory is where the plugin is declared: scope-guard-policy
+      sits at sandboxes/dsh/toolkit/ and the definition's one COPY carries it into
+      the image at /opt/torve/scope-guard-policy, exactly the path the equip arm hands
+      to pnpm.
+    evidence: >-
+      sandboxes/dsh/toolkit/scope-guard-policy/package.json:2 - the plugin is declared
+      inside the dsh definition's toolkit
+    action: decided
+  - decision: S-0063/D-7
+    grade: LOCKED
+    at: '2026-09-13T20:57:37Z'
+    claim: >-
+      The hook kind builds nothing new: the plugin's only peer, @deepseek-ai/dsh-fs,
+      is already in the dsh profile's store because the CLI depends on it, and the
+      script it shells out to runs on the base image's python3 — the dsh definition
+      still inherits the one base image unchanged.
+    evidence: >-
+      sandboxes/dsh/toolkit/scope-guard-policy/package.json:8-10 - a peer for a package
+      dsh already carries, nothing new to build
+    action: decided
+  - decision: S-0063/D-9
+    grade: LOCKED
+    at: '2026-09-13T20:57:37Z'
+    claim: >-
+      The same hook item proves the contract is not claude-shaped: claude's equip
+      turns the kind into a --settings file for its PreToolUse and Stop hooks, dsh's
+      turns it into an installed gate plugin plus a --patch overlay — one manifest,
+      two translations, neither reusing the other's vocabulary.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:68-80 - dsh's translation of the same kind
+      the claude flags carry
+    action: decided
+  - decision: S-0063/D-14
+    grade: LOCKED
+    at: '2026-09-13T20:57:38Z'
+    claim: >-
+      Everything this phase puts inside the image lives under toolkit and lands by
+      the one COPY: the plugin package is at sandboxes/dsh/toolkit/scope-guard-policy,
+      the equip arm names its in-image path /opt/torve/scope-guard-policy, so where
+      it is written is where it is read.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:35 - HOOK_PLUGIN names the path the one
+      COPY inst{g}alled the package at
+    action: decided
+  - decision: S-0063/D-15
+    grade: LOCKED
+    at: '2026-09-13T20:57:54Z'
+    claim: >-
+      No model file is baked for the guard: the plugin reads only the seat env scalar
+      TORVE_EQUIPMENT and the working directory, and derives the script path from
+      the mount at runtime, so the per-seat story stays configuration rather than
+      image.
+    evidence: >-
+      sandboxes/dsh/toolkit/scope-guard-policy/index.js:18 - the plugin reads the
+      engine-named scalar, nothing baked
+    action: decided
+  - decision: S-0063/D-16
+    grade: LOCKED
+    at: '2026-09-13T20:57:54Z'
+    claim: >-
+      The hook kind leaves skills alone: the skill arm still copytrees to the engine-named
+      TORVE_EQUIP_ROOT exactly as before, and the hook arm is a separate kind that
+      neither reads nor writes the skill channels dsh loads.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:68 - the new arm sits beside the untouched
+      skill arm above it
+    action: decided
+  - decision: S-0063/D-17
+    grade: LOCKED
+    at: '2026-09-13T20:57:55Z'
+    claim: >-
+      Install-then-patch holds, with the mechanism the probe refined: a lone id: configure
+      on an entry the profile does not carry fails with patch entry not found, while
+      an id-less insert does add the row — so equip still installs the package through
+      dsh's own verb first, then appends the insert row naming it; the profile can
+      never boot with a row naming a package the store has not got.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:77-80 - the install precedes the append
+      that names the installed package
+    action: decided
+  - decision: S-0063/D-19
+    grade: LOCKED
+    at: '2026-09-13T20:57:55Z'
+    claim: >-
+      The dsh seat writes equipment only where the engine said: skills to TORVE_EQUIP_ROOT
+      and the hook package into the profile's own node_modules plus the overlay file
+      — never into a path the repository owns, so an attempt's git add -A commits
+      nothing of the mount's.
+    evidence: >-
+      sandboxes/dsh/toolkit/equip_patch.py:80 - the overlay append is the only write
+      this arm performs
+    action: decided
+  - decision: S-0064/D-7
+    grade: LOCKED
+    at: '2026-09-13T20:57:56Z'
+    claim: >-
+      The plugin adds no new seam scalar: it reads only the existing TORVE_EQUIPMENT
+      and the working directory, and carries the refusal in dsh's own vocabulary (FsError
+      with FS_SANDBOX_DENIED) — no torve-shaped unit is converted here because none
+      is invented.
+    evidence: >-
+      sandboxes/dsh/toolkit/scope-guard-policy/index.js:42 - one dsh-owned code carries
+      the refusal
+    action: decided
+  - decision: S-0064/D-8
+    grade: LOCKED
+    at: '2026-09-13T20:57:56Z'
+    claim: >-
+      The guard is broker-agnostic by never looking: the plugin keys off TORVE_EQUIPMENT
+      alone and no dsh toolkit file tests a broker's presence, so brokered and direct
+      seats see one judgment, differing only in the values the engine already names.
+    evidence: >-
+      sandboxes/dsh/toolkit/scope-guard-policy/index.js:18-24 - the mount scalar is
+      the only route the whole body takes
+    action: decided
