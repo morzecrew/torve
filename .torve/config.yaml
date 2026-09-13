@@ -93,14 +93,18 @@ tiers:
     # 96% cache hit rate, so the quota is not the constraint at this pace.
     # Remove the `structural` line to hand the work back to opus.
     #
-    # `routine: dsh` is withdrawn, not retired. `implement.yaml` declares one
-    # `hook`, and a hook is claude-shaped — a directory of settings plus the
-    # scripts they name — while dsh's one configuration channel takes a file of
-    # patch entries in its own vocabulary. Both harnesses declare the `hook`
-    # kind and neither can read the other's, so T-0391 died at `wall 0s` three
-    # times on `IsADirectoryError`. Restore the line when a kind carries its
-    # shape (see S-0066/D-7).
+    # `routine: dsh` is back (S-0072/D-4). It was withdrawn — never retired —
+    # when `implement.yaml` declared one `hook` and a hook was claude-shaped: a
+    # directory of settings plus the scripts they name, while dsh's one
+    # configuration channel takes a file of patch entries in its own
+    # vocabulary. Both harnesses declared the kind, neither could read the
+    # other's, and T-0391 died at `wall 0s` three times on `IsADirectoryError`.
+    # The kind carries its shape now (S-0072/D-1): the item keeps its payload
+    # at the root with one directory per harness beside it, and dsh's
+    # declaration is a gate plugin its own image ships, shelling out to the
+    # same script claude's settings name (S-0072/D-2).
     character_routing:
+      routine: dsh
       structural: deepseek
   # A second live seat, on the ModelStudio token plan through the broker.
   # `model` is the overlay's model id; `DSH_MODEL` on the manifest carries the
