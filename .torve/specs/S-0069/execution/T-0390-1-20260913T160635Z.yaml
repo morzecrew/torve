@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0390
+phase: 2
+base: a056229b582238c8de94584a7885a8fd8efca4cb
+commit: eb2a1f2b2fca96c06158dfff4cde83776f22b317
+at: '2026-09-13T16:06:35Z'
+agent: subscription/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: LOCKED
+  - id: S-0054/D-12
+    grade: ASSUMED
+  - id: S-0055/D-1
+    grade: LOCKED
+  - id: S-0055/D-2
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-31
+    grade: ASSUMED
+  - id: S-0055/D-35
+    grade: ASSUMED
+  - id: S-0055/D-40
+    grade: ASSUMED
+  - id: S-0055/D-48
+    grade: ASSUMED
+  - id: S-0055/D-51
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0057/D-7
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-9
+    grade: LOCKED
+  - id: S-0059/D-10
+    grade: LOCKED
+  - id: S-0064/D-12
+    grade: ASSUMED
+  - id: S-0065/D-6
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: OPEN
+    at: '2026-09-13T16:03:39Z'
+    claim: >-
+      Settled: the qualifying set is layering, scope, user-facing-text and decisions-reported
+      — the gates whose checks are pure functions of the tree — pinned at REPAIR_GATES
+      in runner.py; acceptance, the largest repeat class, is deliberately outside
+      it because only per-gate repeat counts separate a tree worth keeping from an
+      approach worth abandoning.
+    evidence: >-
+      .torve/specs/S-0069/document.yaml:28 - the ledger counts the same gate convicting
+      the next attempt of the same task 196 times across 28 tasks: acceptance 52,
+      layering 41, user-facing-text 39, decisions-reported 26, scope 14 — the four
+      pure-tree gates recorded here beside the acceptance class that stays out.
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-13T16:03:53Z'
+    claim: >-
+      Assumption held and implemented: a repair acceptance is the convicting gate
+      command appended to everything the contract declared, rebuilt per red from contract_acceptance
+      sealed at dispatch so additions never accumulate or leak; builtin gates are
+      named by the battery per-gate verb, shell gates by their declared command verbatim.
+    evidence: >-
+      tests/test_runner.py:1940 - the repair attempt carries the pytest command the
+      contract declared plus torve gates run --only scope.
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-13T16:03:53Z'
+    claim: >-
+      Assumption held and implemented: a repair starts from the convicted tree — the
+      routing commits the tree the convicted attempt left, trailed Torve-Checkpoint
+      so nothing reads it as a landed candidate, so the repair attempt worktree contains
+      the convicted attempt commits and an ordinary retry does not.
+    evidence: >-
+      src/torve/application/runner.py:719 - _commit_convicted_tree runs at routing
+      on a qualifying red; the seam test asserts the commit message and its trailer.
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-13T16:03:54Z'
+    claim: >-
+      Rule held as written: once per dispatch per gate via repaired_gates — the first
+      qualifying conviction routes the repair, a second conviction on the same gate
+      restores the contract acceptance, clears the repair stamp and routes exactly
+      where it routed before, and the ladder that picks the next tier is untouched.
+    evidence: >-
+      tests/test_runner.py:1971 - two convictions on one gate produce one repair and
+      then the ordinary path, with one convicted commit.
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-13T16:04:11Z'
+    claim: >-
+      The contract left the reporting surface unsettled (Q-2): the routed gate name
+      is stamped into run.meta as repair, which lands in the attempt record agent
+      block, and popped on an ordinary routing.
+    evidence: >-
+      src/torve/application/runner.py:709 - run.meta repair set at routing, popped
+      on the ordinary path.
+    action: decided
+    proposal: >-
+      S-0069 should say how a repair reports itself in the attempt record; the minimal
+      form implemented is a repair key naming the routed gate on the agent block,
+      cleared when the routing falls back to the ordinary path.
+  - decision: S-0055/D-1
+    grade: LOCKED
+    at: '2026-09-13T16:04:11Z'
+    claim: >-
+      Rule held: the routing is an engine decision over gate facts — the pass exit
+      code and the recorded per-gate outcomes — and no model verdict decides what
+      work exists or whether it is finished.
+    evidence: >-
+      src/torve/application/runner.py:598 - route repair is called from the exit code
+      and reads only recorded gate results.
+    action: decided
+  - decision: S-0055/D-2
+    grade: LOCKED
+    at: '2026-09-13T16:04:12Z'
+    claim: >-
+      Rule held: the repair consumes the gate pass run outside the agent session against
+      the tree the attempt left; it changes no gate and lets no agent report an outcome.
+    evidence: >-
+      src/torve/application/runner.py:595 - convictions come from the battery record
+      before any routing reads it.
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T16:04:12Z'
+    claim: >-
+      Rule held: the change adds only application-layer imports inside the enforced
+      directions, and the layering gate stays green.
+    evidence: >-
+      src/torve/application/runner.py:83 - the new cross-import is application to
+      config, which import-linter permits; lint-imports reports 5 kept, 0 broken.
+    action: decided
+  - decision: S-0057/D-7
+    grade: LOCKED
+    at: '2026-09-13T16:04:13Z'
+    claim: >-
+      Rule held: the conviction commit is not a landing and writes no execution.yaml
+      row; the landings channel is untouched, and the commit carries the task-naming
+      checkpoint trailer instead.
+    evidence: >-
+      src/torve/application/runner.py:737 - the only trailer written is Torve-Checkpoint.
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T16:04:13Z'
+    claim: >-
+      Rule held: no legacy identifier stands in the new text — decision ids, gate
+      names and document paths, in comments and the attempt record, none in user-facing
+      strings.
+    evidence: >-
+      src/torve/application/runner.py:606 - the settlement note cites the spec document
+      by path and the gates by their manifest names.
+    action: decided
+  - decision: S-0059/D-9
+    grade: LOCKED
+    at: '2026-09-13T16:04:14Z'
+    claim: >-
+      Rule held: two commits per landing unchanged — the routing commit happens on
+      the red path before the next attempt, and the green path still ends with the
+      work commit and the alone-committed landing whose commit is the branch tip.
+    evidence: >-
+      src/torve/application/runner.py:719 - the conviction commit runs only on a red;
+      land keeps its pair.
+    action: decided
+  - decision: S-0059/D-10
+    grade: LOCKED
+    at: '2026-09-13T16:04:14Z'
+    claim: >-
+      Rule held: the retired trailers stay retired — the conviction commit carries
+      the task subject and Torve-Checkpoint, which this decision keeps, and nothing
+      else.
+    evidence: >-
+      src/torve/application/runner.py:735 - subject plus checkpoint trailer, no Torve-Task
+      or Torve-Agent.
+    action: decided
