@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0384
+phase: 1
+base: 0f86ea52829197fcfa5e98d8e093ec1d26c5bcdd
+commit: 678d065bbf49cc92064c0fd11d8a07c3648e0011
+at: '2026-09-13T12:40:54Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+entries:
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-09-13T12:38:02Z'
+    attempt: 4
+    claim: >-
+      The new verb's user-facing strings carry no corpus coordinates: the help text,
+      the printed lint, size, uninherited-row and battery lines name the rule in plain
+      words, and every coordinate sits in a comment or the module docstring.
+    evidence: >-
+      src/torve/cli/brief.py:52 — the rendered help text states what the command does
+      with no identifier in it.
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T12:38:08Z'
+    attempt: 4
+    claim: >-
+      The new module sits in the cli layer and imports inward only — console, options,
+      config, domain, gates and the application modules dispatch itself calls; import-linter
+      keeps all five contracts.
+    evidence: >-
+      src/torve/cli/brief.py:60 — the application imports are inward from cli and
+      are made inside the command body.
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T12:38:09Z'
+    attempt: 4
+    claim: >-
+      Every identifier written by this change uses the converted grammar; no legacy
+      identifier appears in the new module, its test or the registration.
+    evidence: >-
+      src/torve/cli/brief.py:5 — the module docstring cites rows in the converted
+      form only.
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-09-13T12:38:15Z'
+    attempt: 4
+    claim: >-
+      The brief reads a contract through the same task loader every other verb uses
+      and never regexes a document number out of a path; the pack it writes carries
+      the contract's own document identifier as the pack builder already emits it.
+    evidence: >-
+      src/torve/cli/brief.py:72 — the contract is parsed by the shared loader, so
+      the document key is read from the model.
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-09-13T12:38:16Z'
+    attempt: 4
+    claim: >-
+      The brief reads no landing and runs no git subprocess: its facts come from the
+      lint, the size estimate, the standing rows and the pack builder, each of which
+      reads the tree through its own owner.
+    evidence: >-
+      src/torve/cli/brief.py:60 — the only sources of fact in the command body are
+      the application modules dispatch calls.
+    action: decided
