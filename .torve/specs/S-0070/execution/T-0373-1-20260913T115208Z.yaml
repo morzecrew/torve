@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0373
+phase: 4
+base: 9c5f36a5a424564e933438eaa6252bb9ee4db938
+commit: 8904a610fee1e3706245fab4c52a2e823adf703b
+at: '2026-09-13T11:52:08Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0063/D-3
+    grade: LOCKED
+  - id: S-0063/D-6
+    grade: LOCKED
+  - id: S-0063/D-7
+    grade: LOCKED
+  - id: S-0063/D-9
+    grade: LOCKED
+  - id: S-0063/D-14
+    grade: LOCKED
+  - id: S-0063/D-15
+    grade: LOCKED
+  - id: S-0063/D-16
+    grade: LOCKED
+  - id: S-0063/D-19
+    grade: LOCKED
+  - id: S-0064/D-7
+    grade: LOCKED
+  - id: S-0064/D-8
+    grade: LOCKED
+entries:
+  - decision: S-0062/D-9
+    grade: LOCKED
+    at: '2026-09-13T11:48:57Z'
+    claim: >-
+      compliant: the change adds one hand-written rule line above the managed block
+      of the directory guide; it renders nothing into a harness's state and touches
+      no plugin flag, port or sandbox verb
+    evidence: >-
+      sandboxes/AGENTS.md:1 — the added line, prose by the attempt, outside the corpus-rendered
+      markers
+    action: decided
+  - decision: S-0063/D-3
+    grade: LOCKED
+    at: '2026-09-13T11:49:13Z'
+    claim: >-
+      compliant: the guide gains a prose line; the image's equip translator, the equipment
+      manifest and the capability map's kinds are untouched
+    evidence: >-
+      sandboxes/AGENTS.md:1 — only the directory guide above the managed block changed,
+      no toolkit file
+    action: decided
+  - decision: S-0063/D-6
+    grade: LOCKED
+    at: '2026-09-13T11:49:13Z'
+    claim: >-
+      compliant: no image definition moved or rebuilt; the edit is to the guide file
+      at sandboxes/, which is documentation and not a definition
+    evidence: >-
+      sandboxes/AGENTS.md:1 — the added line sits outside every sandboxes/<name>/
+      definition
+    action: decided
+  - decision: S-0063/D-7
+    grade: LOCKED
+    at: '2026-09-13T11:49:14Z'
+    claim: >-
+      compliant: no dockerfile, base image or CLI layer touched; the test file named
+      by the row is unchanged
+    evidence: >-
+      sandboxes/AGENTS.md:1 — a prose rule added to the guide is all the diff under
+      sandboxes/ holds
+    action: decided
+  - decision: S-0063/D-9
+    grade: LOCKED
+    at: '2026-09-13T11:49:14Z'
+    claim: >-
+      compliant: no equip or run script for claude, dsh or mimo was changed; the harness-agnostic
+      prose rule cannot disturb a landing order it does not touch
+    evidence: >-
+      sandboxes/AGENTS.md:1 — the only changed file under sandboxes/ is the directory
+      guide
+    action: decided
+  - decision: S-0063/D-14
+    grade: LOCKED
+    at: '2026-09-13T11:49:15Z'
+    claim: >-
+      compliant: nothing was added under any definition's toolkit/ and no COPY line
+      moved; the guide file is not installed into any image
+    evidence: >-
+      sandboxes/AGENTS.md:1 — the diff under sandboxes/ is one line in AGENTS.md,
+      which no definition copies
+    action: decided
+  - decision: S-0063/D-16
+    grade: LOCKED
+    at: '2026-09-13T11:49:15Z'
+    claim: >-
+      compliant: no skill kind, skill delivery or harness manifest changed; the added
+      line speaks only about what may be committed
+    evidence: >-
+      sandboxes/AGENTS.md:1 — the managed block and every harness file render and
+      read as before
+    action: decided
+  - decision: S-0063/D-19
+    grade: LOCKED
+    at: '2026-09-13T11:49:16Z'
+    claim: >-
+      compliant: no equipment wrote into the tree — the added line is the attempt's
+      own authored text in a file inside declared scope, and no equip_root handling
+      changed
+    evidence: >-
+      sandboxes/AGENTS.md:1 — sandboxes/AGENTS.md is in the task's scope.allow and
+      the line was hand-written
+    action: decided
+  - decision: S-0064/D-7
+    grade: LOCKED
+    at: '2026-09-13T11:49:16Z'
+    claim: >-
+      compliant: no parameter crossed the seam, no scalar changed name or unit, and
+      DSH_MODEL stays retired; only a guide line was added
+    evidence: >-
+      sandboxes/AGENTS.md:1 — src/torve/adapters/agent/harness.py is not in the diff
+    action: decided
+  - decision: S-0064/D-8
+    grade: LOCKED
+    at: '2026-09-13T11:49:17Z'
+    claim: >-
+      compliant: no image tests whether a broker is in force, and none started or
+      stopped doing so; the diff is one prose line
+    evidence: >-
+      sandboxes/AGENTS.md:1 — no definition or session file is touched, so TORVE_BASE_URL
+      and TORVE_API_KEY handling stands
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T11:49:17Z'
+    claim: >-
+      compliant: both added lines cite the current grammar only — S-0070/D-1 resolves
+      through the corpus, no legacy RFC or old-shape identifier was introduced anywhere
+      the check reads
+    evidence: >-
+      pages/docs/operating.md:77 — the citation in the operating guide's added paragraph;
+      sandboxes/AGENTS.md:1 carries the same grammar
+    action: decided
+  - decision: S-0063/D-15
+    grade: LOCKED
+    at: '2026-09-13T11:50:14Z'
+    claim: >-
+      compliant: no seat env changed, no harness manifest touched and no model file
+      baked or un-baked anywhere in the diff
+    evidence: >-
+      sandboxes/AGENTS.md:1 — the single added line is guide prose, outside the managed
+      block and beside no definition
+    action: decided
