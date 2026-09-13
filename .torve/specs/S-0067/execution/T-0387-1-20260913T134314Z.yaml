@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0387
+phase: 4
+base: b68eb00c9aae6fa7b703ce251a840797dc5428cf
+commit: 3cca4583d10bac033bc839e5310e657217dada80
+at: '2026-09-13T13:43:14Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T13:39:11Z'
+    claim: >-
+      held as written: every identifier the new sections cite uses the converted grammar
+      — S-0067 rows in full form and the page introduces no legacy shape anywhere
+      the check reads
+    evidence: >-
+      pages/docs/operating.md:52 — the first new citation, S-0067/D-1, in the one
+      grammar; `uv run torve spec check` exits OK with 0 problems after the edit
+    action: decided
+  - decision: S-0055/D-52
+    grade: ASSUMED
+    at: '2026-09-13T13:39:24Z'
+    claim: >-
+      held as written: the new sections are hand-written prose about the surface,
+      not generated from the corpus, and they restate no row — each coordinate they
+      cite names the row and stops there, and no accepted row is contradicted: the
+      working-rules section describes the single source and the pointer bullet without
+      claiming the summary bullets are gone
+    evidence: >-
+      pages/docs/operating.md:82 — the section opens on the one file the rules live
+      in and cites it; `grep -c S-0067 pages/docs/operating.md` gives 9, all of them
+      links beside prose
+    action: decided
+  - decision: S-0055/D-52
+    grade: ASSUMED
+    at: '2026-09-13T13:39:53Z'
+    claim: >-
+      corrects entry 2 of this log: its evidence said the new sections carry nine
+      S-0067 citations; they carry eight, listed one per row at lines 52, 69, 87,
+      98, 106, 108, 110 and 151 — the held claim itself stands
+    evidence: >-
+      pages/docs/operating.md:52 — the first of the eight; `grep -c S-0067 pages/docs/operating.md`
+      gives 8
+    action: decided
+    notes: >-
+      append-only correction, not an edit of the earlier entry
+  - decision: S-0058/D-10
+    grade: ASSUMED
+    at: '2026-09-13T13:39:54Z'
+    claim: >-
+      held as written: the operating page follows the grammar — the new sections cite
+      S-NNNN/D-n rows only and introduce no legacy identifier
+    evidence: >-
+      `grep -nE "RFC [0-9]" pages/docs/operating.md` — no matches
+    action: decided
