@@ -14,8 +14,6 @@ phasing:
       - src/torve/cli/main.py
       - tests/test_brief.py
       - src/torve/cli/AGENTS.md
-      - pages/docs/operating.md
-      - CHANGELOG.md
     acceptance:
       - uv run pytest
       - uv run mypy src
@@ -37,7 +35,6 @@ phasing:
       - .claude/skills/**
       - tests/test_skills.py
       - tests/test_runner.py
-      - CHANGELOG.md
     acceptance:
       - uv run pytest
       - uv run mypy src
@@ -52,10 +49,24 @@ phasing:
       all three speak it. The server still registers nothing that writes. Last of
       the three because it is the largest and because the first two are what make
       it useful.
-    scope: [src/torve/cli/mcp.py, tests/test_mcp.py, CHANGELOG.md]
+    scope: [src/torve/cli/mcp.py, tests/test_mcp.py]
     acceptance:
       - uv run pytest
       - uv run mypy src
     depends_on:
       - 2
     character: structural
+  - phase: 4
+    title: the session's three surfaces reach the guide
+    intent: >-
+      The operating guide gains `torve brief`, where the working rules now live, and
+      what the pack answers over MCP. Written after the three phases land, from their
+      landing records rather than from a diff.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 1
+      - 2
+      - 3
+    character: routine
