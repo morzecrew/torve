@@ -536,6 +536,14 @@ Path rot is a glob that governs nothing, not a glob whose files the repository d
 - Paths: `src/torve/application/decisions.py` `src/torve/config/spec.py`
 - Consequence: `torve spec check` passes in a clean clone, so `spec-valid` and the acceptance command stop depending on a task directory that dispatch happens to have written
 
+### S-0072/D-1 — `LOCKED` (A hook is one intent, declared once per harness)
+
+An equipment item carries its payload at the root and one directory per harness beside it; a harness reads only its own, and an item with no directory for a harness a seat could use is refused at load, naming the profile and the manifest
+
+- Paths: `.torve/agents/hooks` `src/torve/config/agents.py`
+- Consequence: the disagreement between two harnesses' idea of one kind becomes a message before an image is pulled, instead of an exception inside a container
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

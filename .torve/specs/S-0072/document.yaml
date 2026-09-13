@@ -2,7 +2,7 @@
 id: S-0072
 title: A hook is one intent, declared once per harness
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0066]
 informed_by: [S-0063, S-0062]

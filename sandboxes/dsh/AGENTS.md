@@ -17,4 +17,11 @@ The `developer` role is not modelled anywhere in torve; dsh's own `equip` decide
 - Paths: `sandboxes/dsh/**`
 - Consequence: a quirk of one harness's LLM layer stops being a field every provider record has to answer, and a provider that one day accepts the role costs one flag then
 
+### S-0072/D-3 — `ASSUMED` (A hook is one intent, declared once per harness)
+
+dsh's declaration is a thin plugin on its event gate whose whole body shells out to the same script the claude hook names, installed through dsh's own verb before it is patched
+
+- Paths: `sandboxes/dsh/toolkit`
+- Consequence: the scope refusal reaches the dsh seat without a second implementation of what it refuses
+
 <!-- /torve:managed -->
