@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the item says who can read it
+    intent: >-
+      An equipment item's per-harness directory becomes the shape the loader checks:
+      a profile whose item carries no directory for a harness a seat could use is
+      refused at load, naming both files. Settles D-1's refusal half.
+    scope: [src/torve/config/agents.py, tests/test_agents.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: claude reads its own directory
+    intent: >-
+      The hook item grows `claude/` around the settings it already has, the payload
+      stays at the root, and `equip_flags` points `--settings` inside the harness
+      directory rather than at the item. The scripts do not move in substance.
+    scope:
+      - .torve/agents/hooks
+      - sandboxes/claude/toolkit/equip_flags.py
+      - tests/test_equipment.py
+      - tests/test_sandbox_defs.py
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: dsh reaches the same script
+    intent: >-
+      A thin plugin on dsh's event gate, installed through dsh's own verb and then
+      patched in, whose body shells out to `scope_guard.py`. Settles D-3, and settles
+      Q-1 and Q-2 by contact: whether a patch reaches a plugin equipped in the same
+      pass, and whether a finish-shaped check is reachable at all.
+    scope: [sandboxes/dsh/toolkit, tests/test_equipment.py]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      the route returns, and the layout is written down
+    intent: >-
+      `routine: dsh` goes back into the routing, and `sandboxes/AGENTS.md` gains the
+      layout in one line. Written after a documentation phase has actually landed
+      on the dsh seat with the hook enforced.
+    scope: [.torve/config.yaml, sandboxes/AGENTS.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 3
+    character: routine

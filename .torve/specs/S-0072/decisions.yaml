@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      An equipment item carries its payload at the root and one directory per harness
+      beside it; a harness reads only its own, and an item with no directory for a
+      harness a seat could use is refused at load, naming the profile and the manifest
+    paths: [.torve/agents/hooks, src/torve/config/agents.py]
+    consequence: >-
+      the disagreement between two harnesses' idea of one kind becomes a message before
+      an image is pulled, instead of an exception inside a container
+    rationale: >-
+      both manifests declare `hook` and mean different things by it, so `kinds` had
+      nothing to object to and T-0391 died three times at `wall 0s` on `IsADirectoryError`.
+      S-0063/D-4 already promises this refusal; it was kept for the kind and not for
+      the item
+    cites: [S-0066/D-7, S-0063/D-4]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The judgement is one implementation both harnesses invoke; a per-harness declaration
+      names how to reach it and never restates what it decides
+    paths: [.torve/agents/hooks]
+    consequence: >-
+      a refusal cannot differ by harness, so an attempt's guard is a property of the
+      role rather than of the seat that happened to run it
+    rationale: >-
+      two guards that resemble each other are two guards, and the day they differ
+      is the day one lets something through while the record says both were enforced
+    cites: [S-0066/D-5]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      dsh's declaration is a thin plugin on its event gate whose whole body shells
+      out to the same script the claude hook names, installed through dsh's own verb
+      before it is patched
+    paths: [sandboxes/dsh/toolkit]
+    consequence: >-
+      the scope refusal reaches the dsh seat without a second implementation of what
+      it refuses
+    rationale: >-
+      probed in the image: dsh intercepts through an event gate implemented by a mounted
+      npm package — `dsh-fs-observation-policy` over the `fs/*` seam — and none of
+      its 197 shipped plugins runs a shell command on an event. `--patch` configures
+      an entry the profile already carries and cannot add one (S-0063/D-17), which
+      is why the install comes first
+    cites: [S-0063/D-17]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `routine: dsh` returns to the routing in the same change that proves a documentation
+      phase lands on that seat with the hook enforced
+    paths: [.torve/config.yaml]
+    consequence: >-
+      the cheap seat comes back, and its return is evidence rather than a guess
+    rationale: >-
+      the route was withdrawn because dsh could not run the role; restoring it before
+      that is false is how a withdrawal becomes permanent by accident
+    cites: [S-0034/D-3]

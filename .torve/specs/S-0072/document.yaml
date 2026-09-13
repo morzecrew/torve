@@ -1,0 +1,185 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0072
+title: A hook is one intent, declared once per harness
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0066]
+informed_by: [S-0063, S-0062]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Every harness can intercept an agent mid-turn and none of them declares it the same way, so one `hook` item readable by claude crashed dsh before the agent started. The judgement stays one implementation the harnesses share; only the declaration is per-harness, and a harness with none is refused at load rather than at boot.
+motivation: |
+  `S-0066/D-5` declared the first hook and T-0383 built it. It works: a `PreToolUse`
+  refusal names a write outside the contract's scope before the bytes land, and a `Stop`
+  check blocks a finish that still owes a divergence entry or leaves projection drift.
+  That is the strongest in-flight guard the engine has, and it reaches exactly one of
+  three harnesses.
+
+  The cost of it reaching one is not hypothetical. `routine: dsh` is withdrawn from the
+  routing because dsh cannot run the `implement` role while that role declares a hook,
+  so every documentation phase now runs on a seat that costs more. And the failure was
+  not a refusal — it was `IsADirectoryError` at `wall 0s`, three times, because both
+  manifests declare the `hook` kind and nothing could tell they meant different things.
+current_state: |
+  **claude takes a file.** `--settings` names a JSON document whose `hooks` entries run
+  shell commands; the scripts those commands name sit beside it, so the item torve
+  mounts is a directory and the flag must point inside it. That is `equip_flags.py`
+  after T-0389's fix.
+
+  **dsh takes a plugin.** Its one configuration channel is `--patch <file>`, a list of
+  plugin entries, and it appends any kind it does not special-case verbatim — so it
+  opened a directory and raised. Probed in the image: dsh intercepts through an event
+  gate implemented by a mounted npm package, and its 197 shipped plugins include
+  `dsh-fs-observation-policy` ("added over the ctx.fs provider seam through the `fs/*`
+  event gate"), `dsh-sandbox-policy` and `dsh-tool-call-timeout-policy`. There is no
+  run-a-shell-command-on-an-event plugin among them.
+
+  **mimo has no seat**, so it has never been asked.
+
+  **`kinds` cannot express the difference.** Both manifests list `hook`, which answers
+  "can this harness be handed one" when the question is "can it read this one" —
+  `S-0066/D-7`, written when the crash was diagnosed.
+goals: |
+  One hook intent, written once, enforced identically wherever it runs.
+
+  A harness that cannot read an item's declaration says so at load, naming both files,
+  before an image is pulled — the refusal `S-0063/D-4` already promises.
+
+  `routine: dsh` returns to the routing, because the reason it left is gone.
+non_goals: |
+  No second guard. The scripts T-0383 wrote are the intent and this document moves them,
+  it does not redesign what they refuse.
+
+  No mimo declaration. It has no seat, so a declaration for it would be untested bytes
+  hashed into a regime — `probe, then declare` cuts both ways.
+
+  No general capability vocabulary on the manifest. The register parked that as the right
+  eventual shape and the wrong first move; this is the narrow version, for the one kind
+  that has two readers.
+design:
+  - key: one-payload-two-declarations
+    md: |
+      The scripts are already portable. `scope_guard.py` reads the contract and the write it
+      was asked about and prints a refusal; `finish_check.py` reads the log and the projection
+      and blocks a finish. Neither knows what harness invoked it, and neither should.
+
+      What is not portable is how a harness is told to invoke them. So the item keeps the
+      payload at its root and grows one directory per harness beside it:
+
+          .torve/agents/hooks/implement/
+            scope_guard.py          the judgement, shared
+            finish_check.py
+            claude/settings.json    `--settings` points here
+            dsh/                    the patch entry, and the plugin it names
+
+      `equip` on each image reaches for its own directory and knows nothing about the others.
+      A kind whose item has no directory for this harness is refused at load.
+  - key: the-refusal-moves-to-load
+    md: |
+      `S-0063/D-4` promises that a profile declaring a kind a harness has no channel for is
+      refused at load, naming both files, without anyone pulling an image. The promise was
+      kept for the kind and not for the item: both manifests declare `hook`, so the check had
+      nothing to object to, and the disagreement surfaced as an unhandled exception inside a
+      container at `wall 0s`.
+
+      The check gains one question — does this item carry a directory for every harness a
+      seat running this role could use — and the answer is a path test, not a probe. It costs
+      nothing at load and it is the difference between a message and three dead attempts.
+  - key: dsh-shells-out-on-purpose
+    md: |
+      dsh's event gate is strictly more powerful than a shell command: `dsh-fs-observation-policy`
+      sits on the `fs/*` seam in-process and could refuse a write without leaving node. This
+      document deliberately does not use that.
+
+      A guard that exists twice is two guards that resemble each other until the day they
+      differ, and the day they differ is the day one of them lets something through and the
+      record says both were enforced. The dsh plugin's whole job is to call the same Python the
+      claude hook calls. It is thin because thinness is the property being bought.
+  - key: what-the-route-returning-proves
+    md: |
+      `routine: dsh` came out of the routing because dsh could not run the role. Putting it
+      back is the check on this whole document: if a documentation phase lands on the dsh seat
+      with the hook enforced, then one intent reached two harnesses and the engine said so.
+
+      Until then the withdrawal stands, and it is the honest cost — every documentation phase
+      runs on a seat that costs more, and the ledger will show it.
+tests: |
+  The portability claim is tested where it failed: `equip` on each seated image is handed
+  the real item and must produce a declaration its own harness accepts, rather than a path
+  that happens to exist.
+
+  The refusal is tested at load, with a profile naming a kind whose item carries no
+  subdirectory for the harness — the message names the profile and the manifest.
+
+  The shared judgement is tested once, not twice: `scope_guard` refuses the same write
+  whichever harness invoked it, because it is the same file.
+docs: |
+  `sandboxes/AGENTS.md` gains the layout in one line — what a hook item holds and which
+  directory a harness reads — because the next person adding a kind will copy the first.
+out_of_scope: |
+  What the hooks check. `scope_guard` and `finish_check` keep their current behaviour;
+  `S-0066/D-5` and `S-0066/D-6` own it.
+
+  The `mcp` and `agent` kinds, which have the same latent problem and no second reader
+  yet. When one gets one, this document's shape is the precedent.
+
+  Running dsh's interception in-process rather than shelling out. dsh's event gate is
+  strictly more powerful than a shell command and this deliberately does not use that
+  power: the same script, reached two ways, is what makes the guard one guard.
+risks: |
+  A thin dsh plugin is still an authored npm package mounted into a sandbox — new bytes
+  with the agent's reach. It is small on purpose and its whole job is to call a script
+  that already exists, which is the shape that keeps it reviewable.
+
+  Two declarations of one intent can drift. The test that the same script refuses the
+  same write under both harnesses is what catches it; nothing about the file layout
+  prevents someone editing one declaration alone.
+
+  `dsh` may refuse a patch that names a plugin its profile does not carry — `--patch`
+  configures an entry, it cannot add one (S-0063/D-17), so the plugin must be installed
+  through dsh's own verb first. `equip` already does that for the `plugin` kind and this
+  reuses the path rather than inventing one.
+alternatives:
+  - option: Declare the hook only on seats that can take it
+    rejected_because: >-
+      Equipment is declared per role, not per seat — that is what makes a regime digest
+      comparable across seats. A per-seat declaration would mean two seats running
+      the `implement` role are no longer running the same role.
+  - option: Drop the hook from `implement` and keep dsh
+    rejected_because: >-
+      It trades the strongest in-flight guard the engine has for one cheap seat. The
+      guard refuses an out-of-scope write before the bytes land; the seat saves money
+      on documentation phases.
+  - option: >-
+      Write a general `capabilities:` vocabulary on the manifest
+    rejected_because: >-
+      The register parked it as the right eventual shape and the wrong first move,
+      on the grounds that nothing had two readers. One kind now has two. Build the
+      narrow version for that kind, and let a second instance argue for the general
+      one.
+  - option: >-
+      Implement dsh's guard natively on the `fs/*` event gate
+    rejected_because: >-
+      Strictly more powerful, and it makes the guard two implementations that must
+      agree. The refusal is the valuable part and it should exist once; shelling out
+      to the same script is what keeps it one guard rather than two that resemble
+      each other.
+questions:
+  - id: Q-1
+    text: >-
+      Does `--patch` reach a plugin `equip` installed in the same pass? `S-0063/D-17`
+      says a patch configures an entry the profile already carries, and `equip` installs
+      before it patches — but that path has only ever carried a plugin the operator
+      named, never one this document mounts. Phase 2 finds out, and its answer decides
+      whether the declaration is a patch or a profile layer.
+  - id: Q-2
+    text: >-
+      Is a `Stop`-shaped check reachable on dsh at all? The scope guard maps onto
+      the `fs/*` gate; the finishing check runs when a turn ends, and nothing in the
+      probed plugin set obviously carries that event. If it is not, dsh gets the write
+      refusal and not the finishing check, and the asymmetry is recorded rather than
+      hidden.
