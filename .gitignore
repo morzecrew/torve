@@ -8,18 +8,24 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+# Anchored to the root, all of them. These are the Python packaging
+# conventions and unanchored they reach every directory in the tree: `lib/`
+# swallowed the dsh scope-guard plugin's only source file, and the commit
+# shipped a package.json pointing at a file that was not in it (T-0394). The
+# siblings had the same reach — `dist/` and `build/` are where a JavaScript
+# package puts exactly the same thing.
+/build/
+/develop-eggs/
+/dist/
+/downloads/
+/eggs/
+/.eggs/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
+/wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
