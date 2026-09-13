@@ -109,7 +109,21 @@ def test_the_trace_path_helper_ensures_the_store_directory(tmp_path: Path) -> No
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
-_UNSCANNED = {".git", ".venv", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cache"}
+# `.wt` is where the engine cuts a live worktree, so every file in this repository
+# appears under it again, once per attempt in flight. `intake.NOT_THE_TREE` carries
+# the same exclusion for the same reason (T-0282: "every lint then reported each
+# finding once per live worktree"), and without it this check's verdict depends on
+# how many attempts the host happens to be holding — which is the property this
+# document exists to remove.
+_UNSCANNED = {
+    ".git",
+    ".wt",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+}
 
 _RUNTIME = "where the engine writes the record at runtime; no committed file is rendered from it"
 _SCRATCH = "a path inside a scratch tree the test builds, never this repository's own"

@@ -35,12 +35,18 @@ def toolkit(name: str) -> str:
     whole toolkit: the shell entry point and the python it calls. Reading only
     `equip` was right while the python was a heredoc inside it, and stopped
     being right the moment the python became a file a test could run.
+
+    `AGENTS.md` is excluded because it is not installed — it is the corpus
+    projected beside the code, written by `torve spec project`. The moment
+    S-0066 was accepted the projection appeared here for the first time and
+    quoted `.agents/skills` in its own prose, which read to this test as the
+    definition writing there.
     """
 
     return "".join(
         path.read_text(encoding="utf-8")
         for path in sorted((DEFINITIONS / name / "toolkit").iterdir())
-        if path.is_file()
+        if path.is_file() and path.name != "AGENTS.md"
     )
 
 
