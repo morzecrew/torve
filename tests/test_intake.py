@@ -222,6 +222,52 @@ def test_lint_refuses_an_acceptance_command_that_needs_git(tree: Path):
     )
 
 
+def test_lint_refuses_an_acceptance_command_that_needs_the_host(tree: Path):
+    """S-0071/D-5: `torve doctor` reports on the daemon, the DSN and the
+    provider credentials of the machine the engine runs from. A sandbox has
+    none of the three by design, so T-0377's three attempts failed
+    identically on two lines that had nothing to do with the work."""
+
+    refused = lint_drafts(tree, document(draft_dict(acceptance=["uv run torve doctor"])), 4)
+    assert any("reads the host" in e for e in refused)
+    # The refusal names what would have been allowed, as the git one does.
+    assert any("spec check" in e and "mypy src" in e for e in refused)
+
+    # Any other verb that reaches past the tree — the daemon directly, the
+    # record, a run that needs credentials.
+    for command in ("docker ps", "uv run torve status", "torve ledger", "uv run torve run T-1"):
+        assert any(
+            "reads the host" in e
+            for e in lint_drafts(tree, document(draft_dict(acceptance=[command])), 4)
+        ), command
+
+    # A git command gets the git refusal and only that one: one wall, one
+    # reason to repair.
+    gated = lint_drafts(tree, document(draft_dict(acceptance=["uv run torve gates run"])), 4)
+    assert not any("reads the host" in e for e in gated)
+
+    # What must stay legal: the tree-only verbs the corpus already accepts.
+    assert (
+        lint_drafts(
+            tree,
+            document(
+                draft_dict(
+                    acceptance=[
+                        "uv run pytest tests/test_newmod.py",
+                        "uv run mypy src",
+                        "uv run torve spec check",
+                        "uv run torve spec project --check",
+                        "uv run torve source list --check",
+                        "uv run torve --plain size .torve/tasks/T-0002.yaml",
+                    ]
+                )
+            ),
+            4,
+        )
+        == []
+    )
+
+
 def test_lint_refuses_an_empty_batch(tree: Path):
     errors = lint_drafts(tree, DraftsDocument(drafts=[]), 4)
     assert any("empty batch" in e for e in errors)

@@ -212,6 +212,40 @@ def _needs_git(words: list[str]) -> bool:
 # ....................... #
 
 
+# The `torve` verbs that read nothing but the worktree they run over, and so
+# are the only ones a sandbox can judge (S-0071/D-5). An allow-list rather
+# than a list of the host-reading verbs: a verb nobody classified is refused
+# at mint, which costs one drafting round, where the miss the other way costs
+# the poison ceiling.
+TREE_ONLY_VERBS = frozenset(
+    {"spec", "source", "decisions", "size", "lint-contract", "init", "equip", "log"}
+)
+
+
+def _needs_host(words: list[str]) -> bool:
+    """Whether this acceptance command reads the host rather than the tree.
+
+    `torve doctor` is the one that burned T-0377: it reports on the Docker
+    daemon, `$TORVE_PG_DSN` and the provider credentials, none of which a
+    sandbox has by design, so all three attempts failed on the same two
+    lines and the contract could never have gone green (S-0071/D-5).
+    """
+
+    if words[0] in {"docker", "podman"}:
+        return True
+
+    if "torve" not in words:
+        return False
+
+    rest = words[words.index("torve") + 1 :]
+    verb = next((w for w in rest if not w.startswith("-")), None)
+
+    return verb is not None and verb not in TREE_ONLY_VERBS
+
+
+# ....................... #
+
+
 def _tree_paths(tree: Path) -> list[Path]:
     return [
         p.relative_to(tree)
@@ -314,6 +348,15 @@ def lint_drafts(
                     "it touches, `uv run lint-imports --config pyproject.toml`, `uv run torve "
                     "spec check` — and drop this one: the gate battery runs outside the sandbox "
                     "on the candidate already"
+                )
+            elif _needs_host(words):
+                errors.append(
+                    f"{ref}: acceptance command {command!r} reads the host, and a sandbox has "
+                    "no Docker daemon, no database and no credentials — it reports on the "
+                    "machine the engine runs from, not on this work, so this can only ever "
+                    "fail. Use the commands that judge the tree instead — the tests it "
+                    "touches, `uv run mypy src`, `uv run lint-imports --config "
+                    "pyproject.toml`, `uv run torve spec check`"
                 )
 
         if not draft.scope.allow:
