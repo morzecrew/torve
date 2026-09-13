@@ -28,6 +28,7 @@ invocation.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,14 @@ from torve.domain.task import Task
 SCHEMA_VERSION = 1
 
 EVAL_LEDGER = "evals.jsonl"
+
+
+# The arm axis (S-0074/D-1): an arm is named by the apparatus it removes,
+# and there are three — the harness alone, the harness under the battery,
+# torve as configured. Each result row carries which arm produced it, so
+# the three-arm comparison is rebuildable from the ledger alone.
+BARE, GATED, CONFIGURED = "bare", "gated", "configured"
+ARMS: tuple[str, str, str] = (BARE, GATED, CONFIGURED)
 
 
 # ....................... #
@@ -122,8 +131,13 @@ def candidate_config(
 # ....................... #
 
 
-def _arm_row(record: dict[str, Any]) -> dict[str, Any]:
+def _arm_row(record: dict[str, Any], arm: str) -> dict[str, Any]:
+    """One result row, naming the arm that produced it (S-0074/D-1): the
+    row carries `arm` so the read is rebuildable from the ledger alone,
+    whatever dict the arms happened to sit under."""
+
     return {
+        "arm": arm,
         "task": record["task_id"],
         "state": record["state"],
         "attempts": record["attempts"],
@@ -142,6 +156,48 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "attempts": sum(int(r["attempts"]) for r in rows),
         "cost_usd": round(sum(costs), 6) if costs else None,
     }
+
+
+# ....................... #
+
+
+def three_arm_table(root: Path) -> dict[str, dict[str, dict[str, Any]]]:
+    """The three-arm table rebuilt from the eval ledger alone (S-0074/D-1):
+    per task, per axis arm, the latest result that arm produced — a year
+    later, with no other input, this is the comparison. A record whose
+    arms name no apparatus removed (a config eval) contributes nothing to
+    the axis; the ledger is append-only, so the last line for a task-arm
+    pair is the most recent."""
+
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+
+    if not ledger.is_file():
+        return {}
+
+    table: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        arms = record.get("arms")
+
+        if not isinstance(arms, dict):
+            continue
+
+        for arm, rows in arms.items():
+            if arm not in ARMS:
+                continue
+
+            for row in rows:
+                task = row.get("task")
+
+                if isinstance(task, str):
+                    table.setdefault(task, {})[arm] = row
+
+    return table
 
 
 # ....................... #
@@ -177,7 +233,7 @@ def run_skill_eval(
                 root, task, arm_config, deps, source, annotation={"skill": skill, "arm": arm}
             )
 
-            results[arm].append(_arm_row(record))
+            results[arm].append(_arm_row(record, arm))
 
     with_arm, without_arm = _summary(results["with"]), _summary(results["without"])
 
@@ -269,7 +325,7 @@ def run_config_eval(
                 annotation=annotation,
             )
 
-            results[arm].append(_arm_row(shadow))
+            results[arm].append(_arm_row(shadow, arm))
             digests[arm] = shadow["image_digest"]
             configs[arm] = shadow["config_hash"]
 

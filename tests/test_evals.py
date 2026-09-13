@@ -31,7 +31,15 @@ from torve.adapters.workspace.git import (
     shipped_commit,
 )
 from torve.application.dispatch import RunDeps
-from torve.application.evals import candidate_config, run_config_eval, run_skill_eval, without_skill
+from torve.application.evals import (
+    ARMS,
+    EVAL_LEDGER,
+    candidate_config,
+    run_config_eval,
+    run_skill_eval,
+    three_arm_table,
+    without_skill,
+)
 from torve.application.shadow import ShadowSource
 from torve.cli import app
 from torve.config import layout
@@ -199,7 +207,7 @@ def test_skill_eval_runs_both_arms_and_ledgers(repo):
 
     # One line in the ledger; two arm-marked shadow records in telemetry;
     # attribution shows the without-arm ran skill-less (T-0070).
-    ledger = (repo.root / ".torve" / "evals.jsonl").read_text().splitlines()
+    ledger = (repo.root / ".torve" / EVAL_LEDGER).read_text().splitlines()
     assert len(ledger) == 1 and json.loads(ledger[0])["skill"] == "flag-dont-flip"
     lines = [
         json.loads(line)
@@ -314,7 +322,7 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
     assert record["configs"]["incumbent"] != record["configs"]["candidate"]
 
     # One line in the ledger; two arm-marked shadow records in telemetry.
-    ledger = (repo.root / ".torve" / "evals.jsonl").read_text().splitlines()
+    ledger = (repo.root / ".torve" / EVAL_LEDGER).read_text().splitlines()
     assert len(ledger) == 1 and json.loads(ledger[0])["kind"] == "config-eval"
     lines = [
         json.loads(line)
@@ -405,7 +413,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
 
     # One line in the ledger; two arm-marked shadow records in telemetry,
     # both stamped with the dotted variant they replayed under.
-    ledger = (repo.root / ".torve" / "evals.jsonl").read_text().splitlines()
+    ledger = (repo.root / ".torve" / EVAL_LEDGER).read_text().splitlines()
     assert len(ledger) == 1 and json.loads(ledger[0])["variant"] == "executor.indexed"
     lines = [
         json.loads(line)
@@ -581,3 +589,69 @@ def test_eval_cli_config_mode_refuses_an_already_resolved_image(tmp_path):
 
     assert result.exit_code == 3
     assert "nothing to measure" in result.stderr
+
+
+# ....................... #
+
+
+def test_arm_axis_names_what_it_removes():
+    assert ARMS == ("bare", "gated", "configured")
+
+
+def _rows_by_arm(**arms):
+    return {arm: [row] for arm, row in arms.items()}
+
+
+def test_three_arm_table_rebuilds_from_ledger_alone(tmp_path):
+    """S-0074/D-1: the reader rebuilds the per-task three-arm table from the
+    ledger alone — each axis arm's latest row for the task, nothing else."""
+    root = tmp_path / "repo"
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+    ledger.parent.mkdir(parents=True)
+    rows = {
+        "bare": {"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 3, "cost_usd": 0.01},
+        "gated": {"arm": "gated", "task": "T-0042", "state": "ready", "attempts": 4, "cost_usd": 0.02},
+        "configured": {"arm": "configured", "task": "T-0042", "state": "ready", "attempts": 5, "cost_usd": 0.03},
+    }
+    record = {"schema_version": 1, "kind": "skill-eval", "arms": _rows_by_arm(**rows)}
+    ledger.write_text(json.dumps(record) + "\n")
+
+    assert three_arm_table(root) == {"T-0042": rows}
+
+
+def test_three_arm_table_ignores_everything_off_the_axis(tmp_path):
+    """Arms that are not apparatus removals — the config eval's incumbent
+    and candidate, a task-less row, a line that is not JSON — contribute
+    nothing to the three-arm table."""
+    root = tmp_path / "repo"
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+    ledger.parent.mkdir(parents=True)
+    below_axis = _rows_by_arm(
+        incumbent={"arm": "incumbent", "task": "T-0042", "state": "ready", "attempts": 2, "cost_usd": 0.01},
+        candidate={"arm": "candidate", "task": "T-0042", "state": "ready", "attempts": 1, "cost_usd": 0.02},
+    )
+    lines = [
+        json.dumps({"schema_version": 1, "kind": "config-eval", "arms": below_axis}),
+        json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": {"bare": [{"arm": "bare"}]}}),
+        "not json",
+    ]
+    ledger.write_text("\n".join(lines) + "\n")
+
+    assert three_arm_table(root) == {}
+
+
+def test_three_arm_table_latest_line_wins(tmp_path):
+    """The ledger is append-only; the last line for a task-arm pair is the
+    most recent measurement and replaces any earlier for that arm."""
+    root = tmp_path / "repo"
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+    ledger.parent.mkdir(parents=True)
+    older = _rows_by_arm(bare={"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 3, "cost_usd": 0.01})
+    newer = _rows_by_arm(bare={"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 6, "cost_usd": 0.02})
+    lines = [
+        json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": older}),
+        json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": newer}),
+    ]
+    ledger.write_text("\n".join(lines) + "\n")
+
+    assert three_arm_table(root)["T-0042"]["bare"]["attempts"] == 6
