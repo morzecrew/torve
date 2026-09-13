@@ -14,6 +14,8 @@ from test_context import seed_why_facts
 from test_plan import PHASING, TABLE, plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
+from torve.application import contextpack
+from torve.application.planner import plan_document, write_contracts
 from torve.application.projections import why_report
 from torve.cli import app
 from torve.cli import mcp as mcp_cli
@@ -22,13 +24,13 @@ from torve.config import layout
 # ----------------------- #
 
 
-def test_surface_is_three_read_only_queries(plan_repo):  # noqa: F811
+def test_surface_is_four_read_only_queries(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
 
     tools = asyncio.run(server.list_tools())
 
-    assert [t.name for t in tools] == ["context", "show", "why"]
+    assert [t.name for t in tools] == ["context", "show", "why", "pack"]
     assert all(t.annotations.read_only_hint for t in tools)
 
 
@@ -99,3 +101,38 @@ def test_why_tool_answers_an_unknown_id_with_its_envelope(plan_repo):  # noqa: F
         "task": "T-9999",
         "found": False,
     }
+
+
+def test_pack_tool_serves_the_pack_and_writes_nothing(plan_repo):  # noqa: F811
+    """The facts a sandbox is handed on disk, for a session on any harness:
+    the same builder dispatch calls, materialized nowhere (S-0067/D-5)."""
+    root, _, _ = plan_repo
+    write_contracts(root, plan_document(root, root / layout.SPECS_DIR, "0090"))
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
+
+    called = asyncio.run(server.call_tool("pack", {"task_id": "T-0001"}))
+    files = json.loads(called.content[0].text)
+
+    assert {"index.md", "decisions.json", "gates.json", "schema/task.json"} <= files.keys()
+    assert [row["id"] for row in files["decisions.json"]["inherited"]] == [
+        "S-0090/D-1",
+        "S-0090/D-2",
+    ]
+    assert not (root / contextpack.PACK_DIR).exists()
+
+    sliced = asyncio.run(server.call_tool("pack", {"task_id": "T-0001", "file": "gates.json"}))
+    assert set(json.loads(sliced.content[0].text)) == {"gates.json"}
+
+
+def test_pack_tool_refuses_an_unknown_task_and_an_unknown_file(plan_repo):  # noqa: F811
+    root, _, _ = plan_repo
+    write_contracts(root, plan_document(root, root / layout.SPECS_DIR, "0090"))
+    server = mcp_cli.build_server(root, root / layout.SPECS_DIR)
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(server.call_tool("pack", {"task_id": "T-9999"}))
+    assert "no contract" in str(caught.value.__cause__)
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(server.call_tool("pack", {"task_id": "T-0001", "file": "nope.json"}))
+    assert "one of:" in str(caught.value.__cause__)

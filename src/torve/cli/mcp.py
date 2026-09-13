@@ -9,6 +9,7 @@ for it.
 
 from __future__ import annotations
 
+import json
 from importlib import import_module
 from pathlib import Path
 from typing import Any
@@ -27,9 +28,11 @@ from torve.domain.states import EXIT_CONFIG
 # ----------------------- #
 
 
+# The read surface serves the per-task pack as one more read-only tool and
+# registers no tool that writes (S-0067/D-5).
 def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "") -> Any:
-    """A server exposing the projections — context, show and why — as
-    read-only queries, and nothing else."""
+    """A server exposing the projections — context, show and why — and the
+    per-task context pack as read-only queries, and nothing else."""
 
     try:
         mcpserver = import_module("mcp.server.mcpserver")
@@ -112,6 +115,37 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
             task_id,
             recorded=[e for e in events if e.subject_id == task_id] if events else None,
         )
+
+    @server.tool(annotations=types.ToolAnnotations(readOnlyHint=True))  # type: ignore[untyped-decorator]
+    def pack(task_id: str, file: str = "") -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
+        """What a sandbox running one task is handed on disk: its context
+        pack — index.md, decisions.json, gates.json, tests.json,
+        attempts.json, contended.json, schema/*.json — built here by the
+        same function dispatch calls, so a session on any harness reads what
+        an agent in a sandbox reads. Pass one file name to fetch just that
+        file; empty returns every file. Nothing is written."""
+
+        # The builder is pure and the caller writes (S-0054/D-10): this tool
+        # never materializes, so the read surface stays read-only (S-0067/D-5).
+        from torve.application.contextpack import build as build_pack
+        from torve.config import layout
+        from torve.gates.context import load_task
+
+        contract = layout.task_file(root, task_id)
+
+        if not contract.is_file():
+            raise ValueError(f"no contract for {task_id!r} in this repository")
+
+        files = build_pack(root, rfc_dir, load_task(contract), layout.gates_file(root))
+        parsed: dict[str, Any] = {
+            name: json.loads(text) if name.endswith(".json") else text
+            for name, text in files.items()
+        }
+
+        if file and file not in parsed:
+            raise ValueError(f"unknown file {file!r} — one of: {', '.join(sorted(parsed))}")
+
+        return {file: parsed[file]} if file else parsed
 
     return server
 
