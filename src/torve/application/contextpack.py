@@ -35,6 +35,7 @@ from torve.config.manifest import load_manifest
 from torve.config.spec import SpecError, load_corpus
 from torve.domain.spec import Corpus, Document
 from torve.domain.task import Task
+from torve.gates.context import GitError, git
 
 # ----------------------- #
 
@@ -294,6 +295,7 @@ def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
     if last is None:
         return []
 
+    touched = _touched_paths(root, last)
     reds: list[dict[str, Any]] = []
 
     for result in cast("list[dict[str, Any]]", last["results"]):
@@ -307,6 +309,7 @@ def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
                 "state": result.get("state"),
                 "output_tail": output[-OUTPUT_TAIL:],
                 "truncated": len(output) > OUTPUT_TAIL or "truncated" in output,
+                "touched_paths": touched,
                 "governing_decisions": sorted(set(GOVERNING.findall(output)))
                 if result.get("name") in ("decisions-reported", "scope")
                 else [],
@@ -315,6 +318,54 @@ def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
         )
 
     return reds
+
+
+def _touched_paths(root: Path, record: dict[str, Any]) -> list[str]:
+    """The paths the convicted diff touched, from the shas the record itself
+    names (S-0069/D-2): `merge_base` to `head` over the objects, so the answer
+    is deterministic for the record and survives the worktree it was run in.
+    Empty when a sha is missing or its objects are gone — the block then says
+    nothing about a tree the record cannot point at."""
+
+    base = str(record.get("merge_base") or "")
+    head = str(record.get("head") or "")
+
+    if not (base and head):
+        return []
+
+    try:
+        out = git(root, "diff", "--name-only", base, head)
+    except GitError:
+        return []
+
+    return sorted({line for line in out.splitlines() if line.strip()})
+
+
+# ....................... #
+
+
+def conviction_of(root: Path, task: Task) -> dict[str, Any] | None:
+    """The conviction that ended the previous attempt, as one block's worth of
+    facts (S-0069/D-1, D-2): the blocking gate, its output tail, the paths its
+    diff touched and the inherited rows governing those paths — read from what
+    the pack already writes. None when the last red pass convicted nothing
+    blocking; a shadow red is a fact, not a conviction."""
+
+    for red in _red_gates(root, task.id):
+        if str(red.get("state") or "blocking") != "blocking":
+            continue
+
+        touched = cast("list[str]", red.get("touched_paths") or [])
+        rows = [
+            {"id": row.id, "grade": row.grade, "text": row.text}
+            for row in task.decisions
+            if row.paths
+            and any(GitIgnoreSpec.from_lines(list(row.paths)).match_file(path) for path in touched)
+        ]
+
+        return {**red, "governing_rows": rows}
+
+    return None
 
 
 # ....................... #

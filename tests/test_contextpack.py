@@ -17,6 +17,7 @@ from torve.application.contextpack import (
     attempts_file,
     build,
     contended_file,
+    conviction_of,
     decisions_file,
     gates_file,
     materialize,
@@ -261,7 +262,81 @@ def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
     assert [r["gate"] for r in reds] == ["decisions-reported", "acceptance"]
     assert reds[0]["governing_decisions"] == ["S-0001/D-1"]
     assert reds[1]["failed_tests"] == ["tests/test_thing.py::test_x"]
+    # No shas on these rows: the block says nothing about a tree the record
+    # cannot point at (S-0069/D-2).
+    assert reds[0]["touched_paths"] == []
     assert "not this task" not in json.dumps(payload)
+
+
+def test_the_conviction_names_its_paths_and_the_rows_governing_them(tmp_path: Path) -> None:
+    """S-0069/D-2, phase 1: the facts that convicted the last attempt — the
+    gate, its tail, the paths its diff touched and the inherited rows
+    governing those paths — are one read of the pack away, and a shadow red
+    is a fact, not a conviction."""
+    import subprocess
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    (tmp_path / ".torve").mkdir()
+    _seed(tmp_path)
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    merge_base = git("rev-parse", "HEAD")
+    (tmp_path / "src" / "a" / "thing.py").write_text("x = 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "touch")
+    head = git("rev-parse", "HEAD")
+
+    (tmp_path / ".torve" / "telemetry.jsonl").write_text(
+        json.dumps(
+            {
+                "task_id": "T-0500",
+                "merge_base": merge_base,
+                "head": head,
+                "results": [
+                    {
+                        "name": "lint",
+                        "outcome": "fail",
+                        "state": "shadow",
+                        "output": "ruff says something",
+                    },
+                    {
+                        "name": "acceptance",
+                        "outcome": "fail",
+                        "state": "blocking",
+                        "output": "FAILED tests/test_thing.py::test_x - assert 1 == 2",
+                    },
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    reds = attempts_file(tmp_path, _task())["last_red_gates"]
+
+    assert [r["gate"] for r in reds] == ["lint", "acceptance"]
+    assert reds[1]["touched_paths"] == ["src/a/thing.py"]
+
+    conviction = conviction_of(tmp_path, _task())
+
+    assert conviction is not None
+    assert conviction["gate"] == "acceptance"
+    assert conviction["touched_paths"] == ["src/a/thing.py"]
+    assert conviction["governing_rows"] == [
+        {"id": "S-0001/D-1", "grade": "LOCKED", "text": "A rule."}
+    ]
+
+    assert conviction_of(tmp_path, Task(id="T-0501", decisions=[])) is None
 
 
 def test_contention_and_the_index_and_the_replay_rule(tmp_path: Path) -> None:
