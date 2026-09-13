@@ -1,10 +1,13 @@
 #!/usr/bin/env node
-// Sum the newest dsh session's usage and print one JSON line in the shape
-// parse_metadata reads (total_cost_usd / model keys, last JSON line wins).
-// dsh emits no usage on stdout in headless; the session log carries it,
-// multi-frame zstd-compressed. Cost is computed only when the operator
-// supplies prices (USD per 1M tokens) via DSH_PRICE_IN / DSH_PRICE_OUT /
-// DSH_PRICE_CACHE — self-reported regime, absent prices report null.
+// Replay the newest dsh session as the machine-readable trace the engine
+// parses (S-0066/D-3): one line per turn and per tool call, then the usage
+// envelope last, in the shape parse_metadata reads (total_cost_usd / model
+// keys, last JSON line wins). dsh emits none of it on stdout in headless; the
+// session log carries it all, multi-frame zstd-compressed, and the per-turn
+// facts are in the bytes this already decompresses for the totals. Cost is
+// computed only when the operator supplies prices (USD per 1M tokens) via
+// DSH_PRICE_IN / DSH_PRICE_OUT / DSH_PRICE_CACHE — self-reported regime,
+// absent prices report null.
 const { execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -38,9 +41,19 @@ try {
   process.exit(0);
 }
 
+// What a tool call is spelled as in the log. A closed set rather than a
+// substring match, because `tool_result` answers a call and is not one — the
+// same rule the engine's scanner follows. A log that spells none of these
+// reports no tool calls, which is a count of zero from the same bytes and
+// never an inference.
+const TOOL_TYPES = new Set(["tool_call", "tool-call", "tool_use", "toolCall"]);
+
 const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, reasoningTokens: 0 };
 let model = null;
 let requests = 0;
+// The lines above the envelope, in the log's own order: the turn ordinal the
+// engine records is the position of the turn-bearing lines in the stream.
+const stream = [];
 for (const line of text.split("\n")) {
   if (!line.trim()) continue;
   let o;
@@ -49,10 +62,24 @@ for (const line of text.split("\n")) {
   if (chunk && chunk.type === "usage" && chunk.usage) {
     requests += 1;
     for (const k of Object.keys(totals)) totals[k] += chunk.usage[k] || 0;
+    // One request is one turn, and its output count is the one fact the burn
+    // profile reads off it. `reasoningTokens` stays out: the cost math below
+    // bills `outputTokens` as the complete output, so it is a breakdown.
+    stream.push({ type: "turn", usage: { outputTokens: chunk.usage.outputTokens || 0 } });
   }
-  const src = o && o.data && o.data.message && o.data.message.source;
+  if (chunk && TOOL_TYPES.has(chunk.type)) stream.push({ type: "tool-call" });
+  const message = o && o.data && o.data.message;
+  const content = message && message.content;
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (block && TOOL_TYPES.has(block.type)) stream.push({ type: "tool-call" });
+    }
+  }
+  const src = message && message.source;
   if (src && src.model) model = src.model;
 }
+
+for (const event of stream) console.log(JSON.stringify(event));
 
 const priceIn = parseFloat(process.env.DSH_PRICE_IN || "");
 const priceOut = parseFloat(process.env.DSH_PRICE_OUT || "");

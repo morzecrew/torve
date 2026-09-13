@@ -25,13 +25,13 @@ from __future__ import annotations
 import json
 import shlex
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
-from torve.application.equipment import EQUIPMENT_MOUNT
+from torve.application.equipment import EQUIPMENT_MOUNT, MANIFEST
 from torve.application.ports import AgentContext, AgentResult
 from torve.application.telemetry import record_receipt
 from torve.base import naming
@@ -458,6 +458,23 @@ class TurnBurn:
 
 
 @dataclass(frozen=True)
+class Inventory:
+    """How what a harness says it loaded differs from what its seat declared
+    (S-0066/D-4), in both directions: equipment the inventory line does not
+    name, and names the inventory line carries that no profile declared.
+
+    A fact on the attempt record and nothing else. No gate reads it, no
+    verdict turns on it: the battery judges the tree, and this judges the
+    claim the regime digest makes about the inputs."""
+
+    unloaded: tuple[str, ...]
+    undeclared: tuple[str, ...]
+
+    def as_block(self) -> dict[str, list[str]]:
+        return {"unloaded": list(self.unloaded), "undeclared": list(self.undeclared)}
+
+
+@dataclass(frozen=True)
 class BurnProfile:
     """What a per-turn stream says about where the tokens went (S-0039/the-burn-profile):
     how many turns produced output, how many tool calls ran beside them, and
@@ -468,15 +485,26 @@ class BurnProfile:
     turns: int
     tool_calls: int
     top_turns: tuple[TurnBurn, ...]
+    # The same stream's opening inventory, compared against the seat's own
+    # declaration (S-0066/D-4). It rides here because this block is the one
+    # nested key a harness adapter puts on the agent block, and both facts are
+    # derived from the same bytes at the same moment; absent when the stream
+    # named no inventory, which is also the regime the counts above follow.
+    inventory: Inventory | None = None
 
     def as_block(self) -> dict[str, Any]:
-        return {
+        block: dict[str, Any] = {
             "turns": self.turns,
             "tool_calls": self.tool_calls,
             "top_turns": [
                 {"turn": top.turn, "output_tokens": top.output_tokens} for top in self.top_turns
             ],
         }
+
+        if self.inventory is not None:
+            block["inventory"] = self.inventory.as_block()
+
+        return block
 
 
 # The burn scanner's closed vocabulary (S-0039/D-5: only facts with cross-harness
@@ -630,6 +658,143 @@ def parse_burn(trace: Path) -> BurnProfile | None:
             TurnBurn(turn=i + 1, output_tokens=turn_outputs[i]) for i in heaviest[:_TOP_TURNS]
         ),
     )
+
+
+# ....................... #
+
+# How an inventory line spells each equipment kind (S-0066/D-4), measured on
+# claude 2.1.x's stream-json opening line. `tools` and `slash_commands` ride
+# the same line and are deliberately absent: they are the image's own and name
+# nothing any profile declares.
+_INVENTORY_FIELDS: tuple[tuple[str, str], ...] = (
+    ("mcp", "mcp_servers"),
+    ("skill", "skills"),
+    ("plugin", "plugins"),
+    ("agent", "agents"),
+)
+
+# The kinds a harness carries none of on its own, so a name it reports that no
+# profile declared arrived through a door that should have been shut. The
+# other two answer only in the opposite direction: measured, claude's line
+# names sixteen built-in skills and five built-in agents on a session given
+# neither, so an undeclared list over them would say the same thing on every
+# attempt and mean nothing by saying it.
+_DECLARED_ONLY: frozenset[str] = frozenset({"mcp", "plugin"})
+
+
+def _named(value: Any) -> list[str]:
+    """The names in one inventory field, whether the harness spells its
+    entries as strings or as objects carrying a `name`."""
+
+    if not isinstance(value, list):
+        return []
+
+    found: list[str] = []
+
+    for entry in value:
+        if isinstance(entry, str) and entry:
+            found.append(entry)
+
+        elif isinstance(entry, dict):
+            name: Any = cast("dict[str, Any]", entry).get("name")
+
+            if isinstance(name, str) and name:
+                found.append(name)
+
+    return found
+
+
+def parse_inventory(trace: Path) -> frozenset[str] | None:
+    """What the harness says it loaded, as `<kind>/<name>`, off the inventory
+    line its stream opens with (S-0066/D-4).
+
+    None where no line names one — a stream that says nothing about its inputs
+    is unreported, never an empty inventory (S-0004/D-6). A line naming only
+    tools and slash commands names no inventory either: those are the image's
+    and no profile declares them."""
+
+    try:
+        handle = trace.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    with handle:
+        for line in handle:
+            line = line.strip()
+
+            if not (line.startswith("{") and line.endswith("}")):
+                continue
+
+            try:
+                data: Any = json.loads(line)
+            except ValueError:
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            record = cast("dict[str, Any]", data)
+
+            if not any(field in record for _, field in _INVENTORY_FIELDS):
+                continue
+
+            return frozenset(
+                f"{kind}/{name}"
+                for kind, field in _INVENTORY_FIELDS
+                for name in _named(record.get(field))
+            )
+
+    return None
+
+
+def compare_inventory(declared: frozenset[str], loaded: frozenset[str]) -> Inventory:
+    """The two sets' difference, in the two directions worth recording."""
+
+    return Inventory(
+        unloaded=tuple(sorted(declared - loaded)),
+        undeclared=tuple(
+            sorted(one for one in loaded - declared if one.split("/", 1)[0] in _DECLARED_ONLY)
+        ),
+    )
+
+
+def declared_equipment(ctx: AgentContext) -> frozenset[str]:
+    """What this seat was given, as `<kind>/<name>`: the manifest inside its
+    own equipment mount, which is the file the image's `equip` reads
+    (S-0063/D-12) and therefore the declaration as the harness was handed it.
+
+    Read through the sandbox, because that is where the mount is. A seat given
+    nothing mounts nothing and there is no file to read — declaring none and
+    failing to read the declaration answer the same here on purpose: either
+    way what comes of it is a fact on the record and never a conviction."""
+
+    try:
+        result = ctx.runtime.exec(ctx.handle, f"cat {EQUIPMENT_MOUNT}/{MANIFEST}", 60.0)
+        data: Any = json.loads(result.output)
+    except (OSError, ValueError):
+        return frozenset()
+
+    if not isinstance(data, dict):
+        return frozenset()
+
+    items: Any = cast("dict[str, Any]", data).get("items")
+
+    if not isinstance(items, list):
+        return frozenset()
+
+    declared: set[str] = set()
+
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+
+        item = cast("dict[str, Any]", entry)
+        kind, name = item.get("kind"), item.get("name")
+
+        if isinstance(kind, str) and kind and isinstance(name, str) and name:
+            declared.add(f"{kind}/{name}")
+
+    return frozenset(declared)
 
 
 # ....................... #
@@ -930,6 +1095,17 @@ class HarnessAgent:
         # departure, logged). This reads bytes for telemetry only — the
         # profile drives no branch (S-0039/D-2).
         burn = parse_burn(trace)
+        # What the harness says it loaded, against what this seat declared
+        # (S-0066/D-4). Recorded beside the profile read from the same bytes;
+        # no gate reads it and no verdict turns on it. The comparison costs a
+        # `cat` inside the sandbox, so it is only made when the stream named an
+        # inventory at all — and a stream that named one without carrying a
+        # single turn leaves no block to hang it on, which is the same
+        # no-stream-no-block regime the counts follow (S-0039/D-4).
+        loaded = parse_inventory(trace)
+
+        if burn is not None and loaded is not None:
+            burn = replace(burn, inventory=compare_inventory(declared_equipment(ctx), loaded))
 
         return HarnessResult(
             exit_code=result.exit_code,

@@ -427,6 +427,82 @@ def test_the_door_switches_are_accepted_by_the_built_harness(name: str) -> None:
 
 
 # ....................... #
+# The trace each image emits (S-0066/D-3): a machine-readable stream whose last
+# line is still the result envelope the engine parses, so the burn parser is fed
+# without moving the seam. Two failures to catch — an image that stops emitting
+# the per-turn lines, and one that emits them *after* the envelope, which would
+# hand the engine's last-JSON-line-wins rule a turn to parse as a result.
+
+# What each image's stream looks like in its own toolkit, and the file it is
+# spelled in. mimo already emitted `step_finish` lines above its envelope, so
+# its row pins what was true rather than describing a change.
+STREAM = {
+    "claude": ("run", ["--output-format stream-json", "--verbose"]),
+    "dsh": ("report-usage", ['"turn"', '"tool-call"', "for (const event of stream)"]),
+    "mimo": ("run", ["--format json"]),
+}
+
+
+def _toolkit_text(name: str, script: str) -> str:
+    return (REPO_ROOT / "sandboxes" / name / "toolkit" / script).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", sorted(STREAM))
+def test_every_image_emits_the_stream_the_burn_parser_reads(name: str) -> None:
+    script, marks = STREAM[name]
+    text = _toolkit_text(name, script)
+
+    for mark in marks:
+        assert mark in text, f"{name} no longer emits its trace with {mark}"
+
+
+def test_the_result_envelope_is_still_the_last_line() -> None:
+    """dsh is the one image that composes the stream itself, so it is the one
+    that can get the order wrong: the per-turn lines are printed in a loop of
+    their own, and the usage envelope after it. The other two are their
+    harness's native stream, which ends with its own result line."""
+
+    text = _toolkit_text("dsh", "report-usage")
+
+    assert text.index("for (const event of stream)") < text.index("total_cost_usd: cost")
+
+
+# The format switches as a command line the harness itself parses, the way the
+# door's are: `--help` validates the flags and exits before anything dials. The
+# pair is probed together because it is one switch — measured on claude 2.1.x,
+# `-p --output-format stream-json` without `--verbose` refuses to start.
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@builds_images
+@pytest.mark.timeout(1800)
+def test_the_stream_switches_are_accepted_by_the_built_harness() -> None:
+    tag = f"claude-stream-probe-{uuid.uuid4().hex[:8]}"
+    bake("claude", tag)
+
+    try:
+        probe = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "HOME=/tmp",
+                tag,
+                "claude",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--help",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert probe.returncode == 0, probe.stderr[-2000:]
+
+    finally:
+        unbake(tag)
+
+
+# ....................... #
 # The engine's CLI inside the image (S-0017/A-2): the prompt tells an attempt
 # to record divergence and to poll for notes with `torve`, so the image has to
 # have it — installed in an environment of its own, and readable by the uid

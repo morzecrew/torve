@@ -43,9 +43,22 @@ export ANTHROPIC_AUTH_TOKEN
 # so an attempt would look like a model that would not work rather than a seat
 # that was not permitted to. The sandbox is disposable and runs as the invoking
 # uid, which is what the bypass asks for.
+# `stream-json`, not `json` (S-0066/D-3). The engine's parsing contract is that
+# the last JSON object line wins, and the stream's last line is the same result
+# envelope the single-line mode prints — so this adds lines above it and removes
+# nothing: the totals parse exactly as before, and the per-turn and per-tool
+# lines the burn parser was written for start arriving. The opening line is an
+# inventory of every tool, skill, plugin, MCP server and agent the session
+# actually loaded, which is what makes the door above a checked fact rather than
+# an assertion (S-0066/D-4).
+#
+# `--verbose` is not optional and not cosmetic: measured on claude 2.1.x, `-p`
+# with `--output-format stream-json` and no `--verbose` refuses to start with
+# "When using --print, --output-format=stream-json requires --verbose". The two
+# are one switch here.
 set -- claude -p "$(cat "$TORVE_PROMPT")" \
     --model "$TORVE_MODEL" \
-    --output-format json \
+    --output-format stream-json --verbose \
     --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
 
 # The door (S-0066/D-1). The worktree arrives carrying files other readers
