@@ -32,6 +32,7 @@ shell has not set is filled in.
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
 | `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` also discards escalations you have dealt with by hand |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
+| `torve ledger` | the record folded into rates, per seat and per gate. See below for what each one divides |
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
@@ -69,6 +70,93 @@ it is, not as it was at boot.
 And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
+
+## What each rate counts
+
+`torve ledger` reads the attempt stream and divides it, printing per seat
+and per gate. A denominator a reader has to guess is one person's
+measurement and another's argument — three passes over this record once
+counted 364, 536 and 252 attempts because each reader invented its own
+denominator — so every rate the verb prints is named here with both sides.
+
+**What is counted at all.** A derived rate counts only attempts that ran a
+model (S-0065/D-5, LOCKED). Four buckets are dropped, and their counts are
+printed under the tables rather than assumed:
+
+- *fake-adapter* — simulation traffic. It answers to no provider; twenty-four
+  such records once went red on every gate in six minutes, and counting
+  them lets fixture traffic convict a seat for free.
+- *shadow replay* — a replay measures a regime and merges nothing, so it
+  lands nothing and belongs to no landing rate.
+- *not an attempt* — `engine`, `review` and `intake` rows, and rows with no
+  agent block: one task's spend filed under another task's id.
+- *unjoinable* — an attempt naming neither a base sha nor a head is a cost
+  and a duration attached to nothing. The writer refuses new ones
+  (S-0065/D-4); the rows already recorded are excluded from every rate and
+  counted out loud.
+
+**A seat, not a tier.** A seat is a tier *and* the image it was pointed at
+(S-0065/D-2), printed `tier @ image`; no rate is ever pooled across seats.
+One tier name has been aimed at three images over this record, and a figure
+blending them describes nothing that exists. A seat the record cannot name
+keeps its own row as `unnamed` rather than being merged into a neighbour.
+
+**The denominator every landing rate shares.** A landing is a landing file
+in the tree (S-0065/D-7). The other two readers reconcile against it: the
+record's landing events are minted from those files, and the lane's
+`lane_landed` carries the carrier's verdict rather than tallying beside it,
+so a landing the carrier does not hold is visible as a disagreement rather
+than as a quietly different number. Files are also the only reader that
+answers in a clone with no event store, which is what makes a printed rate
+reproducible from a checkout.
+
+| Column | Numerator | Denominator |
+| --- | --- | --- |
+| `cost/landing` | every cost the seat's counted attempts reported | tasks the seat touched that have a landing file |
+| `attempts/landing` | every counted attempt on the seat | the same landed tasks |
+| `convictions/landing` | every blocking gate the seat's counted attempts failed | the same landed tasks |
+| `duty` | agent wall time inside the seat's counted attempts | the elapsed span of the seat's own attempts, first to last |
+
+The first three numerators are deliberately wider than their denominator:
+they ride over everything the seat did, not only the work that landed. A
+landing's price includes the abandoned attempts beside it — restricting the
+numerator to landed tasks would price a fantasy and hide the spend that
+made the landing possible. A conviction is a *blocking* gate that failed:
+a shadow gate's red convicts nobody, and a gate `error` is the battery
+breaking rather than the work being wrong.
+
+`duty` is the odd one out: the only rate that does not divide by landings,
+and the one whose denominator the specification left open. It counts agent
+wall time inside attempts over the elapsed span of that seat's own attempts,
+first to last — waiting between its attempts counted against it, waiting
+for anyone else not. The rejected reading divides the same seconds by whole
+task lifetimes instead, which measures the engine rather than the agent:
+the record holds 37 agent-hours beside 296 further hours of idle inside
+task lifetimes, so the two answers differ by an order of magnitude.
+Because the choice is a choice, both sides ride beside the ratio — per seat
+in the text footer, as `wall_time_s` and `span_s` in the JSON.
+
+Per gate, the verb prints runs, wall time spent, convictions, and seconds
+per conviction — the pair that says whether a gate is worth what it costs
+to run, over the same counted attempts, so a gate's time follows every
+exclusion above.
+
+Two absences print as absences. A seat whose provider carries no price —
+a subscription seat genuinely has no per-token cost — reports `unreported`,
+never zero (S-0064/D-12), because a zero averages; a rate with nothing to
+divide by prints an em dash — not zero, not infinity. And the join from an
+attempt to what it was agreed against is stated as a tally in the same
+footer: contracts found in the working tree, found in git history at the
+attempt's own sha — a task directory deleted under S-0056/D-10 costs a
+`git cat-file`, not a fact (S-0065/D-3) — and found nowhere, which is a
+fact about attempts that ran before their contract was committed.
+
+Rates, not rows: `torve why` and `torve status` print the attempts and gate
+runs themselves, and the exit code reports the read, not the rates'
+fortunes — an expensive seat read successfully is a successful read.
+`torve ledger --format json` is the same arithmetic as fields — cost
+totals, landed-task counts, both sides of the duty ratio, every exclusion
+tally — so a reader can check the division rather than trust the print.
 
 ## The corpus and its archive
 
