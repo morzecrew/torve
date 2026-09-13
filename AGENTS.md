@@ -128,8 +128,8 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/cli/` — 45 decision(s)
 - `src/torve/config/` — 69 decision(s)
 - `src/torve/domain/` — 34 decision(s)
-- `src/torve/gates/` — 24 decision(s)
-- `tests/` — 5 decision(s)
+- `src/torve/gates/` — 25 decision(s)
+- `tests/` — 6 decision(s)
 - `web/` — 1 decision(s)
 - `web/src/` — 1 decision(s)
 

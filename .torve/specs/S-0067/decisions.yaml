@@ -102,3 +102,19 @@ decisions:
       it — the only thing that ever asked an agent for an entry is the `keep-a-changelog`
       skill, which arrives as undeclared equipment that S-0066 shuts
     cites: [S-0066/D-1]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The working-rules skill states that a test may not assume it is the only one
+      on the machine: what it creates on a shared daemon it finds by its own name
+      or root, never by a literal other tests also use
+    paths: [skills/working-rules/**]
+    consequence: >-
+      the suite can run in parallel, which is measured at 4.3x, and a test that breaks
+      the rule fails as a bug rather than as a flake
+    rationale: >-
+      four tests asked Docker for sandboxes labelled `T-9001` — one shared literal
+      across eleven files — and got every concurrent test's; one of them destroyed
+      a neighbour's live container. `naming.root_key` had existed for exactly this
+      since S-0003/D-25 and said so in its own docstring
+    cites: [S-0071/D-1]

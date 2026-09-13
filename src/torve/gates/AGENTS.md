@@ -186,6 +186,13 @@ A task naming no document lands under `.torve/execution/` in the same file shape
 - Consequence: A task can say what asked for it without pretending a document did
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0070/D-6 — `ASSUMED` (What is committed may not depend on what is not)
+
+An acceptance verdict names the suite it judged: a battery that ran fewer tests than the tree contains reports how many it skipped and why, and `pass` never stands for two different suites
+
+- Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
+- Consequence: a green battery in a sandbox and a green battery on a laptop stop being the same sentence for two different amounts of evidence
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail

@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the dependency, and the image that carries it
+    intent: >-
+      `pytest-xdist` enters the development dependencies and the lockfile, and the
+      battery image is rebuilt so a sandboxed `uv run pytest` finds it already installed
+      rather than reaching for a network it may not have. No worker count is set yet:
+      this phase changes what is available, not what runs.
+    scope: [pyproject.toml, uv.lock, sandboxes/battery/Dockerfile]
+    acceptance:
+      - uv run pytest
+      - uv lock --check
+    character: structural
+  - phase: 2
+    title: >-
+      the suite runs in parallel, and the rule that lets it
+    intent: >-
+      `-n auto` joins the project's `addopts`, so both gates that run the suite get
+      it without a contract changing. The accompanying test is the property that broke
+      while measuring this: the suite passes under `-n 8` and under `-n 0`.
+    scope: [pyproject.toml, tests/test_lint.py]
+    acceptance:
+      - uv run pytest
+      - uv run ruff check .
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: every gate declares what it costs
+    intent: >-
+      Each manifest entry carries a timeout at its measured p90, and a test asserts
+      the runner's computed order puts no gate before one declaring less. `coverage-delta`'s
+      own entry landed with this document; the rest of the manifest follows.
+    scope: [.torve/gates.yaml, tests/test_manifest.py]
+    acceptance:
+      - uv run pytest
+      - uv run torve doctor
+    character: structural
+  - phase: 4
+    title: >-
+      the rule reaches the next test that talks to a daemon
+    intent: >-
+      `tests/AGENTS.md` gains the one line, and the operating guide gains the worker
+      count. Written after the work lands, from the landing records.
+    scope: [tests/AGENTS.md, pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec project --check
+    depends_on:
+      - 2
+      - 3
+    character: routine

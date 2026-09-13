@@ -73,3 +73,20 @@ decisions:
       the failure mode only appears where the uncommitted half is absent, and that
       is never the author's own tree; a convention nobody can test is a convention
       that returns
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      An acceptance verdict names the suite it judged: a battery that ran fewer tests
+      than the tree contains reports how many it skipped and why, and `pass` never
+      stands for two different suites
+    paths: [src/torve/gates/acceptance.py, tests/test_gates.py]
+    consequence: >-
+      a green battery in a sandbox and a green battery on a laptop stop being the
+      same sentence for two different amounts of evidence
+    rationale: >-
+      33 tests across nine files are gated on a Docker daemon, which the sandbox does
+      not have by design and a developer's machine does — so the gate judges a smaller
+      suite than the author did and says nothing about it. This is D-3 pointed at
+      the verdict rather than at the artefact: the number of tests that ran is a property
+      of the machine, and a verdict that hides it is a green whose meaning moves
+    cites: [D-3, S-0017/D-10]

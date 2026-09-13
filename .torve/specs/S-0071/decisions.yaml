@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The test suite runs in parallel by default: `pytest-xdist` is a development
+      dependency and `-n auto` is in the project's `addopts`, so both gates that run
+      the suite get it without any contract's acceptance command changing
+    paths: [pyproject.toml, uv.lock]
+    consequence: >-
+      the two gates that are 98% of the battery's wall time fall from 267s to about
+      61s per battery, measured, and every attempt after it pays the lower figure
+    rationale: >-
+      measured on this host at 128s serial against 30s under `-n 8`, green both ways;
+      the switch reaches both invocations because each is spelled `uv run pytest`
+      and neither names a worker count
+    cites: [S-0067/D-8]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The battery image is rebuilt in the same change that adds the dependency, and
+      the moved digest is recorded rather than waived
+    paths: [sandboxes/battery/Dockerfile]
+    consequence: >-
+      an attempt's `uv run` reconciles against a populated environment instead of
+      reaching a network it may not have
+    rationale: >-
+      the image bakes `pyproject.toml` and `uv.lock` at build time, so a lockfile
+      that names a package the image lacks makes the first sandboxed attempt install
+      it over an egress that is brokered and allowlisted — a dependency change is
+      an image change here, and pretending otherwise fails in the one place hardest
+      to read
+    cites: [S-0063/D-10]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Every gate entry declares a timeout, and the value is its measured p90 rounded
+      up rather than a round number
+    paths: [.torve/gates.yaml]
+    consequence: >-
+      the cheapest-first order the runner computes is the order a person reading the
+      manifest would predict
+    rationale: >-
+      the runner uses the declared timeout as its cost proxy, so an absent one reads
+      as free: `coverage-delta` at 164s median ran ahead of `spec-valid` at 20s for
+      the whole life of the manifest
+    cites: [S-0055/D-14]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `coverage-delta`'s soak is read out loud and the verdict recorded — promoted,
+      retired, or held with the number that says why
+    paths: [.torve/gates.yaml]
+    consequence: >-
+      the strongest unread signal in the battery stops being unread, at a cost that
+      D-1 has already quartered
+    rationale: >-
+      `S-0055/D-14` promotes on soak evidence and 228 runs of it exist: 87 failures,
+      of which 51 are cases where `acceptance` passed and the diff coverage did not
+      reach 80% — a real finding each time, discarded because nothing reads a shadow
+      verdict
+    cites: [S-0055/D-14]

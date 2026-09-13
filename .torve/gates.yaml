@@ -121,6 +121,11 @@ gates:
     state: shadow
     origin: S-0036
     input: worktree
+    # Measured, not guessed: 164s median over 228 runs, 271s at p90, 600s at
+    # worst. The runner sorts the battery cheapest-first on this field, so an
+    # absent timeout read as zero cost and put the dearest gate in the pass
+    # ahead of every gate that declares one — spec-valid at 20s included.
+    timeout: 600
     sabotage: coverage-delta
   # The managed AGENTS.md sections beside the code, rendered from the corpus
   # and drift-checked like the index (S-0054/D-7).

@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0071
+title: >-
+  The battery costs what it costs for reasons unrelated to what it judges
+kind: design
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0055, S-0070, S-0067]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Ninety-eight percent of the battery's wall time is two runs of the same test suite, and the gate that costs the most declares no timeout, so the runner's cheapest-first order puts it ahead of every gate that does. Measured, the suite runs 4.3x faster in parallel once the tests stop assuming they are alone on the machine.
+motivation: |
+  The battery is the engine's product. It is what a bare harness does not have, it is
+  what stopped 85 landed tasks from shipping something broken, and it is the thing
+  every attempt waits on twice — once for the attempt's own run and again for the
+  lane's, after a rebase.
+
+  So its cost is not a tidiness question. At width 1 it is the difference between a
+  queue that keeps up with a person and one that does not, and at any width above 1
+  it is multiplied by that width. `S-0070` found artefacts that were stable only on
+  one machine; this document finds a battery that is slow for reasons that have
+  nothing to do with what it is judging.
+current_state: |
+  **The suite runs twice.** `acceptance` runs `uv run pytest`; `coverage-delta` runs
+  `uv run pytest --cov=src --cov-report=xml` — the whole suite again, at 1.6x for the
+  instrumentation. Measured over 228 batteries that ran both: 103.4s median and 164.1s
+  median, and a lower bound of **286 minutes paid twice** across the record. Those two
+  gates are 98% of all gate wall time; the other eleven together are 25 minutes.
+
+  **The dearest gate sorts as free.** `gates/runner.py:219` orders the battery
+  cheapest-first using each entry's declared `timeout` as the cost proxy. `coverage-delta`
+  declared none, so it read as zero and ran eighth of thirteen — ahead of `spec-valid` at
+  20s, `layering` at 60s and `lint` at 120s. This is fixed in this document's first commit,
+  because it is one line and it needed no phase.
+
+  **The suite is serial on a sixteen-core machine.** Measured on this host: 128s serial,
+  **30s under `-n 8`** — and green in both, but only after four tests stopped asking a
+  shared Docker daemon for "sandboxes labelled `T-9001`" and getting every concurrent
+  test's. `naming.root_key` had existed for exactly that since `S-0003/D-25`, saying so
+  in its own docstring; the tests filtered on the task id instead. That is also fixed
+  already, in `4f439ef`, because it was a live defect rather than a plan.
+
+  **What is left is the dependency.** `pytest-xdist` is not in the lockfile, and the
+  battery image bakes its environment from `pyproject.toml` and `uv.lock` at build time
+  (`sandboxes/battery/Dockerfile:26`). So the parallel switch is not a line in `addopts`:
+  it is a dependency, a relock, an image rebuild and a moved regime digest — which is
+  the whole reason this is a document and not a commit.
+
+  **And the soak was never read.** `S-0055/D-14` says a gate enters at `shadow` and is
+  promoted on soak evidence. `coverage-delta` has 228 runs of soak: 138 pass, 87 fail,
+  and **51 of those failures are cases where `acceptance` passed** — genuine sub-80%
+  diff coverage, discarded because nothing reads a shadow verdict. Twenty-eight more ran
+  the suite under coverage in batteries where `acceptance` was skipped entirely.
+goals: |
+  The suite runs once per battery where it can, and in parallel always.
+
+  A gate's declared timeout is its honest cost, so the order the runner computes is the
+  order a person would have chosen.
+
+  The soak evidence `S-0055/D-14` asks for is read out loud for `coverage-delta`, and
+  the verdict is recorded whichever way it goes.
+non_goals: |
+  No change to what any gate judges. Every rule the battery enforces survives this
+  document unchanged; only what it costs to enforce them moves.
+
+  No promotion of `coverage-delta` by this document. It records the soak and names the
+  number; promoting a gate at a 38% failure rate is a separate decision with a separate
+  owner, and the point here is that the decision becomes affordable rather than that it
+  is taken.
+
+  No new gate, and no gate removed.
+tests: |
+  The parallel claim is tested by the property that broke: the suite passes under
+  `-n 8` and under `-n 0`, and a test that reaches a shared daemon names its own
+  sandboxes rather than filtering on a literal every other test also uses.
+
+  The ordering claim is tested directly — the runner's computed order over the live
+  manifest puts no gate before one that declares a smaller timeout.
+docs: |
+  `tests/AGENTS.md` gains the rule in one line, because the person most likely to
+  violate it is writing the next test that talks to Docker and will not read this.
+out_of_scope: |
+  The docker-gated tests' absence from the sandbox battery. Thirty-three tests skip
+  where there is no daemon and run where there is, so the gate judges a smaller suite
+  than a developer does — a verdict whose meaning depends on the machine, which is
+  `S-0070`'s rule rather than this one's, and is amended there.
+
+  Wiring a Docker daemon into an attempt's sandbox. Socket mode exists and
+  `S-0017/D-10` permits it as an explicit per-repository opt-in, but the sandbox's
+  `/work` is a host bind-mount while a test's `tmp_path` is container-local, so a
+  sibling container would mount a path that does not exist. It buys 33 confusing
+  failures in place of 33 honest skips.
+risks: |
+  A parallel suite finds shared state that a serial one hides, and the four instances
+  found so far were found by running it once. There will be more, and each will look
+  like a flake before it looks like a bug. That is an argument for landing the switch
+  early, while the suite is small enough to read.
+
+  The image rebuild moves the regime digest, so every attempt after it runs on an image
+  the eval ledger has not measured. `unmeasured_images: allow` is set and this repository
+  is entitled to the hatch, but the dispatch records the unmeasured digest and the next
+  `torve eval` inherits the gap.
+
+  `-n auto` inside a container takes the cores the container can see. No CPU limit is set
+  on the sandbox today, so it takes the host's — which is right here and would be wrong
+  on a shared runner. The value belongs in the manifest, not in a developer's head.
+alternatives:
+  - option: >-
+      Have `acceptance` emit coverage.xml and leave `coverage-delta` only diff-cover
+    rejected_because: >-
+      The acceptance commands come from each contract, so it means editing every contract
+      in the repository and every one minted after. The parallel switch takes the
+      pair from 267s to about 61s without touching a contract; revisit if the remaining
+      36s ever matters.
+  - option: Retire `coverage-delta` outright
+    rejected_because: >-
+      It is not a gate that never fires. It produced 51 findings where the suite was
+      green, which is a real signal nobody has read. Retiring it on cost grounds while
+      the cost is about to fall four-fold decides the wrong question.
+  - option: >-
+      Short-circuit the battery after a blocking gate fails
+    rejected_because: >-
+      Tried and reverted under T-0234: with the cheapest-first order a 20-second form
+      gate hid the functional verdict behind it, `retry_rung_for` saw one axis where
+      the ladder assumes several, and boundary masking could never fire. The axes
+      are what the full pass buys.
+  - option: Consolidate or delete slow tests
+    rejected_because: >-
+      There are none. The thirty slowest total 45 seconds across 1,749 tests — a long
+      tail, which is the shape parallelism fixes and merging does not.
+questions:
+  - id: Q-1
+    text: >-
+      Does `free_bind` in `tests/test_broker.py` need fixing? It binds port 0, closes,
+      and hands the number to the broker, which is a race by construction. It has
+      never been observed to fail, including twice under `-n 8`, and the correct fix
+      is in the broker rather than the test — so it is written down rather than changed.
+  - id: Q-2
+    text: >-
+      What is the right worker count for a sandbox? `auto` takes what the container
+      sees, which is the host's sixteen today because no CPU limit is set. A declared
+      number is honest and a wrong one is slow; the answer is probably a manifest
+      value once a second machine exists.

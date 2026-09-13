@@ -89,3 +89,14 @@ phasing:
     depends_on:
       - 1
     character: structural
+  - phase: 6
+    title: a verdict names the suite it judged
+    intent: >-
+      The acceptance gate reports how many tests it skipped and why, so a green in
+      a sandbox and a green on a laptop stop being the same sentence for two different
+      amounts of evidence. Settles D-6.
+    scope: [src/torve/gates/acceptance.py, tests/test_gates.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural

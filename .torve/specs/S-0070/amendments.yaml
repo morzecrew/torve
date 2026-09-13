@@ -52,3 +52,35 @@ amendments:
       recorded rather than fixed quietly because the repetition is the finding. Both
       times the lint refused before anything was minted, which is the drafted path's
       protection and the reason S-0067 exists for the other one.
+  - id: A-4
+    at: '2026-09-13T07:11:33Z'
+    title: A verdict names the suite it judged
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: paths
+        before: []
+        after: [src/torve/gates/acceptance.py, tests/test_gates.py]
+      - subject: D-6
+        field: fingerprint
+        after: 96e05591aa56fc8a/73f58d80ce889d16
+    md: |
+      The document found three artefacts that were stable only on the machine holding
+      the uncommitted half. This row is the fourth instance and the first one that is a
+      *verdict* rather than a file: `acceptance` reports `pass` whether it ran 1,749
+      tests or 1,716, and which it ran is decided by whether a Docker daemon happened
+      to be reachable.
+
+      The asymmetry is deliberate and stays — `S-0017/D-10` makes a daemon socket an
+      explicit per-repository opt-in, and the sandbox's `/work` is a host bind-mount
+      while a test's `tmp_path` is container-local, so a sibling container would mount
+      a path that does not exist. Wiring the daemon buys 33 confusing failures in place
+      of 33 honest skips.
+
+      What is not deliberate is the silence. `D-3` already says a check that walks
+      artefacts the repository may not be carrying judges what is there or skips naming
+      the reason; this applies the same sentence one level up, to the gate that reports
+      on such a check.

@@ -39,6 +39,13 @@ The rule is proved by rendering twice — once with the record present, once wit
 - Paths: `tests/test_colocation.py`
 - Consequence: the violation becomes visible on the machine of the person committing it, which is the only machine where it is currently invisible
 
+### S-0070/D-6 — `ASSUMED` (What is committed may not depend on what is not)
+
+An acceptance verdict names the suite it judged: a battery that ran fewer tests than the tree contains reports how many it skipped and why, and `pass` never stands for two different suites
+
+- Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
+- Consequence: a green battery in a sandbox and a green battery on a laptop stop being the same sentence for two different amounts of evidence
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

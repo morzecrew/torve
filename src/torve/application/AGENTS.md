@@ -776,7 +776,7 @@ A derived rate counts only attempts that ran a model — `fake` adapters and sha
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py`
 - Consequence: a three-second boot failure and a twenty-minute clock stop being the same class, and the continuation question becomes answerable without committing to an answer
 
-### S-0065/D-7 — `OPEN` (The record is read, and what looks lost is unjoined)
+### S-0065/D-7 — `ASSUMED` (The record is read, and what looks lost is unjoined)
 
 One carrier is the landing, and the other two are reconciled against it or dropped
 
