@@ -29,10 +29,10 @@ phasing:
       a skill nothing points at is a file. The text gains the rule that produced every
       measured lint refusal on this path.
     scope:
-      - skills/working-rules/**
+      - skills/working-rules/SKILL.md
+      - .claude/skills/working-rules
       - src/torve/adapters/agent/harness.py
       - .torve/agents/**
-      - .claude/skills/**
       - tests/test_skills.py
       - tests/test_runner.py
     acceptance:
