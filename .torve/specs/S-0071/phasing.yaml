@@ -49,3 +49,16 @@ phasing:
       - 2
       - 3
     character: routine
+  - phase: 5
+    title: the lint refuses what the sandbox cannot run
+    intent: >-
+      `_needs_git` already refuses an acceptance command that wants a repository,
+      in the voice of the poison ceiling T-0282 burned on it. Its sibling refuses
+      a command that wants the host — `torve doctor` above all, which reports on the
+      daemon, the DSN and the credentials a sandbox holds none of. Settles D-5, and
+      the row stops being a rule with nothing behind it.
+    scope: [src/torve/application/intake.py, tests/test_intake.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
