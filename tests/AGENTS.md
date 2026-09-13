@@ -54,4 +54,8 @@ An acceptance verdict names the suite it judged: a battery that ran fewer tests 
   - Paths: `src/torve/**` `tests/**`
   - Check: `uv run pytest`
 
+## Contended now
+
+- `tests/**` — 1 blocked dispatch(es) in the last 500 attempts
+
 <!-- /torve:managed -->
