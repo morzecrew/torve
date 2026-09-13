@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-13T07:54:23Z'
+    title: >-
+      The coupling lives in the lockfile, not in the image definition
+    changes:
+      - subject: D-2
+        field: paths
+        before: [sandboxes/battery/Dockerfile]
+        after: [pyproject.toml, uv.lock]
+      - subject: D-2
+        field: text
+        before: >-
+          The battery image is rebuilt in the same change that adds the dependency,
+          and the moved digest is recorded rather than waived
+        after: >-
+          A dependency change here is an image change: the battery image is rebuilt
+          in the same change that touches the lockfile, and the moved digest is recorded
+          rather than waived. The image definition itself needs no edit — it copies
+          the two files and syncs from them, so the rebuild is an act, not a diff
+      - subject: D-2
+        field: fingerprint
+        after: 0ae81a09c6e9da14/3d013a06f2ca186d
+    md: |
+      Written while minting the first phase, which is where it showed. The row had
+      declared `sandboxes/battery/Dockerfile`, and a contract scoped to that file
+      inherits everything governing `sandboxes/**` — fourteen further rows across
+      S-0055, S-0062, S-0063 and S-0064, none of which the phase touches.
+
+      The reason it does not need to is that the image definition already does the
+      right thing: it copies `pyproject.toml` and `uv.lock` and runs
+      `uv sync --locked --all-extras`, keyed on Docker's own layer cache. Adding a
+      package to the `dev` group changes the lockfile, the lockfile is part of the
+      copied context, and the layer rebuilds. There is no edit to make.
+
+      So the coupling the row is really about lives in the lockfile, and the rebuild
+      is an operational act on the host rather than a diff an agent can write. The
+      row now says that, and the phase's scope is the two files it actually changes.

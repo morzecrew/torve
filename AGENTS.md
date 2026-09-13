@@ -92,6 +92,14 @@ The test suite runs in parallel by default: `pytest-xdist` is a development depe
 - Paths: `pyproject.toml` `uv.lock`
 - Consequence: the two gates that are 98% of the battery's wall time fall from 267s to about 61s per battery, measured, and every attempt after it pays the lower figure
 
+### S-0071/D-2 — `LOCKED` (The battery costs what it costs for reasons unrelated to what it judges)
+
+A dependency change here is an image change: the battery image is rebuilt in the same change that touches the lockfile, and the moved digest is recorded rather than waived. The image definition itself needs no edit — it copies the two files and syncs from them, so the rebuild is an act, not a diff
+
+- Paths: `pyproject.toml` `uv.lock`
+- Consequence: an attempt's `uv run` reconciles against a populated environment instead of reaching a network it may not have
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -115,7 +123,6 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/architecture/` — 0 decision(s)
 - `sandboxes/` — 11 decision(s)
 - `sandboxes/base/` — 0 decision(s)
-- `sandboxes/battery/` — 1 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/dsh/` — 2 decision(s)
 - `sandboxes/mimo/` — 0 decision(s)

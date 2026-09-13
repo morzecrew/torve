@@ -3,11 +3,11 @@ phasing:
   - phase: 1
     title: the dependency, and the image that carries it
     intent: >-
-      `pytest-xdist` enters the development dependencies and the lockfile, and the
-      battery image is rebuilt so a sandboxed `uv run pytest` finds it already installed
-      rather than reaching for a network it may not have. No worker count is set yet:
-      this phase changes what is available, not what runs.
-    scope: [pyproject.toml, uv.lock, sandboxes/battery/Dockerfile]
+      `pytest-xdist` enters the development dependencies and the lockfile. The image
+      definition needs no edit — it copies both files and syncs from them — so what
+      accompanies this phase is a rebuild on the host, not a diff. No worker count
+      is set yet: this changes what is available, not what runs.
+    scope: [pyproject.toml, uv.lock]
     acceptance:
       - uv run pytest
       - uv lock --check

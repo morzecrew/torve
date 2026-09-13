@@ -18,9 +18,11 @@ decisions:
   - id: D-2
     grade: LOCKED
     text: >-
-      The battery image is rebuilt in the same change that adds the dependency, and
-      the moved digest is recorded rather than waived
-    paths: [sandboxes/battery/Dockerfile]
+      A dependency change here is an image change: the battery image is rebuilt in
+      the same change that touches the lockfile, and the moved digest is recorded
+      rather than waived. The image definition itself needs no edit — it copies the
+      two files and syncs from them, so the rebuild is an act, not a diff
+    paths: [pyproject.toml, uv.lock]
     consequence: >-
       an attempt's `uv run` reconciles against a populated environment instead of
       reaching a network it may not have
@@ -31,6 +33,7 @@ decisions:
       an image change here, and pretending otherwise fails in the one place hardest
       to read
     cites: [S-0063/D-10]
+    fingerprint: 0ae81a09c6e9da14/3d013a06f2ca186d
   - id: D-3
     grade: ASSUMED
     text: >-
