@@ -101,7 +101,7 @@ tiers:
     # times on `IsADirectoryError`. Restore the line when a kind carries its
     # shape (see S-0066/D-7).
     character_routing:
-      structural: qwen-claude
+      structural: deepseek
   # A second live seat, on the ModelStudio token plan through the broker.
   # `model` is the overlay's model id; `DSH_MODEL` on the manifest carries the
   # catalog entry, because a dsh model is a provider and a catalog and a
@@ -126,6 +126,17 @@ tiers:
     # needs and least reliably supplies itself.
     profile: claude-equipped
     model: qwen3.8-flash
+    provider: modelstudio
+    dialect: anthropic
+  # A third live seat, the same credential and route as `qwen-claude` with a
+  # different model. Probed 2026-09-13: it answers on `/apps/anthropic` and
+  # returns a turn in 3.2s against qwen's 3.7s on one identical prompt, which
+  # is a latency hint on n=1 and not a verdict — the ledger's attempts per
+  # landing is what decides between them.
+  executor.deepseek:
+    harness: claude-subscription
+    profile: claude-equipped
+    model: deepseek-v4-flash-0731
     provider: modelstudio
     dialect: anthropic
   reviewer: {harness: fake}

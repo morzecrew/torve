@@ -42,6 +42,14 @@ models:
     context_window: 1000000
     max_tokens: 65536
     reasoning: [none, minimal, low, medium, high, xhigh, max]
+  # Probed 2026-09-13 over both routes: it answers on `/apps/anthropic` end to
+  # end and echoes its own id, and the same deliberate 400 on the openai route
+  # enumerates the same seven levels. No `context_window` and no `max_tokens`:
+  # the endpoint accepts `max_tokens: 10_000_000` with a 200, so neither was
+  # measurable, and a number nobody observed is a knob that moves the regime
+  # digest while changing nothing (S-0063, probe-then-declare).
+  deepseek-v4-flash-0731:
+    reasoning: [none, minimal, low, medium, high, xhigh, max]
     # No `price`. This plan is a prepaid weekly token quota, not per-token
     # billing, so dollars-per-token is not the number anyone is charged — and
     # the figures that stood here were never measured against anything. An
