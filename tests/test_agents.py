@@ -505,6 +505,98 @@ def test_no_pins_file_is_no_pins(root: Path):
 
 
 # ....................... #
+# An item carries one directory per harness beside its payload (S-0072/D-1)
+
+
+def _directions(root: Path) -> None:
+    """One harness that reads `.torve/agents/hooks/guard/claude/`, and one that
+    reads `.../guard/dsh/` — two readers of one kind, the shape D-1 exists for."""
+
+    write(
+        harnesses_dir(root) / "claude.yaml",
+        "adapter: fake\nkinds: [hook]\nimage: claude-sandbox:2.1.252\n",
+    )
+    write(
+        harnesses_dir(root) / "dsh.yaml",
+        "adapter: fake\nkinds: [hook]\nimage: dsh-sandbox:0.1.1-rc.2\n",
+    )
+    write(
+        agents_dir(root) / "guarded.yaml",
+        "equipment: [{kind: hook, source: 'local:.torve/agents/hooks/guard'}]\n",
+    )
+
+
+def test_a_hook_item_carrying_the_seats_directory_loads(root: Path):
+    """The payload stays at the item's root and the harness reads its own
+    directory: `claude` reads the claude shape, and the item the seat
+    declared is still the item the seat got."""
+
+    _directions(root)
+    write(root / ".torve" / "agents" / "hooks" / "guard" / "claude" / "settings.json", "{}\n")
+
+    config = load(root, "tiers:\n  executor:\n    harness: claude\n    profile: guarded\n")
+
+    assert [item.kind for item in config.tiers["executor"].equipment] == ["hook"]
+
+
+def test_a_hook_item_with_no_directory_for_the_seats_harness_is_refused(root: Path):
+    """Both manifests declare the `hook` kind, so S-0063/D-4's check has
+    nothing to object to — the disagreement is in the item's tree, and this
+    is the message that would have stopped T-0391 before an image was pulled."""
+
+    _directions(root)
+    write(root / ".torve" / "agents" / "hooks" / "guard" / "claude" / "settings.json", "{}\n")
+
+    load(root, "tiers:\n  executor:\n    harness: claude\n    profile: guarded\n")
+
+    with pytest.raises(ValueError, match="`dsh/`") as excinfo:
+        load(root, "tiers:\n  executor:\n    harness: dsh\n    profile: guarded\n")
+
+    message = str(excinfo.value)
+    assert "guarded" in message  # the profile
+    assert "dsh" in message  # the manifest
+    assert str(root / ".torve" / "agents" / "hooks" / "guard" / "dsh") in message
+
+
+def test_a_harness_that_names_no_sandbox_names_no_directory(root: Path):
+    """The per-harness directory is the sandbox the image was built from
+    (S-0063/D-6). A harness with no image answers no harness, so it requires
+    none — which is what keeps a shapeless seat declarable."""
+
+    write(
+        harnesses_dir(root) / "bare.yaml",
+        "adapter: fake\nkinds: [hook]\n",
+    )
+    write(
+        agents_dir(root) / "guarded.yaml",
+        "equipment: [{kind: hook, source: 'local:.torve/agents/hooks/guard'}]\n",
+    )
+
+    config = load(root, "tiers:\n  executor:\n    harness: bare\n    profile: guarded\n")
+
+    assert [item.kind for item in config.tiers["executor"].equipment] == ["hook"]
+
+
+def test_a_fetched_hook_item_is_not_checkable_at_load(root: Path):
+    """Only `local:` payload is in the repository the config was read from; a
+    fetched hook's tree does not exist until `torve equip` runs, so the load
+    check asks nothing of it — equip is where that item's shape is read."""
+
+    write(
+        harnesses_dir(root) / "claude.yaml",
+        "adapter: fake\nkinds: [hook]\nimage: claude-sandbox:2.1.252\n",
+    )
+    write(
+        agents_dir(root) / "guarded.yaml",
+        "equipment:\n- {kind: hook, source: 'github:o/hooks', ref: abc123}\n",
+    )
+
+    config = load(root, "tiers:\n  executor:\n    harness: claude\n    profile: guarded\n")
+
+    assert [item.source for item in config.tiers["executor"].equipment] == ["github:o/hooks"]
+
+
+# ....................... #
 # A manifest says which dialects its harness speaks (S-0064/D-4, S-0064/D-9)
 
 

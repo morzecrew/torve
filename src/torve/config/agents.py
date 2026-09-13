@@ -596,23 +596,56 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
             del merged[own]
 
         merged.update(entry)
-        _equipped(key, harness_name, profile_name, merged)
+        _equipped(key, harness_name, profile_name, merged, root)
         tiers[key] = merged
         named[key] = (harness_name, profile_name)
 
     return named
 
 
-def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str, Any]) -> None:
-    """Refuse a kind this harness cannot be given, then derive the one shape a
-    reader still has (S-0063/D-4).
+# The name of the per-harness directory an item carries beside its payload
+# (S-0072/D-1) is the sandbox definition the harness image was built from
+# (S-0063/D-6): `claude-sandbox:2.1.252` reads `claude/`, `dsh-sandbox` reads
+# `dsh/`. The image is the one manifest field that encodes it.
+SANDBOX_SUFFIX = "-sandbox"
 
-    The refusal is S-0061/D-6's generalised from plugins to every kind, and it
-    exists for the same reason: an attempt quietly missing its equipment
+
+def _harness_label(image: str) -> str:
+    """The harness an image is, as the name its item directories carry.
+
+    A digest pin carries the repository before the `@`; a published image adds
+    a repository prefix that `-sandbox` still anchors the name to. An image
+    that is not a sandbox this engine defines answers nothing, which is what
+    no harness directory means.
+    """
+
+    if not image:
+        return ""
+
+    tag = image.rsplit("@", 1)[0]
+    repository = tag.rsplit("/", 1)[-1].partition(":")[0]
+
+    return repository.removesuffix(SANDBOX_SUFFIX) if repository.endswith(SANDBOX_SUFFIX) else ""
+
+
+def _equipped(
+    seat: str, harness_name: str, profile_name: str, merged: dict[str, Any], root: Path
+) -> None:
+    """Refuse a kind this harness cannot be given, and an item it would not be
+    able to read; then derive the one shape a reader still has (S-0063/D-4,
+    S-0072/D-1).
+
+    The kind refusal is S-0061/D-6's generalised from plugins to every kind, and
+    it exists for the same reason: an attempt quietly missing its equipment
     measures a regime nobody configured, and the record would say it ran with
     equipment it never had. Both files are named, because which of them is
     wrong is the reader's call — the profile asked for something, the manifest
     says it cannot take it, and either could be the one to change.
+
+    The shape refusal is the same promise kept for the item: a `hook` item
+    carries one directory per harness beside its payload, and a harness with no
+    directory of its own is refused here rather than inside the container,
+    where T-0391 died on `IsADirectoryError`.
 
     `skills` is then written from the same list. Nothing declares it any more;
     `materialize` still reads it, because a harness with no skill channel of its
@@ -646,6 +679,33 @@ def _equipped(seat: str, harness_name: str, profile_name: str, merged: dict[str,
             "harness cannot be told about would go missing from an attempt that "
             "still ran"
         )
+
+    # S-0072/D-1: `hook` is one kind with two readers. The item keeps its
+    # payload at the root and one directory per harness beside it; a harness
+    # reads only its own (`claude/`, `dsh/`), so a profile whose item carries
+    # no directory for the seat's harness is refused here behind the same
+    # guarantee S-0063/D-4 makes for kinds — a message before an image is
+    # pulled, not an `IsADirectoryError` at `wall 0s`. Only a `local:` item is
+    # checkable at load: its payload is in the repository this config was read
+    # from, where a fetched item's is not fetched yet. An image that answers
+    # no harness names no directory, and requires none.
+    for item in items:
+        if item.kind != "hook" or item.scheme != "local":
+            continue
+
+        label = _harness_label(str(merged.get("image") or ""))
+
+        if label:
+            missing = root / item.locator / label
+
+            if not missing.is_dir():
+                raise AgentError(
+                    f"tier {seat!r}: profile {profile_name!r} declares hook "
+                    f"{item.source}, and harness {harness_name!r} reads its "
+                    f"declaration from `{label}/` beside the item's payload — "
+                    f"{missing} is missing, so a seat on this harness would "
+                    "reach the sandbox with no guard"
+                )
 
     names = skill_names(items)
 
