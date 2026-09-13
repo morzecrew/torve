@@ -10,6 +10,8 @@
 role: implement
 equipment:
 - kind: skill
+  source: torve:working-rules
+- kind: skill
   source: torve:flag-dont-flip
 - kind: skill
   source: torve:ratchet-what-you-build

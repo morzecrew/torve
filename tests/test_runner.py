@@ -2004,6 +2004,22 @@ def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
     assert "a plain row\n" in prompt and prompt.count("- why:") == 1
 
 
+def test_the_prompt_names_the_working_rules_skill_and_keeps_the_pointer():
+    """S-0067/D-4: the bootstrap bullet stays, because a skill nothing points at
+    is a file — and S-0067/D-3 gives it the name to point at, so the rules a
+    sandbox takes as equipment and a session reads through its skill root are
+    reachable from the prompt rather than only from the engine's source."""
+
+    from torve.adapters.agent.harness import build_prompt
+    from torve.domain.task import Task
+
+    prompt = build_prompt(Task(id="T-1", decisions=[]))
+
+    assert "Skills for your role are under `.torve/skills/`" in prompt
+    assert "`working-rules` is this repository's working rules in full" in prompt
+    assert "outranks the contract above" in prompt
+
+
 def test_the_context_pack_is_in_the_worktree_before_the_attempt(tmp_path):
     """S-0054 S-0054/D-10: the pack is materialised beside the skills before
     the prompt is written, from the record and the tree, with no model."""

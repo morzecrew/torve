@@ -28,12 +28,49 @@ def test_the_four_specialised_skills_ship():
     } <= set(available())
 
 
+# Torve's own skills, written here rather than specialised from upstream, so
+# the specialisation header and the gate below say nothing about them
+# (S-0067/D-3: the working rules live once, and their source is this repository).
+NATIVE = ("working-rules",)
+
+
 def test_every_shipped_skill_carries_the_specialisation_header_and_a_gate():
     for name in available():
+        if name in NATIVE:
+            continue
         text = (skills_root() / name / "SKILL.md").read_text(encoding="utf-8")
         assert "**Specialisation.**" in text, f"{name}: missing specialisation header"
         assert "\ngate: " in text, f"{name}: missing gate: frontmatter"
         assert "do not reconcile" in text, f"{name}: missing the no-reconcile rule"
+
+
+def test_the_working_rules_ship_as_one_skill_carrying_the_three_new_rules():
+    """S-0067/D-3: the working rules live once, at `skills/working-rules/`, so a
+    sandbox takes them as equipment and a session reads them through its skill
+    root. S-0067/D-6, S-0067/D-7 and S-0067/D-8 are the lines only this text
+    carries — the scope's test file, the changelog, and a test that shares the
+    machine."""
+
+    text = (skills_root() / "working-rules" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "working-rules" in available()
+    assert "A scope naming a module names that module's test file" in text
+    assert "A scope never names the changelog" in text
+    assert "A test may not assume it is the only one on the machine" in text
+    # The contract still governs, wherever the rules are read from.
+    assert "Nothing here outranks the contract" in text
+
+
+def test_every_role_that_runs_a_contract_declares_the_working_rules():
+    """S-0067/D-3: declared equipment on the roles that need it — all three,
+    because all three are dispatched against a contract by `build_prompt`."""
+
+    from torve.config.agents import role_skills
+
+    declared = role_skills(Path(__file__).resolve().parents[1])
+
+    for role in ("implement", "review", "revert"):
+        assert "working-rules" in declared.get(role, []), role
 
 
 def test_no_shipped_skill_is_byte_identical_to_upstream():

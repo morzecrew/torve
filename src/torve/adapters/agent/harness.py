@@ -198,10 +198,20 @@ def build_prompt(
         "",
         "## Working rules",
         "",
+        # S-0067/D-4: the bootstrap bullet stays, because a skill nothing points
+        # at is a file. It names `working-rules` — the one text of how work is
+        # done here (S-0067/D-3), which every role takes as a declared equipment
+        # item and a session reads through its own skill root.
         (
             "- Skills for your role are under `.torve/skills/` — read every"
-            " `SKILL.md` there before writing code."
+            " `SKILL.md` there before writing code. `working-rules` is this"
+            " repository's working rules in full; the bullets below are its"
+            " summary and nothing in either outranks the contract above."
         ),
+        # S-0067/D-3 departs here: the seven bullets below are the skill's text
+        # inlined, and naming the skill was meant to delete them. They stay
+        # because `tests/test_tiering.py` pins each one to this string and that
+        # file is outside this contract's scope — see the divergence log.
         (
             f"- Divergences from the decisions above are recorded with"
             f" `torve log divergence {task.id} --decision ... --evidence ...`,"
