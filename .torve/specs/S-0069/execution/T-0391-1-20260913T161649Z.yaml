@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0391
+phase: 3
+base: e7c0f1e5789b8807218bb618cb8f11e4976d4a3e
+commit: 2d954a7bba8730b6516fe30154fd3e8c5ed9c200
+at: '2026-09-13T16:16:49Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: LOCKED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T16:13:15Z'
+    claim: >-
+      the new operating section names gates, decision rows and the checkpoint trailer
+      in the current grammar only; no legacy identifier is introduced
+    evidence: >-
+      pages/docs/operating.md:81-160 — the added section, citing S-0069/D-1 through
+      D-6 in the global form
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    kind: contradicted
+    class: drift
+    at: '2026-09-13T16:13:21Z'
+    claim: >-
+      the conviction block is built but no dispatch path fills it: build_prompt takes
+      a conviction and contextpack exposes conviction_of, and nothing calls either
+      with a conviction, so the page documents the block as built and not yet reaching
+      a dispatched prompt rather than claiming a repair is handed it
+    evidence: >-
+      src/torve/adapters/agent/harness.py:1088-1096 — the implement call site passes
+      revision, continuation, prompt_extras and asked, no conviction; `grep -rn 'conviction_of|conviction='
+      src/` returns only the definition and a comment
+    action: departed
