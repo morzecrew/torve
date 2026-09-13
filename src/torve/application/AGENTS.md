@@ -805,6 +805,14 @@ The projection's live sections move to the pack, which already carries the same 
 - Paths: `src/torve/application/colocation.py`
 - Consequence: the reader who most needs contention — an attempt about to touch a contended path — keeps it, and the drift check stops judging a number nobody wrote
 
+### S-0071/D-5 — `LOCKED` (The battery costs what it costs for reasons unrelated to what it judges)
+
+A phase's acceptance commands are runnable in the environment that judges them: a sandbox has no Docker daemon, no host credentials and no operational state, so a command that reads any of those can never go green there and the contract is unlandable by construction
+
+- Paths: `.torve/specs` `src/torve/application/intake.py`
+- Consequence: an authoring mistake costs one refusal at mint instead of the poison ceiling, three attempts and their money
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

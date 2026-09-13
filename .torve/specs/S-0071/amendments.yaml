@@ -87,3 +87,42 @@ amendments:
       tag is a convenience, and the dispatch records the move. Measured across the two
       attempts either side of it: 38ccab25 to 9eab16e3, and the battery from 370.5s to
       78.4s.
+  - id: A-3
+    at: '2026-09-13T10:31:17Z'
+    title: An acceptance command runs where it is judged
+    changes:
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: LOCKED
+      - subject: D-5
+        field: paths
+        before: []
+        after: [.torve/specs, src/torve/application/intake.py]
+      - subject: D-5
+        field: fingerprint
+        after: 337119b0329223bd/7bd57b4b55104661
+    md: |
+      Found by this document's own third phase, three times in a row.
+
+      Phase 3 named `uv run torve doctor` among its acceptance commands. Doctor is a
+      report on the host the engine runs *from* — is there a daemon, is
+      `$TORVE_PG_DSN` set, do the provider credentials resolve — and a sandbox holds
+      none of that on purpose. So every attempt failed on the same two lines,
+
+          ✗ store.adapter is 'postgres' but $TORVE_PG_DSN is not set
+          ✗ runtime unavailable: [Errno 2] No such file or directory: 'docker'
+
+      neither of which the work could have changed. Three attempts, the poison
+      ceiling, and no information: the battery was right each time and the contract
+      was unsatisfiable by construction.
+
+      Phase 4 carried the same defect in a slower-acting form — `torve spec project
+      --check` is red in every sandbox until `S-0070`'s second phase moves the
+      projection's live section out of a committed file, and naming it in acceptance
+      would have made a shadow gate blocking. Both phases now accept `uv run pytest`,
+      which is what actually proves them.
+
+      The row is `LOCKED` because the cost is asymmetric and the check is cheap: an
+      author cannot feel this mistake, the lint can, and the alternative to catching it
+      at mint is catching it at the ceiling.

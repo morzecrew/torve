@@ -64,3 +64,21 @@ decisions:
       reach 80% — a real finding each time, discarded because nothing reads a shadow
       verdict
     cites: [S-0055/D-14]
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      A phase's acceptance commands are runnable in the environment that judges them:
+      a sandbox has no Docker daemon, no host credentials and no operational state,
+      so a command that reads any of those can never go green there and the contract
+      is unlandable by construction
+    paths: [.torve/specs, src/torve/application/intake.py]
+    consequence: >-
+      an authoring mistake costs one refusal at mint instead of the poison ceiling,
+      three attempts and their money
+    rationale: >-
+      T-0377 named `uv run torve doctor` in its acceptance. Doctor reports on the
+      host the engine runs from — the daemon, `$TORVE_PG_DSN`, the provider credentials
+      — and a sandbox holds none of them by design, so all three attempts failed identically
+      on two lines that had nothing to do with the work. The gate was right every
+      time and the contract could never have been satisfied
+    cites: [S-0070/D-6, S-0017/D-10]
