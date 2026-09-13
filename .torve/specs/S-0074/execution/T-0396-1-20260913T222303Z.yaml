@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0396
+phase: 1
+base: 24f93ab71237b2375d9216b9d8783d15755d8623
+commit: af61596a61ec56eddb0dadbb92239851a27caef6
+at: '2026-09-13T22:23:03Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-13T22:21:03Z'
+    claim: >-
+      The eval record gains the arm axis: BARE, GATED and CONFIGURED name the apparatus
+      an arm removes, every result row now carries which arm produced it (_arm_row),
+      and the reader rebuilds the three-arm table from the ledger alone, taking the
+      latest ledger line per task-arm pair and letting records whose arms name no
+      apparatus removal pass untouched. Phase 1 scope holds: runner and harness legs
+      of S-0074 stay for phases 2-3.
+    evidence: >-
+      src/torve/application/evals.py:164 - the reader three_arm_table rebuilds the
+      per-task table from the ledger alone, rows carrying the arm that produced them
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-13T22:21:04Z'
+    claim: >-
+      The evals.py leg of D-3 lands: the removal vocabulary exists on the record side
+      and nothing here edits a manifest or merges anything. The replay-property leg
+      lives in runner.py and is out of scope this phase.
+    evidence: >-
+      src/torve/application/evals.py:57 - the bare arm is named beside gated and configured;
+      no manifest edit carries the removal
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T22:21:05Z'
+    claim: >-
+      evals.py changed without adding a dependency edge: the new code imports json
+      (stdlib) and touches existing modules already inside the application layer;
+      import-linter layering stays satisfied.
+    evidence: >-
+      src/torve/application/evals.py:31 - the only new import is the standard library
+      json
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T22:21:05Z'
+    claim: >-
+      No identifier conversion entered evals.py: ledger identifiers remain as emitted,
+      and the new arm vocabulary is fixed strings in the module, not identifiers;
+      the identifiers.yaml conversion is untouched.
+    evidence: >-
+      src/torve/application/evals.py:57 - the vocabulary string is defined in code,
+      nothing identifier-shaped added
+    action: decided
