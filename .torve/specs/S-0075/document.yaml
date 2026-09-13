@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0075
+title: What an attempt costs, measured per changed line
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0065]
+informed_by: [S-0055, S-0063]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  A twenty-line change cost 47 round trips, 3.07M cache-read tokens and seven minutes; a four-hundred-line change cost 16k tokens a line against the small one's 153k. The record can say that only because eight traces were read by hand — the ledger cannot, the burn profile cannot, and on three of four seats the per-request curve is not measurable at all.
+motivation: |
+  Everything the engine records is about whether an attempt was *correct*: which gates fired,
+  which rows it reported on, whether it landed. Nothing it records says what an attempt
+  *cost* in the currency that is actually spent, which is round trips.
+
+  The one number that exposes the shape — cache-read tokens per changed line — is not in any
+  projection, and computing it by hand over eight traces is what produced the finding that a
+  small task pays a fixed forty-call floor before its own size matters. That reading should
+  not require a person with a parser.
+
+  The mitigations that follow from it are cheap and several are single sentences. None can be
+  judged without this.
+current_state: |
+  **The burn profile exists and is thin.** `E1` landed: it records `turns`, `tool_calls` and
+  the three heaviest turns. On these traces the heaviest turns read `output_tokens: 0`,
+  because the third-party message usage carries no output count — so the field that would
+  rank them is empty exactly where the expensive attempts are.
+
+  **The per-request curve is measurable on one seat of four.** The opus attempts carry
+  `cache_read`, `cache_creation` and `input` per message. The deepseek and qwen seats carry
+  `input_tokens` and no cache fields; only the final receipt knows the cache total, and its
+  `iterations` list — which would be the per-request record — is empty. Measured on
+  T-0394: receipt `cache_read 11,942,912`, messages `cache_read 0`, `input_tokens` summing to
+  3,936,097.
+
+  **The ledger has no denominator.** It reports cost, attempts and convictions per landing
+  — per *task*, never per unit of change — so a twenty-line task and a four-hundred-line
+  task enter the same average, and the fixed overhead that only hurts the small one is
+  invisible.
+
+  **Nothing counts what a turn was for.** Orientation, in-scope reads, edits, test runs,
+  bookkeeping: all tool calls, none classified. The 80%-not-the-work figure came from
+  reading 753 of them by hand.
+goals: |
+  The identity `cache_read ≈ N × context` has both sides measured, on every seat, and checked
+  against the receipt each time.
+
+  An attempt's shape — what its turns were for — is a set of fields rather than a reading
+  exercise.
+
+  The ledger normalises by the work, so a mitigation that helps small tasks and leaves large
+  ones alone is visible as exactly that.
+non_goals: |
+  No mitigation. This document measures; the sentences and the pack changes are elsewhere and
+  depend on it.
+
+  No new telemetry lineage. Everything here reads the stream already captured and the diffs
+  already committed.
+
+  No judgement about which seat is better. Per-seat columns exist so the comparison is
+  possible, not so it is made here.
+design:
+  - key: the-identity-is-the-instrument
+    md: |
+      Cache-read tokens are not something a model uses. They are the whole context, billed again
+      on every request:
+
+          cache_read_total  =  Σ over requests of (context at that request)
+                            ≈  N × ( prefix + accumulated results / 2 )
+
+      So the question is never why cache read is high. It is how many times the model asked, and
+      what each request carried. Both sides are recordable and only one of them is recorded
+      today, on one seat of four.
+
+      Recording it means the identity can be *checked* rather than assumed — the reconstructed
+      sum against the receipt's own total, every attempt. An attempt whose two sides disagree is
+      reported as unmeasured, which is a fact, rather than averaged in, which is a fiction.
+  - key: a-turn-has-a-purpose-and-it-can-be-named
+    md: |
+      Every tool call in a trace falls into a class a reader can name: reading the pack the
+      engine wrote, looking around, reading the files in scope, editing, running the acceptance,
+      running a lint, recording a divergence. Naming them is what turned "attempts are
+      expensive" into "thirty-two orientation calls before the first edit, and four to fifteen
+      reruns after it".
+
+      The classifier belongs in the engine because every mitigation is judged by one of its
+      classes, and a mitigation judged by a number a person recomputes by hand is a mitigation
+      nobody will keep judging. Two classes are worth calling out because they are where the
+      waste concentrated: a *rerun* — a test command differing from the previous only in output
+      filtering — and *calls per message*, which is 1.00 today across every attempt measured.
+  - key: per-line-or-the-shape-stays-hidden
+    md: |
+      The ledger divides by landed task. A twenty-line change and a four-hundred-line change
+      enter the same average, and the thing that separates them — a fixed floor of round trips
+      paid before size matters — averages away.
+
+      Dividing by changed lines is what makes the floor visible: 153k tokens a line against 16k,
+      an order of magnitude apart on the same fleet in the same week. It is also the test of every
+      mitigation that follows. A change that halves the small figure and leaves the large one
+      alone is doing exactly what it should, and no per-task number can show that.
+
+      The diff is already committed by the landing, so the denominator costs nothing to compute.
+tests: |
+  The identity is the test: for every attempt, the reconstructed per-request sum agrees with
+  the receipt's own cache-read total to within rounding, or the record says which shape was
+  used and why it could not.
+
+  The classifier is tested against a trace with a known shape — a fixture of tool calls whose
+  classes are asserted one by one, so a class silently swallowing another fails.
+
+  The per-line columns are tested where the denominator is zero: an attempt that changed
+  nothing reports no rate rather than an infinity.
+docs: |
+  The operating guide gains the identity and the per-line column, because the number is the
+  kind someone will quote without rerunning it and should be able to say what it divides by.
+out_of_scope: |
+  The mitigations themselves — the rules sentences, the pack hand-over, the prefix diet.
+
+  Compaction's contents. A `SessionStart:compact` event is recorded as an event; what the
+  summary dropped is the harness's business and torve cannot see it.
+
+  Dollar figures on third-party seats, which the provider pass already found unreliable. The
+  token and turn counts are not, and those are what this measures.
+risks: |
+  A classifier over Bash commands is a heuristic, and a wrong class is worse than no class
+  because it will be trusted. Every class here was defined by reading the calls it claims;
+  the fixture test is what keeps it honest as new commands appear.
+
+  Reconstructing the curve on third-party seats depends on `input_tokens` being the full
+  context on those routes. The sums are consistent with it and the receipt check is the
+  guard — an attempt whose reconstruction disagrees with its receipt is reported as
+  unmeasured rather than quietly wrong.
+
+  Per-line rates invite optimising the denominator. A change that lands more lines to look
+  cheaper is a real hazard, and it is why attempts-per-landing stays in the same table.
+alternatives:
+  - option: Read the traces by hand when a question comes up
+    rejected_because: >-
+      That is what produced the finding, and it took eight traces and a parser. The
+      question will come up after every mitigation, and a measurement that costs an
+      afternoon each time is a measurement nobody takes.
+  - option: Ask each harness for a per-request usage record
+    rejected_because: >-
+      Two of three do not emit one, and the third already does. Waiting on upstream
+      for a number reconstructable from what is already on disk is the slowest available
+      path to it.
+  - option: Normalise by task instead of by changed line
+    rejected_because: >-
+      That is what the ledger does now, and it is why the fixed overhead is invisible:
+      a small task and a large one enter the same average. The whole finding is that
+      the overhead is fixed, which only shows against a denominator that varies.
+questions:
+  - id: Q-1
+    text: >-
+      Is `input_tokens` on the third-party routes the full context per request, or
+      only the increment? The sums are consistent with the full context and the receipt
+      check will say so on the first attempt that carries both — but if it is the
+      increment, the reconstruction is a different arithmetic and the row should say
+      which it used.
+  - id: Q-2
+    text: >-
+      What is the right size threshold for calling a task small? The per-line figure
+      separates 153k from 16k across roughly twenty lines against four hundred, and
+      where the knee sits decides which tasks the mitigations target. It is a population
+      question the columns answer once they exist.

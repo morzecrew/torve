@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: orientation arrives with the task
+    intent: >-
+      The pack's small files go into the first message and the prompt stops telling
+      the agent to open them. `decisions.json` stays behind a read. Settles D-1.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/contextpack.py
+      - tests/test_contextpack.py
+      - tests/test_tiering.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: a narrow scope is handed over
+    intent: >-
+      Under a configured size, the in-scope contents and their tests become one pack
+      document; over it, an outline. Settles D-2, and D-3's guard is the reading of
+      it.
+    scope:
+      - src/torve/application/contextpack.py
+      - .torve/config.yaml
+      - tests/test_contextpack.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: results that stay small
+    intent: >-
+      Ranged reads asked for in the prompt, and a cap on what one command may return.
+      Settles D-4.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - .torve/harnesses
+      - tests/test_tiering.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 4
+    title: the guide says what arrives
+    intent: >-
+      `sandboxes/AGENTS.md` gains what the first message carries, so the next person
+      debugging a prompt does not look for a read that no longer happens.
+    scope: [sandboxes/AGENTS.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 1
+      - 2
+      - 3
+    character: routine

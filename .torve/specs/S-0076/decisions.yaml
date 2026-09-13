@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The pack's small deterministic files arrive in the attempt's first message rather
+      than behind a read; `decisions.json` stays behind one
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/contextpack.py
+    consequence: >-
+      seven round trips every attempt spends opening what the engine wrote become
+      zero, and the attempt starts with what the engine intended rather than with
+      what it opened first
+    rationale: >-
+      measured: the same seven files in the same order, every attempt, before any
+      work — and they are small, while `decisions.json` is 17.5 KB and often unopened
+    cites: [S-0054/D-10]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      For a scope under a configured size, the in-scope files' contents and the tests
+      `tests.json` names are delivered with the task; over it, an outline of the same
+      files is delivered instead
+    paths: [src/torve/application/contextpack.py, .torve/config.yaml]
+    consequence: >-
+      the sixteen calls a small attempt spends reading files the contract already
+      named become one read of one document
+    rationale: >-
+      the engine resolves the scope against the tree before dispatch and the lint
+      refuses a glob matching nothing, so the files are known; T-0395 spent sixteen
+      calls re-deriving two of them, reading one 900-line module twice
+    cites: [S-0054/D-11]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      The hand-over is judged by the orientation class and the landing rate together,
+      and is reverted if orientation falls while attempts per landing rises
+    paths: [src/torve/application/contextpack.py]
+    consequence: >-
+      a change that buys turns by making attempts worse is caught by the measurement
+      that motivated it rather than defended by it
+    rationale: >-
+      a model that chose what to read may understand it better than one handed a wall
+      of text; the argument cannot be settled by reasoning and both numbers exist
+      once S-0075 lands
+    cites: [S-0075/D-2]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The prompt asks for ranged reads over whole-file dumps, and the harness caps
+      what a single command may return
+    paths: [src/torve/adapters/agent/harness.py, .torve/harnesses]
+    consequence: >-
+      the context's growth term stops being set by whichever command dumped the most
+    rationale: >-
+      175 KB of `Read` and 81 KB of `Bash` results on one attempt — roughly 65k tokens
+      re-read by every later request — including a 900-line module read whole, twice,
+      for one function

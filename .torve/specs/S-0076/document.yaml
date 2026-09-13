@@ -1,0 +1,177 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0076
+title: >-
+  The attempt is handed what the engine already knows
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0075]
+informed_by: [S-0054, S-0067]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Thirty-two of a small attempt's forty-seven round trips happen before its first edit, and most of them re-derive things the engine knew before the agent started: which files are in scope, what the pack says, which tests cover them. Handing those over costs one message and removes the largest block of turns in the trace.
+motivation: |
+  The context pack is computed host-side, before the prompt is written, from the record and
+  the tree. It is deterministic, it is 22 KB, and the agent reaches it by reading files one
+  at a time — seven calls for the pack and the rules, then sixteen more to read the two files
+  the contract already named and the tests `tests.json` already lists.
+
+  Every one of those reads is a round trip: a model turn at several seconds, and the whole
+  grown context billed again. The engine is not short of the information. It is delivering it
+  in a shape that costs a turn per fact.
+
+  This is the larger half of the cost finding — the sentences in `S-0073` remove the reruns
+  and the bookkeeping tail; this removes the orientation block, which is bigger than both.
+current_state: |
+  **Orientation is a third of a small attempt.** T-0395 made a thirteen-line change and spent
+  its first thirty-two calls orienting: seven on the pack and the skills, nine looking
+  around, sixteen on the two files in scope and the tests over them — including the same
+  900-line module read twice and three `python -c` probes to see what a function returns.
+  T-0393 first edited on its thirty-eighth call.
+
+  **The pack is already the right content in the wrong shape.** `index.md`,
+  `decisions.json`, `gates.json`, `tests.json`, `attempts.json`, `contended.json` — computed
+  before the prompt, gitignored, byte-identical for a shadow replay. The prompt points at the
+  directory and the agent opens the files.
+
+  **The scope is known before the agent starts.** It is on the contract, the lint has already
+  resolved it against the tree, and `tests.json` already names the tests over it.
+
+  **Results are the growth term.** On T-0393 the tool results were 175 KB of `Read`, 81 KB of
+  `Bash` and 3 KB of `Edit` — roughly 65k tokens of context that the model itself asked for
+  and that every later request re-reads.
+goals: |
+  An attempt begins with what the engine wanted it to have, in one message, rather than with
+  whatever it happened to open first.
+
+  A narrow scope's files arrive with the task instead of being fetched one at a time.
+
+  The growth term stays bounded, so the curve's ceiling comes down without relying on
+  compaction.
+non_goals: |
+  No change to what the pack contains. `S-0054/D-10` computes it and this delivers it.
+
+  No rule about how the model should work. The sentences belong to the working rules and have
+  their own document; this changes what arrives, not what is asked for.
+
+  No compaction handling. A bounded curve makes compaction rarer; what a summary drops
+  remains the harness's business.
+design:
+  - key: the-first-message-carries-the-small-things
+    md: |
+      Seven calls open the same files in the same order every attempt: `index.md`, the skills,
+      the gates, the attempts, the config, a directory listing. They are small, they are
+      deterministic, and the engine wrote them.
+
+      They go in the first message. `decisions.json` stays behind a read because it is 17.5 KB
+      and often unopened; everything else is bytes the attempt was always going to pay for,
+      delivered once instead of fetched one round trip at a time.
+
+      The claude harness also has a `SessionStart` hook whose `additionalContext` is measured to
+      arrive before the first turn, and dsh has its persona row. Whether either is cheaper than
+      the user message is `Q-2` — the content is the same either way, and the seam is a
+      per-harness detail of the kind `S-0072` already has a shape for.
+  - key: a-narrow-scope-arrives-with-the-task
+    md: |
+      The engine resolves `scope.allow` against the tree before the agent starts — the lint does
+      it, and refuses when a glob matches nothing. `tests.json` already names the tests over
+      those paths. So for a scope of two files, sixteen calls of `cat`, `grep`, `Read` and probing
+      re-derive something the engine had in hand.
+
+      Under a size threshold, the in-scope contents and those tests go into the pack as one
+      document the prompt points at. Over it, an outline — functions, signatures, line ranges —
+      does most of the same work without the bytes, and the model reads what it needs from there.
+
+      The threshold is a config value because the honest one is a population question nobody has
+      the data to answer yet. Guessing it in a constant would freeze a number that was invented.
+  - key: the-guard-is-the-landing-rate
+    md: |
+      There is a real argument against this: a model that chose what to read may understand it
+      better than one handed a wall of text. Removing thirty turns is worthless if attempts stop
+      landing.
+
+      So the two numbers are watched together, and `S-0075` is why they can be. The orientation
+      class should fall and the landing rate should not. If orientation falls and attempts per
+      landing rises, the hand-over is a loss however good the token figure looks — and the
+      document says so now rather than after someone has to be argued out of a result.
+
+      This is also why the threshold is a knob and the hand-over is not all-or-nothing: the
+      scopes where it is most likely to help are the small ones, which is where the fixed
+      overhead hurts most.
+tests: |
+  The hand-over is tested by absence: an attempt whose scope is under the threshold has the
+  in-scope contents in its first message, and the prompt does not also tell it to go and read
+  them.
+
+  The threshold is tested at both edges — a scope just under it carries contents, one just
+  over carries an outline, and neither carries both.
+
+  The pack's determinism survives: the same base sha and record produce byte-identical first
+  messages, which is what `shadow` already asserts about the pack and must keep asserting
+  about the prompt that now contains it.
+docs: |
+  `sandboxes/AGENTS.md` gains what arrives in the first message, because the next person
+  debugging a prompt will otherwise look for a read that no longer happens.
+out_of_scope: |
+  The prefix. Thirty skills from two plugins sit in every request's catalog for tasks that
+  invoke none of them, and whether they earn it is a paired eval rather than an assertion —
+  it waits on `S-0074`'s arms.
+
+  Turn caps. Bounding a runaway orientation at a number is a backstop for a shape this
+  document is trying to change; it is worth having only if the shape does not move.
+
+  The contract's own size. Under 2.5k tokens with 26 inherited rows — the part everyone
+  assumes is the problem, measured, and it is not.
+risks: |
+  **Handing over file contents can make an attempt worse, not just cheaper.** A model that
+  reads what it chose may understand it better than one handed a wall of text it did not ask
+  for. The guard is that `S-0075`'s classes and the landing rate are watched together: fewer
+  orientation calls with more attempts per landing is a loss, and the instruments say which
+  happened.
+
+  A size threshold is a number invented before the population exists. It is deliberately a
+  config value rather than a constant, and `S-0075/Q-2` is the question that would set it
+  honestly.
+
+  The first message grows, and the first message is the cached prefix. Contents delivered
+  once and re-read every request is the same trade as the plugin catalog — worth it only if
+  it removes more reads than it adds bytes, which is exactly what the per-line column
+  measures.
+alternatives:
+  - option: >-
+      Tell the model to read the pack first, in the working rules
+    rejected_because: >-
+      It already does — seven calls, in order, every attempt. The rule is being followed
+      and the cost is the following. A sentence cannot remove a round trip that a
+      sentence is asking for.
+  - option: Put the whole pack in the first message
+    rejected_because: >-
+      22 KB in the cached prefix, re-read every request, including `decisions.json`
+      at 17.5 KB that is read once if at all. The small files are the ones opened
+      every time; the large one stays behind a read.
+  - option: >-
+      Give the agent a tool that answers scope questions
+    rejected_because: >-
+      A tool call is a round trip, which is the thing being removed. `torve mcp` already
+      serves the pack for a session that wants to ask; a sandboxed attempt with a
+      fixed scope does not need to ask.
+  - option: Raise the turn cap and accept the cost
+    rejected_because: >-
+      It is the cost, not the cap, that is the finding — 153k cache-read tokens a
+      line on a twenty-line change. A higher cap buys the same shape more expensively.
+questions:
+  - id: Q-1
+    text: >-
+      Where is the threshold between contents and an outline? Files times bytes is
+      the obvious measure and the knee is unknown until `S-0075`'s per-line column
+      exists over a population. Until then the value is a config key with a defensible
+      first guess, not a constant.
+  - id: Q-2
+    text: >-
+      Does the SessionStart hook's `additionalContext` arrive early enough to carry
+      orientation, and is it cheaper than the first user message? It is measured to
+      arrive before the first turn on claude; dsh's equivalent is the persona row,
+      and mimo has no seat to ask.

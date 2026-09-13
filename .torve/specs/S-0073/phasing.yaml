@@ -43,3 +43,21 @@ phasing:
       - uv run pytest
       - uv run mypy src
     character: structural
+  - phase: 4
+    title: the rules say how many times to ask
+    intent: >-
+      Three sentences in the skill — batch independent reads, run the acceptance once
+      as written, let the finishing check answer `log owed` — and the verb that makes
+      the third possible: `torve log divergence` taking several rows in one call.
+      Settles D-5, D-6 and D-7.
+    scope:
+      - skills/working-rules/SKILL.md
+      - src/torve/cli/log.py
+      - tests/test_log.py
+      - tests/test_skills.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural

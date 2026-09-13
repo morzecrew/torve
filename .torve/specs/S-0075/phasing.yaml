@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the curve, on every seat
+    intent: >-
+      Per-request context recorded where the harness reports it and reconstructed
+      where it does not, with the shape named and the sum checked against the receipt.
+      Settles D-1.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/telemetry.py
+      - tests/test_attempt_record.py
+      - tests/test_tiering.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: a turn has a purpose
+    intent: >-
+      The burn profile gains the classifier and the counts that go with it — calls
+      before the first edit, reruns, calls per message, bytes by class, compaction.
+      Settles D-2 and D-4.
+    scope: [src/torve/application/telemetry.py, tests/test_attempt_record.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: per changed line
+    intent: >-
+      The ledger divides by the work as well as by the task, from the diff the landing
+      already commits. Settles D-3.
+    scope:
+      - src/torve/application/ledger.py
+      - src/torve/cli/ledger.py
+      - tests/test_ledger.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: the guide says what the number divides by
+    intent: >-
+      The operating guide gains the identity and the per-line column. Written from
+      the landing records once the columns exist.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 3
+    character: routine

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/document.json
 id: S-0073
 title: >-
-  The working rules live once, and the receipt is read
+  The working rules live once, and say what an attempt costs
 kind: design
 status: draft
 implementation: none
@@ -12,7 +12,7 @@ superseded_by: null
 owner: Lev Litvinov
 schema_version: 4
 summary: |
-  S-0067 gave the working rules one source and the seven bullets stayed inlined anyway, because the test pinning them sat outside the phase's scope — so the drift that document exists to remove is still in the prompt. The same change moves what survives to system position, and reads three receipt fields that have been on disk unparsed all along.
+  S-0067 gave the working rules one source and the seven bullets stayed inlined anyway, because the test pinning them sat outside the phase's scope. The same change moves what survives to system position, reads three receipt fields already on disk, and adds the three lines the traces say would remove most of a small attempt's round trips.
 motivation: |
   `S-0067/D-3` said the working rules live once. T-0385 landed the skill, the equipment
   declarations and the symlink, and then recorded a departure: the seven bullets could not
@@ -27,6 +27,14 @@ motivation: |
 
   Separately and cheaply: three fields the claude receipt has always carried have never
   been read. One of them answers a question the register has been holding open.
+
+  And a third thing, measured after the first two were written. Eight traces carrying 753
+  tool calls say a small attempt spends roughly four round trips in five on something other
+  than the work: orientation before the first edit, four to fifteen full-suite reruns, and
+  four to fourteen bookkeeping calls. Because the model issues one call per turn at several
+  seconds each, those round trips are the wall clock, and multiplied by a context that grows
+  past 90k they are the cache-read bill. Three of the cheapest remedies are sentences, and
+  this is the document that owns the sentences.
 current_state: |
   **The bullets are still in the prompt.** `harness.py` carries the departure in a
   comment — "the seven bullets below are the skill's text inlined, and naming the skill
@@ -44,12 +52,27 @@ current_state: |
   — `spawned: 0` and `max_depth: 0`, 55 of 55 — while `num_turns` runs to a median of 38,
   p90 83 and a maximum of 113. Three permission denials are recorded, all of them this
   repository's own guard refusing: a `Write` outside scope and two read-only MCP surfaces.
+
+  **The model never batches, and the harness would let it.** Across 753 tool calls in eight
+  attempts, every message carried exactly one — `{1: 753}`, no exceptions. The harness
+  executes several from one message; nothing has ever asked the model to send two.
+
+  **The acceptance is run until its output can be read.** Four to fifteen `pytest`
+  invocations per attempt, most of them the same command with a different filter — a `tail`,
+  a `grep`, a `tr` to strip carriage returns — none of which changed the verdict. The
+  contract names `uv run pytest` and leaves the model to invent a quiet form.
+
+  **Bookkeeping is one round trip per row.** Four to fourteen calls per attempt: `log owed`,
+  a `--help`, one `log divergence` per governed row, `log owed` again. The finishing check
+  the hook already runs answers the last of those.
 goals: |
   One copy of the working rules, in the place a harness reads first.
 
   Three fields recorded because they are already being sent, at the cost of parsing them.
 
   The fan-out question answered from the record rather than carried as an open item.
+
+  A small attempt stops paying a fixed forty-call floor before its own size matters.
 non_goals: |
   No change to what the rules say. The skill's text is the text; this moves it and deletes
   its duplicate.
@@ -59,6 +82,9 @@ non_goals: |
 
   No `R6` battery staging. The ordering half landed with S-0071 and the exit-early half was
   tried and reverted under T-0234; neither belongs here.
+
+  No pack or prompt change. Handing the attempt what the engine already knows is the larger
+  half of the same finding and has its own document; this one is the sentences.
 design:
   - key: the-deletion-needs-the-test-in-scope
     md: |
@@ -92,6 +118,24 @@ design:
       answered, and the item closes rather than shipping a cap on a behaviour nobody has seen.
       What remains is worth recording because an attempt at 113 turns and an attempt at 12 are
       not the same attempt, and the record currently cannot tell them apart.
+  - key: three-sentences-and-a-flag
+    md: |
+      The rules the traces ask for are short, and each is judged by a class the burn profile
+      counts:
+
+          issue independent reads and greps in one message — the harness runs them
+          together, and nothing has ever sent two.                      (ratio: 1.00 today)
+
+          run the acceptance commands as written, once, after your edits; the battery
+          runs them again outside the session.                           (4-15 runs today)
+
+          `torve log owed` is answered by the finishing check before you stop; record
+          every divergence in one call.                                  (4-14 calls today)
+
+      The third needs a verb that can take several rows at once, which is the one piece of code
+      in this document's share of the finding. The other two are sentences in a file that now
+      has exactly one copy — which is what the first two phases of this document are for, and
+      why the sentences belong here rather than anywhere else.
 tests: |
   The deletion is tested by the property, not the string: `build_prompt`'s output names the
   skill and does not restate it, so a bullet added back to the prompt fails rather than
@@ -125,6 +169,15 @@ risks: |
 
   Three fields recorded is three fields someone may start deciding on. `subagent_stats`
   being zero is a fact about how the agent has behaved, not a cap that has been enforced.
+
+  A rule that asks for fewer calls can buy fewer reads and worse work. The guard is that
+  every line here is judged by a class the burn profile counts and by whether landings stay
+  green — a batching ratio that moves while attempts-per-landing rises is a loss, and the
+  instruments say which happened.
+
+  `M7` may simply not work. A ratio of 1.00 across 753 calls could be the models rather than
+  the absence of a rule, and one line is the cheapest possible way to find out. If it does
+  not move, that is worth knowing about the fleet rather than about the sentence.
 alternatives:
   - option: >-
       Edit `tests/test_tiering.py` from the original phase

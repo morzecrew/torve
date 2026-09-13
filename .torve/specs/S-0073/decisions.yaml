@@ -56,3 +56,46 @@ decisions:
       55 receipts carrying `subagent_stats`, every one `spawned: 0` and `max_depth:
       0`. The register's own condition was that zero closes the question
     cites: [S-0063/D-10]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The working rules ask for independent reads and greps in one message, because
+      the harness executes several tool calls from one and nothing has ever sent two
+    paths: [skills/working-rules/**]
+    consequence: >-
+      the round trips a small attempt spends orienting fall without any read being
+      given up
+    rationale: >-
+      753 tool calls across eight attempts, every message carrying exactly one — `{1:
+      753}`. One sentence is the cheapest possible test of whether that is the models
+      or the absence of a rule, and the burn profile's calls-per-message counts the
+      answer directly
+    cites: [S-0067/D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A contract's acceptance commands carry their own quiet form, and the working
+      rules ask for them to be run as written, once, after the edits
+    paths: [skills/working-rules/**, .torve/specs]
+    consequence: >-
+      the model stops inventing output filters for a command the engine could have
+      spelled, and the suite runs twice rather than a dozen times
+    rationale: >-
+      four to fifteen `pytest` invocations per attempt, most of them the same command
+      with a different `tail`, `grep` or `tr` — none of which changed a verdict. The
+      battery re-runs the acceptance outside the session regardless, so the in-session
+      runs are for the model's own confidence and one is enough
+    cites: [S-0030/D-4]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `torve log divergence` records several rows in one invocation, and the working
+      rules say the finishing check answers `log owed` before a stop
+    paths: [src/torve/cli/log.py, skills/working-rules/**]
+    consequence: >-
+      the bookkeeping tail becomes one round trip instead of one per governed row
+    rationale: >-
+      four to fourteen bookkeeping calls per attempt — `log owed`, a `--help`, one
+      `log divergence` per row, `log owed` again — and the Stop hook S-0066/D-5 declared
+      already blocks a finish that still owes an entry
+    cites: [S-0066/D-5]
