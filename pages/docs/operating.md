@@ -71,6 +71,11 @@ And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
 
+What the record derives reaches its reader through the pack or through a verb
+— never through a committed file a gate diffs against a fresh render. A
+committed artefact is a function of committed inputs: if a clean clone renders
+it differently, it does not belong in one (S-0070/D-1, LOCKED).
+
 ## What each rate counts
 
 `torve ledger` reads the attempt stream and divides it, printing per seat

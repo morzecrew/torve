@@ -1,3 +1,5 @@
+A committed file is a function of committed inputs: what the record derives — a count, a rate, a recent history — reaches its reader through the pack or through a verb, never through a file a gate diffs against a fresh render, because a clean clone must render the committed half identically or the drift check judges a number nobody wrote (S-0070/D-1, LOCKED).
+
 <!-- torve:managed sandboxes — rendered from the corpus; do not edit by hand -->
 
 ## Decisions governing `sandboxes/`
