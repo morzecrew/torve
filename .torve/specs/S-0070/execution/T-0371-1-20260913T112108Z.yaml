@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0371
+phase: 2
+base: 8330b62a8bd46bc0e08fa29e2c83e129d4137c49
+commit: 349d2c84553ad1bb04bee42060ca5f0a68af4635
+at: '2026-09-13T11:21:08Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0054/D-6
+    grade: LOCKED
+  - id: S-0054/D-8
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-8
+    grade: ASSUMED
+  - id: S-0057/D-12
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+  - id: S-0059/D-8
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-13T11:18:56Z'
+    claim: >-
+      The managed section is now a function of the corpus alone: the 'Contended now'
+      block, the one input read from the uncommitted telemetry stream, is gone, so
+      a committed AGENTS.md renders identically on a laptop, in a sandbox and in a
+      clean clone. Complied with; recorded as the close-out this row owes.
+    evidence: >-
+      src/torve/application/colocation.py:207-270 — render_section no longer takes
+      or renders contention; compute passes only the corpus-derived rows and invariants
+    action: decided
+  - decision: S-0054/D-6
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-09-13T11:19:10Z'
+    claim: >-
+      The section still renders rows with grade, text, consequence, check and state,
+      the invariants, and the root index, so this row is satisfied in every part but
+      one: its text also lists 'contended paths', which the contract's own newer LOCKED
+      row S-0070/D-1 forbids, contention being read from the gitignored telemetry
+      stream. Not a halt — the contract instructs the removal and names the later
+      row; the older row's wording is what is owed an amendment.
+    evidence: >-
+      src/torve/cli/AGENTS.md:22 — the projected row still says 'invariants; contended
+      paths'; src/torve/application/colocation.py:178 keeps contended_paths for the
+      pack's reader only
+    action: decided
+    proposal: >-
+      LOCKED — drop 'contended paths' from the row's list of what a managed section
+      carries: the section names rows with grade, text, consequence, check and state,
+      and the invariants holding over the directory. Contention reaches the reader
+      through the pack.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T11:19:16Z'
+    claim: >-
+      The change stays inside the application layer and adds no import: a function's
+      parameter was dropped and a rendering branch deleted. The layer contracts hold.
+    evidence: >-
+      `uv run lint-imports` — 'Contracts: 5 kept, 0 broken.'
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T11:19:16Z'
+    claim: >-
+      Every identifier written or kept is in the current grammar: the new comments
+      and docstrings cite S-0070/D-1, S-0070/D-2 and S-0070/D-4, and the existing
+      S-0054 and S-0015 coordinates were left as they stand. No legacy identifier
+      is introduced.
+    evidence: >-
+      src/torve/application/colocation.py:1-23 — the module docstring's coordinates
+      are S-0054/D-6, S-0054/D-7, S-0054/D-8, S-0070/D-1, S-0070/D-2 and S-0015/D-1
+    action: decided
