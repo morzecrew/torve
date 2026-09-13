@@ -123,7 +123,16 @@ def build_prompt(
     prompt_extras: str = "",
     asked: str = "",
     conviction: dict[str, Any] | None = None,
+    bare: bool = False,
 ) -> str:
+    if bare:
+        # S-0074/D-2: the fourth mode, pointed the other way — the base arm's
+        # prompt carries the task's intent and nothing else: no inherited rows,
+        # no context pack, no working rules, no scope or acceptance. The
+        # absence is the point, asserted directly rather than read back out of
+        # a transcript.
+        return "\n".join([f"# Torve task {task.id}", "", task.intent.strip() if task.intent else ""])
+
     lines: list[str] = [f"# Torve task {task.id}", ""]
 
     if continuation:

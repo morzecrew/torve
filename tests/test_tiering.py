@@ -439,6 +439,35 @@ def test_prompt_extras_are_absent_by_default():
     assert "house voice" not in build_prompt(Task(id="T-1", decisions=[]))
 
 
+def test_bare_prompt_carries_the_intent_and_nothing_else():
+    """S-0074/D-2: the fourth mode asserts the absence directly — the bare
+    arm's prompt is the task's intent and nothing else: no inherited rows,
+    no context pack, no working rules, no scope, no acceptance."""
+    task = Task(
+        id="T-1",
+        intent="Make the widget idempotent.",
+        scope=Scope(allow=["src/**"]),
+        acceptance=["pytest -q"],
+        decisions=[
+            InheritedDecision(
+                id="D-9", grade="LOCKED", text="Widgets are idempotent", paths=["src/widget.py"]
+            )
+        ],
+    )
+
+    for prompt in (
+        build_prompt(task, bare=True),
+        build_prompt(task, bare=True, revision=True, continuation=True),  # bare wins
+    ):
+        assert "Make the widget idempotent." in prompt
+        assert "## Decisions" not in prompt
+        assert "## Scope" not in prompt
+        assert "## Acceptance" not in prompt
+        assert "## Working rules" not in prompt
+        assert ".torve/context/index.md" not in prompt
+        assert ".torve/skills/" not in prompt
+
+
 def test_prompt_extras_follow_the_charters_base_working_rules():
     """S-0029/D-1: extras append after the base rules — never before, and the
     base rules are present regardless."""
