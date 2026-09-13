@@ -76,6 +76,16 @@ SPEC_DRIFT_FINDINGS_LIMIT = 10
 
 # ....................... #
 
+# S-0065/D-7: three readers counted landings and disagreed — the record's
+# `landing.recorded` events (263), the lane's `lane_landed` telemetry (49)
+# and the landing files in the tree (58). The landing files are the
+# carrier, and these two functions are how it is read. A landing file is
+# only in the tree at this base because the commit carrying it landed
+# here, so the file answers "did this task land" with no store, no
+# telemetry and no git; the record's events are already minted from these
+# same files by `decisions.landing_events`, and the lane's event is
+# reconciled against them at the landing rather than tallied beside them.
+
 
 def shipped_landings(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
     """Task id to the commit that landed it, from the landings the tree
@@ -94,7 +104,8 @@ def shipped_landings(root: Path, spec_dir: Path | None = None) -> dict[str, str]
 
 
 def shipped_ids(root: Path, spec_dir: Path | None = None) -> set[str]:
-    """Task ids the tree records as landed, with or without a commit."""
+    """Task ids the tree records as landed, with or without a commit — the
+    denominator every rate is divided by, whichever reader asks."""
 
     from torve.application.decisions import landed_task_ids
 

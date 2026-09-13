@@ -125,6 +125,30 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
 # ....................... #
 
 
+def _carried(root: Path, task_id: str) -> bool:
+    """Does the carrier hold this landing? (S-0065/D-7.)
+
+    The landing files in the tree are the one count the ledger divides by;
+    the lane's `lane_landed` is an event about what the lane did, not a
+    second tally, so it is stamped with the carrier's answer at the moment
+    the merge produced this tree. A landing the carrier does not hold —
+    an attempt whose execution file was never written, work a human landed
+    by hand — is then visible as a disagreement rather than as a quietly
+    different number.
+
+    Read at the default corpus path: the lane takes no configuration, and
+    a repository that moved it reads `false` rather than opening a second
+    count of its own.
+    """
+
+    from torve.application.projections import shipped_ids
+
+    return task_id in shipped_ids(root)
+
+
+# ....................... #
+
+
 def _engine_record(root: Path, rel: str) -> bool:
     """The store's files are records, not landed content: the landing is
     measured from the candidate's committed tree, never composed from the
@@ -510,7 +534,13 @@ def _land_fast_forward(
     engine_event(
         root,
         "lane_landed",
-        {"task": task_id, "mode": "fast-forward", "sha": sha, "approver": approver},
+        {
+            "task": task_id,
+            "mode": "fast-forward",
+            "sha": sha,
+            "approver": approver,
+            "carried": _carried(root, task_id),
+        },
     )
 
     results.append(LaneResult(task_id, branch, "landed", "fast-forward", sha))
@@ -602,7 +632,15 @@ def _land_rebased(
     sha = vcs.merge_ff(root, branch)
 
     engine_event(
-        root, "lane_landed", {"task": task_id, "mode": "rebased", "sha": sha, "approver": approver}
+        root,
+        "lane_landed",
+        {
+            "task": task_id,
+            "mode": "rebased",
+            "sha": sha,
+            "approver": approver,
+            "carried": _carried(root, task_id),
+        },
     )
 
     results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha))

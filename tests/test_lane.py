@@ -85,6 +85,38 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     assert all(r["approver"] == "Lane Operator" for r in landed)
 
 
+def test_the_lane_event_is_reconciled_against_the_landing_files(lane_repo):
+    # S-0065/D-7: the landing files in the tree are the carrier the ledger
+    # divides by, and the lane's own event is stamped with the carrier's
+    # verdict rather than counted beside it. A landing the carrier does not
+    # hold then reads as a disagreement instead of a second, different,
+    # number.
+    candidate(lane_repo, "T-7010", "ten.py", "ten = 10\n")
+    candidate(lane_repo, "T-7011", "eleven.py", "eleven = 11\n")
+    # Only T-7011's branch carries a landing file.
+    git(lane_repo, "checkout", "-q", naming.branch("T-7011"))
+    execution = lane_repo / ".torve" / "execution"
+    execution.mkdir(parents=True, exist_ok=True)
+    (execution / "T-7011-1-20260101T000000Z.yaml").write_text(
+        "task: T-7011\nattempt: 1\nat: '2026-01-01T00:00:00Z'\n", encoding="utf-8"
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "landing (T-7011)")
+    git(lane_repo, "checkout", "-q", "main")
+
+    results = process_lane(lane_repo, GitLane())
+    assert [r.action for r in results] == ["landed", "landed"]
+
+    records = [
+        json.loads(line)
+        for line in (lane_repo / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    landed = {r["task"]: r for r in records if r.get("event") == "lane_landed"}
+    # The fast-forward landed no landing file; the rebased one did.
+    assert landed["T-7010"]["mode"] == "fast-forward" and landed["T-7010"]["carried"] is False
+    assert landed["T-7011"]["mode"] == "rebased" and landed["T-7011"]["carried"] is True
+
+
 def test_a_conflict_escalates_the_run_and_leaves_the_branch_for_a_human(lane_repo):
     candidate(lane_repo, "T-7003", "app.py", "candidate = 3\n")
     # The base moves under the candidate, touching the same line.
