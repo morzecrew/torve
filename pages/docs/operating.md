@@ -141,6 +141,18 @@ per conviction — the pair that says whether a gate is worth what it costs
 to run, over the same counted attempts, so a gate's time follows every
 exclusion above.
 
+Per-gate wall times break mid-record, where this repository's own suite
+went parallel (S-0071/D-1). Two of the thirteen gates run it — `acceptance`
+and `coverage-delta`, 98% of all gate wall time — and both spell the
+command `uv run pytest` while neither names a worker count, so the count
+lives in the project's `addopts`: `-n auto`, one worker per core the
+container can see — the host's sixteen today, because no CPU limit is set
+on the sandbox. Measured on that machine: the suite from 128s serial to 30s
+under `-n 8`, the pair from 267s to about 61s per battery. A wall time
+from before that break is not the same gate's reading from after it.
+`uv run pytest -n 0` still buys a serial run, and on a shared runner a
+declared count beats whatever `auto` takes there.
+
 Two absences print as absences. A seat whose provider carries no price —
 a subscription seat genuinely has no per-token cost — reports `unreported`,
 never zero (S-0064/D-12), because a zero averages; a rate with nothing to
