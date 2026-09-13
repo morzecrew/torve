@@ -39,6 +39,11 @@ dev = [
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
     "pytest-timeout>=2.3",
+    # Makes parallel test execution available to the two gates that run the
+    # suite (S-0071/D-1). Dev-only like pytest-timeout: how this repository
+    # runs its own tests is no concern of a consumer. This phase installs it
+    # and nothing more — `addopts` still carries no worker count.
+    "pytest-xdist>=3",
     "ruff>=0.6",
     "types-pyyaml>=6.0.12",
     "yoyo-migrations>=9",
