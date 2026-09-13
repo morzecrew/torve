@@ -3,8 +3,10 @@ gets a managed section, an ungoverned one none; the operator's text outside
 the markers is byte-identical after a rewrite; a hand edit inside the
 markers is drift named by file; the root index lists every directory with
 a section; removing the last governing row removes the section and an
-otherwise-empty file. This test file is also the sabotage twin of the
-`spec-projection` gate: the drift case is what reddens it."""
+otherwise-empty file; and the render is a pure function of the corpus, so
+a telemetry stream present or absent produces the same bytes (S-0070/D-4).
+This test file is also the sabotage twin of the `spec-projection` gate:
+the drift case is what reddens it."""
 
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ from typer.testing import CliRunner
 
 from torve.application.colocation import (
     MARK_CLOSE,
+    compute,
+    contended_paths,
     directory_of,
     governed_directories,
     project,
@@ -23,6 +27,7 @@ from torve.application.colocation import (
     strip_section,
     superseded_rows,
 )
+from torve.application.specquality import telemetry_file
 from torve.cli import app
 from torve.config.spec import load_corpus
 
@@ -242,3 +247,42 @@ def test_a_superseded_row_leaves_the_section_to_its_replacement(tmp_path: Path) 
 
     assert "The rule that replaced it" in section
     assert "The old rule" not in section
+
+
+# ....................... #
+# A committed artefact is a function of committed inputs
+
+
+def test_a_telemetry_stream_present_or_absent_renders_the_same_bytes(tmp_path: Path) -> None:
+    """The section used to carry a "Contended now" block read from the
+    telemetry stream — uncommitted, gitignored and machine-local, so the
+    same corpus rendered on two machines produced two files and the drift
+    check judged a number nobody wrote. The facts still reach the reader
+    through the pack's `contended.json` (S-0070/D-2)."""
+
+    rfc_dir = _seed(tmp_path)
+
+    without = compute(tmp_path, rfc_dir).sections
+
+    stream = telemetry_file(tmp_path)
+    stream.parent.mkdir(parents=True, exist_ok=True)
+    stream.write_text(
+        "".join(
+            json.dumps({"event": "blocked_dispatch", "path": path}) + "\n"
+            for path in ("src/torve/cli/**", "src/torve/cli/**", "src/torve/gates/x.py")
+        ),
+        encoding="utf-8",
+    )
+
+    # the stream really does contend over governed directories, so an equal
+    # render is the property and not an empty read
+    assert contended_paths(tmp_path) == {"src/torve/cli/**": 2, "src/torve/gates/x.py": 1}
+    assert compute(tmp_path, rfc_dir).sections == without
+
+    project(tmp_path, rfc_dir)
+
+    assert project(tmp_path, rfc_dir, check=True).ok
+
+    stream.unlink()
+
+    assert project(tmp_path, rfc_dir, check=True).ok

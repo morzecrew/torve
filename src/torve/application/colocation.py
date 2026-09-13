@@ -1,10 +1,16 @@
 """The projections beside the code (S-0054/the-projections-beside-the-code, S-0054/D-6, S-0054/D-7): for
 every directory a standing row's paths or an accepted document's phase
 scope names, a managed section in that directory's `AGENTS.md` carrying
-the rows with their grade, consequence, check and state, the invariants
-holding over it, and the paths other work is contending for; plus a root
-index of governed directories, because a harness that loads nested files
-lazily should know a rule is waiting before it opens the subtree.
+the rows with their grade, consequence, check and state and the invariants
+holding over it; plus a root index of governed directories, because a
+harness that loads nested files lazily should know a rule is waiting
+before it opens the subtree.
+
+The section is a function of the corpus alone (S-0070/D-1, S-0070/D-2):
+contention is live, uncommitted and machine-local, so it reaches the
+reader who needs it through the pack (`contended.json`, built from
+`contended_paths` below) and never through a file a gate diffs against a
+fresh render.
 
 Rendered, never edited: text outside the markers is the operator's and is
 never touched; a hand edit inside them is drift, which `--check` names by
@@ -12,9 +18,8 @@ file. Rows, invariants, checks, tests and warnings only — never an
 overview (S-0054/D-8): the one controlled study of context files found
 generated overviews cost and did not help, and rules did.
 
-Application code (S-0015/D-1): reads the model through the loader and the
-telemetry stream for contention, writes files under the repository root.
-Nothing here reaches the record.
+Application code (S-0015/D-1): reads the model through the loader, writes
+files under the repository root. Nothing here reaches the record.
 """
 
 from __future__ import annotations
@@ -177,7 +182,8 @@ def superseded_rows(corpus: Corpus) -> list[str]:
 
 def contended_paths(root: Path) -> dict[str, int]:
     """Paths blocked dispatches collided on in the telemetry stream's last
-    rows — the same read the drafter's execution facts make."""
+    rows — the same read the drafter's execution facts make. Read by the
+    pack, never by a rendered section (S-0070/D-2)."""
 
     stream = telemetry_file(root)
 
@@ -208,10 +214,10 @@ def render_section(
     where: str,
     rows: list[tuple[Document, Decision]],
     invariants: list[tuple[Document, Invariant]],
-    contended: dict[str, int],
 ) -> str:
-    """One directory's managed section. Rows, invariants, checks and
-    warnings; no prose beyond the row's own text and consequence."""
+    """One directory's managed section, a function of the corpus and nothing
+    else. Rows, invariants, checks and warnings; no prose beyond the row's
+    own text and consequence."""
 
     label = "the repository root" if where == "." else f"`{where}/`"
     lines = [MARK_OPEN.format(where=where if where != "." else "root"), ""]
@@ -248,20 +254,6 @@ def render_section(
             lines.append("  - Paths: " + " ".join(f"`{p}`" for p in invariant.paths))
             lines.append(f"  - Check: `{invariant.check}`")
 
-        lines.append("")
-
-    here = {
-        path: count
-        for path, count in contended.items()
-        if directory_of(path) == where or (where != "." and path.startswith(where + "/"))
-    }
-
-    if here:
-        lines += ["## Contended now", ""]
-        lines += [
-            f"- `{path}` — {count} blocked dispatch(es) in the last {CONTENTION_WINDOW} attempts"
-            for path, count in sorted(here.items(), key=lambda kv: -kv[1])
-        ]
         lines.append("")
 
     lines.append(MARK_CLOSE)
@@ -359,13 +351,10 @@ def compute(root: Path, rfc_dir: Path) -> Projection:
 
     corpus = load_corpus(rfc_dir)
     governed = governed_directories(corpus, root, rfc_dir)
-    contended = contended_paths(root)
     projection = Projection()
 
     for where, rows in governed.items():
-        projection.sections[where] = render_section(
-            where, rows, invariants_over(corpus, where), contended
-        )
+        projection.sections[where] = render_section(where, rows, invariants_over(corpus, where))
 
     counts = {where: len(rows) for where, rows in governed.items()}
     root_section = projection.sections.get(".", "")
