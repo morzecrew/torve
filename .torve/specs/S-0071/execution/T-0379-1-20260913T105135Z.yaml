@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0379
+phase: 5
+base: 73d55c8d112621a1e5217c71ee8633265e8e8854
+commit: 874716026d6370762d0f689b7172cd6d5c228ea6
+at: '2026-09-13T10:51:35Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-5
+    grade: LOCKED
+  - id: S-0054/D-15
+    grade: ASSUMED
+  - id: S-0054/D-16
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-20
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-45
+    grade: ASSUMED
+  - id: S-0055/D-46
+    grade: ASSUMED
+  - id: S-0055/D-47
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-11
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0060/D-5
+    grade: LOCKED
+entries:
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-13T10:49:46Z'
+    claim: >-
+      the lint now refuses an acceptance command that reads the host, sibling to the
+      git refusal: a torve verb outside the tree-only allow-list, or a direct container-runtime
+      call
+    evidence: >-
+      src/torve/application/intake.py:215-244 — _needs_host and TREE_ONLY_VERBS; src/torve/application/intake.py:353-361
+      is the refusal it raises
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T10:49:54Z'
+    claim: >-
+      the change stays inside the application layer and adds no import: _needs_host
+      is a pure function over shell words beside _needs_git
+    evidence: >-
+      src/torve/application/intake.py:215-244 — the new code imports nothing
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T10:49:55Z'
+    claim: >-
+      every coordinate the change writes is in the current form: S-0071/D-5 in the
+      code comments, no legacy identifier anywhere
+    evidence: >-
+      src/torve/application/intake.py:211-222 — the comment and docstring cite S-0071/D-5
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-09-13T10:49:55Z'
+    claim: >-
+      no contract key is read or written; the change is confined to the acceptance-command
+      lint, and spec is left as the word naming a document
+    evidence: >-
+      src/torve/application/intake.py:353-361 — the refusal reads draft.acceptance
+      only
+    action: decided
+  - decision: S-0060/D-5
+    grade: LOCKED
+    at: '2026-09-13T10:49:56Z'
+    claim: >-
+      the source recorded on a drafting run is untouched; the lint refuses a command
+      before adoption and copies nothing
+    evidence: >-
+      src/torve/application/intake.py:342-361 — the acceptance loop sets no field
+    action: decided
