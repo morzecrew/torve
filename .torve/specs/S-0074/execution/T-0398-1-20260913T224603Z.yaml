@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0398
+phase: 3
+base: 2054ff0ab018e9fb5b0acfb24519dab15092f2f7
+commit: c5be194eebf2fef243325b850c93ea408048d265
+at: '2026-09-13T22:46:03Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0054/D-12
+    grade: ASSUMED
+  - id: S-0055/D-1
+    grade: LOCKED
+  - id: S-0055/D-2
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-40
+    grade: ASSUMED
+  - id: S-0055/D-51
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0057/D-7
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-9
+    grade: LOCKED
+  - id: S-0059/D-10
+    grade: LOCKED
+  - id: S-0065/D-6
+    grade: ASSUMED
+  - id: S-0069/D-3
+    grade: ASSUMED
+  - id: S-0069/D-4
+    grade: ASSUMED
+  - id: S-0069/D-5
+    grade: ASSUMED
+  - id: S-0069/D-6
+    grade: LOCKED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-13T22:42:54Z'
+    claim: >-
+      the bare replay carries its arm name on the record (the eval annotation), so
+      the three-arm reading stays rebuildable from the ledger alone
+    evidence: >-
+      src/torve/application/evals.py:384 — run_bare_shadow carries the arm as an eval
+      property on the replay record
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-13T22:43:01Z'
+    claim: >-
+      the battery's removal is a property of the replay: a bare flag on real_hooks
+      swaps the gate pass for one that runs nothing, and the manifest every other
+      attempt is judged by is never edited; a bare arm still merges nothing through
+      the shadow land no-op
+    evidence: >-
+      src/torve/application/runner.py:607-620 — _bare_gates returns green from the
+      unchanged manifest's digest
+    action: decided
+  - decision: S-0055/D-1
+    grade: LOCKED
+    at: '2026-09-13T22:43:01Z'
+    claim: >-
+      the bare pass still executes the loop's transitions from facts — the agent's
+      exit code, not anything a model reported; the green path is unchanged
+    evidence: >-
+      src/torve/application/runner.py:607 — the bare gate pass returns a fact, never
+      an agent-reported outcome
+    action: decided
+  - decision: S-0055/D-2
+    grade: LOCKED
+    at: '2026-09-13T22:43:02Z'
+    claim: >-
+      gates still execute outside the agent session; the bare removal is a property
+      of the replay chosen by the runner, and an agent still cannot report a gate
+      outcome
+    evidence: >-
+      src/torve/application/runner.py:960 — the bare flag swaps the gate hook, never
+      the agent's power to judge
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T22:43:02Z'
+    claim: >-
+      layering held: the bare replay driver imports runner hook machinery, both application
+      layer; lint-imports keeps all five contracts
+    evidence: >-
+      src/torve/application/evals.py:38 — the new import is application-to-application,
+      no layer crossed
+    action: decided
+  - decision: S-0057/D-7
+    grade: LOCKED
+    at: '2026-09-13T22:43:08Z'
+    claim: >-
+      the landing record is untouched: the bare replay's land hook records the nothing-merged
+      fact and writes no execution document
+    evidence: >-
+      src/torve/application/evals.py:446-451 — the shared land no-op records a fact
+      and lands nowhere
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T22:43:09Z'
+    claim: >-
+      no legacy or corpus identifiers enter any user-facing string; new text carries
+      comment citations only
+    evidence: >-
+      src/torve/application/runner.py:924 — the refusal string names a rule, no D-x.y
+    action: decided
+  - decision: S-0059/D-9
+    grade: LOCKED
+    at: '2026-09-13T22:43:09Z'
+    claim: >-
+      the two-commit landing is untouched: the bare replay is a shadow, so no work
+      commit or landing commit exists for it
+    evidence: >-
+      src/torve/application/evals.py:446 — land returns prose, committing stays a
+      live-run act
+    action: decided
+  - decision: S-0059/D-10
+    grade: LOCKED
+    at: '2026-09-13T22:43:15Z'
+    claim: >-
+      no Torve-* trailer joins anything this change writes; the landing-shaped record
+      keeping stays where it was
+    evidence: >-
+      src/torve/application/evals.py:450 — nothing merged is prose, not a trailer
+    action: decided
+  - decision: S-0069/D-6
+    grade: LOCKED
+    at: '2026-09-13T22:43:15Z'
+    claim: >-
+      repair routing untouched: the bare flag only swaps the gate pass on the shadow
+      path, and _route_repair still fires once per conviction on the live path
+    evidence: >-
+      src/torve/application/runner.py:960 — the hook selection changes the gate pass,
+      not the repair router
+    action: decided
