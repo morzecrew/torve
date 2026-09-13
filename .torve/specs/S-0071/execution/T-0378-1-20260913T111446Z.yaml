@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0378
+phase: 4
+base: 93254a5daaf0572b2dca4f82f3286959f2856ae0
+commit: 7ff74b6c839f53d4d975db73164013837b304c70
+at: '2026-09-13T11:14:46Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T11:11:34Z'
+    claim: >-
+      the added operating-guide prose converts nothing and violates no grammar: its
+      only corpus coordinate is S-0071/D-1, the accepted row the change documents,
+      written in the current S-NNNN/D-n form; no legacy identifier shape (RFC-numbered
+      or section-marked) stands in either changed file; the restated figures — 128s
+      serial, 30s under -n 8, 267s to about 61s per battery, sixteen visible cores,
+      no CPU limit on the sandbox — are the landing records' measurements, so the
+      page contradicts no accepted row
+    evidence: >-
+      pages/docs/operating.md:144-154 — the new paragraph, whose only identifier is
+      the current-form citation on line 145; `grep -n "RFC\|§" pages/docs/operating.md
+      tests/AGENTS.md` — no output
+    action: decided
