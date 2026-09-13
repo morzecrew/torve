@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0386
+phase: 3
+attempt: 2
+base: fce4133388836da73bb2564d7937955cdc9700aa
+commit: b4138fb12277b5eb534dfca38a60934909e7c44d
+at: '2026-09-13T13:06:46Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-34
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+entries:
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-13T13:00:04Z'
+    claim: >-
+      Held as written: the pack reaches a session as one more read-only tool, annotated
+      readOnlyHint, and the server still registers no tool that writes — the tool
+      calls the pure builder and never materializes, so no file is touched by a query.
+    evidence: >-
+      src/torve/cli/mcp.py:117 — the pack tool calls build_pack only; materialize
+      is not imported here, and the pinned tool list in tests/test_mcp.py:31 is four
+      read-only queries.
+    action: decided
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-09-13T13:00:05Z'
+    claim: >-
+      Held as written: the new tool's strings carry no corpus coordinates — its docstring
+      names the pack's files and the refusals name the task and the file, with the
+      two coordinates behind this change cited in a code comment.
+    evidence: >-
+      src/torve/cli/mcp.py:110 — the coordinates sit in a comment above the lazy imports,
+      not in the docstring or the ValueError messages.
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T13:00:05Z'
+    claim: >-
+      Held as written: the change stays in the cli layer and imports inward only —
+      application.contextpack, config.layout and gates.context — with parsing and
+      rendering here and no presentation crossing inward.
+    evidence: >-
+      src/torve/cli/mcp.py:113 — the imports are application, config and gates; nothing
+      under cli is imported by them.
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T13:00:06Z'
+    claim: >-
+      Held as written: every identifier this change writes is in the converted spelling;
+      no legacy identifier is introduced in the module or its test.
+    evidence: >-
+      `grep -nE 'RFC [0-9]+ .|rfcs/' src/torve/cli/mcp.py tests/test_mcp.py` — no
+      matches.
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-09-13T13:00:06Z'
+    claim: >-
+      Held as written: the tool reads a contract through the shared loader and serves
+      the pack the builder returns, so the contract's document key passes through
+      untouched; nothing here regexes a number out of a path.
+    evidence: >-
+      src/torve/cli/mcp.py:121 — load_task on layout.task_file, then build_pack; no
+      contract field is read or rewritten in this module.
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-09-13T13:00:07Z'
+    claim: >-
+      Held as written: the tool reads no landing and runs no git subprocess; what
+      it serves comes from the pack builder, which reads the record and the tree through
+      the existing projections.
+    evidence: >-
+      src/torve/cli/mcp.py:117 — the only call is build_pack; no git invocation and
+      no trailer or subject parsing is added.
+    action: decided
