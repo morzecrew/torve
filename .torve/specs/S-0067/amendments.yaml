@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-13T12:57:35Z'
+    title: Dispatch refuses what the lint refuses
+    changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: paths
+        before: []
+        after: [src/torve/cli/run.py]
+      - subject: D-9
+        field: fingerprint
+        after: 5bc2abd22936bac0/133160764f06ae61
+  - id: A-2
+    at: '2026-09-13T12:57:42Z'
+    title: A verb that takes a contract takes its id
+    changes:
+      - subject: D-10
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-10
+        field: paths
+        before: []
+        after: [src/torve/cli/brief.py, src/torve/cli/size.py, src/torve/cli/lint.py]
+      - subject: D-10
+        field: fingerprint
+        after: a77945dbb536d633/4254840654e0b4d1
+  - id: A-3
+    at: '2026-09-13T12:57:55Z'
+    title: >-
+      The addressing rows name the modules that hold the verbs
+    changes:
+      - subject: D-10
+        field: paths
+        before: [src/torve/cli/brief.py, src/torve/cli/size.py, src/torve/cli/lint.py]
+        after: [src/torve/cli/brief.py, src/torve/cli/gates.py, src/torve/cli/intake.py]
+      - subject: D-10
+        field: fingerprint
+        before: a77945dbb536d633/4254840654e0b4d1
+        after: b278739d3016c7ac/3d699864d57db150
+    md: |
+      Both rows come from using `torve brief` for the first time, ten minutes after it
+      landed.
+
+      D-9 is the gap the verb made visible rather than one it fills. Brief prints and
+      refuses nothing, which is right for a reading verb — forcing it on every dispatch
+      would put thirty-two lines of advisory in front of a contract the planner minted
+      correctly, and an advisory that is always there is one nobody reads. What is
+      missing is narrower: dispatch refuses an oversized contract and records the
+      override, and never runs the lint at all. Two sibling checks, one wired.
+
+      D-10 is the skew the same use exposed. `run` takes a task id; `brief`, `size` and
+      `lint-contract` take a path, so the identifier a person actually holds is the one
+      thing none of them accepts — and `torve size T-0367` answering "Path 'T-0367'
+      does not exist" is a verb telling its user that its own storage layout is their
+      problem. A path stays accepted, because `intake` drafts contracts that have no id.
+
+      Phase 4's documentation now waits on this phase too: a guide describing how to
+      address these verbs should describe the way they will address.

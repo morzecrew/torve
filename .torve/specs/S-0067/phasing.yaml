@@ -69,4 +69,26 @@ phasing:
       - 1
       - 2
       - 3
+      - 5
     character: routine
+  - phase: 5
+    title: >-
+      the verbs address alike, and dispatch refuses alike
+    intent: >-
+      `brief`, `size` and `lint-contract` take a task id and resolve it through `layout.task_file`,
+      keeping a path for the draft that has no id. Dispatch runs the contract lint
+      and refuses on it the way it already refuses an oversized contract, recording
+      the override when one is given. Settles D-9 and D-10.
+    scope:
+      - src/torve/cli/brief.py
+      - src/torve/cli/gates.py
+      - src/torve/cli/intake.py
+      - src/torve/cli/run.py
+      - tests/test_brief.py
+      - tests/test_cli.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural

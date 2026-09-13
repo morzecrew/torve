@@ -118,3 +118,35 @@ decisions:
       a neighbour's live container. `naming.root_key` had existed for exactly this
       since S-0003/D-25 and said so in its own docstring
     cites: [S-0071/D-1]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Dispatch refuses a contract the lint refuses, at the rung the size check already
+      stands on: named reasons, and a recorded override for the operator who means
+      it
+    paths: [src/torve/cli/run.py]
+    consequence: >-
+      a contract that can never go green is refused before an attempt is paid for,
+      rather than after three of them
+    rationale: >-
+      the size verdict and the contract lint are siblings and exactly one is wired
+      — `cli/run.py:132` refuses `too_large` and records `oversize_dispatch`, while
+      nothing on the dispatch path calls `lint_contract` at all. T-0377 named `torve
+      doctor` in its acceptance and was dispatched three times; the lint had the answer
+      before the first one
+    cites: [S-0071/D-5, S-0030/D-4]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A verb that takes a contract takes its task id, resolving through `layout.task_file`;
+      a path stays accepted for a draft that has no id yet
+    paths: [src/torve/cli/brief.py, src/torve/cli/gates.py, src/torve/cli/intake.py]
+    consequence: >-
+      the three reading verbs address work the way `torve run` does, and where a contract
+      file lives stops being the caller's problem
+    rationale: >-
+      `run` takes `{task_id}` and `brief`, `size` and `lint-contract` take a path,
+      so the id a person has in hand is the one thing they cannot pass. `layout.task_file`
+      already exists to resolve it. The draft case is why a path is kept rather than
+      replaced: `intake` writes contracts that are not minted and have no id
+    cites: [D-1]
