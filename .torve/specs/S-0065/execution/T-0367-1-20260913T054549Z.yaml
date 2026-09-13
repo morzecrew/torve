@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0367
+phase: 2
+base: 40fc91e03e04e006a5018841a457358aa30fe323
+commit: 0a474c035a1b380b9e40e92edf6064236f525de0
+at: '2026-09-13T05:45:49Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: OPEN
+entries:
+  - decision: D-7
+    grade: OPEN
+    class: spec-gap
+    at: '2026-09-13T05:30:19Z'
+    claim: >-
+      The ledger needs a landing denominator now and D-7's reconciliation paths (lane.py,
+      projections.py) are outside this task's scope, so the ledger picks one carrier
+      rather than reconciling three: the landing files in the tree, read through the
+      same landings reader every other reader of a landing already uses. That carrier
+      is the only one that answers in a clone without an event store, which is what
+      makes a rate reproducible from a checkout.
+    evidence: >-
+      .torve/specs/S-0065/document.yaml:231 — the question names three carriers (store
+      263, lane 49, landing files 58); S-0059/D-12 already made the tree's landings
+      the one reader, and projections.shipped_ids is that reader
+    action: decided
+    proposal: >-
+      OPEN resolves to: a landing is a landing file in the tree, read through landings/landed_commits;
+      the store and the lane events are observations of it, reconciled against it
+      or dropped
+  - decision: unlisted
+    grade: UNLISTED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-13T05:30:26Z'
+    claim: >-
+      Duty cycle has no decision row; the document leaves it as an open question and
+      the ledger cannot print the rate without answering it. The ledger counts agent
+      wall time inside attempts over the wall-clock span of the seat's own attempts,
+      and prints both numerator and denominator beside the ratio so the reader sees
+      exactly what was divided. The engine-lifetime reading is the other answer and
+      needs the landing denominator D-7 settles, which is not this task's to build.
+    evidence: >-
+      .torve/specs/S-0065/document.yaml:237 — Q-2 asks whether duty cycle counts wall
+      time inside an attempt or inside a task lifetime, and states the two answers
+      differ by an order of magnitude
+    action: decided
+    proposal: >-
+      A row settling duty cycle as agent wall time over the span of a seat's attempts,
+      with the task-lifetime reading named as a separate rate rather than the same
+      word meaning two things
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-13T05:37:10Z'
+    claim: >-
+      The ledger implements the lock rather than diverging from it: a rate counts
+      only attempts that ran a model. Rows from a fake adapter, shadow replays and
+      shadow gate passes, review and intake spend under another task's id, and engine
+      events with no agent block are all dropped before any denominator is formed,
+      and each reason is tallied and printed beside the rates rather than left to
+      the reader to infer. The unjoinable rows S-0065/D-4 names are dropped on the
+      same pass and reported in the same line.
+    evidence: >-
+      src/torve/application/ledger.py:143-178 — counted_rows returns the countable
+      rows beside the per-reason tally; src/torve/cli/ledger.py:170-196 prints it,
+      and tests/test_ledger.py:130 pins the exclusions
+    action: decided
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-13T05:37:30Z'
+    claim: >-
+      Entry 3 recorded this same compliance against the unqualified id 'D-5', which
+      the silence check does not match against the contract's qualified row; this
+      entry restates it under the identifier the check reads and supersedes entry
+      3's citation, not its content. The ledger implements the lock: a rate counts
+      only attempts that ran a model, and every exclusion is tallied by reason and
+      printed beside the rates.
+    evidence: >-
+      src/torve/application/ledger.py:143-178 — counted_rows returns the countable
+      rows beside the per-reason tally; src/torve/cli/ledger.py:170-196 prints it,
+      and tests/test_ledger.py:130 pins the exclusions
+    action: decided
+    notes: >-
+      Entries are append-only, so entry 3 stands and this one corrects the identifier
+      it cited.
