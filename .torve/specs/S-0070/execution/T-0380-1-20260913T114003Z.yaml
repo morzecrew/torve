@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0380
+phase: 6
+base: c56a6894a5edcb52f630622694512351eaa1676f
+commit: c6a02b0b6ca98e75c7f00e1c770e276cb25b2e45
+at: '2026-09-13T11:40:03Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-3
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: S-0055/D-2
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-20
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+entries:
+  - decision: S-0055/D-2
+    grade: LOCKED
+    at: '2026-09-13T11:37:42Z'
+    claim: >-
+      the skip report is computed inside the gate from command output; no agent-reported
+      outcome enters the verdict
+    evidence: >-
+      src/torve/gates/acceptance.py:123 — the note comes from the command's own output,
+      read where the gate runs
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-09-13T11:37:50Z'
+    claim: >-
+      the change stays inside the gates layer; no new import crosses a layer boundary
+    evidence: >-
+      src/torve/gates/acceptance.py:15 — the one added import is the stdlib re
+    action: decided
+  - decision: S-0055/D-24
+    grade: LOCKED
+    at: '2026-09-13T11:37:51Z'
+    claim: >-
+      gates still import only domain, base and config; the gates-only install stands
+      alone
+    evidence: >-
+      src/torve/gates/acceptance.py:17-21 — base.shell, config.manifest, domain.vocabulary
+      and sibling gates modules only
+    action: decided
+  - decision: S-0055/D-26
+    grade: LOCKED
+    at: '2026-09-13T11:37:51Z'
+    claim: >-
+      no specification-format owner is imported; the gate reads the contract's acceptance
+      list and the command output alone
+    evidence: >-
+      src/torve/gates/acceptance.py:88 — ctx.task.acceptance is the only task field
+      read
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-13T11:37:52Z'
+    claim: >-
+      every coordinate added is in the converted form; no legacy identifier is introduced
+    evidence: >-
+      src/torve/gates/acceptance.py:10 — S-0070/D-6, and line 44 S-0070/D-3
+    action: decided
