@@ -37,3 +37,53 @@ amendments:
       So the coupling the row is really about lives in the lockfile, and the rebuild
       is an operational act on the host rather than a diff an agent can write. The
       row now says that, and the phase's scope is the two files it actually changes.
+  - id: A-2
+    at: '2026-09-13T09:59:14Z'
+    title: >-
+      The rebuild is warmth, not rescue — and it must use the pinned tag
+    changes:
+      - subject: D-2
+        field: grade
+        before: LOCKED
+        after: ASSUMED
+      - subject: D-2
+        field: text
+        before: >-
+          A dependency change here is an image change: the battery image is rebuilt
+          in the same change that touches the lockfile, and the moved digest is recorded
+          rather than waived. The image definition itself needs no edit — it copies
+          the two files and syncs from them, so the rebuild is an act, not a diff
+        after: >-
+          A dependency change here is an image change: the pinned seat images are
+          rebuilt in the same change that touches the lockfile, under the tags the
+          harness manifests name rather than under `latest`, and the moved digest
+          is recorded rather than waived. No image definition is edited — each copies
+          the two files and syncs from them, so the rebuild is an act, not a diff
+      - subject: D-2
+        field: fingerprint
+        before: 0ae81a09c6e9da14/3d013a06f2ca186d
+        after: 7de0cc000ed75644/591a53183c8ca75f
+    md: |
+      Written after doing the rebuild, which disproved the row's own rationale.
+
+      The rationale said an attempt would otherwise install the missing package "over
+      an egress that is brokered and allowlisted", and graded the row LOCKED on that
+      hazard. Two facts contradict it. The gates run in the agent's image, not the
+      battery image — `runner.py:403`, "shell gates run over the same image the agent
+      ran under (S-0003/D-8)" — and `claude-sandbox` bakes no project environment at
+      all: `/opt/torve/project` does not exist in it. And T-0375 proved the runtime
+      path works from inside the sandbox, recording that `uv run pytest -n 2
+      --collect-only` loaded the plugin before any image carried it.
+
+      So the rebuild buys a warm, deterministic layer rather than rescuing an attempt
+      from a closed door. That is worth doing and it is not load-bearing, which is
+      what `ASSUMED` says and `LOCKED` did not.
+
+      The row gains the thing the rebuild actually taught. `just images` builds
+      `TAG=latest`, so it left `claude-sandbox:2.1.252` and `dsh-sandbox:0.1.1-rc.2`
+      — the tags the harness manifests pin — untouched, and the seats would have kept
+      running the old images while the record claimed a rebuild. Same tag with a new
+      digest is the case `S-0055/D-35` already describes: the digest is the input, the
+      tag is a convenience, and the dispatch records the move. Measured across the two
+      attempts either side of it: 38ccab25 to 9eab16e3, and the battery from 370.5s to
+      78.4s.
