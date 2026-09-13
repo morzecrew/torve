@@ -84,8 +84,16 @@ tiers:
     provider: anthropic
     # S-0034/D-3: a phase declared `routine` — docs, a changelog, a rename that
     # carries no design — is one competence, so it runs on the cheap seat rather
-    # than the one that costs opus. Structural work is unmapped and falls through.
+    # than the one that costs opus.
+    #
+    # Structural work now routes too, to the qwen seat, which is a trial and not
+    # a verdict: that seat has one attempt in the whole record, and R17 asks for
+    # routing chosen by evidence rather than by preference. Measured before
+    # setting it — the token plan carries roughly 130-190 attempts a week at our
+    # 96% cache hit rate, so the quota is not the constraint at this pace.
+    # Remove the `structural` line to hand the work back to opus.
     character_routing:
+      structural: qwen-claude
       routine: dsh
   # A second live seat, on the ModelStudio token plan through the broker.
   # `model` is the overlay's model id; `DSH_MODEL` on the manifest carries the
@@ -104,6 +112,12 @@ tiers:
   # it at /apps/anthropic, so this seat is a configuration rather than a port.
   executor.qwen-claude:
     harness: claude-subscription
+    # The same profile the opus seat carries, so the two differ by model and
+    # nothing else. Both plugins earned it on opus over this repository's own
+    # work, and the prompt extra — prefer the smallest change that makes the
+    # acceptance commands pass — is the one instruction a weaker model most
+    # needs and least reliably supplies itself.
+    profile: claude-equipped
     model: qwen3.8-flash
     provider: modelstudio
     dialect: anthropic
