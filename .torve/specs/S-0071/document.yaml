@@ -3,7 +3,7 @@ id: S-0071
 title: >-
   The battery costs what it costs for reasons unrelated to what it judges
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: []
 informed_by: [S-0055, S-0070, S-0067]

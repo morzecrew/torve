@@ -85,6 +85,13 @@ Every existing identifier converts once through a mapping committed as `.torve/a
 - Paths: `bake.hcl` `justfile` `src/torve/cli/sandbox.py`
 - Consequence: the build expresses its own dependency graph, and the context staging the verb does by hand becomes the base image's inheritance
 
+### S-0071/D-1 — `ASSUMED` (The battery costs what it costs for reasons unrelated to what it judges)
+
+The test suite runs in parallel by default: `pytest-xdist` is a development dependency and `-n auto` is in the project's `addopts`, so both gates that run the suite get it without any contract's acceptance command changing
+
+- Paths: `pyproject.toml` `uv.lock`
+- Consequence: the two gates that are 98% of the battery's wall time fall from 267s to about 61s per battery, measured, and every attempt after it pays the lower figure
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -108,6 +115,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `pages/docs/architecture/` — 0 decision(s)
 - `sandboxes/` — 11 decision(s)
 - `sandboxes/base/` — 0 decision(s)
+- `sandboxes/battery/` — 1 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/dsh/` — 2 decision(s)
 - `sandboxes/mimo/` — 0 decision(s)
