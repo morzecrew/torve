@@ -3,7 +3,7 @@ id: S-0069
 title: A conviction is the next contract's input
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0065]
 informed_by: [S-0055]
 supersedes: []
