@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `torve ledger` folds the record into rates instead of listing rows: per seat,
+  what a landed task cost, how many attempts a landing took, how many blocking
+  convictions came before one, and what share of elapsed time the seat spent
+  running; per gate, the wall time it spent against the convictions it produced.
+  A seat is a tier and the image it was pointed at together, because one tier
+  name aimed at three images averages into a figure that describes nothing that
+  exists. Only attempts that ran a model count — fake adapters and shadow
+  replays are excluded and the exclusion is printed, and a row carrying no base
+  sha is reported as unjoinable and enters no denominator. A seat whose provider
+  record carries no price reports its cost as unreported, never as zero. The
+  contract an attempt was fenced by is read at the attempt's own sha through
+  git, so a task directory deleted when its document was archived costs a
+  `git cat-file` rather than a fact. A landing is a landing file in the tree,
+  the carrier that answers in a clone with no event store.
+
 - An attempt record that names no sha at all — both the base sha and the
   attempt's own head empty — is refused where it is written, naming the two
   fields. Such a row is a cost and a duration attached to nothing: it can never

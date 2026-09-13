@@ -32,6 +32,7 @@ from torve.cli import (
     gates,
     init,
     intake,
+    ledger,
     log,
     manager,
     mcp,
@@ -133,6 +134,7 @@ app.command("feedback")(feedback.feedback)
 app.command("status")(status.status)
 app.command("reap")(status.reap_cmd)
 app.command("why")(why.why_cmd)
+app.command("ledger")(ledger.ledger_cmd)
 
 
 # ....................... #
