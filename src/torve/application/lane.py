@@ -596,6 +596,7 @@ def _land_rebased(
     state: RunState,
     task_id: str,
     branch: str,
+    branch_tip: str,
     base: str,
     base_tip: str,
     on_conflict: Callable[[str], str] | None,
@@ -613,6 +614,15 @@ def _land_rebased(
 
     workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
 
+    # Where the branch stood before the rebase moves it. A red battery has to put
+    # it back: `git rebase` runs in a worktree checked out on the branch, so it
+    # moves the ref, and a branch left on the new base reads to the next pass as
+    # "the base has not moved under this branch" — the fast-forward path, which
+    # skips the battery. T-0391 landed that way: one `rebase (finish)` in the
+    # reflog, an `acceptance=fail` on the first pass, a fast-forward on the
+    # second. Nothing bad shipped that time; the mechanism does not care.
+    before_rebase = vcs.tip(root, branch) or branch_tip
+
     if not vcs.rebase_in_worktree(root, branch, base, workdir):
         _handle_rebase_conflict(root, state, task_id, branch, base, base_tip, on_conflict, results)
         return
@@ -624,6 +634,7 @@ def _land_rebased(
         vcs.remove_worktree(root, workdir)
 
     if exit_code != 0:
+        vcs.reset_branch(root, branch, before_rebase)
         engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
         results.append(LaneResult(task_id, branch, "gates red", summary))
         return
@@ -677,7 +688,19 @@ def _land_candidate(
 
         return
 
-    _land_rebased(root, vcs, state, task_id, branch, base, base_tip, on_conflict, approver, results)
+    _land_rebased(
+        root,
+        vcs,
+        state,
+        task_id,
+        branch,
+        branch_tip,
+        base,
+        base_tip,
+        on_conflict,
+        approver,
+        results,
+    )
 
 
 # ....................... #

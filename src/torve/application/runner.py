@@ -675,9 +675,11 @@ def _repair_gate(run: Dispatch) -> tuple[str, str] | None:
     )
 
     return next(
-        ((name, _repair_command(declared[name]))
-         for name in convicted
-         if name not in run.repaired_gates),
+        (
+            (name, _repair_command(declared[name]))
+            for name in convicted
+            if name not in run.repaired_gates
+        ),
         None,
     )
 
@@ -707,9 +709,7 @@ def _route_repair(run: Dispatch, state: RunState) -> None:
     gate, command = picked
     run.repaired_gates.add(gate)
     run.meta["repair"] = gate
-    run.task = run.task.model_copy(
-        update={"acceptance": [*run.contract_acceptance, command]}
-    )
+    run.task = run.task.model_copy(update={"acceptance": [*run.contract_acceptance, command]})
     _commit_convicted_tree(run, state, gate)
 
 

@@ -85,6 +85,56 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     assert all(r["approver"] == "Lane Operator" for r in landed)
 
 
+def test_a_red_rebase_puts_the_branch_back_so_the_next_pass_regates(lane_repo):
+    """T-0391 landed on a battery that had gone red, in two passes.
+
+    `git rebase` runs in a worktree checked out on the branch, so it moves the
+    ref. When the battery then failed, the branch was left sitting on the new
+    base — and the next pass read that as "the base has not moved under this
+    branch", took the fast-forward, and skipped the battery that had just
+    failed. One `rebase (finish)` in the reflog for two merges is what it looks
+    like from outside.
+    """
+
+    candidate(lane_repo, "T-7020", "twenty.py", "twenty = 20\n")
+    # Move the base under it, so landing needs a rebase and a re-gate.
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    before = git(lane_repo, "rev-parse", naming.branch("T-7020"))
+
+    # A gate that cannot pass, so the re-gate after the rebase is red.
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\n"
+        "gates:\n"
+        "  - name: refuses\n"
+        "    run: 'false'\n"
+        "    state: blocking\n"
+        "    origin: structural\n"
+        "    input: worktree\n"
+        "    timeout: 30\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a gate that refuses")
+
+    # A red candidate is a non-zero lane, which is the exit code this asserts on
+    # rather than around.
+    first = invoke_merge(lane_repo)
+    assert first.exit_code == 1, first.output
+    assert json.loads(first.stdout)["results"][0]["action"] == "gates red"
+
+    # The ref is back where it started: the next pass must rebase and re-gate
+    # rather than read a rebased branch as an unmoved base.
+    assert git(lane_repo, "rev-parse", naming.branch("T-7020")) == before
+
+    second = invoke_merge(lane_repo)
+    assert second.exit_code == 1, second.output
+    assert json.loads(second.stdout)["results"][0]["action"] == "gates red"
+    assert (lane_repo / "twenty.py").exists() is False
+
+
 def test_the_lane_event_is_reconciled_against_the_landing_files(lane_repo):
     # S-0065/D-7: the landing files in the tree are the carrier the ledger
     # divides by, and the lane's own event is stamped with the carrier's

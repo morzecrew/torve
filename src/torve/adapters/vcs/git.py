@@ -459,6 +459,22 @@ class GitLane:
 
     # ....................... #
 
+    def reset_branch(self, root: Path, branch: str, to_sha: str) -> None:
+        """Put a branch ref back where it was, without a checkout.
+
+        `git rebase` in a worktree moves the branch it is checked out on, so a
+        rebase whose battery then goes red leaves the branch on the new base —
+        and the next pass reads that as "the base has not moved" and
+        fast-forwards it, skipping the battery that just failed (T-0391).
+        """
+
+        proc = _git(root, "update-ref", f"refs/heads/{branch}", to_sha)
+
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or f"could not reset {branch} to {to_sha}")
+
+    # ....................... #
+
     def remove_worktree(self, root: Path, workdir: Path) -> None:
         _git(root, "worktree", "remove", "--force", str(workdir))
 
