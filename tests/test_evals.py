@@ -35,12 +35,13 @@ from torve.application.evals import (
     ARMS,
     EVAL_LEDGER,
     candidate_config,
+    run_bare_shadow,
     run_config_eval,
     run_skill_eval,
     three_arm_table,
     without_skill,
 )
-from torve.application.shadow import ShadowSource
+from torve.application.shadow import ShadowSource, run_shadow
 from torve.cli import app
 from torve.config import layout
 from torve.config.runconfig import (
@@ -424,6 +425,76 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
     variants = {line["eval"]["variant"] for line in lines if line.get("eval")}
     assert variants == {"executor.indexed"}
     # Never merged: the shipped content is untouched.
+    head_file = subprocess.run(
+        ["git", "-C", str(repo.root), "show", "HEAD:src/feature.py"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert head_file == "FEATURE = 'shipped'\n"
+
+
+def test_bare_arm_replays_without_the_battery_and_still_merges_nothing(repo):
+    from test_runtime_conformance import docker_available
+
+    if not docker_available():
+        pytest.skip("docker daemon not available")
+    from torve.adapters.runtime.docker import DockerRuntime
+
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    task_doc["acceptance"] = ["test -f src/feature.py"]
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+    ship(repo)
+
+    manifest_before = (repo.root / ".torve" / "gates.yaml").read_bytes()
+
+    config = RunnerConfig(
+        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),
+        poison_ceiling=2,
+        # S-0061/D-11: a configuration built in Python carries no role sets, since
+        # they are read off `.torve/agents/` at load; the arms need one to strip.
+        skills=SkillsConfig(sets=dict(ROLE_SKILLS)),
+    )
+    steps = [
+        {"writes": {"src/feature.py": "FEATURE = 'a'\n"}, "exit": 0},
+        {"writes": {"src/feature.py": "FEATURE = 'b'\n"}, "exit": 0},
+        {"writes": {"src/feature.py": "FEATURE = 'c'\n"}, "exit": 0},
+    ]
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=DockerRuntime(),
+        agent=FakeAgent(steps),
+        vcs=GitVcs(),
+        scm=NullScm(),
+        store=open_store,
+    )
+    shadow_ws = ShadowWorkspace(repo.root, depth=10)
+    source = ShadowSource(
+        create_workspace=shadow_ws.create,
+        shipped_commit=partial(shipped_commit, repo.root),
+        parent_of=partial(parent_of, repo.root),
+        diff_range=partial(diff_range, repo.root),
+        diff_worktree=diff_worktree,
+    )
+    task = load_task(layout.task_file(repo.root, TASK_ID))
+
+    # The same task, the same harness — once judged by the battery, once not.
+    gated = run_shadow(repo.root, task, config, deps, source, annotation={"arm": "gated"})
+    bare = run_bare_shadow(repo.root, task, config, deps, source, annotation={"arm": "bare"})
+
+    # The bare arm reached green with no battery judging anything.
+    assert bare["state"] == "ready" and bare["attempts"] == 1
+    # The battery's removal travels as a property of the replay…
+    assert bare["eval"]["arm"] == "bare"
+    # …never as an edit to the gate manifest: the manifest every other
+    # attempt is judged by never changed (S-0074/D-3), so the bare arm
+    # replayed under the same regime the gated arm did.
+    assert (repo.root / ".torve" / "gates.yaml").read_bytes() == manifest_before
+    assert bare["config_hash"] == gated["config_hash"]
+    # A bare arm still merges nothing (S-0004/D-4): the shipped content is
+    # untouched on the branch.
     head_file = subprocess.run(
         ["git", "-C", str(repo.root), "show", "HEAD:src/feature.py"],
         capture_output=True,

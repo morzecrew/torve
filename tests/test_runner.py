@@ -435,6 +435,51 @@ def test_shadow_dispatch_never_trips_the_guard(tmp_path):
     assert hooks.attempt is not None
 
 
+def test_a_bare_hook_set_never_runs_the_battery(tmp_path):
+    """S-0074/D-3: the bare arm's gate pass is no pass — its removal is a
+    property of the replay (the bare flag), never an edit to the gate
+    manifest. The hook returns green with the unchanged manifest's regime
+    digest, and the battery's one visible effect — an attempt record and its
+    gates_evaluated event — is nowhere to be seen."""
+    import asyncio
+
+    from torve.application.runner import real_hooks
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig
+
+    worktree = tmp_path / "wt"
+    manifest = layout.gates_file(worktree)
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("axes: []\n", encoding="utf-8")
+
+    deps = _dispatch_deps(_StubRuntime("sha256:whatever"))
+    hooks = real_hooks(
+        tmp_path, _executor_task(), RunnerConfig(), deps, worktree, shadow=True, bare=True
+    )
+
+    exit_code, _, digest = asyncio.run(
+        hooks.gates(RunState(task_id=TASK_ID, path=tmp_path / "state.json"))
+    )
+
+    assert exit_code == 0
+    assert digest  # the unchanged manifest's regime digest, not an empty pass
+    telemetry = tmp_path / ".torve" / "telemetry.jsonl"
+    assert not telemetry.is_file() or not telemetry.read_text(encoding="utf-8").strip()
+
+
+def test_bare_refuses_a_live_dispatch_that_would_land(tmp_path):
+    """S-0074/D-3: a bare arm cannot land anything (its consequence), so the
+    flag is a replay's flag — a live dispatch asking for it is refused at
+    hook construction, before any spend."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    deps = _dispatch_deps(_StubRuntime("sha256:whatever"))
+
+    with pytest.raises(ValueError, match="a bare run is a replay"):
+        real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt", bare=True)
+
+
 def test_a_failed_attempt_still_appends_its_cost(tmp_path):
     """S-0004/telemetry-staged: a budget-killed or nonzero-exit attempt never reaches the
     gates leg, and its record used to vanish with it — four ~$4 first

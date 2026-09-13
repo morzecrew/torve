@@ -34,12 +34,16 @@ from pathlib import Path
 from typing import Any
 
 from torve.application.dispatch import RunDeps
-from torve.application.ports import Agent
+from torve.application.ports import Agent, AgentResult
+from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
+from torve.application.runstate import RunState
 from torve.application.shadow import ShadowSource, run_shadow
-from torve.application.telemetry import append_record
+from torve.application.telemetry import RECORD_SCHEMA_VERSION, append_record, config_hash
+from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
-from torve.config.runconfig import RunnerConfig, SkillsConfig, image_for, tier_for
+from torve.config.runconfig import RunnerConfig, SkillsConfig, image_for, tier_for, tier_name_for
+from torve.domain.states import TaskState
 from torve.domain.task import Task
 
 # ----------------------- #
@@ -370,5 +374,130 @@ def run_config_eval(
     )
 
     append_record(root / layout.TORVE_DIR / EVAL_LEDGER, record)
+
+    return record
+
+
+# ....................... #
+
+
+def run_bare_shadow(
+    root: Path,
+    task: Task,
+    config: RunnerConfig,
+    deps: RunDeps,
+    source: ShadowSource,
+    commit: str | None = None,
+    annotation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The bare arm's replay (S-0074/D-3): the same shadow replay as
+    `run_shadow`, with the battery removed as a property of the replay — the
+    bare flag swaps the gate pass for one that runs nothing, and the gate
+    manifest is never the thing that changed (a manifest with gates removed
+    would be a different regime, and the regime digest would be right to say
+    so). A bare arm still merges nothing (S-0004/D-4): the land hook is the
+    same no-op a gated replay's is. The record's `config_hash` is the
+    unchanged manifest's — the same regime the gated arm replayed under.
+
+    Raises ValueError when no shipped commit is findable; RuntimeError on
+    infrastructure failure — as run_shadow does."""
+
+    import asyncio
+
+    resolved = commit or source.shipped_commit(task.id)
+
+    if resolved is None:
+        raise ValueError(
+            f"no shipped commit found for {task.id} — no landing of it names a "
+            "commit (S-0059/D-12); pass --commit explicitly"
+        )
+
+    parent = source.parent_of(resolved)
+    workspace = source.create_workspace(task.id, parent)
+
+    state = RunState(
+        task_id=naming.shadow_id(task.id),
+        path=naming.state_file(root, naming.shadow_id(task.id)),
+    )
+
+    state.transition(TaskState.CLAIMED, f"shadow replay of {resolved[:10]} from {parent[:10]}")
+
+    inner = real_hooks(
+        root, task, config, deps, workspace, shadow=True, gates_base=parent, bare=True
+    )
+    costs: list[float] = []
+    traces: list[str] = []
+    model_versions: list[str] = []
+
+    async def attempt(attempt_state: RunState) -> AgentResult:
+        result = await inner.attempt(attempt_state)
+
+        if result.cost_usd is not None:
+            costs.append(result.cost_usd)
+
+        if result.trace_ref is not None:
+            traces.append(result.trace_ref)
+
+        if result.model_version is not None:
+            model_versions.append(result.model_version)
+
+        return result
+
+    async def land(_state: RunState, _digest: str) -> str:
+        # The one divergence from a live run's hooks, inherited from the
+        # gated replay: nothing is committed, nothing is pushed — a shadow
+        # run never merges, bare or gated (S-0004/D-4).
+        return "shadow measurement recorded; nothing merged"
+
+    hooks = AttemptHooks(
+        attempt=attempt,
+        halted=inner.halted,
+        gates=inner.gates,
+        land=land,
+        close=inner.close,
+    )
+    final = asyncio.run(drive_attempts(state, task, config, hooks))
+    final.save()
+
+    manifest_path = layout.gates_file(workspace)
+    image_digest = deps.runtime.resolve_image(
+        image_for(config, tier_for(config, tier_name_for(task)))
+    )
+
+    record: dict[str, Any] = {
+        "schema_version": RECORD_SCHEMA_VERSION,
+        "kind": "shadow",
+        "at": stamp(),
+        "config_hash": (
+            config_hash(manifest_path, workspace, config, image_digest=image_digest)
+            if manifest_path.is_file()
+            else None
+        ),
+        "image_digest": image_digest,
+        "task_id": task.id,
+        "commit": resolved,
+        "parent": parent,
+        "state": str(final.state),
+        "attempts": final.attempts,
+        "escalation": final.escalation.reason if final.escalation else None,
+        "tier": tier_name_for(task),
+        "adapter": getattr(deps.agent, "kind", "unknown"),
+        "cost_usd_total": sum(costs) if costs else None,
+        "model_versions": sorted(set(model_versions)),
+        "trace_refs": traces,
+        "shadow_diff": source.diff_worktree(workspace, parent),
+        "shipped_diff": source.diff_range(resolved),
+    }
+
+    shadow_files = set(record["shadow_diff"].get("files", {}))
+    shipped_files = set(record["shipped_diff"].get("files", {}))
+    record["overlap_files"] = sorted(shadow_files & shipped_files)
+
+    if annotation is not None:
+        # The bare arm's name is a property of the replay, like the gated
+        # arm's: carried on the record, never read back from any gate output.
+        record["eval"] = annotation
+
+    append_record(root / layout.TORVE_DIR / "telemetry.jsonl", record)
 
     return record

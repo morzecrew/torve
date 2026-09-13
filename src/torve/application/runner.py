@@ -603,6 +603,29 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
 
 # ....................... #
 
+
+async def _bare_gates(run: Dispatch, _state: RunState) -> tuple[int, str, str]:
+    """The bare arm's gate pass is no pass at all (S-0074/D-3): the battery's
+    removal is a property of the replay — this hook, chosen by the bare flag —
+    never an edit to the gate manifest, so the regime digest still names the
+    unchanged manifest and the loop reads green with nothing judged. The
+    manifest every other attempt is judged by is never the thing that
+    changed; a manifest with gates removed would be a different regime, and
+    the digest would be right to say so."""
+
+    manifest_path = layout.gates_file(run.worktree)
+
+    digest = (
+        config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
+        if manifest_path.is_file()
+        else ""
+    )
+
+    return 0, "battery removed — bare arm", digest
+
+
+# ....................... #
+
 # S-0069/D-5, settled at this phase: the qualifying set for a repair starts at
 # the gates whose checks are pure functions of the tree. The evidence that
 # settled it is `.torve/specs/S-0069/document.yaml`'s motivation — the same
@@ -881,6 +904,7 @@ def real_hooks(
     shadow: bool = False,
     gates_base: str | None = None,
     resume: bool = False,
+    bare: bool = False,
 ) -> AttemptHooks:
     """Bind one dispatch's steps into the hooks the loop drives (S-0046).
 
@@ -888,7 +912,18 @@ def real_hooks(
     picks the attempt leg the role calls for and the review leg the
     configuration calls for, and opens the broker last — after every step
     above it that can still fail (S-0046/D-4).
-    """
+
+    `bare` is the arm axis (S-0074/D-3): the battery's removal travels as a
+    property of the replay — the gate pass is swapped for `_bare_gates`, a
+    pass that runs nothing — never as an edit to the gate manifest. It is a
+    replay's flag: a bare run that would land its work is refused here,
+    because a bare arm cannot land anything (S-0074/D-3)."""
+
+    if bare and not shadow:
+        raise ValueError(
+            "a bare run is a replay — removing the battery is a property of the "
+            "replay, never of a live dispatch that would land its work"
+        )
 
     run = open_dispatch(
         root,
@@ -922,7 +957,7 @@ def real_hooks(
     return AttemptHooks(
         attempt=attempt,
         halted=partial(halted, run),
-        gates=partial(judge, run),
+        gates=partial(_bare_gates, run) if bare else partial(judge, run),
         land=partial(land, run),
         review=review,
         close=partial(close_dispatch, run),
