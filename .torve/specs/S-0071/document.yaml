@@ -73,6 +73,69 @@ non_goals: |
   is taken.
 
   No new gate, and no gate removed.
+design:
+  - key: the-switch-goes-where-both-readers-already-look
+    md: |
+      Both gates that run the suite spell it the same way: `acceptance` runs `uv run pytest`
+      from each contract, and `coverage-delta` runs `uv run pytest --cov=src` from the
+      manifest. Neither names a worker count, so `-n auto` in the project's own `addopts`
+      reaches both without a contract or a manifest entry changing.
+
+      That is the whole reason the switch is one line in one file rather than an edit to
+      every contract in the repository and every contract minted after it. The alternative —
+      having `acceptance` emit `coverage.xml` for `diff-cover` to consume, so the suite runs
+      literally once — is the better end state and costs that contract churn today, for the
+      36 seconds the second run would still take once this lands. It is written down in the
+      alternatives, not taken.
+  - key: a-dependency-here-is-an-image
+    md: |
+      `sandboxes/battery/Dockerfile` copies `pyproject.toml` and `uv.lock` and runs
+      `uv sync --locked --all-extras` at build time, keyed on Docker's layer cache. The
+      comment there is explicit about why: an attempt's `uv run` should reconcile a delta
+      against a populated environment rather than build one.
+
+      So a lockfile that names a package the image lacks does not fail loudly. It makes the
+      first sandboxed attempt reach for PyPI over an egress that is brokered and allowlisted,
+      and whatever happens next happens in the least readable place in the system. The
+      dependency and the rebuild are therefore one change, which is why that row is the only
+      `LOCKED` one here: everything else in this document can be departed from with a log
+      entry, and this one cannot be split without the failure landing somewhere nobody looks.
+
+      The rebuild moves the image digest, which moves the regime. That is correct and it is
+      the point — an attempt that runs a parallel suite is not running the same battery as
+      one that did not, and the digest is the record's way of saying so.
+  - key: what-a-gate-declares-is-what-it-costs
+    md: |
+      `gates/runner.py` orders the battery cheapest-first and uses each entry's declared
+      `timeout` as the cost proxy, breaking ties on manifest order so the sequence stays
+      reviewable. The proxy is a good one — a gate's author knows roughly what it costs and
+      writes a cap that reflects it — with one failure mode nobody had hit: an entry that
+      declares nothing sorts as zero.
+
+      `coverage-delta` declared nothing, so the most expensive gate in the battery, at 164
+      seconds median, ran eighth of thirteen, ahead of `spec-valid` at 20 and `layering` at
+      60. The fix is a value and the rule is that there is always a value; the number is the
+      measured p90 rounded up, because a round number invented at the keyboard is how the
+      field came to be optional in the first place.
+
+      Since the battery deliberately runs every gate even after a blocking one fails
+      (T-0234, so the severity axes stay populated), this buys ordering rather than total
+      time. Ordering is what a person watching the live status reads, and it is what decides
+      which failure they see first.
+  - key: the-soak-nobody-read
+    md: |
+      `S-0055/D-14` already says how a gate is promoted: it enters at `shadow` and moves on
+      soak evidence. `coverage-delta` has 228 runs of soak — 138 pass, 87 fail — and nobody
+      has ever read it. Reading it now: 51 of those failures are batteries where `acceptance`
+      passed, which means the suite was green and the changed lines were under 80% covered.
+      Fifty-one real findings, each discarded because nothing consumes a shadow verdict.
+
+      A 38% failure rate is not a promotable gate, so this document does not promote it. What
+      it does is make the question answerable: at 164 seconds a gate producing an unread
+      signal is indefensible either way, and at 36 seconds holding it at `shadow` while the
+      rate is watched is a defensible position with a number attached. The verdict gets
+      written down whichever way it goes, because the thing that went wrong here was not the
+      decision — it was that no decision was ever recorded.
 tests: |
   The parallel claim is tested by the property that broke: the suite passes under
   `-n 8` and under `-n 0`, and a test that reaches a shared daemon names its own
