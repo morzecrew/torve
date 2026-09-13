@@ -14,7 +14,7 @@ import time
 
 import pytest
 import yaml
-from conftest import seam
+from conftest import seam, torve_sandboxes
 from test_runtime_conformance import docker_available
 
 from torve.adapters.agent.fake import FakeAgent
@@ -94,9 +94,7 @@ def test_one_task_end_to_end(repo):
     assert outcomes["acceptance"] == "pass"
     assert outcomes["scope"] == "pass"
     # Nothing survived the run: every torve sandbox for this task is gone.
-    leftovers = [
-        i for i in DockerRuntime().list_torve_sandboxes() if i.labels.get("torve.task") == TASK_ID
-    ]
+    leftovers = torve_sandboxes(DockerRuntime(), repo.root)
     assert not leftovers
 
 
@@ -137,14 +135,14 @@ def test_reap_cleans_up_after_kill_nine(repo):
         os.kill(proc.pid, signal.SIGKILL)
         proc.wait(timeout=30)
 
-        alive = [i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == TASK_ID]
+        alive = torve_sandboxes(runtime, repo.root)
         assert alive, "the orphan must still exist before reap to prove anything"
 
         report = reap(repo.root, CONFIG, runtime, GitWorkspace(repo.root), force=True)
 
         assert report.runs_expired == [TASK_ID]
         assert report.sandboxes_destroyed
-        after = [i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == TASK_ID]
+        after = torve_sandboxes(runtime, repo.root)
         assert not after
         state = RunState.load(state_path)
         assert state.state is TaskState.ESCALATED
@@ -154,9 +152,8 @@ def test_reap_cleans_up_after_kill_nine(repo):
     finally:
         if proc.poll() is None:
             proc.kill()
-        for info in runtime.list_torve_sandboxes():
-            if info.labels.get("torve.task") == TASK_ID:
-                runtime.destroy_by_id(info.id)
+        for info in torve_sandboxes(runtime, repo.root):
+            runtime.destroy_by_id(info.id)
 
 
 def test_the_sandbox_receives_no_rfc_document(repo):

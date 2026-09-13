@@ -30,12 +30,13 @@ from torve.config.runconfig import StoreConfig
 
 pytestmark = pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
 
-PORT = 15544
-ADMIN_DSN = f"postgresql://postgres:torve-test@127.0.0.1:{PORT}/postgres"
-
 
 @pytest.fixture(scope="module")
 def pg_server():
+    # Port 0 lets the daemon choose and then reports what it chose. A fixed
+    # host port made this fixture fail against whatever else on the machine
+    # already held it — another checkout's run, or an unrelated project's
+    # postgres — and the failure read as a broken migration.
     name = f"torve-pg-{uuid.uuid4().hex[:8]}"
     subprocess.run(
         [
@@ -48,25 +49,33 @@ def pg_server():
             "-e",
             "POSTGRES_PASSWORD=torve-test",
             "-p",
-            f"127.0.0.1:{PORT}:5432",
+            "127.0.0.1::5432",
             "postgres:16-alpine",
         ],
         check=True,
         capture_output=True,
     )
     try:
+        published = subprocess.run(
+            ["docker", "port", name, "5432/tcp"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()[0]
+        admin_dsn = f"postgresql://postgres:torve-test@{published.strip()}/postgres"
+
         import psycopg
 
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
             try:
-                with psycopg.connect(ADMIN_DSN, connect_timeout=2):
+                with psycopg.connect(admin_dsn, connect_timeout=2):
                     break
             except psycopg.OperationalError:
                 time.sleep(0.5)
         else:
             pytest.fail("postgres container never became ready")
-        yield ADMIN_DSN
+        yield admin_dsn
     finally:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
 

@@ -97,14 +97,18 @@ def test_exec_timeout_is_not_an_exit_code(runtime_case):
 def test_listing_and_destroy_by_id(runtime_case):
     runtime, spec, workspace = runtime_case
     handle = runtime.create(spec, workspace)
-    infos = [i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == "T-9902"]
+    # By the name just created, not by the task label: the label is a shared
+    # literal and the daemon is shared too, so a concurrent test's sandbox
+    # would read as this one's and be destroyed by the line below. The name
+    # is the spec's own uuid, and the daemon already refuses a duplicate —
+    # the id cannot serve, since `create` keeps the full one and a listing
+    # reports the short form.
+    infos = [i for i in runtime.list_torve_sandboxes() if i.name == handle.name]
     assert infos, "created sandbox not visible to the reaper's listing"
     assert infos[0].labels[naming.LABEL_TASK] == "T-9902"
 
     runtime.destroy_by_id(infos[0].id)
-    remaining = [
-        i for i in runtime.list_torve_sandboxes() if i.labels.get("torve.task") == "T-9902"
-    ]
+    remaining = [i for i in runtime.list_torve_sandboxes() if i.name == handle.name]
     assert not remaining
     runtime.destroy(handle)  # idempotent cleanup
 
@@ -196,7 +200,7 @@ def test_opensandbox_refuses_volumes(tmp_path):
     workspace = tmp_path / "ws2"
     workspace.mkdir()
     spec = SandboxSpec(
-        name="torve-refuse",
+        name=f"torve-refuse-{uuid.uuid4().hex[:8]}",
         image=TEST_IMAGE,
         labels=naming.labels("T-9904", "r", Path.cwd()),
         timeout_s=60,
@@ -304,7 +308,7 @@ def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch
     workspace = tmp_path / "ws3"
     workspace.mkdir()
     spec = SandboxSpec(
-        name="torve-proxy",
+        name=f"torve-proxy-{uuid.uuid4().hex[:8]}",
         image=TEST_IMAGE,
         labels=naming.labels("T-9905", "r", Path.cwd()),
         timeout_s=60,

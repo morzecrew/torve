@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from torve.base import naming
 from torve.config import layout
 from torve.config.manifest import load_manifest
 from torve.gates.context import build_context
@@ -16,6 +17,22 @@ from torve.gates.sabotage import LOCKED_D1, Repo, base_task
 # text, which a hand-written log carries unquoted and YAML then reads as a
 # nested mapping — or refuses outright.
 HOSTILE = "src/app.py:1 — the call is `timeout: 600` here, and the overlay names it too"
+
+
+def torve_sandboxes(runtime, root: Path) -> list:
+    """The sandboxes this repository's engine started, and nobody else's.
+
+    `naming.root_key` exists for exactly this — "two engines on one machine,
+    or two checkouts of one repository, never mistake each other's sandboxes
+    for their own" — and every test here had been filtering on the task id
+    alone. Since `TASK_ID` is one shared literal across eleven test files, two
+    tests running at once see each other: the assertions read another test's
+    container as a leftover, and the cleanup loops destroy it.
+    """
+
+    key = naming.root_key(root)
+
+    return [i for i in runtime.list_torve_sandboxes() if i.labels.get(naming.LABEL_ROOT) == key]
 
 
 @pytest.fixture
