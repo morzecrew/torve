@@ -86,7 +86,7 @@ decisions:
       best-effort per harness exactly as an equipment kind is
     cites: [S-0063/D-4]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
       One carrier is the landing, and the other two are reconciled against it or dropped
     paths: [src/torve/application/lane.py, src/torve/application/projections.py]
@@ -97,3 +97,4 @@ decisions:
       the store records 263 landings, the lane emits 49 `lane_landed` events and 58
       landing files exist; each counts something real and none says which, so the
       choice is the implementation's to make and to record
+    fingerprint: 9da88cdc8ab9e002/1bd9eee23b48e45a

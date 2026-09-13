@@ -98,3 +98,35 @@ amendments:
       the named phase. S-0053 uses it today and six archived documents used it before.
       Nothing needs building for tasks to outnumber phases; the five documents written
       this session simply never used it.
+  - id: A-4
+    at: '2026-09-13T06:47:22Z'
+    title: >-
+      The landing file is the carrier, settled by T-0368
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: fingerprint
+        after: 9da88cdc8ab9e002/1bd9eee23b48e45a
+    md: |
+      The row was `OPEN` because the three counts disagreed and nothing in the
+      document could say which was right. T-0368 decided it against the code and
+      recorded the evidence: the ledger already divides by the landing files
+      through `shipped_ids` (`ledger.py:454`), and the record's
+      `landing.recorded` events are already minted from those same files
+      (`decisions.py:951`) — so two of the three readers were derived from the
+      carrier before anyone named it one, and only `lane.py:542` was tallying
+      beside it rather than reconciling against it.
+
+      What makes it `ASSUMED` rather than `LOCKED` is the reason the attempt
+      gave for choosing, which is better than the choice itself: the three
+      numbers were never measuring the same thing. The record counts landing
+      commits, the lane counts its own merges, and the files count landed tasks.
+      A rate over landed tasks wants the last, and a different question could
+      honestly want one of the others — so this settles the denominator, not the
+      other two readers' right to exist.
+
+      A landing file also answers in a clone with no event store, which is the
+      property `S-0070/D-1` asks of anything a reader depends on.
