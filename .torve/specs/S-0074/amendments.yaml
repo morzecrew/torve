@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-13T19:26:02Z'
+    title: >-
+      Decomposition fires where authoring did not, so this document is not its candidate
+    changes:
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-5
+        field: paths
+        before: []
+        after: [src/torve/application/intake.py]
+      - subject: D-5
+        field: fingerprint
+        after: 293fbb1e4645f022/7b6dc23c9582124b
+    md: |
+      Written ten minutes after the document claimed the opposite, and the claim came from
+      the register rather than from reading the verb.
+
+      `torve decompose` takes a task id — an oversized contract — and splits it. The
+      register's C1 says "mint this one through `decompose`", which reads as though a
+      document can be minted that way; it cannot. What it would take is minting the whole
+      document as one wide contract so that it sizes `too_large`, and then splitting it.
+
+      That is un-phasing work that was phased correctly in order to prove a mechanism
+      handles badly phased work. The proof would be worthless and the contract would be a
+      prop.
+
+      So the honest reading is the one this row records: 0 of 126 contracts carry a parent
+      because careful authoring prevents the condition decomposition exists for. The path
+      will fire on a drafted intake, where no human phased anything — and if it never
+      fires, that is a fact about how this repository works rather than a gap in it. The
+      five contracts this document mints are all `ok`, and the board holds no oversized
+      contract to offer instead.

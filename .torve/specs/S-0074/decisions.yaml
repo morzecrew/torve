@@ -56,3 +56,20 @@ decisions:
       the arms are not equally exposed to the same failures — a bare arm never breaks
       a corpus it was not given — so a mean over unlike tasks answers a question nobody
       asked
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `torve decompose` splits an oversized contract, so a document phased carefully
+      enough to mint none is not a candidate for it; the path is exercised where authoring
+      did not happen — a drafted intake, or a contract minted wide on purpose — and
+      never by un-phasing work that was phased correctly
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      C1 stops being a thing to attach to whichever document is next, and becomes
+      a thing that needs the condition it handles
+    rationale: >-
+      this document was named the C1 candidate and mints five contracts, every one
+      `ok`; the board holds no oversized contract at all. 0 of 126 contracts carry
+      a parent not because the mechanism is broken but because careful phasing prevents
+      the condition — which is why two years of intending to exercise it has not
+    cites: [S-0026/D-13]

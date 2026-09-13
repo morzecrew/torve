@@ -872,6 +872,13 @@ The result is reported per task across three rows, and any aggregate is a distri
 - Paths: `src/torve/application/evals.py`
 - Consequence: a task where the bare arm shipped what the battery would have refused stays visible instead of averaging into a percentage
 
+### S-0074/D-5 — `ASSUMED` (What the engine is worth against a bare harness)
+
+`torve decompose` splits an oversized contract, so a document phased carefully enough to mint none is not a candidate for it; the path is exercised where authoring did not happen — a drafted intake, or a contract minted wide on purpose — and never by un-phasing work that was phased correctly
+
+- Paths: `src/torve/application/intake.py`
+- Consequence: C1 stops being a thing to attach to whichever document is next, and becomes a thing that needs the condition it handles
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
