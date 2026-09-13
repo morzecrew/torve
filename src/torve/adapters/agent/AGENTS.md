@@ -127,6 +127,13 @@ The conviction reaches the next attempt in the prompt — the gate, its output t
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
 - Consequence: the most specific thing the engine ever learns about a task stops arriving through a channel an attempt may skip
 
+### S-0074/D-2 — `ASSUMED` (What the engine is worth against a bare harness)
+
+The bare arm's prompt carries the task's intent and nothing else — no inherited rows, no context pack, no working rules — as a fourth `build_prompt` mode beside revision, continuation and repair
+
+- Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
+- Consequence: what an arm removed is a property of the prompt a test can assert, rather than something read back out of a transcript
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.

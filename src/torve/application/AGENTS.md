@@ -849,6 +849,29 @@ A phase's acceptance commands are runnable in the environment that judges them: 
 - Consequence: an authoring mistake costs one refusal at mint instead of the poison ceiling, three attempts and their money
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0074/D-1 — `LOCKED` (What the engine is worth against a bare harness)
+
+An arm is named by the apparatus it removes — bare, gated, configured — and an eval record carries which arm produced each result, so the comparison is rebuildable from the ledger alone
+
+- Paths: `src/torve/application/evals.py` `.torve/evals.jsonl`
+- Consequence: the three-arm table can be recomputed a year later without the person who ran it, which is the difference between a measurement and an anecdote
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-3 — `LOCKED` (What the engine is worth against a bare harness)
+
+An arm that runs without the battery still merges nothing, and the removal travels as a property of the replay rather than as an edit to the gate manifest
+
+- Paths: `src/torve/application/evals.py` `src/torve/application/runner.py`
+- Consequence: a bare arm cannot land anything, and the manifest every other attempt is judged by is never the thing that changed
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0074/D-4 — `ASSUMED` (What the engine is worth against a bare harness)
+
+The result is reported per task across three rows, and any aggregate is a distribution rather than a mean
+
+- Paths: `src/torve/application/evals.py`
+- Consequence: a task where the bare arm shipped what the battery would have refused stays visible instead of averaging into a percentage
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

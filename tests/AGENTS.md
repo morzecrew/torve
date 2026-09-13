@@ -48,6 +48,13 @@ An acceptance verdict names the suite it judged: a battery that ran fewer tests 
 - Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
 - Consequence: a green battery in a sandbox and a green battery on a laptop stop being the same sentence for two different amounts of evidence
 
+### S-0074/D-2 — `ASSUMED` (What the engine is worth against a bare harness)
+
+The bare arm's prompt carries the task's intent and nothing else — no inherited rows, no context pack, no working rules — as a fourth `build_prompt` mode beside revision, continuation and repair
+
+- Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
+- Consequence: what an arm removed is a property of the prompt a test can assert, rather than something read back out of a transcript
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green
