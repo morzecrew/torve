@@ -59,8 +59,10 @@ decisions:
   - id: D-5
     grade: ASSUMED
     text: >-
-      The working rules ask for independent reads and greps in one message, because
-      the harness executes several tool calls from one and nothing has ever sent two
+      The working rules ask for independent reads and greps in one message, and the
+      ask does not produce them: measured with the rules in system position, no attempt
+      has ever sent two tool calls in one message. The models shorten round trips
+      through the shell instead, and a mitigation aimed at N should meet them there
     paths: [skills/working-rules/**]
     consequence: >-
       the round trips a small attempt spends orienting fall without any read being
@@ -76,6 +78,7 @@ decisions:
       the multiplier rather than the multiplicand, and the burn profile's calls-per-message
       reports the answer directly
     cites: [S-0067/D-3]
+    fingerprint: 7b47943f0f80f7bd/2d8e70a244fe2269
   - id: D-6
     grade: ASSUMED
     text: >-

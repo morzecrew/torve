@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-14T22:46:44Z'
+    title: D-5's sentence does not produce batching
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          The working rules ask for independent reads and greps in one message, because
+          the harness executes several tool calls from one and nothing has ever sent
+          two
+        after: >-
+          The working rules ask for independent reads and greps in one message, and
+          the ask does not produce them: measured with the rules in system position,
+          no attempt has ever sent two tool calls in one message. The models shorten
+          round trips through the shell instead, and a mitigation aimed at N should
+          meet them there
+      - subject: D-5
+        field: fingerprint
+        after: 7b47943f0f80f7bd/2d8e70a244fe2269
+    md: |
+      The row was written as its own test — "the cheapest possible test of
+      whether that is the models or the absence of a rule". The test ran and
+      the answer is: not the absence of a rule.
+
+      The sentence landed in T-0411, the images took it in system position in
+      T-0412, and the channel was verified end to end rather than assumed — a
+      stub `claude` in the built image shows `--append-system-prompt` carrying
+      the file's text. T-0413 then made 37 calls in 37 messages, and 33 in 33.
+      Against a baseline of 1,654 messages with no exception, on a harness this
+      session demonstrated will execute two calls issued in one message.
+
+      Twice over, in fact: the attempt read the skill itself on its third call,
+      so it had the sentence in the prompt and in its own context, and batched
+      nothing.
+
+      What the traces do show is the models shortening round trips their own
+      way — `for f in .torve/skills/*/SKILL.md; do cat "$f"; done`, one call
+      where the reader's tool would have taken six. They batch through the
+      shell, unasked. The row stays `ASSUMED` rather than retiring because the
+      sentence costs nothing and asks for something true; what changes is that
+      nothing may be claimed for it, and the remaining lever on N is to make
+      one call do the work of several, which is what S-0076/D-1 and S-0076/D-5
+      already do for the pack and for definition lookups.
