@@ -61,6 +61,41 @@ def test_the_working_rules_ship_as_one_skill_carrying_the_three_new_rules():
     assert "Nothing here outranks the contract" in text
 
 
+def test_the_working_rules_carry_the_three_rules_the_burn_profile_counts():
+    """S-0073/D-5, S-0073/D-6, S-0073/D-7: the three sentences, each judged by
+    a class the burn profile counts — calls per message, acceptance runs per
+    attempt, bookkeeping calls per attempt. Asserted as the lines only this
+    text carries, the way the rules above it are."""
+
+    text = (skills_root() / "working-rules" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "Issue independent reads and greps in one message" in text
+    assert "Run the contract's acceptance commands as written, once, after your edits" in text
+    assert "Record every divergence in one call" in text
+    assert "`torve log owed` is answered by the finishing check before you stop" in text
+
+
+def test_the_working_rules_teach_the_batch_form_the_verb_actually_takes():
+    """The rules and the verb are one claim: the skill says the options
+    repeat and pair by position, and `log divergence` is what has to accept
+    that. A signature that stopped taking several rows fails here rather
+    than teaching a call that is refused."""
+
+    from typer.main import get_command
+
+    from torve.cli.main import app
+
+    text = (skills_root() / "working-rules" / "SKILL.md").read_text(encoding="utf-8")
+    command = get_command(app).commands["log"].commands["divergence"]
+    multiple = {param.opts[0] for param in command.params if getattr(param, "multiple", False)}
+
+    assert {"--decision", "--grade", "--claim", "--evidence", "--action"} <= multiple
+    assert {"--kind", "--class", "--proposal", "--notes"} <= multiple
+    # The attempt belongs to the call, not the row, and the skill says so.
+    assert "--attempt" not in multiple
+    assert "The verb takes several rows" in text
+
+
 def test_every_role_that_runs_a_contract_declares_the_working_rules():
     """S-0067/D-3: declared equipment on the roles that need it — all three,
     because all three are dispatched against a contract by `build_prompt`."""

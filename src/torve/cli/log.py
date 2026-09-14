@@ -36,45 +36,85 @@ log_app = typer.Typer(no_args_is_help=True, help="Record execution-log entries."
 # ....................... #
 
 
+def _given(count: int) -> str:
+    return {0: "not given", 1: "given once"}.get(count, f"given {count} times")
+
+
+def _refuse(problems: list[str], rows: int, fmt: Format, why: str) -> typer.Exit:
+    """Say what to repair and write nothing. The batch is one transaction:
+    a row the gate would refuse leaves every other row unwritten too, so an
+    attempt never has to work out which half of a call landed."""
+
+    if fmt is Format.JSON:
+        emit_json({"accepted": False, "problems": problems})
+    else:
+        console = err()
+        console.print(f"{'entry' if rows == 1 else 'entries'} not recorded — {why}:")
+
+        for problem in problems:
+            console.print(f"  {problem}")
+
+    return typer.Exit(EXIT_CONFIG)
+
+
 @log_app.command("divergence")
 def divergence_cmd(
     task_id: Annotated[str, typer.Argument(help="The task this entry belongs to.")],
     decision: Annotated[
-        str,
-        typer.Option("--decision", help="The decision id this entry is about, or 'unlisted'."),
-    ],
-    grade: Annotated[str, typer.Option("--grade", help="LOCKED, ASSUMED, OPEN or UNLISTED.")],
-    claim: Annotated[str, typer.Option("--claim", help="What reality says, in one paragraph.")],
+        list[str] | None,
+        typer.Option(
+            "--decision",
+            help="The decision id this entry is about, or 'unlisted'. Repeat it, "
+            "with every other option, to record several rows in one call.",
+        ),
+    ] = None,
+    grade: Annotated[
+        list[str] | None, typer.Option("--grade", help="LOCKED, ASSUMED, OPEN or UNLISTED.")
+    ] = None,
+    claim: Annotated[
+        list[str] | None, typer.Option("--claim", help="What reality says, in one paragraph.")
+    ] = None,
     evidence: Annotated[
-        str,
+        list[str] | None,
         typer.Option(
             "--evidence",
             help="One leading 'path:line - one sentence' citation, or a backticked "
             "command with its output.",
         ),
-    ],
-    action: Annotated[str, typer.Option("--action", help="halted, departed or decided.")],
+    ] = None,
+    action: Annotated[
+        list[str] | None, typer.Option("--action", help="halted, departed or decided.")
+    ] = None,
     attempt: Annotated[int, typer.Option("--attempt", min=1, help="Which attempt this is.")] = 1,
     kind: Annotated[
-        str,
+        list[str] | None,
         typer.Option("--kind", help="contradicted, departed, resolved or blocked."),
-    ] = "",
+    ] = None,
     klass: Annotated[
-        str,
+        list[str] | None,
         typer.Option("--class", help="discovery, spec-gap, drift or irreducible."),
-    ] = "",
+    ] = None,
     proposal: Annotated[
-        str, typer.Option("--proposal", help="What the specification should say instead.")
-    ] = "",
-    notes: Annotated[str, typer.Option("--notes", help="Anything a reader needs beside it.")] = "",
+        list[str] | None,
+        typer.Option("--proposal", help="What the specification should say instead."),
+    ] = None,
+    notes: Annotated[
+        list[str] | None, typer.Option("--notes", help="Anything a reader needs beside it.")
+    ] = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Add one divergence entry to a task's execution log.
+    """Add divergence entries to a task's execution log.
 
-    The entry is checked before anything is written or sent, and a rejected
-    entry leaves the log untouched: the message names what to repair, in the
-    same words the gate would use later.
+    One row, or several in one call: repeat the options, and the nth
+    `--decision` goes with the nth `--grade`, `--claim`, `--evidence` and
+    `--action`. An optional option is given for every row or for none of
+    them, so a row never silently borrows its neighbour's `--class`. The
+    attempt is the call's, not the row's.
+
+    Every entry is checked before anything is written or sent, and a
+    rejected batch leaves the log untouched: the message names what to
+    repair, in the same words the gate would use later.
 
     An accepted entry goes to the run's channel when it has one — the broker
     appends it to the record on this run's behalf, stamping who and what it
@@ -84,57 +124,91 @@ def divergence_cmd(
     """
 
     root = root.resolve()
+    decisions = decision or []
+    rows = len(decisions)
 
-    try:
-        entry = compose(
-            root,
-            decision=decision,
-            grade=grade,
-            claim=claim,
-            evidence=evidence,
-            action=action,
-            attempt=attempt,
-            kind=kind,
-            klass=klass,
-            proposal=proposal,
-            notes=notes,
-        )
+    if not rows:
+        raise _refuse(["--decision is required, once per row"], 1, fmt, "nothing was stated")
 
-    except IntakeRefused as refused:
-        if fmt is Format.JSON:
-            emit_json({"accepted": False, "problems": refused.problems})
-        else:
-            console = err()
-            console.print("entry not recorded — the log is unchanged:")
+    required = {"--grade": grade, "--claim": claim, "--evidence": evidence, "--action": action}
+    optional = {"--kind": kind, "--class": klass, "--proposal": proposal, "--notes": notes}
+    stated = f"{rows} row{'' if rows == 1 else 's'} stated"
+    counts = [
+        f"{name} is {_given(len(given or []))} with {stated} — once per row"
+        for name, given in required.items()
+        if len(given or []) != rows
+    ] + [
+        f"{name} is {_given(len(given))} with {stated} — once per row or not at all"
+        for name, given in optional.items()
+        if given and len(given) != rows
+    ]
 
-            for problem in refused.problems:
-                console.print(f"  {problem}")
+    if counts:
+        raise _refuse(counts, rows, fmt, "the options do not line up")
 
-        raise typer.Exit(EXIT_CONFIG) from refused
+    def field(given: list[str] | None, index: int) -> str:
+        return given[index] if given else ""
+
+    entries: list[dict[str, Any]] = []
+    problems: list[str] = []
+
+    for index, one in enumerate(decisions):
+        try:
+            entries.append(
+                compose(
+                    root,
+                    decision=one,
+                    grade=field(grade, index),
+                    claim=field(claim, index),
+                    evidence=field(evidence, index),
+                    action=field(action, index),
+                    attempt=attempt,
+                    kind=field(kind, index),
+                    klass=field(klass, index),
+                    proposal=field(proposal, index),
+                    notes=field(notes, index),
+                )
+            )
+
+        except IntakeRefused as refused:
+            problems += [
+                f"row {index + 1} ({one}): {problem}" if rows > 1 else problem
+                for problem in refused.problems
+            ]
+
+    if problems:
+        raise _refuse(problems, rows, fmt, "the log is unchanged")
 
     channel = open_channel(root)
 
     if channel is not None:
-        try:
-            channel.record("divergence.recorded", payload_of(entry))
+        for entry in entries:
+            try:
+                channel.record("divergence.recorded", payload_of(entry))
 
-        except ChannelRefused as refused:
-            if fmt is Format.JSON:
-                emit_json({"accepted": False, "problems": [str(refused)]})
-            else:
-                err().print(f"entry not recorded — the channel refused it: {refused}")
-
-            raise typer.Exit(EXIT_CONFIG) from refused
+            except ChannelRefused as refused:
+                why = f"the channel refused {'it' if rows == 1 else 'one of them'}"
+                raise _refuse([str(refused)], rows, fmt, why) from refused
 
         if fmt is Format.JSON:
             emit_json({"accepted": True, "channel": True, "log": None, "staged": False})
             raise typer.Exit(EXIT_OK)
 
-        closing(out(fmt), "entry recorded — the engine writes the log from it")
+        closing(
+            out(fmt),
+            ("entry" if rows == 1 else f"{rows} entries")
+            + " recorded — the engine writes the log from it",
+        )
         raise typer.Exit(EXIT_OK)
 
-    path, document, staged = append(root, task_id, entry)
-    entries = len(document["entries"])
+    staged = True
+    path = layout.log_file(root, task_id)
+    total = 0
+
+    for entry in entries:
+        path, document, one_staged = append(root, task_id, entry)
+        staged = staged and one_staged
+        total = len(document["entries"])
 
     if fmt is Format.JSON:
         emit_json(
@@ -142,7 +216,7 @@ def divergence_cmd(
                 "accepted": True,
                 "channel": False,
                 "log": str(path.relative_to(root)),
-                "entries": entries,
+                "entries": total,
                 "staged": staged,
             }
         )
@@ -150,7 +224,8 @@ def divergence_cmd(
 
     closing(
         out(fmt),
-        f"entry {entries} recorded in {path.relative_to(root)}"
+        (f"entry {total}" if rows == 1 else f"entries {total - rows + 1}-{total}")
+        + f" recorded in {path.relative_to(root)}"
         + (" and staged" if staged else " — the engine stages it host-side"),
     )
     raise typer.Exit(EXIT_OK)
