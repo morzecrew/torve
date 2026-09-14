@@ -186,15 +186,24 @@ def warm(items: Sequence[Equipment], *, root: Path, cache: Path | None = None) -
     for item in items:
         where = item_path(item, cache)
 
-        if not where.is_dir():
-            if item.scheme == "github":
+        # A pinned source is fetched once: the ref names the bytes, so a warm
+        # directory cannot be stale. The other two pin nothing — their key is
+        # the declaration alone (S-0062/I-2), and the declaration does not move
+        # when the bytes do. Editing a skill therefore left every attempt
+        # reading the copy taken the first time anyone warmed the cache, which
+        # is how two landed changes to `working-rules` reached no attempt at
+        # all. Both re-read from this machine, so the copy is the cheap half.
+        # ponytail: recopied every warm, digest the source if a local item ever
+        # grows big enough for that to matter.
+        if item.scheme == "github":
+            if not where.is_dir():
                 _fetch_github(item, where)
 
-            elif item.scheme == "local":
-                _fetch_local(item, where, root=root)
+        elif item.scheme == "local":
+            _fetch_local(item, where, root=root)
 
-            else:
-                _fetch_torve(item, where)
+        else:
+            _fetch_torve(item, where)
 
         landed.append(where)
 
@@ -301,26 +310,54 @@ def _link_tree(source: Path, target: Path) -> None:
         shutil.copytree(source, target)
 
 
+def _tree_digest(where: Path) -> str:
+    """Every file under a directory — its path and its bytes — as one digest.
+
+    Only unpinned sources need it, and those are this repository's own skills
+    and hooks: kilobytes, read from this machine.
+    """
+
+    running = hashlib.sha256()
+
+    for path in sorted(where.rglob("*")):
+        if path.is_file():
+            running.update(str(path.relative_to(where)).encode("utf-8"))
+            running.update(path.read_bytes())
+
+    return running.hexdigest()[:16]
+
+
 def mount_root(items: Sequence[Equipment], *, root: Path, cache: Path | None = None) -> Path | None:
     """The directory a seat mounts, or None when it was given nothing.
 
     Named by a digest of the declaration, so two seats declaring the same
     equipment share one — and a seat whose declaration changed gets a different
     directory rather than a stale one repaired in place.
+
+    An unpinned source's declaration does not move when its bytes do (see
+    `warm`), so for those the bytes are folded into the name as well. Without
+    it the mount is reused with the copy it was first built from, and a rule
+    edited in this repository reaches nothing.
     """
 
     if not items:
         return None
 
     cache = cache or cache_root()
+    # Before the name, because an unpinned item's bytes are part of it.
+    warm(items, root=root, cache=cache)
     keys = [f"{item.kind}/{item.key}" for item in items]
-    digest = hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()[:16]
+    keys += [
+        f"{item.kind}/{item.key}#{_tree_digest(item_path(item, cache))}"
+        for item in items
+        if item.scheme != "github"
+    ]
+    digest = hashlib.sha256("\n".join(sorted(keys)).encode("utf-8")).hexdigest()[:16]
     where = cache / MOUNTS_DIR / digest
 
     if (where / MANIFEST).is_file():
         return where
 
-    warm(items, root=root, cache=cache)
     scratch = where.with_name(where.name + ".building")
     shutil.rmtree(scratch, ignore_errors=True)
     scratch.mkdir(parents=True)

@@ -283,8 +283,13 @@ def test_nothing_declared_means_nothing_attached(root: Path, tmp_path: Path):
 
 def test_nothing_is_fetched_while_an_attempt_runs_host_side(tmp_path: Path, monkeypatch) -> None:
     """S-0062/I-1: every fetch is host-side, before the sandbox exists. The
-    check is that warming is reachable without a sandbox at all, and that a
-    warm cache fetches nothing the second time."""
+    check is that warming is reachable without a sandbox at all.
+
+    Whether a second warm re-reads is a different question and belongs to the
+    source: a pinned one is fetched once because its ref names the bytes, and
+    an unpinned one is re-copied from this machine because nothing else would
+    notice that it changed. Neither touches the network at dispatch, which is
+    what S-0062/D-4 buys."""
 
     from torve.application import equipment as equip_mod
 
@@ -307,7 +312,8 @@ def test_nothing_is_fetched_while_an_attempt_runs_host_side(tmp_path: Path, monk
 
     assert first == second
     assert (first[0] / "SKILL.md").is_file()
-    assert fetched == ["local:skills/house"], "a warm cache fetched again"
+    # Twice, and from the repository both times: no sandbox, no network.
+    assert fetched == ["local:skills/house"] * 2
 
 
 def test_a_cache_key_is_the_declaration_so_two_refs_are_two_directories(tmp_path: Path) -> None:
@@ -1055,3 +1061,61 @@ def test_the_dsh_seat_blocks_at_write_time_and_names_no_finisher() -> None:
     assert "fs/write-intent" in plugin
     assert "fs/edit-intent" in plugin
     assert "finish" not in plugin
+
+
+def test_an_edited_unpinned_source_reaches_the_next_attempt(tmp_path: Path) -> None:
+    """The bug that made two landed changes to `working-rules` reach no attempt
+    at all: an unpinned source's key is the declaration, the declaration does
+    not move when the bytes do, `warm` refetched only what was absent and
+    `mount_root` named the mount after the keys. The cache was therefore frozen
+    at whatever was copied the first time anyone warmed it — and `equip
+    --check`, which asks whether a directory holds what its key claims, said
+    yes throughout."""
+
+    from torve.application.equipment import MANIFEST, mount_root
+
+    cache = tmp_path / "cache"
+    repo = tmp_path / "repo"
+    skill = repo / "skills" / "house"
+    skill.mkdir(parents=True)
+    skill.joinpath("SKILL.md").write_text("the old rule\n", encoding="utf-8")
+
+    item = Equipment(kind="skill", source="local:skills/house")
+    first = mount_root([item], root=repo, cache=cache)
+    assert first is not None
+    assert "the old rule" in (first / "house" / "SKILL.md").read_text(encoding="utf-8")
+
+    skill.joinpath("SKILL.md").write_text("the new rule\n", encoding="utf-8")
+    second = mount_root([item], root=repo, cache=cache)
+
+    assert second is not None
+    assert second != first, "the mount is named after bytes that changed"
+    assert "the new rule" in (second / "house" / "SKILL.md").read_text(encoding="utf-8")
+    assert (second / MANIFEST).is_file()
+    # The declaration did not change, so the old mount is still valid for
+    # anything that recorded it: this adds a directory, it does not repair one.
+    assert "the old rule" in (first / "house" / "SKILL.md").read_text(encoding="utf-8")
+
+
+def test_a_pinned_source_is_fetched_once_and_not_again(tmp_path: Path, monkeypatch) -> None:
+    """The other half of the same rule. A `github:` ref names the bytes, so a
+    warm directory cannot be stale and refetching it would be a network call
+    per attempt for a guarantee the ref already gives."""
+
+    from torve.application import equipment as module
+
+    cache = tmp_path / "cache"
+    calls: list[str] = []
+
+    def _never(item, into, **_):
+        calls.append(item.source)
+        into.mkdir(parents=True, exist_ok=True)
+        (into / "SKILL.md").write_text("fetched\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_fetch_github", _never)
+    item = Equipment(kind="skill", source="github:o/r", ref="a" * 40)
+
+    module.warm([item], root=tmp_path, cache=cache)
+    module.warm([item], root=tmp_path, cache=cache)
+
+    assert calls == ["github:o/r"], "a pinned source is fetched once"
