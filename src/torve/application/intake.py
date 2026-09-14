@@ -167,11 +167,30 @@ def _glob_errors(
             errors.append(f"{ref}: {kind} glob {pattern!r} escapes the tree")
             continue
 
-        if (
-            not planning
-            and any(ch in pattern for ch in "*?[")
-            and not any(_matched(p, [pattern]) for p in tree_paths)
-        ):
+        # A pattern with no wildcard is a literal path, and the scope gate
+        # matches it against files. One that names a directory therefore
+        # matches no file at all: the contract reads as if it allowed the
+        # directory's contents and allows nothing, so the attempt is refused
+        # on writes its own scope appears to permit. T-0409 spent an attempt
+        # on exactly that, declaring `.torve/harnesses` and being unable to
+        # write under it. The check above never saw it, because it asks only
+        # about wildcards.
+        if not any(ch in pattern for ch in "*?["):
+            bare = pattern.rstrip("/")
+            # `tree_paths` holds files, so a directory is what has files under
+            # it and is not one itself.
+            under = any(str(p).startswith(bare + "/") for p in tree_paths)
+            itself = any(str(p) == bare for p in tree_paths)
+
+            if under and not itself:
+                errors.append(
+                    f"{ref}: {kind} glob {pattern!r} names a directory, which matches "
+                    f"no file — write {bare}/** for its contents"
+                )
+
+            continue
+
+        if not planning and not any(_matched(p, [pattern]) for p in tree_paths):
             errors.append(
                 f"{ref}: {kind} glob {pattern!r} matches nothing in the tree "
                 "— a wildcard that can never match checks nothing"

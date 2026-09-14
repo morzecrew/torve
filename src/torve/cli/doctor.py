@@ -56,6 +56,7 @@ from __future__ import annotations
 import http.client
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlencode, urlsplit
@@ -105,6 +106,91 @@ def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
             found = row  # append-only ledger — the latest citation wins
 
     return found
+
+
+# What the image carries at `/opt/torve`, listed the way the tree can be
+# listed beside it: one line per file, path then digest, sorted.
+_TOOLKIT_LIST = (
+    "cd /opt/torve 2>/dev/null && find . -type f ! -path './__pycache__/*' "
+    "! -name '*.pyc' -exec md5sum {} + | awk '{print $2, $1}' | sort"
+)
+
+
+def _toolkit_tree(where: Path) -> dict[str, str]:
+    """The same listing, from the definition in the tree."""
+
+    import hashlib
+
+    found: dict[str, str] = {}
+
+    for path in where.rglob("*"):
+        if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
+            continue
+
+        digest = hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest()
+        found[f"./{path.relative_to(where)}"] = digest
+
+    return found
+
+
+def _toolkit_drift(root: Path, name: str, image: str) -> str | None:
+    """Whether the image runs the toolkit this tree holds (S-0063/D-14).
+
+    An image is built by hand and nothing has ever compared it to the bytes it
+    was built from, so a definition edited and not rebuilt runs the old copy —
+    silently, because the repository is green either way. Four attempts died at
+    `wall 0s` on one such image in a single day before anyone thought to look
+    inside it.
+
+    Best effort: a runtime that will not run the image reports nothing rather
+    than a finding, because doctor already says when an image is unusable.
+    """
+
+    from torve.cli.sandbox import definitions_root
+
+    toolkit = definitions_root(root) / name / "toolkit"
+
+    if not toolkit.is_dir():
+        return None
+
+    try:
+        result = subprocess.run(
+            ["docker", "run", "--rm", "--entrypoint", "sh", image, "-c", _TOOLKIT_LIST],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    inside: dict[str, str] = {}
+
+    for line in result.stdout.splitlines():
+        path, _, digest = line.partition(" ")
+
+        if digest:
+            inside[path] = digest
+
+    here = _toolkit_tree(toolkit)
+    # One direction only: every file the definition holds is in the image and
+    # identical. What else `/opt/torve` carries is the image's own — the
+    # Dockerfile builds a venv in there — and none of it came from this tree.
+    changed = sorted(path for path, digest in here.items() if inside.get(path) != digest)
+
+    if not changed:
+        return None
+
+    return (
+        f"{image}: runs a different {name}/toolkit than this tree holds — "
+        f"{', '.join(c.removeprefix('./') for c in changed[:4])}"
+        f"{' and more' if len(changed) > 4 else ''}. "
+        f"Rebuild it (just image {name}); an image built from older bytes fails "
+        "inside the sandbox while every gate here stays green"
+    )
 
 
 def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
@@ -178,6 +264,12 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     continue
 
                 detail += " (definition present)"
+                drift = _toolkit_drift(root, name, image) if runtime is not None else None
+
+                if drift is not None:
+                    checks.append((f"image {image}", False, drift))
+
+                    continue
 
             checks.append((f"image {image}", True, detail))
 

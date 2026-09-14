@@ -306,6 +306,23 @@ def test_lint_refuses_escaping_and_dead_globs(tree: Path):
     assert any("matches nothing" in e for e in errors)
 
 
+def test_lint_refuses_a_scope_glob_that_names_a_directory(tree: Path):
+    """T-0409 declared `.torve/harnesses` and could not write under it: the
+    scope gate matches a wildcard-free pattern against files, so a directory
+    matches nothing at all and the contract allows nothing it appears to. The
+    dead-glob check above never saw it, because it asks only about wildcards."""
+
+    errors = lint_drafts(tree, document(draft_dict(allow=["src", "tests/test_app.py"])), 4)
+
+    assert any("names a directory" in e and "src/**" in e for e in errors), errors
+    # And the same path with the wildcard is the thing it asked for.
+    assert lint_drafts(tree, document(draft_dict(allow=["src/**", "tests/test_app.py"])), 4) == []
+    # A wildcard-free path that names a real file is still perfectly good.
+    assert (
+        lint_drafts(tree, document(draft_dict(allow=["src/app.py", "tests/test_app.py"])), 4) == []
+    )
+
+
 def test_lint_refuses_allow_deny_overlap_and_bad_deps(tree: Path):
     errors = lint_drafts(
         tree, document(draft_dict(deny=["src/newmod.py"], depends_on=["DRAFT-1", "DRAFT-9"])), 4
