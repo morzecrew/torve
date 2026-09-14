@@ -49,6 +49,37 @@ DOOR=/tmp/torve-door.yml
 sed "s|@EQUIP_ROOT@|${TORVE_EQUIP_ROOT:-.dsh/skills}|" /opt/torve/door.yml > "$DOOR"
 set -- "$@" --patch "$DOOR"
 
+# System position (S-0073/D-8). dsh's channel is the deployment persona: the
+# order-0 section of the assembled prompt, above everything but the harness
+# identity — so the rules are read before the contract the task text carries.
+# One channel again, so it is a patch like the model and the door.
+#
+# `--patch` REPLACES an entry's config rather than merging into it, which is
+# why the headless bundle's own persona sentence is restated here: measured on
+# 0.1.1-rc.2, `@deepseek-ai/dsh-headless`'s `cordis.patch.yml` is where it comes
+# from, and dropping it would take `{{model}}` and `{{cwd}}` with it.
+#
+# The persona is a strict template: a complete `{{…}}` group in the staged text
+# that names no registered variable fails the render rather than reaching the
+# model. The rules the engine stages carry none.
+#
+# Before the equipment overlay, like the door above it: a later patch wins, and
+# what a seat equips is the seat's own.
+if [ -s "${TORVE_SYSTEM_PROMPT:-}" ]; then
+    PERSONA=/tmp/torve-persona.yml
+    {
+        echo '- id: system-prompt'
+        echo '  config:'
+        echo '    persona: |-'
+        echo '      You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.'
+        echo ''
+        # Indented into the block scalar; the engine's file is the bytes.
+        sed 's/^/      /' "$TORVE_SYSTEM_PROMPT"
+    } > "$PERSONA"
+
+    set -- "$@" --patch "$PERSONA"
+fi
+
 if [ -s /tmp/torve-equip.args ]; then
     eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
 fi

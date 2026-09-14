@@ -146,6 +146,7 @@ def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> Non
 
     NAMED = {
         "TORVE_PROMPT",
+        "TORVE_SYSTEM_PROMPT",
         "TORVE_MODEL",
         "TORVE_EQUIPMENT",
         "TORVE_EQUIP_ROOT",
@@ -474,6 +475,34 @@ def test_no_seated_definition_reads_a_mounted_credential() -> None:
         run = (DEFINITIONS / name / "toolkit" / "run").read_text(encoding="utf-8")
 
         assert "/auth/.credentials.json" not in run, f"{name} reads a mounted credential"
+
+
+# Which channel each image puts the engine's staged system text through
+# (S-0073/D-8). `mimo` is absent because it has no seat to test the channel on,
+# which S-0073 put out of scope rather than this forgetting it.
+SYSTEM_CHANNEL = {"claude": "--append-system-prompt", "dsh": "persona"}
+
+
+@pytest.mark.parametrize("name", sorted(SYSTEM_CHANNEL))
+def test_a_seat_reads_the_system_text_the_engine_staged(name: str) -> None:
+    """S-0073/D-8, which is S-0073/D-2's other half: the engine stages the
+    working rules and names the file, and an image that does not read it leaves
+    them out of the attempt entirely — the engine's silence, not the model's.
+
+    The text is one and the seam is not, so what is asserted per image is the
+    channel it carries the rules through and never the words it carries.
+    """
+
+    run = (DEFINITIONS / name / "toolkit" / "run").read_text(encoding="utf-8")
+    code = [line for line in run.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+
+    assert any("TORVE_SYSTEM_PROMPT" in line for line in code), (
+        f"{name} never opens the system text the engine staged for it"
+    )
+    assert any(SYSTEM_CHANNEL[name] in line for line in code), (
+        f"{name} reads the system text but puts it nowhere its harness reads in "
+        f"system position ({SYSTEM_CHANNEL[name]})"
+    )
 
 
 def test_a_manifest_declares_its_dialects_and_names_no_credential() -> None:

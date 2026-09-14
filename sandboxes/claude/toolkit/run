@@ -61,6 +61,22 @@ set -- claude -p "$(cat "$TORVE_PROMPT")" \
     --output-format stream-json --verbose \
     --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
 
+# System position (S-0073/D-8). The engine stages the working rules and names
+# the file; this seat's channel for them is `--append-system-prompt`, so they
+# are read above the contract instead of being a file the attempt happens to
+# open on its third call.
+#
+# Appended and not `--system-prompt`: that flag *replaces* claude's own system
+# prompt, and every tool's guidance goes with it — the rules are this
+# repository's, not a substitute for the harness's.
+#
+# Empty is a run with nothing to say there — a composed prompt carries no rules
+# of this engine's and its file is empty rather than absent, so the flag is
+# omitted rather than appending a blank section.
+if [ -s "${TORVE_SYSTEM_PROMPT:-}" ]; then
+    set -- "$@" --append-system-prompt "$(cat "$TORVE_SYSTEM_PROMPT")"
+fi
+
 # The door (S-0066/D-1). The worktree arrives carrying files other readers
 # wrote — `.mcp.json`, `.claude/skills`, `.claude/agents`, `CLAUDE.md` — and
 # claude reads every one of them unasked. None is equipment, none is pinned,
