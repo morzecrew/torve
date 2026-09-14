@@ -251,6 +251,65 @@ def test_the_three_receipt_shapes_the_traces_carry():
 
 
 # ....................... #
+# What the receipt says the attempt did (S-0073/D-3): the turns, the refused
+# calls and the subagent counters. A parse of bytes already on disk — so the
+# cases are the shapes the traces carry, and the silence of an image that
+# carries none of them.
+
+
+def test_the_receipt_facts_are_read_off_the_envelope():
+    meta = parse_metadata(
+        '{"type":"result","subtype":"success","num_turns":113,'
+        '"permission_denials":[{"tool_name":"Write","tool_input":{"file_path":"x"}}],'
+        '"subagent_stats":{"spawned":0,"max_depth":0}}'
+    )
+
+    assert meta.num_turns == 113
+    assert meta.permission_denials == [{"tool_name": "Write", "tool_input": {"file_path": "x"}}]
+    assert meta.subagent_stats == {"spawned": 0, "max_depth": 0}
+
+
+def test_a_receipt_carrying_none_of_them_reports_none_of_them():
+    # The images that report nothing stay visibly unreported, and a field of
+    # the wrong shape is no field — neither is repaired into a number.
+    silent = parse_metadata('{"total_cost_usd":0.4,"usage":{"output_tokens":9}}')
+
+    assert silent.num_turns is None
+    assert silent.permission_denials is None
+    assert silent.subagent_stats is None
+
+    misshapen = parse_metadata('{"type":"result","num_turns":"many","subagent_stats":[]}')
+
+    assert misshapen.num_turns is None
+    assert misshapen.subagent_stats is None
+
+
+def test_the_receipt_facts_ride_the_agent_block_and_drain_once():
+    task = Task.model_validate(base_task(allow=["src/**"]) | {"id": "T-receipt-facts"})
+    record_receipt(
+        task.id,
+        num_turns=12,
+        permission_denials=[],
+        subagent_stats={"spawned": 0, "max_depth": 0},
+    )
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert row["agent"]["num_turns"] == 12
+    # A reported emptiness is an answer: no call was refused, and no subagent
+    # was spawned. Both are told apart from a harness that never said.
+    assert row["agent"]["permission_denials"] == []
+    assert row["agent"]["subagent_stats"] == {"spawned": 0, "max_depth": 0}
+    validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))
+
+    again = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "num_turns" not in again["agent"]
+    assert "permission_denials" not in again["agent"]
+    assert "subagent_stats" not in again["agent"]
+
+
+# ....................... #
 # The inventory comparison (S-0066/D-4): what the harness says it loaded,
 # against what the seat declared, as a fact on the row — the battery judges
 # the tree, this judges the claim the regime digest makes about the inputs.

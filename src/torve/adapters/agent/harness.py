@@ -28,7 +28,7 @@ import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 from statistics import median
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
@@ -308,6 +308,13 @@ class AgentMetadata:
     # neither is ever invented for them.
     terminal_reason: str | None = None
     session_id: str | None = None
+    # What the receipt says the attempt did (S-0073/D-3): the turns it took, the
+    # calls this repository's own guard refused, and what it spawned. Read from
+    # the same envelope and under the same rule — a receipt that carries none
+    # of them reports none of them.
+    num_turns: int | None = None
+    permission_denials: list[Any] | None = None
+    subagent_stats: dict[str, Any] | None = None
 
 
 # The claude CLI's usage block spells these in snake_case; the dsh reporter's
@@ -376,6 +383,23 @@ def _session_id(sources: tuple[dict[str, Any], ...]) -> str | None:
 
             if isinstance(value, str) and value:
                 return value
+
+    return None
+
+
+_T = TypeVar("_T")
+
+
+def _reported(sources: tuple[dict[str, Any], ...], name: str, kind: type[_T]) -> _T | None:
+    """One receipt field of the shape it is written in, from the first source
+    that carries it (S-0073/D-3). A field of another shape is no field: the
+    record would rather say nothing than say something the receipt did not."""
+
+    for source in sources:
+        value: Any = source.get(name)
+
+        if isinstance(value, kind):
+            return value
 
     return None
 
@@ -456,6 +480,9 @@ def parse_metadata(output: str) -> AgentMetadata:
             output_tokens=output_tokens,
             terminal_reason=_terminal_reason(sources),
             session_id=_session_id(sources),
+            num_turns=_reported(sources, "num_turns", int),
+            permission_denials=_reported(sources, "permission_denials", list),
+            subagent_stats=_reported(sources, "subagent_stats", dict),
         )
 
     return AgentMetadata()
@@ -1596,12 +1623,18 @@ class HarnessAgent:
             trace.write_text(result.output, encoding="utf-8")
 
         meta = parse_metadata(result.output)
-        # The receipt's two fields reach the attempt record by the route the
+        # The receipt's fields reach the attempt record by the route the
         # transfer ledger already takes (S-0065/D-6): booked here against the
         # task, drained once by whichever row ends the attempt. A receipt that
-        # named neither books nothing, and the row says so by silence.
+        # named none of them books nothing, and the row says so by silence —
+        # which is the whole of the turn count's rule too (S-0073/D-3).
         record_receipt(
-            ctx.task.id, terminal_reason=meta.terminal_reason, session_id=meta.session_id
+            ctx.task.id,
+            terminal_reason=meta.terminal_reason,
+            session_id=meta.session_id,
+            num_turns=meta.num_turns,
+            permission_denials=meta.permission_denials,
+            subagent_stats=meta.subagent_stats,
         )
         # The burn profile is derived from the store's own file, never from
         # result.output: every runtime clips the exec string mid-stream, and

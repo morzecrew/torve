@@ -421,12 +421,15 @@ def _drain_transfer(task_id: str | None) -> dict[str, Any]:
 # adapter that read it and drained by whichever row ends the attempt — the
 # transfer ledger's route above, for the same reason: the receipt is parsed
 # where the harness output lives, and the record is built three modules away.
-# A harness whose receipt names neither field books nothing, so the row lacks
+# A harness whose receipt names no field books nothing, so the row lacks
 # the keys outright — absent stays absent (S-0004/D-6), and an ending the engine
-# was not told is never invented. Process-local, like the transfer ledger.
+# was not told is never invented. The turn count, the refused calls and the
+# subagent counters ride the same booking under the same rule (S-0073/D-3):
+# recorded when the receipt carries them, and never invented when it does not.
+# Process-local, like the transfer ledger.
 
 _RECEIPT_LOCK = threading.Lock()
-_pending_receipts: dict[str, dict[str, str]] = {}
+_pending_receipts: dict[str, dict[str, Any]] = {}
 
 
 def record_receipt(
@@ -434,15 +437,29 @@ def record_receipt(
     *,
     terminal_reason: str | None = None,
     session_id: str | None = None,
+    num_turns: int | None = None,
+    permission_denials: list[Any] | None = None,
+    subagent_stats: dict[str, Any] | None = None,
 ) -> None:
     """Book what a harness receipt said against a task: how the harness says
-    the run ended, and the session it ran under. Either may be missing, and a
-    missing one is not recorded."""
+    the run ended, the session it ran under, how many turns it took, the calls
+    it was refused and what it spawned. Any of them may be missing, and a
+    missing one is not recorded.
+
+    A reported emptiness is not a missing field: no denials and a subagent
+    counter reading zero are answers, and the row keeps them (S-0073/D-3).
+    """
 
     named = {
         key: value
-        for key, value in {"terminal_reason": terminal_reason, "session_id": session_id}.items()
-        if value
+        for key, value in {
+            "terminal_reason": terminal_reason,
+            "session_id": session_id,
+            "num_turns": num_turns,
+            "permission_denials": permission_denials,
+            "subagent_stats": subagent_stats,
+        }.items()
+        if value is not None
     }
 
     if not named:
@@ -452,7 +469,7 @@ def record_receipt(
         _pending_receipts.setdefault(task_id, {}).update(named)
 
 
-def _drain_receipt(task_id: str | None) -> dict[str, str]:
+def _drain_receipt(task_id: str | None) -> dict[str, Any]:
     """Pop a task's booking as the agent block's extra keys — once only,
     which is what keeps one attempt's ending off the next attempt's row."""
 
