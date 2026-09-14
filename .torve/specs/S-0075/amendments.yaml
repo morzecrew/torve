@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-14T13:19:26Z'
+    title: >-
+      D-4 records the prefix from telemetry, not the harness
+    changes:
+      - subject: D-4
+        field: paths
+        before: [src/torve/adapters/agent/harness.py]
+        after: [src/torve/application/telemetry.py]
+      - subject: D-4
+        field: fingerprint
+        after: 9cd395605c71d040/c81a24ab2f418ac1
+    md: |
+      T-0402 recorded all three of the facts D-4 asks for — the init line's
+      tool and skill counts, the contract's row count and size, and the first
+      request's context — and recorded none of them from `harness.py`, because
+      phase 2's scope does not reach it. The counts ride the burn profile's
+      init facts, the contract is measured engine-side in `_attach_prefix`,
+      and the first request's context was already on the row as D-1's curve.
+
+      The rule the row states was never in question. Only the path was, and
+      the path was wrong: this is a fact about a recorded attempt, and the
+      attempt record is telemetry's. Proposed by the executor rather than
+      taken silently — see the `spec-gap` entry in
+      `execution/T-0402-1-20260914T094232Z.yaml`.

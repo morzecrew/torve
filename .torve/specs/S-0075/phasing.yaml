@@ -54,3 +54,17 @@ phasing:
     depends_on:
       - 3
     character: routine
+  - phase: 5
+    title: the profile is booked from the trace
+    intent: >-
+      The classifier phase 2 built runs on a real attempt: the harness scans the trace
+      it already writes and books a burn profile per attempt through the recorder
+      that is already in place. Without it D-2's classes exist and no attempt carries
+      them.
+    scope: [src/torve/adapters/agent/harness.py, tests/test_tiering.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural

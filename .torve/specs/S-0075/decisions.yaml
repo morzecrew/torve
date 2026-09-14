@@ -53,7 +53,7 @@ decisions:
       The attempt records what every request re-read: the tool and skill counts the
       init line already reports, the contract's row count and size, and the first
       request's context
-    paths: [src/torve/adapters/agent/harness.py]
+    paths: [src/torve/application/telemetry.py]
     consequence: >-
       a change to the prefix is seen in the number rather than assumed from the diff
       that made it
@@ -63,3 +63,4 @@ decisions:
       it is under 2.5k even with 26 rows, which is the part everyone assumes is the
       problem and is not
     cites: [S-0063/D-10]
+    fingerprint: 9cd395605c71d040/c81a24ab2f418ac1
