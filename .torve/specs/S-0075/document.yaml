@@ -2,7 +2,7 @@
 id: S-0075
 title: What an attempt costs, measured per changed line
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0065]
 informed_by: [S-0055, S-0063]
