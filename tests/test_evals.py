@@ -726,3 +726,124 @@ def test_three_arm_table_latest_line_wins(tmp_path):
     ledger.write_text("\n".join(lines) + "\n")
 
     assert three_arm_table(root)["T-0042"]["bare"]["attempts"] == 6
+
+
+# ....................... #
+# The reader (S-0074/D-4): three rows per task, four columns, and any
+# summary a distribution rather than a mean.
+
+
+def _ledger(root, *records):
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(
+        "".join(
+            json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": arms}) + "\n"
+            for arms in records
+        ),
+        encoding="utf-8",
+    )
+
+
+def _arm_row(arm, task, state="ready", attempts=1, cost_usd=0.01):
+    return {"arm": arm, "task": task, "state": state, "attempts": attempts, "cost_usd": cost_usd}
+
+
+def test_eval_report_renders_three_rows_and_four_columns_per_task(tmp_path):
+    """Each task is read across its three arms with the four columns, and
+    an arm that never ran the task is a dash rather than a missing row."""
+    root = tmp_path / "repo"
+    _ledger(
+        root,
+        _rows_by_arm(
+            bare=_arm_row("bare", "T-0042", state="escalated", attempts=3, cost_usd=0.5),
+            gated=_arm_row("gated", "T-0042", attempts=2, cost_usd=0.25),
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["eval", "--report", "--root", str(root)])
+
+    assert result.exit_code == 0
+    assert "T-0042" in result.stdout
+
+    for column in ("arm", "state", "attempts", "cost usd"):
+        assert column in result.stdout
+
+    for arm in ARMS:
+        assert arm in result.stdout
+
+    assert "escalated" in result.stdout
+    assert "0.5000" in result.stdout
+    # The configured arm never ran this task: a row that says so.
+    assert "-" in result.stdout
+
+
+def test_eval_report_summarises_as_a_distribution_never_a_mean(tmp_path):
+    """Every task stays visible under the arms that went green for it —
+    the task where the bare arm shipped what the battery refused is a row
+    of its own, not a percentage."""
+    root = tmp_path / "repo"
+    _ledger(
+        root,
+        _rows_by_arm(
+            bare=_arm_row("bare", "T-0042"),
+            gated=_arm_row("gated", "T-0042", state="escalated"),
+            configured=_arm_row("configured", "T-0042", state="escalated"),
+        ),
+        _rows_by_arm(
+            bare=_arm_row("bare", "T-0043"),
+            gated=_arm_row("gated", "T-0043"),
+            configured=_arm_row("configured", "T-0043"),
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["eval", "--report", "--root", str(root), "--format", "json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["distribution"] == {
+        "bare": ["T-0042"],
+        "bare+gated+configured": ["T-0043"],
+    }
+    assert set(payload["tasks"]) == {"T-0042", "T-0043"}
+
+
+def test_eval_report_narrows_to_the_named_tasks(tmp_path):
+    root = tmp_path / "repo"
+    _ledger(
+        root,
+        _rows_by_arm(bare=_arm_row("bare", "T-0042")),
+        _rows_by_arm(bare=_arm_row("bare", "T-0043")),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["eval", "--report", "--task", "T-0043", "--root", str(root), "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    assert list(json.loads(result.stdout)["tasks"]) == ["T-0043"]
+
+
+def test_eval_report_with_an_empty_ledger_says_so_and_exits_zero(tmp_path):
+    """No arms recorded is not a failure and not a verdict — reporting a
+    table nobody measured is how a number gets quoted a year later."""
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    result = CliRunner().invoke(app, ["eval", "--report", "--root", str(root)])
+
+    assert result.exit_code == 0
+    assert "nothing to report" in result.stdout
+
+
+def test_eval_without_a_task_refuses(tmp_path):
+    """The replay path needs at least one task; --report is the way to ask
+    for a reading instead."""
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(app, ["eval", "flag-dont-flip", "--root", str(root)])
+
+    assert result.exit_code == 3
+    assert "give at least one --task" in result.stderr

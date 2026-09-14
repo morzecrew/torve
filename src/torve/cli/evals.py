@@ -11,7 +11,7 @@ their own configuration resolves, through the CLI's factory.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.text import Text
@@ -25,6 +25,7 @@ from torve.cli.console import (
     emit_json,
     fail,
     header,
+    id_list,
     live_status,
     make_table,
     out,
@@ -43,6 +44,94 @@ from torve.gates.context import load_task
 # ----------------------- #
 
 
+def _distribution(table: dict[str, dict[str, dict[str, Any]]]) -> dict[str, list[str]]:
+    """Tasks grouped by which arms reached ready (S-0074/D-4): the summary is a
+    distribution, never a mean — a task where the arm without the battery
+    shipped what the battery would have refused keeps its own row instead
+    of averaging into a percentage."""
+
+    from torve.application.evals import ARMS
+
+    groups: dict[str, list[str]] = {}
+
+    for task in sorted(table):
+        green = [arm for arm in ARMS if table[task].get(arm, {}).get("state") == "ready"]
+        groups.setdefault("+".join(green) if green else "none", []).append(task)
+
+    return groups
+
+
+# ....................... #
+
+
+def _cell(row: dict[str, Any] | None, key: str) -> str:
+    """One measure of one arm, or `-` where that arm never ran the task."""
+
+    if row is None or row.get(key) is None:
+        return "-"
+
+    value = row[key]
+
+    return f"{value:.4f}" if key == "cost_usd" else str(value)
+
+
+# ....................... #
+
+
+def _report_arms(root: Path, task_ids: list[str], fmt: Format) -> None:
+    """The three-arm reading, rebuilt from the eval ledger alone (S-0074/D-1):
+    one table per task, three rows deep, and a distribution over the tasks
+    instead of an aggregate (S-0074/D-4)."""
+
+    from torve.application.evals import ARMS, three_arm_table
+
+    table = three_arm_table(root)
+
+    if task_ids:
+        table = {task: arms for task, arms in table.items() if task in task_ids}
+
+    distribution = _distribution(table)
+
+    if fmt is Format.JSON:
+        emit_json({"tasks": table, "distribution": distribution})
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    header(console, "eval", "three arms")
+
+    if not table:
+        closing(console, "no arm results in the eval ledger — nothing to report", STYLE_WARN)
+        raise typer.Exit(EXIT_OK)
+
+    for task in sorted(table):
+        rows = make_table("arm", "state", "attempts", "cost usd", title=task)
+
+        for arm in ARMS:
+            row = table[task].get(arm)
+            rows.add_row(arm, _cell(row, "state"), _cell(row, "attempts"), _cell(row, "cost_usd"))
+
+        console.print(rows)
+
+    summary = make_table("arms green", "tasks", "task ids")
+
+    for pattern, tasks in sorted(distribution.items()):
+        summary.add_row(pattern, str(len(tasks)), id_list(tasks))
+
+    console.print(summary)
+    closing(
+        console,
+        "read it per task: the arms are not equally exposed to the same failures, so a mean "
+        "over unlike tasks answers a question nobody asked",
+        STYLE_DIM,
+    )
+    console.print(Text("direction, never magnitude — a replay is a quasi-experiment", STYLE_DIM))
+
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
 def eval_cmd(
     skill: Annotated[
         str | None,
@@ -54,8 +143,20 @@ def eval_cmd(
     *,
     task_ids: Annotated[
         list[str],
-        typer.Option("--task", help="A completed task to replay in both arms; repeatable."),
-    ],
+        typer.Option(
+            "--task",
+            help="A completed task to replay in both arms; repeatable. With --report it "
+            "narrows the reading to the named tasks instead.",
+        ),
+    ] = [],  # noqa: B006 — typer reads the default, and a list option is never mutated
+    report: Annotated[
+        bool,
+        typer.Option(
+            "--report",
+            help="Report the recorded arms per task — one table per task, one row per arm — "
+            "from the eval ledger alone, and run nothing.",
+        ),
+    ] = False,
     tier: Annotated[
         str | None,
         typer.Option(
@@ -87,7 +188,13 @@ def eval_cmd(
     --image or --variant instead of a skill) a candidate configuration against
     the incumbent: every named task replays twice in shadow, and one eval
     record lands in the evals ledger. Nothing a replay produces is ever
-    merged."""
+    merged. With --report nothing runs: the arms already recorded are read
+    back from the ledger, one table per task."""
+
+    if report:
+        # The reading needs the ledger and nothing else — no configuration,
+        # no contracts, no agent (S-0074/D-1).
+        _report_arms(root.resolve(), task_ids, fmt)
 
     from functools import partial
 
@@ -134,6 +241,13 @@ def eval_cmd(
         raise fail(
             "configuration error: --image and --variant refuse to combine — give the "
             "candidate arm one override at a time",
+            EXIT_CONFIG,
+        )
+
+    if not task_ids:
+        raise fail(
+            "configuration error: give at least one --task to replay, or --report to read "
+            "the arms already recorded",
             EXIT_CONFIG,
         )
 
