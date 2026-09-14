@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0402
+phase: 2
+base: 37bfc148e494ddce7ab323e5f32be042ab2be310
+commit: 0eb609fd2759e5fbdaddff0287319eb85fb9c999
+at: '2026-09-14T09:42:32Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T09:37:37Z'
+    claim: >-
+      Close-out of a touched LOCKED row: this diff adds the burn profile to the agent
+      block; the per-request context curve's first/median/max/sum and the receipt
+      land beside it untouched (S-0004's absent-stays-absent rule keeps the new keys
+      out of rows that booked nothing), so D-1's reconstruction rule is unchanged
+      on every seat.
+    evidence: >-
+      src/torve/application/telemetry.py:832 — _attach_prefix drains the receipt and
+      context curve before merging the burn profile, leaving both untouched
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-14T09:37:38Z'
+    claim: >-
+      Settled in telemetry.py: classify_tool_calls sorts every tool call into the
+      eight classes (pack reads, orientation, in-scope reads, edits, test runs, lint
+      runs, bookkeeping, other) and the attempt records calls before the first edit,
+      reruns, calls per message, result bytes and latency medians by class, compaction
+      events, and the init line's tool/skill/mcp/plugin/agent counts. The production
+      feed that scans the harness trace and books a profile per attempt is harness-side
+      and deferred to a task that owns harness.py; the booking API record_burn_profile
+      and the drain onto the row are in place and round-trip through the gate-pass
+      row.
+    evidence: >-
+      src/torve/application/telemetry.py:634 — classify_tool_calls returns the profile
+      block; tests/test_attempt_record.py:496 names every class on the fixture
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-09-14T09:37:52Z'
+    claim: >-
+      All three re-read facts are recorded, but not from the declared path: harness.py
+      is outside phase 2's scope, so the init-line tool/skill/mcp/plugin/agent counts
+      ride the burn profile's init facts, the contract's row count and size are computed
+      engine-side from the task in _attach_prefix, and the first request's context
+      was already on the row as the D-1 curve's first. The rule the decision states
+      holds; the path that builds it moved.
+    evidence: >-
+      src/torve/application/telemetry.py:854 — block['contract'] = {'rows': len(task.decisions),
+      'characters': ...} computed in _attach_prefix, not the harness
+    action: departed
+    proposal: >-
+      S-0075/D-4 — record the facts in telemetry.py (as implemented) and drop harness.py
+      from the decision's paths
