@@ -61,3 +61,19 @@ phasing:
     depends_on:
       - 1
     character: structural
+  - phase: 5
+    title: the images read what the engine staged
+    intent: >-
+      Each image takes the staged system text through its own channel — claude's `--append-system-prompt`,
+      dsh's persona row — so the rules arrive above the contract rather than as a
+      file the attempt happens to open. Settles D-8, and is what D-2 and D-5 are judged
+      on.
+    scope:
+      - sandboxes/claude/toolkit/run
+      - sandboxes/dsh/toolkit/run
+      - tests/test_sandbox_defs.py
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 2
+    character: structural

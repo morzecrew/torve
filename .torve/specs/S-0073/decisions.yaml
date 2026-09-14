@@ -104,3 +104,25 @@ decisions:
       `log divergence` per row, `log owed` again — and the Stop hook S-0066/D-5 declared
       already blocks a finish that still owes an entry
     cites: [S-0066/D-5]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Each image reads the system text the engine staged, through its own channel
+      — claude's `--append-system-prompt`, dsh's persona row — and a seat whose image
+      does not read it is the engine's silence, not the model's
+    paths: [sandboxes/claude/toolkit/run, sandboxes/dsh/toolkit/run]
+    consequence: >-
+      the rules arrive before the contract rather than as a file the attempt happens
+      to open on its third call, which is what D-2 claims matters and what D-5 cannot
+      be judged without
+    rationale: >-
+      T-0409 landed the engine half of D-2 — `working_rules()` as one producer, staged
+      to `.torve/tmp/system.md` and named as `TORVE_SYSTEM_PROMPT` — and no image
+      reads that variable: `grep` finds it nowhere under `sandboxes/`, and neither
+      built image carries it. The phase's own allow pattern named `.torve/harnesses`,
+      a directory, and the scope guard matches worktree-relative paths with fnmatch,
+      so the contract could not be satisfied as minted and the attempt recorded D-2
+      contradicted rather than crossing its scope. Measured meanwhile: an attempt
+      that read the batching sentence from the skill file on its third call made 57
+      further calls, one per message
+    cites: [D-2, D-5]
