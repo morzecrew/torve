@@ -1178,6 +1178,47 @@ def test_parse_context_curve_reads_the_cached_shape(tmp_path):
     assert curve.matches_receipt is True
 
 
+def test_parse_context_curve_counts_requests_not_repeated_events(tmp_path):
+    # One request emits several assistant events, each repeating the same
+    # usage object (S-0075/D-5). The curve counts the message id, so the
+    # reconstruction closes against the receipt; counting the events would
+    # book 550 against a receipt of 300 and publish the attempt wrong.
+    def event(message_id, text):
+        return (
+            f'{{"type":"assistant","message":{{"id":"{message_id}",'
+            f'"content":[{{"type":"text","text":"{text}"}}],'
+            '"usage":{"input_tokens":50,"cache_read_input_tokens":200,"output_tokens":7}}}'
+        )
+
+    stream = "\n".join(
+        [
+            event("msg_a", "one"),
+            event("msg_a", "two"),
+            event("msg_a", "three"),
+            (
+                '{"type":"assistant","message":{"id":"msg_b",'
+                '"content":[{"type":"tool_use","id":"1"}],'
+                '"usage":{"input_tokens":50,"output_tokens":9}}}'
+            ),
+            (
+                '{"type":"result","subtype":"success","total_cost_usd":0.3,'
+                '"usage":{"input_tokens":100,"cache_read_input_tokens":200,'
+                '"output_tokens":16}}'
+            ),
+        ]
+    )
+    curve = parse_context_curve(burn_trace(tmp_path, stream))
+
+    assert curve is not None
+    assert curve.requests == 2
+    assert curve.first == 250
+    assert curve.median == 150.0
+    assert curve.max == 250
+    assert curve.sum == 300
+    assert curve.receipt_total == 300
+    assert curve.matches_receipt is True
+
+
 def test_parse_context_curve_reconstructs_the_input_only_shape(tmp_path):
     # deepseek/qwen: message usage carries input alone and the receipt's
     # per-request list stays empty. The reconstruction names its shape, and

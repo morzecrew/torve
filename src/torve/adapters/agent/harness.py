@@ -738,9 +738,12 @@ def parse_burn(trace: Path) -> BurnProfile | None:
 # list stays empty — so the curve is reconstructed from the message usage
 # wherever it lacks cache, the shape that produced it is named on the row,
 # and the sum is held against the receipt's own final total rather than
-# trusted. One request is one typed turn event's input context: input plus
-# cache read and cache creation where the usage carries them, input alone
-# where it does not (the "where cache fields are absent" reconstruction).
+# trusted. One request's context is input plus cache read and cache creation
+# where the usage carries them, input alone where it does not (the "where
+# cache fields are absent" reconstruction), and a request is the message id
+# the stream carries rather than the event (S-0075/D-5) — several assistant
+# events repeat one message's usage object, and counting each would publish a
+# sum half again over the receipt.
 @dataclass(frozen=True)
 class ContextCurve:
     """The shape of one attempt's per-request context: the statistics of the
@@ -835,6 +838,30 @@ def _turn_context(record: dict[str, Any]) -> tuple[int | None, bool]:
     return None, False
 
 
+# Where a stream carries the id of the message a turn event belongs to
+# (S-0075/D-5): claude nests it in the assistant event's `message`, opencode
+# spells it beside the part. A request is identified by this id, never by the
+# event — one request emits several events repeating one usage object.
+_MESSAGE_ID_KEYS: tuple[str, ...] = ("id", "message_id", "messageId", "messageID")
+
+
+def _request_id(record: dict[str, Any]) -> str:
+    """The message id a turn event carries, "" when the stream names none.
+
+    An event with no id is counted on its own, because there is nothing to
+    join it to — nothing is ever inferred (S-0004/D-6).
+    """
+
+    for nest in (record.get("message"), record.get("part")):
+        if isinstance(nest, dict):
+            found = _str_at(cast("dict[str, Any]", nest), _MESSAGE_ID_KEYS)
+
+            if found:
+                return found
+
+    return _str_at(record, _MESSAGE_ID_KEYS[1:])
+
+
 def parse_context_curve(trace: Path) -> ContextCurve | None:
     """The per-request context curve of the session trace the durable store
     holds (S-0075/D-1), scanned from the file's own bytes like `parse_burn` —
@@ -855,6 +882,7 @@ def parse_context_curve(trace: Path) -> ContextCurve | None:
         return None
 
     contexts: list[int] = []
+    seen: set[str] = set()
     any_cache = False
     last: dict[str, Any] | None = None
 
@@ -878,11 +906,23 @@ def parse_context_curve(trace: Path) -> ContextCurve | None:
             event_type = record.get("type")
 
             if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
+                request = _request_id(record)
+
+                # One request, several events, one usage object repeated
+                # across them: the curve counts the request once
+                # (S-0075/D-5). An event the stream gave no id counts on its
+                # own — there is nothing to join it to.
+                if request and request in seen:
+                    continue
+
                 context, cached = _turn_context(record)
 
                 if context is not None:
                     contexts.append(context)
                     any_cache = any_cache or cached
+
+                    if request:
+                        seen.add(request)
 
     if not contexts:
         return None
