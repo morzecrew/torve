@@ -3,7 +3,7 @@ id: S-0076
 title: >-
   The attempt is handed what the engine already knows
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0075]
 informed_by: [S-0054, S-0067]
