@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0399
+phase: 4
+base: 7f81c046023259344d77067e9848fe3e07992cde
+commit: 382f46781a623b9a17abe38bbec7f8c0469a2a45
+at: '2026-09-14T16:02:52Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-14T16:01:03Z'
+    claim: >-
+      the reader's four columns are arm, state, attempts and cost, because those are
+      the measures an eval row actually carries; wall-clock and tokens are on no row
+      in the ledger, so a column for either would render a dash forever
+    evidence: >-
+      src/torve/application/evals.py:139-150 — _arm_row writes arm, task, state, attempts
+      and cost_usd, and nothing else reaches the ledger
+    action: decided
+    proposal: >-
+      the four numbers a three-arm reading reports are state, attempts and cost per
+      arm; adding wall-clock or convictions needs them recorded on the eval row first
