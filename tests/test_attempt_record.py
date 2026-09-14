@@ -10,6 +10,7 @@ field the payload defaults that the row deliberately omitted.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -23,12 +24,15 @@ from torve.adapters.agent.harness import (
     parse_burn,
     parse_inventory,
     parse_metadata,
+    parse_tool_calls,
 )
 from torve.application.telemetry import (
     agent_burn,
     build_attempt_row,
     build_record,
+    burn_population,
     classify_tool_calls,
+    derive_burn_profile,
     record_burn_profile,
     record_context,
     record_payload,
@@ -622,6 +626,155 @@ def test_the_profile_round_trips_through_the_gate_pass_row():
     assert row["verdict"] == "green"
     assert row["exit_code"] == 0
     validate_payload(EventKind.GATES_EVALUATED, record_payload(row, 2))
+
+
+# ....................... #
+# The profile the reader derives (S-0075/D-6): the recorded block is a cache
+# of that derivation, and the retained trace is what settles a disagreement.
+
+
+# One attempt's stream as the durable store keeps it: an in-scope read, an
+# orientation grep and an edit, with the in-sandbox absolute paths a harness
+# actually logs — a derivation that ignored the mount would call the read an
+# orientation read and disagree with its own cache for no reason.
+TRACE_LINES: list[dict] = [
+    {"type": "system", "subtype": "init", "tools": ["Read", "Edit"], "skills": ["tdd"]},
+    {
+        "type": "assistant",
+        "message": {
+            "id": "msg_1",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "Read",
+                    "input": {"file_path": "/work/src/app.py"},
+                }
+            ],
+        },
+    },
+    {
+        "type": "user",
+        "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1", "content": "." * 100}]
+        },
+    },
+    {
+        "type": "assistant",
+        "message": {
+            "id": "msg_2",
+            "content": [
+                {"type": "tool_use", "id": "call_2", "name": "Grep", "input": {"pattern": "burn"}}
+            ],
+        },
+    },
+    {
+        "type": "user",
+        "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_2", "content": "." * 300}]
+        },
+    },
+    {
+        "type": "assistant",
+        "message": {
+            "id": "msg_3",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "call_3",
+                    "name": "Edit",
+                    "input": {"file_path": "/work/src/app.py"},
+                }
+            ],
+        },
+    },
+    {
+        "type": "user",
+        "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_3", "content": "." * 20}]
+        },
+    },
+]
+
+# What the attempt recorded at the time — a cache of an older, cruder reading
+# of the same bytes.
+STALE_PROFILE = {"calls": 3, "classes": {"other": 3}}
+
+
+TRACE_REF = "traces/T-0001.1.jsonl"
+
+
+def _traced(root: Path, ref: str = TRACE_REF) -> dict:
+    """A row whose attempt left a trace behind, beside the block it recorded."""
+
+    trace = root / ref
+    trace.parent.mkdir(parents=True, exist_ok=True)
+    trace.write_text("".join(json.dumps(line) + "\n" for line in TRACE_LINES), encoding="utf-8")
+
+    return {"task_id": "T-0001", "agent": {"trace_ref": ref, "burn": {"profile": STALE_PROFILE}}}
+
+
+def test_the_profile_is_derived_from_the_retained_trace_not_the_recorded_block(tmp_path):
+    profile, source = derive_burn_profile(
+        _traced(tmp_path), tmp_path, parse_tool_calls, scope=["src/**"]
+    )
+
+    # The trace is the evidence and the recorded block is a copy of an older
+    # reading of it, so the derivation wins and says where it came from.
+    assert source == "trace"
+    assert profile["classes"] == {"edit": 1, "in_scope_read": 1, "orientation": 1}
+    assert profile["calls"] == 3
+    assert profile["calls_before_first_edit"] == 2
+    assert profile["bytes_by_class"] == {"in_scope_read": 100, "orientation": 300, "edit": 20}
+
+
+def test_a_trace_retention_took_falls_back_to_the_recorded_block(tmp_path):
+    row = _traced(tmp_path)
+    (tmp_path / TRACE_REF).unlink()
+
+    # The cache is what is left, and the row says so rather than claiming a
+    # derivation it could not make.
+    assert derive_burn_profile(row, tmp_path, parse_tool_calls) == (STALE_PROFILE, "recorded")
+
+    # Neither a trace nor a cache is an absence, never an empty profile that
+    # reads as an attempt which made no call (S-0004/D-6).
+    assert derive_burn_profile({"agent": {}}, tmp_path, parse_tool_calls) == ({}, "absent")
+
+
+def test_the_population_counts_what_the_trace_reclassifies(tmp_path):
+    traced = _traced(tmp_path)
+    cached = {"task_id": "T-0002", "agent": {"burn": {"profile": STALE_PROFILE}}}
+    blank = {"task_id": "T-0003", "agent": {}}
+
+    burn = burn_population(
+        [traced, cached, blank],
+        tmp_path,
+        parse_tool_calls,
+        contracts=lambda task, sha: {"scope": {"allow": ["src/**"]}},
+    )
+
+    assert burn["attempts"] == 3
+    assert burn["profiled"] == 2
+    assert burn["sources"] == {"trace": 1, "recorded": 1, "absent": 1}
+    # The recording alone produced two blocks; reading the trace again
+    # disagrees with one of them, which is the disagreement the trace settles.
+    assert burn["cached"] == 2
+    assert burn["reclassified"] == 1
+    assert burn["with_edit"] == 1
+    # The two baselines a mitigation is judged against, over the population
+    # rather than over the attempts that ran after the classifier shipped.
+    assert burn["median_calls_before_first_edit_share"] == pytest.approx(2 / 3)
+    assert burn["median_orientation_share_of_bytes"] == pytest.approx(300 / 420)
+
+
+def test_a_population_with_no_contract_reads_every_file_as_orientation(tmp_path):
+    burn = burn_population([_traced(tmp_path)], tmp_path, parse_tool_calls)
+
+    # Without the scope the attempt was fenced by there is nothing to tell an
+    # in-scope read from an orientation read, and guessing one would be worse
+    # than saying so: the read joins orientation, and the share says it.
+    assert burn["sources"]["trace"] == 1
+    assert burn["median_orientation_share_of_bytes"] == pytest.approx(400 / 420)
 
 
 # ....................... #

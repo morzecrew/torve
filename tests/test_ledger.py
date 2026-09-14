@@ -391,6 +391,110 @@ def test_an_unmeasured_numerator_stays_unreported_per_line(repo: Repo) -> None:
     assert seat["cost_usd_per_line"] is None
 
 
+def _traced_row(task: str, ref: str) -> dict[str, Any]:
+    """An attempt that left a trace behind, beside the cruder block it
+    recorded at the time — the cache the trace is read against."""
+
+    row = _row(task)
+    row["agent"]["trace_ref"] = ref
+    row["agent"]["burn"] = {"tool_calls": 2, "profile": {"calls": 2, "classes": {"other": 2}}}
+
+    return row
+
+
+# One attempt's stream as the durable store keeps it: an orientation grep and
+# an edit, with the in-sandbox absolute path a harness logs.
+TRACE = "".join(
+    json.dumps(line) + "\n"
+    for line in (
+        {"type": "system", "subtype": "init", "tools": ["Grep", "Edit"]},
+        {
+            "type": "assistant",
+            "message": {
+                "id": "msg_1",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_1",
+                        "name": "Grep",
+                        "input": {"pattern": "burn"},
+                    }
+                ],
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "id": "msg_2",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_2",
+                        "name": "Edit",
+                        "input": {"file_path": "/work/src/new.py"},
+                    }
+                ],
+            },
+        },
+    )
+)
+
+
+def test_the_ledger_classifies_the_retained_traces_rather_than_the_record(repo: Repo) -> None:
+    """S-0075/D-6, LOCKED: the profile is derived from the attempt's retained
+    trace when it is read; the recorded block is a cache of that derivation,
+    and the trace is what settles a disagreement between them."""
+
+    repo.seed()
+    repo.write(".torve/traces/T-0001.1.jsonl", TRACE)
+    _stream(repo, [_traced_row("T-0001", ".torve/traces/T-0001.1.jsonl")])
+
+    result = CliRunner().invoke(app, ["ledger", "--root", str(repo.root), "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    burn = json.loads(result.stdout)["burn"]
+
+    assert burn["sources"] == {"trace": 1, "recorded": 0, "absent": 0}
+    # The attempt recorded two calls it called `other`; reading its own trace
+    # again with the classifier this command carries disagrees, and the
+    # disagreement is counted rather than lost.
+    assert burn["cached"] == 1
+    assert burn["reclassified"] == 1
+    assert burn["with_edit"] == 1
+    assert burn["median_calls_before_first_edit_share"] == pytest.approx(0.5)
+
+
+def test_an_attempt_whose_trace_is_gone_keeps_the_profile_it_recorded(repo: Repo) -> None:
+    """The recorded block is the cache, and a cache is what answers once the
+    trace it came from has been retained away — never a silent absence."""
+
+    repo.seed()
+    _stream(repo, [_traced_row("T-0001", ".torve/traces/T-0001.1.jsonl"), _row("T-0002")])
+
+    burn = json.loads(
+        CliRunner().invoke(app, ["ledger", "--root", str(repo.root), "--format", "json"]).stdout
+    )["burn"]
+
+    assert burn["sources"] == {"trace": 0, "recorded": 1, "absent": 1}
+    assert burn["profiled"] == 1
+    # Nothing was reclassified: there was no trace to settle anything with.
+    assert burn["reclassified"] == 0
+
+
+def test_the_command_prints_the_burn_population(repo: Repo) -> None:
+    repo.seed()
+    repo.write(".torve/traces/T-0001.1.jsonl", TRACE)
+    _stream(repo, [_traced_row("T-0001", ".torve/traces/T-0001.1.jsonl")])
+
+    result = CliRunner().invoke(app, ["ledger", "--root", str(repo.root)])
+
+    assert result.exit_code == 0, result.output
+    assert "burn profiles" in result.stdout
+    assert "from trace" in result.stdout
+    # Rates, not rows, here too: the population is printed, no attempt is.
+    assert "T-0001" not in result.stdout
+
+
 def test_the_command_prints_the_per_line_rates(repo: Repo) -> None:
     """The verb prints the rates D-3 adds — per changed line and per file in
     scope — beside the per-task table, without listing attempt rows."""

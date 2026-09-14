@@ -8,13 +8,17 @@ seat read successfully is a successful read.
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 import typer
 from rich.text import Text
 
-from torve.application.ledger import ledger_report
+from torve.adapters.agent.harness import parse_tool_calls
+from torve.application.ledger import contract_at, counted_rows, ledger_report
+from torve.application.projections import stream_rows
+from torve.application.telemetry import burn_population
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_FAIL,
@@ -88,11 +92,28 @@ def ledger_cmd(
     shadow replays are excluded, and the exclusion is printed. A seat whose
     provider carries no price reports its cost as unreported, never as zero.
 
+    Burn profiles are classified from each attempt's retained trace when the
+    trace is still on disk, and from the block the attempt recorded only when
+    it is not — so a corrected class reclassifies the record's history rather
+    than only the attempts that came after it.
+
     Rates, not rows: use `torve why` and `torve status` for the attempts and
     gate runs behind them.
     """
 
     report = ledger_report(root)
+    # S-0075/D-6: the profile is derived where it is read, from the trace the
+    # recorded block is only a cache of. The trace scanner is the harness
+    # adapter's and the contract reader reaches git, so both are wired here —
+    # adapter imports belong to this layer (S-0015/permitted-imports) and the
+    # classification stays the engine's. The population is the same counted
+    # attempts the rates above divide by.
+    report["burn"] = burn_population(
+        counted_rows(stream_rows(root))[0],
+        root,
+        parse_tool_calls,
+        contracts=partial(contract_at, root),
+    )
 
     if fmt is Format.JSON:
         emit_json(report)
@@ -214,6 +235,8 @@ def _render(report: dict[str, Any]) -> None:
         console.print(Text("no seat has an attempt a rate may count", STYLE_DIM))
         console.print()
 
+    _burn(console, report["burn"])
+
     gates = make_table("gate", "runs", "wall", "convictions", "seconds/conviction", title="gates")
 
     for gate in report["gates"]:
@@ -232,6 +255,45 @@ def _render(report: dict[str, Any]) -> None:
         console.print()
 
     _exclusions(console, report)
+
+
+def _burn(console: Any, burn: dict[str, Any]) -> None:
+    """What the attempts' tool calls were spent on, classified when this
+    command read them (S-0075/D-6). The population is printed beside the two
+    baselines, because a profile of one attempt says nothing a mitigation can
+    be judged by and a corpus of them does."""
+
+    if not burn["profiled"]:
+        console.print(Text("no attempt has a trace or a recorded profile to classify", STYLE_DIM))
+        console.print()
+
+        return
+
+    profiles = make_table(
+        "attempts",
+        "profiled",
+        "from trace",
+        "from record",
+        "reclassified",
+        "with an edit",
+        title="burn profiles",
+    )
+    profiles.add_row(
+        str(burn["attempts"]),
+        str(burn["profiled"]),
+        str(burn["sources"]["trace"]),
+        str(burn["sources"]["recorded"]),
+        Text(str(burn["reclassified"]), style=STYLE_WARN if burn["reclassified"] else ""),
+        str(burn["with_edit"]),
+    )
+    console.print(profiles)
+    footer(
+        console,
+        "a profile is classified from the attempt's own retained trace, and from the block the "
+        "attempt recorded only where the trace is gone — median orientation share of bytes read: "
+        f"{_percent(burn['median_orientation_share_of_bytes'])} · median share of calls before "
+        f"the first edit: {_percent(burn['median_calls_before_first_edit_share'])}",
+    )
 
 
 def _exclusions(console: Any, report: dict[str, Any]) -> None:

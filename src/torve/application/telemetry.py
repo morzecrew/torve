@@ -14,13 +14,13 @@ import hashlib
 import json
 import re
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from statistics import median
 from typing import Any, cast
 
 import torve
-from torve.application.ports import AgentResult, BrokerUsage
+from torve.application.ports import AgentResult, BrokerUsage, SandboxSpec
 from torve.base.clock import stamp
 from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
@@ -790,6 +790,218 @@ def _drain_burn_profile(task_id: str | None) -> dict[str, Any]:
 
     with _BURN_PROFILE_LOCK:
         return _pending_burn_profiles.pop(task_id, {})
+
+
+# ....................... #
+
+# The profile a reader derives rather than the one an attempt left behind
+# (S-0075/D-6): the recorded block is a cache of this derivation, and the
+# retained trace is what settles a disagreement between them. So every
+# attempt whose trace is still on disk has a profile — including the ones
+# that ran before the classifier existed — and a corrected class
+# reclassifies the history instead of leaving the history wrong.
+#
+# The scanner that turns a trace into per-call facts belongs to the harness
+# adapter and is handed in: an application module may not import one
+# (S-0055/D-23), and the classification is the engine's word either way.
+
+TraceScan = Callable[[Path, str], list[dict[str, Any]]]
+
+# What an attempt was fenced by, by task and by the sha the attempt built on
+# — the ledger's own reader, handed in for the same reason the scanner is:
+# it reaches git, and the module that reads contracts out of history sits
+# above the stream this one writes.
+ContractReader = Callable[[str, str], Mapping[str, Any] | None]
+
+# Where one attempt's profile came from, in the order a reader trusts them:
+# the trace it was derived from now, the block the attempt recorded when the
+# trace has been retained away, neither.
+BURN_SOURCES: tuple[str, ...] = ("trace", "recorded", "absent")
+
+# The mount a trace spells its paths against. The recorded profile was
+# classified against the workspace the attempt ran in, so a derivation that
+# read the same bytes from the host would call every in-scope read an
+# orientation read and disagree with its own cache for no reason.
+_TRACE_WORKDIR = SandboxSpec.workdir
+
+
+def _agent_block(row: Mapping[str, Any]) -> Mapping[str, Any]:
+    block: Any = row.get("agent")
+
+    return cast("Mapping[str, Any]", block) if isinstance(block, Mapping) else {}
+
+
+def recorded_burn_profile(row: Mapping[str, Any]) -> dict[str, Any]:
+    """The classification the attempt itself recorded — the cache, empty
+    where the attempt ran before the classifier or named no call."""
+
+    burn: Any = _agent_block(row).get("burn")
+
+    if not isinstance(burn, Mapping):
+        return {}
+
+    profile: Any = cast("Mapping[str, Any]", burn).get("profile")
+
+    return dict(cast("Mapping[str, Any]", profile)) if isinstance(profile, Mapping) else {}
+
+
+def derive_burn_profile(
+    row: Mapping[str, Any],
+    root: Path,
+    scan: TraceScan,
+    *,
+    scope: Sequence[str] | None = None,
+) -> tuple[dict[str, Any], str]:
+    """One attempt's burn profile as a reader sees it (S-0075/D-6), beside
+    the source that answered: `trace` where the attempt's retained trace was
+    read and classified again, `recorded` where the trace is gone and the
+    cached block answers, `absent` where neither does.
+
+    The trace wins whenever it is still on disk — it is the evidence, the
+    recorded block is a copy of an older reading of it."""
+
+    ref: Any = _agent_block(row).get("trace_ref")
+
+    if isinstance(ref, str) and ref:
+        trace = root / ref
+
+        if trace.is_file():
+            derived = classify_tool_calls(scan(trace, _TRACE_WORKDIR), scope=scope)
+
+            if derived:
+                return derived, "trace"
+
+    recorded = recorded_burn_profile(row)
+
+    return (recorded, "recorded") if recorded else ({}, "absent")
+
+
+def _scope_allow(contract: Mapping[str, Any] | None) -> Sequence[str] | None:
+    """The allow globs the attempt was fenced by, which is what tells an
+    in-scope read from an orientation read. None where the contract has left
+    both the tree and the history: without it every read outside the pack is
+    orientation, and saying so is better than guessing a scope."""
+
+    scope: Any = (contract or {}).get("scope")
+
+    if not isinstance(scope, Mapping):
+        return None
+
+    allow: Any = cast("Mapping[str, Any]", scope).get("allow")
+
+    return (
+        [str(entry) for entry in cast("list[object]", allow)] if isinstance(allow, list) else None
+    )
+
+
+def _measured(value: Any) -> float | None:
+    """A recorded number, or None. `bool` is an int in Python and is never a
+    measurement here."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+
+    return float(value)
+
+
+def _share(part: Any, whole: Any) -> float | None:
+    """A share of a measured whole, None where either side is unmeasured or
+    the whole is zero — a change that read nothing has no share, not a zero
+    and not an infinity (S-0004/D-6)."""
+
+    measured = _measured(part)
+    total = _measured(whole)
+
+    if measured is None or total is None or total <= 0:
+        return None
+
+    return measured / total
+
+
+def burn_population(
+    rows: Sequence[Mapping[str, Any]],
+    root: Path,
+    scan: TraceScan,
+    *,
+    contracts: ContractReader | None = None,
+) -> dict[str, Any]:
+    """The corpus's burn profiles, derived at read time (S-0075/D-6): how
+    many attempts have a profile at all and from where, how many the
+    recording alone would have produced, how many the trace reclassifies, and
+    the two baselines a mitigation is judged against — the median share of
+    read bytes that went to orientation, and the median share of an attempt's
+    calls that came before its first edit.
+
+    `rows` is the population the caller counts, so this and the rates beside
+    it exclude the same attempts. `contracts` answers what an attempt was
+    fenced by, read at its own sha; the answer is memoised here because one
+    sha answers for every attempt built on it. Without one, no attempt has a
+    scope and every read outside the pack reads as orientation."""
+
+    resolved: dict[tuple[str, str], Mapping[str, Any] | None] = {}
+    sources = dict.fromkeys(BURN_SOURCES, 0)
+    cached = 0
+    reclassified = 0
+    with_edit = 0
+    orientation_shares: list[float] = []
+    before_edit_shares: list[float] = []
+
+    for row in rows:
+        key = (str(row.get("task_id") or ""), str(row.get("merge_base") or row.get("head") or ""))
+
+        if contracts is not None and key[0] and key not in resolved:
+            resolved[key] = contracts(*key)
+
+        profile, source = derive_burn_profile(
+            row, root, scan, scope=_scope_allow(resolved.get(key))
+        )
+        sources[source] += 1
+        recorded = recorded_burn_profile(row)
+
+        if recorded:
+            cached += 1
+
+        if source == "trace" and recorded and profile != recorded:
+            reclassified += 1
+
+        if not profile:
+            continue
+
+        by_class: Any = profile.get("bytes_by_class")
+
+        if isinstance(by_class, Mapping):
+            read = cast("Mapping[str, Any]", by_class)
+            share = _share(
+                read.get("orientation"),
+                sum(_measured(size) or 0.0 for size in read.values()),
+            )
+
+            if share is not None:
+                orientation_shares.append(share)
+
+        classes: Any = profile.get("classes")
+
+        if isinstance(classes, Mapping) and cast("Mapping[str, Any]", classes).get("edit"):
+            with_edit += 1
+            share = _share(profile.get("calls_before_first_edit"), profile.get("calls"))
+
+            if share is not None:
+                before_edit_shares.append(share)
+
+    return {
+        "attempts": len(rows),
+        "profiled": sources["trace"] + sources["recorded"],
+        "sources": sources,
+        "cached": cached,
+        "reclassified": reclassified,
+        "with_edit": with_edit,
+        "median_orientation_share_of_bytes": median(orientation_shares)
+        if orientation_shares
+        else None,
+        "median_calls_before_first_edit_share": median(before_edit_shares)
+        if before_edit_shares
+        else None,
+    }
 
 
 # ....................... #
