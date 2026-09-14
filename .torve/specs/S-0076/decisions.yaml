@@ -51,7 +51,7 @@ decisions:
       The cap on what one tool result may return is enforced at the harness's own
       result boundary, where every tool crosses it, and the prompt's reading advice
       names the shell forms beside the reader's
-    paths: [src/torve/adapters/agent/harness.py, .torve/harnesses]
+    paths: [src/torve/adapters/agent/harness.py, .torve/harnesses/**]
     consequence: >-
       the context's growth term stops being set by whichever command dumped the most,
       whichever tool that command used

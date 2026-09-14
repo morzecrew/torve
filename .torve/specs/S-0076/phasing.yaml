@@ -37,7 +37,7 @@ phasing:
       reading advice that names the shell forms beside the reader's. Settles D-4.
     scope:
       - src/torve/adapters/agent/harness.py
-      - .torve/harnesses
+      - .torve/harnesses/**
       - tests/test_tiering.py
     acceptance:
       - uv run pytest
