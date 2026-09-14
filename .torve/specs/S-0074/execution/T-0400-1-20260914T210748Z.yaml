@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0400
+phase: 5
+base: 76626c875efd0b9ad36ab7ae5c22e63d2a9ad26f
+commit: c1349b73d6aa49b2e4759b24af05bb6de4b69509
+at: '2026-09-14T21:07:48Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-14T21:04:19Z'
+    claim: >-
+      the operating guide gained its three-arm section with no legacy identifier:
+      every citation added is in the current grammar (S-0074/D-1, S-0074/D-3, S-0074/D-4)
+      and the corpus check resolves them; no RFC-shape or section-mark string was
+      introduced
+    evidence: >-
+      pages/docs/operating.md:418 — the new section; `uv run torve spec check` on
+      this tree exits OK with 0 problems
+    action: decided
+    notes: >-
+      docs-only change; scope is pages/docs/operating.md
