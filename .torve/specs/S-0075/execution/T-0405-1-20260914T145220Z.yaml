@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0405
+phase: 5
+base: ffe09d6e20d92924f83904f62e3d50b3e04bba03
+commit: ca4f24a703d97d00b5a47beb2a8a4de675d4e81c
+at: '2026-09-14T14:52:20Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T14:49:49Z'
+    claim: >-
+      the per-request context curve is untouched: the new tool-call scan reads the
+      same trace bytes beside it, books through its own recorder, and changes neither
+      the curve's statistics, its named shape nor its check against the receipt's
+      total
+    evidence: >-
+      src/torve/adapters/agent/harness.py:838-910 — parse_context_curve and its helpers
+      are unchanged; src/torve/adapters/agent/harness.py:1626-1630 books the curve
+      exactly as before, and the new parse_tool_calls at :1095 and its booking at
+      :1641 are additive
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T14:50:07Z'
+    claim: >-
+      restating the previous entry with the row's qualified identifier, which is the
+      form the silence check reads; the previous entry's claim stands unchanged —
+      the per-request context curve is untouched and the new tool-call scan is additive
+      beside it
+    evidence: >-
+      src/torve/adapters/agent/harness.py:838-910 — parse_context_curve and its helpers
+      are unchanged; src/torve/adapters/agent/harness.py:1626-1630 books the curve
+      exactly as before, and the new parse_tool_calls at :1095 and its booking at
+      :1641 are additive
+    action: decided
