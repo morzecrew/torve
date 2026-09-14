@@ -66,8 +66,8 @@ decisions:
     grade: ASSUMED
     text: >-
       The pack writes a file naming every symbol the repository defines and where
-      — the whole tree, not the scope — and the prompt says the file is there; the
-      index is a file the attempt may grep, never content the prompt carries
+      — the whole tree, not the scope — and the pack's own index names that file;
+      the symbols are a file the attempt may grep, never content the prompt carries
     paths: [src/torve/application/contextpack.py]
     consequence: >-
       a lookup costs one call against one file instead of two or three against the
@@ -77,5 +77,8 @@ decisions:
       than the whole prefix and multiplied by every request, so an index in the prompt
       spends about 2.1M cache-read tokens on a 35-request attempt to save calls that
       cost 828 bytes each. Whole-tree rather than scoped because the lookups are for
-      definitions the scope does not contain: that is why they are greps and not reads
+      definitions the scope does not contain: that is why they are greps and not reads.
+      The pointer rides the pack's index rather than the rules skill because it is
+      a fact about what this attempt was given, not a rule about how to work — and
+      a rule shipped first would name a file that did not exist yet
     cites: [S-0075/D-2]
