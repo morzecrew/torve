@@ -1,0 +1,18 @@
+# The door (S-0066/D-1), as a file rather than a heredoc so the build's smoke
+# check patches the same bytes the seat does. A copy in two places drifts, and
+# the thing that drifted is what this file exists to stop.
+#
+# `--patch` REPLACES an entry's config; it does not merge into it. So every key
+# the bundle set on an entry this file narrows has to be restated here, or it
+# is dropped and the entry fails its own schema at boot — taking the whole
+# plugin tree with it. `maxBytes` below is `dsh-base/cordis.patch.yml`'s value
+# for `agent-instructions`, restated for exactly that reason; the smoke check
+# in the Dockerfile is what catches it if the bundle's value moves.
+- id: agent-instructions
+  config:
+    candidates: []
+    maxBytes: 65536
+- id: skill-filesystem
+  config:
+    roots:
+      - "@EQUIP_ROOT@"

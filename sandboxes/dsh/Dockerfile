@@ -27,6 +27,11 @@ RUN chmod -R a+rX /opt/torve \
 # link is what a peer dependency assumes: the host provides it.
 RUN ln -s /usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules \
           /opt/torve/scope-guard-policy/node_modules
+# Boot the profile this image ships, with the patches the seat really applies,
+# and fail the build if the plugin tree does not load. Every one of them is a
+# patch, and a patch that drops a key an entry requires fails at boot — which
+# without this is three attempts dead at `wall 0s` and a green repository.
+RUN /opt/torve/smoke
 
 # No model file is baked (S-0063/D-15). A dsh model is a provider, a catalog
 # entry and a default — all of which are a patch — and the seven overlays this

@@ -40,16 +40,13 @@ fi
 #
 # First of the three patches, because a later one wins: the seat's own
 # equipment overlay may say more about an entry this one only narrows.
+#
+# The rows live in `door.yml` beside this file rather than in a heredoc here,
+# so the build's smoke check patches the same bytes this does. It used to be a
+# heredoc, and the copy that had no second reader is where a dropped key went
+# unnoticed until three attempts had died on it.
 DOOR=/tmp/torve-door.yml
-cat > "$DOOR" <<YAML
-- id: agent-instructions
-  config:
-    candidates: []
-- id: skill-filesystem
-  config:
-    roots:
-      - ${TORVE_EQUIP_ROOT:-.dsh/skills}
-YAML
+sed "s|@EQUIP_ROOT@|${TORVE_EQUIP_ROOT:-.dsh/skills}|" /opt/torve/door.yml > "$DOOR"
 set -- "$@" --patch "$DOOR"
 
 if [ -s /tmp/torve-equip.args ]; then

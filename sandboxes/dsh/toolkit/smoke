@@ -1,0 +1,40 @@
+#!/bin/sh
+# Does the profile this image ships actually boot? (S-0066/D-1's door, the
+# hook plugin, and the model overlay are all patches, and a patch that drops a
+# required key fails at boot rather than at build — which is three attempts
+# dead at `wall 0s` and nothing in the repository the wiser.)
+#
+# Run at build time, so `just image dsh` fails instead. Every input is the real
+# one: the door file the seat patches, `equip_patch.py` driven by a manifest,
+# and `model_overlay.py`. Nothing here restates what those write.
+set -eu
+
+export TORVE_MODEL=smoke
+export TORVE_BASE_URL=http://127.0.0.1:1
+export TORVE_API_KEY_ENV=TORVE_SMOKE_ABSENT
+export TORVE_EQUIP_ROOT=/tmp/smoke/skills
+
+mkdir -p /tmp/smoke/skills /tmp/smoke/hook
+printf '{"items":[{"kind":"hook","path":"/tmp/smoke/hook"}]}' > /tmp/smoke/manifest.json
+
+python3 /opt/torve/model_overlay.py /tmp/smoke/model.yml
+python3 /opt/torve/equip_patch.py /tmp/smoke/manifest.json /tmp/smoke/equipment.yml
+sed "s|@EQUIP_ROOT@|$TORVE_EQUIP_ROOT|" /opt/torve/door.yml > /tmp/smoke/door.yml
+
+out=$(dsh --profile headless \
+    --patch /tmp/smoke/model.yml \
+    --patch /tmp/smoke/door.yml \
+    --patch /tmp/smoke/equipment.yml \
+    "smoke" 2>&1 || true)
+
+# The credential is deliberately absent, so a profile that boots ends exactly
+# here. Anything else — a plugin tree that failed to load, an entry that failed
+# its schema, a package that would not resolve — is a broken image.
+case "$out" in
+    *MISSING_CREDENTIAL*) ;;
+    *) printf 'smoke: the profile did not boot\n\n%s\n' "$out" >&2; exit 1 ;;
+esac
+
+# The profile this wrote is build residue: HOME differs at runtime, but an
+# image that ships a half-built profile is an image nobody can reason about.
+rm -rf /tmp/smoke "$HOME/.dsh"
