@@ -14,8 +14,10 @@ never carries another task's escalations, findings or attempts, and no
 model output from a previous attempt beyond the divergence entries it
 recorded (S-0007/mcp-as-the-read-surface, S-0001/D-29, S-0017/D-7).
 
-`index.md` lists the files with one line each so an agent opens what it
-needs: identifiers up front, bodies on demand.
+The pack's small files travel in the attempt's first message (S-0076/D-1);
+`index.md` names what stayed behind a read — `decisions.json`, large and
+often unopened, and the schemas — so nothing points at bytes already in
+context.
 """
 
 from __future__ import annotations
@@ -467,43 +469,35 @@ def build(
 
 
 def render_index(files: dict[str, str], task: Task) -> str:
-    lines = [
-        f"# What the engine knows about {task.id}",
-        "",
-        "Written by the engine before this attempt, from the record and the tree,",
-        "with no model. Nothing here outranks the contract. Open what you need:",
-        "",
-        *(
-            ["- `source.json` — what asked for this work: an audit, an incident, a review, an ask"]
-            if "source.json" in files
-            else []
-        ),
-        "- `decisions.json` — the contract's rows with consequence, check, rationale and the",
-        "  amendments that changed each; plus accepted rows from other documents over this scope",
-        "- `gates.json` — the battery this attempt faces: name, axis, state, what convicts",
-        "- `tests.json` — coverage of the files in scope from the last battery, and the tests that name them",
-        "- `attempts.json` — this task's prior attempts, and each red gate's output, governing rows and failed tests",
-        "- `contended.json` — paths other work is contending for right now",
-        "- `schema/*.json` — the shapes the engine parses: a task, a document, a finding, a draft",
-        "",
-    ]
+    """What the pack holds that is still behind a read (S-0076/D-1).
 
-    if "attempts.json" in files:
-        payload = cast("dict[str, Any]", json.loads(files["attempts.json"]))
-        prior = cast("list[dict[str, Any]]", payload.get("attempts") or [])
-        reds = cast("list[dict[str, Any]]", payload.get("last_red_gates") or [])
+    The small files — the source, the battery, the tests over the scope, this
+    task's prior attempts and the contended paths — arrive in the attempt's
+    first message, so the index no longer tells anyone to open them: a
+    pointer at bytes already in context is a round trip spent re-reading
+    them. `files` stays in the signature because the caller hands the whole
+    pack over and a later file may want naming here."""
 
-        if prior:
-            lines.append(f"Prior attempts on this task: {len(prior)}.")
-
-        if reds:
-            names = ", ".join(str(r.get("gate")) for r in reds)
-            lines.append(f"The last red pass convicted on: {names} — read `attempts.json` first.")
-
-        if prior or reds:
-            lines.append("")
-
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            f"# What the engine knows about {task.id}",
+            "",
+            "Written by the engine before this attempt, from the record and the tree,",
+            "with no model. Nothing here outranks the contract.",
+            "",
+            "The pack's small files arrived with the task itself, in the first message:",
+            "what asked for this work, the battery this attempt faces, the coverage and",
+            "tests over the scope, this task's prior attempts and what convicted them, and",
+            "the paths other work is contending for. There is nothing to open for those.",
+            "",
+            "What is behind a read, because it is large or seldom wanted:",
+            "",
+            "- `decisions.json` — the contract's rows with consequence, check, rationale and the",
+            "  amendments that changed each; plus accepted rows from other documents over this scope",
+            "- `schema/*.json` — the shapes the engine parses: a task, a document, a finding, a draft",
+            "",
+        ]
+    )
 
 
 # ....................... #

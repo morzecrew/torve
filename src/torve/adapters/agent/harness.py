@@ -61,6 +61,27 @@ SYSTEM_RELPATH = ".torve/tmp/system.md"
 # adapter reads files from it and never the corpus behind them.
 PACK_RELPATH = ".torve/context"
 
+# The pack's small deterministic files, carried in the first message rather
+# than opened one at a time (S-0076/D-1) — the same seven calls in the same
+# order every attempt, spent on bytes the engine already wrote. Named one by
+# one rather than "everything but": a pack file added later is behind a read
+# until someone decides it belongs in every request's context.
+# `decisions.json` is deliberately absent — 17.5 KB and often unopened — and
+# the schemas with it.
+HANDED_OVER: tuple[tuple[str, str], ...] = (
+    ("source.json", "what asked for this work: an audit, an incident, a review, an ask"),
+    ("gates.json", "the battery this attempt faces: name, axis, state, what convicts"),
+    (
+        "tests.json",
+        "coverage of the files in scope from the last battery, and the tests that name them",
+    ),
+    (
+        "attempts.json",
+        "this task's prior attempts, and each red gate's output, governing rows and failed tests",
+    ),
+    ("contended.json", "paths other work is contending for right now"),
+)
+
 # The two scripts every sandbox image answers (S-0063/D-1, S-0063/D-3): one
 # turns the equipment manifest into whatever its harness needs, the other
 # invokes the harness. The engine runs `equip` and then `run`, and knows
@@ -130,6 +151,50 @@ def source_line(workspace: Path, task: Task) -> str:
     return f"{task.source}{said}{where}"
 
 
+def pack_handover(workspace: Path) -> str:
+    """The pack's small files as the first message carries them (S-0076/D-1):
+    each one whole, under its own heading, read from the pack the engine
+    materialised in the worktree — never the corpus behind it, which an
+    adapter does not reach (S-0015/A-1).
+
+    Deterministic for a base sha and record state, because the pack is: the
+    same inputs produce the same first message, which is what a shadow replay
+    asserts about the pack and now about the prompt carrying it. A file the
+    pack does not hold is skipped, and a pack that is not there at all yields
+    no section rather than an error."""
+
+    blocks: list[str] = []
+
+    for name, says in HANDED_OVER:
+        try:
+            body = (workspace / PACK_RELPATH / name).read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+
+        if body:
+            blocks += [f"### `{name}` — {says}", "", "```json", body, "```", ""]
+
+    if not blocks:
+        return ""
+
+    return "\n".join(
+        [
+            "## What the engine knows about this attempt",
+            "",
+            (
+                "Written by the engine before this attempt, from the record and the"
+                " tree, with no model. Nothing here outranks the contract above, and"
+                " none of it needs opening — it is already here. What is not:"
+                f" `{PACK_RELPATH}/decisions.json`, the contract's rows with their"
+                " rationale and the amendments that changed each, and"
+                f" `{PACK_RELPATH}/schema/*.json`, the shapes the engine parses."
+            ),
+            "",
+            *blocks,
+        ]
+    )
+
+
 def build_prompt(
     task: Task,
     revision: bool = False,
@@ -138,6 +203,7 @@ def build_prompt(
     asked: str = "",
     conviction: dict[str, Any] | None = None,
     bare: bool = False,
+    pack: str = "",
 ) -> str:
     if bare:
         # S-0074/D-2: the fourth mode, pointed the other way — the base arm's
@@ -262,6 +328,12 @@ def build_prompt(
 
     lines += ["", "## Acceptance", ""]
     lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
+
+    # The engine's own facts after the contract and before the rules
+    # (S-0076/D-1): the contract governs, this is what was known about it, and
+    # the rules are how it is worked.
+    if pack:
+        lines += ["", pack]
 
     lines += ["", working_rules(prompt_extras)]
 
@@ -1614,6 +1686,7 @@ class HarnessAgent:
                 continuation=ctx.resume,
                 prompt_extras=self.tier.prompt_extras,
                 asked=source_line(ctx.workspace, ctx.task),
+                pack=pack_handover(ctx.workspace),
             )
         )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")

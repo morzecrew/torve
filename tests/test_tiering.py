@@ -81,6 +81,42 @@ def test_the_prompt_says_what_asked_for_the_work(tmp_path):
     assert "Source:" not in build_prompt(Task(id="T-0002", decisions=[]))
 
 
+def test_the_first_message_carries_the_packs_small_files(tmp_path):
+    """S-0076/D-1: the small deterministic files the engine wrote arrive with
+    the task — the same seven reads every attempt opened them with become
+    none — and the prompt does not also tell the agent to go and read them.
+    `decisions.json` stays behind a read and is named as such."""
+
+    from torve.adapters.agent.harness import PACK_RELPATH, build_prompt, pack_handover
+    from torve.domain.task import Task
+
+    pack = tmp_path / PACK_RELPATH
+    pack.mkdir(parents=True, exist_ok=True)
+    (pack / "gates.json").write_text('{"gates": ["the battery"]}', encoding="utf-8")
+    (pack / "tests.json").write_text('{"coverage": ["the tests"]}', encoding="utf-8")
+    (pack / "attempts.json").write_text('{"attempts": ["the red"]}', encoding="utf-8")
+    (pack / "contended.json").write_text('{"contended": ["the paths"]}', encoding="utf-8")
+    (pack / "decisions.json").write_text('{"inherited": ["the rows"]}', encoding="utf-8")
+
+    handed = pack_handover(tmp_path)
+    prompt = build_prompt(Task(id="T-0001", decisions=[]), pack=handed)
+
+    for body in ("the battery", "the tests", "the red", "the paths"):
+        assert body in prompt
+
+    # Named once, as what it is — never as a file to open.
+    for name in ("gates.json", "tests.json", "attempts.json", "contended.json"):
+        assert f"{PACK_RELPATH}/{name}" not in prompt
+
+    assert "the rows" not in prompt
+    assert f"{PACK_RELPATH}/decisions.json" in prompt
+
+    # Deterministic for the same pack, and no pack at all is no section.
+    assert pack_handover(tmp_path) == handed
+    assert pack_handover(tmp_path / "elsewhere") == ""
+    assert "What the engine knows" not in build_prompt(Task(id="T-0002", decisions=[]))
+
+
 def test_default_tiers_are_all_fake():
     config = RunnerConfig()
     assert set(config.tiers) == {"planner", "executor", "reviewer"}

@@ -125,12 +125,10 @@ def test_the_pack_carries_what_asked_for_the_work(tmp_path):
 
     assert payload["title"] == "A gap" and payload["ref"] == "https://x.invalid/42"
     assert "Sessions outlive their tokens." in payload["summary"]
-    assert "`source.json`" in files["index.md"]
 
     plain = build(tmp_path, specs, Task(id="T-0002", decisions=[]), manifest)
 
     assert "source.json" not in plain
-    assert "`source.json`" not in plain["index.md"]
 
 
 def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
@@ -384,19 +382,25 @@ def test_contention_and_the_index_and_the_replay_rule(tmp_path: Path) -> None:
     assert (again / ".gitignore").read_text(encoding="utf-8") == "*\n"  # invisible to any diff
 
 
-def test_the_index_names_the_red_first() -> None:
+def test_the_index_names_only_what_is_still_behind_a_read() -> None:
+    """S-0076/D-1: the small files arrive in the attempt's first message, so
+    the index points at none of them — pointing at bytes already in context
+    buys a round trip that re-reads them. `decisions.json` and the schemas
+    stay named, because those are still fetched."""
+
     files = {
-        "attempts.json": json.dumps(
-            {
-                "attempts": [{"attempt": 1}],
-                "last_red_gates": [{"gate": "scope"}, {"gate": "acceptance"}],
-            }
-        )
+        "source.json": "{}",
+        "gates.json": "{}",
+        "tests.json": "{}",
+        "attempts.json": json.dumps({"attempts": [{"attempt": 1}]}),
+        "contended.json": "{}",
+        "decisions.json": "{}",
+        "schema/task.json": "{}",
     }
 
     index = render_index(files, _task())
 
-    assert "Prior attempts on this task: 1." in index
-    assert (
-        "The last red pass convicted on: scope, acceptance — read `attempts.json` first." in index
-    )
+    assert "`decisions.json`" in index and "`schema/*.json`" in index
+
+    for handed in ("source.json", "gates.json", "tests.json", "attempts.json", "contended.json"):
+        assert handed not in index
