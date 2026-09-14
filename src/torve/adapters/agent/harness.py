@@ -34,7 +34,12 @@ from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
 from torve.application.equipment import EQUIPMENT_MOUNT, MANIFEST
 from torve.application.ports import AgentContext, AgentResult
-from torve.application.telemetry import record_context, record_receipt
+from torve.application.telemetry import (
+    classify_tool_calls,
+    record_burn_profile,
+    record_context,
+    record_receipt,
+)
 from torve.base import naming
 
 if TYPE_CHECKING:
@@ -622,23 +627,31 @@ def _turn_output_tokens(record: dict[str, Any]) -> int | None:
     return None
 
 
-def _tool_events(record: dict[str, Any]) -> int:
-    """How many tool calls one stream line carries."""
+def _content_blocks(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """The content blocks one stream line carries, at either of the two
+    positions the harnesses put them: on the line itself, or nested under the
+    `message` a claude stream-json event wraps its turn in."""
 
-    count = 0
     contents = record.get("content")
     message = record.get("message")
 
     if contents is None and isinstance(message, dict):
         contents = cast("dict[str, Any]", message).get("content")
 
-    if isinstance(contents, list):
-        count += sum(
-            1
-            for block in cast("list[object]", contents)
-            if isinstance(block, dict)
-            and cast("dict[str, Any]", block).get("type") in _TOOL_EVENT_TYPES
-        )
+    if not isinstance(contents, list):
+        return []
+
+    return [
+        cast("dict[str, Any]", block)
+        for block in cast("list[object]", contents)
+        if isinstance(block, dict)
+    ]
+
+
+def _tool_events(record: dict[str, Any]) -> int:
+    """How many tool calls one stream line carries."""
+
+    count = sum(1 for block in _content_blocks(record) if block.get("type") in _TOOL_EVENT_TYPES)
 
     part = record.get("part")
 
@@ -895,6 +908,273 @@ def parse_context_curve(trace: Path) -> ContextCurve | None:
         receipt_total=receipt_total,
         matches_receipt=matches,
     )
+
+
+# ....................... #
+
+# The per-call facts the burn classifier reads (S-0075/D-2), scanned off the
+# same trace bytes as the curve above and by the same discipline: this says
+# only what the stream said — which tool ran, what it was given, which message
+# carried it, how many bytes its result returned and how long it took. What a
+# call was *for* is the engine's word and stays in `application.telemetry`, so
+# no adapter can hold an opinion about a class another adapter disagrees with.
+
+# The classifier's own name for a compaction event, beside the subtypes the
+# harnesses spell one with. The event is counted and nothing more.
+_COMPACT_FACT = "SessionStart:compact"
+_COMPACT_SUBTYPES = frozenset({"compact_boundary", "compact", "compacted"})
+
+# The classifier's name for the opening inventory line, and the fields it
+# counts there — what every request re-read (S-0075/D-4). `_INVENTORY_FIELDS`
+# below reads the same line for the other question, what was loaded against
+# what was declared, and drops `tools` because no profile declares one; this
+# one keeps it, because a tool is re-read by every request either way.
+_INIT_FACT = "init"
+_INIT_INVENTORIES: tuple[str, ...] = ("tools", "skills", "mcp_servers", "plugins", "agents")
+
+# A result answers a call; it is not one (the same split `_TOOL_EVENT_TYPES`
+# draws), and it is where the result bytes and — on a harness that measures
+# one — the call's latency live.
+_TOOL_RESULT_TYPES = frozenset({"tool_result", "tool-result"})
+_LATENCY_NAMES: tuple[str, ...] = ("duration_ms", "durationMs", "latency_ms", "latencyMs")
+
+# The input keys a call names a path at, and the two spellings of a call's own
+# identity — the handle a result is joined back to its call by.
+_PATH_KEYS: tuple[str, ...] = ("file_path", "path")
+_CALL_ID_KEYS: tuple[str, ...] = ("id", "tool_use_id", "toolUseId")
+_NAME_KEYS: tuple[str, ...] = ("name", "tool", "tool_name", "toolName")
+_INPUT_KEYS: tuple[str, ...] = ("input", "arguments", "args")
+
+
+def _str_at(block: dict[str, Any], names: tuple[str, ...]) -> str:
+    """The first non-empty string among the names, "" where none answers."""
+
+    for name in names:
+        value: Any = block.get(name)
+
+        if isinstance(value, str) and value:
+            return value
+
+    return ""
+
+
+def _call_input(block: dict[str, Any]) -> dict[str, Any] | None:
+    """What a call was given, at the position its harness puts it: beside the
+    call, or nested in the `state` opencode wraps a tool part's own input in."""
+
+    for name in _INPUT_KEYS:
+        value: Any = block.get(name)
+
+        if isinstance(value, dict):
+            return cast("dict[str, Any]", value)
+
+    state = block.get("state")
+
+    return _call_input(cast("dict[str, Any]", state)) if isinstance(state, dict) else None
+
+
+def _workspace_relative(input_: dict[str, Any], workdir: str) -> dict[str, Any]:
+    """The paths a call names, spelled the way the task's scope globs are.
+
+    The harnesses log the in-sandbox absolute path they were handed, and a
+    scope pattern is repository-relative — left as they are, every in-scope
+    read would read as orientation and the classification would be quietly
+    wrong, which is worse than none. Anything outside the workspace is left
+    verbatim: it is genuinely not a path the scope can name.
+    """
+
+    if not workdir:
+        return input_
+
+    prefix = workdir.rstrip("/") + "/"
+    rewritten: dict[str, Any] = {}
+
+    for key in _PATH_KEYS:
+        value: Any = input_.get(key)
+
+        if isinstance(value, str) and value.startswith(prefix):
+            rewritten[key] = value[len(prefix) :]
+
+    return {**input_, **rewritten} if rewritten else input_
+
+
+def _call_fact(block: dict[str, Any], workdir: str) -> dict[str, Any]:
+    """One tool-call block as the classifier's fact. The call id rides along
+    so a later result can be joined to it, and is dropped before the fact is
+    classified — it names nothing outside this scan."""
+
+    fact: dict[str, Any] = {"name": _str_at(block, _NAME_KEYS)}
+    input_ = _call_input(block)
+
+    if input_ is not None:
+        fact["input"] = _workspace_relative(input_, workdir)
+
+    call_id = _str_at(block, _CALL_ID_KEYS)
+
+    if call_id:
+        fact["id"] = call_id
+
+    latency = _int_at(block, _LATENCY_NAMES)
+
+    if latency is not None:
+        fact["latency_ms"] = latency
+
+    return fact
+
+
+def _tool_call_facts(record: dict[str, Any], workdir: str) -> list[dict[str, Any]]:
+    """The tool calls one stream line names, at the three positions
+    `_tool_events` counts them — so the classified profile and the harness's
+    own per-turn count can never disagree about what a call is. A block naming
+    no tool is dropped: an unnamed call is unreported, never `other`."""
+
+    found = [
+        _call_fact(block, workdir)
+        for block in _content_blocks(record)
+        if block.get("type") in _TOOL_EVENT_TYPES
+    ]
+
+    part = record.get("part")
+
+    if isinstance(part, dict) and cast("dict[str, Any]", part).get("type") in _TOOL_PART_TYPES:
+        found.append(_call_fact(cast("dict[str, Any]", part), workdir))
+
+    if record.get("type") in _TOOL_EVENT_TYPES:
+        found.append(_call_fact(record, workdir))
+
+    return [fact for fact in found if fact["name"]]
+
+
+def _result_bytes(content: Any) -> int:
+    """How many bytes a tool result returned, in the shapes a harness spells a
+    result body: a string, a list of content blocks, or an object carrying
+    either. A body that is neither contributes nothing."""
+
+    if isinstance(content, str):
+        return len(content.encode("utf-8"))
+
+    if isinstance(content, list):
+        return sum(_result_bytes(entry) for entry in cast("list[object]", content))
+
+    if isinstance(content, dict):
+        block = cast("dict[str, Any]", content)
+
+        return sum(_result_bytes(block.get(key)) for key in ("text", "content"))
+
+    return 0
+
+
+def _tool_result_facts(record: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """What a line says about results to calls already seen, by call id: the
+    bytes the result carried, and the latency where the harness measured one.
+    A harness that times nothing contributes no latency and the medians are
+    over the calls that were measured — absent, never zeroed (S-0004/D-6)."""
+
+    measured: dict[str, dict[str, Any]] = {}
+
+    for block in _content_blocks(record):
+        if block.get("type") not in _TOOL_RESULT_TYPES:
+            continue
+
+        call_id = _str_at(block, _CALL_ID_KEYS)
+
+        if not call_id:
+            continue
+
+        fields: dict[str, Any] = {"bytes": _result_bytes(block.get("content"))}
+        latency = _int_at(block, _LATENCY_NAMES)
+
+        if latency is not None:
+            fields["latency_ms"] = latency
+
+        measured[call_id] = fields
+
+    return measured
+
+
+def parse_tool_calls(trace: Path, workdir: str = "") -> list[dict[str, Any]]:
+    """Every tool call the session trace names, as the per-call facts the burn
+    classifier reads (S-0075/D-2) — scanned from the durable store's own bytes
+    like `parse_burn` and `parse_context_curve`, never `result.output`, which
+    every runtime clips at the exec boundary.
+
+    Each call carries the tool's name, the input it was given, the 0-based
+    ordinal of the message that carried it, and — once the result answering it
+    arrives — that result's bytes and latency. The opening inventory line and
+    each compaction event ride the same list under the classifier's own names.
+
+    `workdir` is where the runtime mounted the worktree; the paths a call names
+    are made relative to it, because that is the spelling the task's scope
+    globs use. An empty list where the stream named no calls at all: no
+    stream, no block (S-0039/D-4), and the classifier says the same by
+    returning no profile.
+    """
+
+    try:
+        handle = trace.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    facts: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    message = 0
+    init_seen = False
+
+    with handle:
+        for line in handle:
+            line = line.strip()
+
+            if not (line.startswith("{") and line.endswith("}")):
+                continue
+
+            try:
+                data: Any = json.loads(line)
+            except ValueError:
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            record = cast("dict[str, Any]", data)
+
+            if record.get("subtype") in _COMPACT_SUBTYPES:
+                facts.append({"name": _COMPACT_FACT, "message": message})
+                continue
+
+            if not init_seen and any(field in record for field in _INIT_INVENTORIES):
+                init_seen = True
+                facts.append(
+                    {
+                        "name": _INIT_FACT,
+                        **{field: record[field] for field in _INIT_INVENTORIES if field in record},
+                    }
+                )
+                continue
+
+            for fact in _tool_call_facts(record, workdir):
+                fact["message"] = message
+                facts.append(fact)
+                call_id: Any = fact.pop("id", "")
+
+                if isinstance(call_id, str) and call_id:
+                    by_id[call_id] = fact
+
+            for call_id, fields in _tool_result_facts(record).items():
+                answered = by_id.get(call_id)
+
+                if answered is not None:
+                    answered.update(fields)
+
+            event_type = record.get("type")
+
+            # The message ordinal is the turn-bearing line's own index, the
+            # numbering `parse_burn` counts turns by — so calls per message
+            # means the same thing on a harness that emits events and one that
+            # emits steps.
+            if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
+                message += 1
+
+    return facts
 
 
 # ....................... #
@@ -1347,6 +1627,18 @@ class HarnessAgent:
             ctx.task.id,
             curve.as_block() if curve is not None else {"shape": "none"},
         )
+        # The classified half of the same profile (S-0075/D-2): the calls the
+        # stream named, scanned from the same bytes and named by the engine's
+        # own vocabulary against this task's scope — which is what tells an
+        # in-scope read from an orientation read. Booked by the curve's route
+        # and drained by whichever row ends the attempt; a stream that named no
+        # call books nothing, and the row says so by silence (S-0039/D-4).
+        profile = classify_tool_calls(
+            parse_tool_calls(trace, ctx.workdir), scope=ctx.task.scope.allow
+        )
+
+        if profile:
+            record_burn_profile(ctx.task.id, profile)
         # What the harness says it loaded, against what this seat declared
         # (S-0066/D-4). Recorded beside the profile read from the same bytes;
         # no gate reads it and no verdict turns on it. The comparison costs a

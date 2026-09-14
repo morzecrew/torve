@@ -26,6 +26,7 @@ from torve.adapters.agent.harness import (
     parse_burn,
     parse_context_curve,
     parse_metadata,
+    parse_tool_calls,
 )
 from torve.adapters.vcs.git import repository_name
 from torve.application.ports import AgentContext, AgentResult, ExecResult, SandboxHandle
@@ -1270,6 +1271,197 @@ def test_harness_agent_derives_the_context_curve_from_the_captured_stream(tmp_pa
         "receipt_total": 99,
         "matches_receipt": False,
     }
+
+
+# ....................... #
+# The burn classifier on a real attempt (S-0075/D-2 phase 3): the adapter
+# scans the trace it already writes for the per-call facts the classifier
+# reads, and books the classified profile by the context curve's route.
+
+
+def profile_stream(workdir):
+    """A claude stream-json session that exercises every part of the scan: an
+    opening inventory line, calls across three messages, the results that
+    answer them, a compaction event, and a closing envelope. The read and edit
+    name the in-sandbox absolute path a harness actually logs, which is what
+    the scan has to relativise before a scope glob can match it."""
+
+    return "\n".join(
+        [
+            (
+                '{"type":"system","subtype":"init","tools":["Bash","Read"],'
+                '"skills":["working-rules"],"mcp_servers":[],"agents":["Explore"]}'
+            ),
+            (
+                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"1",'
+                '"name":"Glob","input":{"pattern":"**/*.py"}}],'
+                '"usage":{"input_tokens":10,"output_tokens":20}}}'
+            ),
+            (
+                '{"type":"user","message":{"content":[{"type":"tool_result",'
+                '"tool_use_id":"1","content":"a.py\\nb.py"}]}}'
+            ),
+            (
+                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"2",'
+                f'"name":"Read","input":{{"file_path":"{workdir}/src/widget.py"}}}},'
+                '{"type":"tool_use","id":"3","name":"Edit",'
+                f'"input":{{"file_path":"{workdir}/src/widget.py"}}}}],'
+                '"usage":{"input_tokens":60,"output_tokens":40}}}'
+            ),
+            (
+                '{"type":"user","message":{"content":[{"type":"tool_result",'
+                '"tool_use_id":"2","content":"...","duration_ms":30},'
+                '{"type":"tool_result","tool_use_id":"3","content":"ok",'
+                '"duration_ms":70}]}}'
+            ),
+            '{"type":"system","subtype":"compact_boundary"}',
+            (
+                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"4",'
+                '"name":"Bash","input":{"command":"pytest -q"}}],'
+                '"usage":{"input_tokens":90,"output_tokens":15}}}'
+            ),
+            (
+                '{"type":"user","message":{"content":[{"type":"tool_result",'
+                '"tool_use_id":"4","content":"2 passed","duration_ms":8100}]}}'
+            ),
+            (
+                '{"type":"result","subtype":"success","total_cost_usd":0.3,'
+                '"usage":{"input_tokens":99,"output_tokens":100}}'
+            ),
+        ]
+    )
+
+
+def test_parse_tool_calls_emits_the_facts_the_classifier_reads(tmp_path):
+    facts = parse_tool_calls(burn_trace(tmp_path, profile_stream("/w")), "/w")
+
+    # The inventory line first, keyed as the classifier counts it; the empty
+    # mcp list rides along and is counted as nothing rather than as zero.
+    # Then one fact per call, carrying the message that issued it, the bytes
+    # its result returned and the latency the result measured — and the
+    # compaction event in the position the stream put it.
+    assert facts == [
+        {
+            "name": "init",
+            "tools": ["Bash", "Read"],
+            "skills": ["working-rules"],
+            "mcp_servers": [],
+            "agents": ["Explore"],
+        },
+        {"name": "Glob", "input": {"pattern": "**/*.py"}, "message": 0, "bytes": 9},
+        {
+            "name": "Read",
+            "input": {"file_path": "src/widget.py"},
+            "message": 1,
+            "bytes": 3,
+            "latency_ms": 30,
+        },
+        {
+            "name": "Edit",
+            "input": {"file_path": "src/widget.py"},
+            "message": 1,
+            "bytes": 2,
+            "latency_ms": 70,
+        },
+        {"name": "SessionStart:compact", "message": 2},
+        {
+            "name": "Bash",
+            "input": {"command": "pytest -q"},
+            "message": 2,
+            "bytes": 8,
+            "latency_ms": 8100,
+        },
+    ]
+    # The scan and the harness's own per-turn count never disagree about what
+    # a call is: a tool_result answers a call, it is not one.
+    assert (
+        len([fact for fact in facts if fact["name"] not in ("init", "SessionStart:compact")]) == 4
+    )
+
+
+def test_parse_tool_calls_leaves_a_path_outside_the_workspace_verbatim(tmp_path):
+    stream = (
+        '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"1",'
+        '"name":"Read","input":{"file_path":"/etc/hosts"}}],"usage":{"output_tokens":1}}}'
+    )
+    facts = parse_tool_calls(burn_trace(tmp_path, stream), "/w")
+
+    # Not a path the scope can name, so nothing is rewritten; and with no
+    # workdir at all the spelling is the stream's own.
+    assert facts == [{"name": "Read", "input": {"file_path": "/etc/hosts"}, "message": 0}]
+    assert parse_tool_calls(burn_trace(tmp_path, stream))[0]["input"] == {"file_path": "/etc/hosts"}
+
+
+def test_parse_tool_calls_empty_for_a_stream_that_names_none(tmp_path):
+    # No stream, no block (S-0039/D-4): an envelope, garbage and a file
+    # retention already took all answer the same, and none of them raise.
+    envelope = '{"type":"result","total_cost_usd":0.09,"usage":{"output_tokens":88}}'
+
+    assert parse_tool_calls(burn_trace(tmp_path, envelope)) == []
+    assert parse_tool_calls(burn_trace(tmp_path, "plain text\n{}\n[]")) == []
+    assert parse_tool_calls(burn_trace(tmp_path, "")) == []
+    assert parse_tool_calls(tmp_path / "never-written.trace.log") == []
+
+
+def test_harness_agent_books_the_classified_profile_for_the_attempt(tmp_path, monkeypatch):
+    from torve.application.telemetry import build_attempt_row
+
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
+    agent.run(dataclasses.replace(ctx, prompt=profile_stream(ctx.workdir)))
+
+    row = build_attempt_row(ctx.task, {}, verdict="agent_error", exit_code=1, timed_out=False)
+    profile = row["agent"]["burn"]["profile"]
+
+    # The task's scope (`src/**`) is what tells the in-scope read from the
+    # orientation glob; the edit, the test run and the compaction event are
+    # the stream's own, named by the engine's vocabulary.
+    assert profile["classes"] == {
+        "edit": 1,
+        "in_scope_read": 1,
+        "orientation": 1,
+        "test_run": 1,
+    }
+    assert profile["calls"] == 4
+    assert profile["messages"] == 3
+    assert profile["calls_before_first_edit"] == 2
+    assert profile["compaction_events"] == 1
+    assert profile["bytes_by_class"] == {
+        "orientation": 9,
+        "in_scope_read": 3,
+        "edit": 2,
+        "test_run": 8,
+    }
+    assert profile["latency_medians"] == {"in_scope_read": 30, "edit": 70, "test_run": 8100}
+    # What every request re-read, off the same line (S-0075/D-4); the empty
+    # mcp list stays absent rather than becoming a zero.
+    assert profile["init_tools"] == 2
+    assert profile["init_skills"] == 1
+    assert profile["init_agents"] == 1
+    assert "init_mcp_servers" not in profile
+
+    # The booking belongs to the attempt that produced it, drained once.
+    again = build_attempt_row(ctx.task, {}, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "burn" not in again["agent"]
+
+
+def test_harness_agent_books_no_profile_for_a_callless_stream(tmp_path, monkeypatch):
+    from torve.application.telemetry import build_attempt_row
+
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
+    # CLAUDE_STREAM's tool_use blocks name no tool, so the stream carries no
+    # classifiable call — the row says so by silence, never by an empty block.
+    agent.run(dataclasses.replace(ctx, prompt=CLAUDE_STREAM))
+
+    row = build_attempt_row(ctx.task, {}, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "burn" not in row["agent"]
 
 
 class SandboxReadOnlyRuntime(HostShellRuntime):
