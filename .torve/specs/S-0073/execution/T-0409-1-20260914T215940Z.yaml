@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0409
+phase: 2
+base: 52f544d0c56b0663fd1975c6165ac50d22e3c866
+commit: db16ece0b454ad4d0d35b7c682cac51acafa2994
+at: '2026-09-14T21:59:40Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T21:57:37Z'
+    attempt: 4
+    claim: >-
+      compliant: the section moved into one producer and build_prompt still names
+      the skill without restating it; the property test over it is unchanged and green
+    evidence: >-
+      src/torve/adapters/agent/harness.py:271 — working_rules() is the single producer,
+      called by build_prompt and staged for system position; tests/test_tiering.py:1866
+      asserts the property unchanged
+    action: decided
+    proposal: LOCKED — no change proposed; the row holds
+  - decision: D-2
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-14T21:57:37Z'
+    attempt: 4
+    claim: >-
+      the per-harness declaration could not be written: the allow pattern .torve/harnesses
+      matches no file under it, because the scope check is fnmatch over the worktree-relative
+      path
+    evidence: >-
+      .torve/agents/hooks/implement/scope_guard.py:67 — fnmatch against the allow
+      patterns; the hook refused .torve/harnesses/claude-subscription.yaml naming
+      .torve/harnesses as allowed
+    action: departed
+    proposal: >-
+      ASSUMED — the allow list should read .torve/harnesses/*.yaml where a directory
+      is meant; D-2's paths carry the same literal
+  - decision: D-2
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-14T21:57:37Z'
+    attempt: 4
+    claim: >-
+      the rules are staged and named across the seam but no image reads them yet,
+      so the prompt keeps its own section rather than dropping the rules from every
+      attempt; the consuming half is out of scope
+    evidence: >-
+      sandboxes/claude/toolkit/run:59 — the invocation takes TORVE_PROMPT and no system
+      flag; tests/test_sandbox_defs.py:147 whitelists the names an image may read
+      and both files are outside this task's allow list
+    action: departed
+    proposal: >-
+      ASSUMED — a follow-up scoped to sandboxes/*/toolkit/run and tests/test_sandbox_defs.py
+      maps TORVE_SYSTEM_PROMPT onto --append-system-prompt, dsh's persona row and
+      mimo's agent body, and drops the prompt's own section in the same change
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T21:57:52Z'
+    attempt: 4
+    claim: >-
+      restating entry 1 under the qualified identifier the owed check reads: build_prompt
+      still names the working-rules skill and does not restate it, the text having
+      moved into one producer both channels call
+    evidence: >-
+      src/torve/adapters/agent/harness.py:271 — working_rules(), called by build_prompt
+      and staged for system position; tests/test_tiering.py:1866 asserts the property
+      unchanged
+    action: decided
