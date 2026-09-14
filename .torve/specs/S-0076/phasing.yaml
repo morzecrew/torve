@@ -33,8 +33,8 @@ phasing:
   - phase: 3
     title: results that stay small
     intent: >-
-      Ranged reads asked for in the prompt, and a cap on what one command may return.
-      Settles D-4.
+      A cap at the harness's own result boundary, where every tool crosses it, and
+      reading advice that names the shell forms beside the reader's. Settles D-4.
     scope:
       - src/torve/adapters/agent/harness.py
       - .torve/harnesses
@@ -44,6 +44,19 @@ phasing:
       - uv run mypy src
     character: structural
   - phase: 4
+    title: where a definition lives, without asking
+    intent: >-
+      The pack carries an index of what the repository defines and where, for the
+      definitions the scope's own files name, and the prompt says it is there. Settles
+      D-5.
+    scope: [src/torve/application/contextpack.py, tests/test_contextpack.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 5
     title: the guide says what arrives
     intent: >-
       `sandboxes/AGENTS.md` gains what the first message carries, so the next person
@@ -55,4 +68,5 @@ phasing:
       - 1
       - 2
       - 3
+      - 4
     character: routine
