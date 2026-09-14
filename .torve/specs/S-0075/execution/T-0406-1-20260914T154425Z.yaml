@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0406
+phase: 6
+base: 23d17be8471bc45fb0a642ed459a784cf1df2623
+commit: 999b0977269d47dd67d55fbc4fbf54188e71c87a
+at: '2026-09-14T15:44:25Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: LOCKED
+entries:
+  - decision: D-5
+    grade: LOCKED
+    at: '2026-09-14T15:42:29Z'
+    claim: >-
+      the curve now identifies a request by the message id the stream carries and
+      counts it once, so repeated assistant events sharing one usage object no longer
+      inflate the sum
+    evidence: >-
+      src/torve/adapters/agent/harness.py:838-860 — _request_id reads the id claude
+      nests in message and opencode spells beside the part; harness.py:928-941 skips
+      an already-counted id
+    action: decided
+    notes: >-
+      tests/test_tiering.py::test_parse_context_curve_counts_requests_not_repeated_events
+      is the twin: three events on one message id, one on another, and the deduplicated
+      sum closes against the receipt where the undeduplicated one would not
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T15:42:35Z'
+    claim: >-
+      the curve still records first, median, max and sum on every seat with the shape
+      named on the row and the sum checked against the receipt total; counting by
+      message id changes which events feed those statistics, not what the row reports
+    evidence: >-
+      src/torve/adapters/agent/harness.py:742-777 — the ContextCurve row and its as_block
+      are unchanged; harness.py:945-960 still holds the reconstructed sum against
+      the receipt's own total
+    action: decided
