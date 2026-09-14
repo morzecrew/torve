@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0407
+phase: 7
+base: 44f52d671e202a1425f28128e9385928bb653219
+commit: a8a9fff040d803a63fdb6df2538301a9ab82b893
+at: '2026-09-14T19:41:51Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: LOCKED
+  - id: D-6
+    grade: LOCKED
+entries:
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-09-14T19:39:43Z'
+    claim: >-
+      the burn profile is derived from the attempt's retained trace at read time,
+      and the recorded block answers only where the trace is gone
+    evidence: >-
+      src/torve/application/telemetry.py:848 — derive_burn_profile classifies the
+      trace whenever the file is still on disk and falls back to the recorded block,
+      so every retained attempt has a profile and a classifier change reclassifies
+      the history; src/torve/cli/ledger.py:111 wires the harness scanner and the contract
+      reader into burn_population at the point of the read
+    action: decided
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T19:39:50Z'
+    claim: >-
+      the context curve's recording is untouched; the read-time derivation was added
+      beside it, not in place of it
+    evidence: >-
+      src/torve/application/telemetry.py:478 — record_context and the curve's booking
+      are unchanged by this diff; the new derivation at src/torve/application/telemetry.py:848
+      reads the trace and writes nothing to the stream
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-14T19:39:51Z'
+    claim: >-
+      the per-line and per-file rate rendering is unchanged; the burn population prints
+      as its own section
+    evidence: >-
+      src/torve/cli/ledger.py:171 — the per changed line and per file in scope tables
+      keep their columns and their dash-for-absent rule; src/torve/cli/ledger.py:260
+      adds _burn as a separate table between the rates and the gates
+    action: decided
