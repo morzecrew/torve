@@ -33,7 +33,7 @@ shell has not set is filled in.
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
 | `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` also discards escalations you have dealt with by hand |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
-| `torve ledger` | the record folded into rates, per seat and per gate. See below for what each one divides |
+| `torve ledger` | the record folded into rates, per seat, per changed line and per gate. See below for what each one divides |
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
@@ -246,11 +246,12 @@ a second interface they would only be a second, weaker copy of them.
 
 ## What each rate counts
 
-`torve ledger` reads the attempt stream and divides it, printing per seat
-and per gate. A denominator a reader has to guess is one person's
-measurement and another's argument — three passes over this record once
-counted 364, 536 and 252 attempts because each reader invented its own
-denominator — so every rate the verb prints is named here with both sides.
+`torve ledger` reads the attempt stream and divides it, printing per seat, per
+changed line and per file in scope, and per gate. A denominator a reader has to
+guess is one person's measurement and another's argument — three passes over
+this record once counted 364, 536 and 252 attempts because each reader invented
+its own denominator — so every rate the verb prints is named here with both
+sides.
 
 **What is counted at all.** A derived rate counts only attempts that ran a
 model (S-0065/D-5, LOCKED). Four buckets are dropped, and their counts are
@@ -298,8 +299,8 @@ made the landing possible. A conviction is a *blocking* gate that failed:
 a shadow gate's red convicts nobody, and a gate `error` is the battery
 breaking rather than the work being wrong.
 
-`duty` is the odd one out: the only rate that does not divide by landings,
-and the one whose denominator the specification left open. It counts agent
+`duty` is the odd one out: it divides by neither landings nor lines, and it is
+the one rate whose denominator the specification left open. It counts agent
 wall time inside attempts over the elapsed span of that seat's own attempts,
 first to last — waiting between its attempts counted against it, waiting
 for anyone else not. The rejected reading divides the same seconds by whole
@@ -308,6 +309,74 @@ the record holds 37 agent-hours beside 296 further hours of idle inside
 task lifetimes, so the two answers differ by an order of magnitude.
 Because the choice is a choice, both sides ride beside the ratio — per seat
 in the text footer, as `wall_time_s` and `span_s` in the JSON.
+
+**The identity every cache figure rests on.** Cache-read tokens are not
+something a model uses. They are the whole context, billed again on every
+request:
+
+    cache_read_total  =  Σ over requests of (context at that request)
+
+so a cache figure answers anything only when both sides of that sum are on the
+record — how many requests, and what each carried. An attempt now records both
+sides of itself (S-0075/D-1, LOCKED): it scans its own trace and books the
+per-request curve on the row's agent block — first, median, max and sum of the
+input context each request carried, with the request count. Where the message
+usages name cache fields the requests are read through them; where they name
+only `input` — the case on three of the four seats the finding came from — the
+curve is reconstructed from the message usages, and the row names which shape
+produced it: `with-cache`, `input-only`, or `none` for a stream that carried no
+per-request usage at all and so cannot be reconstructed. The reconstructed sum
+is then held against the receipt's own final total and the row carries which
+way that check fell (`matches_receipt`) — which is what makes the identity
+behind a token figure verifiable per attempt instead of trusted. A request is
+the message id the stream carries, never the event (S-0075/D-5): 72 assistant
+events on one opus trace carried 47 distinct ids, 24 of them repeated up to
+three times over one usage object, and counting events would have published a
+sum 51% over the receipt; deduplicated, the curve closed against it exactly, at
+5,276,251. The same trace on the modelstudio route closes neither way — raw
+2,304,380, deduplicated 1,176,528, against a receipt of 2,853,036 — which is
+what settled that route's `input` as not the full context (S-0075/Q-1), and a
+curve that cannot close says so on its own row. The ledger's cache-read
+numerator stays the receipt's own total either way: the curve is the attempt's
+account of what that figure was made of, not a second figure to divide.
+
+**The work-shaped rates beside the task-shaped ones.** A landing rate divides
+by the task, and a twenty-line change and a four-hundred-line one enter the
+same average — which hides the only thing that separates them: the same fleet,
+the same week, 153k cache-read tokens per changed line against 16k
+(S-0075/D-3, LOCKED). So after the seats table the verb prints a per-line
+table, and after that a per-file one.
+
+| Column | Numerator | Denominator |
+| --- | --- | --- |
+| `cache-read/line` | every cache-read token the seat's counted attempts reported | every changed line the seat's landed tasks committed |
+| `wall/line` | agent wall seconds inside the seat's counted attempts | the same lines |
+| `calls/line` | every tool call the seat's counted attempts made | the same lines |
+| `$/line` | every dollar the seat's counted attempts reported | the same lines |
+
+The lines are additions plus deletions read by `git diff --numstat` between
+the newest counted attempt's own base and head, per path: a task's work is one
+diff whatever it took to land, so it is sized from the attempt that finished
+it, and a task that never landed contributes none — it committed no line,
+though its seat's spend for it still rides the numerator. A line of landed
+work is thus priced at everything it took to produce it, the same discipline
+the landing rates above keep. The tool-call numerator is the count the harness
+booked itself, or, where the stream named only the classified profile, the
+call count of the burn profile that sorted the attempt's calls by what they
+were for (S-0075/D-2). The
+per-file table divides the same seat numerators by each path's own lines — an
+attempt's spend cannot be attributed across the files it touched, so a path's
+figure reads *what one line of this path's work cost if the seat had produced
+nothing else* — and the path carrying the cost is the path that says so.
+
+The absences print as absences here too: a numerator no attempt on the seat
+reported prints a dash — or `unreported` where the column carries dollars —
+never a zero; a burn profile never derived reads the same as a harness that
+carried no token counts. And so do a diff that cannot be resolved, a change
+that touched only binary files and a change that changed nothing: no
+denominator, no rate, and not an infinity. And because a per-line
+rate invites swelling the denominator — landing more lines makes every line
+look cheaper — `attempts/landing` stays in the seats table beside them.
 
 Per gate, the verb prints runs, wall time spent, convictions, and seconds
 per conviction — the pair that says whether a gate is worth what it costs
@@ -340,8 +409,10 @@ Rates, not rows: `torve why` and `torve status` print the attempts and gate
 runs themselves, and the exit code reports the read, not the rates'
 fortunes — an expensive seat read successfully is a successful read.
 `torve ledger --format json` is the same arithmetic as fields — cost
-totals, landed-task counts, both sides of the duty ratio, every exclusion
-tally — so a reader can check the division rather than trust the print.
+totals, landed-task counts, both sides of the duty ratio, each seat's changed
+lines, token and call numerators and per-file entries beside the per-line rates
+they divide, every exclusion tally — so a reader can check the division rather
+than trust the print.
 
 ## The corpus and its archive
 
