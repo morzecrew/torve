@@ -66,10 +66,15 @@ decisions:
       the round trips a small attempt spends orienting fall without any read being
       given up
     rationale: >-
-      753 tool calls across eight attempts, every message carrying exactly one — `{1:
-      753}`. One sentence is the cheapest possible test of whether that is the models
-      or the absence of a rule, and the burn profile's calls-per-message counts the
-      answer directly
+      1,605 assistant messages across every retained trace, each carrying exactly
+      one tool call — no exception on any seat, opus through Anthropic and qwen through
+      ModelStudio alike. Zero variance is not a model's habit, so the harness was
+      checked directly: the same CLI at the same version, invoked the same way, executes
+      two calls issued in one message, and nothing in the image, the broker or the
+      init line forbids it. What differs is one sentence in the prompt. `cache_read`
+      is requests times context, so this is the only mitigation measured that divides
+      the multiplier rather than the multiplicand, and the burn profile's calls-per-message
+      reports the answer directly
     cites: [S-0067/D-3]
   - id: D-6
     grade: ASSUMED

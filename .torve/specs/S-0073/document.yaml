@@ -3,7 +3,7 @@ id: S-0073
 title: >-
   The working rules live once, and say what an attempt costs
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0067]
 informed_by: [S-0065, S-0029]
