@@ -43,6 +43,13 @@ def _rate(value: Any, digits: int = 2) -> str:
     return f"{value:.{digits}f}" if isinstance(value, int | float) else "—"
 
 
+def _tokens(value: Any) -> str:
+    """A per-line token count at the scale the record shows — 153000 reads as
+    a number with grouping, not a run of digits."""
+
+    return f"{value:,.0f}" if isinstance(value, int | float) else "—"
+
+
 def _percent(value: Any) -> str:
     return f"{value * 100:.1f}%" if isinstance(value, int | float) else "—"
 
@@ -70,8 +77,10 @@ def ledger_cmd(
 ) -> None:
     """Fold the record into rates: per seat, what a landed task cost, how
     many attempts a landing took, how many blocking convictions came before
-    one, and what share of elapsed time the seat spent running; per gate,
-    the wall time it spent against the convictions it produced.
+    one, and what share of elapsed time the seat spent running; per changed
+    line and per changed file, what a line of that work cost in cache-read
+    tokens, wall time, tool calls and dollars; per gate, the wall time it
+    spent against the convictions it produced.
 
     A seat is a tier and the image it was pointed at together, because one
     tier name aimed at several images averages into a figure that describes
@@ -131,6 +140,64 @@ def _render(report: dict[str, Any]) -> None:
 
     if report["seats"]:
         console.print(seats)
+
+        # The work-shaped rates beside the task-shaped ones (S-0075/D-3): the
+        # four figures that show what a changed line cost, then the same
+        # figures per file in scope — the path that carried the cost is the
+        # one that says so. The seat's own changed lines ride with the rates,
+        # the same both-sides discipline the duty ratio above follows. A rate
+        # whose diff or whose numerator never resolved prints as a dash.
+        per_line = make_table(
+            "seat",
+            "lines",
+            "cache-read/line",
+            "wall/line",
+            "calls/line",
+            "$/line",
+            title="per changed line",
+        )
+
+        for seat in report["seats"]:
+            per_line.add_row(
+                f"{seat['tier']} @ {seat['image']}",
+                str(seat["changed_lines"]),
+                _tokens(seat["cache_read_tokens_per_line"]),
+                _rate(seat["wall_time_s_per_line"]),
+                _tokens(seat["tool_calls_per_line"]),
+                _money(seat["cost_usd_per_line"]),
+            )
+
+        console.print(per_line)
+
+        files = make_table(
+            "seat",
+            "file",
+            "lines",
+            "cache-read/line",
+            "wall/line",
+            "calls/line",
+            "$/line",
+            title="per file in scope",
+        )
+
+        for seat in report["seats"]:
+            for entry in seat["files"]:
+                files.add_row(
+                    f"{seat['tier']} @ {seat['image']}",
+                    entry["path"],
+                    str(entry["lines"]),
+                    _tokens(entry["cache_read_tokens_per_line"]),
+                    _rate(entry["wall_time_s_per_line"]),
+                    _tokens(entry["tool_calls_per_line"]),
+                    _money(entry["cost_usd_per_line"]),
+                )
+
+        if any(seat["files"] for seat in report["seats"]):
+            console.print(files)
+        else:
+            console.print(Text("no changed file in a landed diff to divide by", STYLE_DIM))
+            console.print()
+
         # Duty cycle is a ratio whose denominator the specification left
         # open (S-0065/Q-2, decided in this task's log): both sides are printed
         # so nobody has to trust the word.

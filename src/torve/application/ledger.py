@@ -82,6 +82,14 @@ class _Seat:
     attempts: int = 0
     cost_usd: float | None = None
     wall_time_s: float = 0.0
+    # The per-line numerators D-3 folds beside cost and wall (S-0075/D-3): the
+    # seat's whole spend against the work it produced, where a production a
+    # harness never measured stays unreported rather than zero (S-0004/D-6).
+    cache_read_tokens: float | None = None
+    tool_calls: float | None = None
+    # The changed lines the seat's landed tasks committed, per path — the
+    # denominator S-0075/D-3 divides by, from the diff the landing commits.
+    files: dict[str, int] = field(default_factory=dict)
     tasks: set[str] = field(default_factory=set)
     convictions_by_task: dict[str, int] = field(default_factory=dict)
     first_at: str = ""
@@ -105,6 +113,33 @@ def _number(value: Any) -> float | None:
         return None
 
     return float(value)
+
+
+def _tool_calls(agent: dict[str, Any]) -> float | None:
+    """The tool calls one attempt made, as the burn profile counted them
+    (S-0039): the harness's own turn count, or the classified profile's call
+    count where the stream named only that. Absent stays absent — a profile
+    never derived reads as unreported, never as zero (S-0004/D-6)."""
+
+    burn = agent.get("burn")
+
+    if not isinstance(burn, dict):
+        return None
+
+    calls: Any = burn.get("tool_calls")
+
+    if isinstance(calls, (int, float)) and not isinstance(calls, bool):
+        return float(calls)
+
+    profile = burn.get("profile")
+
+    if isinstance(profile, dict):
+        calls = profile.get("calls")
+
+        if isinstance(calls, (int, float)) and not isinstance(calls, bool):
+            return float(calls)
+
+    return None
 
 
 def _convictions(row: dict[str, Any]) -> list[str]:
@@ -182,6 +217,124 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         errors="replace",
         check=False,
     )
+
+
+def _diff_numstat(root: Path, base: str, head: str) -> dict[str, int] | None:
+    """One attempt's work, sized the way the landing commits it (S-0075/D-3):
+    per-path changed lines, additions plus deletions, read from `git diff
+    --numstat` between the attempt's base and head.
+
+    None where git cannot resolve the pair — a diff that cannot be read has
+    no line count, and its task reports no per-line rate rather than a
+    fabricated one. Binary files carry no line count and are left out; a
+    change that only touched them reports zero changed lines, which the S-0075
+    tests section says shares the no-rate of a change that changed nothing.
+    """
+
+    result = _git(root, "diff", "--no-renames", "--numstat", "--ignore-submodules", base, head)
+
+    if result.returncode != 0:
+        return None
+
+    per_file: dict[str, int] = {}
+
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+
+        if len(parts) < 3:
+            continue
+
+        added, deleted = parts[0], parts[1]
+
+        if added == "-" or deleted == "-":
+            continue
+
+        try:
+            lines = int(added) + int(deleted)
+        except ValueError:
+            continue
+
+        path = "\t".join(parts[2:])
+        per_file[path] = per_file.get(path, 0) + lines
+
+    return per_file
+
+
+def _newest_rows(rows: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The newest counted attempt of each task, by its own clock. A task's
+    work is one diff whatever it took to land, so the diff is read from the
+    attempt that finished it — the newest — not multiplied by the attempts
+    that led to it (S-0069/D-4's repair starts from a convicted tree)."""
+
+    newest: dict[str, dict[str, Any]] = {}
+
+    for row in rows:
+        task = str(row.get("task_id") or "")
+
+        if not task:
+            continue
+
+        latest = newest.get(task)
+
+        if latest is None or str(row.get("at") or "") > str(latest.get("at") or ""):
+            newest[task] = row
+
+    return newest
+
+
+def _task_diffs(root: Path, rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """Per task, the diff the landing commits (S-0075/D-3), as per-path
+    changed lines, from the newest counted attempt's own base and head. A
+    task whose newest attempt names no resolvable pair is absent — no diff, no
+    lines, no rate."""
+
+    found: dict[str, dict[str, int]] = {}
+
+    for task, row in _newest_rows(rows).items():
+        base = str(row.get("merge_base") or "")
+        head = str(row.get("head") or "")
+
+        if not base or not head:
+            continue
+
+        per_file = _diff_numstat(root, base, head)
+
+        if per_file is not None:
+            found[task] = per_file
+
+    return found
+
+
+def _attach_diff_lines(
+    seats: dict[tuple[str, str], _Seat],
+    diffs: dict[str, dict[str, int]],
+    rows: list[dict[str, Any]],
+    landed: set[str],
+) -> None:
+    """The S-0075/D-3 denominator: a landed task's changed lines land on the
+    seat that finished it, so a per-line rate is a rate over work that
+    shipped. A task that never landed changes lines no landing commits, and
+    D-3's text says the diff the landing already commits — so it contributes
+    none. A task with no resolvable diff contributes none either."""
+
+    for task, row in _newest_rows(rows).items():
+        if task not in landed:
+            continue
+
+        per_file = diffs.get(task)
+
+        if per_file is None:
+            continue
+
+        agent = _agent(row)
+        key = (str(agent.get("tier") or "unnamed"), str(agent.get("image") or "unnamed"))
+        seat = seats.get(key)
+
+        if seat is None:
+            continue
+
+        for path, lines in per_file.items():
+            seat.files[path] = seat.files.get(path, 0) + lines
 
 
 def contract_at(
@@ -286,6 +439,22 @@ def _fold_seats(rows: list[dict[str, Any]]) -> dict[tuple[str, str], _Seat]:
         if wall is not None:
             seat.wall_time_s += wall
 
+        # The per-line numerators S-0075/D-3 folds beside cost and wall,
+        # with the same unreported-stays-unreported regime: a seat whose
+        # harness never carried token counts or a burn profile reports no
+        # per-line rate for them, never a zero (S-0004/D-6).
+        tokens = _number(agent.get("cache_read_tokens"))
+
+        if tokens is not None:
+            seat.cache_read_tokens = (
+                tokens if seat.cache_read_tokens is None else seat.cache_read_tokens + tokens
+            )
+
+        calls = _tool_calls(agent)
+
+        if calls is not None:
+            seat.tool_calls = calls if seat.tool_calls is None else seat.tool_calls + calls
+
         task_id = str(row.get("task_id") or "")
 
         if task_id:
@@ -334,6 +503,16 @@ def _seat_entry(seat: _Seat, landed: set[str]) -> dict[str, Any]:
     # beside them, which is the number the engine's case has to survive.
     convictions = float(sum(seat.convictions_by_task.values()))
     span_s = _span_seconds(seat.first_at, seat.last_at)
+    lines = float(sum(seat.files.values()))
+
+    def per_line(total: float | None, denominator: float) -> float | None:
+        # S-0075's tests section: a change that changed nothing has no rate,
+        # not an infinity — and an absent numerator is an unreported spend,
+        # never a zero (S-0004/D-6).
+        if total is None or denominator <= 0:
+            return None
+
+        return total / denominator
 
     return {
         "tier": seat.tier,
@@ -351,6 +530,31 @@ def _seat_entry(seat: _Seat, landed: set[str]) -> dict[str, Any]:
         "wall_time_s": round(seat.wall_time_s, 3),
         "span_s": None if span_s is None else round(span_s, 3),
         "duty_cycle": _ratio(seat.wall_time_s, span_s or 0.0),
+        # The S-0075/D-3 rates divide by the work rather than by the task: a
+        # fixed overhead that only hurts a small change is visible as a high
+        # per-line figure instead of averaging away. The numerators ride
+        # beside the rates like the per-landing ones do — a reader sees what
+        # was divided, and the seat's changed lines with it. Per-file rates
+        # divide the same numerators by the file's own lines, so the path
+        # that carried the cost is the path that says so.
+        "cache_read_tokens": seat.cache_read_tokens,
+        "tool_calls": seat.tool_calls,
+        "changed_lines": int(lines),
+        "cache_read_tokens_per_line": per_line(seat.cache_read_tokens, lines),
+        "wall_time_s_per_line": per_line(seat.wall_time_s, lines),
+        "tool_calls_per_line": per_line(seat.tool_calls, lines),
+        "cost_usd_per_line": per_line(seat.cost_usd, lines),
+        "files": [
+            {
+                "path": path,
+                "lines": count,
+                "cache_read_tokens_per_line": per_line(seat.cache_read_tokens, float(count)),
+                "wall_time_s_per_line": per_line(seat.wall_time_s, float(count)),
+                "tool_calls_per_line": per_line(seat.tool_calls, float(count)),
+                "cost_usd_per_line": per_line(seat.cost_usd, float(count)),
+            }
+            for path, count in sorted(seat.files.items())
+        ],
     }
 
 
@@ -453,6 +657,10 @@ def ledger_report(root: Path, spec_dir: Path | None = None) -> dict[str, Any]:
     rows, excluded = counted_rows(stream_rows(root))
     landed = shipped_ids(root, spec_dir)
     seats = _fold_seats(rows)
+    # The work-shaped denominators (S-0075/D-3), read from the diffs the
+    # landings already commit — the same carrier S-0059/D-12 makes the one
+    # reader of a landing, sized between the attempt's own base and head.
+    _attach_diff_lines(seats, _task_diffs(root, rows), rows, landed)
 
     return {
         "schema_version": LEDGER_SCHEMA_VERSION,

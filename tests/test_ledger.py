@@ -1,7 +1,8 @@
-"""`torve ledger` — the four behaviours S-0065's tests section asks a fixture to
+"""`torve ledger` — the five behaviours the tests sections ask a fixture to
 prove: the join through git history, the exclusions a rate rests on, the
-unpriced seat that reports unreported rather than zero, and the unjoinable
-row that enters no denominator.
+unpriced seat that reports unreported rather than zero, the unjoinable row
+that enters no denominator, and the per-line rates S-0075/D-3 divides by the
+diff the landing commits.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -261,3 +263,154 @@ def test_an_empty_repository_answers_rather_than_dividing_by_nothing(
     assert report["attempts"] == 0
     assert report["seats"] == []
     assert report["gates"] == []
+
+
+# ....................... #
+
+
+def _diffed_row(
+    task: str,
+    base: str,
+    head: str,
+    *,
+    cost: float | None = 3.0,
+    wall: float = 150.0,
+    cache_read: float | None = 300000,
+    tool_calls: float | None = 15,
+) -> dict[str, Any]:
+    """The fixture's attempt against a real base..head pair, so the diff the
+    landing commits can be read at all — the one field `_row` cannot set,
+    because its two shas are one."""
+
+    agent: dict[str, Any] = {
+        "tier": "sonnet",
+        "image": "claude-sandbox",
+        "adapter": "claude",
+        "cost_usd": cost,
+        "wall_time_s": wall,
+    }
+
+    if cache_read is not None:
+        agent["cache_read_tokens"] = cache_read
+
+    if tool_calls is not None:
+        agent["burn"] = {"tool_calls": tool_calls}
+
+    return {
+        "schema_version": 1,
+        "at": "2026-01-01T02:00:00Z",
+        "task_id": task,
+        "merge_base": base,
+        "head": head,
+        "agent": agent,
+        "results": [],
+    }
+
+
+def test_per_line_rates_divide_by_the_diff_the_landing_commits(repo: Repo) -> None:
+    """S-0075/D-3, LOCKED: cache-read tokens, wall seconds, tool calls and
+    dollars are reported per changed line and per file in scope, divided by
+    the diff the landing commits, beside the per-task rates."""
+
+    repo.seed()
+    repo.write(".build/base.md", ".\n")
+    repo.commit("before the work")
+    base = _head(repo)
+
+    repo.write("src/new.py", "a\nb\nc\n")
+    repo.write("docs/guide.md", "x\ny\n")
+    repo.commit("the work")
+    head = _head(repo)
+
+    _landing(repo, "T-0001")
+    _stream(repo, [_diffed_row("T-0001", base, head)])
+
+    seat = ledger_report(repo.root)["seats"][0]
+    files = {file["path"]: file for file in seat["files"]}
+
+    assert seat["changed_lines"] == 5
+    assert seat["cache_read_tokens_per_line"] == pytest.approx(300000 / 5)
+    assert seat["wall_time_s_per_line"] == pytest.approx(150.0 / 5)
+    assert seat["tool_calls_per_line"] == pytest.approx(15 / 5)
+    assert seat["cost_usd_per_line"] == pytest.approx(3.0 / 5)
+
+    assert files["src/new.py"]["lines"] == 3
+    assert files["src/new.py"]["cache_read_tokens_per_line"] == pytest.approx(300000 / 3)
+    assert files["src/new.py"]["cost_usd_per_line"] == pytest.approx(3.0 / 3)
+
+    assert files["docs/guide.md"]["lines"] == 2
+    assert files["docs/guide.md"]["cache_read_tokens_per_line"] == pytest.approx(300000 / 2)
+
+
+def test_a_landing_that_changed_nothing_has_no_per_line_rate(repo: Repo) -> None:
+    """S-0075's tests section: the per-line columns where the denominator is
+    zero — an attempt that changed nothing (an empty base..head diff) reports
+    no rate rather than an infinity."""
+
+    repo.seed()
+    repo.write(".build/base.md", ".\n")
+    repo.commit("base")
+    head = _head(repo)
+
+    # The attempt landed no change at all: the diff between its own base and
+    # head is empty, and that is the zero denominator.
+    _landing(repo, "T-0001")
+    _stream(repo, [_diffed_row("T-0001", head, head)])
+
+    seat = ledger_report(repo.root)["seats"][0]
+
+    assert seat["changed_lines"] == 0
+    assert seat["cache_read_tokens_per_line"] is None
+    assert seat["wall_time_s_per_line"] is None
+    assert seat["tool_calls_per_line"] is None
+    assert seat["cost_usd_per_line"] is None
+
+
+def test_an_unmeasured_numerator_stays_unreported_per_line(repo: Repo) -> None:
+    """S-0004/D-6's unreported-stays-unreported regime in the per-line rates: a
+    seat whose harness reported no token counts, no burn profile and no price
+    has no per-line rate for them, never a zero."""
+
+    repo.seed()
+    repo.write(".build/base.md", ".\n")
+    repo.commit("before the work")
+    base = _head(repo)
+
+    repo.write("src/new.py", "a\nb\nc\n")
+    repo.commit("the work")
+    head = _head(repo)
+
+    _landing(repo, "T-0001")
+    _stream(repo, [_diffed_row("T-0001", base, head, cost=None, cache_read=None, tool_calls=None)])
+
+    seat = ledger_report(repo.root)["seats"][0]
+
+    assert seat["changed_lines"] == 3
+    assert seat["cache_read_tokens_per_line"] is None
+    assert seat["tool_calls_per_line"] is None
+    assert seat["cost_usd_per_line"] is None
+
+
+def test_the_command_prints_the_per_line_rates(repo: Repo) -> None:
+    """The verb prints the rates D-3 adds — per changed line and per file in
+    scope — beside the per-task table, without listing attempt rows."""
+
+    repo.seed()
+    repo.write(".build/base.md", ".\n")
+    repo.commit("before the work")
+    base = _head(repo)
+
+    repo.write("src/new.py", "a\nb\nc\n")
+    repo.commit("the work")
+    head = _head(repo)
+
+    _landing(repo, "T-0001")
+    _stream(repo, [_diffed_row("T-0001", base, head)])
+
+    result = CliRunner().invoke(app, ["ledger", "--root", str(repo.root)])
+
+    assert result.exit_code == 0, result.output
+    assert "per changed line" in result.stdout
+    assert "per file in scope" in result.stdout
+    assert "src/new.py" in result.stdout
+    assert "100,000" in result.stdout
