@@ -20,6 +20,13 @@ RUN npm install -g pnpm@${PNPM_VERSION} && pnpm --version
 COPY toolkit/ /opt/torve/
 RUN chmod -R a+rX /opt/torve \
  && chmod +x /opt/torve/run /opt/torve/equip /opt/torve/report-usage
+# The scope-guard plugin imports `FsError` from `@deepseek-ai/dsh-fs`, a peer
+# dsh itself carries. It is installed from `/opt/torve`, outside dsh's tree, so
+# node's upward walk never reaches those nested modules and the plugin fails to
+# load with ERR_MODULE_NOT_FOUND — taking the whole profile down with it. The
+# link is what a peer dependency assumes: the host provides it.
+RUN ln -s /usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules \
+          /opt/torve/scope-guard-policy/node_modules
 
 # No model file is baked (S-0063/D-15). A dsh model is a provider, a catalog
 # entry and a default — all of which are a patch — and the seven overlays this
