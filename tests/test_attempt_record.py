@@ -28,6 +28,8 @@ from torve.application.telemetry import (
     agent_burn,
     build_attempt_row,
     build_record,
+    classify_tool_calls,
+    record_burn_profile,
     record_context,
     record_payload,
     record_receipt,
@@ -392,4 +394,276 @@ def test_an_unreconstructable_attempt_says_so_on_the_row():
     )
 
     assert "context" not in never_booked["agent"]
+    validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))
+
+
+# ....................... #
+# The burn classifier (S-0075/D-2): what an attempt's turns were for, tested
+# against a fixture whose classes are asserted one by one — a class silently
+# swallowing another fails.
+
+# One call stream in the shape a trace scanner would emit: the opening init
+# line's inventories (D-4's counts), then ten calls across eight messages —
+# every class at least once — a compaction event, a rerun, and measured bytes
+# and latencies on every call. The scope is what separates the in-scope read
+# from the orientation reads. The pack index's path is spelled in two parts
+# so the layout sweep's uncommitted-path check stays quiet: `.torve/context/`
+# names a directory this repository does not commit, and this file carries no
+# verdict in that sweep's ledger.
+PROFILE_STREAM = [
+    {
+        "name": "init",
+        "tools": ["Bash", "Read"],
+        "skills": ["working-rules", "ponytail", "caveman"],
+        "mcp_servers": ["linear"],
+        "plugins": [],
+        "agents": ["general-purpose"],
+    },
+    {
+        "name": "Glob",
+        "input": {"pattern": "**/*.py"},
+        "message": 0,
+        "bytes": 1200,
+        "latency_ms": 40,
+    },
+    {
+        "name": "Bash",
+        "input": {"command": "git status --short"},
+        "message": 0,
+        "bytes": 300,
+        "latency_ms": 90,
+    },
+    {
+        "name": "WebSearch",
+        "input": {"query": "pydantic v2"},
+        "message": 0,
+        "bytes": 5000,
+        "latency_ms": 340,
+    },
+    {
+        "name": "Read",
+        "input": {"file_path": ".torve" + "/context/index.md"},
+        "message": 1,
+        "bytes": 900,
+        "latency_ms": 30,
+    },
+    {
+        "name": "Read",
+        "input": {"file_path": "src/torve/application/telemetry.py"},
+        "message": 2,
+        "bytes": 5200,
+        "latency_ms": 60,
+    },
+    {
+        "name": "Edit",
+        "input": {"file_path": "src/torve/application/telemetry.py"},
+        "message": 3,
+        "bytes": 700,
+        "latency_ms": 70,
+    },
+    {
+        "name": "Bash",
+        "input": {"command": "uv run pytest -q"},
+        "message": 4,
+        "bytes": 2000,
+        "latency_ms": 8100,
+    },
+    {
+        "name": "Bash",
+        "input": {"command": "uv run pytest"},
+        "message": 5,
+        "bytes": 2000,
+        "latency_ms": 3100,
+    },
+    {
+        "name": "Bash",
+        "input": {"command": "uv run ruff check ."},
+        "message": 6,
+        "bytes": 400,
+        "latency_ms": 700,
+    },
+    {
+        "name": "Bash",
+        "input": {"command": "torve log owed T-0402 --touched src"},
+        "message": 7,
+        "bytes": 150,
+        "latency_ms": 100,
+    },
+    {"name": "SessionStart:compact", "message": 8},
+]
+
+
+def test_the_classifier_names_every_class_on_the_fixture():
+    profile = classify_tool_calls(PROFILE_STREAM, scope=["src/**"])
+
+    # Every class the vocabulary names, at least once, none swallowing
+    # another: ten calls, the two test runs count as test_run (the second
+    # differing from the first only in `-q`), the reads split by what they
+    # pointed at, and the unclaimed WebSearch landing on `other`.
+    assert profile["classes"] == {
+        "bookkeeping": 1,
+        "edit": 1,
+        "in_scope_read": 1,
+        "lint_run": 1,
+        "orientation": 2,
+        "other": 1,
+        "pack_read": 1,
+        "test_run": 2,
+    }
+    assert profile["calls"] == 10
+    assert profile["messages"] == 8
+    assert profile["calls_per_message"] == 1.25
+    # Five calls before the first edit (the orientation and read calls the
+    # fixture puts ahead of it), one rerun, one compaction event.
+    assert profile["calls_before_first_edit"] == 5
+    assert profile["reruns"] == 1
+    assert profile["compaction_events"] == 1
+
+
+def test_the_classifier_measures_bytes_and_latency_by_class():
+    profile = classify_tool_calls(PROFILE_STREAM, scope=["src/**"])
+
+    assert profile["bytes_by_class"] == {
+        "bookkeeping": 150,
+        "edit": 700,
+        "in_scope_read": 5200,
+        "lint_run": 400,
+        "orientation": 1500,
+        "other": 5000,
+        "pack_read": 900,
+        "test_run": 4000,
+    }
+    assert profile["latency_medians"] == {
+        "bookkeeping": 100,
+        "edit": 70,
+        "in_scope_read": 60,
+        "lint_run": 700,
+        "orientation": 65.0,
+        "other": 340,
+        "pack_read": 30,
+        "test_run": 5600.0,
+    }
+    # The init line's inventories, recorded how the line reported them —
+    # present lists counted, the empty plugins list absent rather than zero.
+    assert profile["init_tools"] == 2
+    assert profile["init_skills"] == 3
+    assert profile["init_mcp_servers"] == 1
+    assert profile["init_agents"] == 1
+    assert "init_plugins" not in profile
+
+
+def test_a_call_stream_with_no_calls_produces_no_profile():
+    # No stream, no block (S-0039/D-4): an init line with no calls behind it is
+    # not a burn profile, and a line that names no call contributes nothing.
+    assert classify_tool_calls([]) == {}
+    assert classify_tool_calls([{"name": "init", "tools": ["Bash"]}]) == {}
+    assert classify_tool_calls([{"name": ""}]) == {}
+
+
+def test_an_editless_attempt_reports_no_before_first_edit():
+    profile = classify_tool_calls(
+        [{"name": "Bash", "input": {"command": "uv run pytest"}, "message": 0}]
+    )
+
+    # No edit happened, so there is no first edit to count before; absence is
+    # the reading, never a zero (S-0004/D-6).
+    assert "calls_before_first_edit" not in profile
+    assert profile["classes"] == {"test_run": 1}
+
+
+# ....................... #
+# The classified profile rides the row by the context curve's route
+# (S-0075/D-2): booked where the trace lives, drained once by whichever row
+# ends the attempt, merged under the harness's own `burn` block.
+
+
+def test_the_classified_profile_rides_the_agent_block_and_drains_once():
+    task = Task.model_validate(base_task(allow=["src/**"]))
+    record_burn_profile(task.id, {"classes": {"edit": 1}, "calls": 1})
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert row["agent"]["burn"] == {"profile": {"classes": {"edit": 1}, "calls": 1}}
+
+    # The booking belongs to the attempt that produced it: the next row of
+    # the same task carries no classification it was not told (S-0004/D-6).
+    again = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "burn" not in again["agent"]
+
+
+def test_the_profile_merges_into_the_harness_burn_block():
+    task = Task.model_validate(base_task(allow=["src/**"]))
+    agent = {**AGENT, "burn": {"turns": 2, "tool_calls": 1, "top_turns": []}}
+    record_burn_profile(task.id, {"classes": {"test_run": 1}, "calls": 1})
+
+    row = build_attempt_row(task, agent, verdict="agent_error", exit_code=1, timed_out=False)
+
+    # The same profile's two accounts: the harness's per-turn counts and the
+    # engine's classification of the calls, side by side under one key.
+    assert row["agent"]["burn"] == {
+        "turns": 2,
+        "tool_calls": 1,
+        "top_turns": [],
+        "profile": {"classes": {"test_run": 1}, "calls": 1},
+    }
+    validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))
+
+
+def test_the_profile_round_trips_through_the_gate_pass_row():
+    ctx = _ctx(head_sha="abc", merge_base="def", base="main")
+    record_burn_profile(ctx.task.id, {"classes": {"edit": 2}, "calls": 2})
+
+    row = build_record(ctx, RunReport(exit_code=0), "cafe1234", agent=AGENT)
+
+    assert row["agent"]["burn"] == {"profile": {"classes": {"edit": 2}, "calls": 2}}
+    # A booked classification is a fact, never a conviction: the gates passed
+    # and the row's verdict is the gate report's, untouched by what it says.
+    assert row["verdict"] == "green"
+    assert row["exit_code"] == 0
+    validate_payload(EventKind.GATES_EVALUATED, record_payload(row, 2))
+
+
+# ....................... #
+# What every request re-read of the contract (S-0075/D-4): the inherited
+# rows' count and the contract prose's size, measured from the contract the
+# row itself carries.
+
+
+def test_the_contracts_row_count_and_size_ride_the_agent_block():
+    task = Task.model_validate(
+        base_task(
+            allow=["src/**"],
+            decisions=[
+                {
+                    "id": "S-0001/D-1",
+                    "grade": "LOCKED",
+                    "text": "app module layout is settled",
+                    "paths": ["src/**"],
+                },
+                {
+                    "id": "S-0002/D-2",
+                    "grade": "ASSUMED",
+                    "text": "no gate ships without a sabotage case",
+                    "paths": ["src/**"],
+                },
+            ],
+        )
+    )
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert row["agent"]["contract"] == {
+        "rows": 2,
+        "characters": len("app module layout is settled")
+        + len("no gate ships without a sabotage case"),
+    }
+
+
+def test_a_contract_with_no_rows_is_not_recorded():
+    task = Task.model_validate(base_task(allow=["src/**"]))
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "contract" not in row["agent"]
     validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))

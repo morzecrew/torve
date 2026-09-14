@@ -9,11 +9,14 @@ import `application` (S-0015/permitted-imports).
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
+import re
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from statistics import median
 from typing import Any, cast
 
 import torve
@@ -497,6 +500,300 @@ def _drain_context(task_id: str | None) -> dict[str, Any]:
 
 # ....................... #
 
+# The burn classifier (S-0075/D-2): what an attempt's turns were for. The
+# harness's own draft of the stream is the `burn` block — per-turn counts,
+# no classes. Naming what a call was for is the engine's, applied at record
+# time to the per-call facts a scanner emits from the same bytes. Application
+# code, because every mitigation is judged by one of these classes and a
+# vocabulary the adapters disagreed on would be a fact nobody could quote.
+
+BURN_CLASSES: tuple[str, ...] = (
+    "pack_read",
+    "orientation",
+    "in_scope_read",
+    "edit",
+    "test_run",
+    "lint_run",
+    "bookkeeping",
+    "other",
+)
+
+# The vocabulary a class reads (S-0075's own risk clause — a heuristic, and
+# a wrong class is worse than none, so the fixture that asserts one per call
+# is what keeps it honest). Tool names and command fragments are the engine's
+# own, settled by reading the calls they claim; the pack root is the context
+# the engine wrote for the attempt, and a call these do not name is `other`.
+_EDIT_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
+_PACK_READ_TOOLS = frozenset({"Read", "Grep"})
+_ORIENTATION_TOOLS = frozenset({"Glob"})
+_BOOKKEEPING_TOOLS = frozenset({"TaskCreate", "TaskUpdate", "TaskList", "TaskGet"})
+_BASH = "Bash"
+_PACK_ROOT = ".torve/"
+
+_TEST_RUN_RE = re.compile(r"\b(pytest|just test)\b")
+_LINT_RUN_RE = re.compile(r"\b(ruff|mypy|basedpyright|black|lint-imports)\b")
+_BOOKKEEPING_RE = re.compile(r"\b(torve log|git (commit|add|push))\b")
+# A rerun is a test command differing from the previous only in output
+# filtering (S-0075): the pipe leg and the quiet and redirect flags are the
+# filtering, the rest is the run.
+_RERUN_NOISE_RE = re.compile(r"\s*(-q(?:uiet)?|>/dev/null|2>&1)\b")
+
+# The same stream's two non-call line facts, bookkept beside the calls: a
+# compaction event is counted as one, and the init line's inventories become
+# the counts of what every request re-read (S-0075/D-4).
+_SESSION_COMPACT = "SessionStart:compact"
+_INIT_LINE = "init"
+_INIT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("tools", "init_tools"),
+    ("skills", "init_skills"),
+    ("mcp_servers", "init_mcp_servers"),
+    ("plugins", "init_plugins"),
+    ("agents", "init_agents"),
+)
+
+
+def _str(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _targets(input_: Mapping[str, Any] | None) -> list[str]:
+    """The paths a read names, in the shapes the engine's tools spell them."""
+
+    if input_ is None:
+        return []
+
+    found: list[str] = []
+
+    for key in ("file_path", "path"):
+        value: Any = input_.get(key)
+
+        if isinstance(value, str) and value:
+            found.append(value)
+
+    return found
+
+
+def _classify_call(
+    name: str,
+    input_: Mapping[str, Any] | None,
+    scope: Sequence[str] | None,
+) -> str:
+    """One call's class. Edits are calls that change files; a read targets the
+    pack when its path is under the engine's own context and an in-scope file
+    when it matches the task's allow globs; Bash is what it runs. Anything a
+    name does not claim is `other` — the class a silently-swallowed call lands
+    on, which the fixture asserts against."""
+
+    if name in _EDIT_TOOLS:
+        return "edit"
+
+    if name in _PACK_READ_TOOLS:
+        targets = _targets(input_)
+
+        if any(target.startswith(_PACK_ROOT) for target in targets):
+            return "pack_read"
+
+        if scope and any(
+            fnmatch.fnmatch(target, pattern) for target in targets for pattern in scope
+        ):
+            return "in_scope_read"
+
+        return "orientation"
+
+    if name == _BASH:
+        command = _str((input_ or {}).get("command"))
+
+        if _TEST_RUN_RE.search(command):
+            return "test_run"
+
+        if _LINT_RUN_RE.search(command):
+            return "lint_run"
+
+        if _BOOKKEEPING_RE.search(command):
+            return "bookkeeping"
+
+        return "orientation"
+
+    if name in _ORIENTATION_TOOLS:
+        return "orientation"
+
+    if name in _BOOKKEEPING_TOOLS:
+        return "bookkeeping"
+
+    return "other"
+
+
+def _normalise_command(command: str) -> str:
+    """A test command reduced to what it actually runs, for rerun detection."""
+
+    head = command.split("|", 1)[0]
+
+    return _RERUN_NOISE_RE.sub("", head).strip()
+
+
+def classify_tool_calls(
+    calls: Sequence[Mapping[str, Any]],
+    *,
+    scope: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """The classified half of the burn profile (S-0075/D-2), as the `burn`
+    block's `profile`: each call by class — pack reads, orientation,
+    in-scope reads, edits, test runs, lint runs, bookkeeping, other — beside
+    the counts that go with it: calls before the first edit, reruns (a test
+    run repeating an earlier one modulo output filtering), calls per message,
+    result bytes by class, compaction events and the latency medians.
+
+    The input is the stream's line facts as a scanner would emit them: each
+    tool call as `{"name", "input", "message", "bytes", "latency_ms"}`, the
+    opening init line's inventories, and a compaction event (S-0075's
+    out-of-scope clause, counted as an event only). `message` is the call's
+    0-based message ordinal; a call without one counts as its own message,
+    which is the 1.00-per-message every measured attempt already shows.
+    `scope` is the task's allow globs, the thing that tells an in-scope read
+    from an orientation read; without it every non-pack read is orientation.
+
+    Empty input yields `{}`: no stream, no block (S-0039/D-4), and absent
+    counts stay absent, never zero (S-0004/D-6)."""
+
+    classes: dict[str, int] = {}
+    bytes_by_class: dict[str, int] = {}
+    latency_by_class: dict[str, list[float]] = {}
+    messages: set[int] = set()
+    init_counts: dict[str, int] = {}
+    compaction_events = 0
+    reruns = 0
+    n_calls = 0
+    first_edit: int | None = None
+    seen_commands: set[str] = set()
+
+    for fact in calls:
+        name = _str(fact.get("name"))
+
+        if name == _SESSION_COMPACT:
+            compaction_events += 1
+            continue
+
+        if name == _INIT_LINE:
+            for field, key in _INIT_FIELDS:
+                value: Any = fact.get(field)
+
+                if isinstance(value, list) and value:
+                    init_counts[key] = len(value)
+
+            continue
+
+        if not name:
+            continue
+
+        message: Any = fact.get("message")
+        message_id = (
+            message
+            if isinstance(message, int) and message >= 0
+            else (max(messages) + 1 if messages else 0)
+        )
+        messages.add(message_id)
+
+        raw_input: Any = fact.get("input")
+        input_ = cast("Mapping[str, Any]", raw_input) if isinstance(raw_input, Mapping) else None
+        cls = _classify_call(name, input_, scope)
+        classes[cls] = classes.get(cls, 0) + 1
+
+        if first_edit is None and cls == "edit":
+            first_edit = n_calls
+
+        n_calls += 1
+
+        size: Any = fact.get("bytes")
+
+        if isinstance(size, (int, float)) and not isinstance(size, bool):
+            bytes_by_class[cls] = bytes_by_class.get(cls, 0) + int(size)
+
+        latency: Any = fact.get("latency_ms")
+
+        if isinstance(latency, (int, float)) and not isinstance(latency, bool):
+            latency_by_class.setdefault(cls, []).append(float(latency))
+
+        if cls == "test_run":
+            command = _str((input_ or {}).get("command"))
+            normalised = _normalise_command(command) if command else ""
+
+            if normalised:
+                if normalised in seen_commands:
+                    reruns += 1
+                else:
+                    seen_commands.add(normalised)
+
+    if not n_calls:
+        return {}
+
+    block: dict[str, Any] = {
+        "calls": n_calls,
+        "messages": len(messages),
+        "calls_per_message": round(n_calls / len(messages), 3),
+        "classes": {class_: count for class_, count in sorted(classes.items()) if count > 0},
+    }
+
+    if first_edit is not None:
+        block["calls_before_first_edit"] = first_edit
+
+    if reruns:
+        block["reruns"] = reruns
+
+    if bytes_by_class:
+        block["bytes_by_class"] = {
+            class_: bytes_by_class[class_] for class_ in BURN_CLASSES if class_ in bytes_by_class
+        }
+
+    if compaction_events:
+        block["compaction_events"] = compaction_events
+
+    if latency_by_class:
+        block["latency_medians"] = {
+            class_: median(latency_by_class[class_])
+            for class_ in BURN_CLASSES
+            if class_ in latency_by_class
+        }
+
+    block.update(init_counts)
+
+    return block
+
+
+# ....................... #
+
+# The classified profile's booking (S-0075/D-2), on the receipt's route and
+# for its reason: the per-call facts live where the trace lives, and the row
+# is built three modules away. Drained by the same attach that rides the
+# context curve's booking, and applied to the row under the harness's own
+# `burn` block — the profile is the same profile's account of what the calls
+# were for, and a row whose task never booked reads as pre-D-2.
+
+_BURN_PROFILE_LOCK = threading.Lock()
+_pending_burn_profiles: dict[str, dict[str, Any]] = {}
+
+
+def record_burn_profile(task_id: str, block: dict[str, Any]) -> None:
+    """Book an attempt's classified burn profile against its task: whole and
+    per-attempt, and a later row of the same task drains the previous
+    attempt's profile only as the context curve's is — pop-once."""
+
+    with _BURN_PROFILE_LOCK:
+        _pending_burn_profiles[task_id] = block
+
+
+def _drain_burn_profile(task_id: str | None) -> dict[str, Any]:
+    """Pop a task's booking as the `burn` block's `profile` key — once only,
+    which is what keeps one attempt's classification off the next one's."""
+
+    if task_id is None:
+        return {}
+
+    with _BURN_PROFILE_LOCK:
+        return _pending_burn_profiles.pop(task_id, {})
+
+
+# ....................... #
+
 # What the stream keeps of a gate's output and a contract's rows. Both are
 # already written down once — the gate's own output rides the attempt to the
 # operator's terminal and the task log, the row is in the contract — and a
@@ -530,6 +827,37 @@ def _recorded_decision(row: InheritedDecision) -> dict[str, Any]:
 
 
 # ....................... #
+
+
+def _attach_prefix(
+    agent: Mapping[str, Any],
+    task_id: str | None,
+    task: Task | None,
+) -> dict[str, Any]:
+    """The attempt's account of everything every request re-read, beside the
+    receipt's own account of the ending (S-0065/D-6): the context curve's
+    booking (S-0075/D-1), the classified burn profile (S-0075/D-2) merged
+    under the harness's own `burn` block, and the contract's row count and
+    prose size (S-0075/D-4). Pop-once like every booking the row drains; a
+    task that booked nothing, and a contract with no rows, are not recorded —
+    absent stays absent (S-0004/D-6)."""
+
+    block = {**agent, **_drain_receipt(task_id), **_drain_context(task_id)}
+    profile = _drain_burn_profile(task_id)
+
+    if profile:
+        burn = dict(block.get("burn") or {})
+        burn["profile"] = profile
+        block["burn"] = burn
+
+    if task is not None and task.decisions:
+        block["contract"] = {
+            "rows": len(task.decisions),
+            "characters": sum(len(decision.text) for decision in task.decisions)
+            + len(task.intent or ""),
+        }
+
+    return block
 
 
 def build_record(
@@ -571,9 +899,7 @@ def build_record(
         # bare `torve gates run`). model_version None inside the block marks
         # an uncontrolled regime. What the harness receipt said about the
         # ending joins it (S-0065/D-6), where the harness returned it.
-        "agent": None
-        if agent is None
-        else priced({**agent, **_drain_receipt(task_id), **_drain_context(task_id)}),
+        "agent": None if agent is None else priced(_attach_prefix(agent, task_id, ctx.task)),
         # The workspace transfer's cost, booked by a transferring runtime for
         # this attempt (S-0041/the-transfer-measured) — a sibling of the agent block because
         # it is the runtime's measurement, not the agent's self-report.
@@ -628,9 +954,10 @@ def build_attempt_row(
         # The receipt's account of the ending rides the block here too
         # (S-0065/D-6) — the endings this row describes are exactly the ones a
         # terminal reason tells apart. The context curve's booking rides beside
-        # it on the same route (S-0075/D-1): the spend happened even if
-        # nothing else did, and the row must be able to say so.
-        "agent": priced({**agent, **_drain_receipt(task.id), **_drain_context(task.id)}),
+        # it on the same route (S-0075/D-1), and the classified burn profile and
+        # the contract's facts follow it (S-0075/D-2, S-0075/D-4): the spend
+        # happened even if nothing else did, and the row must be able to say so.
+        "agent": priced(_attach_prefix(agent, task.id, task)),
         # The runtime's booked transfer legs ride beside the agent block
         # exactly as on the gate-pass row (S-0041/the-transfer-measured): the spend on
         # moving the workspace happened even if nothing else did.
