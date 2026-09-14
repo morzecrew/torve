@@ -87,12 +87,12 @@ tiers:
     # than the one that costs opus.
     #
     # Structural work is back on opus. The flash trial ran S-0075 end to end and
-    # the seat lands work — T-0402 in one attempt — but the record it leaves is
-    # the reason it is off: on T-0403 the reconstructed per-request curve came
-    # 19% under the receipt (`matches_receipt: false`, S-0075/Q-1), so the seat
-    # whose cost we most need to measure is the one seat whose measurement does
-    # not close. Opus carries real cache fields per message, which is what
-    # settles Q-1 on the same code path.
+    # the seat lands work — T-0402 in one attempt — but it reports no cache
+    # fields at all, and its per-request context cannot be reconstructed from
+    # `input_tokens`: on T-0403 the sum ran 19% under the receipt, and 59% under
+    # once the events were deduplicated. Q-1 is settled and the answer is no
+    # (S-0075/D-5). Opus reports the fields, and its reconstruction closes to
+    # the token — so the seat we measure is the seat we can measure.
     #
     # The cost of the trial is on the record too: T-0401 burned a whole attempt
     # to `agent_timeout` with zero edits, and T-0403 needed three attempts.

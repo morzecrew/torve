@@ -68,3 +68,17 @@ phasing:
     depends_on:
       - 2
     character: structural
+  - phase: 6
+    title: a request is one message, not one event
+    intent: >-
+      The curve counts requests rather than assistant events, identified by the message
+      id the stream already carries, and the twin test fails when a repeated event
+      is counted twice. Settles D-5 and closes the reconstruction against the receipt
+      on a seat that reports cache fields.
+    scope: [src/torve/adapters/agent/harness.py, tests/test_tiering.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 5
+    character: structural

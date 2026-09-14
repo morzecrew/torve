@@ -64,3 +64,21 @@ decisions:
       problem and is not
     cites: [S-0063/D-10]
     fingerprint: 9cd395605c71d040/c81a24ab2f418ac1
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      A request is identified by the message id the stream carries, not by the event:
+      one request emits several assistant events, each repeating the same usage object,
+      and the curve counts requests
+    paths: [src/torve/adapters/agent/harness.py]
+    consequence: >-
+      the reconstruction closes against the receipt on a seat that reports cache fields,
+      and the seat that does not is reported unmeasured rather than published wrong
+    rationale: >-
+      measured on T-0405's own trace: 72 assistant events carry 47 distinct message
+      ids, 24 of them repeated up to three times, and the undeduplicated sum ran 51%
+      over the receipt. Deduplicated by message id the sum is 5,276,251 against a
+      receipt of 5,276,251 — exact. The same trace on the modelstudio route closes
+      neither way (2,304,380 raw, 1,176,528 deduplicated, against a receipt of 2,853,036),
+      which is what settles Q-1
+    cites: [D-1]

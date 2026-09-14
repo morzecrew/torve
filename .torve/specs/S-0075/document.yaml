@@ -161,6 +161,8 @@ questions:
       check will say so on the first attempt that carries both — but if it is the
       increment, the reconstruction is a different arithmetic and the row should say
       which it used.
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       What is the right size threshold for calling a task small? The per-line figure
