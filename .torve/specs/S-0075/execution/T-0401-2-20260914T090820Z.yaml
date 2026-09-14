@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0401
+phase: 1
+attempt: 2
+base: 41bdf006910211dab227435da6cb6837c7552648
+commit: 2d2bf983725d61dbee9e8f5afefd0975a8ca1a05
+at: '2026-09-14T09:08:20Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T09:05:09Z'
+    claim: >-
+      the per-request context curve is implemented and compliant: parse_context_curve
+      derives first, median, max, sum and request count from the trace's message usage
+      on every seat, names the shape that produced the curve (with-cache where cache
+      fields ride the usage, input-only where they do not — the reconstruction D-1
+      names) on the row, and checks the sum against the receipt's own final total
+      (matches_receipt), so an attempt whose two sides disagree reports itself unmeasured
+      rather than trusting either
+    evidence: >-
+      src/torve/adapters/agent/harness.py:825 — parse_context_curve; booking at harness.py:1345-1349;
+      record_context/_drain_context at src/torve/application/telemetry.py:475-500;
+      drained into both record builders at telemetry.py:576 and telemetry.py:633
+    action: decided
