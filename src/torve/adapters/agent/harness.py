@@ -266,59 +266,14 @@ def build_prompt(
         (
             "- Skills for your role are under `.torve/skills/` — read every"
             " `SKILL.md` there before writing code. `working-rules` is this"
-            " repository's working rules in full; the bullets below are its"
-            " summary and nothing in either outranks the contract above."
+            " repository's working rules in full; nothing in it outranks the"
+            " contract above."
         ),
-        # S-0067/D-3 departs here: the seven bullets below are the skill's text
-        # inlined, and naming the skill was meant to delete them. They stay
-        # because `tests/test_tiering.py` pins each one to this string and that
-        # file is outside this contract's scope — see the divergence log.
-        (
-            f"- Divergences from the decisions above are recorded with"
-            f" `torve log divergence {task.id} --decision ... --evidence ...`,"
-            f" as the `flag-dont-flip` skill specifies. The engine writes and"
-            f" pins the log; never edit `.torve/tasks/{task.id}/log.yaml` by"
-            f" hand. A malformed entry is refused on the spot, with what to"
-            f" repair — fix it and run the command again."
-        ),
-        (
-            f"- Before you finish, run `torve log owed {task.id} --touched <each"
-            f" file you changed>`. It names the LOCKED decisions your changes"
-            f" touch that your log has not cited yet — the same check the gate"
-            f" convicts on, asked while you can still answer it. A silent log"
-            f" over a governed file is the single most common way an attempt"
-            f" is thrown away."
-        ),
-        (
-            "- `.torve/context/index.md` lists what the engine knows about this"
-            " task — the rows with their consequences, the battery you will face,"
-            " the tests over your scope, your own prior attempts and what convicted"
-            " them. Read it first. Nothing in it outranks the contract above."
-        ),
-        (
-            "- `torve spec show D-x.y`, `torve spec paths <file>` and `torve spec"
-            " tests D-x.y` read the specification from this worktree — a row's"
-            " consequence, what governs a path, what proves a row — and"
-            ' `torve spec why-not "<words>"` lists the alternatives already'
-            " rejected. Each directory's `AGENTS.md` carries the rows governing"
-            " it. Nothing here outranks the contract above."
-        ),
-        (
-            "- `torve log notes` prints anything the engine has to say about"
-            " this run — a known flake, a constraint that arrived after you"
-            " started. It is a poll: nothing interrupts you, so read it when"
-            " you are stuck or about to commit. No notes is the normal case."
-        ),
-        (
-            "- User-facing strings — help text, docstrings typer renders, printed"
-            " output — carry no corpus coordinates (no RFC numbers, no D-x.y);"
-            " whoever runs the command has no corpus to resolve them. State the"
-            " rule in the string, cite the coordinate in a code comment."
-        ),
-        (
-            "- Gates run outside this session, against the working tree you leave"
-            " behind. Exit 0 when you consider the work complete."
-        ),
+        # S-0073/D-1: the skill's own text is not restated here. The seven
+        # bullets this bullet replaced were the skill inlined — the divergence
+        # verbs, the owed check, the pack, the spec verbs, notes, the writing
+        # rule and the finishing rule — and two copies of the text that governs
+        # behaviour is one copy too many (S-0067/D-3).
         # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
         # after the charter's base rules above — never before, never
         # replacing them. Verbatim (S-0061/A-5): the profile wrote prose, and

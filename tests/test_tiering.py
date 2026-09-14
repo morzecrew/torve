@@ -378,7 +378,7 @@ def test_harness_agent_stages_prompt_and_captures_trace(tmp_path, monkeypatch):
     prompt = (ctx.workspace / ".torve" / "tmp" / "prompt.md").read_text(encoding="utf-8")
     assert "Make the widget idempotent." in prompt
     assert "`D-9` (LOCKED)" in prompt
-    assert ".torve/tasks/T-9010/log.yaml" in prompt
+    assert "`working-rules`" in prompt
     assert "pytest -q" in prompt
     # The command saw the prompt file and its {model} substitution.
     assert "Make the widget idempotent." in result.output
@@ -415,26 +415,13 @@ def test_prompt_states_explicit_emptiness():
     prompt = build_prompt(Task(id="T-1", decisions=[]))
     assert "none apply (explicitly)" in prompt
     assert "unconstrained" in prompt
-    # The recurring gate red of the 0022–0024 campaign: every task needed a
-    # hand triage moving corpus coordinates out of user-facing strings.
-    assert "no corpus coordinates" in prompt
 
 
-def test_prompt_sends_divergences_through_the_intake():
-    """The agent states an entry and the engine writes the log, so the
-    prompt names the verb rather than the file — and never asks for a pin
-    the sandbox cannot resolve (S-0001/D-36, S-0044/D-10)."""
-    prompt = build_prompt(Task(id="T-1", decisions=[]))
+def test_prompt_never_asks_for_a_pin_the_sandbox_cannot_resolve():
+    """S-0001/D-36, S-0044/D-10: the agent states an entry and the engine
+    writes the log, so nothing asks it for the base commit it cannot see."""
 
-    assert "torve log divergence T-1" in prompt
-    assert "never edit `.torve/tasks/T-1/log.yaml` by hand" in prompt
-    assert "base_sha" not in prompt
-    # And the other direction of the channel: a note is a poll the agent
-    # runs, never a prompt the engine rewrote underneath it (S-0045/D-7).
-    assert "torve log notes" in prompt
-    # And the check that would have saved the last three attempts of the
-    # most recent real run: what the log still owes, before the gate says.
-    assert "torve log owed T-1" in prompt
+    assert "base_sha" not in build_prompt(Task(id="T-1", decisions=[]))
 
 
 def test_prompt_extras_are_absent_by_default():
@@ -478,7 +465,7 @@ def test_prompt_extras_follow_the_charters_base_working_rules():
         prompt_extras="Docstrings and user-facing text follow the house voice.\n",
     )
     assert "Docstrings and user-facing text follow the house voice." in prompt
-    assert prompt.index("Gates run outside this session") < prompt.index("house voice")
+    assert prompt.index("`working-rules`") < prompt.index("house voice")
     # The base rules stay unaddressable: still present, unaltered.
     assert "Skills for your role are under `.torve/skills/`" in prompt
 
@@ -497,7 +484,7 @@ def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path, monkeypatch):
     prompt = (ctx.workspace / ".torve" / "tmp" / "prompt.md").read_text(encoding="utf-8")
 
     assert "Docstrings and user-facing text follow the house voice." in prompt
-    assert prompt.index("Gates run outside this session") < prompt.index("house voice")
+    assert prompt.index("`working-rules`") < prompt.index("house voice")
 
 
 # ....................... #
@@ -1834,28 +1821,18 @@ def test_review_record_carries_reported_token_counts(repo, monkeypatch):
     assert "cache_creation_tokens" not in agent_block
 
 
-def test_the_working_rules_name_the_spec_verb_and_the_agents_files():
-    """S-0054/torve-spec-in-the-sandbox: one line names the sandbox's read verb and the managed
-    AGENTS.md sections, under the contract's authority."""
+def test_the_working_rules_are_named_and_not_restated():
+    """S-0073/D-1: the section points at the `working-rules` skill and says
+    nothing the skill says. Asserted as that property rather than as the
+    words, so a bullet inlined back beside the skill fails here instead of
+    passing quietly next to it."""
 
     from torve.adapters.agent.harness import build_prompt
     from torve.domain.task import Task
 
-    prompt = build_prompt(Task(id="T-1", decisions=[]))
+    section = build_prompt(Task(id="T-1", decisions=[])).split("## Working rules", 1)[1]
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
 
-    assert "`torve spec show D-x.y`" in prompt
-    assert "Each directory's `AGENTS.md` carries the rows governing it" in prompt
-    assert "Nothing here outranks the contract above." in prompt
-
-
-def test_the_working_rules_name_the_pack_index_first():
-    """S-0054/the-context-pack: one line names `.torve/context/index.md` and that
-    nothing in it outranks the contract."""
-
-    from torve.adapters.agent.harness import build_prompt
-    from torve.domain.task import Task
-
-    prompt = build_prompt(Task(id="T-1", decisions=[]))
-
-    assert "`.torve/context/index.md` lists what the engine knows about this task" in prompt
-    assert prompt.index(".torve/context/index.md") < prompt.index("`torve spec show D-x.y`")
+    assert len(bullets) == 1
+    assert "`working-rules`" in bullets[0]
+    assert ".torve/skills/" in bullets[0]
