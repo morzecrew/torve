@@ -487,6 +487,48 @@ def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path, monkeypatch):
     assert prompt.index("`working-rules`") < prompt.index("house voice")
 
 
+def test_the_working_rules_are_staged_for_system_position(tmp_path, monkeypatch):
+    """S-0073/D-2: the rules reach the harness through the seam's own name,
+    carrying the text every harness gets — the persona's extras with them,
+    still after the base rules. Which channel puts them in system position is
+    the image's (S-0063/D-1); what the engine owes is one file and one name."""
+
+    tier = TierConfig(
+        adapter="harness",
+        provider="p",
+        model="m",
+        prompt_extras="Docstrings and user-facing text follow the house voice.\n",
+    )
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_SYSTEM_PROMPT"', monkeypatch)})
+    )
+    result = agent.run(ctx)
+    system = (ctx.workspace / ".torve" / "tmp" / "system.md").read_text(encoding="utf-8")
+
+    assert "`working-rules`" in system
+    assert system.index("`working-rules`") < system.index("house voice")
+    # It arrived by the name the images read, not just onto disk.
+    assert "`working-rules`" in result.output
+
+
+def test_a_composed_prompt_stages_no_rules_of_this_engines(tmp_path, monkeypatch):
+    """S-0073/D-2 beside S-0074/D-2: a prompt the runner composed is staged
+    verbatim, so the file the seam names is emptied rather than left carrying
+    the previous attempt's — a continuation worktree arrives with one."""
+
+    tier = TierConfig(adapter="harness", provider="p", model="m")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam("echo ran", monkeypatch)})
+    )
+    stale = ctx.workspace / ".torve" / "tmp" / "system.md"
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_text("- the previous attempt's rules\n", encoding="utf-8")
+
+    agent.run(dataclasses.replace(ctx, prompt="# Review\n\nSay what you think."))
+
+    assert stale.read_text(encoding="utf-8") == ""
+
+
 # ....................... #
 # Dispatch (CLI): routing enforced before anything exists
 

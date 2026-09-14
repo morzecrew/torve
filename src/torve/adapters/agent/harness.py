@@ -49,6 +49,14 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
+# The working rules, staged where a harness reads them in system position
+# (S-0073/D-2) and named to the image as `TORVE_SYSTEM_PROMPT`. One text, one
+# file; which channel carries it is the image's own — claude appends it with
+# `--append-system-prompt`, dsh sets it as the persona row, mimo as the agent
+# body — for the same reason no image is handed a command (S-0063/D-1).
+# Written every attempt, empty included: a continuation worktree carries the
+# previous attempt's file, and a stale one would be read as this one's.
+SYSTEM_RELPATH = ".torve/tmp/system.md"
 # Where the engine materialises the context pack in the worktree; the
 # adapter reads files from it and never the corpus behind them.
 PACK_RELPATH = ".torve/context"
@@ -255,34 +263,44 @@ def build_prompt(
     lines += ["", "## Acceptance", ""]
     lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
 
-    lines += [
-        "",
-        "## Working rules",
-        "",
-        # S-0067/D-4: the bootstrap bullet stays, because a skill nothing points
-        # at is a file. It names `working-rules` — the one text of how work is
-        # done here (S-0067/D-3), which every role takes as a declared equipment
-        # item and a session reads through its own skill root.
-        (
-            "- Skills for your role are under `.torve/skills/` — read every"
-            " `SKILL.md` there before writing code. `working-rules` is this"
-            " repository's working rules in full; nothing in it outranks the"
-            " contract above."
-        ),
-        # S-0073/D-1: the skill's own text is not restated here. The seven
-        # bullets this bullet replaced were the skill inlined — the divergence
-        # verbs, the owed check, the pack, the spec verbs, notes, the writing
-        # rule and the finishing rule — and two copies of the text that governs
-        # behaviour is one copy too many (S-0067/D-3).
-        # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
-        # after the charter's base rules above — never before, never
-        # replacing them. Verbatim (S-0061/A-5): the profile wrote prose, and
-        # bulleting it here would decide a shape the operator already chose.
-        *([(prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
-        "",
-    ]
+    lines += ["", working_rules(prompt_extras)]
 
     return "\n".join(lines)
+
+
+def working_rules(prompt_extras: str = "") -> str:
+    """The rules section, built once and reached by both channels it travels
+    (S-0073/D-2): the prompt this module composes, and the system file the
+    image puts in system position. One producer, so the two cannot drift."""
+
+    return "\n".join(
+        [
+            "## Working rules",
+            "",
+            # S-0067/D-4: the bootstrap bullet stays, because a skill nothing
+            # points at is a file. It names `working-rules` — the one text of
+            # how work is done here (S-0067/D-3), which every role takes as a
+            # declared equipment item and a session reads through its own
+            # skill root.
+            (
+                "- Skills for your role are under `.torve/skills/` — read every"
+                " `SKILL.md` there before writing code. `working-rules` is this"
+                " repository's working rules in full; nothing in it outranks the"
+                " contract above."
+            ),
+            # S-0073/D-1: the skill's own text is not restated here. The seven
+            # bullets this bullet replaced were the skill inlined — the
+            # divergence verbs, the owed check, the pack, the spec verbs, notes,
+            # the writing rule and the finishing rule — and two copies of the
+            # text that governs behaviour is one copy too many (S-0067/D-3).
+            # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
+            # after the charter's base rules above — never before, never
+            # replacing them. Verbatim (S-0061/A-5): the profile wrote prose, and
+            # bulleting it here would decide a shape the operator already chose.
+            *([(prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
+            "",
+        ]
+    )
 
 
 # ....................... #
@@ -1506,6 +1524,11 @@ class HarnessAgent:
         # would be one `cd` away from naming nothing.
         env = {
             "TORVE_PROMPT": f"{ctx.workdir}/{PROMPT_RELPATH}",
+            # The working rules, for whichever channel this image puts in system
+            # position (S-0073/D-2). Named whether or not there are any: an
+            # empty file is a run with nothing to say there, which every image
+            # can test for without asking what kind of attempt this is.
+            "TORVE_SYSTEM_PROMPT": f"{ctx.workdir}/{SYSTEM_RELPATH}",
             "TORVE_EQUIPMENT": EQUIPMENT_MOUNT,
             # Where this harness reads equipment from inside the workspace
             # (S-0063/D-19). Empty for a harness that reads the mount itself,
@@ -1594,6 +1617,14 @@ class HarnessAgent:
             )
         )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
+        # System position (S-0073/D-2), from the same producer the prompt's own
+        # section comes from. A composed prompt — the review input, the base
+        # arm's intent (S-0074/D-2) — is staged verbatim and carries no rules of
+        # this engine's, so its file is empty rather than absent.
+        (ctx.workspace / SYSTEM_RELPATH).write_text(
+            "" if ctx.prompt is not None else working_rules(self.tier.prompt_extras),
+            encoding="utf-8",
+        )
 
         command = self._command(ctx)
         raw_relpath = RAW_TRACE_RELPATH.replace("{attempt}", str(ctx.attempt))
