@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0410
+phase: 3
+base: 39248b9f16ce6e8527ac24b834b672362d81b345
+commit: 55fb47f7d1dd8f8f6ec39fe6e2de0a9f21d45734
+at: '2026-09-14T21:41:50Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T21:40:05Z'
+    claim: >-
+      build_prompt is untouched: this attempt's edits to harness.py are the receipt
+      parse (AgentMetadata, _reported, parse_metadata, HarnessAgent.run), none of
+      which restates the working rules or changes what the prompt names
+    evidence: >-
+      src/torve/adapters/agent/harness.py:292-489 — the changed region is the metadata
+      parse; build_prompt at :125 is unchanged, and tests/test_tiering.py was not
+      edited
+    action: decided
