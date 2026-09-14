@@ -34,6 +34,7 @@ shell has not set is filled in.
 | `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` also discards escalations you have dealt with by hand |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
 | `torve ledger` | the record folded into rates, per seat, per changed line and per gate. See below for what each one divides |
+| `torve eval …` | replay completed tasks as shadow pairs — a skill, a configuration — and land one record; `--report` reads the three-arm table back from the ledger and runs nothing. See below for what an arm is |
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
@@ -413,6 +414,73 @@ totals, landed-task counts, both sides of the duty ratio, each seat's changed
 lines, token and call numerators and per-file entries beside the per-line rates
 they divide, every exclusion tally — so a reader can check the division rather
 than trust the print.
+
+## What an arm is, and how to read the table
+
+Everything else measured in this guide reads *inside* the apparatus: the
+battery judges every attempt, `torve ledger` divides attempts by seat and
+by gate, and every eval recorded before the arms varied one of the
+configuration's settings within the apparatus — a skill against its
+without-skill baseline, a candidate image against the incumbent. An **arm**
+is the axis that removes the apparatus instead (S-0074/D-1, LOCKED). An
+arm is named by what it runs without, and there are three:
+
+| Arm | What it is given |
+| --- | --- |
+| `bare` | the task's intent, and nothing else — no inherited rows, no context pack, no working rules, and no battery. A sentence and a worktree. |
+| `gated` | the same prompt, and the battery judges what comes back. |
+| `configured` | today: rows, pack, rules, battery, lane. |
+
+Three arms, not two: a bare-versus-configured difference cannot be
+attributed — the battery and the contract are separable and cost different
+things — and the middle arm is what says which of the two halves earned its
+keep. What an arm removes is a property of the prompt — the bare arm's
+prompt is a fourth `build_prompt` mode beside revision, continuation and
+repair, and the bare prompt's absence of rows, pack and rules is what the
+test asserts (S-0074/D-2) — and of the replay, never something read back
+out of a transcript.
+
+**An arm is a property of a replay, never an edit to anything.** The arms
+run as shadow replays: a completed task replays from its parent commit in
+a truncated clone, and nothing merges — the record is the product, and a
+green bare arm lands nothing. A bare run that *could* land its work is
+refused before it starts: removing the battery is not a way to merge
+(S-0074/D-3, LOCKED). The removal itself travels the same way — the bare
+replay swaps its gate pass for one that runs nothing, and the manifest
+every other attempt is judged by is never touched; its digest rides the
+record unchanged, because a manifest with gates edited out would be a
+different regime and the digest would be right to say so.
+
+**The rows name their arms, and the ledger is the reading.**
+`torve eval --report` prints the table from the eval ledger alone — one
+table per task, one row per arm, four columns: `arm`, `state`, `attempts`,
+`cost usd`. It runs nothing and needs nothing else: no configuration, no
+contracts, no agent. The `state` is the replay's own final state and
+`ready` is what counts green. Records whose arms name none of those three
+removals — the incumbent/candidate and with/without pairings of the
+configuration and skill evals — measure things inside the apparatus and
+contribute nothing to this axis. Every row carrying the arm that produced
+it is what lets the comparison be recomputed a year later without the
+person who ran it — the difference between a measurement and an anecdote.
+
+**Read it per task, or not at all** (S-0074/D-4). The three arms are not
+equally exposed to the same failures: a bare arm cannot break a corpus it
+was never given, cannot trip a projection it does not render, cannot
+violate rows it never inherited — and several of this repository's red
+batteries caught its own author rather than an agent, which is a real cost
+of the apparatus and also not what the apparatus is for. So the verb's
+summary is a distribution — tasks grouped by which arms reached green,
+`bare+gated+configured` down to `none` — never a mean, because a mean over
+unlike tasks answers a question nobody asked. Each of these is the
+finding, with its own row: a task where `bare` shipped what the battery
+would have refused, and a task where all three arms landed identically.
+And direction, never magnitude: a replay is a quasi-experiment, the arms
+compare green first, then attempts, then cost, and one task's three rows
+are not a verdict of the apparatus.
+
+One rule belongs beside the reading because nothing can enforce it: tuning
+a gate to make an arm look better is the one thing that voids the result
+(S-0074). What is measured is the apparatus as it is, taken away whole.
 
 ## The corpus and its archive
 
