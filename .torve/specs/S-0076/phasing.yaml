@@ -46,9 +46,9 @@ phasing:
   - phase: 4
     title: where a definition lives, without asking
     intent: >-
-      The pack carries an index of what the repository defines and where, for the
-      definitions the scope's own files name, and the prompt says it is there. Settles
-      D-5.
+      The pack writes a file naming what the whole tree defines and where, built with
+      `ast`, and the prompt says it is there — a file to grep, never prompt content.
+      Settles D-5.
     scope: [src/torve/application/contextpack.py, tests/test_contextpack.py]
     acceptance:
       - uv run pytest

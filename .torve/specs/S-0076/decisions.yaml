@@ -65,17 +65,17 @@ decisions:
   - id: D-5
     grade: ASSUMED
     text: >-
-      The pack carries an index of the repository's symbols — what is defined and
-      where — for the definitions a scope's own files name, and the prompt says the
-      index is there
+      The pack writes a file naming every symbol the repository defines and where
+      — the whole tree, not the scope — and the prompt says the file is there; the
+      index is a file the attempt may grep, never content the prompt carries
     paths: [src/torve/application/contextpack.py]
     consequence: >-
-      the largest single class of orientation stops being answered one `grep` at a
-      time, and an attempt that still greps is reporting the index missed something
+      a lookup costs one call against one file instead of two or three against the
+      tree, and an attempt that never looks pays nothing for it
     rationale: >-
-      267 of 1161 shell calls across the corpus are `grep` or `rg`, and their patterns
-      are definitions rather than exploration — `def why_report`, `class Repo`, `def
-      build_attempt_row`, `conviction_of`. No hand-over of the scope answers "where
-      is this defined", because the answer is usually outside the scope: this is the
-      class D-1 and D-2 leave untouched, and it is bigger than both
+      `ast` over this tree names 4,179 symbols in 241 KB — roughly 60k tokens, larger
+      than the whole prefix and multiplied by every request, so an index in the prompt
+      spends about 2.1M cache-read tokens on a 35-request attempt to save calls that
+      cost 828 bytes each. Whole-tree rather than scoped because the lookups are for
+      definitions the scope does not contain: that is why they are greps and not reads
     cites: [S-0075/D-2]
