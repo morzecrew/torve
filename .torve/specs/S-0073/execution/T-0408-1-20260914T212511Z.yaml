@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0408
+phase: 1
+base: 64b900cb6668afc27eb66f52065f0640df9882ad
+commit: 8ce68acf79faf2df8eccb098f7c76980df51da16
+at: '2026-09-14T21:25:11Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: LOCKED
+    at: '2026-09-14T21:22:56Z'
+    claim: >-
+      Complied: the seven inlined working-rules bullets are deleted from build_prompt,
+      leaving the bootstrap bullet that names the working-rules skill, and the test
+      over the section asserts the property (exactly one bullet, naming the skill)
+      rather than the prose. This closes the S-0067/D-3 departure T-0385 recorded,
+      whose stated cause was that tests/test_tiering.py pinned each bullet and was
+      out of that contract's scope; it is in scope here.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:258-270 — the Working rules section is now
+      the bootstrap bullet plus the tier's extras; tests/test_tiering.py:1837 asserts
+      one bullet naming `working-rules`
+    action: decided
