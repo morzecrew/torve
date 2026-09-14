@@ -462,6 +462,41 @@ def _drain_receipt(task_id: str | None) -> dict[str, str]:
 
 # ....................... #
 
+# The per-request context curve (S-0075/D-1), on the receipt's route and for
+# its reason: the curve is reconstructed where the trace lives — the harness
+# adapter scans the store's own bytes — and the record is built three modules
+# away. The booking is the agent block's one nested `context` key, and a task
+# whose row never drains reads as pre-D-1, exactly like a missing receipt key.
+
+_CONTEXT_LOCK = threading.Lock()
+_pending_context: dict[str, dict[str, Any]] = {}
+
+
+def record_context(task_id: str, block: dict[str, Any]) -> None:
+    """Book an attempt's context-curve block against its task: the shape that
+    produced it and the statistics, with the sum checked against the receipt's
+    own total. Whole and per-attempt — a later row of the same task drains the
+    previous attempt's booking only as the receipt's is drained (pop-once)."""
+
+    with _CONTEXT_LOCK:
+        _pending_context[task_id] = block
+
+
+def _drain_context(task_id: str | None) -> dict[str, Any]:
+    """Pop a task's booking as the agent block's `context` key — once only,
+    which is what keeps one attempt's curve off the next attempt's row."""
+
+    if task_id is None:
+        return {}
+
+    with _CONTEXT_LOCK:
+        block = _pending_context.pop(task_id, {})
+
+    return {"context": block} if block else {}
+
+
+# ....................... #
+
 # What the stream keeps of a gate's output and a contract's rows. Both are
 # already written down once — the gate's own output rides the attempt to the
 # operator's terminal and the task log, the row is in the contract — and a
@@ -536,7 +571,9 @@ def build_record(
         # bare `torve gates run`). model_version None inside the block marks
         # an uncontrolled regime. What the harness receipt said about the
         # ending joins it (S-0065/D-6), where the harness returned it.
-        "agent": None if agent is None else priced({**agent, **_drain_receipt(task_id)}),
+        "agent": None
+        if agent is None
+        else priced({**agent, **_drain_receipt(task_id), **_drain_context(task_id)}),
         # The workspace transfer's cost, booked by a transferring runtime for
         # this attempt (S-0041/the-transfer-measured) — a sibling of the agent block because
         # it is the runtime's measurement, not the agent's self-report.
@@ -590,8 +627,10 @@ def build_attempt_row(
         "task_id": task.id,
         # The receipt's account of the ending rides the block here too
         # (S-0065/D-6) — the endings this row describes are exactly the ones a
-        # terminal reason tells apart.
-        "agent": priced({**agent, **_drain_receipt(task.id)}),
+        # terminal reason tells apart. The context curve's booking rides beside
+        # it on the same route (S-0075/D-1): the spend happened even if
+        # nothing else did, and the row must be able to say so.
+        "agent": priced({**agent, **_drain_receipt(task.id), **_drain_context(task.id)}),
         # The runtime's booked transfer legs ride beside the agent block
         # exactly as on the gate-pass row (S-0041/the-transfer-measured): the spend on
         # moving the workspace happened even if nothing else did.

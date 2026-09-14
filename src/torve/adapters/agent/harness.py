@@ -27,13 +27,14 @@ import shlex
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
+from statistics import median
 from typing import TYPE_CHECKING, Any, cast
 
 from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
 from torve.application.equipment import EQUIPMENT_MOUNT, MANIFEST
 from torve.application.ports import AgentContext, AgentResult
-from torve.application.telemetry import record_receipt
+from torve.application.telemetry import record_context, record_receipt
 from torve.base import naming
 
 if TYPE_CHECKING:
@@ -131,7 +132,9 @@ def build_prompt(
         # no context pack, no working rules, no scope or acceptance. The
         # absence is the point, asserted directly rather than read back out of
         # a transcript.
-        return "\n".join([f"# Torve task {task.id}", "", task.intent.strip() if task.intent else ""])
+        return "\n".join(
+            [f"# Torve task {task.id}", "", task.intent.strip() if task.intent else ""]
+        )
 
     lines: list[str] = [f"# Torve task {task.id}", ""]
 
@@ -715,6 +718,187 @@ def parse_burn(trace: Path) -> BurnProfile | None:
 
 # ....................... #
 
+
+# The per-request context curve (S-0075/D-1): what each request carried, on
+# every seat. The opus seat's message usage names the cache fields; the
+# deepseek and qwen seats name input alone and the receipt's per-request
+# list stays empty — so the curve is reconstructed from the message usage
+# wherever it lacks cache, the shape that produced it is named on the row,
+# and the sum is held against the receipt's own final total rather than
+# trusted. One request is one typed turn event's input context: input plus
+# cache read and cache creation where the usage carries them, input alone
+# where it does not (the "where cache fields are absent" reconstruction).
+@dataclass(frozen=True)
+class ContextCurve:
+    """The shape of one attempt's per-request context: the statistics of the
+    input context each request carried, the shape that produced them, and
+    the check against the receipt's final total. `shape` is `with-cache`
+    when any message usage named cache fields, `input-only` when none did,
+    and `none` when the stream carried no per-request usage at all and there
+    is nothing to reconstruct — the row says so rather than omitting it."""
+
+    shape: str
+    first: int | None = None
+    median: int | float | None = None
+    max: int | None = None
+    sum: int | None = None
+    requests: int | None = None
+    receipt_total: int | None = None
+    matches_receipt: bool | None = None
+
+    def as_block(self) -> dict[str, Any]:
+        block: dict[str, Any] = {"shape": self.shape}
+
+        if self.sum is not None:
+            block.update(
+                first=self.first,
+                median=self.median,
+                max=self.max,
+                sum=self.sum,
+                requests=self.requests,
+            )
+
+            if self.receipt_total is not None:
+                block["receipt_total"] = self.receipt_total
+                block["matches_receipt"] = self.matches_receipt
+
+        return block
+
+
+# The input-context positions a turn's usage and the receipt's both answer
+# (S-0075/D-1), read alongside the sibling `_TOKEN_USAGE_NAMES`: the claude
+# envelope and message usage spell them snake_case, the dsh reporter
+# camelCase, opencode's part.tokens just `input`.
+_CURVE_USAGE_NAMES: tuple[tuple[str, ...], ...] = (
+    ("input_tokens", "inputTokens", "input"),
+    ("cache_read_input_tokens", "cacheReadTokens"),
+    ("cache_creation_input_tokens", "cacheCreationTokens"),
+)
+
+
+def _usage_context(container: Any) -> tuple[int | None, bool]:
+    """The input context one usage/tokens object names — input plus its
+    cache read and creation — and whether any of it arrived through cache
+    fields. A non-object and an object naming no input count both answer
+    (None, False): nothing is ever inferred (S-0004/D-6)."""
+
+    if not isinstance(container, dict):
+        return None, False
+
+    usage = cast("dict[str, Any]", container)
+    cached = any(name in usage for names in _CURVE_USAGE_NAMES[1:] for name in names)
+    total = _int_at(usage, _CURVE_USAGE_NAMES[0])
+
+    if total is None:
+        return None, cached
+
+    for names in _CURVE_USAGE_NAMES[1:]:
+        part = _int_at(usage, names)
+
+        if part is not None:
+            total += part
+
+    return total, cached
+
+
+def _turn_context(record: dict[str, Any]) -> tuple[int | None, bool]:
+    """The input context one typed turn event names, from the same usage
+    positions the burn scanner reads output from (S-0075/D-1); (None, False)
+    when the line names no input count, which keeps it out of the curve."""
+
+    candidates: list[Any] = [record.get("usage"), record.get("tokens")]
+
+    for nest in (record.get("message"), record.get("part")):
+        if isinstance(nest, dict):
+            inner = cast("dict[str, Any]", nest)
+            candidates += [inner.get("usage"), inner.get("tokens")]
+
+    for candidate in candidates:
+        context = _usage_context(candidate)
+
+        if context[0] is not None:
+            return context
+
+    return None, False
+
+
+def parse_context_curve(trace: Path) -> ContextCurve | None:
+    """The per-request context curve of the session trace the durable store
+    holds (S-0075/D-1), scanned from the file's own bytes like `parse_burn` —
+    never `result.output`, which every runtime clips at the exec boundary.
+
+    The statistics are over the typed turn events that name an input context
+    (the burn scanner's `_TURN_EVENT_TYPES` and usage positions, read for
+    input). The receipt is the stream's final line when it is not itself a
+    turn — the result envelope, whose usage names the run's totals; the
+    reconstructed sum is checked against it, and a disagreement is reported
+    on the row as unmeasured. None when the stream carried no per-request
+    context at all (or the file is unreadable): there is no curve to
+    reconstruct, and the adapter books the `none` shape so the row says so."""
+
+    try:
+        handle = trace.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    contexts: list[int] = []
+    any_cache = False
+    last: dict[str, Any] | None = None
+
+    with handle:
+        for line in handle:
+            line = line.strip()
+
+            if not (line.startswith("{") and line.endswith("}")):
+                continue
+
+            try:
+                data: Any = json.loads(line)
+            except ValueError:
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            record = cast("dict[str, Any]", data)
+            last = record
+            event_type = record.get("type")
+
+            if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
+                context, cached = _turn_context(record)
+
+                if context is not None:
+                    contexts.append(context)
+                    any_cache = any_cache or cached
+
+    if not contexts:
+        return None
+
+    receipt_total: int | None = None
+
+    if last is not None:
+        last_type = last.get("type")
+
+        if not (isinstance(last_type, str) and last_type in _TURN_EVENT_TYPES):
+            receipt_total, _ = _turn_context(last)
+
+    total = sum(contexts)
+    matches: bool | None = receipt_total == total if receipt_total is not None else None
+
+    return ContextCurve(
+        shape="with-cache" if any_cache else "input-only",
+        first=contexts[0],
+        median=median(contexts),
+        max=max(contexts),
+        sum=total,
+        requests=len(contexts),
+        receipt_total=receipt_total,
+        matches_receipt=matches,
+    )
+
+
+# ....................... #
+
 # How an inventory line spells each equipment kind (S-0066/D-4), measured on
 # claude 2.1.x's stream-json opening line. `tools` and `slash_commands` ride
 # the same line and are deliberately absent: they are the image's own and name
@@ -859,14 +1043,16 @@ class HarnessResult(AgentResult):
     harness output. The token fields live on the harness result, not on
     ports.AgentResult, because the application surface predates them; the
     runner reads whichever are present by attribute (T-0186). The burn
-    profile rides the same attribute discipline (T-0249): None means the
-    stream carried no per-turn facts, and the record omits the block."""
+    profile and the per-request context curve ride the same attribute
+    discipline (T-0249, S-0075/D-1): None means the stream carried no
+    per-turn facts, and the record omits the block."""
 
     input_tokens: int | None = None
     cache_read_tokens: int | None = None
     cache_creation_tokens: int | None = None
     output_tokens: int | None = None
     burn: BurnProfile | None = None
+    context: ContextCurve | None = None
 
 
 # ....................... #
@@ -1148,6 +1334,19 @@ class HarnessAgent:
         # departure, logged). This reads bytes for telemetry only — the
         # profile drives no branch (S-0039/D-2).
         burn = parse_burn(trace)
+        # The per-request context curve rides the same bytes and the same
+        # discipline (S-0075/D-1): one request is one turn's input context,
+        # reconstructed where the message usage lacks cache fields, with the
+        # sum checked against the receipt's final total. Booked by the same
+        # route as the receipt — derived where the trace lives, drained by
+        # whichever row ends the attempt. A stream with no per-request
+        # context cannot be reconstructed, and the block says so with the
+        # `none` shape rather than omitting the question.
+        curve = parse_context_curve(trace)
+        record_context(
+            ctx.task.id,
+            curve.as_block() if curve is not None else {"shape": "none"},
+        )
         # What the harness says it loaded, against what this seat declared
         # (S-0066/D-4). Recorded beside the profile read from the same bytes;
         # no gate reads it and no verdict turns on it. The comparison costs a
@@ -1170,5 +1369,6 @@ class HarnessAgent:
             cache_creation_tokens=meta.cache_creation_tokens,
             output_tokens=meta.output_tokens,
             burn=burn,
+            context=curve,
             trace_ref=naming.trace_ref(ctx.workspace, ctx.attempt),
         )

@@ -24,6 +24,7 @@ from torve.adapters.agent.harness import (
     TurnBurn,
     build_prompt,
     parse_burn,
+    parse_context_curve,
     parse_metadata,
 )
 from torve.adapters.vcs.git import repository_name
@@ -1125,6 +1126,150 @@ def test_harness_agent_derives_the_burn_from_the_captured_stream(tmp_path, monke
     assert trace.read_text(encoding="utf-8") == CLAUDE_STREAM
     # The raw capture is the adapter's transit, not a kept artifact.
     assert not (ctx.workspace / ".torve" / "tmp" / "harness-output.a1.raw").exists()
+
+
+# ....................... #
+# The per-request context curve (S-0075/D-1): the shape of one request's
+# context over the stream — sibling of the burn scan, and sibling in the
+# reading discipline (the store's own bytes, never a clipped exec string).
+
+
+def test_parse_context_curve_reads_the_cached_shape(tmp_path):
+    # claude's message usage names the cache fields: one request's context
+    # is input + cache read + cache creation.
+    stream = "\n".join(
+        [
+            '{"type":"system","subtype":"init","tools":["Bash"]}',
+            (
+                '{"type":"assistant","message":{"content":[{"type":"text"}],'
+                '"usage":{"input_tokens":10,"cache_read_input_tokens":50,"output_tokens":120}}}'
+            ),
+            (
+                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"1"},'
+                '{"type":"tool_use","id":"2"}],'
+                '"usage":{"input_tokens":60,"output_tokens":9120}}}'
+            ),
+            (
+                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"3"}],'
+                '"usage":{"input_tokens":100,"cache_creation_input_tokens":200,'
+                '"output_tokens":7004}}}'
+            ),
+            (
+                '{"type":"result","subtype":"success","total_cost_usd":0.9,'
+                '"usage":{"input_tokens":170,"cache_read_input_tokens":50,'
+                '"cache_creation_input_tokens":200,"output_tokens":16284}}'
+            ),
+        ]
+    )
+    curve = parse_context_curve(burn_trace(tmp_path, stream))
+
+    assert curve is not None
+    # The three requests carry 10+50, 60 and 100+200 — first, median, max,
+    # sum — and the sum is checked against the receipt's own total
+    # (170+50+200), which holds.
+    assert curve.shape == "with-cache"
+    assert curve.first == 60
+    assert curve.median == 60
+    assert curve.max == 300
+    assert curve.sum == 420
+    assert curve.requests == 3
+    assert curve.receipt_total == 420
+    assert curve.matches_receipt is True
+
+
+def test_parse_context_curve_reconstructs_the_input_only_shape(tmp_path):
+    # deepseek/qwen: message usage carries input alone and the receipt's
+    # per-request list stays empty. The reconstruction names its shape, and
+    # the check against the receipt — which knows the cache total the
+    # messages do not — fails, so the attempt reports itself unmeasured
+    # instead of trusting either side.
+    stream = "\n".join(
+        [
+            '{"type":"turn","usage":{"inputTokens":7,"outputTokens":250,"reasoningTokens":20}}',
+            '{"type":"turn","usage":{"inputTokens":3,"outputTokens":40}}',
+            (
+                '{"total_cost_usd":0.05,"usage":{"inputTokens":10,"cacheReadTokens":900,'
+                '"outputTokens":290}}'
+            ),
+        ]
+    )
+    curve = parse_context_curve(burn_trace(tmp_path, stream))
+
+    assert curve is not None
+    assert curve.shape == "input-only"
+    assert curve.first == 7
+    assert curve.median == 5.0
+    assert curve.max == 7
+    assert curve.sum == 10
+    assert curve.requests == 2
+    assert curve.receipt_total == 910
+    assert curve.matches_receipt is False
+
+
+def test_parse_context_curve_reads_opencodes_part_tokens_input(tmp_path):
+    # opencode's step-finish part spells the same fact as `tokens.input`; a
+    # stream whose last line is a turn names no envelope, so no receipt.
+    stream = "\n".join(
+        [
+            (
+                '{"type":"step_finish","part":{"type":"step-finish","cost":0.01,'
+                '"tokens":{"input":5,"output":310,"reasoning":10}}}'
+            ),
+            (
+                '{"type":"step_finish","part":{"type":"step-finish","cost":0.02,'
+                '"tokens":{"input":55,"output":20}}}'
+            ),
+        ]
+    )
+    curve = parse_context_curve(burn_trace(tmp_path, stream))
+
+    assert curve is not None
+    assert curve.shape == "input-only"
+    assert curve.first == 5
+    assert curve.median == 30.0
+    assert curve.max == 55
+    assert curve.sum == 60
+    assert curve.receipt_total is None
+    assert curve.matches_receipt is None
+
+
+def test_parse_context_curve_absent_for_an_envelope_only_output(tmp_path):
+    # One envelope, no per-request usage: the burn's no-stream-no-block
+    # regime holds for the curve too — there is nothing to reconstruct, and
+    # the row says so via the `none` shape the adapter books.
+    envelope = (
+        '{"type":"result","total_cost_usd":0.09,"usage":{"input_tokens":500,'
+        '"output_tokens":88},"modelUsage":{"claude-sonnet-5":{}}}'
+    )
+
+    assert parse_context_curve(burn_trace(tmp_path, envelope)) is None
+    assert parse_context_curve(burn_trace(tmp_path, "plain text\n{}\n[]")) is None
+    assert parse_context_curve(burn_trace(tmp_path, "")) is None
+    assert parse_context_curve(tmp_path / "never-written.trace.log") is None
+
+
+def test_harness_agent_derives_the_context_curve_from_the_captured_stream(tmp_path, monkeypatch):
+    tier = TierConfig(adapter="harness", provider="p")
+    ctx, agent = harness_ctx(
+        tmp_path, tier.model_copy(update={"env": seam('cat "$TORVE_PROMPT"', monkeypatch)})
+    )
+    result = agent.run(dataclasses.replace(ctx, prompt=CLAUDE_STREAM))
+
+    assert isinstance(result, HarnessResult)
+    assert result.context is not None
+    # The two assistant turns that name an input context carry 10+50 and 60;
+    # the envelope names the receipt total (99), which the reconstruction
+    # does not reach (its cache total is absent here).
+    assert result.context.as_block() == {
+        "shape": "with-cache",
+        "first": 60,
+        "median": 60.0,
+        "max": 60,
+        "sum": 120,
+        "requests": 2,
+        "receipt_total": 99,
+        "matches_receipt": False,
+    }
 
 
 class SandboxReadOnlyRuntime(HostShellRuntime):

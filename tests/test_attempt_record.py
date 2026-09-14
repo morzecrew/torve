@@ -28,6 +28,7 @@ from torve.application.telemetry import (
     agent_burn,
     build_attempt_row,
     build_record,
+    record_context,
     record_payload,
     record_receipt,
     record_row,
@@ -299,3 +300,96 @@ def test_an_inventory_mismatch_rides_the_row_and_reddens_nothing(tmp_path):
     # And the loose agent block still round-trips through the payload the
     # event kind accepts, which is what a new key inside it has to survive.
     validate_payload(EventKind.GATES_EVALUATED, record_payload(row, 2))
+
+
+# ....................... #
+# The per-request context curve (S-0075/D-1): the adapter books the block
+# where the trace lives; the row drains it once, beside the receipt.
+
+
+def test_the_context_curve_rides_the_agent_block_and_drains_once():
+    task = Task.model_validate(base_task(allow=["src/**"]))
+    record_context(
+        task.id,
+        {
+            "shape": "input-only",
+            "first": 7,
+            "median": 5.0,
+            "max": 7,
+            "sum": 10,
+            "requests": 2,
+            "receipt_total": 910,
+            "matches_receipt": False,
+        },
+    )
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert row["agent"]["context"] == {
+        "shape": "input-only",
+        "first": 7,
+        "median": 5.0,
+        "max": 7,
+        "sum": 10,
+        "requests": 2,
+        "receipt_total": 910,
+        "matches_receipt": False,
+    }
+
+    # The booking belongs to the attempt that produced it: the next row of
+    # the same task carries no curve it was not told (S-0004/D-6).
+    again = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert "context" not in again["agent"]
+
+
+def test_the_context_curve_rides_the_gate_pass_row_too():
+    ctx = _ctx(head_sha="abc", merge_base="def", base="main")
+    record_context(
+        ctx.task.id,
+        {
+            "shape": "with-cache",
+            "first": 60,
+            "median": 60,
+            "max": 300,
+            "sum": 420,
+            "requests": 3,
+            "receipt_total": 420,
+            "matches_receipt": True,
+        },
+    )
+
+    row = build_record(ctx, RunReport(exit_code=0), "cafe1234", agent=AGENT)
+
+    assert row["agent"]["context"]["shape"] == "with-cache"
+    assert row["agent"]["context"]["matches_receipt"] is True
+    # A booked curve is a fact, never a conviction: the gates passed and the
+    # row's verdict is the gate report's, untouched by what the curve said.
+    assert row["verdict"] == "green"
+    assert row["exit_code"] == 0
+    # And the loose agent block still round-trips through the payload.
+    validate_payload(EventKind.GATES_EVALUATED, record_payload(row, 1))
+
+
+def test_an_unreconstructable_attempt_says_so_on_the_row():
+    # A stream with no per-request usage cannot rebuild the curve; the
+    # adapter books the none shape so the row names the gap rather than
+    # omitting it — D-1's own consequence over the general absent-absent rule.
+    task = Task.model_validate(base_task(allow=["src/**"]))
+    record_context(task.id, {"shape": "none"})
+
+    row = build_attempt_row(task, AGENT, verdict="agent_error", exit_code=1, timed_out=False)
+
+    assert row["agent"]["context"] == {"shape": "none"}
+    # A row whose adapter never booked — no harness at all — carries no key
+    # and reads as before D-1, exactly like a missing receipt key.
+    never_booked = build_attempt_row(
+        Task.model_validate(base_task(allow=["src/**"])),
+        AGENT,
+        verdict="agent_error",
+        exit_code=1,
+        timed_out=False,
+    )
+
+    assert "context" not in never_booked["agent"]
+    validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))
