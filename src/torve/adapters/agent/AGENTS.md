@@ -127,6 +127,28 @@ The conviction reaches the next attempt in the prompt — the gate, its output t
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
 - Consequence: the most specific thing the engine ever learns about a task stops arriving through a channel an attempt may skip
 
+### S-0073/D-1 — `LOCKED` (The working rules live once, and say what an attempt costs)
+
+`build_prompt` names the working-rules skill and does not restate it; the test over it asserts that property rather than the words, so a bullet added back fails instead of passing quietly beside the skill
+
+- Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
+- Consequence: one copy of the text that governs behaviour, and a test that cannot be satisfied by two
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0073/D-2 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+The working rules reach the agent in system position, through each harness's own channel, carrying the same text
+
+- Paths: `src/torve/adapters/agent/harness.py` `.torve/harnesses`
+- Consequence: the rules are read before the contract rather than below it, and they join the cached prefix
+
+### S-0073/D-3 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+`num_turns`, `permission_denials` and `subagent_stats` are recorded on the attempt when the receipt carries them, absent when it does not, and never invented
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/telemetry.py`
+- Consequence: an attempt at 113 turns and an attempt at 12 stop reading as the same attempt
+
 ### S-0074/D-2 — `ASSUMED` (What the engine is worth against a bare harness)
 
 The bare arm's prompt carries the task's intent and nothing else — no inherited rows, no context pack, no working rules — as a fourth `build_prompt` mode beside revision, continuation and repair
@@ -149,6 +171,20 @@ A request is identified by the message id the stream carries, not by the event: 
 - Paths: `src/torve/adapters/agent/harness.py`
 - Consequence: the reconstruction closes against the receipt on a seat that reports cache fields, and the seat that does not is reported unmeasured rather than published wrong
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0076/D-1 — `ASSUMED` (The attempt is handed what the engine already knows)
+
+The pack's small deterministic files arrive in the attempt's first message rather than behind a read; `decisions.json` stays behind one
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
+- Consequence: seven round trips every attempt spends opening what the engine wrote become zero, and the attempt starts with what the engine intended rather than with what it opened first
+
+### S-0076/D-4 — `ASSUMED` (The attempt is handed what the engine already knows)
+
+The cap on what one tool result may return is enforced at the harness's own result boundary, where every tool crosses it, and the prompt's reading advice names the shell forms beside the reader's
+
+- Paths: `src/torve/adapters/agent/harness.py` `.torve/harnesses/**`
+- Consequence: the context's growth term stops being set by whichever command dumped the most, whichever tool that command used
 
 ## Invariants holding over `src/torve/adapters/agent/`
 

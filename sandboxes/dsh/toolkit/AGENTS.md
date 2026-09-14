@@ -17,4 +17,11 @@ Each image emits a machine-readable trace whose last line is still the result en
 - Paths: `sandboxes/claude/toolkit/run` `sandboxes/dsh/toolkit/report-usage` `sandboxes/mimo/toolkit/run`
 - Consequence: `parse_burn` produces its first profile in the engine's history, and the per-turn and per-tool facts every later seat comparison needs start being recorded
 
+### S-0073/D-8 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+Each image reads the system text the engine staged, through its own channel — claude's `--append-system-prompt`, dsh's persona row — and a seat whose image does not read it is the engine's silence, not the model's
+
+- Paths: `sandboxes/claude/toolkit/run` `sandboxes/dsh/toolkit/run`
+- Consequence: the rules arrive before the contract rather than as a file the attempt happens to open on its third call, which is what D-2 claims matters and what D-5 cannot be judged without
+
 <!-- /torve:managed -->

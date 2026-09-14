@@ -377,12 +377,27 @@ A verb that takes a contract takes its task id, resolving through `layout.task_f
 - Paths: `src/torve/cli/doctor.py`
 - Consequence: a mechanism blocked for a reason stops being indistinguishable from one that does not exist
 
+### S-0073/D-7 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+`torve log divergence` records several rows in one invocation, and the working rules say the finishing check answers `log owed` before a stop
+
+- Paths: `src/torve/cli/log.py` `skills/working-rules/**`
+- Consequence: the bookkeeping tail becomes one round trip instead of one per governed row
+
 ### S-0075/D-3 — `LOCKED` (What an attempt costs, measured per changed line)
 
 The ledger reports cache-read tokens, wall seconds, tool calls and dollars per changed line and per file in scope, from the diff the landing already commits, beside the per-task rates it reports now
 
 - Paths: `src/torve/application/ledger.py` `src/torve/cli/ledger.py`
 - Consequence: a fixed overhead that only hurts small tasks becomes visible, and a mitigation aimed at it can be judged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-6 — `LOCKED` (What an attempt costs, measured per changed line)
+
+The burn profile is derived from the attempt's retained trace when it is read, not only recorded when the attempt ends; the recorded block is a cache of that derivation and the trace is what settles a disagreement
+
+- Paths: `src/torve/application/telemetry.py` `src/torve/cli/ledger.py`
+- Consequence: every attempt whose trace is still on disk has a profile, so a change is judged against a population rather than against the attempts that happened after the classifier shipped, and a correction to a class reclassifies the history instead of leaving it wrong
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

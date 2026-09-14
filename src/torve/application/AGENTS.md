@@ -849,6 +849,13 @@ A phase's acceptance commands are runnable in the environment that judges them: 
 - Consequence: an authoring mistake costs one refusal at mint instead of the poison ceiling, three attempts and their money
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0073/D-3 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+`num_turns`, `permission_denials` and `subagent_stats` are recorded on the attempt when the receipt carries them, absent when it does not, and never invented
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/telemetry.py`
+- Consequence: an attempt at 113 turns and an attempt at 12 stop reading as the same attempt
+
 ### S-0074/D-1 — `LOCKED` (What the engine is worth against a bare harness)
 
 An arm is named by the apparatus it removes — bare, gated, configured — and an eval record carries which arm produced each result, so the comparison is rebuildable from the ledger alone
@@ -908,6 +915,43 @@ The attempt records what every request re-read: the tool and skill counts the in
 
 - Paths: `src/torve/application/telemetry.py`
 - Consequence: a change to the prefix is seen in the number rather than assumed from the diff that made it
+
+### S-0075/D-6 — `LOCKED` (What an attempt costs, measured per changed line)
+
+The burn profile is derived from the attempt's retained trace when it is read, not only recorded when the attempt ends; the recorded block is a cache of that derivation and the trace is what settles a disagreement
+
+- Paths: `src/torve/application/telemetry.py` `src/torve/cli/ledger.py`
+- Consequence: every attempt whose trace is still on disk has a profile, so a change is judged against a population rather than against the attempts that happened after the classifier shipped, and a correction to a class reclassifies the history instead of leaving it wrong
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0076/D-1 — `ASSUMED` (The attempt is handed what the engine already knows)
+
+The pack's small deterministic files arrive in the attempt's first message rather than behind a read; `decisions.json` stays behind one
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
+- Consequence: seven round trips every attempt spends opening what the engine wrote become zero, and the attempt starts with what the engine intended rather than with what it opened first
+
+### S-0076/D-2 — `ASSUMED` (The attempt is handed what the engine already knows)
+
+For a scope under a configured size, the in-scope files' contents and the tests `tests.json` names are delivered with the task; over it, an outline of the same files is delivered instead
+
+- Paths: `src/torve/application/contextpack.py` `.torve/config.yaml`
+- Consequence: the sixteen calls a small attempt spends reading files the contract already named become one read of one document
+
+### S-0076/D-3 — `LOCKED` (The attempt is handed what the engine already knows)
+
+The hand-over is judged by the orientation class and the landing rate together, and is reverted if orientation falls while attempts per landing rises
+
+- Paths: `src/torve/application/contextpack.py`
+- Consequence: a change that buys turns by making attempts worse is caught by the measurement that motivated it rather than defended by it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0076/D-5 — `ASSUMED` (The attempt is handed what the engine already knows)
+
+The pack writes a file naming every symbol the repository defines and where — the whole tree, not the scope — and the pack's own index names that file; the symbols are a file the attempt may grep, never content the prompt carries
+
+- Paths: `src/torve/application/contextpack.py`
+- Consequence: a lookup costs one call against one file instead of two or three against the tree, and an attempt that never looks pays nothing for it
 
 ## Invariants holding over `src/torve/application/`
 

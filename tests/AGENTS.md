@@ -48,6 +48,14 @@ An acceptance verdict names the suite it judged: a battery that ran fewer tests 
 - Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
 - Consequence: a green battery in a sandbox and a green battery on a laptop stop being the same sentence for two different amounts of evidence
 
+### S-0073/D-1 — `LOCKED` (The working rules live once, and say what an attempt costs)
+
+`build_prompt` names the working-rules skill and does not restate it; the test over it asserts that property rather than the words, so a bullet added back fails instead of passing quietly beside the skill
+
+- Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
+- Consequence: one copy of the text that governs behaviour, and a test that cannot be satisfied by two
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ### S-0074/D-2 — `ASSUMED` (What the engine is worth against a bare harness)
 
 The bare arm's prompt carries the task's intent and nothing else — no inherited rows, no context pack, no working rules — as a fourth `build_prompt` mode beside revision, continuation and repair

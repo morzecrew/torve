@@ -30,4 +30,25 @@ The working-rules skill states that a test may not assume it is the only one on 
 - Paths: `skills/working-rules/**`
 - Consequence: the suite can run in parallel, which is measured at 4.3x, and a test that breaks the rule fails as a bug rather than as a flake
 
+### S-0073/D-5 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+The working rules ask for independent reads and greps in one message, and the ask does not produce them: measured with the rules in system position, no attempt has ever sent two tool calls in one message. The models shorten round trips through the shell instead, and a mitigation aimed at N should meet them there
+
+- Paths: `skills/working-rules/**`
+- Consequence: the round trips a small attempt spends orienting fall without any read being given up
+
+### S-0073/D-6 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+A contract's acceptance commands carry their own quiet form, and the working rules ask for them to be run as written, once, after the edits
+
+- Paths: `skills/working-rules/**` `.torve/specs`
+- Consequence: the model stops inventing output filters for a command the engine could have spelled, and the suite runs twice rather than a dozen times
+
+### S-0073/D-7 — `ASSUMED` (The working rules live once, and say what an attempt costs)
+
+`torve log divergence` records several rows in one invocation, and the working rules say the finishing check answers `log owed` before a stop
+
+- Paths: `src/torve/cli/log.py` `skills/working-rules/**`
+- Consequence: the bookkeeping tail becomes one round trip instead of one per governed row
+
 <!-- /torve:managed -->
