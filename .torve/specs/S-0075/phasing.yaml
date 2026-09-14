@@ -82,3 +82,21 @@ phasing:
     depends_on:
       - 5
     character: structural
+  - phase: 7
+    title: >-
+      the profile is read from the trace, not only written to the row
+    intent: >-
+      The reader derives a burn profile from any retained trace and prefers it to
+      the recorded block, so the corpus already on disk carries profiles and a reclassification
+      reaches the history. Settles D-6.
+    scope:
+      - src/torve/application/telemetry.py
+      - src/torve/cli/ledger.py
+      - tests/test_attempt_record.py
+      - tests/test_ledger.py
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 5
+    character: structural

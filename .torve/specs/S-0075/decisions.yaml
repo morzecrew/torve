@@ -82,3 +82,22 @@ decisions:
       neither way (2,304,380 raw, 1,176,528 deduplicated, against a receipt of 2,853,036),
       which is what settles Q-1
     cites: [D-1]
+  - id: D-6
+    grade: LOCKED
+    text: >-
+      The burn profile is derived from the attempt's retained trace when it is read,
+      not only recorded when the attempt ends; the recorded block is a cache of that
+      derivation and the trace is what settles a disagreement
+    paths: [src/torve/application/telemetry.py, src/torve/cli/ledger.py]
+    consequence: >-
+      every attempt whose trace is still on disk has a profile, so a change is judged
+      against a population rather than against the attempts that happened after the
+      classifier shipped, and a correction to a class reclassifies the history instead
+      of leaving it wrong
+    rationale: >-
+      measured on the corpus: 107 retained traces yield 20 classified attempts, 17
+      of them with an edit — a baseline of 66% median orientation share of bytes read
+      and 50% median of calls before the first edit, where recording alone had produced
+      three. The classifier is a heuristic by D-2's own risks, and a class stamped
+      onto a row at attempt end is a heuristic frozen where it is least visible
+    cites: [D-2]
