@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0403
+phase: 3
+attempt: 3
+base: 12a397c8c64eea9dfbbb5931414f3f14ee274e1c
+at: '2026-09-14T10:31:23Z'
+agent: subscription/deepseek-v4-flash-0731@deepseek-v4-flash-0731
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-14T10:04:01Z'
+    claim: |-
+      D-3 lands: torve ledger · 0 counted attempt(s) · 96 landed task(s)
+
+      no seat has an attempt a rate may count
+
+      no gate has run on a counted attempt
+
+      excluded from every rate — 0 fake-adapter, 0 shadow replay, 0 not an attempt, 0 unjoinable (no base sha)
+      contracts joined — 0 from the working tree, 0 from git history, 0 never committed now reports cache-read tokens, wall seconds, tool calls and dollars per changed line and per file in scope — the four figures divided by the diff the landing already commits — beside the per-seat per-task rates it reported before. The diff is sized from the counted attempt's own base..head via git diff --numstat, per landed task, per file; a task with no resolvable diff, a change that changed nothing, or an unreported numerator reports no rate rather than an invented zero or infinity.
+    evidence: >-
+      src/torve/application/ledger.py:533-555 — the per-line rates and per-file entries
+      on each seat row; src/torve/cli/ledger.py:145-199 — the per-changed-line and
+      per-file-in-scope tables
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-14T10:04:35Z'
+    claim: >-
+      Correction to entry 1, whose claim carried stray command output from a backticked
+      command reference. The substance: D-3 lands. The ledger now reports cache-read
+      tokens, wall seconds, tool calls and dollars per changed line and per file in
+      scope, from the diff the landing already commits, beside the per-seat per-task
+      rates it reported before. The diff is sized from the counted attempt's own base..head
+      via git diff numstat, one per landed task, per file; a task with no resolvable
+      diff, a change that changed nothing, or an unreported numerator reports no rate
+      rather than an invented zero or infinity.
+    evidence: >-
+      src/torve/application/ledger.py:533-555 — the per-line and per-file rates on
+      each seat row
+    action: decided
