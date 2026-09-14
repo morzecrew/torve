@@ -134,6 +134,22 @@ The bare arm's prompt carries the task's intent and nothing else — no inherite
 - Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
 - Consequence: what an arm removed is a property of the prompt a test can assert, rather than something read back out of a transcript
 
+### S-0075/D-1 — `LOCKED` (What an attempt costs, measured per changed line)
+
+An attempt records its per-request context curve — first, median, max and sum — on every seat, reconstructed from the message usage where cache fields are absent, with the shape used named on the row and the sum checked against the receipt's own total
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/telemetry.py`
+- Consequence: the identity behind every token figure can be verified per attempt instead of trusted, and an attempt that cannot be reconstructed says so
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-5 — `LOCKED` (What an attempt costs, measured per changed line)
+
+A request is identified by the message id the stream carries, not by the event: one request emits several assistant events, each repeating the same usage object, and the curve counts requests
+
+- Paths: `src/torve/adapters/agent/harness.py`
+- Consequence: the reconstruction closes against the receipt on a seat that reports cache fields, and the seat that does not is reported unmeasured rather than published wrong
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.

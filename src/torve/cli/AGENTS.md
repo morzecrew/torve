@@ -377,4 +377,12 @@ A verb that takes a contract takes its task id, resolving through `layout.task_f
 - Paths: `src/torve/cli/doctor.py`
 - Consequence: a mechanism blocked for a reason stops being indistinguishable from one that does not exist
 
+### S-0075/D-3 — `LOCKED` (What an attempt costs, measured per changed line)
+
+The ledger reports cache-read tokens, wall seconds, tool calls and dollars per changed line and per file in scope, from the diff the landing already commits, beside the per-task rates it reports now
+
+- Paths: `src/torve/application/ledger.py` `src/torve/cli/ledger.py`
+- Consequence: a fixed overhead that only hurts small tasks becomes visible, and a mitigation aimed at it can be judged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
 <!-- /torve:managed -->

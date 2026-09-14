@@ -11,7 +11,7 @@ set -eu
 
 export TORVE_MODEL=smoke
 export TORVE_BASE_URL=http://127.0.0.1:1
-export TORVE_API_KEY_ENV=TORVE_SMOKE_ABSENT
+export TORVE_API_KEY_ENV=SMOKE_CREDENTIAL_ABSENT
 export TORVE_EQUIP_ROOT=/tmp/smoke/skills
 
 mkdir -p /tmp/smoke/skills /tmp/smoke/hook

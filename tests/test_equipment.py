@@ -959,7 +959,11 @@ def test_the_finishing_check_carries_a_ceiling_of_one_block() -> None:
 
 DSH_PLUGIN = (
     Path(__file__).resolve().parent.parent
-    / "sandboxes" / "dsh" / "toolkit" / "scope-guard-policy" / "index.js"
+    / "sandboxes"
+    / "dsh"
+    / "toolkit"
+    / "scope-guard-policy"
+    / "index.js"
 )
 
 
@@ -997,18 +1001,28 @@ def test_dsh_equip_installs_the_guard_through_dsh_s_own_verb_then_patches_it_in(
     calls = tmp_path / "dsh-calls.txt"
     stub = tmp_path / "bin" / "dsh"
     stub.parent.mkdir()
-    stub.write_text("#!/bin/sh\necho \"$@\" >> \"$DSH_STUB_RECORD\"\n", encoding="utf-8")
+    stub.write_text('#!/bin/sh\necho "$@" >> "$DSH_STUB_RECORD"\n', encoding="utf-8")
     stub.chmod(0o755)
 
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
         json.dumps(
-            {"items": [{"kind": "hook", "source": "local:.torve/agents/hooks/implement", "path": str(HOOK_DIR)}]}
+            {
+                "items": [
+                    {
+                        "kind": "hook",
+                        "source": "local:.torve/agents/hooks/implement",
+                        "path": str(HOOK_DIR),
+                    }
+                ]
+            }
         ),
         encoding="utf-8",
     )
     overlay = tmp_path / "overlay.yml"
-    equip_patch = Path(__file__).resolve().parent.parent / "sandboxes" / "dsh" / "toolkit" / "equip_patch.py"
+    equip_patch = (
+        Path(__file__).resolve().parent.parent / "sandboxes" / "dsh" / "toolkit" / "equip_patch.py"
+    )
 
     subprocess.run(
         [sys.executable, str(equip_patch), str(manifest), str(overlay)],

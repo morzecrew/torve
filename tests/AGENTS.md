@@ -55,6 +55,13 @@ The bare arm's prompt carries the task's intent and nothing else — no inherite
 - Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
 - Consequence: what an arm removed is a property of the prompt a test can assert, rather than something read back out of a transcript
 
+### S-0075/D-2 — `ASSUMED` (What an attempt costs, measured per changed line)
+
+The burn profile classifies an attempt's tool calls — pack reads, orientation, in-scope reads, edits, test runs, lint runs, bookkeeping, other — and records calls before the first edit, reruns, calls per message, result bytes by class, compaction events and the latency medians
+
+- Paths: `src/torve/application/telemetry.py` `tests/test_attempt_record.py`
+- Consequence: every mitigation has a class that judges it, so a change can be shown to have moved what it claimed rather than argued to have
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

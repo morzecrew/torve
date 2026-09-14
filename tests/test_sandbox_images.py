@@ -360,12 +360,28 @@ DOOR = {
 }
 
 
+def _door_bytes(name: str) -> str:
+    """`run`, plus the rows it patches in where a definition keeps them in a
+    file: dsh's door moved out of a heredoc so the build's smoke check reads
+    the same bytes the seat does, and a copy with one reader is what let a
+    dropped key through in the first place."""
+
+    toolkit = REPO_ROOT / "sandboxes" / name / "toolkit"
+    parts = [(toolkit / "run").read_text(encoding="utf-8")]
+    door = toolkit / "door.yml"
+
+    if door.is_file():
+        parts.append(door.read_text(encoding="utf-8"))
+
+    return "\n".join(parts)
+
+
 @pytest.mark.parametrize("name", sorted(DOOR))
 def test_every_seated_definition_shuts_its_own_door(name: str) -> None:
-    run = (REPO_ROOT / "sandboxes" / name / "toolkit" / "run").read_text(encoding="utf-8")
+    shut = _door_bytes(name)
 
     for switch in DOOR[name]:
-        assert switch in run, f"{name} no longer shuts the door with {switch}"
+        assert switch in shut, f"{name} no longer shuts the door with {switch}"
 
 
 def test_the_door_is_shut_before_the_seat_s_own_equipment() -> None:

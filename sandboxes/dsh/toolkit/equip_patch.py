@@ -34,10 +34,7 @@ SKILLS = os.environ.get("TORVE_EQUIP_ROOT") or ""
 # the install's pnpm write provides (S-0063/D-17).
 HOOK_PLUGIN = "/opt/torve/scope-guard-policy"
 HOOK_PACKAGE = "@torve/scope-guard-policy"
-HOOK_ENTRY = (
-    "- insert:\n"
-    f"    - id: scope-guard-policy\n      name: '{HOOK_PACKAGE}'\n"
-)
+HOOK_ENTRY = f"- insert:\n    - id: scope-guard-policy\n      name: '{HOOK_PACKAGE}'\n"
 
 fragments = []
 

@@ -680,9 +680,27 @@ def test_three_arm_table_rebuilds_from_ledger_alone(tmp_path):
     ledger = root / layout.TORVE_DIR / EVAL_LEDGER
     ledger.parent.mkdir(parents=True)
     rows = {
-        "bare": {"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 3, "cost_usd": 0.01},
-        "gated": {"arm": "gated", "task": "T-0042", "state": "ready", "attempts": 4, "cost_usd": 0.02},
-        "configured": {"arm": "configured", "task": "T-0042", "state": "ready", "attempts": 5, "cost_usd": 0.03},
+        "bare": {
+            "arm": "bare",
+            "task": "T-0042",
+            "state": "ready",
+            "attempts": 3,
+            "cost_usd": 0.01,
+        },
+        "gated": {
+            "arm": "gated",
+            "task": "T-0042",
+            "state": "ready",
+            "attempts": 4,
+            "cost_usd": 0.02,
+        },
+        "configured": {
+            "arm": "configured",
+            "task": "T-0042",
+            "state": "ready",
+            "attempts": 5,
+            "cost_usd": 0.03,
+        },
     }
     record = {"schema_version": 1, "kind": "skill-eval", "arms": _rows_by_arm(**rows)}
     ledger.write_text(json.dumps(record) + "\n")
@@ -698,12 +716,26 @@ def test_three_arm_table_ignores_everything_off_the_axis(tmp_path):
     ledger = root / layout.TORVE_DIR / EVAL_LEDGER
     ledger.parent.mkdir(parents=True)
     below_axis = _rows_by_arm(
-        incumbent={"arm": "incumbent", "task": "T-0042", "state": "ready", "attempts": 2, "cost_usd": 0.01},
-        candidate={"arm": "candidate", "task": "T-0042", "state": "ready", "attempts": 1, "cost_usd": 0.02},
+        incumbent={
+            "arm": "incumbent",
+            "task": "T-0042",
+            "state": "ready",
+            "attempts": 2,
+            "cost_usd": 0.01,
+        },
+        candidate={
+            "arm": "candidate",
+            "task": "T-0042",
+            "state": "ready",
+            "attempts": 1,
+            "cost_usd": 0.02,
+        },
     )
     lines = [
         json.dumps({"schema_version": 1, "kind": "config-eval", "arms": below_axis}),
-        json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": {"bare": [{"arm": "bare"}]}}),
+        json.dumps(
+            {"schema_version": 1, "kind": "skill-eval", "arms": {"bare": [{"arm": "bare"}]}}
+        ),
         "not json",
     ]
     ledger.write_text("\n".join(lines) + "\n")
@@ -717,8 +749,12 @@ def test_three_arm_table_latest_line_wins(tmp_path):
     root = tmp_path / "repo"
     ledger = root / layout.TORVE_DIR / EVAL_LEDGER
     ledger.parent.mkdir(parents=True)
-    older = _rows_by_arm(bare={"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 3, "cost_usd": 0.01})
-    newer = _rows_by_arm(bare={"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 6, "cost_usd": 0.02})
+    older = _rows_by_arm(
+        bare={"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 3, "cost_usd": 0.01}
+    )
+    newer = _rows_by_arm(
+        bare={"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 6, "cost_usd": 0.02}
+    )
     lines = [
         json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": older}),
         json.dumps({"schema_version": 1, "kind": "skill-eval", "arms": newer}),

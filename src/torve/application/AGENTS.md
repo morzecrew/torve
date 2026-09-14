@@ -879,6 +879,36 @@ The result is reported per task across three rows, and any aggregate is a distri
 - Paths: `src/torve/application/intake.py`
 - Consequence: C1 stops being a thing to attach to whichever document is next, and becomes a thing that needs the condition it handles
 
+### S-0075/D-1 — `LOCKED` (What an attempt costs, measured per changed line)
+
+An attempt records its per-request context curve — first, median, max and sum — on every seat, reconstructed from the message usage where cache fields are absent, with the shape used named on the row and the sum checked against the receipt's own total
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/telemetry.py`
+- Consequence: the identity behind every token figure can be verified per attempt instead of trusted, and an attempt that cannot be reconstructed says so
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-2 — `ASSUMED` (What an attempt costs, measured per changed line)
+
+The burn profile classifies an attempt's tool calls — pack reads, orientation, in-scope reads, edits, test runs, lint runs, bookkeeping, other — and records calls before the first edit, reruns, calls per message, result bytes by class, compaction events and the latency medians
+
+- Paths: `src/torve/application/telemetry.py` `tests/test_attempt_record.py`
+- Consequence: every mitigation has a class that judges it, so a change can be shown to have moved what it claimed rather than argued to have
+
+### S-0075/D-3 — `LOCKED` (What an attempt costs, measured per changed line)
+
+The ledger reports cache-read tokens, wall seconds, tool calls and dollars per changed line and per file in scope, from the diff the landing already commits, beside the per-task rates it reports now
+
+- Paths: `src/torve/application/ledger.py` `src/torve/cli/ledger.py`
+- Consequence: a fixed overhead that only hurts small tasks becomes visible, and a mitigation aimed at it can be judged
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0075/D-4 — `ASSUMED` (What an attempt costs, measured per changed line)
+
+The attempt records what every request re-read: the tool and skill counts the init line already reports, the contract's row count and size, and the first request's context
+
+- Paths: `src/torve/application/telemetry.py`
+- Consequence: a change to the prefix is seen in the number rather than assumed from the diff that made it
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
