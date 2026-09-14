@@ -7,6 +7,11 @@ FROM ${BASE}
 # one-line reviewed diff, never a rebuild side effect.
 ARG DSH_VERSION=0.1.1-rc.2
 RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION} && dsh --version
+# `dsh plugin add` shells out to pnpm and exits 127 without it, which is how
+# every `routine` attempt died once the hook branch stopped dying first
+# (S-0072/D-3). Pinned like the harness above it, for the same reason.
+ARG PNPM_VERSION=12.4.1
+RUN npm install -g pnpm@${PNPM_VERSION} && pnpm --version
 # What this definition puts inside the image (S-0063/D-14): `toolkit/` is
 # `/opt/torve`, named for where its contents land, and one COPY installs the
 # lot. `/opt/torve/equip` turns the equipment manifest into whatever this
