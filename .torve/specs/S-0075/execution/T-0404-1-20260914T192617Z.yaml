@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0404
+phase: 4
+base: 091bc95ddb8ed5eb0c8c6ed86373e0c6c0e2efaf
+commit: 5ac6cad7ed19a75eb6083c6cecbf1c8d86ef4acb
+at: '2026-09-14T19:26:17Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-14T19:20:11Z'
+    attempt: 4
+    claim: >-
+      Close-out of a touched LOCKED row: the ledger section gained by hand from the
+      landing records introduces no legacy identifier and no old-form coordinate —
+      every citation it adds is the one grammar resolving in the corpus, and the page
+      stays written independently of it, restating no accepted row as generated content.
+    evidence: >-
+      pages/docs/operating.md:313 — the amended section; the corpus check over the
+      tree answers 'OK    24 document(s), 0 problem(s), 47 warning(s)', the warnings
+      all pre-existing informed_by notes on other documents
+    action: decided
