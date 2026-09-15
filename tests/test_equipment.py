@@ -960,6 +960,96 @@ def test_the_finishing_check_carries_a_ceiling_of_one_block() -> None:
     assert check.CEILING == 1
 
 
+def test_the_acceptance_commands_are_read_off_the_contract(tmp_path: Path) -> None:
+    """S-0077/D-1: what the finish runs is the contract's own list, read
+    line-wise from the projection — the top-level block and nothing under a
+    neighbouring key, so a scope glob is never mistaken for a command."""
+
+    check = _hook_script("finish_check")
+    contract = tmp_path / "contract.yaml"
+    contract.write_text(
+        "scope:\n"
+        "  allow:\n"
+        "  - tests/test_equipment.py\n"
+        "  deny: []\n"
+        "acceptance:\n"
+        "- uv run pytest\n"
+        "- 'uv run ruff check .'\n"
+        "tier: executor\n",
+        encoding="utf-8",
+    )
+
+    assert check.acceptance_commands(contract) == ["uv run pytest", "uv run ruff check ."]
+    assert check.acceptance_commands(tmp_path / "missing.yaml") == []
+
+
+def test_a_green_acceptance_says_nothing_and_a_red_one_arrives_with_its_output(
+    tmp_path: Path,
+) -> None:
+    """S-0077/D-1: the finish runs the commands on the attempt's behalf, and
+    their output reaches it only on red. Green returning nothing is the
+    point — it is the condition of being allowed to stop, not a thing to
+    read — and the red carries the command and what it printed, so the
+    attempt does not have to run it again to find out."""
+
+    check = _hook_script("finish_check")
+
+    assert check.failures(tmp_path, ["exit 0"]) == []
+    assert check.failures(tmp_path, []) == []
+
+    (problem,) = check.failures(tmp_path, ["echo pytest-said-no; exit 1"])
+
+    assert "echo pytest-said-no; exit 1" in problem
+    assert "pytest-said-no" in problem
+
+
+def test_a_failing_command_s_output_reaches_the_attempt_by_its_tail(tmp_path: Path) -> None:
+    """A runner's verdict is at the end of what it printed, so a command
+    noisier than the budget loses its head and keeps its summary."""
+
+    check = _hook_script("finish_check")
+    noise = check.ACCEPTANCE_TAIL * 2
+    (problem,) = check.failures(
+        tmp_path,
+        [f"""python3 -c "print('x' * {noise})"; echo the-summary-line; exit 2"""],
+    )
+
+    assert "the-summary-line" in problem
+    assert problem.count("x") < noise
+    assert "…" in problem  # the head that went is marked, not silently dropped
+
+
+def test_the_finish_asks_the_acceptance_even_when_the_diff_cannot_be_read(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The three questions are independent: a worktree whose git status or
+    engine cannot answer still gets its acceptance run, because a block
+    spent without it would leave the ceiling empty and the suite unrun for
+    the rest of the attempt."""
+
+    import os
+
+    check = _hook_script("finish_check")
+    task = tmp_path / ".torve" / "tasks" / "T-0001"
+    task.mkdir(parents=True)
+    (task / "contract.yaml").write_text(
+        "acceptance:\n- echo the-suite-is-red; exit 1\n", encoding="utf-8"
+    )
+
+    # No repository here and an engine that answers nothing: the owed and
+    # drift questions go unanswered, which is not a finding either way.
+    refuser = tmp_path / "bin"
+    refuser.mkdir()
+    (refuser / "uv").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (refuser / "uv").chmod(0o755)
+    monkeypatch.setenv("PATH", str(refuser) + os.pathsep + os.environ.get("PATH", ""))
+    monkeypatch.chdir(tmp_path)
+
+    (problem,) = check.question()
+
+    assert "the-suite-is-red" in problem
+
+
 # ............................. #
 # The dsh half of the hook kind (S-0072/D-3)
 
