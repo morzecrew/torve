@@ -141,14 +141,27 @@ gates:
   # read (T-0319), instead of filing a failing test under a name that says
   # coverage.
   - name: coverage-delta
-    run: "uv run pytest --cov=src --cov-report=xml -q || { echo '== the suite is red, so the coverage delta was never measured — the failure above is a failing test, not a coverage shortfall =='; exit 1; }; uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
+    run: "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report=xml -q || { echo '== the suite is red, so the coverage delta was never measured — the failure above is a failing test, not a coverage shortfall =='; exit 1; }; uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
     state: shadow
     origin: S-0036
     input: worktree
+    # What this gate judges (S-0071/D-6), which is what `--cov=src` names.
+    # Measured over 302 runs: 77 of them changed nothing under `src/` and spent
+    # 11,786 of the gate's 43,448 seconds there, seventeen going red over drift
+    # the attempt had not caused.
+    paths: [src/**]
     # Measured, not guessed: 164s median over 228 runs, 271s at p90, 600s at
     # worst. The runner sorts the battery cheapest-first on this field, so an
     # absent timeout read as zero cost and put the dearest gate in the pass
     # ahead of every gate that declares one — spec-valid included.
+    #
+    # `COVERAGE_CORE=sysmon` on the front is coverage.py over CPython's
+    # `sys.monitoring` rather than its settrace tracer. Measured on this suite:
+    # 25s plain, 47s under coverage, 30s under sysmon — so it returns about
+    # two thirds of what measuring costs, on an interpreter this project
+    # already pins. It is a word in the command rather than a knob on the
+    # entry: the gate is a shell command, and a shell command carries its own
+    # environment.
     timeout: 600
     sabotage: coverage-delta
   # The managed AGENTS.md sections beside the code, rendered from the corpus

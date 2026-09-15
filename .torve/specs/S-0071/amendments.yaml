@@ -126,3 +126,44 @@ amendments:
       The row is `LOCKED` because the cost is asymmetric and the check is cheap: an
       author cannot feel this mistake, the lint can, and the alternative to catching it
       at mint is catching it at the ceiling.
+  - id: A-4
+    at: '2026-09-15T22:51:38Z'
+    title: >-
+      The coverage-delta soak, read out loud: held at 80
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          `coverage-delta`'s soak is read out loud and the verdict recorded — promoted,
+          retired, or held with the number that says why
+        after: >-
+          `coverage-delta`'s soak is read out loud and the verdict recorded — promoted,
+          retired, or held with the number that says why; the soak was read and the
+          gate is held at 80
+      - subject: D-4
+        field: fingerprint
+        after: 0b76762ca5dd3556/4b8813709a14b5ec
+    md: |-
+      The row asked for the verdict and the number. Here they are, over 302 runs
+      of the gate in shadow:
+
+      - red 154 times, 51.2% of its runs
+      - 130 of those reds, 84.4%, are a real coverage shortfall; 10 are the
+        suite being red, where the gate says so and measures nothing
+      - where it measured, the median was 76.0% against the bar of 80, with a
+        range of 50 to 94
+      - 43,448 seconds of wall clock, 12 hours, the largest single item in the
+        battery and about three times `acceptance`
+
+      **Held at 80.** Not promoted: at a 51% red rate promotion doubles the
+      convictions, and a bar the fleet's median sits four points under is a
+      standard this repository has not yet met rather than a check it is
+      failing. Not retired either: 84% of the reds are true, so the signal is
+      real and the gate is the only thing measuring it.
+
+      What changed instead is the cost. The gate now declares that it judges
+      `src/**` (S-0071/D-6), so the 77 runs that changed nothing there are
+      skipped rather than run, and its command asks coverage.py for CPython's
+      `sys.monitoring` tracer: measured on this suite, 25s plain, 47s under
+      coverage, 30s under sysmon. The bar stays where it is until the median
+      moves, and D-1's parallel suite is why holding it is now affordable.

@@ -53,7 +53,8 @@ decisions:
     grade: ASSUMED
     text: >-
       `coverage-delta`'s soak is read out loud and the verdict recorded — promoted,
-      retired, or held with the number that says why
+      retired, or held with the number that says why; the soak was read and the gate
+      is held at 80
     paths: [.torve/gates.yaml]
     consequence: >-
       the strongest unread signal in the battery stops being unread, at a cost that
@@ -64,6 +65,7 @@ decisions:
       reach 80% — a real finding each time, discarded because nothing reads a shadow
       verdict
     cites: [S-0055/D-14]
+    fingerprint: 0b76762ca5dd3556/4b8813709a14b5ec
   - id: D-5
     grade: LOCKED
     text: >-
@@ -82,3 +84,24 @@ decisions:
       on two lines that had nothing to do with the work. The gate was right every
       time and the contract could never have been satisfied
     cites: [S-0070/D-6, S-0017/D-10]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A gate declares what it judges, and an attempt that changed none of it is reported
+      skipped rather than run
+    paths:
+      - src/torve/gates/runner.py
+      - src/torve/config/manifest.py
+      - .torve/gates.yaml
+    consequence: >-
+      a gate stops spending the battery's wall clock on attempts it has no opinion
+      about, and the record says it had none rather than showing a pass it did not
+      earn
+    rationale: >-
+      measured over 302 runs of `coverage-delta`, which measures `--cov=src`: 77 changed
+      nothing under `src/` and spent 11,786 of the gate's 43,448 seconds there, and
+      seventeen of those went red over coverage drift the attempt had not caused.
+      Skipped rather than passed because this session's whole subject is what the
+      record can be trusted to say - a gate that reports a pass it never computed
+      is the same class of fault as a cache whose key cannot move
+    cites: [D-3]

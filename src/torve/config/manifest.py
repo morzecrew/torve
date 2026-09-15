@@ -44,6 +44,12 @@ class Gate(BaseModel):
     `resolved_gates()` fills the default; the declaration itself stays absent
     so the manifest diff shows only labels the operator chose.
 
+    `paths` is what the gate judges (S-0071/D-6) — the globs whose files it
+    reads. Measured: `coverage-delta` measures `--cov=src` and spent 27% of its
+    twelve hours on attempts whose governed paths were nowhere under `src/`,
+    seventeen of which went red over drift the attempt had not caused. An
+    entry declaring no paths runs always.
+
     `sabotage` names this gate's twin — a CASES family in the sabotage suite
     or a repository test path — the evidence that the gate can convict (S-0036/D-3).
     The load refuses a twinless entry once the manifest names a twin for any
@@ -80,6 +86,11 @@ class Gate(BaseModel):
     commands: list[str] = Field(default_factory=list)
     """The acceptance fallback for runs with no task file; only applies to
     @acceptance."""
+    paths: list[str] = Field(default_factory=list)
+    """What this gate judges (S-0071/D-6). Globs; the gate runs only when the
+    attempt's diff touches one, and is reported `skipped` when it does not. An
+    entry declaring none runs on every attempt, which is the default a gate
+    without a subject wants."""
 
     # ....................... #
 

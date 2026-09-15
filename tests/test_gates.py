@@ -257,6 +257,57 @@ def test_a_later_blocking_gate_still_reports_after_an_earlier_one_fails(repo):
     assert not any("an earlier blocking gate failed" in (r.output or "") for r in report.results)
 
 
+def test_a_gate_that_judges_nothing_the_attempt_changed_is_skipped(repo):
+    """S-0071/D-6: `coverage-delta` measures `--cov=src` and spent 11,786 of its
+    43,448 seconds on attempts that changed nothing under `src/`, seventeen of
+    them going red over drift the attempt had not caused.
+
+    Skipped, never passed: a gate that reports a pass it did not compute is the
+    same fault as a cache whose key cannot move."""
+
+    from torve.gates.runner import run_gates
+
+    manifest = {
+        "schema_version": 1,
+        "scope": {"allow": [], "deny": []},
+        "gates": [
+            {
+                "name": "judges-src",
+                "run": "sh -c 'exit 1'",
+                "state": "blocking",
+                "timeout": 1,
+                "origin": "structural",
+                "paths": ["src/**"],
+            },
+            {
+                "name": "judges-everything",
+                "run": "sh -c 'exit 0'",
+                "state": "blocking",
+                "timeout": 2,
+                "origin": "structural",
+            },
+        ],
+    }
+    repo.seed(manifest=manifest)
+    repo.write("pages/docs/thing.md", "prose\n")
+    repo.commit("nothing under src")
+
+    outcomes = {r.name: r.outcome for r in run_gates(context_for(repo)).results}
+
+    # It would have failed had it run, so a pass here would be a lie and a
+    # green exit code would be one the battery had not earned.
+    assert outcomes == {"judges-src": "skipped", "judges-everything": "pass"}
+    assert run_gates(context_for(repo)).exit_code == 0
+
+    # The same gate against a diff it does judge: it runs, and it convicts.
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("under src")
+    report = run_gates(context_for(repo))
+
+    assert {r.name: r.outcome for r in report.results}["judges-src"] == "fail"
+    assert report.exit_code == 1
+
+
 def test_decisions_no_paths_is_skipped_never_passed(repo):
     decisions = [{"id": "D-9", "grade": "LOCKED", "text": "an area-less lock", "paths": []}]
     repo.seed()

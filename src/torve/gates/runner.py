@@ -14,6 +14,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from typing import Any, cast
 
 from torve.base.clock import stamp
@@ -201,6 +202,26 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
 # ....................... #
 
 
+def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
+    """Does the attempt's diff touch what this gate judges (S-0071/D-6)?
+
+    A glob matches a path directly, or as a directory prefix — `src/**` is the
+    spelling a contract's scope uses for everything under a directory, and a
+    gate's paths are read the same way so one idea has one grammar.
+    """
+
+    changed = [*ctx.changed_paths, *ctx.untracked]
+
+    return any(
+        fnmatch(path, glob) or path.startswith(glob.rstrip("*/") + "/")
+        for glob in gate.paths
+        for path in changed
+    )
+
+
+# ....................... #
+
+
 def run_gates(
     ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
 ) -> RunReport:
@@ -230,6 +251,24 @@ def run_gates(
     # 1 — so what this buys is the axes, at the price a green attempt
     # already pays for the same battery.
     for _, gate in ordered:
+        if gate.paths and not _judges_anything(gate, ctx):
+            # Reported, not omitted (S-0071/D-6): a gate that did not run is a
+            # fact about the attempt, and a record that shows a pass would say
+            # the gate had an opinion.
+            report.results.append(
+                GateResult(
+                    name=gate.name,
+                    outcome="skipped",
+                    state=gate.state,
+                    sha=ctx.head_sha,
+                    output=(
+                        f"nothing the attempt changed is under {', '.join(gate.paths)},"
+                        " which is what this gate judges"
+                    ),
+                )
+            )
+            continue
+
         if progress is not None:
             # Presentation's window into the pass (S-0018/live-status-for-long-waits): the name of
             # the gate about to run, nothing more — the runner stays silent.
