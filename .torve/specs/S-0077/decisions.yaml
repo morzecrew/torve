@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The acceptance commands are run by the finish on the attempt's behalf, and their
+      output reaches the attempt only when they fail
+    paths: [.torve/agents/hooks/implement/finish_check.py]
+    consequence: >-
+      an attempt stops running the suite to see green, because green is the condition
+      of being allowed to stop
+    rationale: >-
+      the battery re-runs the same commands after the attempt regardless, so an in-session
+      run that agrees with it bought nothing; measured after the acceptance sentence
+      landed, the battery is still 8% of calls and three or four runs an attempt
+    cites: [S-0066/D-5, S-0073/D-6]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The finish names the governed rows the diff touches and which of them have no
+      entry, so the attempt writes the entries rather than discovering it owes them
+    paths: [.torve/agents/hooks/implement/finish_check.py]
+    consequence: >-
+      the `log owed` poll before and after the entries stops being two round trips
+      asking a question the engine can answer
+    rationale: >-
+      bookkeeping is 6% of calls after the sentences landed, and `decisions-reported`
+      already computes exactly this set in order to convict on it
+    cites: [S-0073/D-7]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Both are reverted if attempts per landing rises, whatever happens to the turn
+      count they were meant to remove
+    paths: [.torve/agents/hooks/implement/finish_check.py]
+    consequence: >-
+      a change that buys turns by making attempts fail more often is caught by the
+      number it damaged rather than defended by the one it moved
+    rationale: >-
+      the round trips being removed are the model checking its own work, and the confidence
+      they buy may be what keeps attempts off the poison ceiling — S-0073/D-5 was
+      measured at zero effect and this one could plausibly measure negative
+    cites: [S-0076/D-3]

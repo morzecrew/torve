@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0077
+title: The turns the engine could have taken itself
+kind: design
+status: accepted
+implementation: none
+depends_on: [S-0075]
+informed_by: [S-0073, S-0076]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Seventeen percent of an attempt's round trips do work the engine could have done without asking: running the acceptance it will run again anyway, and recording rows the landing diff already names. Each costs a full request at 9.2 seconds and 72k of context, and none of it is the model thinking.
+motivation: |
+  `cache_read` is requests times context. The context term has a measured floor of 29,215 tokens that belongs to the harness, so every remaining saving is a request not made.
+
+  Classifying 2,135 tool calls says which requests are candidates. Reading is 59% and is the model working — it cannot be taken away without taking the work away. But the battery and the bookkeeping are deterministic: the engine already runs the acceptance after the attempt, and the landing diff already names every governed file. Those round trips buy the model confidence, not the engine correctness.
+current_state: |
+  **The sentences helped and stopped short.** S-0073/D-6 and S-0073/D-7 asked for the acceptance once and the log in one call. Measured either side: the deterministic share fell from 27% to 17%, the battery from 15% to 8%, and the todo tool from 3% to nothing. What is left is a floor the asking cannot reach — an attempt still runs the suite three or four times because it wants to see green before it stops.
+
+  **The engine runs it again regardless.** Every landing re-runs the acceptance in the battery, outside the session. An in-session run that agrees with it was a round trip spent on a fact the engine was going to establish anyway.
+
+  **The Stop hook already blocks.** S-0066/D-5's `finish_check` runs at the stop and refuses a finish that owes a divergence entry, so the shape for handing a verdict back without a turn already exists and is proven.
+goals: |
+  An attempt that runs the acceptance once, at the finish, without having asked for it — and is told the answer only when it is red.
+
+  The round trips that remain are reading, editing and deciding.
+non_goals: |
+  Nothing here touches reading. It is 59% of the calls and it is the work; the hand-over in S-0076 is what addresses it and this document does not duplicate that.
+
+  No turn cap. A bound on how many times a model may ask is a different instrument with a different failure mode, and the measured floor does not need one.
+design:
+  - key: the-finish-already-blocks
+    md: |-
+      The Stop hook is the one place in an attempt where the engine gets a turn for free. It already runs at the stop, already refuses a finish that owes a divergence entry (S-0066/D-5), and the refusal already carries text the model reads. Nothing about running the acceptance there is new machinery — it is one more thing checked in a place that is already checking.
+
+      What makes it a saving rather than a move is the asymmetry: a green run says nothing and costs no turn, and a red one costs the turn it was always going to cost. The attempt stops running the suite to see green because green becomes the condition of being allowed to stop, not a thing to go and look at.
+  - key: a-question-the-engine-can-answer
+    md: |-
+      `torve log owed` is a poll: the model asks which governed rows it still owes an entry for, before writing and again after. The engine computes that set already — `decisions-reported` has to, in order to convict on it — so the answer exists before the question is asked.
+
+      Naming the owed rows in the refusal turns two round trips into none. The attempt learns what it owes at the only moment the answer is final, which is the moment it tries to stop.
+  - key: what-would-make-this-wrong
+    md: |-
+      Both rows take away round trips the model was spending on itself, and confidence is not obviously worthless. A model that never sees its tests pass may stop sooner and land worse; the turns it spends looking may be what keeps attempts off the poison ceiling.
+
+      So the guard is not the turn count. It is attempts per landing, and the locked row reverts on that number rising whatever happens to the one this document is trying to move. S-0073/D-5 asked for a behaviour and measured zero; this asks for the absence of one, and could measure worse than zero.
+tests: |
+  The twin for the suppression is an attempt whose edits are wrong: the finish must be refused with the failure attached, not allowed through because nobody looked.
+
+  The counts are already instrumented — S-0075/D-2's `battery` and `bookkeeping` classes read from the trace, so before and after is a query rather than a new measurement.
+docs: |
+  The operating guide gains what the finish does on the attempt's behalf, because an attempt that never ran the suite and landed anyway is otherwise surprising.
+out_of_scope: |
+  The tool-declaration prefix. `--tools` narrows it and an arm exists; what nineteen declarations weigh is a measurement, not a design.
+
+  Routing by cost. The 2.8× per changed line between seats is the largest difference in the corpus and it is a decision about seats, not about turns.
+risks: |
+  **Confidence may be doing real work.** A model that cannot see its tests pass may stop earlier and land worse, and the round trips it spends looking may be what keeps attempts off the poison ceiling. The locked row below is the guard, and it reverts on attempts per landing rather than on the count it is trying to move.
+
+  **A red verdict arrives late.** Handing failures back only at the finish means a model learns of them after it has stopped thinking about the code, which may cost more turns than it saves. The measurement is turns per landing, not turns.

@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the finish runs the acceptance
+    intent: >-
+      The Stop hook runs the contract's acceptance commands and refuses the finish
+      with the failure attached; a green run says nothing. Settles D-1 and D-3's first
+      half.
+    scope: [.torve/agents/hooks/implement/finish_check.py, tests/test_equipment.py]
+    acceptance:
+      - uv run pytest
+    character: structural
+  - phase: 2
+    title: the finish says which rows are owed
+    intent: >-
+      The same refusal names the governed rows the diff touches with no entry against
+      them, so the attempt writes rather than polls. Settles D-2.
+    scope: [.torve/agents/hooks/implement/finish_check.py, tests/test_equipment.py]
+    acceptance:
+      - uv run pytest
+    depends_on:
+      - 1
+    character: structural
