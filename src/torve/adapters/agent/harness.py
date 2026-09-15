@@ -1267,6 +1267,7 @@ def parse_tool_calls(trace: Path, workdir: str = "") -> list[dict[str, Any]]:
 
     facts: list[dict[str, Any]] = []
     by_id: dict[str, dict[str, Any]] = {}
+    ordinals: dict[str, int] = {}
     message = 0
     init_seen = False
 
@@ -1286,6 +1287,27 @@ def parse_tool_calls(trace: Path, workdir: str = "") -> list[dict[str, Any]]:
                 continue
 
             record = cast("dict[str, Any]", data)
+            event_type = record.get("type")
+
+            # The ordinal names the request, not the line. Measured on claude
+            # 2.1.x: an assistant turn is emitted one line per content block —
+            # text, then a tool_use, then a second tool_use — every one of them
+            # repeating the same `message.id`. Counting lines therefore gave
+            # every call a message of its own and made `calls_per_message`
+            # exactly 1.000 on every attempt ever recorded, which read as a
+            # property of the models and was a property of the scan. The curve
+            # learned this first and joins on the same id (S-0075/D-5).
+            #
+            # A line the stream gives no id is counted on its own, because
+            # there is nothing to join it to (S-0004/D-6) — and only when it is
+            # turn-bearing, so a result envelope claims no ordinal.
+            key = _request_id(record)
+
+            if not key and isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
+                key = f"#{len(ordinals)}"
+
+            if key:
+                message = ordinals.setdefault(key, len(ordinals))
 
             if record.get("subtype") in _COMPACT_SUBTYPES:
                 facts.append({"name": _COMPACT_FACT, "message": message})
@@ -1314,15 +1336,6 @@ def parse_tool_calls(trace: Path, workdir: str = "") -> list[dict[str, Any]]:
 
                 if answered is not None:
                     answered.update(fields)
-
-            event_type = record.get("type")
-
-            # The message ordinal is the turn-bearing line's own index, the
-            # numbering `parse_burn` counts turns by — so calls per message
-            # means the same thing on a harness that emits events and one that
-            # emits steps.
-            if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
-                message += 1
 
     return facts
 

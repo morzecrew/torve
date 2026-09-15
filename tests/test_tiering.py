@@ -1390,7 +1390,13 @@ def profile_stream(workdir):
     opening inventory line, calls across three messages, the results that
     answer them, a compaction event, and a closing envelope. The read and edit
     name the in-sandbox absolute path a harness actually logs, which is what
-    the scan has to relativise before a scope glob can match it."""
+    the scan has to relativise before a scope glob can match it.
+
+    The second message issues two calls and spends three lines doing it —
+    text, then one tool_use, then the other, all carrying one `id`. That is
+    the shape claude 2.1.x actually emits, and a fixture that packed the
+    blocks into one line is why a scan counting lines instead of ids passed
+    its own test while reporting 1.000 calls per message on every attempt."""
 
     return "\n".join(
         [
@@ -1399,7 +1405,8 @@ def profile_stream(workdir):
                 '"skills":["working-rules"],"mcp_servers":[],"agents":["Explore"]}'
             ),
             (
-                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"1",'
+                '{"type":"assistant","message":{"id":"msg_a","content":['
+                '{"type":"tool_use","id":"1",'
                 '"name":"Glob","input":{"pattern":"**/*.py"}}],'
                 '"usage":{"input_tokens":10,"output_tokens":20}}}'
             ),
@@ -1408,8 +1415,18 @@ def profile_stream(workdir):
                 '"tool_use_id":"1","content":"a.py\\nb.py"}]}}'
             ),
             (
-                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"2",'
-                f'"name":"Read","input":{{"file_path":"{workdir}/src/widget.py"}}}},'
+                '{"type":"assistant","message":{"id":"msg_b",'
+                '"content":[{"type":"text","text":"reading the widget"}],'
+                '"usage":{"input_tokens":60,"output_tokens":40}}}'
+            ),
+            (
+                '{"type":"assistant","message":{"id":"msg_b","content":['
+                '{"type":"tool_use","id":"2",'
+                f'"name":"Read","input":{{"file_path":"{workdir}/src/widget.py"}}}}],'
+                '"usage":{"input_tokens":60,"output_tokens":40}}}'
+            ),
+            (
+                '{"type":"assistant","message":{"id":"msg_b","content":['
                 '{"type":"tool_use","id":"3","name":"Edit",'
                 f'"input":{{"file_path":"{workdir}/src/widget.py"}}}}],'
                 '"usage":{"input_tokens":60,"output_tokens":40}}}'
@@ -1422,7 +1439,8 @@ def profile_stream(workdir):
             ),
             '{"type":"system","subtype":"compact_boundary"}',
             (
-                '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"4",'
+                '{"type":"assistant","message":{"id":"msg_c","content":['
+                '{"type":"tool_use","id":"4",'
                 '"name":"Bash","input":{"command":"pytest -q"}}],'
                 '"usage":{"input_tokens":90,"output_tokens":15}}}'
             ),
@@ -1469,7 +1487,9 @@ def test_parse_tool_calls_emits_the_facts_the_classifier_reads(tmp_path):
             "bytes": 2,
             "latency_ms": 70,
         },
-        {"name": "SessionStart:compact", "message": 2},
+        # The boundary line carries no id and bears no turn, so it belongs to
+        # the message it followed rather than claiming one of its own.
+        {"name": "SessionStart:compact", "message": 1},
         {
             "name": "Bash",
             "input": {"command": "pytest -q"},
@@ -1478,6 +1498,10 @@ def test_parse_tool_calls_emits_the_facts_the_classifier_reads(tmp_path):
             "latency_ms": 8100,
         },
     ]
+    # Two of the four calls rode one message, which is the whole point: the
+    # scan joins on the id, so three lines spending one turn are one message
+    # and `calls_per_message` can say something other than 1.000.
+    assert [fact["message"] for fact in facts if fact.get("input")] == [0, 1, 1, 2]
     # The scan and the harness's own per-turn count never disagree about what
     # a call is: a tool_result answers a call, it is not one.
     assert (
