@@ -3,7 +3,7 @@ id: S-0074
 title: What the engine is worth against a bare harness
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0065]
 informed_by: [S-0026, S-0035, S-0055]
 supersedes: []
