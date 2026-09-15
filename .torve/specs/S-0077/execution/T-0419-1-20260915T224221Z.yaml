@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0419
+phase: 2
+base: b7ff170ad286fbbc689525c896f3c27b7df807a6
+commit: 0332f1c0d10904c94b0cf9cd1b39d077785334a0
+at: '2026-09-15T22:42:21Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T22:39:33Z'
+    claim: >-
+      the owed half is built as the row requires: the revert condition is written
+      beside it and the whole surface is two functions and one call site, so reverting
+      is deleting them and restoring nothing else
+    evidence: >-
+      .torve/agents/hooks/implement/finish_check.py:140-231 — touched_paths() and
+      owed_entries() with their single call in question(); the module docstring at
+      :13-18 names the revert condition for both halves
+    action: decided
+    notes: >-
+      The status-only reading it replaces disagreed with the gate whenever an attempt
+      committed its work: the gate convicts over the diff since the base, so the finish
+      now asks the same set.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T22:39:42Z'
+    claim: >-
+      restates entry 1, which cited the row by its short identifier and so left the
+      silence check unanswered; the finding is unchanged — the owed half is built
+      as the row requires, its revert condition written beside it, and the whole surface
+      is two functions and one call site
+    evidence: >-
+      .torve/agents/hooks/implement/finish_check.py:140-231 — touched_paths() and
+      owed_entries() with their single call in question(); the module docstring at
+      :13-18 names the revert condition for both halves
+    action: decided
+    notes: >-
+      Supersedes entry 1 on identifier only. The status-only reading it replaces disagreed
+      with the gate whenever an attempt committed its work.
