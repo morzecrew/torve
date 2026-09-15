@@ -482,6 +482,130 @@ def _defines(node: ast.AST, prefix: str) -> Iterator[tuple[int, str]]:
 
 # ....................... #
 
+# The size, in characters, under which the scope arrives as contents rather
+# than as an outline (S-0076/D-2). A calibration knob rather than a truth:
+# roughly a module and its test, past which the bodies cost more context than
+# the reads they save. Deliberately not a key in the runner's configuration —
+# every section of that file loads under a model that forbids an unknown key,
+# and the model is outside this scope; the divergence log carries the reason.
+SCOPE_BUDGET = 60_000
+
+# The fence hint per suffix, for the ones this repository's scopes name. An
+# unlisted suffix gets a bare fence, which renders the same minus colour.
+LANGS = {
+    ".py": "python",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".json": "json",
+    ".md": "markdown",
+    ".toml": "toml",
+    ".sh": "bash",
+}
+
+
+def scope_file(root: Path, task: Task, tests: dict[str, Any], budget: int = SCOPE_BUDGET) -> str:
+    """The files `scope.allow` names and the tests `tests.json` names, as one
+    document (S-0076/D-2): their contents when they fit under *budget*, an
+    outline of the same files when they do not. Either way the sixteen reads a
+    small attempt spends opening what the contract already named become one.
+
+    Empty when the scope and the named tests reach no readable file, so a pack
+    with nothing to say adds no file and no index line."""
+
+    bodies: list[tuple[str, str]] = []
+
+    for rel in _in_scope(root, task, tests):
+        try:
+            bodies.append((rel, (root / rel).read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError):
+            continue
+
+    if not bodies:
+        return ""
+
+    total = sum(len(text) for _, text in bodies)
+    whole = total <= budget
+    lines = [
+        "# The files this scope names",
+        "",
+        f"The scope's own files and the tests that name them — {len(bodies)} files,"
+        f" {total} characters,"
+        + (
+            f" under the {budget} the pack carries whole. Nothing here needs opening again."
+            if whole
+            else f" over the {budget} the pack carries whole, so what follows is an outline:"
+            " what each file defines and where. Open a file for a body."
+        ),
+        "",
+    ]
+
+    for rel, text in bodies:
+        lines += [f"## `{rel}` — {len(text.splitlines())} lines", ""]
+
+        if whole:
+            fence = _fence(text)
+            lines += [fence + LANGS.get(Path(rel).suffix, ""), text.rstrip("\n"), fence, ""]
+        else:
+            lines += [f"- `{rel}:{line} {what}`" for line, what in _outline(rel, text)] or [
+                "No definitions to outline."
+            ]
+            lines += [""]
+
+    return "\n".join(lines)
+
+
+def _in_scope(root: Path, task: Task, tests: dict[str, Any]) -> list[str]:
+    """The paths under `scope.allow` and not under `scope.deny`, plus the tests
+    `tests_file` named for them. An empty allow list means unconstrained, which
+    is every file in the tree — so it contributes nothing here and the named
+    tests stand alone: a pack is not the place to inline a repository."""
+
+    allow = GitIgnoreSpec.from_lines(task.scope.allow) if task.scope.allow else None
+    deny = GitIgnoreSpec.from_lines(task.scope.deny) if task.scope.deny else None
+    named = {str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])}
+    found: set[str] = set()
+
+    for parent, dirs, names in root.walk():
+        dirs[:] = [name for name in dirs if name not in UNWALKED]
+
+        for name in names:
+            rel = (parent / name).relative_to(root).as_posix()
+
+            if rel in named or (
+                allow is not None
+                and allow.match_file(rel)
+                and not (deny is not None and deny.match_file(rel))
+            ):
+                found.add(rel)
+
+    return sorted(found)
+
+
+def _outline(rel: str, text: str) -> list[tuple[int, str]]:
+    """What a file defines, for the over-budget form — the same reading
+    `symbols.txt` is built from, over the scope rather than the tree. A file
+    `ast` cannot parse, and any file that is not Python, outlines to nothing."""
+
+    if not rel.endswith(".py"):
+        return []
+
+    try:
+        return list(_defines(ast.parse(text), ""))
+    except (SyntaxError, ValueError):
+        return []
+
+
+def _fence(text: str) -> str:
+    """A fence longer than the longest backtick run the file holds, so a body
+    that is itself markdown cannot close the block it sits in."""
+
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+
+    return "`" * max(3, longest + 1)
+
+
+# ....................... #
+
 
 def build(
     root: Path, rfc_dir: Path, task: Task, manifest_path: Path, *, replay: bool = False
@@ -506,7 +630,14 @@ def build(
         put("source.json", asked)
 
     put("gates.json", gates_file(root, task, manifest_path))
-    put("tests.json", tests_file(root, task))
+
+    tests = tests_file(root, task)
+    put("tests.json", tests)
+
+    scope = scope_file(root, task, tests)
+
+    if scope:
+        files["scope.md"] = scope
 
     if not replay:
         put("attempts.json", attempts_file(root, task))
@@ -555,6 +686,15 @@ def render_index(files: dict[str, str], task: Task) -> str:
             "- `symbols.txt` — every class, function, method and module constant the tree defines,",
             "  one per line as `path:line name`. Grep it for a name rather than searching the tree;",
             "  it is a file to grep, not a file to read.",
+            *(
+                [
+                    "- `scope.md` — the files this scope names and the tests that name them,",
+                    "  whole when they fit and as an outline when they do not. One read instead",
+                    "  of one per file; it says at the top which form it took.",
+                ]
+                if "scope.md" in files
+                else []
+            ),
             "",
         ]
     )

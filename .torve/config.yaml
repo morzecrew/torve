@@ -42,6 +42,12 @@ unmeasured_images: allow
 
 poison_ceiling: 3            # checked before dispatch; reached -> escalated
 
+# S-0076/D-2's size — under it the context pack carries the in-scope files and
+# their tests whole, over it an outline of the same files — is NOT a key here.
+# Every section of this file loads under a model that forbids an unknown key,
+# so the knob is `SCOPE_BUDGET` in `src/torve/application/contextpack.py` until
+# a task whose scope reaches `src/torve/config/runconfig.py` moves it here.
+
 reap:
   stale_after: 600           # non-terminal run with an older heartbeat is orphaned
 

@@ -433,3 +433,59 @@ def test_the_symbols_file_names_the_whole_tree_and_the_index_names_it(tmp_path: 
     assert not [line for line in lines if "vendored" in line or "broken" in line]
 
     assert "`symbols.txt`" in files["index.md"]
+
+
+def test_a_small_scope_arrives_whole_and_a_large_one_as_an_outline(tmp_path: Path) -> None:
+    """S-0076/D-2: under the budget the in-scope files and the tests naming
+    them are one document of contents; over it, one document of outlines of
+    the same files. Either way the reads the contract already named cost one."""
+
+    from torve.application.contextpack import scope_file, tests_file
+
+    rfc_dir = _seed(tmp_path)
+    body = "LIMIT = 3\n\n\nclass Widget:\n    def spin(self):\n        pass\n"
+    (tmp_path / "src" / "a" / "thing.py").write_text(body, encoding="utf-8")
+    (tmp_path / "tests" / "test_thing.py").write_text("def test_spin():\n    pass\n", "utf-8")
+    (tmp_path / "src" / "b").mkdir(parents=True)  # outside the scope, never carried
+    (tmp_path / "src" / "b" / "other.py").write_text("def fetch():\n    pass\n", "utf-8")
+
+    files = build(tmp_path, rfc_dir, _task(), tmp_path / "missing-gates.yaml")
+    whole = files["scope.md"]
+
+    assert "class Widget:" in whole and "def test_spin():" in whole
+    assert "src/b/other.py" not in whole
+    assert "`scope.md`" in files["index.md"]  # named, because it is behind a read
+
+    tests = tests_file(tmp_path, _task())
+    outline = scope_file(tmp_path, _task(), tests, budget=10)
+
+    assert "class Widget:" not in outline  # no bodies over the budget
+    assert "- `src/a/thing.py:4 class Widget`" in outline
+    assert "- `src/a/thing.py:5 def Widget.spin`" in outline
+    assert "- `tests/test_thing.py:1 def test_spin`" in outline
+
+
+def test_a_scope_carrying_markdown_cannot_close_its_own_fence(tmp_path: Path) -> None:
+    """A body that is itself markdown gets a fence longer than any run it
+    holds, so the document stays one document."""
+
+    from torve.application.contextpack import scope_file, tests_file
+
+    _seed(tmp_path)
+    (tmp_path / "src" / "a" / "thing.py").write_text('x = """\n```\n"""\n', encoding="utf-8")
+
+    scope = scope_file(tmp_path, _task(), tests_file(tmp_path, _task()))
+
+    assert "````python" in scope and scope.count("````") == 2
+
+
+def test_an_unconstrained_scope_inlines_no_repository(tmp_path: Path) -> None:
+    """An empty allow list means unconstrained (S-0002/scope-in-detail), which
+    is every file in the tree — so it carries none of them."""
+
+    from torve.application.contextpack import scope_file
+
+    _seed(tmp_path)
+    unconstrained = Task(id="T-0501", decisions=[])
+
+    assert scope_file(tmp_path, unconstrained, {"named_tests": []}) == ""
