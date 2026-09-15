@@ -1050,6 +1050,88 @@ def test_the_finish_asks_the_acceptance_even_when_the_diff_cannot_be_read(
     assert "the-suite-is-red" in problem
 
 
+def _scratch_repo(where: Path) -> None:
+    """A repository with a `main` and a task branch ahead of it, so a diff
+    against the base carries committed work the status would not show."""
+
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+            cwd=where,
+            check=True,
+            capture_output=True,
+        )
+
+    git("init", "-q", "-b", "main", ".")
+    git("commit", "-q", "--allow-empty", "-m", "base")
+    git("checkout", "-q", "-b", "task")
+
+
+def test_the_finish_reads_the_diff_the_battery_will_read_not_the_status(tmp_path: Path) -> None:
+    """S-0077/D-2: committed work, uncommitted work and an untracked file are
+    all in the set the gate convicts over, so all three reach the silence
+    check — a status-only answer would go quiet the moment an attempt
+    committed."""
+
+    import subprocess
+
+    check = _hook_script("finish_check")
+    _scratch_repo(tmp_path)
+    (tmp_path / "committed.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "committed.py"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "work"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    (tmp_path / "dirty.py").write_text("y = 2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "dirty.py"], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "untracked.py").write_text("z = 3\n", encoding="utf-8")
+
+    assert check.touched_paths(tmp_path) == ["committed.py", "dirty.py", "untracked.py"]
+
+    # A directory that is no repository answers nothing, and nothing is not a
+    # finding: the gate stays the judge.
+    assert check.touched_paths(tmp_path / "committed.py") == []
+
+
+def test_the_owed_rows_arrive_named_with_the_one_call_that_writes_them(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """S-0077/D-2: the block carries the engine's own account of each LOCKED
+    row the diff touches with no entry, plus how to write them in one call —
+    the set being complete is what removes the poll. Nothing touched, or an
+    engine that cannot answer, is silence."""
+
+    import os
+
+    check = _hook_script("finish_check")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "uv").write_text(
+        "#!/bin/sh\n"
+        'printf \'{"owed": ["decision D-9: LOCKED, and the diff touches 1 file(s)"],'
+        ' "skipped": []}\'\n',
+        encoding="utf-8",
+    )
+    (fake / "uv").chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake) + os.pathsep + os.environ.get("PATH", ""))
+
+    named, howto = check.owed_entries(tmp_path, "T-0001", ["src/a.py"])
+
+    assert "decision D-9: LOCKED" in named
+    assert "torve log divergence T-0001" in howto
+
+    assert check.owed_entries(tmp_path, "T-0001", []) == []
+
+    (fake / "uv").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+
+    assert check.owed_entries(tmp_path, "T-0001", ["src/a.py"]) == []
+
+
 # ............................. #
 # The dsh half of the hook kind (S-0072/D-3)
 

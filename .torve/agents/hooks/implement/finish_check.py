@@ -10,8 +10,12 @@ attached.
 The acceptance commands are run here, on the attempt's behalf, and reach it
 only when they fail (S-0077/D-1): an attempt that would otherwise run the
 suite to see green does not need to, because green is the condition of being
-allowed to stop. This is reverted if attempts per landing rises, whatever
-happens to the turn count it was meant to remove (S-0077/D-3).
+allowed to stop. The same block names the governed rows the diff touches
+with no entry against them (S-0077/D-2), over the diff the battery will
+read rather than over the working tree's status, so the attempt writes the
+entries instead of polling for them. Both are reverted if attempts per
+landing rises, whatever happens to the turn count they were meant to remove
+(S-0077/D-3).
 
 The ceiling is the point. A condition the model cannot clear (drift outside
 its scope, say) would otherwise re-fire every turn until the turn budget
@@ -23,7 +27,6 @@ acceptance unrun for the rest of the attempt.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import subprocess
 import sys
@@ -122,6 +125,91 @@ def failures(root: Path, commands: list[str]) -> list[str]:
     return problems
 
 
+def _git(root: Path, *args: str) -> str | None:
+    """What the git command printed, or None when it could not be run or
+    refused — a question git cannot answer is not a finding."""
+
+    try:
+        run = subprocess.run(["git", *args], capture_output=True, text=True, cwd=root)
+    except OSError:
+        return None
+
+    return run.stdout if run.returncode == 0 else None
+
+
+def touched_paths(root: Path) -> list[str]:
+    """The files the battery's diff will carry: everything changed since the
+    base the gates resolve — committed or not — plus what is untracked.
+
+    `git status` alone is not that set (S-0077/D-2). An attempt that commits
+    its work leaves a clean status and a diff full of governed files, so a
+    silence check asked over the status agrees with the gate exactly when it
+    does not matter. The base is resolved the way the gate context resolves
+    it; with no base at all, uncommitted changes are all a diff could carry.
+    """
+
+    merge = next(
+        (
+            found.strip()
+            for base in ("origin/main", "main")
+            if (found := _git(root, "merge-base", base, "HEAD"))
+        ),
+        "",
+    )
+
+    if merge:
+        changed = (_git(root, "diff", "--name-only", "-M", merge) or "").splitlines()
+    else:
+        changed = [
+            line[3:].split(" -> ")[-1].strip("'\"")
+            for line in (_git(root, "status", "--porcelain") or "").splitlines()
+            if line[3:].strip()
+        ]
+
+    changed += (_git(root, "ls-files", "--others", "--exclude-standard") or "").splitlines()
+
+    return sorted({path for path in changed if path})
+
+
+def owed_entries(root: Path, task_id: str, touched: list[str]) -> list[str]:
+    """The LOCKED rows those files are governed by with no entry citing them,
+    each as the engine states it, and how to write them (S-0077/D-2).
+
+    The set is the one `decisions-reported` convicts on, so the attempt has
+    no reason to ask for it again — which is the round trip this replaces.
+    """
+
+    if not touched:
+        return []
+
+    args = ["uv", "run", "torve", "log", "owed", task_id, "--format", "json"]
+    args += [one for path in touched for one in ("--touched", path)]
+
+    try:
+        run = subprocess.run(args, capture_output=True, text=True, cwd=root)
+    except OSError:
+        return []
+
+    if run.returncode != 0:
+        return []
+
+    try:
+        rows = [str(one) for one in json.loads(run.stdout)["owed"]]
+    except (ValueError, KeyError, TypeError):  # an unparseable answer is no answer
+        return []
+
+    if not rows:
+        return []
+
+    howto = (
+        f"write them in one `uv run torve log divergence {task_id} …` call, one "
+        "--decision/--grade/--kind/--class/--claim/--evidence/--action row each; "
+        "that is every entry owed, so there is nothing left to ask for"
+    )
+
+    return [f"the log owes an entry — {row}" for row in rows] + [howto]
+
+
 def question() -> list[str]:
     """What the attempt still owes, as of this stop, or nothing if asked
     and clean. None when the check itself could not run — an inquiry that
@@ -139,28 +227,7 @@ def question() -> list[str]:
     task_id = contracts[0].parent.name
     problems: list[str] = failures(root, acceptance_commands(contracts[0]))
 
-    changed = subprocess.run(
-        ["git", "status", "--porcelain"],
-        capture_output=True,
-        text=True,
-        cwd=root,
-    )
-
-    if changed.returncode == 0:
-        touched = [
-            line[3:].split(" -> ")[-1].strip("'\"")
-            for line in changed.stdout.splitlines()
-            if line[3:].strip()
-        ]
-
-        args = ["uv", "run", "torve", "log", "owed", task_id, "--format", "json"]
-        args += [one for path in touched for one in ("--touched", path)]
-
-        owed = subprocess.run(args, capture_output=True, text=True, cwd=root)
-
-        if owed.returncode == 0:
-            with contextlib.suppress(ValueError, KeyError):  # unparseable answer is no answer
-                problems += [f"the log owes {one}" for one in json.loads(owed.stdout)["owed"]]
+    problems += owed_entries(root, task_id, touched_paths(root))
 
     drift = subprocess.run(
         ["uv", "run", "torve", "spec", "project", "--check"],
