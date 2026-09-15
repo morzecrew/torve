@@ -77,6 +77,16 @@ if [ -s "${TORVE_SYSTEM_PROMPT:-}" ]; then
     set -- "$@" --append-system-prompt "$(cat "$TORVE_SYSTEM_PROMPT")"
 fi
 
+# Which of claude's built-in tools this seat declares. Every declaration is in
+# the system prompt and therefore multiplied by every request; measured over
+# 118 traces, an attempt of this engine's uses nine tool names and the image
+# declares twenty-three. The engine names the set so a seat can be narrowed
+# without a second image, and the default stays claude's own — narrowing is a
+# decision someone writes down, not a property of running here.
+if [ -n "${TORVE_TOOLS:-}" ]; then
+    set -- "$@" --tools "$TORVE_TOOLS"
+fi
+
 # The door (S-0066/D-1). The worktree arrives carrying files other readers
 # wrote — `.mcp.json`, `.claude/skills`, `.claude/agents`, `CLAUDE.md` — and
 # claude reads every one of them unasked. None is equipment, none is pinned,
