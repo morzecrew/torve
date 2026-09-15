@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0414
+phase: 2
+base: 47cf3a51b1fc9e45e10cc08fc538e4844a87c88f
+commit: e3ecc6963efd0ab195ddd240f7c8bce546f50653
+at: '2026-09-15T16:04:00Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-15T16:01:22Z'
+    claim: >-
+      the size cannot be a key in .torve/config.yaml: every section of that file loads
+      under a model that forbids unknown keys, and the model's file is outside scope.allow,
+      so the budget is SCOPE_BUDGET in contextpack.py with a breadcrumb comment left
+      in config.yaml; it becomes a key once a task's scope reaches runconfig.py
+    evidence: >-
+      src/torve/base/model.py:14 — STRICT is ConfigDict(extra="forbid"), which every
+      RunnerConfig section carries; RunnerConfig itself is src/torve/config/runconfig.py:1465,
+      a path this task's scope.allow does not name
+    action: departed
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T16:01:22Z'
+    claim: >-
+      the hand-over is judged by orientation class and landing rate together and reverted
+      if orientation falls while attempts per landing rises; this attempt adds the
+      hand-over and no measurement, so the judgement is read from the ledger and the
+      revert is deleting the one file the pack gained
+    evidence: >-
+      src/torve/application/contextpack.py:524 — scope_file is the whole of the hand-over
+      D-3 judges, and build() writes its one file under one name, so a revert is one
+      deletion
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T16:02:07Z'
+    claim: >-
+      close-out for S-0076/D-3, restated under the full row id the silence check matches
+      on: the hand-over added here is judged by orientation class and landing rate
+      together, and reverted if orientation falls while attempts per landing rises;
+      the earlier entry in this log says the same under the short id D-3
+    evidence: >-
+      src/torve/application/contextpack.py:524 — scope_file is the whole of the hand-over
+      D-3 judges, and build() writes its one file under one name, so a revert is one
+      deletion
+    action: decided
