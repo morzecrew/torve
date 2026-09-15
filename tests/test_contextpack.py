@@ -483,7 +483,9 @@ def test_a_small_scope_arrives_whole_and_a_large_one_as_an_outline(tmp_path: Pat
 
     assert "class Widget:" in whole and "def test_spin():" in whole
     assert "src/b/other.py" not in whole
-    assert "`scope.md`" in files["index.md"]  # named, because it is behind a read
+    # S-0076/A-1: handed over, so the index does not tell anyone to open it.
+    assert "`scope.md`" not in files["index.md"]
+    assert "the in-scope files themselves" in files["index.md"]
 
     tests = tests_file(tmp_path, _task())
     outline = scope_file(tmp_path, _task(), tests, budget=10)

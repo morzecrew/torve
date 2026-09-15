@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-15T22:38:00Z'
+    title: >-
+      The scope's files ride with the task, because a file written for nobody is not
+      delivery
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          For a scope under a configured size, the in-scope files' contents and the
+          tests `tests.json` names are delivered with the task; over it, an outline
+          of the same files is delivered instead
+        after: >-
+          For a scope under a configured size, the in-scope files' contents and the
+          tests `tests.json` names arrive in the attempt's first message; over it,
+          an outline of the same files arrives instead
+      - subject: D-2
+        field: fingerprint
+        after: 850b75f1f446a53f/495cd1ccd54af946
+    md: |-
+      The row said "delivered with the task" and the build wrote a file, which is
+      a different thing. Measured over eleven attempts, two opened `scope.md` -
+      while the same attempts read the files it holds about thirty-four times
+      between them, in slices. The consequence this row claimed, sixteen reads
+      becoming one, never happened: they became zero reads of the document and
+      sixteen of the files.
+
+      A file costs a round trip and a decision to trust it; a grep costs a round
+      trip and no trust. That is why a file written for the attempt loses to the
+      attempt's own search, and why `symbols.txt` (three attempts of eleven) and
+      `decisions.json` (three) sit unopened beside it.
+
+      So it rides in the first message with the pack's other small files
+      (S-0076/D-1). The budget is untouched and is what makes this safe: whole
+      under it, an outline over it, so what is carried is bounded either way.
+      What stays behind a read is what an attempt may genuinely not want -
+      `decisions.json` and the schemas - and that is now the only reason for a
+      pack file to be a file.

@@ -72,6 +72,14 @@ SKILLS_RELPATH = ".torve/skills"
 # until someone decides it belongs in every request's context.
 # `decisions.json` is deliberately absent — 17.5 KB and often unopened — and
 # the schemas with it.
+#
+# `scope.md` joined them (S-0076/A-1). It was written to turn sixteen reads into
+# one and measured into none: two attempts of eleven opened it, while the same
+# attempts read the files it holds about thirty-four times between them. A file
+# costs a round trip and a decision to trust it; a grep costs a round trip and
+# no trust, so the grep wins and the file is written for nobody. It is already
+# bounded — whole under the pack's budget, an outline over it — which is what
+# makes it safe to carry.
 HANDED_OVER: tuple[tuple[str, str], ...] = (
     ("map.md", "where things are: the source layout, the engine's own directories"),
     ("source.json", "what asked for this work: an audit, an incident, a review, an ask"),
@@ -85,6 +93,13 @@ HANDED_OVER: tuple[tuple[str, str], ...] = (
         "this task's prior attempts, and each red gate's output, governing rows and failed tests",
     ),
     ("contended.json", "paths other work is contending for right now"),
+    (
+        "scope.md",
+        (
+            "the files this scope names and the tests that name them, whole under"
+            " the pack's budget and as an outline over it"
+        ),
+    ),
 )
 
 # The two scripts every sandbox image answers (S-0063/D-1, S-0063/D-3): one

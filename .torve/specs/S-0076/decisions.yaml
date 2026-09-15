@@ -20,8 +20,8 @@ decisions:
     grade: ASSUMED
     text: >-
       For a scope under a configured size, the in-scope files' contents and the tests
-      `tests.json` names are delivered with the task; over it, an outline of the same
-      files is delivered instead
+      `tests.json` names arrive in the attempt's first message; over it, an outline
+      of the same files arrives instead
     paths: [src/torve/application/contextpack.py, .torve/config.yaml]
     consequence: >-
       the sixteen calls a small attempt spends reading files the contract already
@@ -31,6 +31,7 @@ decisions:
       refuses a glob matching nothing, so the files are known; T-0395 spent sixteen
       calls re-deriving two of them, reading one 900-line module twice
     cites: [S-0054/D-11]
+    fingerprint: 850b75f1f446a53f/495cd1ccd54af946
   - id: D-3
     grade: LOCKED
     text: >-

@@ -753,8 +753,8 @@ def render_index(files: dict[str, str], task: Task) -> str:
             "",
             "The pack's small files arrived with the task itself, in the first message:",
             "where things are, what asked for this work, the battery this attempt faces,",
-            "the coverage and tests over the scope, this task's prior attempts and what",
-            "convicted them, and",
+            "the coverage and tests over the scope, the in-scope files themselves, this",
+            "task's prior attempts and what convicted them, and",
             "the paths other work is contending for. There is nothing to open for those.",
             "",
             "What is behind a read, because it is large or seldom wanted:",
@@ -765,15 +765,6 @@ def render_index(files: dict[str, str], task: Task) -> str:
             "- `symbols.txt` — every class, function, method and module constant the tree defines,",
             "  one per line as `path:line name`. Grep it for a name rather than searching the tree;",
             "  it is a file to grep, not a file to read.",
-            *(
-                [
-                    "- `scope.md` — the files this scope names and the tests that name them,",
-                    "  whole when they fit and as an outline when they do not. One read instead",
-                    "  of one per file; it says at the top which form it took.",
-                ]
-                if "scope.md" in files
-                else []
-            ),
             "",
         ]
     )
