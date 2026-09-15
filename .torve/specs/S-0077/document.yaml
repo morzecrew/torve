@@ -3,7 +3,7 @@ id: S-0077
 title: The turns the engine could have taken itself
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0075]
 informed_by: [S-0073, S-0076]
 supersedes: []
