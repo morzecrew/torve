@@ -577,6 +577,54 @@ def test_the_hook_flag_points_inside_the_harness_directory(tmp_path: Path) -> No
     assert words[words.index("--plugin-dir") + 1] == str(tmp_path / "equipment")
 
 
+def test_the_mcp_flag_points_at_the_config_file(tmp_path: Path) -> None:
+    """The same mapping mistake as the hook flag, one kind over, and it fails
+    quietly instead of loudly: a replay came back with `mcp_servers: []` beside
+    a plugin that had loaded fine, so eleven tools were never declared and
+    nothing said why. `--mcp-config` reads JSON files or strings, never a
+    directory, so an mcp item is a directory holding one `mcp.json`."""
+
+    equipment = tmp_path / "equipment" / "some-server"
+    equipment.mkdir(parents=True)
+    (equipment / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps({"items": [{"kind": "mcp", "path": str(equipment)}]}), encoding="utf-8"
+    )
+    args = tmp_path / "args"
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(DEFINITIONS / "claude" / "toolkit" / "equip_flags.py"),
+            str(manifest),
+            str(args),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    words = shlex.split(args.read_text(encoding="utf-8"))
+
+    assert words[words.index("--mcp-config") + 1] == str(equipment / "mcp.json")
+
+    # An item with no config is named, not handed over as a directory for the
+    # harness to ignore.
+    (equipment / "mcp.json").unlink()
+    refused = subprocess.run(
+        [
+            sys.executable,
+            str(DEFINITIONS / "claude" / "toolkit" / "equip_flags.py"),
+            str(manifest),
+            str(args),
+        ],
+        capture_output=True,
+    )
+
+    assert refused.returncode != 0
+    assert b"mcp.json" in refused.stderr
+
+
 def test_no_equip_writes_to_a_path_the_repository_owns() -> None:
     """S-0063/D-19. `.agents/skills` is the convention a repository keeps its
     own reviewed skills in — this one tracks six, including a `flag-dont-flip`

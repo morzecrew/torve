@@ -55,6 +55,21 @@ for item in items:
         shutil.copytree(path, os.path.join(root, os.path.basename(path)), dirs_exist_ok=True)
         continue
 
+    if kind == "mcp":
+        # `--mcp-config` reads JSON files or strings, never a directory
+        # (measured on 2.1.252), so an mcp item is a directory holding one
+        # `mcp.json` beside whatever that config launches — the same shape a
+        # hook item has. Handing the flag the directory is what silently
+        # produced a session with `mcp_servers: []` while the plugin it was
+        # meant to serve loaded fine and declared nothing.
+        path = os.path.join(path, "mcp.json")
+
+        if not os.path.isfile(path):
+            raise SystemExit(
+                f"mcp item has no mcp.json at {path} — an mcp item is a directory "
+                "holding one `mcp.json`, because `--mcp-config` reads a file"
+            )
+
     if kind == "hook":
         # `--settings` reads a file; every other flag here reads the directory an
         # item was fetched into. A hook item keeps its payload at the root and one
