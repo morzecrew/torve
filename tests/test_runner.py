@@ -2361,17 +2361,19 @@ def test_a_continuation_that_is_also_a_repair_says_both():
 
 
 def test_the_prompt_names_the_working_rules_skill_and_keeps_the_pointer():
-    """S-0067/D-4: the bootstrap bullet stays, because a skill nothing points at
-    is a file — and S-0067/D-3 gives it the name to point at, so the rules a
-    sandbox takes as equipment and a session reads through its skill root are
-    reachable from the prompt rather than only from the engine's source."""
+    """S-0067/D-4 as amended by S-0067/A-4: the bootstrap bullet stays, because
+    a skill nothing points at is a file — and S-0067/D-3 gives it the name to
+    point at, so the rules a sandbox takes as equipment are reachable from the
+    prompt rather than only from the engine's source. What changed is where it
+    points: at the bodies in system position, not at files to open."""
 
     from torve.adapters.agent.harness import build_prompt
     from torve.domain.task import Task
 
     prompt = build_prompt(Task(id="T-1", decisions=[]))
 
-    assert "Skills for your role are under `.torve/skills/`" in prompt
+    assert "The skills for your role are in system position" in prompt
+    assert ".torve/skills/" in prompt
     assert "`working-rules` is this repository's working rules in full" in prompt
     assert "outranks the contract above" in prompt
 

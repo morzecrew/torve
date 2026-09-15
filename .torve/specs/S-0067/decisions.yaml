@@ -49,8 +49,8 @@ decisions:
   - id: D-4
     grade: LOCKED
     text: >-
-      One bullet stays in the prompt: that the role's skills are under `.torve/skills/`
-      and every `SKILL.md` there is read before writing code
+      One bullet stays in the prompt: that the role's skills are in system position,
+      whole, and that their files are under `.torve/skills/`
     paths: [src/torve/adapters/agent/harness.py]
     consequence: >-
       the skill remains reachable; without it the rules are a file nothing points
@@ -58,6 +58,7 @@ decisions:
     rationale: >-
       moving a pointer into the thing it points at is the one way this change can
       fail silently, and it fails for every attempt at once
+    fingerprint: e8b4ce3e824cdb66/fa4496186fea6bbc
   - id: D-5
     grade: LOCKED
     text: >-

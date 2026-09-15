@@ -62,3 +62,39 @@ amendments:
 
       Phase 4's documentation now waits on this phase too: a guide describing how to
       address these verbs should describe the way they will address.
+  - id: A-4
+    at: '2026-09-15T21:39:06Z'
+    title: >-
+      The skills travel in system position, not as files to read
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          One bullet stays in the prompt: that the role's skills are under `.torve/skills/`
+          and every `SKILL.md` there is read before writing code
+        after: >-
+          One bullet stays in the prompt: that the role's skills are in system position,
+          whole, and that their files are under `.torve/skills/`
+      - subject: D-4
+        field: fingerprint
+        after: e8b4ce3e824cdb66/fa4496186fea6bbc
+    md: |-
+      The row's fear was that a pointer moved into the thing it points at fails
+      silently and fails for every attempt at once. That fear is kept: the bullet
+      still points, and it still names `working-rules`. What changed is where it
+      points - at the bodies, which now travel in system position, rather than at
+      files the attempt is told to open.
+
+      The measurement forced it. Over thirty-six traces every attempt did what
+      the bullet said, and it cost three round trips at call 0 on bytes this
+      engine had written into the worktree moments earlier. Reading a file does
+      not avoid what a body costs: it lands in the context and is re-sent with
+      every later request either way, so the trips were the whole of the price -
+      about 182,000 cache-read tokens an attempt at the fleet's median context,
+      against nothing gained. This is S-0076/D-1's move, made for the larger half
+      of what the engine stages.
+
+      System position rather than the prompt because both channels are re-sent
+      with every request (S-0073/D-2), so a text carried in both is a text paid
+      twice. The files stay where they were: a skill with other material beside
+      its `SKILL.md` is still a directory, and the bullet still says where.

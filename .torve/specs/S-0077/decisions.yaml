@@ -41,3 +41,26 @@ decisions:
       they buy may be what keeps attempts off the poison ceiling — S-0073/D-5 was
       measured at zero effect and this one could plausibly measure negative
     cites: [S-0076/D-3]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The pack carries a map of where things are, and it arrives in the first message
+      rather than behind a read
+    paths:
+      - src/torve/application/contextpack.py
+      - src/torve/adapters/agent/harness.py
+    consequence: >-
+      the median eight calls an attempt spends finding its way around this repository
+      become zero, and every attempt starts from the same account of the tree instead
+      of from whichever corner it happened to list first
+    rationale: >-
+      measured over thirty-six traces, 27.9% of orientation calls name `.torve/skills`,
+      `.torve/harnesses`, `.torve/agents`, `git log` or the pack directory - a median
+      of eight per attempt, and all thirty-six spend at least one. The answer is the
+      same on every attempt of this repository, so it is task-independent bytes bought
+      with task-time round trips. Rendered it is about 370 tokens against a round
+      trip's 37,000 at the fleet's median context. What decides between handing a
+      thing over and leaving it a file is not its size alone but its size against
+      the odds the attempt reads it - `symbols.txt` was touched by three attempts
+      of seven and stays a file (S-0076/D-5); this one every attempt reads
+    cites: [S-0076/D-1, S-0076/D-5]

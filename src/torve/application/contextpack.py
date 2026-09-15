@@ -433,6 +433,83 @@ def source_file(root: Path, task: Task) -> dict[str, Any] | None:
 # ....................... #
 
 
+def map_file(root: Path, task: Task) -> str:
+    """Where things are, from the tree (S-0077/D-4): the source layout, the
+    engine's own directories with what each holds, and the acceptance commands
+    this task faces.
+
+    Measured over the corpus, every one of thirty-six attempts spent calls
+    rebuilding this — a median of eight, `ls .torve/skills`, `ls harnesses`,
+    `git log`, `find`, over and over — and the answer is the same on every
+    attempt of this repository. It is small enough to hand over, which is the
+    whole reason it is a file the first message carries rather than one more
+    thing to open (S-0076/D-1).
+
+    Two levels and no deeper: the names of the directories and a sample of
+    what is in each. A listing of every task and every document would be the
+    tree again, and the tree is what an attempt can already walk.
+    """
+
+    lines = [
+        "# Where things are",
+        "",
+        "Written by the engine from the tree, with no model. Nothing here outranks",
+        "the contract, and none of it needs opening — it is already here.",
+        "",
+    ]
+
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir() or entry.name in UNWALKED or entry.name.startswith("."):
+            continue
+
+        children = sorted(
+            child.name
+            for child in entry.iterdir()
+            if not child.name.startswith(".") and child.name not in UNWALKED
+        )
+
+        if children:
+            lines.append(f"- `{entry.name}/` — {_sample(children)}")
+
+    engine = root / PACK_DIR.parts[0]
+
+    if engine.is_dir():
+        lines += ["", f"`{engine.name}/` — the engine's own state:", ""]
+
+        for entry in sorted(engine.iterdir()):
+            if entry.name.startswith(".") or entry.name in {"tmp", "traces"}:
+                continue
+
+            if entry.is_dir():
+                names = sorted(
+                    child.stem if child.suffix in {".yaml", ".json"} else child.name
+                    for child in entry.iterdir()
+                    if not child.name.startswith(".")
+                )
+
+                if names:
+                    lines.append(f"- `{entry.name}/` — {_sample(names)}")
+            else:
+                lines.append(f"- `{entry.name}`")
+
+    if task.acceptance:
+        lines += ["", "This task's acceptance:", ""]
+        lines += [f"- `{command}`" for command in task.acceptance]
+
+    return "".join(f"{line}\n" for line in lines)
+
+
+def _sample(names: list[str], keep: int = 8) -> str:
+    """A directory's contents as one line: the first few names, and a count
+    for the rest. A pack file that grew with the tree would stop being small,
+    and small is the only reason this one is handed over rather than opened."""
+
+    if len(names) <= keep:
+        return ", ".join(names)
+
+    return f"{', '.join(names[:keep])}, and {len(names) - keep} more"
+
+
 def symbols_file(root: Path) -> str:
     """Every symbol the tree defines and where (S-0076/D-5): one line per
     class, function, method and module-level constant, `path:line` first so a
@@ -643,6 +720,7 @@ def build(
         put("attempts.json", attempts_file(root, task))
         put("contended.json", contended_file(root))
 
+    files["map.md"] = map_file(root, task)
     files["symbols.txt"] = symbols_file(root)
 
     for name, schema in schemas().items():
@@ -674,8 +752,9 @@ def render_index(files: dict[str, str], task: Task) -> str:
             "with no model. Nothing here outranks the contract.",
             "",
             "The pack's small files arrived with the task itself, in the first message:",
-            "what asked for this work, the battery this attempt faces, the coverage and",
-            "tests over the scope, this task's prior attempts and what convicted them, and",
+            "where things are, what asked for this work, the battery this attempt faces,",
+            "the coverage and tests over the scope, this task's prior attempts and what",
+            "convicted them, and",
             "the paths other work is contending for. There is nothing to open for those.",
             "",
             "What is behind a read, because it is large or seldom wanted:",

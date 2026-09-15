@@ -435,6 +435,35 @@ def test_the_symbols_file_names_the_whole_tree_and_the_index_names_it(tmp_path: 
     assert "`symbols.txt`" in files["index.md"]
 
 
+def test_the_map_names_where_things_are_and_stays_small(tmp_path: Path) -> None:
+    """S-0077/D-4: every attempt in the corpus spent calls rebuilding this — a
+    median of eight — and the answer is the same on all of them. Two levels,
+    with a count standing in for a long directory, because a listing that grew
+    with the tree would stop being small and small is the only reason it is
+    handed over rather than opened."""
+
+    rfc_dir = _seed(tmp_path)
+    (tmp_path / "src" / "a" / "thing.py").write_text("LIMIT = 3\n", encoding="utf-8")
+    (tmp_path / ".venv").mkdir()  # never named: not the repository's own
+
+    for number in range(12):
+        (tmp_path / ".torve" / "tasks" / f"T-{number:04}").mkdir(parents=True)
+
+    task = _task(acceptance=["pytest tests/test_thing.py"])
+    files = build(tmp_path, rfc_dir, task, tmp_path / "missing-gates.yaml")
+    body = files["map.md"]
+
+    assert "- `src/` — a" in body
+    assert "`tasks/` — T-0000" in body and "and 4 more" in body
+    assert ".venv" not in body
+    # The acceptance is what this task faces, from the contract rather than a
+    # convention: a repository's commands are not guessable from its tree.
+    assert "`pytest tests/test_thing.py`" in body
+    # Handed over, so the index does not tell anyone to open it.
+    assert "`map.md`" not in files["index.md"]
+    assert "where things are" in files["index.md"]
+
+
 def test_a_small_scope_arrives_whole_and_a_large_one_as_an_outline(tmp_path: Path) -> None:
     """S-0076/D-2: under the budget the in-scope files and the tests naming
     them are one document of contents; over it, one document of outlines of

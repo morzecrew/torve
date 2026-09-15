@@ -97,15 +97,21 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
     (pack / "attempts.json").write_text('{"attempts": ["the red"]}', encoding="utf-8")
     (pack / "contended.json").write_text('{"contended": ["the paths"]}', encoding="utf-8")
     (pack / "decisions.json").write_text('{"inherited": ["the rows"]}', encoding="utf-8")
+    # S-0077/D-4: the map rides the same message, and it is markdown rather
+    # than JSON, so the fence it lands in is not the JSON one.
+    (pack / "map.md").write_text("# Where things are\n\n- `src/` — the layout", encoding="utf-8")
 
     handed = pack_handover(tmp_path)
     prompt = build_prompt(Task(id="T-0001", decisions=[]), pack=handed)
 
-    for body in ("the battery", "the tests", "the red", "the paths"):
+    for body in ("the battery", "the tests", "the red", "the paths", "the layout"):
         assert body in prompt
 
+    assert "```\n# Where things are" in prompt
+    assert "```json\n# Where things are" not in prompt
+
     # Named once, as what it is — never as a file to open.
-    for name in ("gates.json", "tests.json", "attempts.json", "contended.json"):
+    for name in ("map.md", "gates.json", "tests.json", "attempts.json", "contended.json"):
         assert f"{PACK_RELPATH}/{name}" not in prompt
 
     assert "the rows" not in prompt
@@ -115,6 +121,50 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
     assert pack_handover(tmp_path) == handed
     assert pack_handover(tmp_path / "elsewhere") == ""
     assert "What the engine knows" not in build_prompt(Task(id="T-0002", decisions=[]))
+
+
+def test_the_skills_travel_in_system_position_and_are_not_read(tmp_path):
+    """S-0067/A-4: the prompt used to say "read every `SKILL.md` there before
+    writing code", and every attempt in the corpus did — three round trips at
+    call 0 on bytes the engine had just written into the worktree. A read does
+    not avoid what the bodies cost, because they land in the context either
+    way, so the trips were the whole price.
+
+    The bodies travel in system position only: both channels are re-sent with
+    every request, so a text in both is a text paid twice."""
+
+    from torve.adapters.agent.harness import (
+        SKILLS_RELPATH,
+        build_prompt,
+        skills_handover,
+        working_rules,
+    )
+    from torve.domain.task import Task
+
+    skills = tmp_path / SKILLS_RELPATH
+
+    for name, body in (("working-rules", "how work is done"), ("tdd", "a failing test first")):
+        (skills / name).mkdir(parents=True)
+        (skills / name / "SKILL.md").write_text(f"# {name}\n\n{body}", encoding="utf-8")
+
+    handed = skills_handover(tmp_path)
+
+    assert "how work is done" in handed
+    assert "a failing test first" in handed
+    # Alphabetical, so the same worktree yields the same bytes every attempt.
+    assert handed.index("`tdd`") < handed.index("`working-rules`")
+
+    system = working_rules("", handed)
+    assert "how work is done" in system
+    # The prompt channel points and never carries: the bodies are paid once.
+    prompt = build_prompt(Task(id="T-0001", decisions=[]))
+    assert "how work is done" not in prompt
+    assert "The skills for your role are in system position" in prompt
+    assert SKILLS_RELPATH in prompt
+
+    # No skills at all is no section, not an error.
+    assert skills_handover(tmp_path / "elsewhere") == ""
+    assert "Your skills" not in working_rules("", "")
 
 
 def test_default_tiers_are_all_fake():
@@ -503,7 +553,7 @@ def test_prompt_extras_follow_the_charters_base_working_rules():
     assert "Docstrings and user-facing text follow the house voice." in prompt
     assert prompt.index("`working-rules`") < prompt.index("house voice")
     # The base rules stay unaddressable: still present, unaltered.
-    assert "Skills for your role are under `.torve/skills/`" in prompt
+    assert "The skills for your role are in system position" in prompt
 
 
 def test_harness_agent_appends_the_tiers_prompt_extras(tmp_path, monkeypatch):

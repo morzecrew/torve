@@ -60,6 +60,10 @@ SYSTEM_RELPATH = ".torve/tmp/system.md"
 # Where the engine materialises the context pack in the worktree; the
 # adapter reads files from it and never the corpus behind them.
 PACK_RELPATH = ".torve/context"
+# Where the engine materialises the role's skills. The bodies travel in system
+# position (S-0067/A-4), so this is what writes them there, not what an
+# attempt opens.
+SKILLS_RELPATH = ".torve/skills"
 
 # The pack's small deterministic files, carried in the first message rather
 # than opened one at a time (S-0076/D-1) — the same seven calls in the same
@@ -69,6 +73,7 @@ PACK_RELPATH = ".torve/context"
 # `decisions.json` is deliberately absent — 17.5 KB and often unopened — and
 # the schemas with it.
 HANDED_OVER: tuple[tuple[str, str], ...] = (
+    ("map.md", "where things are: the source layout, the engine's own directories"),
     ("source.json", "what asked for this work: an audit, an incident, a review, an ask"),
     ("gates.json", "the battery this attempt faces: name, axis, state, what convicts"),
     (
@@ -172,7 +177,8 @@ def pack_handover(workspace: Path) -> str:
             continue
 
         if body:
-            blocks += [f"### `{name}` — {says}", "", "```json", body, "```", ""]
+            fence = "" if name.endswith(".md") else "json"
+            blocks += [f"### `{name}` — {says}", "", f"```{fence}", body, "```", ""]
 
     if not blocks:
         return ""
@@ -188,6 +194,60 @@ def pack_handover(workspace: Path) -> str:
                 f" `{PACK_RELPATH}/decisions.json`, the contract's rows with their"
                 " rationale and the amendments that changed each, and"
                 f" `{PACK_RELPATH}/schema/*.json`, the shapes the engine parses."
+            ),
+            "",
+            *blocks,
+        ]
+    )
+
+
+def skills_handover(workspace: Path) -> str:
+    """The role's skills as system position carries them (S-0067/A-4), each
+    `SKILL.md` whole under its own heading.
+
+    The prompt used to say "read every `SKILL.md` there before writing code",
+    and measured over the corpus every attempt did — three round trips, at
+    call 0, on bytes this engine had just written into the worktree itself.
+    A read does not avoid what a body costs: it lands in the context and is
+    re-sent for the rest of the attempt either way, so the trips were the
+    whole of the price. Handing them over is the same move S-0076/D-1 made
+    for the pack, on the larger half.
+
+    Read from the worktree the engine materialised, never the vendor
+    directory behind it (S-0015/A-1). A worktree with no skills yields no
+    section rather than an error.
+    """
+
+    root = workspace / SKILLS_RELPATH
+
+    try:
+        skills = sorted(path for path in root.iterdir() if path.is_dir())
+    except OSError:
+        return ""
+
+    blocks: list[str] = []
+
+    for skill in skills:
+        try:
+            body = (skill / "SKILL.md").read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+
+        if body:
+            blocks += [f"### `{skill.name}`", "", body, ""]
+
+    if not blocks:
+        return ""
+
+    return "\n".join(
+        [
+            "## Your skills",
+            "",
+            (
+                "The skills for your role, whole. Nothing here outranks the contract,"
+                " and none of it needs opening — it is already here. They are also"
+                f" files under `{SKILLS_RELPATH}/`, which is where their other"
+                " material sits when a skill carries any."
             ),
             "",
             *blocks,
@@ -378,25 +438,31 @@ def reading_advice() -> str:
     )
 
 
-def working_rules(prompt_extras: str = "") -> str:
+def working_rules(prompt_extras: str = "", skills: str = "") -> str:
     """The rules section, built once and reached by both channels it travels
     (S-0073/D-2): the prompt this module composes, and the system file the
-    image puts in system position. One producer, so the two cannot drift."""
+    image puts in system position. One producer, so the two cannot drift.
+
+    `skills` is the bodies, and only the system file passes them (S-0067/A-4):
+    the two channels are both re-sent with every request, so a text in both is
+    a text paid twice."""
 
     return "\n".join(
         [
             "## Working rules",
             "",
-            # S-0067/D-4: the bootstrap bullet stays, because a skill nothing
-            # points at is a file. It names `working-rules` — the one text of
-            # how work is done here (S-0067/D-3), which every role takes as a
-            # declared equipment item and a session reads through its own
-            # skill root.
+            # S-0067/D-4 as amended by S-0067/A-4: the bullet still points, so a
+            # skill is never a file nothing names — it points at the bodies in
+            # system position rather than at the files, because every attempt
+            # read the files and the reading was the only cost the hand-over
+            # removes. It names `working-rules` — the one text of how work is
+            # done here (S-0067/D-3), which every role takes as a declared
+            # equipment item and a session reads through its own skill root.
             (
-                "- Skills for your role are under `.torve/skills/` — read every"
-                " `SKILL.md` there before writing code. `working-rules` is this"
-                " repository's working rules in full; nothing in it outranks the"
-                " contract above."
+                "- The skills for your role are in system position, whole, and"
+                f" their files are under `{SKILLS_RELPATH}/`. `working-rules` is"
+                " this repository's working rules in full; nothing in it outranks"
+                " the contract above."
             ),
             # S-0073/D-1: the skill's own text is not restated here. The seven
             # bullets this bullet replaced were the skill inlined — the
@@ -409,6 +475,7 @@ def working_rules(prompt_extras: str = "") -> str:
             # bulleting it here would decide a shape the operator already chose.
             *([(prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
             "",
+            *([skills.strip(), ""] if skills.strip() else []),
         ]
     )
 
@@ -1746,7 +1813,9 @@ class HarnessAgent:
         # arm's intent (S-0074/D-2) — is staged verbatim and carries no rules of
         # this engine's, so its file is empty rather than absent.
         (ctx.workspace / SYSTEM_RELPATH).write_text(
-            "" if ctx.prompt is not None else working_rules(self.tier.prompt_extras),
+            ""
+            if ctx.prompt is not None
+            else working_rules(self.tier.prompt_extras, skills_handover(ctx.workspace)),
             encoding="utf-8",
         )
 
