@@ -35,6 +35,22 @@
 # Claude's own reader is capped by the harness itself and takes no knob, so the
 # reading advice in the prompt names the shell forms beside it rather than
 # leaving the half a knob does not reach to nothing.
+#
+# `CLAUDE_TOOLS` is the fourth knob and the largest of the four (S-0077). Claude
+# declares twenty-three built-in tools and every declaration rides the system
+# prompt into every request of the attempt, so an unused one is not free once —
+# it is paid `N` times. Measured on the paired arm this replaced: the prefix
+# fell 32,501 to 9,803 tokens when six names were declared instead of
+# twenty-three, which is about 1,147 tokens per withdrawn declaration against
+# 554 for a kept one. Over 118 traces and 2,135 tool calls, an attempt of this
+# engine's used nine names; `Skill` and `Task` were declared on every request
+# and never once called.
+#
+# Six rather than nine: the todo trio is the difference, and it is withdrawn
+# because the contract the engine stages already carries the plan. Glob and Grep
+# are kept although the corpus shows the models reaching for shell `grep`
+# instead — withdrawing a tool the prompt never told them to stop using would
+# cost reads nobody asked to lose. Putting any of them back is one word here.
 adapter: subscription
 image: claude-sandbox:2.1.252
 # Skills load from a skills root, never from `--add-dir`: measured, a session
@@ -48,6 +64,7 @@ env:
   CLAUDE_PERMISSION_MODE: bypassPermissions
   BASH_MAX_OUTPUT_LENGTH: "20000"
   MAX_MCP_OUTPUT_TOKENS: "5000"
+  CLAUDE_TOOLS: Bash,Read,Edit,Write,Glob,Grep
 
 # Claude Code speaks the Anthropic Messages dialect and only that, so a seat
 # pairing it with a provider serving no anthropic route is refused at load

@@ -155,19 +155,6 @@ tiers:
     profile: claude-lean
     model: claude-opus-5
     provider: anthropic
-  # The same arm, narrowed further: claude declares twenty-three built-in tools
-  # and an attempt of this engine's has used nine names in 118 traces — the rest
-  # ride the system prompt into every request and are never called. `--tools`
-  # takes the set; the image passes it when the seat names one.
-  #
-  # `Skill` and `Task` are in the list on purpose, and they are the two the
-  # record says are never used: dropping them is what the measurement is for,
-  # and putting them back is one word here.
-  executor.narrow:
-    harness: claude-narrow
-    profile: claude-lean
-    model: claude-opus-5
-    provider: anthropic
   executor.deepseek:
     harness: claude-subscription
     profile: claude-equipped

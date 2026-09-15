@@ -24,6 +24,7 @@ sed "s|@EQUIP_ROOT@|$TORVE_EQUIP_ROOT|" /opt/torve/door.yml > /tmp/smoke/door.ym
 out=$(dsh --profile headless \
     --patch /tmp/smoke/model.yml \
     --patch /tmp/smoke/door.yml \
+    --patch /opt/torve/tools.yml \
     --patch /tmp/smoke/equipment.yml \
     "smoke" 2>&1 || true)
 

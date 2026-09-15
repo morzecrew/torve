@@ -1,0 +1,72 @@
+# The tool set (S-0077), the dsh half of what `CLAUDE_TOOLS` names on the other
+# seat. A tool's schema rides the system prompt into every request of the
+# attempt, so a declaration nothing calls is not paid once — it is paid `N`
+# times, and `N` is the term this engine cannot otherwise move.
+#
+# Measured on claude, which takes a flag for this: the prefix fell 32,501 to
+# 9,803 tokens when six names were declared instead of twenty-three — about
+# 1,147 tokens per withdrawn declaration. dsh has no flag, because dsh has one
+# configuration channel and a tool is a plugin entry on it; so the set is
+# narrowed the way everything else here is narrowed, by patching the entries
+# that carry the tools this engine never asks for.
+#
+# What is kept is what the other seat keeps: the shell, the three file verbs,
+# and the two searches. `bash` is `tool-bash`, `read`/`write`/`edit` are
+# `tool-fs`, `glob`/`grep` are `tool-fs-search`, and `skill` stays because
+# equipment reaches this seat as skills and a seat that cannot open one is
+# equipped with nothing.
+#
+# Every entry below is disabled rather than removed: `--patch` configures an
+# entry the profile already carries and cannot add one (S-0063/D-17), so a
+# removed entry is one nobody can put back from here. Putting one back is
+# deleting its two lines.
+#
+# The names are from `dsh --profile headless --dump-default-config` on
+# 0.1.1-rc.2; an id this file names that the bundle has dropped fails at boot
+# with dsh's own message, and the build's smoke check is what sees it.
+
+# Background jobs. The engine's attempts run commands and wait for them.
+- id: tool-jobs
+  disabled: true
+
+# `create_goal`/`get_goal`/`update_goal`. The contract the engine stages is the
+# goal, and it arrives before the first request.
+- id: tool-goal
+  disabled: true
+
+# `todo_write`. Same reason, and it is the trio the other seat withdrew too.
+- id: tool-todo
+  disabled: true
+
+# A second editor beside `tool-fs`'s `edit`, declaring its own schema. One pair
+# of edit semantics per attempt is enough.
+- id: tool-str-replace-editor
+  disabled: true
+
+# A bounded self-driving loop, up to sixty-four rounds. An attempt is already
+# the loop, and the engine is what bounds it.
+- id: tool-ralph
+  disabled: true
+
+# Subagents: the tool, the fork variant, the two control tools, and the report.
+# The engine's unit of parallelism is a task, dispatched from outside the
+# sandbox, where the ledger can see it.
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-subagent-report
+  disabled: true
+
+# Same, one level up.
+- id: tool-workflow
+  disabled: true
+
+# `web_search`; `web_fetch` the bundle already switched off. A sandbox with no
+# network route to a search provider declares a tool that cannot answer.
+- id: tool-web
+  disabled: true

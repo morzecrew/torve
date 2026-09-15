@@ -49,6 +49,13 @@ DOOR=/tmp/torve-door.yml
 sed "s|@EQUIP_ROOT@|${TORVE_EQUIP_ROOT:-.dsh/skills}|" /opt/torve/door.yml > "$DOOR"
 set -- "$@" --patch "$DOOR"
 
+# The tool set (S-0077), beside the door and for the same reason: a tool schema
+# rides the system prompt into every request, so a declaration nothing calls is
+# paid once per round trip. claude takes a flag for this and dsh takes a patch,
+# because dsh has one channel; the entries and why each is switched off are in
+# `tools.yml` beside this file, where the smoke check reads the same bytes.
+set -- "$@" --patch /opt/torve/tools.yml
+
 # System position (S-0073/D-8). dsh's channel is the deployment persona: the
 # order-0 section of the assembled prompt, above everything but the harness
 # identity — so the rules are read before the contract the task text carries.
