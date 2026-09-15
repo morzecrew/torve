@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0418
+phase: 1
+base: 3aa53a9c2fd777d505cc5567752d5f53fdb200b5
+commit: 59dd904ddc84606f8f9aa77220bbd4a8808809c2
+at: '2026-09-15T17:12:16Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T17:09:42Z'
+    claim: >-
+      the acceptance half is built as the row requires: the finish runs the commands
+      and the revert condition is written beside them, so a later revert is one function
+      and its call, not an untangling
+    evidence: >-
+      .torve/agents/hooks/implement/finish_check.py:9-14 — the module docstring names
+      the revert condition; failures() and its one call site at question() are the
+      whole of the change
+    action: decided
+    notes: >-
+      D-3's second half stays open: D-2, the naming of governed rows the diff touches,
+      is not built here and carries no revert surface yet.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T17:10:02Z'
+    claim: >-
+      restates entry 1, which cited the row as D-3 and so left the silence check unanswered;
+      the finding is unchanged — the acceptance half is built as the row requires,
+      with the revert condition written beside it, so a later revert is one function
+      and its call
+    evidence: >-
+      .torve/agents/hooks/implement/finish_check.py:10-14 — the module docstring names
+      the revert condition; failures() and its one call site in question() are the
+      whole of the change
+    action: decided
+    notes: >-
+      Supersedes entry 1 on identifier only. D-3's second half stays open: D-2, the
+      naming of governed rows the diff touches, is not built here and carries no revert
+      surface yet.
