@@ -404,3 +404,32 @@ def test_the_index_names_only_what_is_still_behind_a_read() -> None:
 
     for handed in ("source.json", "gates.json", "tests.json", "attempts.json", "contended.json"):
         assert handed not in index
+
+
+def test_the_symbols_file_names_the_whole_tree_and_the_index_names_it(tmp_path: Path) -> None:
+    """S-0076/D-5: a lookup is one grep of one file — every symbol the tree
+    defines, not the scope's, with its coordinate; a file to grep, so the
+    index names it and the prompt never carries it."""
+
+    rfc_dir = _seed(tmp_path)
+    (tmp_path / "src" / "a" / "thing.py").write_text(
+        "LIMIT = 3\n\n\nclass Widget:\n    def spin(self):\n        def inner():\n            pass\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "src" / "b").mkdir(parents=True)  # outside the scope, still indexed
+    (tmp_path / "src" / "b" / "other.py").write_text("async def fetch():\n    pass\n", "utf-8")
+    (tmp_path / "src" / "b" / "broken.py").write_text("def (\n", encoding="utf-8")
+    (tmp_path / ".venv").mkdir()
+    (tmp_path / ".venv" / "vendored.py").write_text("def never_indexed():\n    pass\n", "utf-8")
+
+    files = build(tmp_path, rfc_dir, _task(), tmp_path / "missing-gates.yaml")
+    lines = files["symbols.txt"].splitlines()
+
+    assert "src/a/thing.py:1 LIMIT" in lines
+    assert "src/a/thing.py:4 class Widget" in lines
+    assert "src/a/thing.py:5 def Widget.spin" in lines
+    assert "src/a/thing.py:6 def Widget.spin.inner" in lines
+    assert "src/b/other.py:1 def fetch" in lines
+    assert not [line for line in lines if "vendored" in line or "broken" in line]
+
+    assert "`symbols.txt`" in files["index.md"]

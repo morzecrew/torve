@@ -22,8 +22,10 @@ context.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 from xml.etree import ElementTree
@@ -43,6 +45,9 @@ from torve.gates.context import GitError, git
 
 PACK_DIR = Path(".torve") / "context"
 OUTPUT_TAIL = 2000  # characters of a red gate's output the retry sees
+# Directories the symbol index does not walk: no source of the repository's own
+# is under them, and a virtualenv's site-packages alone outweighs the tree.
+UNWALKED = {".git", ".venv", "venv", "node_modules", "__pycache__", "build", "dist"}
 FAILED_TEST = re.compile(r"^(?:FAILED|ERROR) (\S+::\S+)", re.M)
 GOVERNING = re.compile(r"(?<![\w/-])(S-\d{4}/D-\d+)(?![\w/-])")
 
@@ -428,6 +433,56 @@ def source_file(root: Path, task: Task) -> dict[str, Any] | None:
 # ....................... #
 
 
+def symbols_file(root: Path) -> str:
+    """Every symbol the tree defines and where (S-0076/D-5): one line per
+    class, function, method and module-level constant, `path:line` first so a
+    grep's hit is already the coordinate. The whole tree, not the scope,
+    because what a lookup wants is usually outside it — and a file, never
+    prompt content: an attempt that never greps it pays nothing for it.
+
+    Read with `ast`, so a name is a definition rather than whatever matched a
+    regex. A file that will not parse contributes nothing and stops nothing."""
+
+    lines: list[str] = []
+
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root)
+
+        if any(part in UNWALKED or part.startswith(".") for part in rel.parts[:-1]):
+            continue
+
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, ValueError):
+            continue
+
+        lines += [f"{rel.as_posix()}:{line} {what}" for line, what in _defines(tree, "")]
+
+    return "".join(f"{line}\n" for line in lines)
+
+
+def _defines(node: ast.AST, prefix: str) -> Iterator[tuple[int, str]]:
+    """What this node defines, depth first, methods qualified by their class.
+    Assignments only at module level: a local is not a symbol anyone greps."""
+
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            kind = "class" if isinstance(child, ast.ClassDef) else "def"
+            name = f"{prefix}{child.name}"
+
+            yield child.lineno, f"{kind} {name}"
+            yield from _defines(child, f"{name}.")
+        elif not prefix and isinstance(child, ast.Assign | ast.AnnAssign):
+            targets = child.targets if isinstance(child, ast.Assign) else [child.target]
+
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    yield child.lineno, target.id
+
+
+# ....................... #
+
+
 def build(
     root: Path, rfc_dir: Path, task: Task, manifest_path: Path, *, replay: bool = False
 ) -> dict[str, str]:
@@ -456,6 +511,8 @@ def build(
     if not replay:
         put("attempts.json", attempts_file(root, task))
         put("contended.json", contended_file(root))
+
+    files["symbols.txt"] = symbols_file(root)
 
     for name, schema in schemas().items():
         put(f"schema/{name}.json", schema)
@@ -495,6 +552,9 @@ def render_index(files: dict[str, str], task: Task) -> str:
             "- `decisions.json` — the contract's rows with consequence, check, rationale and the",
             "  amendments that changed each; plus accepted rows from other documents over this scope",
             "- `schema/*.json` — the shapes the engine parses: a task, a document, a finding, a draft",
+            "- `symbols.txt` — every class, function, method and module constant the tree defines,",
+            "  one per line as `path:line name`. Grep it for a name rather than searching the tree;",
+            "  it is a file to grep, not a file to read.",
             "",
         ]
     )
