@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0415
+phase: 3
+base: 13ccdbd7063fc91580b85d4c13df2ac188bf4fb5
+commit: b6fa77b95b8b758dc743ed87ba24027d468a8427
+at: '2026-09-15T16:19:05Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-15T16:16:24Z'
+    claim: >-
+      no seated harness has one result boundary a knob can reach for every tool: claude's
+      takes two (bash characters, MCP tokens) and its own reader takes none, while
+      dsh and mimo expose no output knob at all — so the cap is set at claude's boundary
+      in both its units and named as absent in the other two manifests
+    evidence: >-
+      .torve/harnesses/claude-subscription.yaml:49-50 — the two knobs claude's boundary
+      reads, 20,000 characters and the same 5,000 tokens; sandboxes/dsh/toolkit and
+      sandboxes/mimo/toolkit render no output limit, and their images are outside
+      this scope
+    action: departed
+  - decision: S-0073/D-1
+    grade: LOCKED
+    at: '2026-09-15T16:16:24Z'
+    claim: >-
+      the reading advice rides its own prompt section and restates nothing the working-rules
+      skill says, so the rules section still names the skill in one bullet and the
+      property test over it is unchanged
+    evidence: >-
+      src/torve/adapters/agent/harness.py:343 — reading_advice() composes a '## Reading'
+      section of its own; tests/test_tiering.py:1945 asserts the rules section is
+      still one bullet
+    action: decided
