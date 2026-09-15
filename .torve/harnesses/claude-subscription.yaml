@@ -23,6 +23,18 @@
 # print mode a denial is not a prompt and not a hang — it is a silent refusal,
 # so an attempt would look like a model that would not work rather than a seat
 # that was not permitted to.
+#
+# The other two knobs are the cap on what one tool result may return
+# (S-0076/D-4), set at claude's own result boundary rather than asked for in the
+# prompt: the growth term stops being whichever command dumped the most,
+# whichever tool that command used. One cap in each knob's own unit — 20,000
+# characters is the 5,000 tokens beside it — and both are below claude's
+# defaults of 30,000 and 25,000, which is the tightening. `BASH_MAX_OUTPUT_LENGTH`
+# is where the `cat` and `sed` reads cross (measured: 237 of the corpus's file
+# reads) and `MAX_MCP_OUTPUT_TOKENS` is where a declared server's answer does.
+# Claude's own reader is capped by the harness itself and takes no knob, so the
+# reading advice in the prompt names the shell forms beside it rather than
+# leaving the half a knob does not reach to nothing.
 adapter: subscription
 image: claude-sandbox:2.1.252
 # Skills load from a skills root, never from `--add-dir`: measured, a session
@@ -34,6 +46,8 @@ equip_root: ~/.claude/skills
 kinds: [skill, plugin, mcp, hook, agent]
 env:
   CLAUDE_PERMISSION_MODE: bypassPermissions
+  BASH_MAX_OUTPUT_LENGTH: "20000"
+  MAX_MCP_OUTPUT_TOKENS: "5000"
 
 # Claude Code speaks the Anthropic Messages dialect and only that, so a seat
 # pairing it with a provider serving no anthropic route is refused at load

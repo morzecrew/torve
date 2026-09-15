@@ -1914,3 +1914,58 @@ def test_the_working_rules_are_named_and_not_restated():
     assert len(bullets) == 1
     assert "`working-rules`" in bullets[0]
     assert ".torve/skills/" in bullets[0]
+
+
+def test_the_reading_advice_names_the_shell_forms_beside_the_readers():
+    """S-0076/D-4: measured across 21 retained traces, 237 of the corpus's file
+    reads are `cat` and `sed` against 185 distinct paths the reader touched at
+    all — so advice shaped around the reader's own range governs the smaller
+    half, and the shell forms are named beside it.
+
+    Its own section: the rules section still names the `working-rules` skill
+    and restates nothing of it (S-0073/D-1), because what a harness does to an
+    oversized result is a fact about this attempt rather than how work is done
+    here."""
+
+    from torve.adapters.agent.harness import build_prompt
+    from torve.domain.task import Task
+
+    prompt = build_prompt(Task(id="T-1", decisions=[]))
+    advice = prompt.split("## Reading", 1)[1].split("## Working rules", 1)[0]
+
+    # The reader's own form, and the shell forms that do the same work.
+    assert "offset" in advice and "limit" in advice
+
+    for form in ("`sed", "`rg", "`head`", "`tail`", "`cat`"):
+        assert form in advice, f"the advice does not name {form}"
+
+    # The rules section is untouched by it: one bullet, still the skill's.
+    rules = prompt.split("## Working rules", 1)[1]
+
+    assert len([line for line in rules.splitlines() if line.startswith("- ")]) == 1
+
+    # The base arm carries the intent and nothing else (S-0074/D-2), advice
+    # included: what an arm removed is a property of the prompt.
+    assert "## Reading" not in build_prompt(Task(id="T-2", decisions=[]), bare=True)
+
+
+def test_one_tool_result_is_capped_where_every_tool_crosses_the_boundary():
+    """S-0076/D-4: the cap is set at the harness's own result boundary rather
+    than asked for in the prompt, so the context's growth term stops being set
+    by whichever command dumped the most, whichever tool ran it.
+
+    Asserted as the property — one cap, in each knob's own unit, under the
+    default it tightens — rather than as two literals, so raising it in one
+    place and forgetting the other fails here."""
+
+    from torve.config.agents import load_harness
+
+    env = load_harness(pathlib.Path("."), "claude-subscription").env
+    chars, tokens = int(env["BASH_MAX_OUTPUT_LENGTH"]), int(env["MAX_MCP_OUTPUT_TOKENS"])
+
+    # claude's own defaults are 30,000 characters and 25,000 tokens: a cap at
+    # or above either is not a cap.
+    assert chars < 30_000
+    assert tokens < 25_000
+    # One cap in two units, at four bytes to the token.
+    assert chars == tokens * 4

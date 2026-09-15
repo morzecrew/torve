@@ -28,6 +28,11 @@ kinds: [skill, plugin, mcp, hook, agent]
 # validates against a provider record and names across the seam (S-0064/D-7),
 # and `equip` assembles pi-ai's own representation from them.
 
+# No knob for the cap on one tool result either (S-0076/D-4): claude's boundary
+# reads two environment variables and this one reads none, so the cap reaches
+# this seat when `equip` renders it into the overlay it already renders — a
+# change in the image, beside the harness that knows where its results cross.
+
 # pi-ai speaks both: measured inside the image, 582 references to
 # `openai-completions` and 315 to `anthropic-messages`. torve's keys are the
 # short ones and `equip` maps them to pi-ai's spelling (S-0064/D-4).

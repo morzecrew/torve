@@ -24,6 +24,11 @@ image: mimo-sandbox:0.1.13
 equip_root: .mimocode/skill
 kinds: [skill, plugin]
 
+# No `env`, so no cap on what one tool result may return (S-0076/D-4): mimo's
+# equipment is installed state rather than session flags and its result boundary
+# takes no environment knob, so the cap arrives here through the image's own
+# configuration or not at all.
+
 # mimo reaches a provider through its own configuration, which is
 # OpenAI-dialect (S-0064/D-4).
 api: [openai]

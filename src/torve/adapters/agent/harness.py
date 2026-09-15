@@ -335,9 +335,47 @@ def build_prompt(
     if pack:
         lines += ["", pack]
 
-    lines += ["", working_rules(prompt_extras)]
+    lines += ["", reading_advice(), "", working_rules(prompt_extras)]
 
     return "\n".join(lines)
+
+
+def reading_advice() -> str:
+    """How to read a file without paying for all of it (S-0076/D-4).
+
+    Its own section rather than a rules bullet, and it says nothing the
+    `working-rules` skill says: the rules section names that skill and restates
+    none of it (S-0073/D-1), while this is a fact about the harness this
+    attempt runs under — what happens to a result that crosses its boundary
+    too large — which is the same kind of thing the pack above carries.
+
+    The shell forms are named beside the reader's own tool because that is
+    where the reads are: measured across 21 retained traces, 237 of the
+    corpus's file reads are `cat` and `sed`, against 185 distinct paths the
+    reader touched at all. Advice shaped around the reader alone would govern
+    the smaller half.
+
+    The cap itself is not advice and is not here: it is set at the harness's
+    own result boundary, in the manifest of each harness whose boundary takes a
+    knob (`.torve/harnesses/`), and it holds whatever this text achieves.
+    """
+
+    return "\n".join(
+        [
+            "## Reading",
+            "",
+            (
+                "Read the part you need, not the whole file. Your reader takes an"
+                " offset and a limit, and the shell forms beside it take a range"
+                " too — `sed -n '120,180p'`, `rg -n` with a couple of lines of"
+                " context, `head`, `tail`. A `cat` of a module you need forty lines"
+                " of is paid for when it lands and again in every request after it,"
+                " and a result over this harness's cap is truncated where it crosses"
+                " the boundary: what goes is the end, which is usually the part that"
+                " was wanted."
+            ),
+        ]
+    )
 
 
 def working_rules(prompt_extras: str = "") -> str:
