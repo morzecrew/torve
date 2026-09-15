@@ -55,3 +55,22 @@ models:
     # the figures that stood here were never measured against anything. An
     # absent price leaves the attempt's cost unreported, which is true, rather
     # than priced off a rate card nobody pays (S-0064/D-12, S-0064/Q-2).
+  # Probed 2026-09-16, the same way as the two above. It is served — the
+  # catalogue lists it — it answers on `/apps/anthropic` end to end and echoes
+  # its own id in the response, and the openai route returns its thinking as
+  # `reasoning_content`, which is what that route already declares.
+  #
+  # Its levels are not the siblings' levels, which is the reason to probe
+  # rather than copy: the deliberate 400 enumerates seven, and they differ at
+  # both ends — there is no `none`, so this model cannot be asked to stop
+  # reasoning, and there is an `ultra` above `max` that neither other model has.
+  # A seat naming `none` here is refused at load rather than by an attempt that
+  # dialled and got a 400.
+  #
+  # No `context_window`, no `max_tokens`, no `price`, for the reasons the entry
+  # above gives and for the same measurements: `max_tokens: 10_000_000` comes
+  # back 200, and 40,000 characters of prompt are accepted without complaint,
+  # so neither bound is observable from here. The plan is a prepaid weekly
+  # quota, so dollars per token is not what anyone is charged (S-0064/D-12).
+  deepseek-v4.1-flash:
+    reasoning: [minimal, low, medium, high, xhigh, max, ultra]
