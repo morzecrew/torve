@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0416
+phase: 4
+attempt: 2
+base: cff4f198cb7b44b4137ccbb01686378736c4ddda
+at: '2026-09-15T15:46:31Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T15:41:17Z'
+    claim: >-
+      the symbol index is judged by D-3's own measure: it adds one greppable file
+      and no prompt bytes, so orientation class can fall only if the file is unused
+      and attempts per landing is unaffected by it
+    evidence: >-
+      src/torve/application/contextpack.py:499 — symbols.txt is written to the pack
+      and named only in index.md, never in the harness handover list
+    action: decided
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-09-15T15:44:04Z'
+    attempt: 2
+    claim: >-
+      the symbol index is compatible with D-3's measure and does not evade it: symbols.txt
+      is written into the pack and named only in index.md, never handed to the prompt,
+      so the hand-over adds a greppable file and zero prompt bytes and stays judged
+      by orientation class and attempts per landing together
+    evidence: >-
+      src/torve/application/contextpack.py:515 — symbols.txt is written into the pack;
+      src/torve/application/contextpack.py:555 is the only place it is named, in index.md,
+      not in the first-message handover
+    action: decided
