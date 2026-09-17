@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0430
+phase: 2
+base: c8b8ddee1b2e2f5cf0b3a9f315e397c03e7c3012
+commit: 3c1c7ad1181966e724efac1237431ec546b0312c
+at: '2026-09-17T20:26:47Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: OPEN
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-17T20:25:00Z'
+    claim: >-
+      this document's phase 1 is not in the tree: EventKind carries no night.opened
+      or night.closed and SubjectType no NIGHT, and events.py is outside this contract's
+      scope, so the open and the close cannot write the kinds D-1 names
+    evidence: >-
+      src/torve/domain/events.py:66-97 — SubjectType and EventKind, neither carrying
+      a night member
+    action: departed
+    proposal: >-
+      the two kinds are resolved by name at import in residency.py and the writes
+      are skipped while they are absent; the night's terms, its refusal, its stop
+      conditions and its close are decided and returned either way, so the record
+      lands unchanged the moment phase 1 does
+    notes: >-
+      phase 1's other two tasks are also absent: conflict_disposal is not handed to
+      the served lane leg (D-10), and the three night knobs are not declared under
+      .torve/harnesses. Both are phase 1's scope, not this one's, and neither is touched
+      here.
+  - decision: D-12
+    grade: OPEN
+    at: '2026-09-17T20:25:00Z'
+    claim: >-
+      the wall-clock end is measured from the open and read only at the top of a pass,
+      so an attempt in flight is never interrupted and the close records how far past
+      the end it landed
+    evidence: >-
+      src/torve/application/residency.py:576-583 — Night.ends_at, measured from opened_at;
+      serve asks stop before incrementing the pass count
+    action: decided
+    proposal: >-
+      none — D-12 is OPEN and this settles it within the task
+    notes: >-
+      the reason is re-asked at the close rather than remembered from the loop, because
+      serve also returns when its pass count runs out and a night that ended that
+      way has no term to name.
+  - decision: D-12
+    grade: OPEN
+    at: '2026-09-17T20:25:14Z'
+    claim: >-
+      correcting the citation in the entry above: the lines it names are serve's idle
+      sleep, not the wall-clock end. The end is Night.ends_at, measured from opened_at,
+      and serve reads stop before it counts a pass
+    evidence: >-
+      src/torve/application/residency.py:631-637 — Night.ends_at; src/torve/application/residency.py:551-554
+      is where serve asks stop, ahead of the pass counter
+    action: decided
