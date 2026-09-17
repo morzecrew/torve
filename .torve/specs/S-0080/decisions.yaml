@@ -1,0 +1,240 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The landing mode is a term of the runner configuration — `promotion.landing`, `local` or
+      `pull_request` — and is never inferred from whether a remote exists or from whether
+      `scm.open_pr` is set
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      a repository's landing act changes only when somebody writes that it should, and the
+      record of what a run was includes which act it was
+    rationale: >-
+      acquiring a remote is not a decision about how a repository lands, and a lane that
+      switched its last step because `git remote add` succeeded would teach that the
+      expensive way, on `main`
+    cites: [S-0068/D-1]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `landing: pull_request` is refused at load when `scm.repo` is unset or `scm.open_pr` is
+      false, with the field named and what to set
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      a mode that could only ever fail at the first landing fails instead while a person is
+      standing at the terminal
+    rationale: >-
+      the mode's whole mechanism is a pull request on a named repository, so a configuration
+      that names none is not a policy choice; the unattended half of this system cannot be
+      warned at, which is the argument that already made the blind-arming case a refusal
+    cites: [S-0068/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      In `pull_request` mode the lane runs unchanged up to the landing and then, in place of
+      `merge_ff`, pushes the candidate branch under lease and opens or refreshes the task's
+      pull request, and stops; it never moves the base
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      the second mode is a different last step rather than a second lane, so every criterion,
+      probe and rebase before it is exercised by both modes and cannot drift apart
+    rationale: >-
+      the only part of the lane the second repository's process forbids is the act of moving
+      `main`; a mode that re-derived the battery or the conflict rule would be the first lane
+      wearing a second name
+    cites: [S-0006/D-1]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The pull request's title and body are composed from the landing record — the task, the
+      document it was minted from, the rows the contract carried with their grades, the gates'
+      verdicts and the divergence entries — and from nothing the agent wrote as prose
+    paths: [src/torve/application/forge.py]
+    consequence: >-
+      a reviewer on the forge decides from the same facts the execution file holds, and no
+      line of the body is a model's account of its own work
+    rationale: >-
+      `compose_pr` already composes from records for exactly this reason; what changes is
+      which records, because a body opened by the lane describes a landing and a body opened
+      by the run's forge leg describes an attempt
+    cites: [S-0057/D-7, S-0059/D-10]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The sentence in a composed body saying the pull request lands by fast-forward and the
+      merge button is never used is written in `local` mode alone
+    paths: [src/torve/application/forge.py]
+    consequence: >-
+      a reader of a pull request in the new mode is not told not to use the one control the
+      mode depends on
+    rationale: >-
+      the sentence is true of the reading surface the forge leg opens and false of a pull
+      request that is the landing route; a body that contradicts its own mode is worse than
+      one that says nothing
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The forge surface answers about a branch — its pull request's state and, when merged,
+      the merge commit — and `PrInfo` carries that commit
+    paths: [src/torve/adapters/vcs/git.py, src/torve/application/ports.py]
+    consequence: >-
+      the lane asks the one question it has, which is what happened to this task's branch,
+      without first having to remember a pull request number
+    rationale: >-
+      the adapter already lists by head branch for `close_pr` and `retire_pr`, and `PrInfo`
+      carries state and the head sha but not the merge commit — which is the sha a squash
+      merge lands in and the only one worth recording
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A pull request the forge reports merged is the landing: the engine records it on a later
+      pass with the merge commit as the landed sha and the mode named, in the same record shape
+      the local lane writes
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      everything that asks what shipped keeps asking one way, and a landing performed by a
+      person is a landing in the record rather than a gap in it
+    rationale: >-
+      the engine cannot perform this landing and therefore cannot know its sha when it
+      happens; reading the answer afterwards is the only honest source, and a second record
+      shape would split the one count the ledger divides by
+    cites: [S-0059/D-12, S-0065/D-7]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A pull request closed without merging is a terminal verdict the engine records as
+      abandoned by a person, never re-queued and never escalated for triage
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a person who declined the work has declined it, and the engine does not spend a second
+      attempt arguing with the only reviewer it has
+    rationale: >-
+      a conflict is a mechanical fact about two trees and the engine may decide it; a close is
+      a judgement and the engine may only record it — the asymmetry is the line this mode
+      draws between the two
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A pull request that stops merging cleanly because the base moved takes the disposal the
+      lane already has — once per base tip, rebased in a disposable worktree, the battery
+      re-run — and the branch is republished so the pull request shows the tree that was
+      measured
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      the person looking at the pull request is looking at the candidate the battery judged,
+      and a candidate cannot be disposed of twice against the same tip
+    rationale: >-
+      `republish_branch` was built for a landing that republishes its candidate and has had no
+      caller since; the bound on the disposal is already `conflict_base` and is not loosened
+      because a pull request is now open against it
+    cites: [S-0006/D-12, S-0079/D-10]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      In `pull_request` mode a worktree is cut from the remote's `main` after a fetch, never
+      from the local one
+    paths: [src/torve/adapters/workspace/git.py, src/torve/gates/context.py]
+    consequence: >-
+      an attempt builds on the base its pull request will be merged against, rather than on a
+      copy that is stale from the first merge onward
+    rationale: >-
+      in this mode `main` moves on the forge and not on this machine, so the local ref is
+      stale by construction; `resolve_base` already prefers `origin/main` and needs the fetch
+      that makes the preference mean something
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The promotion criteria torve holds decide whether a pull request is opened and nothing
+      after it; once it is open the forge's own rules govern the merge and torve reads state
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a repository has one promotion policy rather than two that can disagree, and a candidate
+      that fails a torve criterion costs nobody's attention on the forge
+    rationale: >-
+      in this mode a person is the lander and the forge is where required reviewers and
+      required checks live; a second opinion held by the engine could only ever contradict the
+      one that is actually enforced
+    cites: [S-0068/D-1]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      The candidate branch is kept after the merge — nobody deletes it — so the attempt's own
+      commits stay reachable and the record's join from task to commits survives the squash
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a landing whose sha no attempt wrote can still be traced back to the attempts that
+      produced it, which is what the projections read
+    rationale: >-
+      a squash merge writes one commit that is none of the attempt's; the join is the only
+      thing that connects the landing to the work, and a ref costs nothing to keep
+    cites: [S-0059/D-12]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The forge credential stays where it is — `gh` on the host, the variable named in
+      configuration and read at call time, the value never leaving the runner's process and
+      never reaching a sandbox
+    paths: [src/torve/adapters/vcs/git.py]
+    consequence: >-
+      a landing route that talks to the forge on every pass adds no second channel for the
+      secret the broker exists to keep out of the sandbox
+    rationale: >-
+      the runner speaks to the forge and the agent never does; this mode calls the same
+      adapters from a different leg, which is a change of caller and not of custody
+    cites: [S-0001/D-13, S-0010/D-1]
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      The morning report holds pull requests opened, merged, conflicted and closed as four
+      counts folded from the events in the night's window, with no field prose can occupy
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      a person reading the report knows what is waiting on them on the forge, which in this
+      mode is the whole of what is waiting on them
+    rationale: >-
+      each of the four is already a recorded fact by the time the report is folded, and the
+      report's rule is that it holds only recorded fields
+    cites: [S-0079/D-3, S-0079/D-4]
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      This repository configures `landing: local` explicitly, and the remark pinning `base` to
+      the local `main` because the remote is far behind is removed
+    paths: [.torve/config.yaml]
+    consequence: >-
+      the repository that develops torve keeps landing exactly as it does today, and the next
+      person reading its configuration is not told a gap exists that has since closed
+    rationale: >-
+      the remark describes a 187-commit gap that `git rev-list --left-right --count` now
+      reports as zero on both sides; a workaround whose reason has expired is worse than no
+      workaround, because it is believed
+  - id: D-16
+    grade: OPEN
+    text: >-
+      When the lane asks the forge, and whether it asks once per pass or once per candidate,
+      is implementation's — under one constraint: a pass holding no open pull request asks
+      nothing
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      the credential is used in proportion to what is actually open, and an idle night costs
+      no forge calls at all
+    rationale: >-
+      the answer is the same whenever it is asked, so the cadence is a cost question rather
+      than a correctness one, and the cost is a rate limit somebody else sets
+  - id: D-17
+    grade: OPEN
+    text: >-
+      What the engine does with a candidate whose branch the forge can no longer resolve —
+      deleted on merge, or renamed — is implementation's, under one constraint: it is recorded
+      and never silently re-opened
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a repository configured to delete head branches on merge produces a stated gap in the
+      record rather than a task that quietly pushes itself back to the forge
+    rationale: >-
+      the setting is the forge's and torve cannot change it; what torve can do is notice that
+      the branch it pushed is gone and say so, which is the input to whether this becomes a
+      refusal later
+invariants: []
+retired: []

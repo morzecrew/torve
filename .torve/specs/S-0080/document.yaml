@@ -1,0 +1,347 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0080
+title: >-
+  The lane opens a pull request, and a person lands it
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0079]
+informed_by: [S-0059, S-0065, S-0068]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  torve is about to run on a repository where nothing reaches `main` except through a merged
+  pull request, and the landing lane lands locally: it fast-forwards or rebases the candidate
+  onto `main` on this machine.
+
+  This adds a second landing mode, chosen by configuration. In it the lane does everything it
+  does today up to the landing — the battery, the review if configured, the conflict disposal
+  on a moved base — and then pushes the candidate, opens a pull request whose title and body
+  come from the landing record, and stops. A person merges it on the forge; the engine learns
+  that on a later pass by reading the pull request's state, and records the landing then in the
+  record shape the local lane already writes, saying which mode it was.
+motivation: |
+  The second repository's process is a branch per change, local commits on it, a pull request,
+  review, fixes, a squash merge by a person on the forge. Nothing lands on its `main` any other
+  way, and that is not a preference the repository can be talked out of — it is a branch
+  protection rule and a team's habit. torve has to fit the process rather than the process
+  fitting torve.
+
+  Today it cannot. `process_lane` ends in `merge_ff` against the checkout's own base, which is
+  the one act that repository forbids. Everything before that point already fits: the battery
+  runs, the review runs if it is configured, a moved base is rebased in a disposable worktree
+  and re-measured, a conflict escalates or disposes of itself. Only the last step is wrong, and
+  it is wrong for exactly one reason — it decides the landing, and on that repository the
+  landing is a person's act.
+
+  The pieces the second mode needs are already built and mostly idle. The vcs adapter pushes
+  with a lease, republishes a branch, deletes a remote branch and fetches a pull request; the
+  forge adapter opens, reads, closes and retires one through `gh`. The lane calls none of them.
+  What is missing is the mode that puts them in the landing path, and the read-back that turns
+  a merge somebody else performed into a landing the record holds.
+current_state: |
+  **The lane lands locally, and calls nothing remote.** `process_lane` in
+  `src/torve/application/lane.py` ends in `_land_fast_forward` or `_land_rebased`, both of which
+  finish with `vcs.merge_ff` and an engine event `lane_landed` carrying `mode: fast-forward` or
+  `mode: rebased`. `LaneVcs` in `src/torve/application/ports.py` is twelve methods of ancestry,
+  rebase and fast-forward, and not one of them reaches a remote.
+
+  **`scm.open_pr` is read, and the premise that no code reads it is wrong.**
+  `src/torve/cli/assembly.py` wires `GhScm` or `NullScm` on it, and the forge leg at the end of
+  a run in `src/torve/application/runner.py` pushes the candidate branch and opens a pull
+  request when it is true. What is true is narrower and more interesting: that pull request is a
+  *reading surface*, not a landing route. `compose_pr` in `src/torve/application/forge.py`
+  writes into every body it composes that "this pull request lands by fast-forward and the merge
+  button is never used" — which is the sentence this document has to make conditional.
+
+  **Some of the remote surface has callers and some does not.** `fetch_pr` and `pr_info` are
+  called by the pull-request review trigger in `src/torve/application/review.py`.
+  `republish_branch`, `delete_remote_branch`, `close_pr` and `retire_pr` are defined on the
+  adapters in `src/torve/adapters/vcs/git.py` and reached from no production caller under
+  `src/`. `retire_pr` is the closest thing to a read-back that already exists: it gives the
+  forge a short grace to mark a pull request merged on its own, and closes it if it does not.
+
+  **`PrInfo` cannot name the merge commit.** It carries `state` as `open`, `closed` or `merged`,
+  and the head sha — enough to apply the review trigger's skip rules and locate the head, which
+  is what it was drawn for. A squash merge's commit is not in it, and a squash commit is the sha
+  this mode has to record as the landing.
+
+  **The remark about the remote is stale.** `.torve/config.yaml` pins `base: main` and explains
+  it by saying the remote "is 187 commits behind"; `git rev-list --left-right --count` against
+  the published remote reports zero on both sides, so `main` and `origin/main` agree and the
+  workaround now describes a repository that no longer exists.
+
+  **The conflict disposal already has a caller coming.** S-0079/D-10 hands the served lane leg
+  `conflict_disposal`, which is the argument `process_lane` has always accepted and never been
+  given. This document does not re-decide that; it says what the same disposal means when the
+  candidate has a pull request open against it.
+goals: |
+  A repository whose only landing route is a merged pull request can be run by torve without
+  changing how it lands, and without torve merging anything.
+
+  A landing that happened on the forge is a landing in the record: the same shape the local lane
+  writes, with the squash commit as the landed sha and the mode named.
+
+  The three verdicts a person can give a pull request — merged, still open, closed — each have a
+  recorded answer, and none of them is a stop the engine waits out.
+
+  The repository torve develops itself in keeps landing exactly as it does today.
+non_goals: |
+  Not torve merging. The engine opens a pull request and reads what the forge says afterwards;
+  the merge button stays a person's, and no configuration in this document arms one.
+
+  Not reading review comments back into the revision loop. The forge thread capture is owed by
+  its own document and is not smuggled in here; a pull request in this mode is a landing route,
+  not an input.
+
+  Not a change to how this repository lands its own work. `landing: local` is what it configures
+  and what it keeps, and every refusal the local lane makes today it still makes.
+
+  Not a promotion policy for the forge. Whether a merge needs approvals, a green check or two
+  reviewers is the forge's to enforce and the operator's to configure there.
+design:
+  - key: the-mode-is-a-term-not-an-inference
+    md: |
+      The landing mode is a term of the runner configuration — `promotion.landing`, `local` or
+      `pull_request` — and never inferred from whether a remote exists or whether `scm.open_pr`
+      is set.
+
+      Inference is what makes this class of thing dangerous. A repository that acquires a remote
+      does not thereby decide how it lands, and a lane that changed its landing act because a
+      `git remote add` succeeded would be the worst possible way to learn the difference. The
+      operator says which, and the record says which they said.
+
+      `landing: pull_request` with no `scm.repo`, or with `scm.open_pr` false, is refused at
+      load with the field named — the shape S-0068/D-1 established for exactly this, and for its
+      reason: the process that reads this file then runs unattended, so a warning prints to a
+      terminal nobody is watching.
+  - key: what-the-lane-does-instead-of-moving-main
+    md: |
+      Everything up to the landing is unchanged, deliberately. The review criterion, the CI
+      verdict, the approvals, the quiet window, the ancestry probe, the rebase in a disposable
+      worktree and the battery over the rebased tree all run exactly as they run today, and every
+      one of them refuses exactly what it refuses today.
+
+      At the point where `_land_fast_forward` and `_land_rebased` call `merge_ff`, the second
+      mode instead pushes the candidate branch under lease and opens — or refreshes, because one
+      pull request per task is already the rule the forge adapter enforces — the task's pull
+      request. Then it stops. The candidate is not landed, the run does not leave `ready`, and
+      the lane moves to the next candidate.
+
+      That is the whole of it, and the smallness is the point: the second mode is a different
+      last step, not a different lane. A mode that re-derived the battery or the conflict rule
+      would be a second lane wearing the first one's name, and the two would drift the first time
+      anybody fixed one of them.
+  - key: the-body-is-the-landing-record
+    md: |
+      `compose_pr` already composes from records and says so — the agent's output appears
+      nowhere, and if it had something to say it belongs in a log entry with evidence. What
+      changes is which records.
+
+      A body opened by the forge leg at the end of a run is composed from the run: the task, the
+      attempt, the config digest, the gate results, the changed files. A body opened by the lane
+      is composed from the landing: the task and its document, the rows the contract carried with
+      the grades they carried, the battery's verdicts, and the divergence entries the attempt
+      wrote — the things a reviewer on the forge decides from, and the things the execution file
+      beside the rows already holds.
+
+      The sentence that says the merge button is never used becomes conditional, because in this
+      mode the merge button is the entire mechanism. In `local` it stays exactly as it reads
+      today.
+  - key: the-landing-arrives-as-an-answer
+    md: |
+      The engine does not watch for the merge. It asks, on a later pass, about the candidates it
+      has open: the forge is the authority on what a person did to a pull request, and a poll
+      that happens to be running when they click is not a better source than the answer.
+
+      A merged pull request is the landing. The engine records it with the merge commit as the
+      landed sha, `mode: pull-request`, and the same `lane_landed` shape the local lane writes,
+      so nothing downstream has to learn a second way of asking what shipped. The attempt's own
+      commits stay on the remote branch after the squash — nobody deletes it — so the join from
+      task to commits that the record depends on survives a merge that rewrote history into one
+      commit.
+
+      This is the one place the two modes genuinely differ in what is known. Locally, the lane
+      performs the landing and therefore knows its sha immediately. Here the landing is somebody
+      else's act and the sha arrives late, which means a landing recorded in this mode is always
+      recorded after the fact and its instant is the instant the engine read it, not the instant
+      the person clicked. The record should say so rather than pretend to a precision it does not
+      have.
+  - key: the-three-verdicts-a-person-can-give
+    md: |
+      **Merged** is the landing, above.
+
+      **Still open, and no longer merging cleanly** is the conflict the lane already handles, and
+      it handles it the same way: once per base tip, rebase in a disposable worktree, re-run the
+      battery over the rebased tree, and — this is the only addition — republish the branch, so
+      the pull request the person is looking at is the one that was measured. `republish_branch`
+      exists, takes a lease, and has been waiting for this caller.
+
+      **Closed without merging** is a terminal verdict. A person looked at the work and declined
+      it, and that is a fact the engine records as abandoned by a person; it is not an escalation
+      to be triaged and it is not a candidate to re-queue. Re-queueing it would be the engine
+      arguing with the only reviewer it has.
+
+      The asymmetry is deliberate. A conflict is a mechanical fact about two trees and the engine
+      may decide it; a close is a judgement and the engine may only record it.
+  - key: the-worktree-is-cut-from-the-remote
+    md: |
+      In this mode `main` moves on the forge and not on this machine, so the local `main` is a
+      stale copy by construction — not occasionally, but always, from the first merge onward. A
+      worktree cut from it would build every attempt on a base that nobody's pull request will
+      ever merge against.
+
+      So in `pull_request` mode a worktree is cut from the remote's `main` after a fetch. That is
+      the preference `resolve_base` already has — `origin/main` before `main` — restored by
+      removing the local override this repository needed while its own remote was behind, plus
+      the fetch that makes the preference mean something.
+
+      The stale override goes with it. `.torve/config.yaml` pins `base: main` and explains it by
+      a 187-commit gap that has since closed, and a workaround whose reason has expired is worse
+      than no workaround: the next person reads it and believes the remote is still behind.
+  - key: whose-business-promotion-is
+    md: |
+      In `local` mode torve is the lander, so torve enforces the promotion criteria: review,
+      approvals, CI, quiet window. In `pull_request` mode a person is the lander and the forge is
+      where the criteria live — required reviewers, required checks, whatever that repository's
+      settings say.
+
+      The criteria torve holds do not therefore become meaningless; they move. They decide
+      whether a pull request is *opened*, not whether it is merged. A candidate that fails
+      `require_review` never reaches the forge, which is the right place to spend that refusal —
+      an unreviewable pull request costs a person's attention, and refusing before the push costs
+      nothing.
+
+      After the pull request is open, torve decides nothing about it. It reads state. Whether the
+      forge required one approval or three is a fact torve neither knows nor needs, and adding a
+      second opinion about it here would give the repository two promotion policies that can
+      disagree.
+
+      Credentials do not move at all: `gh` runs on the host, the token is named in configuration
+      and read at call time, the value stays in the runner's process, and no sandbox ever sees
+      it.
+tests: |
+  The second mode is tested by what does not happen: a lane pass over a green candidate in
+  `pull_request` mode leaves the base tip where it was, pushes the branch, and records a pull
+  request opened — and the same candidate in `local` mode moves the base, with one fixture and
+  one flag between the two.
+
+  The read-back is tested against a stubbed forge answering each of the three verdicts in turn: a
+  merged pull request records a landing whose sha is the merge commit and whose mode is
+  `pull-request`; a closed one records an abandonment and re-queues nothing; an open one whose
+  base moved takes the disposal path and republishes.
+
+  The refusal is tested by its twin, the shape S-0068's refusal already uses: `landing:
+  pull_request` with no `scm.repo` refused with the field named, and the same configuration with
+  the repository set accepted.
+
+  The body is tested for its two shapes rather than its words — a body composed in `local` mode
+  carries the sentence about the merge button and one composed in `pull_request` mode does not,
+  and both carry the rows and the verdicts the landing record holds.
+
+  What is not tested here is that the forge behaves as described. `gh pr view` reporting a squash
+  merge's commit is the forge's contract, and the assertion this document owns is that the engine
+  records whatever it is told, not that it was told the truth.
+docs: |
+  `.torve/config.yaml` gains the `landing:` key with the commented explanation every other
+  section of that file carries, and names `local` for this repository explicitly rather than by
+  default — the file is the documentation for its own knobs.
+
+  The same edit removes the stale base remark, so the next person reading it is not told the
+  remote is 187 commits behind a tree it now matches.
+out_of_scope: |
+  Auto-merging on the forge. `gh pr merge --auto` exists and would close the loop without a
+  person, which is precisely the thing the second repository's process is for.
+
+  The forge thread capture. `conflict_disposal` already says in its own words that the
+  forge-thread half is deliberately absent and owed by S-0005/D-12; a pull request that is now a
+  landing route does not change who owes it.
+
+  Deleting the candidate branch after a merge. The attempt's commits on it are what the record's
+  join to commits reads, and a branch kept costs a ref.
+
+  A second forge. Everything here speaks `gh` because the adapter does; whether the same shape
+  survives a different forge is a question for the day one exists.
+risks: |
+  **A landing nobody told the engine about stays open forever.** If the read-back never runs —
+  no pass, no candidates, a token that expired — the pull request is merged, the work is landed,
+  and the engine still thinks the candidate is ready. The mitigation is that the read-back is
+  part of the ordinary pass rather than a separate verb, and that a candidate whose branch tip is
+  already an ancestor of the remote base is the existing `already landed` answer, which catches
+  the case from the other side.
+
+  **The squash commit is not the attempt's commit, and the record joins on commits.** A squash
+  merge produces a sha that no attempt wrote, so the landing's `commit` and the attempt's commits
+  are different objects. The mitigation is that the branch is kept and its commits stay
+  reachable; the risk that remains is a repository that deletes head branches on merge by
+  default, which is a forge setting this document cannot reach and should say so.
+
+  **Two modes means two paths through the same lane, and one of them will be exercised rarely.**
+  The repository that develops torve runs `local`, so `pull_request` is the path nobody's daily
+  work covers. The mitigation is that the mode is a last step rather than a second lane, so
+  everything before it is exercised by both; the part that is genuinely only covered by tests is
+  small and stated.
+
+  **A close read as abandonment may have been a person tidying up.** Someone who closes a pull
+  request to reopen it cleanly gets an abandonment in the record. The mitigation is that the
+  record is a statement about what the forge said, not a judgement about intent, and that the
+  human fork out of it is the one that already exists.
+alternatives:
+  - option: >-
+      Infer the mode from whether a remote exists, or from `scm.open_pr`
+    rejected_because: >-
+      A repository that acquires a remote has not thereby decided how it lands, and a lane
+      whose landing act changes because `git remote add` succeeded is the worst possible
+      way to find that out. The operator says which, and the record says which they said.
+    cites: [S-0068/D-1]
+  - option: Have torve merge the pull request itself once the forge is green
+    rejected_because: >-
+      The whole of the second repository's process is that a person merges. An engine that
+      merges when the checks pass has replaced the process it was asked to fit, and the
+      first time it is wrong it will have been wrong on `main`.
+  - option: >-
+      Poll the forge for the merge instead of asking on the next pass
+    rejected_because: >-
+      A poll is a second clock with its own failure modes and its own credential use, and
+      the answer it gets is the same answer the next pass gets. Nothing downstream of the
+      landing is faster for having heard about it sooner.
+  - option: >-
+      Land locally and push the result, letting the forge notice the merge
+    rejected_because: >-
+      That is what `republish_branch` and `retire_pr` were built for, and it is exactly the
+      act the second repository forbids: it writes to `main` directly. It also fails against
+      a branch protection rule rather than gracefully.
+  - option: >-
+      Keep one mode and make the local landing a no-op on that repository
+    rejected_because: >-
+      A lane that lands nothing and says it landed is a lie in the one record the engine
+      keeps about what shipped. The modes differ in what they record precisely because they
+      differ in what happened.
+  - option: >-
+      Reuse the run's forge leg rather than giving the lane its own
+    rejected_because: >-
+      The forge leg opens a pull request at the end of an attempt, before the battery's
+      verdict is final and before any lane criterion has been applied. A pull request that
+      is a landing route must be opened by whatever decided the candidate was landable,
+      which is the lane.
+questions:
+  - id: Q-1
+    text: >-
+      What does the record say the landing's instant was — when the person merged, or when the
+      engine read it? The forge knows the first and the engine can only witness the second, and
+      every other landing instant in the record is the moment the engine acted.
+    status: open
+  - id: Q-2
+    text: >-
+      Does a repository that deletes head branches on merge break the join from task to commits,
+      and is that a refusal at load or a warning in the record? The setting is the forge's and
+      torve cannot change it, but it can notice that the branch it pushed is gone.
+    status: open
+  - id: Q-3
+    text: >-
+      Should the local override on `base` be removed outright or made conditional on the mode?
+      Removing it restores the `origin/main` preference for both modes, which is right for a
+      repository whose work is pushed and is a change to how this repository cuts worktrees today.
+    status: open
