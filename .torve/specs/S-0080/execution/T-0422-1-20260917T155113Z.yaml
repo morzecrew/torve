@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0422
+phase: 1
+base: 5560add543ac617222a7ad53c3aea72436fa0b16
+commit: 07f8fcf580d0b3fd800bbb12c9df524cc6be51c5
+at: '2026-09-17T15:51:13Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: OPEN
+  - id: D-17
+    grade: OPEN
+entries:
+  - decision: D-10
+    grade: ASSUMED
+    at: '2026-09-17T15:48:26Z'
+    claim: >-
+      the fetch is a keyword on both cut points, defaulted off: no caller can pass
+      it until promotion.landing exists (D-1) and the lane reads it (D-3), both out
+      of this scope
+    evidence: >-
+      src/torve/application/runner.py:979 — the only caller of workspace.create resolves
+      the base with no mode in hand
+    action: decided
+    proposal: >-
+      none — D-10 as written is settled at both cut points
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-17T15:48:26Z'
+    claim: >-
+      the scope names tests/test_context.py, which tests the torve context projection
+      rather than gates/context.py; the changed modules' own tests live in files this
+      scope does not name, so the checks for the fetch are added to the projection's
+      file
+    evidence: >-
+      tests/test_context.py:1 — docstring names S-0007/torve-context, the projection;
+      `rg -l resolve_base tests` returns nothing
+    action: decided
+    proposal: >-
+      a scope touching src/torve/gates/context.py names tests/test_gates.py and, for
+      the workspace, tests/test_runner.py — matching a module to a test file by filename
+      puts a module's checks in another module's suite
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-17T15:49:45Z'
+    claim: >-
+      the spec projection drifts in 9 directories because S-0080's rows were accepted
+      into the corpus without a re-projection; 8 of the 9 are outside this scope,
+      so writing it would convict the blocking scope gate to green a shadow one —
+      left unwritten
+    evidence: >-
+      `uv run torve spec project --check` — DRIFT in src/torve/domain, config, application,
+      cli, gates, adapters/agent, adapters/vcs, adapters/workspace and the root AGENTS.md;
+      `rg -n S-0080 src/torve/adapters/workspace/AGENTS.md` returns nothing
+    action: decided
+    proposal: >-
+      the re-projection belongs to the mint of S-0080's first task, or to a task whose
+      scope names the AGENTS.md files it rewrites — a scope of three source files
+      cannot carry a 9-directory projection
