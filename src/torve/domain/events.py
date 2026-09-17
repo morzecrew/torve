@@ -68,6 +68,10 @@ class SubjectType(StrEnum):
     DECISION = "decision"
     TASK = "task"
     SEAT = "seat"
+    # S-0079/D-1: a night is a subject here rather than a file, a summary or
+    # a counter — a manager killed at 04:00 has already written everything
+    # the morning report reads, and an open with no close says unfinished.
+    NIGHT = "night"
 
 
 # ....................... #
@@ -95,6 +99,8 @@ class EventKind(StrEnum):
     MESSAGE_SENT = "message.sent"
     SEAT_CONSUMED = "seat.consumed"
     NOTIFICATION_SENT = "notification.sent"
+    NIGHT_OPENED = "night.opened"
+    NIGHT_CLOSED = "night.closed"
 
 
 # ....................... #
@@ -135,6 +141,10 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     # who delivered it. A worker never writes this — a page is the loop's
     # act, not an attempt's.
     EventKind.NOTIFICATION_SENT: frozenset({ActorKind.MANAGER}),
+    # S-0079/D-1: opening and closing a night are the manager's acts, for the
+    # queue facts' reason — the loop is the only actor that can know them.
+    EventKind.NIGHT_OPENED: frozenset({ActorKind.MANAGER}),
+    EventKind.NIGHT_CLOSED: frozenset({ActorKind.MANAGER}),
 }
 
 
@@ -492,6 +502,62 @@ class NotificationSent(BaseModel):
 
 # ....................... #
 
+
+class NightOpened(BaseModel):
+    """The night's terms, whole (S-0079/D-2).
+
+    Read once at the open and never re-read: the report says what the night
+    was started with even if the configuration was edited while it ran, and
+    two nights are comparable because their terms are recorded rather than
+    reconstructed from whatever the file says afterwards.
+
+    `queue` is the ready queue as it stood — the task ids, not a count, so
+    a night that drained can be told from one that never had the work.
+    `budget_usd` and `budget_attempts` are the two axes; at most one may be
+    absent, which the configuration refuses at load rather than here
+    (S-0079/D-5). `stop_on` is the escalation classes the operator named
+    (S-0079/D-7), and `knobs` is the resolved value of each night knob under
+    whatever name its harness spells it (S-0079/D-9) — torve records these
+    and interprets none of them.
+    """
+
+    model_config = STRICT
+
+    queue: list[str] = Field(default_factory=list)
+    # S-0079/D-11: recorded as a term of the night and today it is one; a
+    # later night at width three is comparable against tonight's.
+    width: int = 1
+    budget_usd: float | None = None
+    budget_attempts: int | None = None
+    stop_on: list[EscalationReason] = Field(default_factory=list)
+    lease_seconds: int
+    knobs: dict[str, str] = Field(default_factory=dict)
+
+
+# ....................... #
+
+
+class NightClosed(BaseModel):
+    """A night that ended, and on which of its own terms (S-0079/D-1).
+
+    Thin on purpose: the morning report is a projection of the window
+    computed on every call (S-0079/D-4), so every count a close could carry
+    would be a second copy of what the window already holds. What only the
+    close can say is which bound was reached — and `wall_clock` is recorded
+    as reached at the moment it is, however far inside a pass the end fell,
+    because the end is a soft bound and the record has to say so
+    (S-0079/D-12).
+    """
+
+    model_config = STRICT
+
+    reason: Literal["drained", "budget_usd", "budget_attempts", "wall_clock", "escalation"]
+    # The escalation class that stopped the night, for `escalation`.
+    detail: str = ""
+
+
+# ....................... #
+
 PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.SOURCE_IMPORTED: SourceImported,
     EventKind.DECISION_RECORDED: DecisionRecorded,
@@ -514,6 +580,8 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.MESSAGE_SENT: MessageSent,
     EventKind.SEAT_CONSUMED: SeatConsumed,
     EventKind.NOTIFICATION_SENT: NotificationSent,
+    EventKind.NIGHT_OPENED: NightOpened,
+    EventKind.NIGHT_CLOSED: NightClosed,
 }
 
 
