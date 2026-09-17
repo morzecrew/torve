@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the log can hold a night
+    intent: >-
+      `SubjectType` gains `NIGHT` and `EventKind` gains `night.opened` and `night.closed`,
+      both under the manager's authority, with the opened payload carrying the night's terms
+      whole — queue, width, budget on both axes, stop conditions, lease and the resolved
+      knobs. Additive: a log with no night event folds exactly as it does today. Settles D-1
+      and D-2.
+    scope:
+      - src/torve/domain/events.py
+      - tests/test_events.py
+    acceptance:
+      - uv run pytest tests/test_events.py
+      - uv run mypy src
+    character: structural
+  - phase: 1
+    title: a conflict on a moved base disposes of itself
+    intent: >-
+      The served lane leg is handed `conflict_disposal`, the argument `process_lane` has
+      always accepted and never been given, so a candidate whose rebase conflicts against a
+      moved base is re-queued under the `conflict_base` bound instead of escalating
+      `merge_conflict`. `torve merge` is unchanged — the operator standing at the terminal is
+      exactly who should see a conflict. Settles D-10.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/manager.py
+      - tests/test_lane.py
+      - tests/test_manager.py
+    acceptance:
+      - uv run pytest tests/test_lane.py tests/test_manager.py
+      - uv run mypy src
+    character: structural
+  - phase: 1
+    title: three knobs that belong to the night
+    intent: >-
+      The fallback model, the capacity-error retry watchdog and the denial of anything that
+      would wait for a person's permission are declared as seat `env` and profile equipment,
+      so they reach the sandbox by the one route that moves the regime digest. Torve sets
+      them and interprets none of them. Settles D-8, and D-9 is implementation's within it.
+    scope:
+      - .torve/harnesses/**
+      - .torve/agents/**
+      - tests/test_agents.py
+    acceptance:
+      - uv run pytest tests/test_agents.py tests/test_equipment.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: the night opens, refuses, stops and closes
+    intent: >-
+      A `night:` section of the runner configuration carries the terms and is refused at load
+      for a zero budget or an unknown stop class; the open refuses an empty ready queue and
+      otherwise writes `night.opened` before the first pass; the loop stops on a named
+      escalation class, on either budget axis or at the wall-clock end, and writes
+      `night.closed`. Waits on phase 1 because it writes the kinds phase 1 defines. Settles
+      D-5, D-6, D-7 and D-11, and D-12 is implementation's within it.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/config/runconfig.py
+      - src/torve/cli/manager.py
+      - tests/test_manager.py
+      - tests/test_residency.py
+      - tests/test_runconfig.py
+    acceptance:
+      - uv run pytest tests/test_residency.py tests/test_runconfig.py tests/test_manager.py
+      - uv run mypy src
+    depends_on: [1]
+    character: structural
+  - phase: 3
+    title: the morning report
+    intent: >-
+      `torve night show` folds the window between an open and its close out of the partition's
+      log and prints what it holds — landings, gate verdicts, engine-ended attempts and what
+      waits on a person with the fact it waits on — computed on every call, stored nowhere,
+      with no field prose can occupy. A night with no close prints as unfinished. Settles D-3
+      and D-4.
+    scope:
+      - src/torve/application/manager.py
+      - src/torve/cli/night.py
+      - src/torve/cli/main.py
+      - tests/test_manager.py
+      - tests/test_cli.py
+    acceptance:
+      - uv run pytest tests/test_manager.py tests/test_cli.py
+      - uv run mypy src
+    depends_on: [2]
+    character: structural
+  - phase: 4
+    title: the verb and the block are written down
+    intent: >-
+      `src/torve/cli/AGENTS.md` gains the night verb beside the manager's and
+      `.torve/config.yaml` gains the commented `night:` block, so the next person arming a
+      night reads what the knobs cost rather than inferring them from the model.
+    scope:
+      - src/torve/cli/AGENTS.md
+      - .torve/config.yaml
+    acceptance:
+      - uv run pytest tests/test_docs.py
+    depends_on: [3]
+    character: routine

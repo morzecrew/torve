@@ -1,0 +1,332 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0079
+title: >-
+  The night as a typed record
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0068]
+informed_by: [S-0062, S-0063, S-0075]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A manager left running overnight produces no account of the night it ran: this makes the
+  night a subject in the event log, opened with its terms and closed at its end, and makes
+  the morning report a projection of the window between them.
+
+  The terms are recorded once at the open — the ready queue as it stood, the width, the
+  budget in dollars and in attempts, the stop conditions, and whether each of three harness
+  knobs was on — so a night stays comparable to the next one after the configuration has
+  been edited. The report holds only recorded fields; no line of it is prose a model wrote.
+  Two rules the engine already carries and never calls gain their caller, so lease expiry
+  and a conflict on a moved base stop waiting for a person.
+motivation: |
+  `torve manager serve` is already the resident process S-0044 asked for, and it already
+  survives being killed: every pass rebuilds its whole view from the log. What it does not
+  do is say what a run of it *was*. A manager that served from 23:00 to 07:00 leaves its
+  facts scattered across the log, correctly recorded and unaggregated, and the only way to
+  find out what the night did is to read it.
+
+  Each of the four questions a person actually asks at breakfast — what landed, what was
+  convicted and by which gate, what the engine ended and why, what is waiting on me and on
+  which fact — is already a recorded fact in `src/torve/domain/events.py`. What is missing
+  is the window: nothing in the log says where one unattended run began and ended, so the
+  facts cannot be folded per night, and two nights cannot be compared at all.
+
+  Meanwhile the unattended path is narrower than it looks. `promotion.auto_merge` defaults
+  to false, so `_lane_leg` returns `None` and a served pass lands nothing at all — the whole
+  queue is still a human act at breakfast. `conflict_disposal` in
+  `src/torve/application/lane.py` is built, bounded and called only by `tests/test_lane.py`;
+  the manager's leg passes no `on_conflict` and its own comment calls the disposal "separate,
+  later work". So the two failure modes most likely to arrive at 03:00 — a candidate whose
+  base moved under it, and an escalation class the operator would have waved through — both
+  stop the night dead and wait.
+current_state: |
+  **The pass, and what it claims.** `once` in `src/torve/application/residency.py` runs the
+  relay, then the lane, then standing, then the scan and the reclaim, and finishes with
+  `await worker.once(partition)` — at most one task per pass. `serve` loops it until
+  cancelled or until `passes` of them have run, sleeping `idle_seconds` on an idle pass and
+  going straight round on a productive one. There is no width, and nothing records that
+  there is not.
+
+  **Landing is off by default and refused when armed blind.** `promotion.auto_merge` is
+  `False` (`src/torve/config/runconfig.py`), and `_lane_leg` in `src/torve/cli/manager.py`
+  returns `None` without it. S-0068/D-1 already refuses `auto_merge: true` with no criterion
+  armed, at load, naming the field — that refusal is the shape this document copies twice.
+
+  **Two rules with no caller.** `conflict_disposal(root, vcs)` builds the S-0006/A-1
+  disposal and is reached from `tests/test_lane.py` alone; `process_lane` takes
+  `on_conflict` and both production callers — `torve merge` in `src/torve/cli/merge.py` and
+  the served leg — pass it nothing, so `_handle_rebase_conflict` escalates `merge_conflict`
+  every time. Lease expiry is the nearer miss: `reclaim` *is* called every pass and
+  `expired` *is* wired, but `LEASE_SECONDS = 900` is a module constant in
+  `src/torve/application/manager.py` that no configuration reaches, and `serve_cmd` never
+  passes `lease`. The rule runs; it is not a term anyone can state or record.
+
+  **The escalation vocabulary is closed and unused as a filter.** `EscalationReason` in
+  `src/torve/domain/states.py` holds thirteen values and is deliberately not extensible.
+  `loop.pause_escalations` counts the queue and says nothing about what is in it, so there
+  is no way to say "wake me for a `locked_conflict`, keep going on a `merge_conflict`".
+
+  **The knob surface exists.** `TierConfig.env` is merged off the harness manifest
+  (S-0063/D-10) and joins the regime digest; `.torve/harnesses/claude-subscription.yaml`
+  already carries four knobs by this route. Nothing about a fallback model, a capacity-error
+  watchdog or a permission denial is written anywhere.
+goals: |
+  One record per night, written by the engine, that says what the night started with and
+  what it did, and that a manager killed at 04:00 has already written most of.
+
+  A morning report that is a fold and holds nothing else — every field of it traceable to a
+  recorded fact, and no field of it a model's account of its own work.
+
+  Three night-only harness knobs declared where every other knob is declared, so a night run
+  under them is a visibly different regime rather than an invisibly different one.
+
+  Two rules the engine already holds decided by the engine during a night, so the two most
+  likely 03:00 stops stop being stops.
+non_goals: |
+  Not a wider pass. The width is recorded as a term of the night and is one; claiming more
+  than one task per pass is a different design with its own scope-disjointness failure modes,
+  and recording the number is what makes that design comparable against this one.
+
+  Not a change to what escalates. Everything outside the operator's named classes escalates
+  exactly as it does today — this adds a filter on what *stops the night*, never on what
+  raises an escalation.
+
+  Not a notification channel. S-0051's relay already delivers what is owed, on its own
+  cadence and unaffected by a pause; a night that has to page somebody pages through it.
+
+  Not arming `auto_merge`. Whether a repository lands unattended stays the operator's line,
+  refused blind since S-0068/D-1; this document says what the night recorded, including that
+  the landing leg was off.
+design:
+  - key: the-night-is-a-window-in-the-log
+    md: |
+      A night is a subject, not a file. `SubjectType` gains `NIGHT` and `EventKind` gains
+      `night.opened` and `night.closed`, both the manager's authority, beside the twenty-one
+      kinds already in `src/torve/domain/events.py`.
+
+      Nothing else is stamped. The four lists the report holds are the facts already in the
+      window: `landing.recorded`, `gates.evaluated`, `attempt.finished` and
+      `escalation.raised`, each folded out of the same partition's log between the open and
+      the close. The cost of that choice is stated rather than hidden — membership is a time
+      comparison, so a fact recorded in the second between two nights belongs to whichever
+      window holds its instant — and the alternative was a night identifier stamped onto
+      every event, which puts the same fact in two places and lets them disagree.
+
+      A night with an open and no close is an unfinished night, and reads as one. That is the
+      restart property S-0044/D-5 already buys, applied one level up: the open is written
+      before the first pass and is the only thing the night needed to have written.
+
+  - key: what-the-open-records
+    md: |
+      `night.opened` carries the terms whole, read once:
+
+      ```yaml
+      queue: [T-0421, T-0422, T-0423]   # the ready queue as it stood, in id order
+      width: 1                          # tasks in flight this night may hold
+      budget: {usd: 40.0, attempts: 25}
+      ends_at: 2026-09-18T07:00:00Z
+      stop_on: [locked_conflict, underspecified]
+      knobs: {fallback_model: claude-opus-5, retry_capacity: true, deny_prompts: true}
+      regime: <config_hash>
+      ```
+
+      Read once, at the open, and never re-read. The board is rebuilt from the log every
+      pass, so a term read per pass would let a night change its own terms at 03:00 and leave
+      no evidence that it had. `knobs` holds the resolved seat values, not the operator's
+      intention: what the sandbox was actually given, beside the regime digest that already
+      carries it.
+
+  - key: the-report-is-a-projection
+    md: |
+      `torve night show` folds the window and prints it. Nothing is stored — the same answer
+      `manager board` gives, one level up, and for the same reason: a stored summary is the
+      one artifact in this system that nothing can check against anything.
+
+      Every column is a recorded field. What landed is a sha and a task; what was convicted
+      is a gate name and a verdict; what the engine ended is a reason from the closed
+      vocabulary in `src/torve/domain/states.py`; what waits is a task, a reason and the
+      instant it was raised. There is no summary line, because a summary line is where prose
+      a model wrote would arrive, and the rule that keeps it out is that the projection has
+      no field to put it in.
+
+  - key: the-three-knobs-that-belong-to-the-night
+    md: |
+      A fallback model when the provider is overloaded, a watchdog that keeps retrying
+      capacity errors instead of ending the attempt, and denying anything that would wait for
+      a person's permission are all reasonable at 03:00 and all wrong at 11:00, when the
+      right answer to an overloaded provider is to stop and to a permission prompt is to
+      answer it.
+
+      They are declared as seat `env` and profile equipment — `.torve/harnesses/<name>.yaml`
+      and `.torve/agents/<name>.yaml` — and by no other route. That is not tidiness: `env` is
+      the knob surface S-0063/D-10 established, it joins the regime hash, and a knob outside
+      it is a change to what an agent may do that the digest cannot carry. A night run under
+      these knobs is a different regime from a day run, and the ledger can tell the two apart
+      without anyone remembering to say so.
+
+      Torve does not learn what any of them mean. Which variable name each takes on the
+      claude image, and what `/opt/torve/run` maps it to, is the image's business
+      (S-0063/D-1) and is left open here.
+
+  - key: what-the-engine-decides-while-nobody-is-awake
+    md: |
+      Two rules already exist and are already bounded, and the night is what they were for.
+
+      A candidate whose rebase conflicts against a base that moved is disposed of by
+      `conflict_disposal` rather than escalated: the superseded diff rides the task, the
+      candidate is re-queued, and `conflict_base` bounds it so the same candidate cannot be
+      re-queued twice against the same tip (S-0006/D-12). The served leg gains the argument
+      it has always accepted and never been given.
+
+      A lease that expired is already released every pass by `reclaim`. What is missing is
+      that `LEASE_SECONDS = 900` is a constant nobody can state — so the night records the
+      lease it ran under, and a night that released three tasks says under what rule it did.
+
+      Everything else escalates as it does today. The line between the two is not "what is
+      safe to automate" but "what rule is already written down": a conflict disposal and a
+      lease expiry are decisions the engine can make from recorded facts alone, and a blocker
+      finding or an underspecified contract is not.
+
+  - key: how-a-night-refuses-and-how-it-stops
+    md: |
+      Three refusals, at the two moments a person is still present.
+
+      At configuration load, beside S-0068/D-1's: a budget of zero on both axes, and an
+      escalation class that is not in `EscalationReason`. Both are facts the file holds, and
+      the argument for refusing rather than warning is S-0068/D-1's own — the process that
+      reads this file then runs unattended, so a warning prints to a terminal nobody is
+      watching.
+
+      At the open, before the first pass: an empty ready queue. The queue is a fold over the
+      board and cannot be known at load, and the open is the last moment the operator is
+      standing there. A queue that drains at 04:00 is not this refusal — it closes the night,
+      which is the night working.
+
+      Then three stop conditions, whichever arrives first: the first escalation whose class
+      the operator named, the budget on either axis, and the wall-clock end. `loop.pause_escalations`
+      is untouched and still counts a queue; this names a class, and the two are different
+      questions.
+tests: |
+  The window is tested by the fold: a log holding an open, a landing, a conviction, an
+  escalation and a close projects exactly those four; the same log without the close projects
+  an unfinished night rather than raising.
+
+  The terms are tested by mutation — the configuration is edited between the open and the
+  third pass, and the report still says what the night started with.
+
+  Each refusal is tested by its twin, the shape S-0068's refusal already uses in
+  `tests/test_residency.py`: a zero budget, a misspelt escalation class and an empty queue
+  each refused with the field named, and the armed equivalents each accepted.
+
+  The stop conditions are tested one at a time against a stubbed clock and a stubbed board —
+  a named class arriving, the dollar budget crossing, the attempt budget crossing, the end
+  arriving — and each asserted to close the night rather than to abandon it.
+
+  The disposal is tested where it already is: `tests/test_lane.py` exercises
+  `conflict_disposal` through `process_lane` today, and the new assertion is that the served
+  leg passes it.
+
+  What is not tested is that the three harness knobs do what they say inside the image. The
+  engine sets them and never interprets them (S-0063/D-10), so the assertion here is that
+  they reach the sandbox and the record, and nothing more.
+docs: |
+  `src/torve/cli/AGENTS.md` gains the night verb beside the manager's, and `.torve/config.yaml`
+  gains the commented `night:` block that every other section of that file carries — the file
+  is the documentation for its own knobs and has been since S-0013.
+out_of_scope: |
+  Widening the pass. Claiming more than one task at a time is the change this record exists
+  to make measurable, and doing both at once means the first wide night has nothing to be
+  compared against.
+
+  Ending a stalled attempt. `stalled` is a reading and S-0045/D-8 is deliberately open; a
+  night that kills attempts on a 20-minute burn silence is a different and much sharper
+  decision than a night that reports them, and the report is what would justify it.
+
+  Making the lease configurable. The night records the lease it ran under; moving
+  `LEASE_SECONDS` into configuration is a one-line change that wants its own argument about
+  what a shorter lease costs a slow sandbox.
+
+  A second night in flight. One partition, one night; whether a fleet's nights compose is a
+  question for `torve fleet` and not for this record's shape.
+risks: |
+  **A window is not an identifier.** Membership by instant is cheap and correct until two
+  nights touch, and then a fact on the boundary is in exactly one of them and possibly not
+  the one a reader expects. The mitigation is that the boundary is recorded — both instants
+  are in the log — so the ambiguity is resolvable by reading rather than by guessing, and the
+  alternative was double-writing every event.
+
+  **A report with no prose can be read as a report with no meaning.** Four lists of recorded
+  fields is less comfortable to read at breakfast than three sentences, and the pressure to
+  add the three sentences will be real on the first morning somebody has to read it. The rule
+  holds because the projection has no field for them, not because anyone remembered.
+
+  **The night knobs make failure quieter.** A fallback model and a capacity-error watchdog
+  both convert a visible stop into an invisible cost, which is the point at 03:00 and a
+  hazard afterwards. The mitigation is that the open records which were on, so a night whose
+  attempts-per-landing is worse can be asked whether it was the night or the knobs.
+
+  **Deciding a conflict is deciding.** The disposal re-queues a candidate whose work is now
+  superseded; it is bounded and it is recorded, and it is still the engine discarding
+  something a person might have wanted to look at. The bound is `conflict_base` and the
+  evidence is the superseded diff on the task — neither is a substitute for the operator
+  reading the night's ended list.
+alternatives:
+  - option: Write the night to a file under `.torve/nights/<date>.yaml` as it happens
+    rejected_because: >-
+      A second carrier for facts the log already holds, and the two would disagree the first
+      time a manager was killed mid-append. The log survives a kill by construction; a file
+      appended to from a dying process does not.
+    cites: [S-0044/D-5]
+  - option: Stamp every event with the night it fell in
+    rejected_because: >-
+      It makes membership exact and puts the same fact in two places, so a replay that
+      rebuilds the board and a replay that rebuilds the night can differ. The boundary
+      ambiguity a time window admits is smaller than the disagreement a stamp invites.
+  - option: Have the closing pass write a summary the report prints
+    rejected_because: >-
+      A summary written once is the only thing in the system nothing checks, and a night
+      killed before its close would have none at all. A fold costs a millisecond and cannot
+      drift.
+  - option: Let the agent write the night's narrative at close
+    rejected_because: >-
+      The report is what the operator trusts when they were not there, and prose a model
+      wrote about its own night is the one input that cannot be verified by the person it is
+      written for.
+  - option: >-
+      Put the three harness knobs in the runner configuration as a `night:` subsection
+    rejected_because: >-
+      They are knobs the image reads, and `env` on the seat is where those are declared
+      (S-0063/D-10) — a second surface would take them out of the regime hash, which is
+      exactly the fact that makes a night comparable.
+    cites: [S-0063/D-10]
+  - option: Reuse `loop.pause_escalations` as the night's stop condition
+    rejected_because: >-
+      It counts a queue and says nothing about what is in it, so "stop on a locked conflict,
+      continue on a merge conflict" is unsayable in it. Two different questions, and widening
+      the count to carry a class would break the pause it already governs.
+questions:
+  - id: Q-1
+    text: >-
+      Where is the wall-clock end measured from — the open, or an instant the operator names
+      — and what does a pass already in flight do when it arrives? An attempt in flight is
+      never interrupted by a pause today, and the same reading probably holds here, but it
+      makes the end a soft bound and the record should say which it was.
+    status: open
+  - id: Q-2
+    text: >-
+      Does the dollar budget bound the night or each attempt? `seat.consumed` meters per
+      attempt and the broker already enforces a per-attempt bound, so the night's figure is a
+      sum nobody enforces mid-attempt — which means a night can cross its budget by up to one
+      attempt's cost and the report has to say so honestly.
+    status: open
+  - id: Q-3
+    text: >-
+      Should `torve night show` default to the most recent night or refuse without an
+      identifier? The most recent is what a person wants at breakfast and the wrong default
+      for a script; `manager board` takes its partition positionally and this probably should
+      too.
+    status: open
