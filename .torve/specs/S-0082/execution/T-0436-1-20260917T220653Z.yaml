@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0436
+phase: 3
+base: 091fb9d12ce9cbc4f5e8a0169ac2d203106023bb
+commit: 26dceaa18df0503aef68ca14201f4cdec9c545ac
+at: '2026-09-17T22:06:53Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: OPEN
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-8
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-17T22:05:18Z'
+    claim: >-
+      arm mode is entered by --arm and also by naming neither a skill nor --image/--variant,
+      because the document's own launcher examples show a bare --task running all
+      three arms and the risk section calls that default a tripled spend; --tier alone
+      still refuses as before
+    evidence: >-
+      src/torve/cli/evals.py:283 — arm_mode is bool(arm_names) or (skill is None and
+      not config_mode)
+    action: departed
+    proposal: >-
+      ASSUMED — arm mode is told apart by --arm or by naming neither of the other
+      two modes' arguments; --arm narrows the arms, omitted means all three
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-09-17T22:05:18Z'
+    claim: >-
+      the refusal that names eligible tasks also covers a named task with no landing,
+      since the same read already answers it and the alternative is discovering it
+      after agents, broker and clones exist
+    evidence: >-
+      src/torve/cli/evals.py:336 — outside = [task_id for task_id in task_ids if task_id
+      not in eligible]
+    action: decided
+    proposal: >-
+      ASSUMED — a named task that is not eligible is refused with the same listing
+      as a missing --task
