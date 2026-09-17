@@ -19,12 +19,15 @@ from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
 from torve.application.manager import (
     Board,
+    PullRequests,
     TaskView,
     dispatchable,
     expired,
     project,
+    pull_requests,
     stalled,
 )
+from torve.base.clock import stamp
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.states import TaskState
 from torve.domain.task import Scope, Task
@@ -586,3 +589,51 @@ def test_an_agent_may_not_close_its_own_escalation():
     for actor in (ActorKind.AGENT, ActorKind.WORKER, ActorKind.MANAGER):
         with pytest.raises(UnauthorizedWrite):
             check_authority(actor, EventKind.ESCALATION_RESOLVED)
+
+
+# ....................... #
+
+# What the night left on the forge (S-0080/D-14): four counts folded from the
+# events in the window, and nowhere for prose to go.
+
+
+def stream(event: str, at: datetime, **fields):
+    return {"kind": "engine", "event": event, "at": stamp(at), **fields}
+
+
+def test_the_forge_counts_are_a_fold_over_the_windows_events():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    rows = [
+        stream("lane_pr_opened", opened + timedelta(minutes=5), task="T-1"),
+        stream("lane_pr_opened", opened + timedelta(minutes=9), task="T-2"),
+        stream("lane_landed", opened + timedelta(hours=1), task="T-3", mode="pull-request"),
+        stream("lane_conflict", opened + timedelta(hours=2), task="T-4"),
+        stream("lane_pr_closed", opened + timedelta(hours=3), task="T-5"),
+        # A local landing is a landing, and not a pull request anybody merged.
+        stream("lane_landed", opened + timedelta(hours=4), task="T-6", mode="fast-forward"),
+        # Facts about the night that say nothing about the forge.
+        stream("lane_gates_red", opened + timedelta(hours=4), task="T-7"),
+    ]
+
+    counts = pull_requests(rows, since=opened)
+
+    assert counts == PullRequests(opened=2, merged=1, conflicted=1, closed=1)
+
+
+def test_a_fact_outside_the_window_belongs_to_another_night():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    closed = opened + timedelta(hours=8)
+    rows = [
+        stream("lane_pr_opened", opened - timedelta(minutes=1), task="T-1"),
+        stream("lane_pr_opened", opened + timedelta(hours=1), task="T-2"),
+        stream("lane_pr_opened", closed + timedelta(minutes=1), task="T-3"),
+        # An instant that does not read counts nowhere rather than raising.
+        {"event": "lane_pr_opened", "at": "last tuesday", "task": "T-4"},
+        {"event": "lane_pr_opened", "task": "T-5"},
+    ]
+
+    assert pull_requests(rows, since=opened, until=closed) == PullRequests(opened=1)
+
+
+def test_an_idle_night_counts_nothing():
+    assert pull_requests([], since=datetime.now(UTC)) == PullRequests()

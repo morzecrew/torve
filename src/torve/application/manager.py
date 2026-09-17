@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from torve.application.planner import scopes_clash
+from torve.base.clock import parse
 from torve.application.sizing import estimate
 from torve.domain.events import EventKind, SubjectType
 from torve.domain.spec import document_id
@@ -410,3 +411,64 @@ def expired(
         ),
         key=lambda one: one.task_id,
     )
+
+
+# ....................... #
+
+# What the lane records about a pull request (S-0080/D-7, S-0080/D-8,
+# S-0080/D-9). A merge is `lane_landed` in the mode it landed under, because
+# the record shape is the local lane's and the mode is the field that says
+# which act produced it; a conflict is the one the disposal starts from, so
+# the requeue that follows it is not the same candidate counted twice.
+_PR_EVENTS = {
+    "lane_pr_opened": "opened",
+    "lane_conflict": "conflicted",
+    "lane_pr_closed": "closed",
+}
+
+
+@dataclass(frozen=True)
+class PullRequests:
+    """What a night left on the forge (S-0080/D-14): four counts and no
+    field prose can occupy, because in `pull_request` mode what is waiting
+    on a person is almost entirely there."""
+
+    opened: int = 0
+    merged: int = 0
+    conflicted: int = 0
+    closed: int = 0
+
+
+def pull_requests(
+    rows: Iterable[Mapping[str, Any]], *, since: datetime, until: datetime | None = None
+) -> PullRequests:
+    """Fold the window's recorded facts into the four counts.
+
+    A fold like every other column the report holds: the rows are the
+    engine's own stream, membership is a time comparison against the
+    night's bounds, and a row whose instant does not read counts nowhere
+    rather than taking the fold down.
+    """
+
+    counts = dict.fromkeys(("opened", "merged", "conflicted", "closed"), 0)
+
+    for row in rows:
+        try:
+            moment = parse(str(row.get("at") or ""))
+
+        except ValueError:
+            continue
+
+        if moment < since or (until is not None and moment > until):
+            continue
+
+        event = str(row.get("event") or "")
+
+        if event == "lane_landed":
+            if str(row.get("mode") or "") == "pull-request":
+                counts["merged"] += 1
+
+        elif event in _PR_EVENTS:
+            counts[_PR_EVENTS[event]] += 1
+
+    return PullRequests(**counts)
