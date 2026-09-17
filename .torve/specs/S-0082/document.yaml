@@ -3,7 +3,7 @@ id: S-0082
 title: The arms can be launched
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0074]
 informed_by: [S-0004, S-0009, S-0021, S-0027]
 supersedes: []
