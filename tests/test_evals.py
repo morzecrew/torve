@@ -35,6 +35,7 @@ from torve.application.evals import (
     ARMS,
     EVAL_LEDGER,
     candidate_config,
+    eligible_tasks,
     run_bare_shadow,
     run_config_eval,
     run_skill_eval,
@@ -883,3 +884,75 @@ def test_eval_without_a_task_refuses(tmp_path):
 
     assert result.exit_code == 3
     assert "give at least one --task" in result.stderr
+
+
+# ....................... #
+# What an arm run may name, and what it already cost (S-0082/D-3): one
+# reader over the landings the tree holds and the telemetry ledger.
+
+
+def _landing(root, task, commit="", at="2026-01-01T00:00:00Z"):
+    execution = layout.execution_dir(root)
+    execution.mkdir(parents=True, exist_ok=True)
+    (execution / f"{task}-1-{at.replace('-', '').replace(':', '')}.yaml").write_text(
+        f"task: {task}\nattempt: 1\nat: '{at}'\ncommit: {commit}\n", encoding="utf-8"
+    )
+
+
+def _telemetry(root, *rows):
+    stream = root / layout.TORVE_DIR / "telemetry.jsonl"
+    stream.parent.mkdir(parents=True, exist_ok=True)
+    stream.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows) + "not json\n", encoding="utf-8"
+    )
+
+
+def test_eligible_tasks_are_the_landings_that_name_a_commit(tmp_path):
+    root = tmp_path / "repo"
+    _landing(root, "T-0042", commit="a" * 40)
+    # A landing with no commit is a task that finished, not one a replay can
+    # start from — there is no parent to truncate a clone at.
+    _landing(root, "T-0043")
+
+    assert list(eligible_tasks(root)) == ["T-0042"]
+    assert eligible_tasks(root)["T-0042"]["commit"] == "a" * 40
+    # Nothing recorded against it yet: eligible, and costless rather than absent.
+    assert eligible_tasks(root)["T-0042"] == {
+        "commit": "a" * 40,
+        "attempts": 0,
+        "cost_usd": None,
+    }
+
+
+def test_eligible_tasks_sum_what_the_task_cost_when_it_was_done_for_real(tmp_path):
+    root = tmp_path / "repo"
+    _landing(root, "T-0042", commit="a" * 40)
+    _telemetry(
+        root,
+        {"task_id": "T-0042", "agent": {"adapter": "claude", "cost_usd": 0.25}},
+        {"task_id": "T-0042", "agent": {"adapter": "claude", "cost_usd": 0.5}},
+        # A replay of the task is a measurement of it, never the task being
+        # done; a fake adapter is simulation, not spend (S-0004/D-6).
+        {"task_id": "T-0042", "agent": {"adapter": "claude", "cost_usd": 9.0, "shadow": True}},
+        {"task_id": "T-0042", "agent": {"adapter": "fake", "cost_usd": 9.0}},
+        # A shadow summary carries no agent block, and another task's rows
+        # belong to that task.
+        {"task_id": "T-0042", "kind": "shadow", "cost_usd_total": 9.0},
+        {"task_id": "T-0043", "agent": {"adapter": "claude", "cost_usd": 9.0}},
+    )
+
+    assert eligible_tasks(root)["T-0042"] == {
+        "commit": "a" * 40,
+        "attempts": 2,
+        "cost_usd": 0.75,
+    }
+
+
+def test_eligible_tasks_of_a_tree_with_no_landings_is_empty(tmp_path):
+    """The reader takes no configuration and no agent, so the refusal for an
+    arm with no task is answered from the same read that prints the
+    pre-flight — including when the answer is that nothing is eligible."""
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    assert eligible_tasks(root) == {}

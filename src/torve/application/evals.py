@@ -207,6 +207,64 @@ def three_arm_table(root: Path) -> dict[str, dict[str, dict[str, Any]]]:
 # ....................... #
 
 
+def eligible_tasks(root: Path) -> dict[str, dict[str, Any]]:
+    """Which tasks an arm run may name, and what each already cost
+    (S-0082/D-3): a task is eligible when the tree holds a landing that names
+    a commit — that commit's parent is where a replay starts — and the cost
+    beside it is what the task cost when it was done for real, summed from
+    the live attempts in the telemetry ledger. A replay's own attempts and a
+    fake adapter's are not spend and are not counted.
+
+    One reader, taking no configuration and no agent, so the refusal for an
+    arm with no task and the pre-flight a verb prints before it spends come
+    from the same read and cannot disagree. Keyed by task id, ascending.
+    """
+
+    from torve.application.projections import shipped_landings
+
+    found: dict[str, dict[str, Any]] = {
+        task: {"commit": commit, "attempts": 0, "cost_usd": None}
+        for task, commit in sorted(shipped_landings(root).items())
+    }
+
+    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
+
+    if not telemetry.is_file():
+        return found
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(record, dict):
+            continue
+
+        agent: Any = record.get("agent")
+        row = found.get(str(record.get("task_id") or ""))
+
+        if row is None or not isinstance(agent, dict):
+            continue
+
+        # A shadow replay is a measurement of the task, never the task being
+        # done; a fake adapter is simulation, neither spend nor conviction
+        # (S-0004/D-6). Both would inflate what a real attempt cost.
+        if agent.get("shadow") or agent.get("adapter") == "fake":
+            continue
+
+        row["attempts"] += 1
+        cost = agent.get("cost_usd")
+
+        if isinstance(cost, (int, float)) and not isinstance(cost, bool):
+            row["cost_usd"] = round((row["cost_usd"] or 0.0) + float(cost), 6)
+
+    return found
+
+
+# ....................... #
+
+
 def run_skill_eval(
     root: Path,
     skill: str,
