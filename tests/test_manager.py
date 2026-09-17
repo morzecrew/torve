@@ -29,7 +29,7 @@ from torve.application.manager import (
 )
 from torve.base.clock import stamp
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
-from torve.domain.states import TaskState
+from torve.domain.states import EXIT_CONFIG, TaskState
 from torve.domain.task import Scope, Task
 
 PARTITION = "morzecrew/torve"
@@ -637,3 +637,75 @@ def test_a_fact_outside_the_window_belongs_to_another_night():
 
 def test_an_idle_night_counts_nothing():
     assert pull_requests([], since=datetime.now(UTC)) == PullRequests()
+
+
+# ....................... #
+# `--night` at the terminal (S-0079/D-6): the one refusal an operator is
+# present for, and the one line that says which term ended the night.
+
+
+def _serve_night(tmp_path, *args):
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+
+    return CliRunner().invoke(
+        app,
+        [
+            "manager",
+            "serve",
+            PARTITION,
+            "--night",
+            "--passes",
+            "1",
+            "--interval",
+            "0",
+            "--root",
+            str(tmp_path),
+            *args,
+        ],
+    )
+
+
+def test_a_night_over_an_empty_board_is_refused_before_the_first_pass(tmp_path):
+    """Nothing to start, so the night would sleep to morning having claimed
+    nothing. Refused now rather than reported at breakfast."""
+
+    result = _serve_night(tmp_path)
+
+    assert result.exit_code == EXIT_CONFIG, result.output
+    assert "night refused" in result.output
+
+
+def test_a_serve_without_the_switch_is_the_pass_it_always_was(tmp_path):
+    """The night is opt-in: the same empty board is an idle pass and a
+    success, which is what it was before the switch existed."""
+
+    import json
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    result = CliRunner().invoke(
+        app,
+        [
+            "manager",
+            "serve",
+            PARTITION,
+            "--passes",
+            "1",
+            "--interval",
+            "0",
+            "--root",
+            str(tmp_path),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["stopped_on"] == ""

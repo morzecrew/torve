@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from torve.application.manager import Board, TaskView, stalled
-from torve.application.residency import IDLE_SECONDS
+from torve.application.residency import IDLE_SECONDS, NightRefused
 from torve.cli.console import (
     STYLE_DIM,
     Format,
@@ -163,13 +163,14 @@ async def _serve(
     interval: float,
     only: str | None,
     dispatch: bool,
-) -> int:
+    night: bool = False,
+) -> tuple[int, str]:
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
     from torve.application.fleet import escalated_tasks
     from torve.application.manager import project
     from torve.application.projections import shipped_landings
-    from torve.application.residency import ran_here, serve
+    from torve.application.residency import close_night, open_night, ran_here, reached, serve
     from torve.application.worker import Worker
     from torve.cli import assembly
     from torve.cli.assembly import build_notifier
@@ -230,7 +231,20 @@ async def _serve(
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
 
-        return await serve(
+        # S-0079/D-6: refused here, before the first pass, while the operator
+        # who typed the command is still standing there. Nothing refuses the
+        # night after this point — the same empty queue an hour later is the
+        # night's work finished, and `reached` closes it.
+        terms = (
+            await open_night(log, partition, config=config.night, actor_id=worker)
+            if night
+            else None
+        )
+
+        async def stop() -> str | None:
+            return await reached(log, partition, terms) if terms is not None else None
+
+        handled = await serve(
             log,
             Worker(
                 log=log,
@@ -256,6 +270,22 @@ async def _serve(
             paused=paused,
             relay=relay,
             lane=lane_leg,
+            stop=stop if terms is not None else None,
+        )
+
+        if terms is None:
+            return handled, ""
+
+        # The reason is asked once more rather than remembered from the loop:
+        # `serve` also returns when its pass count runs out, and a night that
+        # ended that way has no term to name.
+        return handled, await close_night(
+            log,
+            partition,
+            terms,
+            reason=await reached(log, partition, terms) or "passes",
+            handled=handled,
+            actor_id=worker,
         )
 
 
@@ -388,6 +418,14 @@ def serve_cmd(
     interval: Annotated[
         float, typer.Option("--interval", help="Seconds an idle pass waits before looking again.")
     ] = IDLE_SECONDS,
+    night: Annotated[
+        bool,
+        typer.Option(
+            "--night",
+            help="Run under the configuration's night terms: refused now if nothing can be "
+            "started, and stopped by a budget, the wall-clock end or a named escalation.",
+        ),
+    ] = False,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -405,14 +443,22 @@ def serve_cmd(
     interrupting this is safe at any moment — the cost of a kill is the
     lease on whatever was in flight, and a restart reads back exactly what
     the previous process knew.
+
+    `--night` runs the same loop under the terms the configuration's night
+    section carries. The terms are read once, at the open, and recorded
+    there; the open refuses a board with nothing to start, and the loop
+    stops on a budget, on the wall-clock end or on the first escalation of
+    a class the terms name. Every bound is soft: they are read between
+    passes, so the attempt that was running when one was reached finishes.
     """
 
     root = root.resolve()
 
     interrupted = False
+    reason = ""
 
     try:
-        handled = asyncio.run(
+        handled, reason = asyncio.run(
             _serve(
                 dsn_to_write(root, dsn) or None,
                 partition,
@@ -423,6 +469,7 @@ def serve_cmd(
                 interval=interval,
                 only=task or None,
                 dispatch=not no_dispatch,
+                night=night,
             )
         )
 
@@ -431,6 +478,10 @@ def serve_cmd(
         # this process did, and the next one reads it back.
         handled, interrupted = 0, True
 
+    except NightRefused as exc:
+        # S-0079/D-6, at the one moment somebody is there to read it.
+        raise fail(f"night refused: {exc}", EXIT_CONFIG) from None
+
     if fmt is Format.JSON:
         emit_json(
             {
@@ -438,6 +489,7 @@ def serve_cmd(
                 "worker": worker,
                 "handled": handled,
                 "interrupted": interrupted,
+                "stopped_on": reason,
             }
         )
         raise typer.Exit(EXIT_OK)
@@ -445,7 +497,9 @@ def serve_cmd(
     console = out(fmt)
     closing(
         console,
-        "interrupted — the log holds the pass" if interrupted else f"{handled} task(s) handled",
+        "interrupted — the log holds the pass"
+        if interrupted
+        else f"{handled} task(s) handled" + (f" · stopped on {reason}" if reason else ""),
         STYLE_DIM if interrupted or not handled else "",
     )
     raise typer.Exit(EXIT_OK)

@@ -18,9 +18,19 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from torve.application.manager import IN_FLIGHT, TaskView, expired, project
+from torve.application.manager import (
+    IN_FLIGHT,
+    LEASE_SECONDS,
+    Board,
+    TaskView,
+    dispatchable,
+    expired,
+    project,
+)
 from torve.base import naming
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
@@ -28,11 +38,11 @@ from torve.domain.states import TaskState
 from torve.domain.task import DISPATCHABLE_ROLES
 
 if TYPE_CHECKING:
-    from datetime import timedelta
     from pathlib import Path
 
     from torve.application.eventlog import EventLog
     from torve.application.worker import Worker
+    from torve.config.runconfig import NightConfig
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -70,10 +80,30 @@ Lane = Callable[[], Awaitable[list[str]]]
 # *when* it may run.
 Standing = Callable[[], tuple[str, bool]]
 
+# Whether a term of the night has been reached, asked once at the top of a
+# pass and never inside one. Returns the reason to stop, or None to go round
+# again. A callable because every term it reads — the spend, the queue, the
+# clock — changes while the loop runs.
+Stop = Callable[[], Awaitable[str | None]]
+
 # How long an idle pass waits before looking again. Long enough that an idle
 # manager costs nothing, short enough that a freshly adopted contract does
 # not sit for a coffee break.
 IDLE_SECONDS = 15.0
+
+# S-0079/D-11: one task per pass. Recorded as a term of the night rather than
+# left to be inferred from this module as of tonight's date, so a later night
+# at another width is comparable against this one.
+NIGHT_WIDTH = 1
+
+# S-0079/D-1's kinds belong to this document's phase 1, which is not in this
+# tree — `EventKind` carries no `night.*` member and `SubjectType` no `NIGHT`.
+# Resolved by name so the open and the close land the moment phase 1 does,
+# and skipped until then: what the night refuses, stops on and closes at is
+# decided here and does not wait on the log's vocabulary.
+NIGHT_OPENED = getattr(EventKind, "NIGHT_OPENED", None)
+NIGHT_CLOSED = getattr(EventKind, "NIGHT_CLOSED", None)
+NIGHT_SUBJECT = getattr(SubjectType, "NIGHT", None)
 
 
 # ....................... #
@@ -495,6 +525,7 @@ async def serve(
     standing: Standing | None = None,
     relay: Relay | None = None,
     lane: Lane | None = None,
+    stop: Stop | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -507,12 +538,21 @@ async def serve(
     `paused` may be a callable, and for a resident process it must be: the
     escalation queue changes while the manager runs, and a pause decided
     once at startup stops meaning anything an hour later (S-0048/A-1).
+
+    `stop` is asked at the top of each pass and nowhere else. A term reached
+    mid-pass is honoured at the next one, which is what makes every bound a
+    night carries soft: the attempt in flight when the clock ran out
+    finishes (S-0079/D-12), and a loop that could interrupt one would be
+    throwing away exactly the work the night was run to get.
     """
 
     handled = 0
     seen = 0
 
     while passes is None or seen < passes:
+        if stop is not None and await stop() is not None:
+            return handled
+
         seen += 1
         task_id = await once(
             log,
@@ -540,3 +580,238 @@ async def serve(
             await asyncio.sleep(idle_seconds)
 
     return handled
+
+
+# ----------------------- #
+
+
+class NightRefused(Exception):
+    """The night was refused at the open, before the first pass.
+
+    An exception rather than a return value because there is exactly one
+    caller and exactly one thing it can do: say so at the terminal while the
+    operator who typed the command is still standing there. Raised only
+    before `night.opened` — once the night is open nothing refuses it, and a
+    queue that drains later closes it (S-0079/D-6).
+    """
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class Night:
+    """What one served night was started with (S-0079/D-2).
+
+    Read once at the open and never re-read, so the night's record says what
+    it was started with even after the configuration was edited while it
+    ran, and two nights are comparable because their terms are recorded
+    rather than reconstructed from whatever the file says afterwards.
+    """
+
+    night_id: str
+    opened_at: datetime
+    queue: tuple[str, ...]
+    budget_usd: float
+    budget_attempts: int
+    minutes: int
+    stop_on: tuple[str, ...]
+    lease_seconds: float
+    width: int = NIGHT_WIDTH
+    # The board as it stood at the open, which is what every budget axis is
+    # measured against: the log carries a partition's whole history, so a
+    # night that read the totals rather than the deltas would stop on the
+    # spend of every night before it.
+    spent_usd: float = 0.0
+    attempts: int = 0
+    escalated: frozenset[str] = field(default_factory=frozenset)
+
+    # ....................... #
+
+    @property
+    def ends_at(self) -> datetime:
+        """The wall-clock end, measured from the open (S-0079/D-12). From the
+        open rather than from the command, because the open is the first
+        instant recorded and a reader with the log alone can compute it."""
+
+        return self.opened_at + timedelta(minutes=self.minutes)
+
+    # ....................... #
+
+    def terms(self) -> dict[str, object]:
+        """The terms whole, as `night.opened` carries them."""
+
+        return {
+            "queue": list(self.queue),
+            "width": self.width,
+            "budget_usd": self.budget_usd,
+            "budget_attempts": self.budget_attempts,
+            "minutes": self.minutes,
+            "stop_on": list(self.stop_on),
+            "lease_seconds": self.lease_seconds,
+        }
+
+
+# ....................... #
+
+
+def _spend(board: Board) -> tuple[float, int]:
+    """What this partition has burned and how many attempts it has started,
+    over its whole recorded life. A night's own figures are the difference
+    between two of these."""
+
+    return (
+        sum(view.burned_usd for view in board.tasks.values()),
+        sum(view.attempts for view in board.tasks.values()),
+    )
+
+
+# ....................... #
+
+
+async def open_night(
+    log: EventLog,
+    partition: str,
+    *,
+    config: NightConfig,
+    actor_id: str,
+    lease: timedelta | None = None,
+    now: datetime | None = None,
+) -> Night:
+    """Read the night's terms off the board and the configuration, refuse an
+    empty ready queue, and record the open.
+
+    The refusal is S-0079/D-6, and it is worth the special case: a night with
+    nothing to start costs eight hours of sleeping and says so at the last
+    moment the operator is present to hear it. It is a refusal only *here* —
+    the same empty queue an hour later is a night that finished its work,
+    and closing is the right end for that.
+    """
+
+    opened_at = now or datetime.now(UTC)
+    board = project(await log.since(partition=partition))
+    queue = dispatchable(board, partition)
+
+    if not queue:
+        raise NightRefused(
+            "no task on this board can be started right now — a night would sleep "
+            "through to morning having claimed nothing"
+        )
+
+    spent_usd, attempts = _spend(board)
+    window = lease if lease is not None else timedelta(seconds=LEASE_SECONDS)
+    night = Night(
+        night_id=opened_at.strftime("%Y%m%dT%H%M%SZ"),
+        opened_at=opened_at,
+        queue=tuple(queue),
+        budget_usd=config.budget_usd,
+        budget_attempts=config.budget_attempts,
+        minutes=config.minutes,
+        stop_on=tuple(config.stop_on),
+        lease_seconds=window.total_seconds(),
+        spent_usd=spent_usd,
+        attempts=attempts,
+        escalated=frozenset(board.escalated()),
+    )
+
+    if NIGHT_OPENED is not None and NIGHT_SUBJECT is not None:
+        await log.record(
+            NIGHT_OPENED,
+            partition=partition,
+            subject_type=NIGHT_SUBJECT,
+            subject_id=night.night_id,
+            actor_kind=ActorKind.MANAGER,
+            actor_id=actor_id,
+            payload=night.terms(),
+        )
+
+    return night
+
+
+# ....................... #
+
+
+async def close_night(
+    log: EventLog,
+    partition: str,
+    night: Night,
+    *,
+    reason: str,
+    handled: int,
+    actor_id: str,
+    now: datetime | None = None,
+) -> str:
+    """Record the close and return the reason the night stopped.
+
+    Written even when the end fell inside a pass (S-0079/D-12), which is why
+    the payload carries how far past the end the close landed: a night that
+    closed eleven minutes late has to read as one that honoured a soft bound
+    rather than as one that ignored its terms.
+    """
+
+    closed_at = now or datetime.now(UTC)
+
+    if NIGHT_CLOSED is not None and NIGHT_SUBJECT is not None:
+        await log.record(
+            NIGHT_CLOSED,
+            partition=partition,
+            subject_type=NIGHT_SUBJECT,
+            subject_id=night.night_id,
+            actor_kind=ActorKind.MANAGER,
+            actor_id=actor_id,
+            payload={
+                "reason": reason,
+                "handled": handled,
+                "overran_seconds": max(0.0, (closed_at - night.ends_at).total_seconds()),
+            },
+        )
+
+    return reason
+
+
+# ....................... #
+
+
+async def reached(
+    log: EventLog, partition: str, night: Night, *, now: datetime | None = None
+) -> str | None:
+    """Which of the night's terms has been reached, or None.
+
+    The escalation classes come first because they are the only term an
+    operator named for themselves: "wake me for a locked conflict, keep
+    going on a merge conflict" (S-0079/D-7). Only a task that was not already
+    escalated at the open counts — last night's unresolved escalation is not
+    tonight's reason to stop — and `loop.pause_escalations` is untouched,
+    still counting a queue rather than reading its classes.
+    """
+
+    moment = now or datetime.now(UTC)
+    board = project(await log.since(partition=partition))
+
+    if night.stop_on:
+        for task_id in sorted(board.tasks):
+            view = board.tasks[task_id]
+
+            if task_id in night.escalated or view.state is not TaskState.ESCALATED:
+                continue
+
+            if view.escalation in night.stop_on:
+                return f"escalation:{view.escalation}"
+
+    spent_usd, attempts = _spend(board)
+
+    if night.budget_usd > 0 and spent_usd - night.spent_usd >= night.budget_usd:
+        return "budget_usd"
+
+    if night.budget_attempts > 0 and attempts - night.attempts >= night.budget_attempts:
+        return "budget_attempts"
+
+    if moment >= night.ends_at:
+        return "wall_clock"
+
+    if not dispatchable(board, partition) and not board.in_flight():
+        # S-0079/D-6's other half: a queue that drains closes the night. It is
+        # not an error and it is not the refusal — the work is done.
+        return "queue_drained"
+
+    return None

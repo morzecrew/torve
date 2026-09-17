@@ -14,14 +14,25 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
 from forze.application.execution import DepsRegistry, ExecutionRuntime
 
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
 from torve.application.manager import dispatchable, project
-from torve.application.residency import contracts, mint, once, reclaim, serve
+from torve.application.residency import (
+    NightRefused,
+    close_night,
+    contracts,
+    mint,
+    once,
+    open_night,
+    reached,
+    reclaim,
+    serve,
+)
 from torve.application.worker import Outcome, Worker
-from torve.config.runconfig import PromotionConfig, RunnerConfig
+from torve.config.runconfig import NightConfig, PromotionConfig, RunnerConfig
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
 
@@ -1322,3 +1333,347 @@ def test_ci_not_green_refuses_the_leg_as_it_refuses_the_verb(tmp_path, monkeypat
     assert [e["task"] for e in engine_events(repo, "lane_ci_not_green")] == ["T-7201"]
     assert run_state(repo, "T-7201").state is TaskState.READY
     assert not (repo / "one.py").is_file()
+
+
+# ....................... #
+# The night (S-0079): what refuses it at the open, what stops it once it is
+# running, and the terms it was started with. The terms are read once and
+# never re-read, so every test below builds its own rather than editing a
+# configuration mid-night — which is exactly the thing the night's record
+# exists to survive.
+
+
+async def escalate(log, task_id: str, reason: str) -> None:
+    await log.record(
+        EventKind.ESCALATION_RAISED,
+        partition=PARTITION,
+        subject_type=SubjectType.TASK,
+        subject_id=task_id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id="manager-1",
+        payload={"reason": reason},
+    )
+
+
+async def attempt(log, task_id: str, number: int) -> None:
+    await log.record(
+        EventKind.ATTEMPT_STARTED,
+        partition=PARTITION,
+        subject_type=SubjectType.TASK,
+        subject_id=task_id,
+        actor_kind=ActorKind.WORKER,
+        actor_id="worker-1",
+        payload={"attempt": number, "tier": "executor", "agent": "fake"},
+    )
+
+
+async def burn(log, task_id: str, cost_usd: float) -> None:
+    await log.record(
+        EventKind.SEAT_CONSUMED,
+        partition=PARTITION,
+        subject_type=SubjectType.TASK,
+        subject_id=task_id,
+        actor_kind=ActorKind.WORKER,
+        actor_id="worker-1",
+        payload={"seat": "executor", "cost_usd": cost_usd},
+    )
+
+
+def test_a_night_with_nothing_to_start_is_refused_at_the_open(tmp_path):
+    """S-0079/D-6. Nothing on the board, so nothing to claim: the night would
+    sleep eight hours and report nothing, and it says so now — at the last
+    moment the operator who typed the command is present to hear it."""
+
+    async def scenario(log):
+        with pytest.raises(NightRefused):
+            await open_night(log, PARTITION, config=NightConfig(), actor_id="manager-1")
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_open_reads_the_nights_terms_once_and_runs_at_width_one(tmp_path):
+    """S-0079/D-2 and S-0079/D-11: the queue as it stood, the width, both
+    budget axes, the stop conditions, the lease and the wall-clock end."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(budget_usd=5.0, budget_attempts=3, minutes=30, stop_on=["killed"]),
+            actor_id="manager-1",
+            lease=timedelta(minutes=20),
+        )
+
+        assert night.queue == ("T-0001",)
+        assert night.width == 1
+        assert night.terms() == {
+            "queue": ["T-0001"],
+            "width": 1,
+            "budget_usd": 5.0,
+            "budget_attempts": 3,
+            "minutes": 30,
+            "stop_on": ["killed"],
+            "lease_seconds": 1200.0,
+        }
+        # S-0079/D-12: measured from the open, which is the first instant the
+        # record carries — a reader with the log alone can compute it.
+        assert night.ends_at == night.opened_at + timedelta(minutes=30)
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_a_queue_that_drains_closes_the_night_rather_than_failing_it(tmp_path):
+    """S-0079/D-6's other half. The same empty queue that refuses the night at
+    the open is, an hour later, the night's work finished."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(log, PARTITION, config=NightConfig(), actor_id="manager-1")
+
+        assert await reached(log, PARTITION, night) is None
+
+        await once(log, worker_over(log, []), tmp_path, PARTITION)
+
+        assert await reached(log, PARTITION, night) == "queue_drained"
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_night_stops_on_a_named_class_and_carries_on_through_every_other(tmp_path):
+    """S-0079/D-7. "Wake me for a locked conflict, keep going on a merge
+    conflict" — said without changing what escalates."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(stop_on=["locked_conflict"]),
+            actor_id="manager-1",
+        )
+
+        await escalate(log, "T-0001", "merge_conflict")
+
+        assert await reached(log, PARTITION, night) is None
+
+        await escalate(log, "T-0002", "locked_conflict")
+
+        assert await reached(log, PARTITION, night) == "escalation:locked_conflict"
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_an_escalation_already_standing_at_the_open_is_not_tonights_reason_to_stop(tmp_path):
+    """Last night's unresolved escalation is still on the board, and a night
+    that read it would stop before its first pass every time."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        await escalate(log, "T-0001", "locked_conflict")
+
+        night = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(stop_on=["locked_conflict"]),
+            actor_id="manager-1",
+        )
+
+        assert night.escalated == frozenset({"T-0001"})
+        assert await reached(log, PARTITION, night) is None
+
+        await escalate(log, "T-0002", "locked_conflict")
+
+        assert await reached(log, PARTITION, night) == "escalation:locked_conflict"
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_either_budget_axis_stops_the_night_and_neither_counts_the_nights_before_it(tmp_path):
+    """The log carries a partition's whole life, so a night reading totals
+    rather than its own deltas would stop on last month's spend."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        await burn(log, "T-0001", 40.0)
+
+        night = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(budget_usd=5.0, budget_attempts=0),
+            actor_id="manager-1",
+        )
+
+        assert night.spent_usd == 40.0
+        assert await reached(log, PARTITION, night) is None
+
+        await burn(log, "T-0001", 5.0)
+
+        assert await reached(log, PARTITION, night) == "budget_usd"
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_attempt_axis_stops_the_night_on_its_own(tmp_path):
+    """Zero on the dollar axis leaves it unbounded; the attempt axis still
+    ends the night, which is what the load-time refusal guarantees."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(budget_usd=0.0, budget_attempts=2),
+            actor_id="manager-1",
+        )
+
+        await attempt(log, "T-0001", 1)
+
+        assert await reached(log, PARTITION, night) is None
+
+        await attempt(log, "T-0001", 2)
+
+        assert await reached(log, PARTITION, night) == "budget_attempts"
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_wall_clock_end_is_soft_and_the_attempt_in_flight_is_never_interrupted(tmp_path):
+    """S-0079/D-12. The end is read between passes and nowhere else, so a pass
+    that was running when it arrived finishes, and the close lands after it."""
+
+    contract(tmp_path, "T-0001")
+    executed: list[str] = []
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log, PARTITION, config=NightConfig(minutes=30), actor_id="manager-1"
+        )
+
+        assert await reached(log, PARTITION, night, now=night.ends_at) == "wall_clock"
+
+        # The end has already passed and one pass is asked for: the loop
+        # never starts it, because the bound is read at the top.
+        asked: list[int] = []
+
+        async def stop() -> str | None:
+            asked.append(1)
+
+            return await reached(log, PARTITION, night, now=night.ends_at)
+
+        assert (
+            await serve(
+                log,
+                worker_over(log, executed),
+                tmp_path,
+                PARTITION,
+                passes=1,
+                idle_seconds=0,
+                stop=stop,
+            )
+            == 0
+        )
+        assert executed == []
+        assert asked == [1]
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_a_term_reached_mid_pass_is_honoured_at_the_next_one(tmp_path):
+    """The other half of S-0079/D-12's soft bound: the pass under way when the
+    term was reached runs to its end, and the loop stops before the next."""
+
+    contract(tmp_path, "T-0001")
+    executed: list[str] = []
+    answers = [None, "wall_clock"]
+
+    async def scenario(log):
+        async def stop() -> str | None:
+            return answers.pop(0)
+
+        assert (
+            await serve(
+                log,
+                worker_over(log, executed),
+                tmp_path,
+                PARTITION,
+                passes=5,
+                idle_seconds=0,
+                stop=stop,
+            )
+            == 1
+        )
+        assert executed == ["T-0001"]
+        assert answers == []
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_close_names_why_it_stopped_and_how_far_past_the_end_it_landed(tmp_path):
+    """S-0079/D-12: a night that closed eleven minutes late has to read as one
+    that honoured a soft bound, not as one that ignored its terms."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log, PARTITION, config=NightConfig(minutes=30), actor_id="manager-1"
+        )
+
+        assert (
+            await close_night(
+                log,
+                PARTITION,
+                night,
+                reason="wall_clock",
+                handled=3,
+                actor_id="manager-1",
+                now=night.ends_at + timedelta(minutes=11),
+            )
+            == "wall_clock"
+        )
+
+    run(scenario)

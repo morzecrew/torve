@@ -29,6 +29,7 @@ from torve.config.agents import (
 )
 from torve.config.equipment import Equipment
 from torve.config.providers import APIS, Provider, ProviderError, load_providers
+from torve.domain.states import EscalationReason
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
 
@@ -1304,6 +1305,55 @@ class LoopConfig(BaseModel):
 # ....................... #
 
 
+class NightConfig(BaseModel):
+    """The terms one served night runs under (S-0079/D-5).
+
+    Both refusals below fire at load, while a person is still standing at
+    the terminal. A night with no budget on either axis would run until
+    something else stopped it, and a stop class nobody can raise is a
+    condition that silently never fires at 04:00 — which is the one hour
+    nobody is there to notice that it did not.
+    """
+
+    model_config = STRICT
+
+    budget_usd: float = 50.0
+    """Dollars the night may burn across every task before it closes; 0 leaves the
+    dollar axis unbounded, and both axes at 0 is refused."""
+    budget_attempts: int = 50
+    """Attempts the night may start before it closes; 0 leaves the attempt axis
+    unbounded, and both axes at 0 is refused."""
+    minutes: int = 480
+    """The wall-clock end, measured from the open. A soft bound: an attempt in flight
+    is never interrupted by it (S-0079/D-12)."""
+    stop_on: list[str] = Field(default_factory=list)
+    """Escalation classes that stop the night on their first occurrence; every other
+    class escalates as it always did and the night carries on (S-0079/D-7). Each name
+    must be one `EscalationReason` carries."""
+
+    @model_validator(mode="after")
+    def _the_night_can_end_and_its_stops_can_fire(self) -> NightConfig:
+        if self.budget_usd <= 0 and self.budget_attempts <= 0:
+            raise ValueError(
+                "night budget is zero on both axes — set night.budget_usd or "
+                "night.budget_attempts to what the night may spend"
+            )
+
+        known = {str(reason) for reason in EscalationReason}
+        unknown = sorted(name for name in self.stop_on if name not in known)
+
+        if unknown:
+            raise ValueError(
+                f"night.stop_on names {', '.join(repr(name) for name in unknown)}, which "
+                f"nothing escalates — the classes are {', '.join(sorted(known))}"
+            )
+
+        return self
+
+
+# ....................... #
+
+
 class IntakeConfig(BaseModel):
     """The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's
     decomposition ceiling — how many contracts one request may yield;
@@ -1529,6 +1579,8 @@ class RunnerConfig(BaseModel):
     """Where an interrupt-class escalation is delivered (S-0051)."""
     loop: LoopConfig = Field(default_factory=LoopConfig)
     """The manager pass's knobs (S-0019/A-8)."""
+    night: NightConfig = Field(default_factory=NightConfig)
+    """The terms a served night runs under (S-0079/D-5)."""
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     """The drafting run's knobs (S-0020)."""
     worker_slot: int = 0

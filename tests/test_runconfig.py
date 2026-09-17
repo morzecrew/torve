@@ -801,3 +801,55 @@ def test_pull_request_is_refused_at_load_naming_the_field_to_set(
     message = str(excinfo.value)
 
     assert missing in message and "config.yaml" in message
+
+
+# ....................... #
+# The night section (S-0079/D-5). Both refusals fire at load, which is the
+# whole point of them: a night is armed by somebody standing at a terminal
+# and read again at 04:00 by nobody.
+
+
+def test_the_night_section_loads_its_terms_and_defaults_to_a_bounded_one(tmp_path):
+    config = load(
+        tmp_path,
+        "schema_version: 1\nnight:\n  budget_usd: 12.5\n  budget_attempts: 4\n"
+        "  minutes: 90\n  stop_on: [locked_conflict, blocker_finding]\n",
+    )
+
+    assert config.night.budget_usd == 12.5
+    assert config.night.budget_attempts == 4
+    assert config.night.minutes == 90
+    assert config.night.stop_on == ["locked_conflict", "blocker_finding"]
+
+    # A repository that never writes the section still gets terms a night
+    # can end under — which is what makes the zero refusal a statement
+    # about what somebody typed rather than about the default.
+    assert load(tmp_path, "schema_version: 1\n").night.budget_attempts > 0
+
+
+# ....................... #
+
+
+def test_a_night_with_no_budget_on_either_axis_is_refused_at_load(tmp_path):
+    with pytest.raises(ValueError, match="zero on both axes"):
+        load(tmp_path, "schema_version: 1\nnight:\n  budget_usd: 0\n  budget_attempts: 0\n")
+
+    # One axis is enough: the other is deliberately unbounded, and the
+    # night still ends.
+    assert load(tmp_path, "schema_version: 1\nnight:\n  budget_usd: 0\n").night.budget_usd == 0.0
+
+
+# ....................... #
+
+
+def test_a_stop_class_nothing_escalates_is_refused_naming_what_does(tmp_path):
+    """The misspelling is caught while a person is there to fix it. Left to
+    04:00 it is a stop condition that silently never fires, and nobody is
+    awake to notice that it did not."""
+
+    with pytest.raises(ValueError, match="locked_conflcit"):
+        load(tmp_path, "schema_version: 1\nnight:\n  stop_on: [locked_conflcit]\n")
+
+    assert load(tmp_path, "schema_version: 1\nnight:\n  stop_on: [killed]\n").night.stop_on == [
+        "killed"
+    ]
