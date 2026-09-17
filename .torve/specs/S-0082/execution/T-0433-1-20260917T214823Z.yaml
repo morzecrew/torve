@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0433
+phase: 1
+base: 678d8ed56bc4ef258b251e815a37814440aaa4f7
+commit: 3b656bd816f3745107d2a32fa962144c0ca84a28
+at: '2026-09-17T21:48:23Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: OPEN
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-17T21:46:45Z'
+    claim: >-
+      the session cannot call build_prompt(task, bare=True): it lives in the harness
+      adapter and the application layer may not import an adapter, so the bare prompt
+      is composed in the application beside the review leg's own prompt builder and
+      handed through the same AgentContext.prompt seam
+    evidence: >-
+      pyproject.toml:88-94 — the layers contract puts torve.adapters above torve.application;
+      src/torve/application/review.py:101 is the precedent, a composed prompt built
+      in the application
+    action: departed
+    proposal: >-
+      the adapter's build_prompt bare branch should call the application's bare_prompt
+      so the two cannot drift; adapters may import the application, and that edit
+      is outside this scope
+  - decision: D-2
+    grade: OPEN
+    at: '2026-09-17T21:46:45Z'
+    claim: >-
+      a bare-prompt arm's worktree is stripped of what the runner would have written
+      into it - the projected contract, the materialised skill set, the context pack
+      - and of nothing the tree already carried, because deleting a tracked file would
+      land in the replay's own diff and read as work the arm did; the attempt record
+      names the removals in force
+    evidence: >-
+      src/torve/application/session.py:389-405 — the removals and the record that
+      names them
+    action: decided
+    proposal: none
