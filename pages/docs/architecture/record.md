@@ -62,6 +62,8 @@ executable intent without a human signature.**
 | `message.sent` | agent, manager, operator |
 | `seat.consumed` | worker |
 | `notification.sent` | manager |
+| `night.opened` | manager |
+| `night.closed` | manager |
 
 <!-- authority-table:end -->
 
