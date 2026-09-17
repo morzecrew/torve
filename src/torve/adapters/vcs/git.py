@@ -627,21 +627,12 @@ class GhScm:
 
     # ....................... #
 
-    def pr_info(self, number: int) -> PrInfo:
-        document = cast(
-            "dict[str, Any]",
-            json.loads(
-                self._gh(
-                    "pr",
-                    "view",
-                    str(number),
-                    "--json",
-                    "number,title,author,isDraft,headRefOid,baseRefName,changedFiles,state",
-                )
-            ),
-        )
+    PR_FIELDS = "number,title,author,isDraft,headRefOid,baseRefName,changedFiles,state,mergeCommit"
 
+    @staticmethod
+    def _pr_info(document: dict[str, Any]) -> PrInfo:
         author = cast("dict[str, Any]", document.get("author") or {})
+        merge = cast("dict[str, Any]", document.get("mergeCommit") or {})
 
         return PrInfo(
             number=int(document["number"]),
@@ -652,7 +643,36 @@ class GhScm:
             base_ref=str(document.get("baseRefName", "")),
             changed_files=int(document.get("changedFiles", 0)),
             state=str(document.get("state", "")).lower(),
+            merge_commit=str(merge.get("oid", "")),
         )
+
+    # ....................... #
+
+    def pr_info(self, number: int) -> PrInfo:
+        return self._pr_info(
+            cast(
+                "dict[str, Any]",
+                json.loads(self._gh("pr", "view", str(number), "--json", self.PR_FIELDS)),
+            )
+        )
+
+    # ....................... #
+
+    def pr_for_branch(self, branch: str) -> PrInfo | None:
+        """What happened to this branch (S-0080/D-6): the branch's pull request
+        in whatever state the forge holds it, with the merge commit when it
+        was merged — the sha a squash lands in. None when the forge knows no
+        pull request for the branch."""
+
+        listed = cast(
+            "list[dict[str, Any]]",
+            json.loads(
+                self._gh("pr", "list", "--head", branch, "--state", "all", "--json", self.PR_FIELDS)
+                or "[]"
+            ),
+        )
+
+        return self._pr_info(listed[0]) if listed else None
 
     # ....................... #
 

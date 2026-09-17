@@ -82,6 +82,22 @@ def test_the_pr_is_composed_from_records_never_prose(tmp_path: Path):
     assert "/home/op" not in red_body
 
 
+def test_the_landings_body_names_its_document_and_drops_the_ff_sentence(tmp_path: Path):
+    # S-0080/D-4, S-0080/D-5: a body opened by the lane is the landing's
+    # record — the document it was minted from is in it — and it never tells
+    # a reader not to press the one control the mode depends on.
+    task = task_with_contract().model_copy(update={"spec": "S-0080"})
+    meta = {"adapter": "harness", "model": "deepseek-chat"}
+
+    _, body = compose_pr(task, 1, "d", meta, [], tmp_path, landing="pull_request")
+    assert "S-0080" in body
+    assert "merge button" not in body
+    assert "- D-9 (LOCKED): keys rotate" in body
+
+    _, local_body = compose_pr(task, 1, "d", meta, [], tmp_path)
+    assert "merge button is never used" in local_body
+
+
 def test_the_push_token_reaches_git_by_environment_never_argv(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
 
@@ -170,6 +186,47 @@ def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
     assert url == "https://github.com/example/lab/pull/31"
     edits = [c for c in calls if "edit" in c]
     assert edits and "--body" in edits[0] and "fresh body" in edits[0]
+
+
+def test_pr_for_branch_answers_with_the_merge_commit(monkeypatch):
+    # S-0080/D-6: the lane's one question — what happened to this branch —
+    # asked by head branch, answered with the sha a squash merge landed in.
+    commands: list[list[str]] = []
+    listed = json.dumps(
+        [
+            {
+                "number": 44,
+                "title": "T-8301: Rotate the keys.",
+                "author": {"login": "torve"},
+                "isDraft": False,
+                "headRefOid": "head" * 10,
+                "baseRefName": "main",
+                "changedFiles": 2,
+                "state": "MERGED",
+                "mergeCommit": {"oid": "squash" * 6},
+            }
+        ]
+    )
+
+    def fake_run(command, **kwargs):
+        commands.append([str(part) for part in command])
+        return subprocess.CompletedProcess(command, 0, stdout=listed, stderr="")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+    scm = GhScm(repo="example/lab", token_env=None)
+    info = scm.pr_for_branch("torve/T-8301")
+
+    assert info is not None
+    assert (info.number, info.state, info.merge_commit) == (44, "merged", "squash" * 6)
+    assert commands[0][:6] == ["gh", "pr", "list", "--head", "torve/T-8301", "--state"]
+
+    commands.clear()
+    monkeypatch.setattr(
+        git_module.subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, stdout="[]", stderr=""),
+    )
+    assert GhScm(repo="example/lab", token_env=None).pr_for_branch("torve/T-8302") is None
 
 
 # ....................... #

@@ -496,6 +496,7 @@ class PrInfo:
     base_ref: str
     changed_files: int
     state: str  # open | closed | merged, forge-cased
+    merge_commit: str = ""  # the sha a merge landed in, "" unless merged (S-0080/D-6)
 
 
 # ....................... #
@@ -507,6 +508,8 @@ class PrScm(Protocol):
     reviewer itself never holds a forge credential."""
 
     def pr_info(self, number: int) -> PrInfo: ...
+
+    def pr_for_branch(self, branch: str) -> PrInfo | None: ...
 
     def comment(self, number: int, body: str, key: str) -> str: ...
 

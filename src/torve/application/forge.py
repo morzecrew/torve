@@ -74,8 +74,11 @@ def compose_pr(
     results: list[GateResult],
     worktree: Path,
     changed: list[str] | None = None,
+    landing: str = "local",
 ) -> tuple[str, str]:
-    """(title, body), composed entirely from records. The agent's output
+    """(title, body), composed entirely from records — the task, the document
+    it was minted from, the rows it carried with their grades, the gates'
+    verdicts and the divergence entries (S-0080/D-4). The agent's output
     appears nowhere: if it had something to say beyond code, it belongs in
     an execution-log entry with evidence. The body leads with what a
     reader decides from — what changed, whether the gates held, where the
@@ -88,16 +91,24 @@ def compose_pr(
 
     title = f"{task.id}: {summary}"
 
+    document = f" · {task.spec}" if task.spec else ""
+
     lines = [
-        f"**{task.id} · attempt {attempts} · config `{digest}`**",
-        "",
-        (
-            "Reading surface: this pull request lands by fast-forward and "
-            "the merge button is never used. Approval and revision live on "
-            "the task's issue — `/torve approve` · `/torve revise`."
-        ),
+        f"**{task.id}{document} · attempt {attempts} · config `{digest}`**",
         "",
     ]
+
+    if landing == "local":
+        # The sentence is true of a reading surface and false of a pull
+        # request that is itself the landing route (S-0080/D-5).
+        lines += [
+            (
+                "Reading surface: this pull request lands by fast-forward and "
+                "the merge button is never used. Approval and revision live on "
+                "the task's issue — `/torve approve` · `/torve revise`."
+            ),
+            "",
+        ]
 
     if attempts > 1:
         lines += [
