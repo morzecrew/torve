@@ -9,4 +9,11 @@ The skill and its template, the schemas `torve init` writes, the projections bes
 - Paths: `skills/**` `src/torve/application/colocation.py` `src/torve/cli/init.py` `pages/docs/operating.md`
 - Consequence: Nothing a harness or a person reads names an identifier the check refuses
 
+### S-0082/D-12 — `ASSUMED` (The arms can be launched)
+
+The operating guide's arm section gains how to launch the arms beside how to read them, and its claim that the bare arm is handed a sentence and a worktree is corrected to what the worktree actually carries
+
+- Paths: `pages/docs/operating.md`
+- Consequence: the sentence a reader quotes a year later is the one the code supports, rather than the one the design hoped for
+
 <!-- /torve:managed -->
