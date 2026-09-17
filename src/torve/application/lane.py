@@ -36,11 +36,20 @@ from torve.domain.states import EscalationReason, TaskState
 # ----------------------- #
 
 
+# `pull_request` mode's landing act (S-0080/D-3), injected because the push and
+# the forge call are adapters: (task, branch) -> what the forge answered, a
+# pull request reference. Raising `RuntimeError` is a refusal for this
+# candidate alone.
+Publisher = Callable[[str, str], str]
+
+
 @dataclass
 class LaneResult:
     task: str
     branch: str
-    action: str  # landed | conflict | gates red | already landed | no branch | would *
+    # landed | pull request | pr refused | conflict | gates red |
+    # already landed | no branch | would *
+    action: str
     detail: str = ""
     sha: str = ""
 
@@ -508,6 +517,49 @@ def _quiet_window(
 # ....................... #
 
 
+def _open_pull_request(
+    root: Path,
+    publish: Publisher,
+    task_id: str,
+    branch: str,
+    sha: str,
+    mode: str,
+    approver: str,
+    results: list[LaneResult],
+) -> None:
+    """`pull_request` mode's landing act (S-0080/D-3): in place of the
+    fast-forward, the candidate is pushed under lease and the task's pull
+    request opened or refreshed, and the pass stops there — the base is not
+    moved by this engine at all. Every criterion, probe and rebase before
+    this point ran exactly as `local` mode ran it, which is S-0080/D-11: the
+    criteria decide whether a pull request is opened, and the forge's own
+    rules govern what happens to it afterwards.
+
+    A forge that refuses is this candidate's refusal, not the pass's: the
+    remaining candidates are still landed or still refused on their own
+    terms."""
+
+    try:
+        reference = publish(task_id, branch)
+
+    except RuntimeError as exc:
+        engine_event(root, "lane_pr_refused", {"task": task_id, "sha": sha, "detail": str(exc)})
+        results.append(LaneResult(task_id, branch, "pr refused", str(exc), sha))
+
+        return
+
+    engine_event(
+        root,
+        "lane_pr_opened",
+        {"task": task_id, "mode": mode, "sha": sha, "approver": approver, "pr": reference},
+    )
+
+    results.append(LaneResult(task_id, branch, "pull request", reference or mode, sha))
+
+
+# ....................... #
+
+
 def _land_fast_forward(
     root: Path,
     vcs: LaneVcs,
@@ -517,10 +569,23 @@ def _land_fast_forward(
     dry_run: bool,
     approver: str,
     results: list[LaneResult],
+    publish: Publisher | None = None,
 ) -> None:
     if dry_run:
-        results.append(
-            LaneResult(task_id, branch, "would land", "fast-forward, gates already measured")
+        if publish is not None:
+            results.append(
+                LaneResult(task_id, branch, "would open pull request", "gates already measured")
+            )
+        else:
+            results.append(
+                LaneResult(task_id, branch, "would land", "fast-forward, gates already measured")
+            )
+
+        return
+
+    if publish is not None:
+        _open_pull_request(
+            root, publish, task_id, branch, branch_tip, "fast-forward", approver, results
         )
 
         return
@@ -602,6 +667,7 @@ def _land_rebased(
     on_conflict: Callable[[str], str] | None,
     approver: str,
     results: list[LaneResult],
+    publish: Publisher | None = None,
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -639,6 +705,23 @@ def _land_rebased(
         results.append(LaneResult(task_id, branch, "gates red", summary))
         return
 
+    if publish is not None:
+        # The rebased tip is what the battery just measured, so that is the
+        # tree the pull request must show (S-0080/D-9); the publisher's push
+        # is leased, so a branch that moved under the engine refuses.
+        _open_pull_request(
+            root,
+            publish,
+            task_id,
+            branch,
+            vcs.tip(root, branch) or branch_tip,
+            "rebased",
+            approver,
+            results,
+        )
+
+        return
+
     vcs.adopt_identical(root, branch)
     sha = vcs.merge_ff(root, branch)
 
@@ -672,13 +755,16 @@ def _land_candidate(
     on_conflict: Callable[[str], str] | None,
     approver: str,
     results: list[LaneResult],
+    publish: Publisher | None = None,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
     if vcs.is_ancestor(root, base_tip, branch_tip):
         # The base has not moved under this branch: the tree that would
         # land is byte-identical to the one the gates measured.
-        _land_fast_forward(root, vcs, task_id, branch, branch_tip, dry_run, approver, results)
+        _land_fast_forward(
+            root, vcs, task_id, branch, branch_tip, dry_run, approver, results, publish
+        )
         return
 
     if dry_run:
@@ -700,6 +786,7 @@ def _land_candidate(
         on_conflict,
         approver,
         results,
+        publish,
     )
 
 
@@ -716,7 +803,14 @@ def process_lane(
     require_review: bool = False,
     quiet_window_s: int = 0,
     on_conflict: Callable[[str], str] | None = None,
+    publish: Publisher | None = None,
 ) -> list[LaneResult]:
+    """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
+    the pass runs unchanged to the landing and then publishes the candidate
+    instead of fast-forwarding the base. The mode is a term of configuration
+    (S-0080/D-1) decided by the caller — the lane is handed the act, never the
+    question of whether a remote exists."""
+
     base = vcs.current_branch(root)
 
     if not dry_run:
@@ -798,6 +892,7 @@ def process_lane(
             on_conflict,
             approver,
             results,
+            publish,
         )
 
     return results

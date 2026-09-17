@@ -7,7 +7,7 @@ the queue without moving anything, per the house convention.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.text import Text
@@ -38,7 +38,7 @@ from torve.domain.states import (
 if TYPE_CHECKING:
     from rich.console import Console
 
-    from torve.application.lane import LaneResult
+    from torve.application.lane import LaneResult, Publisher
     from torve.application.ports import CiStatus
     from torve.config.runconfig import RunnerConfig
 
@@ -49,6 +49,9 @@ _MARKS = {
     "already landed": "pass",
     "would land": "pass",
     "would rebase": "pass",
+    "pull request": "pass",
+    "would open pull request": "pass",
+    "pr refused": "fail",
     "conflict": "fail",
     "gates red": "fail",
     "ci not green": "fail",
@@ -90,11 +93,84 @@ def _resolve_ci(config: RunnerConfig) -> CiStatus | None:
 # ....................... #
 
 
+def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
+    """The pull request's title and body, composed from the landing record
+    alone (S-0080/D-4): the contract, the rows it carried, the gates of the
+    attempt the stream last recorded, and the divergence entries. Nothing
+    the agent wrote as prose reaches it."""
+
+    from torve.application.forge import compose_pr
+    from torve.application.projections import stream_rows
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.config import layout
+    from torve.domain.attempt import GateResult
+    from torve.gates.context import load_task
+
+    task = load_task(layout.task_file(root, task_id))
+    state = RunState.load(naming.state_file(root, task_id))
+
+    rows = [r for r in stream_rows(root) if r.get("task_id") == task_id and "results" in r]
+    row: dict[str, Any] = rows[-1] if rows else {}
+    recorded: list[Any] = row.get("results") or []
+
+    results = [GateResult.model_validate(r) for r in recorded]
+    meta: dict[str, Any] = row.get("agent") or {}
+
+    return compose_pr(
+        task,
+        state.attempts,
+        str(row.get("config_hash", "")),
+        meta,
+        results,
+        root,
+        landing="pull_request",
+    )
+
+
+# ....................... #
+
+
+def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
+    """`pull_request` mode's landing act, or None in `local` mode
+    (S-0080/D-1: the mode is this term of configuration and nothing else).
+
+    Push under lease first, so the pull request shows the tree the criteria
+    were applied to, then open or refresh the task's one pull request. The
+    forge credential is resolved from the configured variable NAME at call
+    time and stays in this process (S-0080/D-13)."""
+
+    if config.promotion.landing != "pull_request":
+        return None
+
+    import os
+
+    from torve.adapters.vcs.git import GhScm, GitVcs
+
+    vcs = GitVcs()
+    scm = GhScm(config.scm.repo, config.scm.token_env)
+
+    def publish(task_id: str, branch: str) -> str:
+        token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
+
+        if not vcs.republish_branch(root, branch, token):
+            raise RuntimeError(f"no origin to publish {branch!r} to")
+
+        title, body = _pr_text(root, task_id)
+
+        return scm.open_pr(root, branch, title, body)
+
+    return publish
+
+
+# ....................... #
+
+
 def _action_style(action: str) -> str:
-    if action in ("conflict", "gates red"):
+    if action in ("conflict", "gates red", "pr refused"):
         return STYLE_FAIL
 
-    if "land" in action:
+    if "land" in action or action.endswith("pull request"):
         return STYLE_PASS
 
     return STYLE_DIM
@@ -139,7 +215,14 @@ def _exit_code(results: list[LaneResult]) -> int:
 
     if any(
         r.action
-        in ("gates red", "ci not green", "approvals short", "review missing", "quiet window")
+        in (
+            "gates red",
+            "ci not green",
+            "approvals short",
+            "review missing",
+            "quiet window",
+            "pr refused",
+        )
         for r in results
     ):
         return EXIT_GATES_RED
@@ -244,6 +327,7 @@ def merge_cmd(
             approvals_required=config.promotion.approvals,
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
+            publish=_publisher(root, config),
         )
 
     except RuntimeError as exc:

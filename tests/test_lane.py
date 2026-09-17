@@ -826,3 +826,114 @@ def test_approving_a_task_with_no_run_state_is_a_configuration_error(lane_repo):
     result = CliRunner().invoke(app, ["approve", "T-9999", "--root", str(lane_repo)])
     assert result.exit_code == 3
     assert "no run state" in result.stderr
+
+
+# `pull_request` mode: the landing act is a publication (S-0080/D-3, S-0080/D-11).
+
+
+def _recording_publisher(published: list[tuple[str, str]], url: str = "https://forge/pr/7"):
+    def publish(task_id: str, branch: str) -> str:
+        published.append((task_id, branch))
+        return url
+
+    return publish
+
+
+def test_pull_request_mode_publishes_the_candidate_and_never_moves_the_base(lane_repo):
+    candidate(lane_repo, "T-7101", "one.py", "one = 1\n")
+    base_before = git(lane_repo, "rev-parse", "main")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(lane_repo, GitLane(), publish=_recording_publisher(published))
+
+    assert [r.action for r in results] == ["pull request"]
+    assert results[0].detail == "https://forge/pr/7"
+    assert published == [("T-7101", naming.branch("T-7101"))]
+    # The base is exactly where it was and the candidate's file never arrived:
+    # the engine opened a pull request, it did not merge one.
+    assert git(lane_repo, "rev-parse", "main") == base_before
+    assert (lane_repo / "one.py").exists() is False
+
+    opened = [e for e in _events(lane_repo) if e.get("event") == "lane_pr_opened"]
+    assert opened and opened[0]["mode"] == "fast-forward"
+    assert opened[0]["pr"] == "https://forge/pr/7"
+    assert not [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    # A standing candidate: nothing landed, so the run stays READY.
+    assert RunState.load(naming.state_file(lane_repo, "T-7101")).state is TaskState.READY
+
+
+def test_pull_request_mode_rebases_and_regates_before_it_publishes(lane_repo):
+    candidate(lane_repo, "T-7102", "two.py", "two = 2\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    base_before = git(lane_repo, "rev-parse", "main")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(lane_repo, GitLane(), publish=_recording_publisher(published))
+
+    assert [r.action for r in results] == ["pull request"]
+    assert published == [("T-7102", naming.branch("T-7102"))]
+    # The branch was rebased onto the moved base and the battery re-run over
+    # it, exactly as the local mode does — only the last step differs.
+    branch_tip = git(lane_repo, "rev-parse", naming.branch("T-7102"))
+    assert results[0].sha == branch_tip
+    assert git(lane_repo, "merge-base", "--is-ancestor", base_before, branch_tip) == ""
+    assert git(lane_repo, "rev-parse", "main") == base_before
+
+    opened = [e for e in _events(lane_repo) if e.get("event") == "lane_pr_opened"]
+    assert opened and opened[0]["mode"] == "rebased"
+
+
+def test_a_refused_publication_is_one_candidates_refusal_and_not_the_passs(lane_repo):
+    candidate(lane_repo, "T-7103", "three.py", "three = 3\n")
+    candidate(lane_repo, "T-7104", "four.py", "four = 4\n")
+    base_before = git(lane_repo, "rev-parse", "main")
+
+    def publish(task_id: str, branch: str) -> str:
+        if task_id == "T-7103":
+            raise RuntimeError("gh pr create failed")
+        return "https://forge/pr/8"
+
+    results = {r.task: r for r in process_lane(lane_repo, GitLane(), publish=publish)}
+
+    assert results["T-7103"].action == "pr refused"
+    assert "gh pr create failed" in results["T-7103"].detail
+    assert results["T-7104"].action == "pull request"
+    assert git(lane_repo, "rev-parse", "main") == base_before
+    assert any(e.get("event") == "lane_pr_refused" for e in _events(lane_repo))
+
+
+def test_a_dry_run_in_pull_request_mode_moves_nothing_and_asks_the_forge_nothing(lane_repo):
+    candidate(lane_repo, "T-7105", "five.py", "five = 5\n")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo, GitLane(), dry_run=True, publish=_recording_publisher(published)
+    )
+
+    assert [r.action for r in results] == ["would open pull request"]
+    assert published == []
+
+
+def test_the_landing_act_follows_the_configured_mode_and_nothing_else(lane_repo):
+    # S-0080/D-1: the mode is a term of configuration, so the verb builds a
+    # publisher exactly when the configuration names one.
+    from torve.cli.merge import _publisher
+    from torve.cli.options import load_config
+
+    config_file = lane_repo / ".torve" / "config.yaml"
+    config_file.write_text("schema_version: 1\n", encoding="utf-8")
+    assert _publisher(lane_repo, load_config(lane_repo, None)) is None
+
+    config_file.write_text(
+        "schema_version: 1\n"
+        "promotion:\n"
+        "  landing: pull_request\n"
+        "scm:\n"
+        "  open_pr: true\n"
+        "  repo: owner/name\n",
+        encoding="utf-8",
+    )
+    assert _publisher(lane_repo, load_config(lane_repo, None)) is not None
