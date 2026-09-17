@@ -415,7 +415,7 @@ lines, token and call numerators and per-file entries beside the per-line rates
 they divide, every exclusion tally — so a reader can check the division rather
 than trust the print.
 
-## What an arm is, and how to read the table
+## What an arm is, how to launch one, and how to read the table
 
 Everything else measured in this guide reads *inside* the apparatus: the
 battery judges every attempt, `torve ledger` divides attempts by seat and
@@ -427,8 +427,8 @@ arm is named by what it runs without, and there are three:
 
 | Arm | What it is given |
 | --- | --- |
-| `bare` | the task's intent, and nothing else — no inherited rows, no context pack, no working rules, and no battery. A sentence and a worktree. |
-| `gated` | the same prompt, and the battery judges what comes back. |
+| `bare` | the task's intent, and nothing else — no inherited rows, no context pack, no working rules, and no battery. A sentence, and a checkout of the repository at the parent commit. |
+| `gated` | the same prompt and the same worktree, and the battery judges what comes back. |
 | `configured` | today: rows, pack, rules, battery, lane. |
 
 Three arms, not two: a bare-versus-configured difference cannot be
@@ -450,6 +450,67 @@ replay swaps its gate pass for one that runs nothing, and the manifest
 every other attempt is judged by is never touched; its digest rides the
 record unchanged, because a manifest with gates edited out would be a
 different regime and the digest would be right to say so.
+
+**What the bare arm's worktree carries** (S-0082/D-2). Not a sentence and an
+empty directory: the replay clones the repository at the parent commit, so
+the agent still opens every committed file — the source, the tests, this
+site, the corpus under `.torve/specs/`, the gate manifest, the vendored
+skills. What the arm removes is what the runner would otherwise *write*
+into that tree: no projected contract, no materialised skill set under
+`.torve/skills/`, no context pack. Nothing the tree already carried is
+deleted — a deletion would land in the replay's own diff and be read as
+work the arm did. So the attempt's record names the removals that were in
+force, `removed: [prompt, contract, skills, context-pack]` and `battery`
+beside them on `bare`, with an empty skill list rather than an unfilled
+one: a reader of an arm's numbers can tell what the agent could still open
+without rediscovering it. The `gated` arm carries the same worktree; only
+its battery is back.
+
+**Launching one.** Arm mode is the third mode of `torve eval`, and naming
+neither of the other two's arguments is enough to select it (S-0082/D-8):
+
+```bash
+torve eval --task T-0390                          # all three arms, the task's own seat
+torve eval --task T-0390 --arm bare --arm gated   # narrow to the arms named
+torve eval --task T-0390 --tier executor.lean     # every arm on one named seat
+torve eval --report                               # read the recorded arms, run nothing
+```
+
+`--arm` is repeatable and defaults to all three. It refuses at parse to
+combine with a skill argument or with `--image` or `--variant`: one names a
+comparison inside the apparatus, the other removes it, and no invocation is
+both. `--report` is untouched by any of this.
+
+Which tasks may be named comes from one read, so the refusal and the
+pre-flight can never disagree about what is eligible (S-0082/D-3): a task
+is eligible when the tree holds a landing that names a commit — that
+commit's parent is where the replay starts — and the cost beside it is what
+the task cost when it was done for real, summed from the live attempts in
+the telemetry ledger. `--arm` without `--task` is refused before any spend,
+and the refusal names the eligible tasks rather than only the missing option
+(S-0082/D-9); so is a named task no landing names a commit for.
+
+The seat is each task's own tier unless `--tier` names another, and every
+arm of one invocation runs on the same seat — a difference between arms is
+never a difference between seats (S-0082/D-10). Several tasks naming
+different seats is refused until `--tier` picks one. `--tier` here names
+the seat the arms run on, not a candidate under measurement.
+
+Then, before the first replay, the verb prints what it is about to do: the
+arms, the seat, the tasks, and what each of those tasks' recorded attempts
+cost when they were done for real (S-0082/D-11). It adds no ceiling of its
+own — an arm run is bounded by the contract's budget and the broker's
+mid-run refusal, and by nothing here. This is the largest deliberate spend
+behind one command in the engine, and it says so before it starts.
+
+One record lands per invocation, `kind: arm-eval`, its `arms` map keyed by
+the arm names and its rows the ones the reading below already reads
+(S-0082/D-5). It carries no verdict beside those rows (S-0082/D-6): three
+arms are not equally exposed to the same failures, so a boolean over them
+is the mean this axis already refused. An invocation that raises partway
+through lands the rows it has and says `complete: false` (S-0082/D-7) — a
+three-replay run that dies on the third never reads like a finished
+two-arm record.
 
 **The rows name their arms, and the ledger is the reading.**
 `torve eval --report` prints the table from the eval ledger alone — one
