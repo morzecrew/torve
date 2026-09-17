@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from torve.application.feedback import capture_feedback
-from torve.application.ports import CiStatus, LaneVcs
+from torve.application.ports import CiStatus, LaneVcs, PrInfo
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.base import naming
@@ -42,13 +42,31 @@ from torve.domain.states import EscalationReason, TaskState
 # candidate alone.
 Publisher = Callable[[str, str], str]
 
+# The later pass's question (S-0080/the-landing-arrives-as-an-answer, S-0080/D-6):
+# branch -> what the forge holds for it, or None when the forge knows no pull
+# request for that branch. Injected for the same reason `Publisher` is.
+Forge = Callable[[str], PrInfo | None]
+
+# What the stream last recorded about a task's pull request, and the action a
+# candidate already carrying a verdict reports on every later pass. A verdict
+# is terminal: the lane reads it back from its own records and never asks the
+# forge again, so a closed pull request is never re-opened (S-0080/D-8, S-0080/D-17).
+_VERDICTS = {
+    "lane_pr_opened": "open",
+    "lane_landed": "landed",
+    "lane_pr_closed": "closed",
+    "lane_pr_unresolved": "unresolved",
+}
+
+_RECORDED = {"landed": "already landed", "closed": "abandoned", "unresolved": "pr unresolved"}
+
 
 @dataclass
 class LaneResult:
     task: str
     branch: str
-    # landed | pull request | pr refused | conflict | gates red |
-    # already landed | no branch | would *
+    # landed | pull request | pull request open | pr refused | pr unresolved |
+    # abandoned | conflict | gates red | already landed | no branch | would *
     action: str
     detail: str = ""
     sha: str = ""
@@ -560,6 +578,157 @@ def _open_pull_request(
 # ....................... #
 
 
+def _pr_ledger(root: Path) -> dict[str, str]:
+    """What the stream last recorded about each task's pull request. The
+    lane's own events are the memory of what it has open, so a pass holding
+    nothing open asks the forge nothing at all (S-0080/D-16) — no ledger of its
+    own, and no call per idle candidate."""
+
+    from torve.application.projections import stream_rows
+
+    ledger: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        verdict = _VERDICTS.get(str(row.get("event", "")))
+        task = str(row.get("task", ""))
+
+        if verdict and task:
+            ledger[task] = verdict
+
+    return ledger
+
+
+# ....................... #
+
+
+def _forge_verdict(
+    root: Path,
+    vcs: LaneVcs,
+    forge: Forge,
+    ledger: dict[str, str],
+    task_id: str,
+    base: str,
+    branch: str,
+    branch_tip: str,
+    approver: str,
+    results: list[LaneResult],
+) -> bool:
+    """The later pass's read-back (S-0080/the-landing-arrives-as-an-answer): the engine does not
+    watch for the merge, it asks about the candidates it has open and
+    answers each of the three verdicts a person can give.
+
+    **Merged** is the landing (S-0080/D-7): recorded with the merge commit as
+    the landed sha and the mode named, in the `lane_landed` shape the local
+    lane writes, so nothing downstream learns a second way of asking what
+    shipped. The instant is the instant the engine read it — the record says
+    so rather than claiming a precision it does not have.
+
+    **Closed** is a person declining the work (S-0080/D-8): recorded as an
+    abandonment, never escalated for triage and never re-queued.
+
+    **Still open** against a moved base falls through to the disposal the
+    lane already has — rebase in a disposable worktree, re-run the battery,
+    republish (S-0080/D-9). Against an unmoved base the pull request already shows
+    the measured tree and it is a person's turn, so the pass reports it and
+    spends no push.
+
+    The branch is kept under every verdict (S-0080/D-12): nothing here deletes one.
+
+    True when the candidate is done for this pass.
+    """
+
+    record = ledger.get(task_id)
+
+    if record is None:
+        return False
+
+    if record != "open":
+        results.append(
+            LaneResult(task_id, branch, _RECORDED[record], f"recorded {record}", sha=branch_tip)
+        )
+
+        return True
+
+    info = forge(branch)
+
+    if info is None:
+        # The forge can no longer resolve the branch — deleted on merge, or
+        # renamed (S-0080/D-17). A stated gap in the record, and the ledger entry
+        # above keeps the next pass from quietly opening a second pull
+        # request for the same work.
+        engine_event(root, "lane_pr_unresolved", {"task": task_id, "branch": branch})
+        results.append(
+            LaneResult(
+                task_id,
+                branch,
+                "pr unresolved",
+                "the forge knows no pull request for the branch; not re-opened",
+                branch_tip,
+            )
+        )
+
+        return True
+
+    if info.state == "merged":
+        sha = info.merge_commit or info.head_sha
+
+        engine_event(
+            root,
+            "lane_landed",
+            {
+                "task": task_id,
+                "mode": "pull-request",
+                "sha": sha,
+                "approver": approver,
+                "carried": _carried(root, task_id),
+                "pr": info.number,
+                # Read after the fact: `at` is when the engine asked, not
+                # when the person clicked.
+                "observed": True,
+            },
+        )
+
+        results.append(
+            LaneResult(task_id, branch, "landed", f"pull request #{info.number} merged", sha)
+        )
+
+        return True
+
+    if info.state == "closed":
+        engine_event(
+            root, "lane_pr_closed", {"task": task_id, "pr": info.number, "sha": branch_tip}
+        )
+        results.append(
+            LaneResult(
+                task_id,
+                branch,
+                "abandoned",
+                f"pull request #{info.number} was closed without merging",
+                branch_tip,
+            )
+        )
+
+        return True
+
+    if vcs.is_ancestor(root, vcs.tip(root, base) or base, branch_tip):
+        results.append(
+            LaneResult(
+                task_id,
+                branch,
+                "pull request open",
+                f"pull request #{info.number} awaits a person",
+                branch_tip,
+            )
+        )
+
+        return True
+
+    return False
+
+
+# ....................... #
+
+
 def _land_fast_forward(
     root: Path,
     vcs: LaneVcs,
@@ -804,12 +973,17 @@ def process_lane(
     quiet_window_s: int = 0,
     on_conflict: Callable[[str], str] | None = None,
     publish: Publisher | None = None,
+    forge: Forge | None = None,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
     instead of fast-forwarding the base. The mode is a term of configuration
     (S-0080/D-1) decided by the caller — the lane is handed the act, never the
-    question of whether a remote exists."""
+    question of whether a remote exists.
+
+    A `forge` is the same mode's read-back: on a later pass each candidate
+    with a pull request open is asked about, and the verdict is recorded
+    (S-0080/the-landing-arrives-as-an-answer). A dry run asks nothing, as it publishes nothing."""
 
     base = vcs.current_branch(root)
 
@@ -824,6 +998,9 @@ def process_lane(
 
     approver = vcs.approver(root)
     results: list[LaneResult] = []
+    # Read once for the pass, not once per candidate: the stream is the
+    # lane's record of what it has open (S-0080/D-16).
+    ledger = _pr_ledger(root) if forge is not None and not dry_run else {}
 
     for state in ready_candidates(root):
         if only is not None and state.task_id != only:
@@ -844,6 +1021,15 @@ def process_lane(
 
         if vcs.is_ancestor(root, branch_tip, base):
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
+            continue
+
+        if (
+            forge is not None
+            and ledger
+            and _forge_verdict(
+                root, vcs, forge, ledger, task_id, base, branch, branch_tip, approver, results
+            )
+        ):
             continue
 
         review_result = _review_missing(root, state, require_review, dry_run, branch, branch_tip)

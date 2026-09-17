@@ -937,3 +937,212 @@ def test_the_landing_act_follows_the_configured_mode_and_nothing_else(lane_repo)
         encoding="utf-8",
     )
     assert _publisher(lane_repo, load_config(lane_repo, None)) is not None
+
+
+# The later pass reads the verdict back (S-0080/the-landing-arrives-as-an-answer, S-0080/D-7,
+# S-0080/D-8, S-0080/D-9, S-0080/D-12).
+
+
+def _pr(number=7, state="open", merge_commit="", head_sha=""):
+    from torve.application.ports import PrInfo
+
+    return PrInfo(
+        number=number,
+        title="a candidate",
+        author="a person",
+        draft=False,
+        head_sha=head_sha,
+        base_ref="main",
+        changed_files=1,
+        state=state,
+        merge_commit=merge_commit,
+    )
+
+
+def _forge(answer, asked: list[str]):
+    def ask(branch: str):
+        asked.append(branch)
+        return answer
+
+    return ask
+
+
+def _opened(root: Path, task_id: str, filename: str, content: str, published: list) -> None:
+    """A candidate the lane has already published: the pass that opened the
+    pull request is the record the later pass reads."""
+    candidate(root, task_id, filename, content)
+    process_lane(root, GitLane(), only=task_id, publish=_recording_publisher(published))
+
+
+def test_a_merged_pull_request_is_recorded_as_the_landing_with_the_merge_commit(lane_repo):
+    published: list[tuple[str, str]] = []
+    _opened(lane_repo, "T-7110", "ten.py", "ten = 10\n", published)
+    base_before = git(lane_repo, "rev-parse", "main")
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=11, state="merged", merge_commit="a" * 40), asked),
+    )
+
+    assert asked == [naming.branch("T-7110")]
+    assert results[0].action == "landed"
+    assert results[0].sha == "a" * 40
+    # The engine recorded a landing; it performed none — the local base is
+    # untouched and nothing was pushed a second time.
+    assert git(lane_repo, "rev-parse", "main") == base_before
+    assert len(published) == 1
+
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[0]["mode"] == "pull-request"
+    assert landed[0]["sha"] == "a" * 40
+    assert landed[0]["pr"] == 11
+    # S-0080/D-12: the branch is kept, so the attempt's commits stay reachable.
+    assert git(lane_repo, "rev-parse", naming.branch("T-7110"))
+
+    # A later pass reads its own record back rather than the forge's.
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(state="merged", merge_commit="a" * 40), asked),
+    )
+    assert again[0].action == "already landed"
+    assert asked == [naming.branch("T-7110")]
+    assert len(published) == 1
+
+
+def test_a_closed_pull_request_is_an_abandonment_and_is_never_re_opened(lane_repo):
+    published: list[tuple[str, str]] = []
+    _opened(lane_repo, "T-7111", "eleven.py", "eleven = 11\n", published)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=12, state="closed"), asked),
+    )
+
+    assert results[0].action == "abandoned"
+    assert "closed without merging" in results[0].detail
+    closed = [e for e in _events(lane_repo) if e.get("event") == "lane_pr_closed"]
+    assert closed and closed[0]["pr"] == 12
+    # Not escalated for triage and not re-queued: the person declined it.
+    state = RunState.load(naming.state_file(lane_repo, "T-7111"))
+    assert state.state is TaskState.READY
+    assert state.escalation is None
+    assert len(published) == 1
+
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=12, state="closed"), asked),
+    )
+    assert again[0].action == "abandoned"
+    # The verdict is terminal: no second forge call and no second pull request.
+    assert asked == [naming.branch("T-7111")]
+    assert len(published) == 1
+
+
+def test_an_open_pull_request_on_a_moved_base_rebases_regates_and_republishes(lane_repo):
+    published: list[tuple[str, str]] = []
+    _opened(lane_repo, "T-7112", "twelve.py", "twelve = 12\n", published)
+
+    (lane_repo / "app.py").write_text("base = 12\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    moved = git(lane_repo, "rev-parse", "main")
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(state="open"), asked),
+    )
+
+    assert asked == [naming.branch("T-7112")]
+    assert results[0].action == "pull request"
+    # The branch the person is looking at is the one the battery measured.
+    branch_tip = git(lane_repo, "rev-parse", naming.branch("T-7112"))
+    assert results[0].sha == branch_tip
+    assert git(lane_repo, "merge-base", "--is-ancestor", moved, branch_tip) == ""
+    assert len(published) == 2
+
+
+def test_an_open_pull_request_on_an_unmoved_base_spends_no_push(lane_repo):
+    published: list[tuple[str, str]] = []
+    _opened(lane_repo, "T-7113", "thirteen.py", "thirteen = 13\n", published)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=13, state="open"), asked),
+    )
+
+    assert asked == [naming.branch("T-7113")]
+    assert results[0].action == "pull request open"
+    assert "#13" in results[0].detail
+    assert len(published) == 1
+
+
+def test_a_pass_with_nothing_open_asks_the_forge_nothing(lane_repo):
+    candidate(lane_repo, "T-7114", "fourteen.py", "fourteen = 14\n")
+    published: list[tuple[str, str]] = []
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(state="merged", merge_commit="b" * 40), asked),
+    )
+
+    # S-0080/D-16: nothing is open, so the credential is not spent at all.
+    assert asked == []
+    assert results[0].action == "pull request"
+    assert len(published) == 1
+
+
+def test_a_branch_the_forge_cannot_resolve_is_recorded_and_not_re_opened(lane_repo):
+    published: list[tuple[str, str]] = []
+    _opened(lane_repo, "T-7115", "fifteen.py", "fifteen = 15\n", published)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), forge=_forge(None, asked)
+    )
+
+    assert results[0].action == "pr unresolved"
+    assert any(e.get("event") == "lane_pr_unresolved" for e in _events(lane_repo))
+    assert len(published) == 1
+
+    again = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), forge=_forge(None, asked)
+    )
+    assert again[0].action == "pr unresolved"
+    assert asked == [naming.branch("T-7115")]
+    assert len(published) == 1
+
+
+def test_a_dry_run_asks_the_forge_nothing(lane_repo):
+    published: list[tuple[str, str]] = []
+    _opened(lane_repo, "T-7116", "sixteen.py", "sixteen = 16\n", published)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        dry_run=True,
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(state="merged", merge_commit="c" * 40), asked),
+    )
+
+    assert asked == []
+    assert [r.action for r in results] == ["would open pull request"]
