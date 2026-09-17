@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../schemas/document.json
 id: S-0079
-title: >-
-  The night as a typed record
+title: The night as a typed record
 kind: design
 status: accepted
 implementation: none
@@ -119,7 +118,6 @@ design:
       A night with an open and no close is an unfinished night, and reads as one. That is the
       restart property S-0044/D-5 already buys, applied one level up: the open is written
       before the first pass and is the only thing the night needed to have written.
-
   - key: what-the-open-records
     md: |
       `night.opened` carries the terms whole, read once:
@@ -139,7 +137,6 @@ design:
       no evidence that it had. `knobs` holds the resolved seat values, not the operator's
       intention: what the sandbox was actually given, beside the regime digest that already
       carries it.
-
   - key: the-report-is-a-projection
     md: |
       `torve night show` folds the window and prints it. Nothing is stored — the same answer
@@ -152,7 +149,6 @@ design:
       instant it was raised. There is no summary line, because a summary line is where prose
       a model wrote would arrive, and the rule that keeps it out is that the projection has
       no field to put it in.
-
   - key: the-three-knobs-that-belong-to-the-night
     md: |
       A fallback model when the provider is overloaded, a watchdog that keeps retrying
@@ -171,7 +167,6 @@ design:
       Torve does not learn what any of them mean. Which variable name each takes on the
       claude image, and what `/opt/torve/run` maps it to, is the image's business
       (S-0063/D-1) and is left open here.
-
   - key: what-the-engine-decides-while-nobody-is-awake
     md: |
       Two rules already exist and are already bounded, and the night is what they were for.
@@ -190,7 +185,6 @@ design:
       safe to automate" but "what rule is already written down": a conflict disposal and a
       lease expiry are decisions the engine can make from recorded facts alone, and a blocker
       finding or an underspecified contract is not.
-
   - key: how-a-night-refuses-and-how-it-stops
     md: |
       Three refusals, at the two moments a person is still present.
@@ -275,58 +269,61 @@ risks: |
   evidence is the superseded diff on the task — neither is a substitute for the operator
   reading the night's ended list.
 alternatives:
-  - option: Write the night to a file under `.torve/nights/<date>.yaml` as it happens
+  - option: >-
+      Write the night to a file under `.torve/nights/<date>.yaml` as it happens
     rejected_because: >-
-      A second carrier for facts the log already holds, and the two would disagree the first
-      time a manager was killed mid-append. The log survives a kill by construction; a file
-      appended to from a dying process does not.
+      A second carrier for facts the log already holds, and the two would disagree
+      the first time a manager was killed mid-append. The log survives a kill by construction;
+      a file appended to from a dying process does not.
     cites: [S-0044/D-5]
   - option: Stamp every event with the night it fell in
     rejected_because: >-
-      It makes membership exact and puts the same fact in two places, so a replay that
-      rebuilds the board and a replay that rebuilds the night can differ. The boundary
-      ambiguity a time window admits is smaller than the disagreement a stamp invites.
-  - option: Have the closing pass write a summary the report prints
+      It makes membership exact and puts the same fact in two places, so a replay
+      that rebuilds the board and a replay that rebuilds the night can differ. The
+      boundary ambiguity a time window admits is smaller than the disagreement a stamp
+      invites.
+  - option: >-
+      Have the closing pass write a summary the report prints
     rejected_because: >-
-      A summary written once is the only thing in the system nothing checks, and a night
-      killed before its close would have none at all. A fold costs a millisecond and cannot
-      drift.
-  - option: Let the agent write the night's narrative at close
+      A summary written once is the only thing in the system nothing checks, and a
+      night killed before its close would have none at all. A fold costs a millisecond
+      and cannot drift.
+  - option: >-
+      Let the agent write the night's narrative at close
     rejected_because: >-
-      The report is what the operator trusts when they were not there, and prose a model
-      wrote about its own night is the one input that cannot be verified by the person it is
-      written for.
+      The report is what the operator trusts when they were not there, and prose a
+      model wrote about its own night is the one input that cannot be verified by
+      the person it is written for.
   - option: >-
       Put the three harness knobs in the runner configuration as a `night:` subsection
     rejected_because: >-
       They are knobs the image reads, and `env` on the seat is where those are declared
-      (S-0063/D-10) — a second surface would take them out of the regime hash, which is
-      exactly the fact that makes a night comparable.
+      (S-0063/D-10) — a second surface would take them out of the regime hash, which
+      is exactly the fact that makes a night comparable.
     cites: [S-0063/D-10]
-  - option: Reuse `loop.pause_escalations` as the night's stop condition
+  - option: >-
+      Reuse `loop.pause_escalations` as the night's stop condition
     rejected_because: >-
-      It counts a queue and says nothing about what is in it, so "stop on a locked conflict,
-      continue on a merge conflict" is unsayable in it. Two different questions, and widening
-      the count to carry a class would break the pause it already governs.
+      It counts a queue and says nothing about what is in it, so "stop on a locked
+      conflict, continue on a merge conflict" is unsayable in it. Two different questions,
+      and widening the count to carry a class would break the pause it already governs.
 questions:
   - id: Q-1
     text: >-
-      Where is the wall-clock end measured from — the open, or an instant the operator names
-      — and what does a pass already in flight do when it arrives? An attempt in flight is
-      never interrupted by a pause today, and the same reading probably holds here, but it
-      makes the end a soft bound and the record should say which it was.
-    status: open
+      Where is the wall-clock end measured from — the open, or an instant the operator
+      names — and what does a pass already in flight do when it arrives? An attempt
+      in flight is never interrupted by a pause today, and the same reading probably
+      holds here, but it makes the end a soft bound and the record should say which
+      it was.
   - id: Q-2
     text: >-
-      Does the dollar budget bound the night or each attempt? `seat.consumed` meters per
-      attempt and the broker already enforces a per-attempt bound, so the night's figure is a
-      sum nobody enforces mid-attempt — which means a night can cross its budget by up to one
-      attempt's cost and the report has to say so honestly.
-    status: open
+      Does the dollar budget bound the night or each attempt? `seat.consumed` meters
+      per attempt and the broker already enforces a per-attempt bound, so the night's
+      figure is a sum nobody enforces mid-attempt — which means a night can cross
+      its budget by up to one attempt's cost and the report has to say so honestly.
   - id: Q-3
     text: >-
-      Should `torve night show` default to the most recent night or refuse without an
-      identifier? The most recent is what a person wants at breakfast and the wrong default
-      for a script; `manager board` takes its partition positionally and this probably should
-      too.
-    status: open
+      Should `torve night show` default to the most recent night or refuse without
+      an identifier? The most recent is what a person wants at breakfast and the wrong
+      default for a script; `manager board` takes its partition positionally and this
+      probably should too.

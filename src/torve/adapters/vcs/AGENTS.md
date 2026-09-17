@@ -17,4 +17,18 @@ Every reader of a landing reads the tree through `landings` and `landed_commits`
 - Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0080/D-6 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The forge surface answers about a branch — its pull request's state and, when merged, the merge commit — and `PrInfo` carries that commit
+
+- Paths: `src/torve/adapters/vcs/git.py` `src/torve/application/ports.py`
+- Consequence: the lane asks the one question it has, which is what happened to this task's branch, without first having to remember a pull request number
+
+### S-0080/D-13 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The forge credential stays where it is — `gh` on the host, the variable named in configuration and read at call time, the value never leaving the runner's process and never reaching a sandbox
+
+- Paths: `src/torve/adapters/vcs/git.py`
+- Consequence: a landing route that talks to the forge on every pass adds no second channel for the secret the broker exists to keep out of the sandbox
+
 <!-- /torve:managed -->

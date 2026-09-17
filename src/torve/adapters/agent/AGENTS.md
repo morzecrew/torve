@@ -107,7 +107,7 @@ The working rules live once, at `skills/working-rules/`, reaching a sandbox as a
 
 ### S-0067/D-4 — `LOCKED` (A session is briefed, and the working rules have one source)
 
-One bullet stays in the prompt: that the role's skills are under `.torve/skills/` and every `SKILL.md` there is read before writing code
+One bullet stays in the prompt: that the role's skills are in system position, whole, and that their files are under `.torve/skills/`
 
 - Paths: `src/torve/adapters/agent/harness.py`
 - Consequence: the skill remains reachable; without it the rules are a file nothing points at
@@ -185,6 +185,13 @@ The cap on what one tool result may return is enforced at the harness's own resu
 
 - Paths: `src/torve/adapters/agent/harness.py` `.torve/harnesses/**`
 - Consequence: the context's growth term stops being set by whichever command dumped the most, whichever tool that command used
+
+### S-0077/D-4 — `ASSUMED` (The turns the engine could have taken itself)
+
+The pack carries a map of where things are, and it arrives in the first message rather than behind a read
+
+- Paths: `src/torve/application/contextpack.py` `src/torve/adapters/agent/harness.py`
+- Consequence: the median eight calls an attempt spends finding its way around this repository become zero, and every attempt starts from the same account of the tree instead of from whichever corner it happened to list first
 
 ## Invariants holding over `src/torve/adapters/agent/`
 

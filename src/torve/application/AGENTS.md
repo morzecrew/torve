@@ -933,7 +933,7 @@ The pack's small deterministic files arrive in the attempt's first message rathe
 
 ### S-0076/D-2 — `ASSUMED` (The attempt is handed what the engine already knows)
 
-For a scope under a configured size, the in-scope files' contents and the tests `tests.json` names are delivered with the task; over it, an outline of the same files is delivered instead
+For a scope under a configured size, the in-scope files' contents and the tests `tests.json` names arrive in the attempt's first message; over it, an outline of the same files arrives instead
 
 - Paths: `src/torve/application/contextpack.py` `.torve/config.yaml`
 - Consequence: the sixteen calls a small attempt spends reading files the contract already named become one read of one document
@@ -952,6 +952,146 @@ The pack writes a file naming every symbol the repository defines and where — 
 
 - Paths: `src/torve/application/contextpack.py`
 - Consequence: a lookup costs one call against one file instead of two or three against the tree, and an attempt that never looks pays nothing for it
+
+### S-0077/D-4 — `ASSUMED` (The turns the engine could have taken itself)
+
+The pack carries a map of where things are, and it arrives in the first message rather than behind a read
+
+- Paths: `src/torve/application/contextpack.py` `src/torve/adapters/agent/harness.py`
+- Consequence: the median eight calls an attempt spends finding its way around this repository become zero, and every attempt starts from the same account of the tree instead of from whichever corner it happened to list first
+
+### S-0079/D-3 — `ASSUMED` (The night as a typed record)
+
+The night's entries are the facts the log already holds inside the window — landings, gate verdicts, engine-ended attempts, escalations — and the night stamps no event of its own
+
+- Paths: `src/torve/application/manager.py`
+- Consequence: the report cannot disagree with the board beside it, and the price is that membership is a time comparison: a fact recorded between two nights belongs to whichever window holds its instant
+
+### S-0079/D-4 — `ASSUMED` (The night as a typed record)
+
+The morning report is a projection of the window computed on every call and stored nowhere, and it holds no field that prose can occupy
+
+- Paths: `src/torve/application/manager.py`
+- Consequence: no line of the report can be a model's account of its own night, because there is nowhere to put one — the rule is enforced by the shape rather than by a reviewer
+
+### S-0079/D-6 — `ASSUMED` (The night as a typed record)
+
+An empty ready queue refuses the night at the open, before the first pass; a queue that drains later closes the night rather than failing it
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: a night that would have slept eight hours costs nothing and says so at the last moment the operator is present, and draining is never mistaken for an error
+
+### S-0079/D-7 — `ASSUMED` (The night as a typed record)
+
+The night stops on the first escalation whose class the operator named and continues on every other; `loop.pause_escalations` is untouched and still counts a queue
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: an operator can say "wake me for a locked conflict, keep going on a merge conflict" without changing what escalates, and the count-based pause keeps governing the thing it already governs
+
+### S-0079/D-10 — `ASSUMED` (The night as a typed record)
+
+The lane leg a served night runs is handed `conflict_disposal`, so a candidate whose rebase conflicts against a moved base is re-queued by the engine instead of escalating `merge_conflict`
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py`
+- Consequence: one class of overnight escalation stops waiting for a person, and a candidate disposed of this way cannot be re-queued twice against the same tip because `conflict_base` bounds it
+
+### S-0079/D-11 — `ASSUMED` (The night as a typed record)
+
+The width is recorded as a term of the night and is one; this document does not claim more than one task per pass
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: a later night at width three is comparable against tonight's, because tonight's record says what it ran at rather than leaving it to be inferred from the manager's source as of that date
+
+### S-0079/D-12 — `OPEN` (The night as a typed record)
+
+Where the wall-clock end is measured from and what a pass in flight does when it arrives is implementation's, under two constraints — an attempt in flight is not interrupted by the end, and the close is written even when the end falls inside a pass
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: the end is a soft bound and the record has to say so, or a night that closed eleven minutes late reads as a night that ignored its terms
+
+### S-0080/D-3 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+In `pull_request` mode the lane runs unchanged up to the landing and then, in place of `merge_ff`, pushes the candidate branch under lease and opens or refreshes the task's pull request, and stops; it never moves the base
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: the second mode is a different last step rather than a second lane, so every criterion, probe and rebase before it is exercised by both modes and cannot drift apart
+
+### S-0080/D-4 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The pull request's title and body are composed from the landing record — the task, the document it was minted from, the rows the contract carried with their grades, the gates' verdicts and the divergence entries — and from nothing the agent wrote as prose
+
+- Paths: `src/torve/application/forge.py`
+- Consequence: a reviewer on the forge decides from the same facts the execution file holds, and no line of the body is a model's account of its own work
+
+### S-0080/D-5 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The sentence in a composed body saying the pull request lands by fast-forward and the merge button is never used is written in `local` mode alone
+
+- Paths: `src/torve/application/forge.py`
+- Consequence: a reader of a pull request in the new mode is not told not to use the one control the mode depends on
+
+### S-0080/D-6 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The forge surface answers about a branch — its pull request's state and, when merged, the merge commit — and `PrInfo` carries that commit
+
+- Paths: `src/torve/adapters/vcs/git.py` `src/torve/application/ports.py`
+- Consequence: the lane asks the one question it has, which is what happened to this task's branch, without first having to remember a pull request number
+
+### S-0080/D-7 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+A pull request the forge reports merged is the landing: the engine records it on a later pass with the merge commit as the landed sha and the mode named, in the same record shape the local lane writes
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: everything that asks what shipped keeps asking one way, and a landing performed by a person is a landing in the record rather than a gap in it
+
+### S-0080/D-8 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+A pull request closed without merging is a terminal verdict the engine records as abandoned by a person, never re-queued and never escalated for triage
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a person who declined the work has declined it, and the engine does not spend a second attempt arguing with the only reviewer it has
+
+### S-0080/D-9 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+A pull request that stops merging cleanly because the base moved takes the disposal the lane already has — once per base tip, rebased in a disposable worktree, the battery re-run — and the branch is republished so the pull request shows the tree that was measured
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: the person looking at the pull request is looking at the candidate the battery judged, and a candidate cannot be disposed of twice against the same tip
+
+### S-0080/D-11 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The promotion criteria torve holds decide whether a pull request is opened and nothing after it; once it is open the forge's own rules govern the merge and torve reads state
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a repository has one promotion policy rather than two that can disagree, and a candidate that fails a torve criterion costs nobody's attention on the forge
+
+### S-0080/D-12 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The candidate branch is kept after the merge — nobody deletes it — so the attempt's own commits stay reachable and the record's join from task to commits survives the squash
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a landing whose sha no attempt wrote can still be traced back to the attempts that produced it, which is what the projections read
+
+### S-0080/D-14 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The morning report holds pull requests opened, merged, conflicted and closed as four counts folded from the events in the night's window, with no field prose can occupy
+
+- Paths: `src/torve/application/manager.py`
+- Consequence: a person reading the report knows what is waiting on them on the forge, which in this mode is the whole of what is waiting on them
+
+### S-0080/D-16 — `OPEN` (The lane opens a pull request, and a person lands it)
+
+When the lane asks the forge, and whether it asks once per pass or once per candidate, is implementation's — under one constraint: a pass holding no open pull request asks nothing
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: the credential is used in proportion to what is actually open, and an idle night costs no forge calls at all
+
+### S-0080/D-17 — `OPEN` (The lane opens a pull request, and a person lands it)
+
+What the engine does with a candidate whose branch the forge can no longer resolve — deleted on merge, or renamed — is implementation's, under one constraint: it is recorded and never silently re-opened
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a repository configured to delete head branches on merge produces a stated gap in the record rather than a task that quietly pushes itself back to the forge
 
 ## Invariants holding over `src/torve/application/`
 

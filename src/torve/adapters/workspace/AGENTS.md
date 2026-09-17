@@ -10,4 +10,11 @@ Every reader of a landing reads the tree through `landings` and `landed_commits`
 - Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0080/D-10 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+In `pull_request` mode a worktree is cut from the remote's `main` after a fetch, never from the local one
+
+- Paths: `src/torve/adapters/workspace/git.py` `src/torve/gates/context.py`
+- Consequence: an attempt builds on the base its pull request will be merged against, rather than on a copy that is stale from the first merge onward
+
 <!-- /torve:managed -->

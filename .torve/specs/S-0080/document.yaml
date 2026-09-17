@@ -292,56 +292,58 @@ alternatives:
   - option: >-
       Infer the mode from whether a remote exists, or from `scm.open_pr`
     rejected_because: >-
-      A repository that acquires a remote has not thereby decided how it lands, and a lane
-      whose landing act changes because `git remote add` succeeded is the worst possible
-      way to find that out. The operator says which, and the record says which they said.
+      A repository that acquires a remote has not thereby decided how it lands, and
+      a lane whose landing act changes because `git remote add` succeeded is the worst
+      possible way to find that out. The operator says which, and the record says
+      which they said.
     cites: [S-0068/D-1]
-  - option: Have torve merge the pull request itself once the forge is green
+  - option: >-
+      Have torve merge the pull request itself once the forge is green
     rejected_because: >-
-      The whole of the second repository's process is that a person merges. An engine that
-      merges when the checks pass has replaced the process it was asked to fit, and the
-      first time it is wrong it will have been wrong on `main`.
+      The whole of the second repository's process is that a person merges. An engine
+      that merges when the checks pass has replaced the process it was asked to fit,
+      and the first time it is wrong it will have been wrong on `main`.
   - option: >-
       Poll the forge for the merge instead of asking on the next pass
     rejected_because: >-
-      A poll is a second clock with its own failure modes and its own credential use, and
-      the answer it gets is the same answer the next pass gets. Nothing downstream of the
-      landing is faster for having heard about it sooner.
+      A poll is a second clock with its own failure modes and its own credential use,
+      and the answer it gets is the same answer the next pass gets. Nothing downstream
+      of the landing is faster for having heard about it sooner.
   - option: >-
       Land locally and push the result, letting the forge notice the merge
     rejected_because: >-
-      That is what `republish_branch` and `retire_pr` were built for, and it is exactly the
-      act the second repository forbids: it writes to `main` directly. It also fails against
-      a branch protection rule rather than gracefully.
+      That is what `republish_branch` and `retire_pr` were built for, and it is exactly
+      the act the second repository forbids: it writes to `main` directly. It also
+      fails against a branch protection rule rather than gracefully.
   - option: >-
       Keep one mode and make the local landing a no-op on that repository
     rejected_because: >-
-      A lane that lands nothing and says it landed is a lie in the one record the engine
-      keeps about what shipped. The modes differ in what they record precisely because they
-      differ in what happened.
+      A lane that lands nothing and says it landed is a lie in the one record the
+      engine keeps about what shipped. The modes differ in what they record precisely
+      because they differ in what happened.
   - option: >-
       Reuse the run's forge leg rather than giving the lane its own
     rejected_because: >-
       The forge leg opens a pull request at the end of an attempt, before the battery's
-      verdict is final and before any lane criterion has been applied. A pull request that
-      is a landing route must be opened by whatever decided the candidate was landable,
-      which is the lane.
+      verdict is final and before any lane criterion has been applied. A pull request
+      that is a landing route must be opened by whatever decided the candidate was
+      landable, which is the lane.
 questions:
   - id: Q-1
     text: >-
-      What does the record say the landing's instant was — when the person merged, or when the
-      engine read it? The forge knows the first and the engine can only witness the second, and
-      every other landing instant in the record is the moment the engine acted.
-    status: open
+      What does the record say the landing's instant was — when the person merged,
+      or when the engine read it? The forge knows the first and the engine can only
+      witness the second, and every other landing instant in the record is the moment
+      the engine acted.
   - id: Q-2
     text: >-
-      Does a repository that deletes head branches on merge break the join from task to commits,
-      and is that a refusal at load or a warning in the record? The setting is the forge's and
-      torve cannot change it, but it can notice that the branch it pushed is gone.
-    status: open
+      Does a repository that deletes head branches on merge break the join from task
+      to commits, and is that a refusal at load or a warning in the record? The setting
+      is the forge's and torve cannot change it, but it can notice that the branch
+      it pushed is gone.
   - id: Q-3
     text: >-
-      Should the local override on `base` be removed outright or made conditional on the mode?
-      Removing it restores the `origin/main` preference for both modes, which is right for a
-      repository whose work is pushed and is a change to how this repository cuts worktrees today.
-    status: open
+      Should the local override on `base` be removed outright or made conditional
+      on the mode? Removing it restores the `origin/main` preference for both modes,
+      which is right for a repository whose work is pushed and is a change to how
+      this repository cuts worktrees today.

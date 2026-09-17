@@ -3,180 +3,188 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      A night is a subject in the event log — `night.opened` and `night.closed`, both the
-      manager's authority — and never a file, a summary or a counter anybody maintains
+      A night is a subject in the event log — `night.opened` and `night.closed`, both
+      the manager's authority — and never a file, a summary or a counter anybody maintains
     paths: [src/torve/domain/events.py]
     consequence: >-
-      a manager killed at 04:00 has already written everything the morning report needs, and
-      a night with an open and no close reads as unfinished rather than as lost
+      a manager killed at 04:00 has already written everything the morning report
+      needs, and a night with an open and no close reads as unfinished rather than
+      as lost
     rationale: >-
-      every other thing the manager knows is a fold over this log and survives a kill for
-      that reason; a second carrier for the same facts is a second thing to disagree with
-      the first
+      every other thing the manager knows is a fold over this log and survives a kill
+      for that reason; a second carrier for the same facts is a second thing to disagree
+      with the first
     cites: [S-0044/D-5]
   - id: D-2
     grade: ASSUMED
     text: >-
-      `night.opened` carries the night's terms whole — the ready queue as it stood, the
-      width, the budget in dollars and in attempts, the stop conditions, the lease, and the
-      resolved value of each night knob — read once at the open and never re-read
+      `night.opened` carries the night's terms whole — the ready queue as it stood,
+      the width, the budget in dollars and in attempts, the stop conditions, the lease,
+      and the resolved value of each night knob — read once at the open and never
+      re-read
     paths: [src/torve/domain/events.py]
     consequence: >-
-      a night's report says what the night was started with even after the configuration was
-      edited while it ran, and two nights are comparable because their terms are recorded
-      rather than reconstructed from whatever the file says afterwards
+      a night's report says what the night was started with even after the configuration
+      was edited while it ran, and two nights are comparable because their terms are
+      recorded rather than reconstructed from whatever the file says afterwards
     rationale: >-
-      the board is rebuilt from the log every pass, so a term read per pass would let a
-      night change its own terms halfway through and leave no evidence that it had; the
-      knobs are recorded as resolved values rather than as the operator's intention for the
-      same reason the regime hash is
+      the board is rebuilt from the log every pass, so a term read per pass would
+      let a night change its own terms halfway through and leave no evidence that
+      it had; the knobs are recorded as resolved values rather than as the operator's
+      intention for the same reason the regime hash is
     cites: [S-0044/D-5, S-0063/D-10]
   - id: D-3
     grade: ASSUMED
     text: >-
-      The night's entries are the facts the log already holds inside the window — landings,
-      gate verdicts, engine-ended attempts, escalations — and the night stamps no event of
-      its own
+      The night's entries are the facts the log already holds inside the window —
+      landings, gate verdicts, engine-ended attempts, escalations — and the night
+      stamps no event of its own
     paths: [src/torve/application/manager.py]
     consequence: >-
       the report cannot disagree with the board beside it, and the price is that membership
-      is a time comparison: a fact recorded between two nights belongs to whichever window
-      holds its instant
+      is a time comparison: a fact recorded between two nights belongs to whichever
+      window holds its instant
     rationale: >-
-      all four are already recorded kinds written by the actors that can know them, and
-      stamping each with a night identifier would put one fact in two places where a replay
-      could rebuild them differently
+      all four are already recorded kinds written by the actors that can know them,
+      and stamping each with a night identifier would put one fact in two places where
+      a replay could rebuild them differently
     cites: [S-0044/D-5]
   - id: D-4
     grade: ASSUMED
     text: >-
-      The morning report is a projection of the window computed on every call and stored
-      nowhere, and it holds no field that prose can occupy
+      The morning report is a projection of the window computed on every call and
+      stored nowhere, and it holds no field that prose can occupy
     paths: [src/torve/application/manager.py]
     consequence: >-
-      no line of the report can be a model's account of its own night, because there is
-      nowhere to put one — the rule is enforced by the shape rather than by a reviewer
+      no line of the report can be a model's account of its own night, because there
+      is nowhere to put one — the rule is enforced by the shape rather than by a reviewer
     rationale: >-
-      `manager board` already answers this way; a stored summary is the one artifact in this
-      system that nothing checks against anything, and a night killed before its close would
-      have none at all
+      `manager board` already answers this way; a stored summary is the one artifact
+      in this system that nothing checks against anything, and a night killed before
+      its close would have none at all
   - id: D-5
     grade: ASSUMED
     text: >-
-      The night's terms are a `night:` section of the runner configuration, refused at load
-      when the budget is zero on both axes or a named stop class is not in `EscalationReason`
+      The night's terms are a `night:` section of the runner configuration, refused
+      at load when the budget is zero on both axes or a named stop class is not in
+      `EscalationReason`
     paths: [src/torve/config/runconfig.py]
     consequence: >-
-      a misspelt escalation class is refused while a person is standing there rather than at
-      04:00, when the stop condition it names would silently never fire
+      a misspelt escalation class is refused while a person is standing there rather
+      than at 04:00, when the stop condition it names would silently never fire
     rationale: >-
       the escalation vocabulary is a closed enum precisely so it can be checked, and
-      `auto_merge` already established that the unattended half of this system cannot be
-      warned at — the process that reads this file then runs with nobody watching its terminal
+      `auto_merge` already established that the unattended half of this system cannot
+      be warned at — the process that reads this file then runs with nobody watching
+      its terminal
     cites: [S-0068/D-1]
   - id: D-6
     grade: ASSUMED
     text: >-
-      An empty ready queue refuses the night at the open, before the first pass; a queue that
-      drains later closes the night rather than failing it
+      An empty ready queue refuses the night at the open, before the first pass; a
+      queue that drains later closes the night rather than failing it
     paths: [src/torve/application/residency.py]
     consequence: >-
-      a night that would have slept eight hours costs nothing and says so at the last moment
-      the operator is present, and draining is never mistaken for an error
+      a night that would have slept eight hours costs nothing and says so at the last
+      moment the operator is present, and draining is never mistaken for an error
     rationale: >-
-      the queue is a fold over the board and cannot be known at configuration load, so it
-      needs the second refusal point; the two cases differ in exactly one thing — whether
-      anything was ever dispatchable — and that is worth distinguishing
+      the queue is a fold over the board and cannot be known at configuration load,
+      so it needs the second refusal point; the two cases differ in exactly one thing
+      — whether anything was ever dispatchable — and that is worth distinguishing
     cites: [S-0068/D-1]
   - id: D-7
     grade: ASSUMED
     text: >-
-      The night stops on the first escalation whose class the operator named and continues on
-      every other; `loop.pause_escalations` is untouched and still counts a queue
+      The night stops on the first escalation whose class the operator named and continues
+      on every other; `loop.pause_escalations` is untouched and still counts a queue
     paths: [src/torve/application/residency.py]
     consequence: >-
       an operator can say "wake me for a locked conflict, keep going on a merge conflict"
-      without changing what escalates, and the count-based pause keeps governing the thing it
-      already governs
+      without changing what escalates, and the count-based pause keeps governing the
+      thing it already governs
     rationale: >-
-      the two are different questions — how much unlooked-at work has piled up, and whether
-      this particular fact is one a person must see — and widening the count to carry a class
-      would break the pause it already governs
+      the two are different questions — how much unlooked-at work has piled up, and
+      whether this particular fact is one a person must see — and widening the count
+      to carry a class would break the pause it already governs
     cites: [S-0048/D-4]
   - id: D-8
     grade: ASSUMED
     text: >-
-      The fallback model, the capacity-error retry watchdog and the denial of anything that
-      would wait for a person's permission are declared as seat `env` and profile equipment,
-      and by no other route
+      The fallback model, the capacity-error retry watchdog and the denial of anything
+      that would wait for a person's permission are declared as seat `env` and profile
+      equipment, and by no other route
     paths: [.torve/harnesses/**, .torve/agents/**]
     consequence: >-
-      a night run under these knobs is a visibly different regime from a day run, so the
-      ledger tells the two apart without anyone remembering to say which was which
+      a night run under these knobs is a visibly different regime from a day run,
+      so the ledger tells the two apart without anyone remembering to say which was
+      which
     rationale: >-
-      `env` is the knob surface and it joins the regime hash; a knob declared outside it
-      changes what an agent may do without moving the digest, which is the defect the surface
-      was drawn to close
+      `env` is the knob surface and it joins the regime hash; a knob declared outside
+      it changes what an agent may do without moving the digest, which is the defect
+      the surface was drawn to close
     cites: [S-0063/D-10, S-0062/D-12]
   - id: D-9
     grade: OPEN
     text: >-
-      Which variable name each of the three night knobs takes, and what the image's own `run`
-      maps it to, is implementation's — under one constraint: torve sets them and interprets
-      none of them
+      Which variable name each of the three night knobs takes, and what the image's
+      own `run` maps it to, is implementation's — under one constraint: torve sets
+      them and interprets none of them
     paths: [.torve/harnesses/**]
     consequence: >-
-      the engine never learns what a capacity error or a permission prompt is, so a harness
-      that spells either differently is a manifest edit rather than a code change
+      the engine never learns what a capacity error or a permission prompt is, so
+      a harness that spells either differently is a manifest edit rather than a code
+      change
     rationale: >-
-      the image is the only thing in the system that already knows what harness it contains,
-      and the same reasoning that kept `CLAUDE_PERMISSION_MODE` opaque applies to all three
+      the image is the only thing in the system that already knows what harness it
+      contains, and the same reasoning that kept `CLAUDE_PERMISSION_MODE` opaque applies
+      to all three
     cites: [S-0063/D-1]
   - id: D-10
     grade: ASSUMED
     text: >-
-      The lane leg a served night runs is handed `conflict_disposal`, so a candidate whose
-      rebase conflicts against a moved base is re-queued by the engine instead of escalating
-      `merge_conflict`
+      The lane leg a served night runs is handed `conflict_disposal`, so a candidate
+      whose rebase conflicts against a moved base is re-queued by the engine instead
+      of escalating `merge_conflict`
     paths: [src/torve/application/lane.py, src/torve/cli/manager.py]
     consequence: >-
-      one class of overnight escalation stops waiting for a person, and a candidate disposed
-      of this way cannot be re-queued twice against the same tip because `conflict_base`
-      bounds it
+      one class of overnight escalation stops waiting for a person, and a candidate
+      disposed of this way cannot be re-queued twice against the same tip because
+      `conflict_base` bounds it
     rationale: >-
-      the disposal is built, bounded and reached only from `tests/test_lane.py`; the served
-      leg passes `on_conflict=None` and its own comment calls the disposal separate, later
-      work — this is that work, and it is the failure most likely to arrive at 03:00
+      the disposal is built, bounded and reached only from `tests/test_lane.py`; the
+      served leg passes `on_conflict=None` and its own comment calls the disposal
+      separate, later work — this is that work, and it is the failure most likely
+      to arrive at 03:00
     cites: [S-0006/D-12, S-0052/D-3]
   - id: D-11
     grade: ASSUMED
     text: >-
-      The width is recorded as a term of the night and is one; this document does not claim
-      more than one task per pass
+      The width is recorded as a term of the night and is one; this document does
+      not claim more than one task per pass
     paths: [src/torve/application/residency.py]
     consequence: >-
-      a later night at width three is comparable against tonight's, because tonight's record
-      says what it ran at rather than leaving it to be inferred from the manager's source as
-      of that date
+      a later night at width three is comparable against tonight's, because tonight's
+      record says what it ran at rather than leaving it to be inferred from the manager's
+      source as of that date
     rationale: >-
-      `once` claims at most one task per pass and the scope-disjointness rule that would
-      govern more already exists; recording the number costs nothing, and widening the pass
-      is a different design whose first honest measurement needs this record to exist first
+      `once` claims at most one task per pass and the scope-disjointness rule that
+      would govern more already exists; recording the number costs nothing, and widening
+      the pass is a different design whose first honest measurement needs this record
+      to exist first
     cites: [S-0044/D-7]
   - id: D-12
     grade: OPEN
     text: >-
-      Where the wall-clock end is measured from and what a pass in flight does when it
-      arrives is implementation's, under two constraints — an attempt in flight is not
-      interrupted by the end, and the close is written even when the end falls inside a pass
+      Where the wall-clock end is measured from and what a pass in flight does when
+      it arrives is implementation's, under two constraints — an attempt in flight
+      is not interrupted by the end, and the close is written even when the end falls
+      inside a pass
     paths: [src/torve/application/residency.py]
     consequence: >-
-      the end is a soft bound and the record has to say so, or a night that closed eleven
-      minutes late reads as a night that ignored its terms
+      the end is a soft bound and the record has to say so, or a night that closed
+      eleven minutes late reads as a night that ignored its terms
     rationale: >-
-      a pause is already a statement about the operator's capacity rather than about the
-      safety of what is running, and an end that killed an attempt mid-write would cost more
-      than the minutes it saved
+      a pause is already a statement about the operator's capacity rather than about
+      the safety of what is running, and an end that killed an attempt mid-write would
+      cost more than the minutes it saved
     cites: [S-0048/D-4]
-invariants: []
-retired: []

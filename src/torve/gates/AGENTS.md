@@ -193,6 +193,20 @@ An acceptance verdict names the suite it judged: a battery that ran fewer tests 
 - Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
 - Consequence: a green battery in a sandbox and a green battery on a laptop stop being the same sentence for two different amounts of evidence
 
+### S-0071/D-6 — `ASSUMED` (The battery costs what it costs for reasons unrelated to what it judges)
+
+A gate declares what it judges, and an attempt that changed none of it is reported skipped rather than run
+
+- Paths: `src/torve/gates/runner.py` `src/torve/config/manifest.py` `.torve/gates.yaml`
+- Consequence: a gate stops spending the battery's wall clock on attempts it has no opinion about, and the record says it had none rather than showing a pass it did not earn
+
+### S-0080/D-10 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+In `pull_request` mode a worktree is cut from the remote's `main` after a fetch, never from the local one
+
+- Paths: `src/torve/adapters/workspace/git.py` `src/torve/gates/context.py`
+- Consequence: an attempt builds on the base its pull request will be merged against, rather than on a copy that is stale from the first merge onward
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail

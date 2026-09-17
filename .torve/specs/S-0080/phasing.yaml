@@ -3,25 +3,25 @@ phasing:
   - phase: 1
     title: the landing mode is a configuration term
     intent: >-
-      `promotion` gains `landing`, `local` or `pull_request`, defaulting to `local` so every
-      repository configured today keeps landing as it does today, and `pull_request` is refused
-      at load with the field named when `scm.repo` is unset or `scm.open_pr` is false. Nothing
-      reads the key yet; this is the term the later phases branch on. Settles D-1 and D-2.
-    scope:
-      - src/torve/config/runconfig.py
-      - tests/test_runconfig.py
+      `promotion` gains `landing`, `local` or `pull_request`, defaulting to `local`
+      so every repository configured today keeps landing as it does today, and `pull_request`
+      is refused at load with the field named when `scm.repo` is unset or `scm.open_pr`
+      is false. Nothing reads the key yet; this is the term the later phases branch
+      on. Settles D-1 and D-2.
+    scope: [src/torve/config/runconfig.py, tests/test_runconfig.py]
     acceptance:
       - uv run pytest tests/test_runconfig.py
       - uv run mypy src
     character: structural
   - phase: 1
-    title: the forge answers about a branch, and the body is the landing
+    title: >-
+      the forge answers about a branch, and the body is the landing
     intent: >-
-      `PrInfo` gains the merge commit and the forge adapter gains the question the lane actually
-      has — what happened to this task's branch — beside the listing by head branch it already
-      does for close and retire. `compose_pr` composes the landing's facts rather than the run's,
-      and writes the sentence about the merge button in `local` mode alone. Settles D-4, D-5 and
-      D-6.
+      `PrInfo` gains the merge commit and the forge adapter gains the question the
+      lane actually has — what happened to this task's branch — beside the listing
+      by head branch it already does for close and retire. `compose_pr` composes the
+      landing's facts rather than the run's, and writes the sentence about the merge
+      button in `local` mode alone. Settles D-4, D-5 and D-6.
     scope:
       - src/torve/adapters/vcs/git.py
       - src/torve/application/ports.py
@@ -34,11 +34,11 @@ phasing:
   - phase: 1
     title: a worktree is cut from the remote
     intent: >-
-      In `pull_request` mode the workspace fetches before it cuts and takes the remote's `main`
-      as the base, so an attempt builds on the tree its pull request will be merged against
-      rather than on a local copy that is stale from the first merge onward. `resolve_base`
-      already prefers `origin/main`; what is added is the fetch that makes the preference mean
-      something. Settles D-10.
+      In `pull_request` mode the workspace fetches before it cuts and takes the remote's
+      `main` as the base, so an attempt builds on the tree its pull request will be
+      merged against rather than on a local copy that is stale from the first merge
+      onward. `resolve_base` already prefers `origin/main`; what is added is the fetch
+      that makes the preference mean something. Settles D-10.
     scope:
       - src/torve/adapters/workspace/git.py
       - src/torve/gates/context.py
@@ -48,65 +48,70 @@ phasing:
       - uv run mypy src
     character: structural
   - phase: 2
-    title: the lane opens a pull request instead of moving the base
+    title: >-
+      the lane opens a pull request instead of moving the base
     intent: >-
-      At the point `_land_fast_forward` and `_land_rebased` call `merge_ff`, the second mode
-      pushes the candidate under lease and opens or refreshes the task's pull request, records
-      it, and stops — leaving the base where it was and the candidate ready. Every criterion,
-      probe and rebase before that point is untouched, and the criteria torve holds now decide
-      whether a pull request is opened rather than whether one is merged. Settles D-3 and D-11.
+      At the point `_land_fast_forward` and `_land_rebased` call `merge_ff`, the second
+      mode pushes the candidate under lease and opens or refreshes the task's pull
+      request, records it, and stops — leaving the base where it was and the candidate
+      ready. Every criterion, probe and rebase before that point is untouched, and
+      the criteria torve holds now decide whether a pull request is opened rather
+      than whether one is merged. Settles D-3 and D-11.
     scope:
       - src/torve/application/lane.py
       - src/torve/cli/merge.py
       - tests/test_lane.py
       - tests/test_lane_prevention.py
     acceptance:
-      - uv run pytest tests/test_lane.py tests/test_lane_prevention.py
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py
       - uv run mypy src
-    depends_on: [1]
+    depends_on:
+      - 1
     character: structural
   - phase: 3
     title: the engine reads what the person did
     intent: >-
-      On a later pass the lane asks the forge about each candidate it has open and answers each
-      of the three verdicts: merged records the landing with the merge commit as the landed sha
-      and the mode named, closed records an abandonment by a person, and still-open against a
-      moved base takes the disposal the lane already has and republishes the branch. The branch
-      is kept either way. Settles D-7, D-8, D-9 and D-12, and D-16 and D-17 are implementation's
-      within it.
-    scope:
-      - src/torve/application/lane.py
-      - tests/test_lane.py
+      On a later pass the lane asks the forge about each candidate it has open and
+      answers each of the three verdicts: merged records the landing with the merge
+      commit as the landed sha and the mode named, closed records an abandonment by
+      a person, and still-open against a moved base takes the disposal the lane already
+      has and republishes the branch. The branch is kept either way. Settles D-7,
+      D-8, D-9 and D-12, and D-16 and D-17 are implementation's within it.
+    scope: [src/torve/application/lane.py, tests/test_lane.py]
     acceptance:
       - uv run pytest tests/test_lane.py
       - uv run mypy src
-    depends_on: [2]
+    depends_on:
+      - 2
     character: structural
   - phase: 4
     title: the report counts what is waiting on a person
     intent: >-
-      The night's projection gains pull requests opened, merged, conflicted and closed, folded
-      from the events in its window like every other column it holds — because in this mode what
-      is waiting on a person is almost entirely on the forge. Waits on phase 3 because those are
-      the events phase 3 records. Settles D-14.
-    scope:
-      - src/torve/application/manager.py
-      - tests/test_manager.py
+      The night's projection gains pull requests opened, merged, conflicted and closed,
+      folded from the events in its window like every other column it holds — because
+      in this mode what is waiting on a person is almost entirely on the forge. Waits
+      on phase 3 because those are the events phase 3 records. Settles D-14.
+    scope: [src/torve/application/manager.py, tests/test_manager.py]
     acceptance:
       - uv run pytest tests/test_manager.py
       - uv run mypy src
-    depends_on: [3]
+    depends_on:
+      - 3
     character: structural
   - phase: 5
-    title: the configuration says which mode, and stops lying about the remote
+    title: >-
+      the configuration says which mode, and stops lying about the remote
     intent: >-
-      `.torve/config.yaml` names `landing: local` explicitly with the commented explanation every
-      other section of that file carries, and the remark pinning `base` to the local `main`
-      because the remote is 187 commits behind goes with it — the gap has closed and a workaround
-      whose reason has expired is believed by the next person who reads it. Settles D-15.
-    scope:
-      - .torve/config.yaml
+      `.torve/config.yaml` names `landing: local` explicitly with the commented explanation
+      every other section of that file carries, and the remark pinning `base` to the
+      local `main` because the remote is 187 commits behind goes with it — the gap
+      has closed and a workaround whose reason has expired is believed by the next
+      person who reads it. Settles D-15.
+    scope: [.torve/config.yaml]
     acceptance:
-      - uv run pytest tests/test_runconfig.py tests/test_docs.py
-    depends_on: [4]
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_docs.py
+    depends_on:
+      - 4
     character: routine

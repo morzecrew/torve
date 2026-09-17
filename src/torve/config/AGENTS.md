@@ -536,6 +536,13 @@ Path rot is a glob that governs nothing, not a glob whose files the repository d
 - Paths: `src/torve/application/decisions.py` `src/torve/config/spec.py`
 - Consequence: `torve spec check` passes in a clean clone, so `spec-valid` and the acceptance command stop depending on a task directory that dispatch happens to have written
 
+### S-0071/D-6 — `ASSUMED` (The battery costs what it costs for reasons unrelated to what it judges)
+
+A gate declares what it judges, and an attempt that changed none of it is reported skipped rather than run
+
+- Paths: `src/torve/gates/runner.py` `src/torve/config/manifest.py` `.torve/gates.yaml`
+- Consequence: a gate stops spending the battery's wall clock on attempts it has no opinion about, and the record says it had none rather than showing a pass it did not earn
+
 ### S-0072/D-1 — `LOCKED` (A hook is one intent, declared once per harness)
 
 An equipment item carries its payload at the root and one directory per harness beside it; a harness reads only its own, and an item with no directory for a harness a seat could use is refused at load, naming the profile and the manifest
@@ -543,6 +550,27 @@ An equipment item carries its payload at the root and one directory per harness 
 - Paths: `.torve/agents/hooks` `src/torve/config/agents.py`
 - Consequence: the disagreement between two harnesses' idea of one kind becomes a message before an image is pulled, instead of an exception inside a container
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0079/D-5 — `ASSUMED` (The night as a typed record)
+
+The night's terms are a `night:` section of the runner configuration, refused at load when the budget is zero on both axes or a named stop class is not in `EscalationReason`
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a misspelt escalation class is refused while a person is standing there rather than at 04:00, when the stop condition it names would silently never fire
+
+### S-0080/D-1 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+The landing mode is a term of the runner configuration — `promotion.landing`, `local` or `pull_request` — and is never inferred from whether a remote exists or from whether `scm.open_pr` is set
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a repository's landing act changes only when somebody writes that it should, and the record of what a run was includes which act it was
+
+### S-0080/D-2 — `ASSUMED` (The lane opens a pull request, and a person lands it)
+
+`landing: pull_request` is refused at load when `scm.repo` is unset or `scm.open_pr` is false, with the field named and what to set
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a mode that could only ever fail at the first landing fails instead while a person is standing at the terminal
 
 ## Invariants holding over `src/torve/config/`
 
