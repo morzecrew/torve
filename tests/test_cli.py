@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import uuid
 from pathlib import Path
 
 import pytest
@@ -1162,3 +1163,118 @@ def test_init_appends_a_missing_pattern_below_the_operators_lines_and_rewrites_a
         "skills/",
         "tmp/",
     ]
+
+
+# ....................... #
+# `torve night show` (S-0079/D-3, S-0079/D-4): a projection of the window,
+# computed on every call, with no field prose can occupy.
+
+
+def _night_records(closed: bool = True):
+    from datetime import UTC, datetime, timedelta
+
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+
+    def record(kind, subject_type, subject_id, payload, at):
+        return EventRecord(
+            id=uuid.uuid4().hex,
+            rev=1,
+            created_at=at,
+            last_update_at=at,
+            kind=kind,
+            partition="morzecrew/torve",
+            subject_type=subject_type,
+            subject_id=subject_id,
+            actor_kind=ActorKind.MANAGER,
+            actor_id="manager-1",
+            payload=payload,
+        )
+
+    records = [
+        record(
+            EventKind.NIGHT_OPENED,
+            SubjectType.NIGHT,
+            "20260917T220000Z",
+            {"queue": ["T-1"], "budget_attempts": 5, "lease_seconds": 900},
+            opened,
+        ),
+        record(
+            EventKind.LANDING_RECORDED,
+            SubjectType.TASK,
+            "T-1",
+            {"sha": "a" * 40, "attempt": 1},
+            opened + timedelta(hours=1),
+        ),
+        record(
+            EventKind.ESCALATION_RAISED,
+            SubjectType.TASK,
+            "T-2",
+            {"reason": "locked_conflict"},
+            opened + timedelta(hours=2),
+        ),
+    ]
+
+    if closed:
+        records.append(
+            record(
+                EventKind.NIGHT_CLOSED,
+                SubjectType.NIGHT,
+                "20260917T220000Z",
+                {"reason": "budget_attempts", "handled": 4},
+                opened + timedelta(hours=8),
+            )
+        )
+
+    return records
+
+
+def test_night_show_refuses_a_partition_whose_log_holds_no_open(tmp_path):
+    result = CliRunner().invoke(app, ["night", "show", "morzecrew/torve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 3
+    assert "no night to show" in result.stderr
+
+
+def test_night_show_folds_the_window_and_stores_nothing(tmp_path, monkeypatch):
+    records = _night_records()
+    monkeypatch.setattr("torve.cli.night.read_log", lambda dsn, reader: records)
+
+    result = CliRunner().invoke(
+        app,
+        ["night", "show", "morzecrew/torve", "--root", str(tmp_path), "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    document = json.loads(result.stdout)
+    assert document["night"] == "20260917T220000Z"
+    assert document["unfinished"] is False
+    assert document["close"]["reason"] == "budget_attempts"
+    assert document["terms"]["queue"] == ["T-1"]
+    assert [one["task"] for one in document["landed"]] == ["T-1"]
+    assert [(one["task"], one["reason"]) for one in document["waiting"]] == [
+        ("T-2", "locked_conflict")
+    ]
+    # Nothing the fold produced is stored: the repository is untouched.
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_night_with_no_close_prints_as_unfinished(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "torve.cli.night.read_log", lambda dsn, reader: _night_records(closed=False)
+    )
+
+    result = CliRunner().invoke(app, ["night", "show", "morzecrew/torve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "unfinished" in result.output
+    assert "T-2" in result.output and "locked_conflict" in result.output
+
+
+def test_night_show_help_carries_no_corpus_coordinates():
+    result = CliRunner().invoke(app, ["night", "show", "--help"])
+
+    assert result.exit_code == 0
+    assert "S-0079" not in result.output
+    assert "RFC" not in result.output.upper()

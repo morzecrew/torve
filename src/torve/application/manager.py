@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from torve.application.planner import scopes_clash
 from torve.application.sizing import estimate
 from torve.base.clock import parse
-from torve.domain.events import EventKind, SubjectType
+from torve.domain.events import EventKind, NightClosed, NightOpened, SubjectType
 from torve.domain.spec import document_id
 from torve.domain.states import TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, Task
@@ -472,3 +472,172 @@ def pull_requests(
             counts[_PR_EVENTS[event]] += 1
 
     return PullRequests(**counts)
+
+
+# ----------------------- #
+
+# The morning report (S-0079/D-3, S-0079/D-4). Four lists folded out of the
+# window between an open and its close, computed on every call and stored
+# nowhere: a stored summary is the one artefact nothing can check against
+# anything, and the board beside it would be free to disagree.
+#
+# Every field below is a recorded one — a task id, a sha, a gate name, a
+# value from a closed vocabulary, an instant. There is deliberately nowhere
+# for a sentence to go, which is what keeps a model's account of its own
+# night out of the report a person reads when they were not there.
+
+
+@dataclass(frozen=True)
+class Landing:
+    """A candidate the night landed."""
+
+    task_id: str
+    sha: str
+    at: datetime
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class Conviction:
+    """One gate that judged an attempt red: what ran, and how it came out."""
+
+    task_id: str
+    attempt: int
+    gate: str
+    outcome: str
+    at: datetime
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class Ending:
+    """A task and the reason it stopped — an attempt the engine ended, or an
+    escalation still waiting on a person. The same triple either way, because
+    both are a task, a reason from `EscalationReason` and an instant."""
+
+    task_id: str
+    reason: str
+    at: datetime
+
+
+# ....................... #
+
+# A gate that ran and did not hold. `flaky`, `skipped` and `bypassed` are
+# outcomes a battery reports without convicting anybody.
+_CONVICTING = frozenset({"fail", "error"})
+
+
+@dataclass(frozen=True)
+class NightReport:
+    """One night's window, as the log's own facts leave it."""
+
+    night_id: str
+    opened_at: datetime
+    terms: NightOpened
+    closed_at: datetime | None = None
+    close: NightClosed | None = None
+    landed: tuple[Landing, ...] = ()
+    convicted: tuple[Conviction, ...] = ()
+    ended: tuple[Ending, ...] = ()
+    waiting: tuple[Ending, ...] = ()
+
+    # ....................... #
+
+    @property
+    def unfinished(self) -> bool:
+        """A night whose manager never wrote a close — killed, or still
+        running. The open is the only thing it needed to have written, so
+        this reads as unfinished rather than as lost (S-0079/D-1)."""
+
+        return self.close is None
+
+
+# ....................... #
+
+
+def night_report(events: Iterable[EventRecord], *, night_id: str = "") -> NightReport | None:
+    """Fold one night's window, or None when the log holds no such night.
+
+    Named or, by default, the most recent open — which is what somebody at
+    breakfast wants and what a script can pin with an identifier.
+
+    Membership is a time comparison and nothing else (S-0079/D-3): the night
+    stamps no event of its own, so a fact recorded in the second between two
+    nights belongs to whichever window holds its instant. Both boundaries are
+    in the log, so that ambiguity is resolvable by reading.
+    """
+
+    records = list(events)
+    opens = [
+        record
+        for record in records
+        if record.kind is EventKind.NIGHT_OPENED and (not night_id or record.subject_id == night_id)
+    ]
+
+    if not opens:
+        return None
+
+    opened = opens[-1]
+    close = next(
+        (
+            record
+            for record in records
+            if record.kind is EventKind.NIGHT_CLOSED and record.subject_id == opened.subject_id
+        ),
+        None,
+    )
+    until = close.created_at if close is not None else None
+    landed: list[Landing] = []
+    convicted: list[Conviction] = []
+    ended: list[Ending] = []
+    waiting: list[Ending] = []
+    resolved: set[str] = set()
+
+    for record in records:
+        if record.subject_type is not SubjectType.TASK or record.created_at < opened.created_at:
+            continue
+
+        if until is not None and record.created_at > until:
+            continue
+
+        task_id, payload, at = record.subject_id, record.payload, record.created_at
+
+        if record.kind is EventKind.LANDING_RECORDED:
+            landed.append(Landing(task_id, str(payload.get("sha") or ""), at))
+
+        elif record.kind is EventKind.GATES_EVALUATED:
+            attempt = int(payload.get("attempt") or 0)
+            convicted.extend(
+                Conviction(task_id, attempt, str(result.get("name") or ""), outcome, at)
+                for result in payload.get("results") or []
+                if (outcome := str(result.get("outcome") or "")) in _CONVICTING
+            )
+
+        elif record.kind is EventKind.ATTEMPT_FINISHED:
+            # An attempt with an escalation reason is one the engine ended;
+            # one that went on to a gate pass has no ending of its own.
+            if reason := str(payload.get("escalation") or ""):
+                ended.append(Ending(task_id, reason, at))
+
+        elif record.kind is EventKind.ESCALATION_RAISED:
+            waiting.append(Ending(task_id, str(payload.get("reason") or ""), at))
+
+        elif record.kind is EventKind.ESCALATION_RESOLVED:
+            resolved.add(task_id)
+
+    return NightReport(
+        night_id=opened.subject_id,
+        opened_at=opened.created_at,
+        terms=NightOpened.model_validate(opened.payload),
+        closed_at=until,
+        close=NightClosed.model_validate(close.payload) if close is not None else None,
+        landed=tuple(landed),
+        convicted=tuple(convicted),
+        ended=tuple(ended),
+        # What a person closed inside the night is no longer waiting for one.
+        waiting=tuple(one for one in waiting if one.task_id not in resolved),
+    )

@@ -39,6 +39,7 @@ from torve.cli import (
     mcp,
     merge,
     migrate,
+    night,
     plan,
     review,
     run,
@@ -69,6 +70,7 @@ app.add_typer(review.review_app, name="review")
 app.add_typer(fleet.fleet_app, name="fleet")
 app.add_typer(log.log_app, name="log")
 app.add_typer(manager.manager_app, name="manager")
+app.add_typer(night.night_app, name="night")
 app.add_typer(decisions.decisions_app, name="decisions")
 app.add_typer(spec.spec_app, name="spec")
 app.add_typer(sources.source_app, name="source")

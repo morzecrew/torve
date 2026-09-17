@@ -23,6 +23,7 @@ from torve.application.manager import (
     TaskView,
     dispatchable,
     expired,
+    night_report,
     project,
     pull_requests,
     stalled,
@@ -709,3 +710,154 @@ def test_a_serve_without_the_switch_is_the_pass_it_always_was(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["stopped_on"] == ""
+
+
+# ....................... #
+# The morning report (S-0079/D-3, S-0079/D-4): a fold over the window between
+# an open and its close, with nowhere for a sentence to go.
+
+
+NIGHT = "20260917T220000Z"
+TERMS = {"queue": ["T-1"], "width": 1, "budget_attempts": 5, "lease_seconds": 900}
+
+
+def night_event(kind, subject_id, payload, *, at, partition=PARTITION) -> EventRecord:
+    """A night's own open or close — a subject in the log, not a file."""
+
+    return EventRecord(
+        id=uuid.uuid4().hex,
+        rev=1,
+        created_at=at,
+        last_update_at=at,
+        kind=kind,
+        partition=partition,
+        subject_type=SubjectType.NIGHT,
+        subject_id=subject_id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id="manager-1",
+        payload=payload,
+    )
+
+
+def test_a_night_with_no_open_is_no_night():
+    assert night_report([]) is None
+    assert night_report([event(EventKind.TASK_MINTED, "T-1")]) is None
+
+
+def test_the_report_is_the_four_lists_the_window_already_held():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    closed = opened + timedelta(hours=8)
+    events = [
+        # Yesterday's landing belongs to yesterday's window.
+        event(EventKind.LANDING_RECORDED, "T-0", {"sha": "f" * 40}, at=opened - timedelta(hours=1)),
+        night_event(EventKind.NIGHT_OPENED, NIGHT, TERMS, at=opened),
+        event(EventKind.LANDING_RECORDED, "T-1", {"sha": "a" * 40}, at=opened + timedelta(hours=1)),
+        event(
+            EventKind.GATES_EVALUATED,
+            "T-2",
+            {
+                "attempt": 2,
+                "exit_code": 1,
+                "results": [
+                    {"name": "acceptance", "outcome": "fail", "state": "blocking"},
+                    {"name": "lint", "outcome": "pass", "state": "shadow"},
+                ],
+            },
+            at=opened + timedelta(hours=2),
+        ),
+        event(
+            EventKind.ATTEMPT_FINISHED,
+            "T-3",
+            {"attempt": 3, "escalation": "poison_ceiling"},
+            at=opened + timedelta(hours=3),
+        ),
+        # An attempt that went on to a gate pass has no ending of its own.
+        event(EventKind.ATTEMPT_FINISHED, "T-2", {"attempt": 2}, at=opened + timedelta(hours=3)),
+        event(
+            EventKind.ESCALATION_RAISED,
+            "T-3",
+            {"reason": "poison_ceiling"},
+            at=opened + timedelta(hours=3, minutes=1),
+        ),
+        night_event(EventKind.NIGHT_CLOSED, NIGHT, {"reason": "drained", "handled": 3}, at=closed),
+        # Tomorrow's facts are not tonight's.
+        event(EventKind.LANDING_RECORDED, "T-9", {"sha": "b" * 40}, at=closed + timedelta(hours=1)),
+    ]
+
+    report = night_report(events)
+
+    assert report is not None
+    assert (report.night_id, report.opened_at, report.closed_at) == (NIGHT, opened, closed)
+    assert report.unfinished is False
+    assert report.close is not None and report.close.reason == "drained"
+    assert report.terms.budget_attempts == 5
+    assert [(one.task_id, one.sha) for one in report.landed] == [("T-1", "a" * 40)]
+    # Only a gate that convicted; a green one is not an entry.
+    assert [(one.task_id, one.attempt, one.gate, one.outcome) for one in report.convicted] == [
+        ("T-2", 2, "acceptance", "fail")
+    ]
+    assert [(one.task_id, one.reason) for one in report.ended] == [("T-3", "poison_ceiling")]
+    assert [(one.task_id, one.reason) for one in report.waiting] == [("T-3", "poison_ceiling")]
+
+
+def test_an_escalation_a_person_closed_is_no_longer_waiting_on_one():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    report = night_report(
+        [
+            night_event(EventKind.NIGHT_OPENED, NIGHT, TERMS, at=opened),
+            event(
+                EventKind.ESCALATION_RAISED,
+                "T-1",
+                {"reason": "merge_conflict"},
+                at=opened + timedelta(hours=1),
+            ),
+            event(
+                EventKind.ESCALATION_RESOLVED,
+                "T-1",
+                {"resolution": "requeued"},
+                at=opened + timedelta(hours=2),
+            ),
+        ]
+    )
+
+    assert report is not None
+    assert report.waiting == ()
+
+
+def test_a_night_with_no_close_is_unfinished_and_its_window_is_still_open():
+    """A manager killed at 04:00 wrote the open and nothing after it. That
+    reads as unfinished, and everything since the open is still its own."""
+
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    report = night_report(
+        [
+            night_event(EventKind.NIGHT_OPENED, NIGHT, TERMS, at=opened),
+            event(
+                EventKind.LANDING_RECORDED,
+                "T-1",
+                {"sha": "a" * 40},
+                at=opened + timedelta(days=2),
+            ),
+        ]
+    )
+
+    assert report is not None
+    assert report.unfinished is True
+    assert (report.closed_at, report.close) == (None, None)
+    assert [one.task_id for one in report.landed] == ["T-1"]
+
+
+def test_a_named_night_is_the_one_folded_and_the_default_is_the_latest():
+    first = datetime(2026, 9, 16, 22, 0, tzinfo=UTC)
+    second = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    events = [
+        night_event(EventKind.NIGHT_OPENED, "first", TERMS, at=first),
+        night_event(
+            EventKind.NIGHT_CLOSED, "first", {"reason": "wall_clock"}, at=first + timedelta(hours=8)
+        ),
+        night_event(EventKind.NIGHT_OPENED, "second", TERMS, at=second),
+    ]
+
+    assert night_report(events).night_id == "second"
+    assert night_report(events, night_id="first").night_id == "first"
+    assert night_report(events, night_id="third") is None
