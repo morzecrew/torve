@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0429
+phase: 1
+base: c8b8ddee1b2e2f5cf0b3a9f315e397c03e7c3012
+commit: bb9835a737a9ec7d4578ffcc8dc527b7bd03ea2a
+at: '2026-09-17T20:07:27Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: OPEN
+entries:
+  - decision: D-9
+    grade: OPEN
+    at: '2026-09-17T20:06:49Z'
+    claim: >-
+      the three night knobs take CLAUDE_FALLBACK_MODEL, CLAUDE_CAPACITY_RETRY_SECONDS
+      and CLAUDE_DENY_TOOLS on a night twin of the claude seat; the mapping onto --fallback-model,
+      a capacity retry and --disallowed-tools is owed by the image's own run, which
+      this scope does not reach, so the three are declared and inert until sandboxes/claude
+      changes
+    evidence: >-
+      .torve/harnesses/claude-subscription-night.yaml:45-53 — the env block; sandboxes/claude/toolkit/run
+      reads only CLAUDE_PERMISSION_MODE, CLAUDE_TOOLS and TORVE_REASONING today
+    action: decided
+  - decision: D-8
+    grade: ASSUMED
+    at: '2026-09-17T20:06:49Z'
+    claim: >-
+      all three knobs are declared as seat env and none as profile equipment: a second
+      hook item would hand claude a second --settings, the flag reads one file, and
+      the implement guards already declared through it would be silently dropped
+    evidence: >-
+      sandboxes/claude/toolkit/equip_flags.py:73-88 — a hook item becomes one --settings
+      pointing at its own settings.json; src/torve/config/equipment.py dedups by kind
+      and source, so two hook sources are two flags
+    action: decided
