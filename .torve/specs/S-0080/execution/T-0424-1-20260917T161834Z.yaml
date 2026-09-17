@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0424
+phase: 3
+base: 8ddac026c517b79b1c054bd5e4f5ae9d6cece860
+commit: a49ab4368cbfdc61285aa8e4006decde2e77e508
+at: '2026-09-17T16:18:34Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: OPEN
+  - id: D-17
+    grade: OPEN
+entries:
+  - decision: D-16
+    grade: OPEN
+    at: '2026-09-17T16:17:00Z'
+    claim: >-
+      the lane asks once per candidate that its own stream records as having a pull
+      request open, from a ledger folded once per pass; a pass whose ledger is empty
+      makes no forge call and a dry run makes none either
+    evidence: >-
+      src/torve/application/lane.py:1003 — the ledger is folded once per pass and
+      only in pull_request mode; src/torve/application/lane.py:581 is the fold
+    action: decided
+    proposal: >-
+      OPEN — settled as decided: the ask is per candidate with an open pull request,
+      from a per-pass ledger of the lane's own events
+  - decision: D-17
+    grade: OPEN
+    at: '2026-09-17T16:17:00Z'
+    claim: >-
+      a branch the forge cannot resolve is recorded as lane_pr_unresolved and the
+      ledger entry makes that verdict terminal, so no later pass opens a second pull
+      request for the same work
+    evidence: >-
+      src/torve/application/lane.py:659 — the record; src/torve/application/lane.py:54
+      is the ledger that keeps it terminal
+    action: decided
+    proposal: >-
+      OPEN — settled as decided: an unresolvable branch is a recorded gap, never a
+      re-open
+  - decision: D-8
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-17T16:17:00Z'
+    claim: >-
+      the abandonment is recorded as a telemetry event and the run state is left READY:
+      ready -> abandoned is not a legal transition and src/torve/domain/states.py
+      is outside this scope, so the alternative was escalating first, which D-8 forbids
+    evidence: >-
+      src/torve/domain/states.py:104 — READY's legal successors are ESCALATED and
+      QUEUED only
+    action: departed
+    proposal: >-
+      ASSUMED — the lane's forge read-back adds ready -> abandoned to TRANSITIONS
+      so a closed pull request leaves the run terminal rather than a standing READY
+      candidate the ledger alone holds back
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-09-17T16:17:00Z'
+    claim: >-
+      the still-open verdict falls through to the lane's existing disposal; whether
+      the base moved is read from local ancestry, because PrInfo carries no mergeable
+      state and ports.py is outside this scope
+    evidence: >-
+      src/torve/application/lane.py:712 — the ancestry test that separates a standing
+      pull request from one whose base moved
+    action: decided
+    proposal: >-
+      ASSUMED — no change proposed; the local ancestry test is the signal available
+      in scope
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-09-17T16:17:13Z'
+    claim: >-
+      correcting the citation in the earlier D-9 entry: the ancestry test that separates
+      a standing pull request from one whose base moved is at line 713, not 712
+    evidence: >-
+      src/torve/application/lane.py:713 — vcs.is_ancestor over the base tip and the
+      branch tip
+    action: decided
