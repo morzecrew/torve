@@ -2668,3 +2668,67 @@ def test_no_arm_but_the_configured_one_may_land_its_work(tmp_path):
 
     with pytest.raises(ValueError, match="a gated run is a replay"):
         real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt", arm="gated")
+
+
+# ----------------------- #
+# S-0083/D-9: where a task's worktree is cut from under each landing unit.
+
+
+def _document_config(**overrides):
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    promotion = PromotionConfig(landing="pull_request", unit="document", **overrides)
+    return RunnerConfig(promotion=promotion)
+
+
+def test_a_phase_is_cut_from_its_documents_branch_once_it_exists(repo):
+    """The phase after a landed one starts on the tree that landing produced,
+    and the battery judges it against that same tip — not against main, which
+    would read every earlier phase as this one's work."""
+    from torve.application.runner import _cut_from
+
+    repo.seed()
+    repo.git("branch", naming.document_branch("S-0083"), "main")
+
+    assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
+        "torve/S-0083",
+        False,
+        "torve/S-0083",
+    )
+
+
+def test_the_first_phase_of_a_document_fetches_and_cuts_from_the_configured_base(repo):
+    from torve.application.runner import _cut_from
+
+    repo.seed()
+
+    assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
+        "main",
+        True,
+        None,
+    )
+
+
+def test_a_contract_naming_no_document_cuts_by_the_task_unit(repo):
+    """S-0083/D-4: nothing infers a document for a contract that names none."""
+    from torve.application.runner import _cut_from
+
+    repo.seed()
+
+    assert _cut_from(repo.root, _executor_task(), _document_config()) == ("main", False, None)
+
+
+def test_the_task_unit_and_a_local_landing_cut_exactly_as_they_cut_today(repo):
+    """S-0083/D-2: under `landing: local` the unit is inert, not refused."""
+    from torve.application.runner import _cut_from
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    repo.seed()
+    repo.git("branch", naming.document_branch("S-0083"), "main")
+    task = _executor_task(spec="S-0083")
+
+    assert _cut_from(repo.root, task, RunnerConfig()) == ("main", False, None)
+
+    local = RunnerConfig(promotion=PromotionConfig(landing="local", unit="document"))
+
+    assert _cut_from(repo.root, task, local) == ("main", False, None)

@@ -87,7 +87,7 @@ from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
-from torve.gates.context import GateContext, build_context, resolve_base
+from torve.gates.context import GateContext, GitError, build_context, resolve_base
 from torve.gates.runner import RunReport, run_gates
 
 # ----------------------- #
@@ -998,6 +998,37 @@ def real_hooks(
 # ....................... #
 
 
+def _cut_from(root: Path, task: Task, config: RunnerConfig) -> tuple[str | None, bool, str | None]:
+    """(base_ref, fetch, gates_base) — where a task's worktree is cut from,
+    whether the remote's refs are updated first, and the base the battery
+    judges the attempt against.
+
+    Under `promotion.unit: document` (S-0083/D-9) a phase starts on the tree
+    the previous phase's landing produced — the document branch's tip — so a
+    night runs a whole document with nobody in the middle, and the battery
+    judges against that same tip so a phase's diff is its own work rather than
+    everything the branch carries. Before the branch is cut, the base is the
+    remote's main after a fetch rather than a local copy stale from the first
+    merge onward. Every other unit, a contract naming no document (S-0083/D-4)
+    and a local landing (S-0083/D-2) cut exactly as they cut today."""
+
+    promotion = config.promotion
+
+    if promotion.landing != "pull_request" or promotion.unit != "document" or task.spec is None:
+        return resolve_base(root, config.base), False, None
+
+    try:
+        document = resolve_base(root, naming.document_branch(task.spec))
+
+    except GitError:
+        return resolve_base(root, config.base), True, None
+
+    return document, False, document
+
+
+# ....................... #
+
+
 async def _run_task_async(
     root: Path,
     task: Task,
@@ -1006,10 +1037,18 @@ async def _run_task_async(
     state: RunState,
     resume: bool = False,
 ) -> RunState:
-    worktree = deps.workspace.create(task.id, resolve_base(root, config.base), resume=resume)
+    base, fetch, gates_base = _cut_from(root, task, config)
+
+    # The keyword is passed only where it is on, so a workspace that never
+    # fetches is called exactly as it was called before the port carried one.
+    worktree = (
+        deps.workspace.create(task.id, base, resume=resume, fetch=True)
+        if fetch
+        else deps.workspace.create(task.id, base, resume=resume)
+    )
     state.worktree = str(worktree)
     state.save()
-    hooks = real_hooks(root, task, config, deps, worktree, resume=resume)
+    hooks = real_hooks(root, task, config, deps, worktree, resume=resume, gates_base=gates_base)
 
     async def body(_fctx: ExecutionContext, _input_json: JsonDict | None) -> JsonDict:
         bound = current_durable_run()

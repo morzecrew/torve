@@ -135,7 +135,12 @@ class Runtime(Protocol):
 
 
 class WorkspacePort(Protocol):
-    def create(self, task_id: str, base_ref: str | None, *, resume: bool = False) -> Path: ...
+    # `fetch` updates the remote's refs before the cut (S-0083/D-9): a base
+    # that names the remote's main is a local copy, stale from the first merge
+    # onward, until it is fetched.
+    def create(
+        self, task_id: str, base_ref: str | None, *, resume: bool = False, fetch: bool = False
+    ) -> Path: ...
 
     def remove(self, task_id: str) -> None: ...
 
