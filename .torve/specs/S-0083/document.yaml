@@ -4,7 +4,7 @@ title: >-
   The pull request is one per document, not one per task
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0080]
 informed_by: [S-0059, S-0079]
 supersedes: []
