@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0431
+phase: 3
+base: de955c93b0bf4edd9d668e9dfca7f4142b717d91
+commit: 23f6af4b3390014d7470121713100601f2c41ddd
+at: '2026-09-17T20:44:42Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-17T20:43:01Z'
+    claim: >-
+      no row settles whether 'night show' defaults to the most recent night or refuses
+      without an identifier; it defaults to the most recent open and takes --night
+      to pin one
+    evidence: >-
+      src/torve/cli/night.py:57-70 — the partition is positional and --night defaults
+      to empty, which night_report reads as the latest open
+    action: decided
+    proposal: >-
+      OPEN — 'torve night show' defaults to the most recent open and accepts --night
+      <id>; S-0079/Q-3 asked this and no row answered it
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-17T20:43:01Z'
+    claim: >-
+      no row says which gate outcomes count as convicting; only fail and error become
+      entries, so flaky, skipped and bypassed do not accuse anybody
+    evidence: >-
+      src/torve/application/manager.py:536 — _CONVICTING is fail and error; src/torve/domain/vocabulary.py:65
+      is the whole outcome vocabulary
+    action: decided
+    proposal: >-
+      OPEN — the report's convicted list holds gate results whose outcome is fail
+      or error; the other four outcomes are recorded without convicting
