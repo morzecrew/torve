@@ -9,6 +9,15 @@
             "command": "python3 \"$TORVE_EQUIPMENT/implement/scope_guard.py\""
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$TORVE_EQUIPMENT/implement/read_guard.py\""
+          }
+        ]
       }
     ],
     "Stop": [

@@ -7,6 +7,9 @@ not discovered by an attempt that ran without its equipment.
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -924,7 +927,7 @@ def test_the_hook_kind_is_declared_on_implement_and_nowhere_else() -> None:
     # The payload stays at the item's root, and the harness reads its own
     # directory beside it (S-0072/D-1): the settings the claude image points
     # `--settings` at live under `claude/`.
-    for name in ("scope_guard.py", "finish_check.py"):
+    for name in ("scope_guard.py", "read_guard.py", "finish_check.py"):
         assert (HOOK_DIR / name).is_file(), name
 
     assert (HOOK_DIR / "claude" / "settings.json").is_file()
@@ -949,6 +952,60 @@ def test_the_refusal_reads_the_contract_and_blocks_only_inside_scope(tmp_path: P
     assert guard.is_allowed("tests/test_equipment.py", patterns)
     assert not guard.is_allowed("src/torve/config/equipment.py", patterns)
     assert guard.allow_patterns(tmp_path / "missing.yaml") == []
+
+
+def test_a_large_out_of_scope_read_is_answered_with_the_files_shape(tmp_path: Path) -> None:
+    """Measured on T-0407: seven calls carried 70% of the attempt's orientation
+    bytes, and the worst read `harness.py` — outside the contract's scope — four
+    times over for 36,772 bytes. The prompt already advised reading in ranges and
+    the same attempt ignored it, which is why this is a hook and not a sentence.
+
+    Four branches, because the cost of a guard that misfires is a wasted turn:
+    the large out-of-scope read is answered, and an in-scope file, a ranged read
+    and a small file all pass untouched."""
+
+    guard = _hook_script("read_guard")
+    big = "x = 1\n" * 3_000  # comfortably over the guard's own threshold
+
+    (tmp_path / ".torve" / "tasks" / "T-1").mkdir(parents=True)
+    (tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml").write_text(
+        "scope:\n  allow:\n  - src/mine.py\n  deny: []\n", encoding="utf-8"
+    )
+    (tmp_path / ".torve" / "context").mkdir(parents=True)
+    (tmp_path / ".torve" / "context" / "symbols.txt").write_text(
+        "src/theirs.py:3 def widget\nsrc/theirs.py:9 class Gadget\n", encoding="utf-8"
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "theirs.py").write_text(big, encoding="utf-8")
+    (tmp_path / "src" / "mine.py").write_text(big, encoding="utf-8")
+    (tmp_path / "src" / "small.py").write_text("x = 1\n", encoding="utf-8")
+
+    def ask(name: str, **extra: object) -> tuple[int, str]:
+        payload = {"tool_input": {"file_path": str(tmp_path / "src" / name), **extra}}
+        done = subprocess.run(
+            [sys.executable, str(HOOK_DIR / "read_guard.py")],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+        return done.returncode, done.stderr
+
+    code, said = ask("theirs.py")
+
+    # Answered, not merely refused: the shape it wanted is in the reply, and the
+    # reply is a fraction of the bytes it asked for.
+    assert code == 2
+    assert "src/theirs.py:3 def widget" in said
+    assert "src/theirs.py:9 class Gadget" in said
+    assert "sed -n" in said
+    assert len(said) < len(big) // 4
+
+    assert ask("mine.py")[0] == 0  # in scope, however large
+    assert ask("theirs.py", offset=10, limit=20)[0] == 0  # a range is the asked-for shape
+    assert ask("small.py")[0] == 0  # too small to be worth a round trip
+
+    assert guard.ROWS > 0 and guard.LARGE > 0
 
 
 def test_the_finishing_check_carries_a_ceiling_of_one_block() -> None:
