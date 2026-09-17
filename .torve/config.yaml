@@ -51,16 +51,17 @@ poison_ceiling: 3            # checked before dispatch; reached -> escalated
 reap:
   stale_after: 600           # non-terminal run with an older heartbeat is orphaned
 
-# Where a worktree is cut from. Absent, `resolve_base` prefers `origin/main`
-# over `main` — right for a repository whose work is pushed, and wrong here:
-# the remote exists but is 187 commits behind, so every dispatch was cutting
-# its worktree from a tree five days old and reading that tree's gate manifest.
-# Naming `main` says what this repository's base actually is. Remove this line
-# once the work is pushed and the preference is true again.
-base: main
+# The act that lands a promoted candidate: `local` fast-forwards the base in
+# this checkout, `pull_request` pushes the branch, opens the task's pull
+# request and stops for a person to merge it on the forge. The mode is a term
+# of configuration, never inferred from whether a remote exists or from
+# `scm.open_pr` below (S-0080/D-1), so the repository that develops torve
+# writes its act down rather than resting on a default (S-0080/D-15).
+promotion:
+  landing: local
 
 scm:
-  open_pr: false             # a remote exists but nothing is pushed to it yet
+  open_pr: false             # attempts open no pull requests here: the landing act above is local
 
 # S-0004 §1: `tier` on the task maps to a seat here, and the concern leaks no
 # further into the design. A seat names the harness that reaches its model and,
