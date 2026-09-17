@@ -436,3 +436,28 @@ Before the first replay the verb prints which arms it will run over which tasks 
 - Consequence: the largest deliberate spend behind one command in this engine says so before it starts, and there is no second, weaker budget mechanism beside the working one
 
 <!-- /torve:managed -->
+
+## The night verb, beside the manager's
+
+`torve manager serve --night` opens a night and `torve night show` reads one
+back. They are the two halves of one mechanism, and neither stores anything:
+the terms are recorded on `night.opened` at the open (S-0079/D-2) and the
+report is a projection of the window, computed on every call and stored
+nowhere (S-0079/D-4).
+
+- `serve --night` reads the configuration's `night:` section once, at the open,
+  refuses a board with nothing startable (S-0079/D-6), and stops on a budget,
+  on the wall-clock end or on the first escalation of a class the terms name
+  (S-0079/D-7). Every bound is soft: an attempt in flight finishes, and the
+  close is written even when the end fell inside a pass (S-0079/D-12).
+- `night show <partition>` folds the window into landed, convicted, ended and
+  waiting-on-a-person. `--night` picks one by id; omitted takes the most
+  recent open. A night with an open and no close reads as unfinished rather
+  than as lost, which is what a manager killed at 04:00 leaves behind.
+
+The report holds no field prose can occupy, so no line of it is a model's
+account of its own night. Adding one is the way that rule is broken.
+
+What the knobs cost is written where they are set, `.torve/config.yaml`; what
+a night seat runs under is declared in `.torve/harnesses/` as seat `env`
+(S-0079/D-8), and torve interprets none of those three variables (S-0079/D-9).

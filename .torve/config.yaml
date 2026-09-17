@@ -51,6 +51,42 @@ poison_ceiling: 3            # checked before dispatch; reached -> escalated
 reap:
   stale_after: 600           # non-terminal run with an older heartbeat is orphaned
 
+# The terms `torve manager serve --night` runs under (S-0079/D-5), read once at
+# the open and recorded whole on `night.opened` (S-0079/D-2): editing this file
+# while a night runs changes the next night, never the one in flight. The values
+# below are the model's own defaults, written out because the next person arming
+# a night should read what each one costs rather than infer it from the model.
+#
+# Two refusals fire at load, while somebody is still standing here: a budget of
+# zero on both axes (a night nothing can stop), and a `stop_on` class that is
+# not one `EscalationReason` carries (a stop condition that would silently never
+# fire at 04:00). A third refusal waits for the open — a board with nothing
+# startable is refused there rather than slept through (S-0079/D-6).
+#
+# Every bound below is soft: they are read between passes, so the attempt that
+# was running when one was reached finishes and the close records how far past
+# the end it landed (S-0079/D-12).
+night:
+  budget_usd: 50.0           # dollars across every task before the night closes;
+                             # 0 unbounds this axis, and both axes at 0 is refused
+  budget_attempts: 50        # attempts the night may start; same 0 rule. Whichever
+                             # axis is reached first is what stops the night, so the
+                             # cheap seat's night is bounded by attempts and the
+                             # opus seat's by dollars
+  minutes: 480               # the wall-clock end, measured from the open
+  stop_on: []                # escalation classes that stop the night on their first
+                             # occurrence; every other class escalates as it always
+                             # did and the night carries on (S-0079/D-7). Empty is
+                             # "wake me for nothing" — the night runs to a budget or
+                             # to the end with the escalations waiting in the morning
+                             # report. `[locked_conflict, underspecified]` is the
+                             # pair worth naming: both indict the contract, so every
+                             # later pass of a night that hits one is spending on a
+                             # board a person has to re-cut anyway. `merge_conflict`
+                             # is the one NOT to name here — a served night hands the
+                             # lane `conflict_disposal` (S-0079/D-10), so the engine
+                             # re-queues that candidate instead of escalating it
+
 # The act that lands a promoted candidate: `local` fast-forwards the base in
 # this checkout, `pull_request` pushes the branch, opens the task's pull
 # request and stops for a person to merge it on the forge. The mode is a term
