@@ -60,6 +60,17 @@ reap:
 promotion:
   landing: local
 
+# Where a worktree is cut from. Absent, `resolve_base` prefers `origin/main`
+# over `main`, which is right for a repository whose landings reach the
+# remote — the `pull_request` mode above — and wrong for `local`: a local
+# landing moves `main` here and nothing moves `origin/main` until a person
+# pushes. T-0426 removed this line on S-0080/Q-3, and the next four
+# dispatches (T-0427 to T-0430) were cut from an `origin/main` eleven
+# commits stale — T-0430 built a night against a tree with no night event
+# model and landed only after the model was patched by hand. In `local`
+# mode the base is the branch the lane lands on, so it is named.
+base: main
+
 scm:
   open_pr: false             # attempts open no pull requests here: the landing act above is local
 
