@@ -15,7 +15,7 @@ What changes is only where the state they read comes from.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -439,6 +439,29 @@ class PullRequests:
     closed: int = 0
 
 
+def windowed(
+    rows: Iterable[Mapping[str, Any]], *, since: datetime, until: datetime | None = None
+) -> Iterator[Mapping[str, Any]]:
+    """The rows whose instant the night's bounds hold.
+
+    Membership is a time comparison and nothing else, and a row whose
+    instant does not read belongs to no window rather than taking a fold
+    down.
+    """
+
+    for row in rows:
+        try:
+            moment = parse(str(row.get("at") or ""))
+
+        except ValueError:
+            continue
+
+        if moment < since or (until is not None and moment > until):
+            continue
+
+        yield row
+
+
 def pull_requests(
     rows: Iterable[Mapping[str, Any]], *, since: datetime, until: datetime | None = None
 ) -> PullRequests:
@@ -452,16 +475,7 @@ def pull_requests(
 
     counts = dict.fromkeys(("opened", "merged", "conflicted", "closed"), 0)
 
-    for row in rows:
-        try:
-            moment = parse(str(row.get("at") or ""))
-
-        except ValueError:
-            continue
-
-        if moment < since or (until is not None and moment > until):
-            continue
-
+    for row in windowed(rows, since=since, until=until):
         event = str(row.get("event") or "")
 
         if event == "lane_landed":
@@ -472,6 +486,59 @@ def pull_requests(
             counts[_PR_EVENTS[event]] += 1
 
     return PullRequests(**counts)
+
+
+# ....................... #
+
+# What the lane records about a document branch (S-0083/D-6, S-0083/D-10,
+# S-0083/D-11). A document is opened by the first landing onto its branch —
+# the record the lane's own ledger reads it as open from, so nothing here
+# asks the forge or infers a document from a branch name — and merged or
+# closed by the verdict a later pass read back off the forge.
+_DOCUMENT_EVENTS = {
+    "lane_document_landed": "merged",
+    "lane_document_closed": "closed",
+}
+
+
+@dataclass(frozen=True)
+class Documents:
+    """What a night left on the forge at the document unit (S-0083/D-16):
+    three counts and no field prose can occupy, beside the pull-request
+    counts rather than instead of them."""
+
+    opened: int = 0
+    merged: int = 0
+    closed: int = 0
+
+
+def documents(
+    rows: Iterable[Mapping[str, Any]], *, since: datetime, until: datetime | None = None
+) -> Documents:
+    """Fold the window's recorded facts into the three counts.
+
+    Counted per branch rather than per event, because a document of six
+    phases lands six times onto one branch and refreshes one pull request:
+    what a person is told is how many merges are waiting on them, which is
+    a count of documents.
+    """
+
+    seen: dict[str, set[str]] = {"opened": set(), "merged": set(), "closed": set()}
+
+    for row in windowed(rows, since=since, until=until):
+        event = str(row.get("event") or "")
+        branch = str(row.get("branch") or "")
+
+        if not branch:
+            continue
+
+        if event == "lane_landed" and str(row.get("unit") or "") == "document":
+            seen["opened"].add(branch)
+
+        elif event in _DOCUMENT_EVENTS:
+            seen[_DOCUMENT_EVENTS[event]].add(branch)
+
+    return Documents(**{name: len(branches) for name, branches in seen.items()})
 
 
 # ----------------------- #

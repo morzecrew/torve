@@ -19,9 +19,11 @@ from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
 from torve.application.manager import (
     Board,
+    Documents,
     PullRequests,
     TaskView,
     dispatchable,
+    documents,
     expired,
     night_report,
     project,
@@ -638,6 +640,85 @@ def test_a_fact_outside_the_window_belongs_to_another_night():
 
 def test_an_idle_night_counts_nothing():
     assert pull_requests([], since=datetime.now(UTC)) == PullRequests()
+
+
+# ....................... #
+
+# What the night left on the forge at the document unit (S-0083/D-16): three
+# counts beside the four, folded from the same window and with nowhere for
+# prose to go either.
+
+
+def test_the_document_counts_are_a_fold_over_the_windows_events():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    rows = [
+        stream(
+            "lane_landed",
+            opened + timedelta(minutes=5),
+            task="T-1",
+            unit="document",
+            branch="torve/S-0083",
+        ),
+        # A second phase onto the same branch refreshes one pull request:
+        # one document, and one merge waiting on a person.
+        stream(
+            "lane_landed",
+            opened + timedelta(hours=1),
+            task="T-2",
+            unit="document",
+            branch="torve/S-0083",
+        ),
+        stream(
+            "lane_landed",
+            opened + timedelta(hours=2),
+            task="T-3",
+            unit="document",
+            branch="torve/S-0084",
+        ),
+        stream(
+            "lane_document_landed",
+            opened + timedelta(hours=3),
+            branch="torve/S-0080",
+            tasks=["T-4"],
+        ),
+        stream("lane_document_closed", opened + timedelta(hours=4), branch="torve/S-0081"),
+        # A task-unit landing is not a document, and a conflict on a
+        # document branch is neither opened, merged nor closed.
+        stream("lane_landed", opened + timedelta(hours=5), task="T-5", mode="fast-forward"),
+        stream("lane_document_conflict", opened + timedelta(hours=5), branch="torve/S-0083"),
+        # A record the lane wrote about no branch at all counts nowhere.
+        stream("lane_landed", opened + timedelta(hours=6), task="T-6", unit="document"),
+    ]
+
+    assert documents(rows, since=opened) == Documents(opened=2, merged=1, closed=1)
+
+
+def test_a_document_fact_outside_the_window_belongs_to_another_night():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    closed = opened + timedelta(hours=8)
+    rows = [
+        stream(
+            "lane_landed",
+            opened - timedelta(minutes=1),
+            unit="document",
+            branch="torve/S-0082",
+        ),
+        stream(
+            "lane_landed",
+            opened + timedelta(hours=1),
+            unit="document",
+            branch="torve/S-0083",
+        ),
+        stream("lane_document_landed", closed + timedelta(minutes=1), branch="torve/S-0084"),
+        # An instant that does not read counts nowhere rather than raising.
+        {"event": "lane_document_closed", "at": "last tuesday", "branch": "torve/S-0085"},
+    ]
+
+    assert documents(rows, since=opened, until=closed) == Documents(opened=1)
+
+
+def test_an_idle_night_left_no_documents_either():
+    assert documents([], since=datetime.now(UTC)) == Documents()
 
 
 # ....................... #
