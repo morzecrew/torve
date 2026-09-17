@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from torve.application.planner import scopes_clash
-from torve.base.clock import parse
 from torve.application.sizing import estimate
+from torve.base.clock import parse
 from torve.domain.events import EventKind, SubjectType
 from torve.domain.spec import document_id
 from torve.domain.states import TaskState
