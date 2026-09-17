@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0427
+phase: 1
+base: c8b8ddee1b2e2f5cf0b3a9f315e397c03e7c3012
+commit: 73caa86ad9b8d38712c76b58f23abaa05f6d4c31
+at: '2026-09-17T19:59:16Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: OPEN
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-17T19:57:56Z'
+    claim: >-
+      S-0079 names night.closed as an event but settles no payload for it; chose a
+      closed vocabulary of which bound was reached and no counts, since D-4 makes
+      every count a projection of the window
+    evidence: >-
+      src/torve/domain/events.py:554 — NightClosed.reason is a Literal over drained,
+      budget_usd, budget_attempts, wall_clock, escalation
+    action: decided
+    proposal: >-
+      ASSUMED — night.closed carries which of its own terms ended the night and no
+      count, because the morning report computes every count from the window (D-4)
