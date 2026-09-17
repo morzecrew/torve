@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0444
+phase: 2
+base: 6598780e4b6d09dad232d04883ab99315d199a8c
+commit: 0caa8d9975a506694874758d4f4408962f7d551d
+at: '2026-09-17T23:26:09Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: ASSUMED
+  - id: D-17
+    grade: OPEN
+  - id: D-18
+    grade: OPEN
+entries:
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-09-17T23:24:44Z'
+    claim: >-
+      fetch is carried through WorkspacePort and the runner; the adapter already took
+      it, so git.py needed no change
+    evidence: >-
+      src/torve/adapters/workspace/git.py:50-91 — create already takes and honours
+      fetch; src/torve/application/ports.py:137 is where the port gained it and src/torve/application/runner.py:1001
+      is where the runner decides it
+    action: decided
+    notes: >-
+      the runner passes fetch=True only when it is on, so a WorkspacePort implementation
+      that never fetches is called exactly as before
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-17T23:24:44Z'
+    claim: >-
+      no row says which base the battery judges an attempt against under unit: document;
+      judging against main would read every earlier phase of the document as this
+      phase's work and convict scope, so the gate base is the document branch the
+      worktree was cut from
+    evidence: >-
+      src/torve/application/runner.py:426 — the gate base is resolve_base(worktree,
+      run.gates_base or config.base), and a worktree cut from the document branch
+      carries the earlier phases' commits
+    action: decided
+    proposal: >-
+      ASSUMED — under unit: document the battery judges an attempt against the document
+      branch the worktree was cut from, so a phase's diff is its own work
