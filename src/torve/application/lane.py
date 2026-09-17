@@ -1082,7 +1082,7 @@ def _document_verdicts(
     publish: Publisher,
     results: list[LaneResult],
 ) -> dict[str, tuple[str, str]]:
-    """The later pass's read-back at the document unit (S-0083/the-engine-reads-what-the-person-did).
+    """The later pass's read-back at the document unit (S-0083/P-3).
 
     One forge call per open document pull request the lane's own records
     name, and none at all for a pass holding none (S-0083/D-12) — a document
