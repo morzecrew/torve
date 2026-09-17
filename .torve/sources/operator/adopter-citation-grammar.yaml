@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/adopter-citation-grammar
+kind: operator
+ref: 'bloomery bootstrap, 2026-09-17: torve spec check --root bloomery reports 1,208 old-grammar
+  citations under src/ and pages/'
+title: The citation scan reads an adopter's RFC grammar as torve's legacy grammar
+at: '2026-09-17T20:24:14Z'
+summary: |
+  Bootstrapping bloomery on 2026-09-17: `torve init`, a configuration in
+  `pull_request` landing mode, a gate manifest, and a baseline draft written by
+  the corpus-bootstrap skill all went in cleanly, and `torve spec check --root .`
+  then reported 1,208 problems — every one a `RFC NNNN` citation in `src/` or
+  `pages/`, read by `LEGACY_CITE` as torve's own retired grammar and answered
+  with "write S-NNNN with the section's key". bloomery cites its design corpus
+  that way on purpose: `rfcs/` is its authority, `tools/check_rfc_corpus.py`
+  holds the citations followable, and torve's migration to `S-NNNN` is not its
+  history. The scan's roots (`SCAN_ROOTS`, `SCAN_NAMES`) and its grammar are
+  hard-coded in `src/torve/config/spec.py`, so the adopter cannot scope them.
+
+  Consequence: bloomery's manifest carries no `spec-valid` gate, and `torve
+  spec check` cannot be run as a gate there until the tree scan is either the
+  adopter's to scope or skipped when the repository holds no legacy mapping in
+  `identifiers.yaml` — the mapping is what the hint needs, and its absence is
+  what says the grammar is not torve's. The document-level check (a document's
+  own prose citing the old grammar) is right to stay as it is.
