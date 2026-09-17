@@ -11,6 +11,7 @@ from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome
 from torve.gates.decisions_reported import check_decisions_reported
 from torve.gates.no_test_tampering import check_no_test_tampering
+from torve.gates.red_on_base import check_red_on_base
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.gates.self_audit import check_self_audit
@@ -25,6 +26,7 @@ BUILTINS: dict[str, Builtin] = {
     "scope": check_scope,
     "acceptance": check_acceptance,
     "no-test-tampering": check_no_test_tampering,
+    "red-on-base": check_red_on_base,
     "decisions-reported": check_decisions_reported,
     "self-audit": check_self_audit,
     "secrets": check_secrets,

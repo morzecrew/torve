@@ -631,3 +631,137 @@ def test_acceptance_reports_the_suite_on_a_red_verdict_too(tmp_path):
     outcome = _acceptance_over(tmp_path, "1 failed, 119 passed, 33 skipped in 4.53s\n", exit_code=1)
     assert outcome.outcome == "fail"
     assert "33 skipped" in outcome.output
+
+
+# ----------------------- #
+# `red-on-base`: a test that is green against the base tree proved nothing
+# about the change under it (S-0081/D-2, S-0081/D-3, S-0081/D-4).
+
+RED_ON_BASE_GATE = Gate(
+    name="red-on-base", run="@red-on-base", state="shadow", origin="S-0081", timeout=120
+)
+
+
+@pytest.fixture
+def red_on_base(monkeypatch):
+    """The gate with its runner pointed at this interpreter, so the scratch
+    repository's suite runs without the project's own launcher."""
+
+    import shlex
+    import sys
+
+    from torve.gates import red_on_base as module
+
+    launcher = f"PYTHONPATH=src {shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
+    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
+
+    return module.check_red_on_base
+
+
+def _changed(repo, source: str | None, test: str) -> None:
+    repo.seed()
+
+    if source is not None:
+        repo.write("src/app.py", source)
+
+    repo.write("tests/test_app.py", test)
+    repo.commit("the attempt")
+
+
+def test_red_on_base_convicts_a_test_that_passes_on_the_base_tree(repo, red_on_base):
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "fail"
+    assert "tests/test_app.py" in outcome.output  # the conviction names the files
+
+
+def test_red_on_base_passes_a_test_the_change_had_to_make_green(repo, red_on_base):
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "from app import sign\n\n\ndef test_sign():\n    assert sign(-1) == -1\n",
+    )
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "pass", outcome.output
+
+
+def test_red_on_base_reads_test_functions_not_the_diffs_file_list(repo, red_on_base):
+    # S-0081/D-2: a comment and a blank line leave every test function's shape
+    # untouched, so nothing qualifies and nothing is run.
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "# a note for the reader\n\n\ndef test_app():\n    assert True\n",
+    )
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped"
+    assert "no test function differs" in outcome.output
+
+
+def test_red_on_base_does_not_judge_a_diff_that_changes_no_source(repo, red_on_base):
+    # S-0081/D-4: a contract whose whole job is adding tests is not convicted.
+    _changed(repo, None, "def test_app():\n    assert True\n\n\ndef test_more():\n    assert 2\n")
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped"
+    assert "no source outside the test patterns" in outcome.output
+
+
+def test_red_on_base_leaves_a_failing_candidate_to_acceptance(repo, red_on_base):
+    # S-0081/D-3: green on base, red here — one failing test is never filed
+    # under two gate names.
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    repo.write("src/app.py", "VALUE = 1\n")
+    repo.commit("the base value")
+    repo.git("checkout", "-q", f"torve/{TASK_ID}")
+    repo.git("merge", "-q", "main")
+    repo.write("src/app.py", "VALUE = 2\n")
+    repo.write(
+        "tests/test_app.py", "from app import VALUE\n\n\ndef test_value():\n    assert VALUE == 1\n"
+    )
+    repo.commit("a change its own test refutes")
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped"
+    assert "acceptance judges" in outcome.output
+
+
+def test_red_on_base_runs_both_trees_through_the_passs_own_executor(repo, red_on_base):
+    # S-0081/D-5: no gate command runs where the agent could have staged a
+    # shim, and only the qualifying files are named to it.
+    from dataclasses import replace
+
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    seen: list[str] = []
+
+    def execute(command: str, timeout: float) -> tuple[int, str]:
+        seen.append(command)
+        return 0, ""
+
+    ctx = replace(context_for(repo), execute=execute)
+    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
+
+    assert outcome.outcome == "fail"
+    assert len(seen) == 2  # the base tree, then this attempt's own
+    assert f"git archive {ctx.merge_base}" in seen[0]
+    assert "mktemp -d" in seen[0] and 'rm -rf "$work"' in seen[0]  # nothing outlives the call
+    assert all(command.rstrip().endswith("tests/test_app.py") for command in seen)
+    assert "tests/test_other.py" not in seen[0]  # only the qualifying files run
