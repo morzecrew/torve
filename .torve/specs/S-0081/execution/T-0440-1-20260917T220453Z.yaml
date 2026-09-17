@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0440
+phase: 2
+base: 0717efb07d27398795eed253f93f6f4197eb45ff
+commit: 8bc18a03a393ef108648d8583c1669b10dd6946a
+at: '2026-09-17T22:04:53Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: OPEN
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-17T22:03:29Z'
+    claim: >-
+      the red-on-base builtin is registered in BUILTINS but carries no manifest defaults
+      and is not declared in .torve/gates.yaml, so a manifest naming '@red-on-base'
+      fails to load and the widened qualifying set cannot fire against the real battery
+      yet
+    evidence: >-
+      src/torve/config/manifest.py:163-172 — BUILTIN_INPUTS has no red-on-base row,
+      so resolved_gates raises 'unknown builtin' at manifest.py:264; .torve/gates.yaml
+      declares no such gate
+    action: departed
+    proposal: >-
+      phase 1 owes rows in BUILTIN_INPUTS/BUILTIN_TIMEOUTS and an entry in .torve/gates.yaml
+      before D-7's membership is observable; both paths are outside this contract's
+      scope
+    notes: >-
+      tests/test_runner.py's REPAIR_MANIFEST declares red-on-base as a shell entry
+      whose command is the same string the builtin branch of _repair_command would
+      produce, so the repair routing is exercised without a loadable builtin.
