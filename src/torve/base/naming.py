@@ -130,6 +130,19 @@ def branch(task_id: str) -> str:
 # ....................... #
 
 
+def document_branch(spec_id: str) -> str:
+    """The branch a document's phases land onto under `promotion.unit: document`
+    (S-0083/D-3), named from the contract's own `spec`. The two namespaces
+    cannot collide because an `S-` identifier and a `T-` one cannot, so
+    `pr_for_branch` answers about a document by the same call it answers
+    about a task."""
+
+    return f"torve/{spec_id}"
+
+
+# ....................... #
+
+
 def shadow_id(task_id: str) -> str:
     """The synthetic id shadow infrastructure derives from (S-0004/shadow-runs):
     worktree, state file and sandbox names all key on it, so a shadow run

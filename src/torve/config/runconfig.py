@@ -1249,6 +1249,14 @@ class PromotionConfig(BaseModel):
     A term of configuration, never inferred from whether a remote exists or from
     `scm.open_pr`; `local` is the default so a repository configured today lands as it does
     today."""
+    unit: Literal["task", "document"] = "task"
+    """S-0083/D-1: what one pull request carries — `task` opens one per task, `document`
+    lands every phase of a document onto the document's own branch behind one pull
+    request. A term of configuration, never inferred from whether the ready candidates
+    happen to share a document; `task` is the default so a repository configured today
+    keeps landing as it does today. S-0083/D-2: ignored under `landing: local` rather
+    than refused — a local landing has no pull request to be one per anything — so a
+    repository moving between the modes edits one key."""
     auto_merge: bool = False
     """S-0052/D-2: S-0006/D-2's opt-in, restored with its original default of false. Off, a
     manager pass never lands and behaves exactly as it did before the landing leg existed —

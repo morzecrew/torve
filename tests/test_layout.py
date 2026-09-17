@@ -97,6 +97,17 @@ def test_the_trace_path_helper_ensures_the_store_directory(tmp_path: Path) -> No
 
 
 # ....................... #
+# The document branch (S-0083/D-3): named from the contract's own `spec`, beside
+# the task branch and in the same namespace.
+
+
+def test_a_document_branch_is_named_from_its_spec_and_cannot_collide_with_a_task() -> None:
+    assert naming.document_branch("S-0083") == "torve/S-0083"
+    assert naming.branch("T-0441") == "torve/T-0441"
+    assert naming.document_branch("S-0083") != naming.branch("T-0083")
+
+
+# ....................... #
 # The sweep (S-0070/D-1): `.torve/.gitignore` names what this repository
 # deliberately does not commit, and nothing it does commit may be a function
 # of those paths. Every reference is judged once and carries its verdict here,

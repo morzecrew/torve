@@ -804,6 +804,38 @@ def test_pull_request_is_refused_at_load_naming_the_field_to_set(
 
 
 # ....................... #
+# The landing unit (S-0083/D-1, S-0083/D-2): a second term beside the mode, with
+# `task` as the default, and inert rather than refused under `landing: local`.
+
+
+def test_the_landing_unit_defaults_to_task_and_is_never_inferred(tmp_path: Path) -> None:
+    # Every repository configured today keeps landing one pull request per task;
+    # candidates that happen to share a document decide nothing.
+    assert load(tmp_path, "schema_version: 1\n").promotion.unit == "task"
+
+    configured = load(
+        tmp_path,
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "scm:\n  repo: acme/widgets\n  open_pr: true\n",
+    )
+
+    assert configured.promotion.unit == "document"
+
+
+def test_the_unit_is_ignored_under_a_local_landing_rather_than_refused(tmp_path: Path) -> None:
+    # A repository moving between the two modes edits one key, and a `unit`
+    # that survives the switch back is inert rather than wrong.
+    promotion = load(tmp_path, "schema_version: 1\npromotion:\n  unit: document\n").promotion
+
+    assert promotion.landing == "local" and promotion.unit == "document"
+
+
+def test_an_unknown_landing_unit_is_refused_by_the_vocabulary(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unit"):
+        load(tmp_path, "schema_version: 1\npromotion:\n  unit: phase\n")
+
+
+# ....................... #
 # The night section (S-0079/D-5). Both refusals fire at load, which is the
 # whole point of them: a night is armed by somebody standing at a terminal
 # and read again at 04:00 by nobody.
