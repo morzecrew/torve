@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      the unit is a term, and a document has a branch name
+    intent: >-
+      `promotion` gains `unit`, `task` or `document`, defaulting to `task` so every
+      repository configured today keeps landing one pull request per task, and ignored
+      under `landing: local` rather than refused — a local landing has no pull request
+      to be one per anything. Beside it, a helper next to `naming.branch` names a
+      document's branch `torve/S-NNNN` from the contract's own `spec`. Nothing reads
+      either yet; this is the term and the name the later phases branch on. Settles
+      D-1, D-2 and D-3.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/base/naming.py
+      - tests/test_runconfig.py
+      - tests/test_layout.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_layout.py
+      - uv run mypy src
+    character: structural
+  - phase: 1
+    title: >-
+      one body composed from every landing the branch carries
+    intent: >-
+      A composer beside `compose_pr` that takes the landings a document branch carries
+      so far rather than one attempt: every task, the rows each contract carried with
+      their grades, the gates' verdicts and the divergence entries, and the phases
+      the document has still to come, so a reviewer opening it after one phase knows
+      they are looking at part of a design. Nothing an agent wrote as prose reaches
+      it. Takes no configuration and no lane, which is why it runs beside the phase
+      above rather than after it. Settles D-8, and D-17 is implementation's within
+      it.
+    scope: [src/torve/application/forge.py, tests/test_forge.py]
+    acceptance:
+      - uv run pytest tests/test_forge.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      the lane lands onto the document branch and keeps one pull request on it
+    intent: >-
+      In `unit: document` the lane's base is the document's branch, cut from the remote's
+      `main` after a fetch when it does not yet exist: an unmoved base fast-forwards
+      as measured, a moved base rebases and re-runs the battery, and each landing
+      is recorded in the `lane_landed` shape the local lane writes with the unit and
+      the branch named. Then the branch is pushed under lease and the document's one
+      pull request opened or refreshed, and the pass stops. A candidate whose contract
+      names no document lands by the task unit unchanged. Settles D-4, D-5, D-6 and
+      D-7, and D-18 is implementation's within it.
+    scope: [src/torve/application/lane.py, src/torve/cli/merge.py, tests/test_lane.py]
+    acceptance:
+      - uv run pytest tests/test_lane.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 2
+    title: >-
+      the next phase is cut from the tree the last one landed
+    intent: >-
+      In `unit: document` a task's worktree is cut from the document branch's tip
+      when the branch exists and from the remote's `main` after a fetch when it does
+      not, which means carrying the `fetch` that `resolve_base` and `WorkspaceGit.create`
+      already take through `WorkspacePort` and the runner, where nothing passes it
+      today. This is what buys the night: the dependency gate opens when a run reaches
+      READY and never ordered the phases — the base did, and in `unit: task` it is
+      a base that will not carry the previous phase until a person clicks. Disjoint
+      from the lane phase beside it. Settles D-9.
+    scope:
+      - src/torve/gates/context.py
+      - src/torve/adapters/workspace/git.py
+      - src/torve/application/ports.py
+      - src/torve/application/runner.py
+      - tests/test_context.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_context.py tests/test_runner.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      the engine reads what the person did to the document
+    intent: >-
+      On a later pass the lane asks the forge once for every open document pull request
+      it holds, and nothing when it holds none. Merged records one document landing
+      naming the squash commit and every task the branch carried, and not a second
+      landing per task; closed abandons every task on the branch and keeps it; open
+      against a moved base rebases onto the remote's `main`, re-runs the battery and
+      republishes under lease, bounded once per base tip, escalating a conflict. The
+      served pass's landing leg is handed the publisher and the read-back the manual
+      verb is handed, because it is handed neither today and an armed pass in this
+      mode fast-forwards `main` locally. Settles D-10, D-11, D-12, D-13, D-14 and
+      D-15.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_lane.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_manager.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: the report counts documents beside pull requests
+    intent: >-
+      The night's fold gains documents opened, merged and closed beside the four pull-request
+      counts it already holds, from the events in its window and with no field prose
+      can occupy. Waits on phase 3 because those are the events phase 3 records. Settles
+      D-16.
+    scope: [src/torve/application/manager.py, tests/test_manager.py]
+    acceptance:
+      - uv run pytest tests/test_manager.py
+      - uv run mypy src
+    depends_on:
+      - 3
+    character: structural
+  - phase: 5
+    title: >-
+      the guide says how a document lands as one pull request
+    intent: >-
+      The operating guide's landing section gains the pull-request half it does not
+      have — it still says nothing is pushed from here yet and closes with "landing
+      is not publishing" — saying what `landing` and `unit` mean together, what a
+      person is expected to do and when, and what the pass after they do it does.
+      Written once the mode runs, from what it does rather than from what this document
+      intended.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py
+    depends_on:
+      - 4
+    character: routine

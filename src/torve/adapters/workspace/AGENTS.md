@@ -17,4 +17,11 @@ In `pull_request` mode a worktree is cut from the remote's `main` after a fetch,
 - Paths: `src/torve/adapters/workspace/git.py` `src/torve/gates/context.py`
 - Consequence: an attempt builds on the base its pull request will be merged against, rather than on a copy that is stale from the first merge onward
 
+### S-0083/D-9 — `ASSUMED` (The pull request is one per document, not one per task)
+
+In `unit: document` a task's worktree is cut from the document branch's tip when the branch exists and from the remote's `main` after a fetch when it does not, which means wiring the `fetch` that `resolve_base` and `WorkspaceGit.create` already take through `WorkspacePort` and the runner
+
+- Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
+- Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
+
 <!-- /torve:managed -->

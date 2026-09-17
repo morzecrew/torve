@@ -572,6 +572,20 @@ The landing mode is a term of the runner configuration — `promotion.landing`, 
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: a mode that could only ever fail at the first landing fails instead while a person is standing at the terminal
 
+### S-0083/D-1 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The landing unit is a second term of the runner configuration — `promotion.unit`, `task` or `document`, defaulting to `task` — beside `promotion.landing`, and is never inferred from whether the ready candidates happen to share a document
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: every repository configured today keeps landing one pull request per task, and a repository that changes the unit has said so in a file somebody reviewed
+
+### S-0083/D-2 — `ASSUMED` (The pull request is one per document, not one per task)
+
+Under `landing: local` the unit is ignored rather than refused — a local landing has no pull request to be one per anything
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a repository that moves between the two modes edits one key, and a `unit` that survives the switch back is inert rather than wrong
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -18,4 +18,11 @@ One shared `ConfigDict` in `torve/base/model.py` — `extra="forbid"`, `use_attr
 - Consequence: The schema an editor shows carries the field's meaning; a field added without its words fails the suite
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0083/D-3 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The document branch is named from the contract's own `spec` — `torve/S-NNNN` — by a helper beside `naming.branch`, and the two namespaces cannot collide because `S-` and `T-` identifiers cannot
+
+- Paths: `src/torve/base/naming.py`
+- Consequence: a branch on the forge says which document it carries without anything having to look the mapping up, and `pr_for_branch` answers about a document by the same call it answers about a task
+
 <!-- /torve:managed -->

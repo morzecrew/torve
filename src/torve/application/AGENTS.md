@@ -1156,6 +1156,104 @@ Whether an arm run that raises partway through lands the rows it has or lands no
 - Paths: `src/torve/application/evals.py`
 - Consequence: a three-replay invocation that dies on the third does not silently become a two-arm record that reads like a complete one
 
+### S-0083/D-4 — `ASSUMED` (The pull request is one per document, not one per task)
+
+A candidate whose contract names no document lands by the task unit whatever `promotion.unit` says, and nothing infers a document for it
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a document-less contract — an intake adoption, a standing row's mint — keeps landing exactly as it lands today, and the unit never has to guess
+
+### S-0083/D-5 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The first candidate of a document cuts the document branch from the remote's `main` after a fetch, and every candidate of that document lands onto that branch by the local lane's own act — an unmoved base fast-forwards as measured, a moved base is rebased in a disposable worktree and the battery re-runs
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: the whole of the lane's existing behaviour — the criteria, the probe, the disposal, the escalation — applies to a document branch without a second code path, so the two units cannot drift apart
+
+### S-0083/D-6 — `ASSUMED` (The pull request is one per document, not one per task)
+
+Each landing onto the document branch is recorded as a landing in the `lane_landed` shape the local lane writes, with the unit and the branch named
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: the ledger's counts, the execution file beside the rows and everything that asks what shipped keep reading one record shape, and a phase that landed on a branch is landed as far as the record is concerned
+
+### S-0083/D-7 — `ASSUMED` (The pull request is one per document, not one per task)
+
+At every landing the lane pushes the document branch under lease and opens or refreshes the document's one pull request, and then stops; merging is a person's single act on the forge
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: a document of any number of phases costs a person one merge, and the pull request a person opens is always showing the tree the battery last measured
+
+### S-0083/D-8 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The document's pull request title and body are composed from the landings the branch carries so far — the tasks, the rows each contract carried with their grades, the gates' verdicts and the divergence entries — and name the phases still to come; nothing an agent wrote as prose reaches it
+
+- Paths: `src/torve/application/forge.py`
+- Consequence: a reviewer who opens the pull request after one phase knows they are looking at part of a design, and what they are asked to merge is enumerable task by task
+
+### S-0083/D-9 — `ASSUMED` (The pull request is one per document, not one per task)
+
+In `unit: document` a task's worktree is cut from the document branch's tip when the branch exists and from the remote's `main` after a fetch when it does not, which means wiring the `fetch` that `resolve_base` and `WorkspaceGit.create` already take through `WorkspacePort` and the runner
+
+- Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
+- Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
+
+### S-0083/D-10 — `ASSUMED` (The pull request is one per document, not one per task)
+
+A document pull request the forge reports merged is the document's landing: one record naming the squash commit and every task the branch carried, and not a second landing per task
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a ledger that divides by landings counts each task's work once, and the join from the squash commit back to the tasks that produced it is in the record rather than in the branch alone
+
+### S-0083/D-11 — `ASSUMED` (The pull request is one per document, not one per task)
+
+A document pull request closed without merging abandons every task the branch carries, by a person, and the branch is kept; it is never re-queued and never escalated for triage
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a person who declined a design has declined all of it, and the work stays reachable on a ref for whatever they do next
+
+### S-0083/D-12 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The lane asks the forge once per pass for every open document pull request it holds, from its own recorded events, and a pass holding none asks nothing
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: an idle night costs no forge calls, and a document of six phases costs one call per pass rather than six
+
+### S-0083/D-13 — `ASSUMED` (The pull request is one per document, not one per task)
+
+A document branch whose merge would no longer be clean is rebased onto the remote's `main` in a disposable worktree, the battery re-run over the rebased tree and the branch republished under lease, bounded once per base tip; a conflict escalates for a person and never resolves itself
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: the person looking at the pull request is looking at the tree the battery judged, and a long-lived branch against a moving `main` cannot rebase itself in a loop
+
+### S-0083/D-14 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The attempt commits stay on the document branch after the squash — nobody deletes it — so the record's join from task to commits survives a merge that rewrote the history into one commit
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a document landing whose sha no attempt wrote can still be traced to every attempt that produced it, which is what the projections read
+
+### S-0083/D-16 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The morning report counts documents opened, merged and closed beside the pull requests it already counts, folded from the events in the night's window with no field prose can occupy
+
+- Paths: `src/torve/application/manager.py`
+- Consequence: a person reading the report knows how many merges are waiting on them, which in this unit is a much smaller and more actionable number than the pull-request counts beside it
+
+### S-0083/D-17 — `OPEN` (The pull request is one per document, not one per task)
+
+Where the composer reads the phases still to come from — the document's `phasing` list or the contracts already minted from it — is implementation's, under one constraint: it names them from a record and never from an estimate
+
+- Paths: `src/torve/application/forge.py`
+- Consequence: a body that says three phases remain is saying something checkable against the corpus or the board, rather than a count somebody derived
+
+### S-0083/D-18 — `OPEN` (The pull request is one per document, not one per task)
+
+Whether the document branch is cut at the first landing or at the first worktree of the document is implementation's, under one constraint: it is cut once per document, from the remote's `main` after a fetch, and every later landing targets the same ref
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a document has exactly one branch whatever order its first phases run in, so two parallel phase-1 tasks cannot leave two of them
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -1,0 +1,396 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0083
+title: >-
+  The pull request is one per document, not one per task
+kind: design
+status: accepted
+implementation: none
+depends_on: [S-0080]
+informed_by: [S-0059, S-0079]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  S-0080 made the pull request the landing route; this makes it one per document rather than
+  one per task, so a design of three serial phases costs a person one merge instead of three.
+
+  `promotion.unit` sits beside `promotion.landing` — `task` or `document`, defaulting to `task`
+  so nothing configured today changes. With `document`, the lane cuts a branch named for the
+  document, lands every candidate of that document onto it by the local lane's own act, and
+  keeps one pull request open against it whose body is the landings the branch carries so far.
+  The next phase's worktree is cut from that branch's tip, so a night runs a whole document
+  without a person in the middle. The person merges once, at the end, and a later pass reads
+  the squash back as the document's landing.
+motivation: |
+  We ran `landing: pull_request` against a second repository's first document and found the
+  unit wrong. A document of three serial phases is three pull requests. Each of them needs a
+  person before the next phase can build on it, and the repository's own habit is one pull
+  request per feature, reviewed and squash-merged once — so the mode fits the forge's rules
+  and not the team's.
+
+  The cost is not only the three merges. Nothing in the engine makes the second phase *wait*
+  for the first to be merged — `blocked_by` opens the moment the dependency's run reaches
+  `READY`, which is the end of a green attempt, long before anything lands. What actually
+  happens is worse than a wait: phase 2's worktree is cut from `origin/main`, which in this
+  mode does not carry phase 1 until a person clicks, so phase 2 builds on a tree missing its
+  own dependency and says nothing. A night cannot run a three-phase document at all, and the
+  way it fails is silent rather than blocked.
+
+  The fix is a branch that plays the part `main` plays in `local` mode: one per document, cut
+  from the remote, landed onto by the same fast-forward-or-rebase the local lane already
+  performs, and merged once at the end. Every other piece — the battery, the criteria, the
+  conflict disposal, the read-back, the counts — is already built and keeps its meaning.
+current_state: |
+  **The mode is a term and its refusal holds.** `PromotionConfig.landing` in
+  `src/torve/config/runconfig.py` is `local | pull_request`, defaulting to `local`, and
+  `pull_request` with no `scm.repo` or with `scm.open_pr` off is refused at load naming the
+  field (`src/torve/config/runconfig.py`). That half of S-0080 landed as designed.
+
+  **The read-back has no production caller.** `process_lane` takes `forge` and
+  `_forge_verdict` answers all three verdicts, but `merge_cmd` in `src/torve/cli/merge.py`
+  passes `publish=` and not `forge=`, and `forge=` appears nowhere else under `src/` — only in
+  `tests/test_lane.py`. Nothing in the shipped engine ever reads a pull request back. The
+  premise that "a later pass reads merged or closed back into the record" describes a
+  mechanism that exists and is unwired.
+
+  **The served pass does not publish at all.** `_lane_leg` in `src/torve/cli/manager.py`
+  calls `process_lane` with the CI, approvals, review, quiet-window and conflict-disposal
+  arguments and neither `publish` nor `forge`. An armed pass under `landing: pull_request`
+  therefore fast-forwards `main` locally — the one act the mode exists to avoid. The mode runs
+  from `torve merge` and from nothing else today.
+
+  **The worktree fetch is built and unwired too.** `resolve_base(root, base, *, fetch=False)`
+  at `src/torve/gates/context.py` and `WorkspaceGit.create(..., fetch=False)` at
+  `src/torve/adapters/workspace/git.py` both exist and both cite S-0080/D-10, but
+  `WorkspacePort.create` at `src/torve/application/ports.py` carries no `fetch` parameter
+  and `src/torve/application/runner.py` passes none. No worktree has ever been cut after
+  a fetch. So the plan's premise that worktrees *can* be cut from the remote's `main` is true
+  of the adapter and false of the engine.
+
+  **S-0080/Q-3 settled the other way, and its reason is this document's.**
+  `.torve/config.yaml` pins `base: main` again. T-0426 removed the pin on S-0080/Q-3; the
+  four dispatches that followed were cut from an `origin/main` eleven commits stale, and T-0430
+  built a night against a tree with no night event model. The remark now records that. A base
+  that is neither the local `main` nor a stale remote is exactly what a document branch is.
+
+  **A landing record is what a dependency reads, and the lane does not write one that counts.**
+  `blocked_by` (`src/torve/application/manager.py`) reads `Board.landed()`, which is tasks
+  in `READY`; `_TRANSITIONS` maps `LANDING_RECORDED` to `READY`, and the worker writes that
+  record from the run's own `landed_sha` — the attempt's commit, set at
+  `src/torve/application/runner.py`. The lane's own landing is an `engine_event`
+  (`lane_landed`) on the telemetry stream, a different surface. So the dependency gate is
+  already open before any landing, and the base is the only thing that orders phases.
+
+  **`compose_pr` composes one task.** `src/torve/application/forge.py` takes a `Task`, one
+  attempt count, one config digest and one gate list; `landing="pull_request"` suppresses the
+  merge-button sentence and changes nothing else. A body for a document is a body for many
+  landings and has no composer.
+
+  **The four counts have no consumer.** `pull_requests()` at
+  `src/torve/application/manager.py` folds opened, merged, conflicted and closed out of the
+  telemetry stream, and `NightReport` holds `landed`, `convicted`, `ended` and `waiting` and not
+  the counts. Nothing under `src/` calls `pull_requests`; only `tests/test_manager.py` does.
+
+  **A closed pull request leaves its run `READY`.** T-0424 recorded the departure:
+  `ready -> abandoned` is not in `TRANSITIONS` (`src/torve/domain/states.py`), so S-0080/D-8's
+  abandonment is a telemetry event beside a run that is still a candidate. A document unit that
+  abandons every task a closed branch carried inherits that gap unchanged.
+
+  **The guide says the opposite of the mode.** `pages/docs/operating.md` — "Unattended
+  landing" — still reads "nothing is pushed from here yet" and closes with "Landing is not
+  publishing." `landing: pull_request` appears nowhere in it. There is no pull-request section
+  to extend; there is one to write.
+
+  **The branch namespaces do not collide.** `naming.branch` is `torve/<task id>`
+  (`src/torve/base/naming.py`), and a document branch `torve/S-NNNN` is distinct because
+  `S-` and `T-` identifiers are.
+goals: |
+  A document of several phases costs a person one merge, at the end, whenever they choose.
+
+  The phase after a landed one starts on the tree that landing produced, without a person in
+  between — so a night can run a whole document unattended in `pull_request` mode.
+
+  Every landing onto the document branch is a landing in the record, in the shape the local
+  lane already writes, so dependency readiness, the ledger's counts and the execution files
+  keep reading one surface.
+
+  The squash a person performs is read back once, as the document's landing on `main`, naming
+  every task the branch carried.
+
+  A repository configured today lands exactly as it does today: `unit` defaults to `task`, and
+  under `landing: local` it is ignored.
+non_goals: |
+  Not merging on the forge. This document opens and refreshes one pull request and reads what
+  the forge says afterwards; the merge button stays a person's and nothing here arms one.
+  S-0080 decided that and this does not reopen it.
+
+  Not reading review comments back into a revision. The forge thread capture is owed by its own
+  document and is not smuggled in because the pull request is now bigger.
+
+  Not stacked pull requests. A document branch is one branch and one pull request; stacking is
+  a per-forge feature and a rebase of its bottom rewrites everything above it.
+
+  Not a change to how this repository lands its own work. It configures `landing: local`, where
+  the unit is ignored, and every refusal the local lane makes today it still makes.
+
+  Not the night. Whether a night should now be scheduled around documents rather than tasks is
+  a question this makes askable and does not answer.
+design:
+  - key: the-unit-is-a-second-term-beside-the-mode
+    md: |
+      The landing *mode* says what act lands a candidate; the landing *unit* says what a
+      landing is one of. They are two terms because they answer two questions, and collapsing
+      them into a three-valued `landing` would make `document` look like a third kind of act
+      when it is the same act with a different target.
+
+      ```yaml
+      promotion:
+        landing: pull_request   # S-0080/D-1: the act
+        unit: document          # the thing the act is one of; `task` by default
+      ```
+
+      `task` is the default, so every repository configured today keeps the behaviour S-0080
+      shipped. Under `landing: local` the unit is ignored: a local landing has no pull request
+      to be one per anything, and the ignoring is deliberate rather than a refusal — a
+      repository that switches modes for an afternoon should not have to edit two keys to
+      change one, and a `unit` that survives the switch back is not a configuration nobody
+      meant to write. It is a configuration that is temporarily inert, which is a different
+      thing from the one S-0068/D-1's refusal is aimed at.
+  - key: the-document-branch-is-what-main-is-locally
+    md: |
+      The branch is named from the contract's own `spec` — `torve/S-0006` for a candidate whose
+      contract says `spec: S-0006` — and a contract that names no document is not a
+      document-unit candidate at all: it lands by the task unit whatever the configuration
+      says. There is no inference and no fallback that guesses; the document is either on the
+      contract or it is not.
+
+      The first candidate of a document cuts the branch from the remote's `main` after a fetch.
+      Every candidate of that document, including the first, then lands onto it **by the local
+      lane's own act**: an unmoved base fast-forwards exactly as measured, a moved base is
+      rebased in a disposable worktree and the battery re-runs over the rebased tree, a
+      conflict escalates. That is `process_lane` unchanged — the same code, the same refusals,
+      the same disposal — with `base` reading the document branch instead of the checkout's
+      own. The point of the whole design is that this half is not new.
+
+      Each of those landings is recorded as a landing, in the `lane_landed` shape the local lane
+      writes, with the unit and the branch named. That is what makes the rest work without
+      changes: the ledger divides by landings, the execution file beside the rows is written
+      from one, and the record of what shipped keeps one shape.
+  - key: the-base-is-the-branch-the-last-phase-landed-on
+    md: |
+      This is the part that buys the night. In `unit: document` a task's worktree is cut from
+      the document branch's tip when the branch exists, and from the remote's `main` after a
+      fetch when it does not.
+
+      So phase 2 starts on the tree phase 1 landed, the moment phase 1 landed, with nobody in
+      between. The dependency gate was never what ordered the phases — it opens when the
+      dependency's run reaches `READY` — the base was, and in `unit: task` the base is a
+      `main` that will not carry phase 1 until a person clicks. Phase 2 does not wait there; it
+      builds on a tree that is missing its dependency and reports success. Naming the document
+      branch as the base is the same fix for both the wait and the silence.
+
+      The fetch this needs is the one S-0080/D-10 built and left without a caller: `resolve_base`
+      and `WorkspaceGit.create` both take `fetch`, `WorkspacePort.create` does not carry it and
+      `runner.py` passes none. Wiring it through is part of this, not a separate favour.
+  - key: one-pull-request-whose-body-is-every-landing-so-far
+    md: |
+      At every landing the lane pushes the document branch under lease and opens — or refreshes
+      — the document's one pull request. Then it stops. One pull request per document is the
+      same rule the forge adapter already enforces per task: `open_pr` reuses the branch's open
+      pull request and edits its title and body when `gh pr create` says one already exists.
+
+      The body is composed from the landings the branch carries so far, not from one attempt:
+      the tasks, the rows each contract carried with their grades, the gates' verdicts and the
+      divergence entries — and it names the phases still to come, so a reviewer who opens it
+      after phase 1 knows they are looking at a third of a design. Nothing an agent wrote as
+      prose reaches it, which is S-0080/D-4 unchanged; what changes is that the record it
+      composes from is a list.
+
+      A body that grows at each landing means a reviewer may be reading a pull request that
+      gained a phase since they last looked. That is the honest shape of the thing — one
+      review, at the end — and the body says which phases are still outstanding precisely so
+      nobody mistakes a partial document for a finished one.
+  - key: what-a-later-pass-finds
+    md: |
+      The engine asks the forge once per pass about every open document pull request it holds,
+      and asks nothing when it holds none. That is S-0080/D-16's constraint answered at the
+      document unit, and it is cheaper than the task unit was: one call per document rather
+      than one per candidate.
+
+      **Merged** is the document's landing. One record names the squash commit and every task
+      the branch carried, and the document is landed on `main`. It is not a second landing per
+      task — each of those was recorded when the task landed on the branch — because a ledger
+      that divides by landings would otherwise count every task twice for one piece of work.
+
+      **Closed without merging** is a person declining the document. Every task the branch
+      carries is abandoned by a person, and the branch is kept. The asymmetry S-0080 drew holds:
+      a conflict is mechanical and the engine may decide it, a close is a judgement and the
+      engine may only record it.
+
+      **Open** is nothing to do, unless the merge would no longer be clean.
+  - key: a-branch-main-moved-under
+    md: |
+      A document branch lives longer than a task branch — days rather than an attempt — so
+      `main` moving under it is the ordinary case rather than the edge. When the merge would no
+      longer be clean, the branch is rebased onto the remote's `main` in a disposable worktree,
+      the battery re-runs over the rebased tree, and the branch is republished under lease so
+      the pull request shows the tree that was measured.
+
+      That is the disposal the lane already performs, bounded as ever by `conflict_base`: once
+      per base tip, never twice against an unmoved one. A conflict escalates for a person and
+      never resolves itself. `republish_branch` is the same leased push it already is.
+
+      After the squash the attempt commits stay on the document branch — nobody deletes it —
+      so the join from task to commits survives a merge that rewrote the history into one
+      commit. S-0080/D-12 said that of a task branch; it has to be said again here because the
+      branch is a different one.
+tests: |
+  The unit is tested by what does not move: a lane pass over two green candidates of one
+  document in `unit: document` leaves `main` where it was, leaves one branch `torve/S-NNNN`
+  carrying both, and records one pull request opened rather than two — with the same fixture in
+  `unit: task` recording two, and one flag between them.
+
+  The base is tested by what a worktree contains: a task of a document whose branch already
+  carries a landed phase is cut from a tree that holds that phase's file; the same task in
+  `unit: task` is cut from a tree that does not. That is the assertion the whole design exists
+  for and it belongs in `tests/test_context.py`.
+
+  The read-back is tested against a stubbed forge answering each verdict for a branch carrying
+  two tasks: merged records one document landing naming the squash commit and both tasks and
+  does not record a second landing for either; closed abandons both and keeps the branch; open
+  against a moved base rebases, re-runs the battery and republishes.
+
+  The composer is tested for what it carries rather than its words — a body composed from two
+  landings names both tasks, both sets of rows and both gate verdicts, and names the phases the
+  document has left; one composed from a single landing names one and the rest.
+
+  The parity is tested by its absence today: a served pass in `pull_request` mode must not
+  fast-forward the base, which is a test that fails against the current `_lane_leg`.
+
+  What is not tested here is that the forge squashes as described. `gh pr view` reporting a
+  squash merge's commit is the forge's contract, and what this document asserts is that the
+  engine records whatever it is told.
+docs: |
+  `pages/docs/operating.md` gains the pull-request section it does not have. The landing section
+  today says "nothing is pushed from here yet" and closes with "Landing is not publishing",
+  both of which stop being true of a repository in this mode; the new section says what
+  `landing` and `unit` mean together, what a person is expected to do and when, and what the
+  engine does on the pass after they do it.
+
+  `.torve/config.yaml` is not touched. This repository lands locally, the unit is ignored there,
+  and a key whose every effect is nothing is not documentation.
+out_of_scope: |
+  Merging anything on the forge. `gh pr merge` would close the loop without a person, which is
+  the thing the second repository's process exists to prevent. What would change it is that
+  repository deciding otherwise, which is their call and not a default.
+
+  Reading review comments back into a revision. Owed by the forge-thread document; a bigger
+  pull request does not move who owes it.
+
+  Stacked pull requests. One document is one branch and one pull request. What would change it
+  is a repository that wants phase-level review, which is the process this document was written
+  because they did not want.
+
+  Changing how this repository lands its own work. It stays `landing: local`, where the unit is
+  inert.
+
+  The night itself. Whether the night's window, its budget or its report should be organised
+  around documents now that a document is a landing unit is a real question and a separate one.
+risks: |
+  **The document branch drifts far enough that the rebase stops being routine.** A document of
+  six phases over three days against a busy `main` is a branch that rebases repeatedly, and each
+  rebase re-runs a full battery. The mitigation is that the rebase is bounded by `conflict_base`
+  and a conflict escalates rather than retrying; the risk that remains is cost, and the
+  observable is the conflict count the report already folds.
+
+  **One person's merge now lands several tasks at once, and a bad one lands with the rest.**
+  That is the process the mode was asked to fit, and it is a real widening of the blast radius
+  compared with a pull request per task. The mitigation is that the body names every task and
+  every divergence entry separately, so what is being merged is enumerable; the part that
+  cannot be mitigated here is that the reviewer reads one diff.
+
+  **A closed document abandons tasks the engine cannot mark abandoned.** `ready -> abandoned` is
+  not a legal transition, so S-0080/D-8's abandonment is already an event beside a `READY` run;
+  doing it for every task on a branch multiplies a gap that exists. The mitigation is that the
+  ledger entry keeps the branch from being re-opened; the gap is stated rather than hidden, and
+  closing it is a change to `TRANSITIONS` that this document does not make.
+
+  **The mode is still the path nobody's daily work covers.** This repository runs `local`, so
+  both the unit and the mode are exercised by tests alone, and the second repository is one
+  document old. The mitigation is the same as S-0080's — the unit is a different base and a
+  different target, not a second lane — and the honest statement is that the first real night
+  in this mode will find something.
+
+  **"One pull request per document" reads as "the engine batches work".** It does not: each
+  landing is still a serialized, individually gated, individually recorded landing. What is
+  batched is the person's act, and only that. A reader who takes this as permission to relax a
+  per-task criterion has misread it, and S-0080/D-11 still says the criteria decide whether the
+  work reaches the branch.
+alternatives:
+  - option: >-
+      Keep one pull request per task and have the engine merge each one when the forge
+      goes green
+    rejected_because: >-
+      The whole of the second repository's process is that a person merges. An engine
+      that merges on green has replaced the process it was asked to fit, and S-0080
+      already closed this door for the task unit; a bigger unit is not a reason to
+      reopen it.
+    cites: [S-0080]
+  - option: >-
+      Stack the pull requests — each phase based on the one before it
+    rejected_because: >-
+      Stacking is a per-forge feature with per-forge semantics, and a rebase of the
+      bottom of a stack rewrites every pull request above it, which is exactly the
+      case a long-lived branch against a moving `main` produces constantly. It also
+      still costs a person one merge per phase, which is the cost this document exists
+      to remove.
+  - option: >-
+      Mint a document as one task so there is only ever one branch
+    rejected_because: >-
+      Phasing is the unit the planner mints, the battery measures and the scope rule
+      keeps disjoint. Collapsing a document into one contract discards parallel phases,
+      makes the scope unconstrained and gives a single attempt a budget nobody can
+      size.
+    cites: [S-0007/D-2]
+  - option: >-
+      Cut the next phase's worktree from the previous phase's task branch instead
+      of a document branch
+    rejected_because: >-
+      It works for a chain and fails for a fan: two phase-1 entries that run in parallel
+      leave two branches and no single tip to cut phase 2 from. A document branch
+      is the one ref that is the join of everything the document has landed.
+  - option: >-
+      Leave the unit at `task` and accept several merges per document
+    rejected_because: >-
+      Measured against the second repository's first document: three pull requests,
+      three waits on a person, and a night that cannot run through it. The failure
+      is not even the wait — the next phase is cut from a base missing its dependency
+      and reports success.
+  - option: >-
+      Put the unit on the document rather than in the run configuration
+    rejected_because: >-
+      How a repository lands is the repository's, not the design's. A document that
+      named its own landing unit would land differently in two repositories that both
+      read it, and the same argument that made the mode a configuration term makes
+      the unit one.
+    cites: [S-0080/D-1]
+questions:
+  - id: Q-1
+    text: >-
+      What re-opens a document whose pull request a person closed? Every task on the
+      branch is abandoned and the branch is kept, which is a record, not a route back
+      — and the route back is either a person re-queuing the tasks onto a fresh branch
+      or a verb that does it.
+  - id: Q-2
+    text: >-
+      What does the ledger divide by in this unit? A task lands once on the branch
+      and the document lands once on `main`, so the two are different denominators
+      for cost per landing, and which one the ledger should use is not obvious from
+      either.
+  - id: Q-3
+    text: >-
+      What happens to a document already half-landed by the task unit when the configuration
+      changes under it — some phases merged on `main`, some open as their own pull
+      requests? A refusal at load, a migration, or nothing but a document that finishes
+      the way it started.

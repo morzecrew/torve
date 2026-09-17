@@ -435,6 +435,20 @@ Before the first replay the verb prints which arms it will run over which tasks 
 - Paths: `src/torve/cli/evals.py`
 - Consequence: the largest deliberate spend behind one command in this engine says so before it starts, and there is no second, weaker budget mechanism beside the working one
 
+### S-0083/D-7 — `ASSUMED` (The pull request is one per document, not one per task)
+
+At every landing the lane pushes the document branch under lease and opens or refreshes the document's one pull request, and then stops; merging is a person's single act on the forge
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: a document of any number of phases costs a person one merge, and the pull request a person opens is always showing the tree the battery last measured
+
+### S-0083/D-15 — `ASSUMED` (The pull request is one per document, not one per task)
+
+The served pass's landing leg is handed the publisher and the read-back the manual verb is handed, so `torve merge` and a served pass do the same thing in this mode
+
+- Paths: `src/torve/cli/manager.py`
+- Consequence: the mode runs unattended, which is the whole point of a landing unit that needs no person between phases
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

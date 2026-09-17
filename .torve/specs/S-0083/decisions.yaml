@@ -1,0 +1,282 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The landing unit is a second term of the runner configuration — `promotion.unit`,
+      `task` or `document`, defaulting to `task` — beside `promotion.landing`, and
+      is never inferred from whether the ready candidates happen to share a document
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      every repository configured today keeps landing one pull request per task, and
+      a repository that changes the unit has said so in a file somebody reviewed
+    rationale: >-
+      the mode says what act lands a candidate and the unit says what a landing is
+      one of; a three-valued `landing` would make `document` look like a third kind
+      of act when it is the same act against a different target
+    cites: [S-0080/D-1]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Under `landing: local` the unit is ignored rather than refused — a local landing
+      has no pull request to be one per anything
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      a repository that moves between the two modes edits one key, and a `unit` that
+      survives the switch back is inert rather than wrong
+    rationale: >-
+      S-0068/D-1's refusal is aimed at a configuration nobody meant to write; a term
+      that is temporarily inert because its mode is off is a different thing, and
+      refusing it would make the two keys a single compound one with worse spelling
+    cites: [S-0068/D-1, S-0080/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The document branch is named from the contract's own `spec` — `torve/S-NNNN`
+      — by a helper beside `naming.branch`, and the two namespaces cannot collide
+      because `S-` and `T-` identifiers cannot
+    paths: [src/torve/base/naming.py]
+    consequence: >-
+      a branch on the forge says which document it carries without anything having
+      to look the mapping up, and `pr_for_branch` answers about a document by the
+      same call it answers about a task
+    rationale: >-
+      the contract already names its document (S-0059/D-1) and the branch name is
+      the only identifier the forge and the engine share; deriving it anywhere else
+      would be a second mapping that can disagree
+    cites: [S-0059/D-1]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A candidate whose contract names no document lands by the task unit whatever
+      `promotion.unit` says, and nothing infers a document for it
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a document-less contract — an intake adoption, a standing row's mint — keeps
+      landing exactly as it lands today, and the unit never has to guess
+    rationale: >-
+      `spec` is optional on a contract and a fabricated document identifier would
+      name a branch nobody can read back to anything; the absence is an answer, not
+      a gap
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The first candidate of a document cuts the document branch from the remote's
+      `main` after a fetch, and every candidate of that document lands onto that branch
+      by the local lane's own act — an unmoved base fast-forwards as measured, a moved
+      base is rebased in a disposable worktree and the battery re-runs
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      the whole of the lane's existing behaviour — the criteria, the probe, the disposal,
+      the escalation — applies to a document branch without a second code path, so
+      the two units cannot drift apart
+    rationale: >-
+      the only thing the second repository forbids is moving `main`; landing onto
+      a branch that is not `main` is the act the local lane already performs, and
+      the document branch is what `main` is locally
+    cites: [S-0006/D-1, S-0080/D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Each landing onto the document branch is recorded as a landing in the `lane_landed`
+      shape the local lane writes, with the unit and the branch named
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      the ledger's counts, the execution file beside the rows and everything that
+      asks what shipped keep reading one record shape, and a phase that landed on
+      a branch is landed as far as the record is concerned
+    rationale: >-
+      a second record shape would split the one count the ledger divides by; the landing
+      genuinely happened here — the engine performed it and knows its sha — which
+      is the case the local shape was drawn for
+    cites: [S-0080/D-7, S-0059/D-12]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      At every landing the lane pushes the document branch under lease and opens or
+      refreshes the document's one pull request, and then stops; merging is a person's
+      single act on the forge
+    paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
+    consequence: >-
+      a document of any number of phases costs a person one merge, and the pull request
+      a person opens is always showing the tree the battery last measured
+    rationale: >-
+      one pull request per branch is the rule the forge adapter already enforces for
+      tasks — `open_pr` reuses and edits the branch's open pull request — so the document
+      unit is the same call against a different branch
+    cites: [S-0010/D-10, S-0080/D-3]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The document's pull request title and body are composed from the landings the
+      branch carries so far — the tasks, the rows each contract carried with their
+      grades, the gates' verdicts and the divergence entries — and name the phases
+      still to come; nothing an agent wrote as prose reaches it
+    paths: [src/torve/application/forge.py]
+    consequence: >-
+      a reviewer who opens the pull request after one phase knows they are looking
+      at part of a design, and what they are asked to merge is enumerable task by
+      task
+    rationale: >-
+      S-0080/D-4 already composes a body from the landing record; what changes is
+      that the record is a list, and the phases outstanding are the one fact a partial
+      document's reader needs and cannot get from the diff
+    cites: [S-0080/D-4, S-0010/D-6]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      In `unit: document` a task's worktree is cut from the document branch's tip
+      when the branch exists and from the remote's `main` after a fetch when it does
+      not, which means wiring the `fetch` that `resolve_base` and `WorkspaceGit.create`
+      already take through `WorkspacePort` and the runner
+    paths:
+      - src/torve/gates/context.py
+      - src/torve/adapters/workspace/git.py
+      - src/torve/application/ports.py
+      - src/torve/application/runner.py
+    consequence: >-
+      the phase after a landed one starts on the tree that landing produced the moment
+      it landed, so a night runs a whole document without a person in the middle
+    rationale: >-
+      the dependency gate never ordered the phases — it opens when the dependency's
+      run reaches READY — the base did; in `unit: task` that base is a `main` that
+      will not carry the previous phase until a person clicks, so the next phase silently
+      builds on a tree missing its own dependency
+    cites: [S-0080/D-10]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A document pull request the forge reports merged is the document's landing:
+      one record naming the squash commit and every task the branch carried, and not
+      a second landing per task
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a ledger that divides by landings counts each task's work once, and the join
+      from the squash commit back to the tasks that produced it is in the record rather
+      than in the branch alone
+    rationale: >-
+      each task's landing was already recorded when it landed on the branch; recording
+      it again at the merge would count every task twice for one piece of work, and
+      the fact the merge adds is which commit on `main` the document became
+    cites: [S-0080/D-7]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A document pull request closed without merging abandons every task the branch
+      carries, by a person, and the branch is kept; it is never re-queued and never
+      escalated for triage
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a person who declined a design has declined all of it, and the work stays reachable
+      on a ref for whatever they do next
+    rationale: >-
+      S-0080/D-8's asymmetry at the document unit — a conflict is a mechanical fact
+      the engine may decide, a close is a judgement it may only record — and a close
+      at this unit is a judgement about the design rather than about one phase
+    cites: [S-0080/D-8, S-0080/D-12]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      The lane asks the forge once per pass for every open document pull request it
+      holds, from its own recorded events, and a pass holding none asks nothing
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      an idle night costs no forge calls, and a document of six phases costs one call
+      per pass rather than six
+    rationale: >-
+      S-0080/D-16 left the cadence to implementation under exactly this constraint,
+      and the document unit answers it more cheaply than the task unit did because
+      the question is now per document
+    cites: [S-0080/D-16]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      A document branch whose merge would no longer be clean is rebased onto the remote's
+      `main` in a disposable worktree, the battery re-run over the rebased tree and
+      the branch republished under lease, bounded once per base tip; a conflict escalates
+      for a person and never resolves itself
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      the person looking at the pull request is looking at the tree the battery judged,
+      and a long-lived branch against a moving `main` cannot rebase itself in a loop
+    rationale: >-
+      a document branch lives days rather than an attempt, so `main` moving under
+      it is the ordinary case; the disposal and its `conflict_base` bound are the
+      lane's own and are not loosened because the branch is older
+    cites: [S-0006/D-12, S-0080/D-9]
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      The attempt commits stay on the document branch after the squash — nobody deletes
+      it — so the record's join from task to commits survives a merge that rewrote
+      the history into one commit
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a document landing whose sha no attempt wrote can still be traced to every attempt
+      that produced it, which is what the projections read
+    rationale: >-
+      S-0080/D-12 says this of a task branch and the branch here is a different one,
+      so it has to be said again rather than inherited by resemblance; a ref costs
+      nothing to keep
+    cites: [S-0080/D-12]
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      The served pass's landing leg is handed the publisher and the read-back the
+      manual verb is handed, so `torve merge` and a served pass do the same thing
+      in this mode
+    paths: [src/torve/cli/manager.py]
+    consequence: >-
+      the mode runs unattended, which is the whole point of a landing unit that needs
+      no person between phases
+    rationale: >-
+      `_lane_leg` passes neither today, so an armed pass under `landing: pull_request`
+      fast-forwards `main` locally — the one act the mode exists to avoid — and a
+      unit designed for a night that only the manual verb can reach is a unit for
+      nothing
+    cites: [S-0052/D-2, S-0080/D-3]
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      The morning report counts documents opened, merged and closed beside the pull
+      requests it already counts, folded from the events in the night's window with
+      no field prose can occupy
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      a person reading the report knows how many merges are waiting on them, which
+      in this unit is a much smaller and more actionable number than the pull-request
+      counts beside it
+    rationale: >-
+      each of the three is a recorded fact by the time the report is folded, and the
+      report's rule is that it holds only recorded fields
+    cites: [S-0079/D-3, S-0080/D-14]
+  - id: D-17
+    grade: OPEN
+    text: >-
+      Where the composer reads the phases still to come from — the document's `phasing`
+      list or the contracts already minted from it — is implementation's, under one
+      constraint: it names them from a record and never from an estimate
+    paths: [src/torve/application/forge.py]
+    consequence: >-
+      a body that says three phases remain is saying something checkable against the
+      corpus or the board, rather than a count somebody derived
+    rationale: >-
+      both sources are records and both are readable from the runner; which is cheaper
+      and which stays true when a document is amended is a question the code answers
+      better than this document can
+  - id: D-18
+    grade: OPEN
+    text: >-
+      Whether the document branch is cut at the first landing or at the first worktree
+      of the document is implementation's, under one constraint: it is cut once per
+      document, from the remote's `main` after a fetch, and every later landing targets
+      the same ref
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a document has exactly one branch whatever order its first phases run in, so
+      two parallel phase-1 tasks cannot leave two of them
+    rationale: >-
+      cutting at the first worktree makes the base rule simpler and creates a branch
+      for work that may never land; cutting at the first landing keeps the forge clean
+      and makes the first task's base the remote's `main` — the trade is real and
+      contact with the code decides it

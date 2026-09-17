@@ -243,6 +243,13 @@ How the base tree is materialised and where the base pass runs is implementation
 - Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/sabotage.py`
 - Consequence: the declared timeout is what the choice is judged by, and a materialisation that puts this gate beside `coverage-delta` in cost has failed whatever else it does
 
+### S-0083/D-9 — `ASSUMED` (The pull request is one per document, not one per task)
+
+In `unit: document` a task's worktree is cut from the document branch's tip when the branch exists and from the remote's `main` after a fetch when it does not, which means wiring the `fetch` that `resolve_base` and `WorkspaceGit.create` already take through `WorkspacePort` and the runner
+
+- Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
+- Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail
