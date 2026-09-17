@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0423
+phase: 2
+base: f2473ac55967280a0a8e1d7bde43ed15b6d52989
+commit: ae8ae0f5dce7c5ba8332eb9788159b1f2946fed8
+at: '2026-09-17T16:09:40Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: OPEN
+  - id: D-17
+    grade: OPEN
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-17T16:08:01Z'
+    claim: >-
+      the landing act is injected into the lane as a publisher callable rather than
+      a mode word, because the push and the forge call are adapters the application
+      layer may not import; the caller derives it from promotion.landing alone
+    evidence: >-
+      src/torve/cli/merge.py:130-165 — _publisher returns None unless promotion.landing
+      is pull_request; src/torve/application/lane.py:587 and 712 are the two call
+      sites, at the point both landing paths called merge_ff
+    action: decided
+    proposal: none — the row stands as written
+  - decision: D-16
+    grade: OPEN
+    at: '2026-09-17T16:08:01Z'
+    claim: >-
+      the lane asks the forge once per candidate that passed every criterion, at the
+      landing point; a pass holding no promotable candidate makes no forge call at
+      all, and a dry run makes none either
+    evidence: >-
+      src/torve/application/lane.py:559-566 — the dry run publishes nothing; publication
+      happens only after every criterion in process_lane has passed
+    action: decided
+    proposal: >-
+      OPEN stays open for the later pass that reads pull request state (D-7, D-8);
+      this task settles only the asking at the landing point
