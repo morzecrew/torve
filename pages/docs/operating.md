@@ -29,7 +29,7 @@ shell has not set is filled in.
 | `torve run <task>` | one task, synchronously, sandboxed — the exit code carries the outcome |
 | `torve manager serve <partition> --dsn …` | the resident manager: import contracts, claim one task at a time, execute, record |
 | `torve fleet serve` | the same, over every repository the manifest names, one attention budget across all of them |
-| `torve merge` | land ready candidates, serialized. Lands and stops — it does not push the base |
+| `torve merge` | land ready candidates, serialized. Lands and stops — it never pushes the base; under `promotion.landing: pull_request` it publishes the candidate's branch and opens its pull request instead of moving the base at all |
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
 | `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` also discards escalations you have dealt with by hand |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
@@ -685,9 +685,11 @@ meant to write, not to pick a landing policy for you. This file is read once,
 by a process that then runs unattended, so a warning would print to a
 terminal nobody is watching.
 
-`require_ci` needs a remote to be green on, and nothing is pushed from here
-yet, so **review and approvals are the two criteria available today**. The
-arming order that does not depend on anything being decided later:
+`require_ci` needs a remote to be green on, which means a branch that was
+pushed — `scm.open_pr` is what publishes each attempt's branch and opens the
+task's pull request. With it off nothing leaves this machine, so **review and
+approvals are the two criteria available**. The arming order that depends on
+nothing being decided later:
 
 1. Set `promotion.require_review` (and `approvals` if you want a second pair
    of eyes on the tip) with `auto_merge` still **off**.
@@ -711,5 +713,105 @@ what is already owed and so runs regardless — landing advances the
 repository, and a pause is a statement that nobody has capacity to look at
 what advancing produces.
 
-**Landing is not publishing.** The lane moves the base locally and stops;
-pushing it, and republishing the candidate, stay yours.
+## Landing as a pull request
+
+What a landing *is* comes from two terms of `promotion`, and neither is ever
+inferred from whether a remote exists or from whether the ready candidates
+happen to share a document (S-0080/D-1, S-0083/D-1):
+
+```yaml
+promotion:
+  landing: pull_request   # local (default) | pull_request
+  unit: document          # task (default) | document
+scm:
+  repo: owner/name        # pull_request refuses to load without it
+  open_pr: true           # likewise
+```
+
+Under `local`, **landing is not publishing**: the lane fast-forwards this
+checkout's base and stops, and pushing it stays yours. Under `pull_request`
+the base is not moved by this engine at all (S-0080/D-3). Every criterion,
+probe and rebase above runs exactly as it runs locally, and in place of the
+fast-forward the candidate's branch is pushed under lease and its pull request
+opened or refreshed. The criteria decide whether a pull request is opened; the
+forge's own rules govern what happens to it afterwards.
+
+`unit` is read only where there is a pull request to be one per, so a `local`
+landing ignores it rather than refusing it (S-0083/D-2) — a repository moving
+between the modes edits one key, and a `unit` that survives the switch back is
+inert rather than wrong.
+
+| `landing` | `unit` | what one pass leaves behind |
+| --- | --- | --- |
+| `local` | either | the checkout's base fast-forwarded; nothing pushed |
+| `pull_request` | `task` | one pull request per task, on `torve/T-NNNN` |
+| `pull_request` | `document` | every phase of a document landed onto `torve/S-NNNN`, behind that document's one pull request |
+
+A candidate whose contract names no document — an intake adoption, a standing
+row's mint — lands by the task unit whatever `unit` says, and nothing infers a
+document for it (S-0083/D-4). The document branch is named from the contract's
+own `spec`, and cut once per document from the remote's `main` after a fetch,
+at the first landing onto it (S-0083/D-5, S-0083/D-18): two phase-1 candidates
+of one document cannot leave two branches, and the `S-` and `T-` namespaces
+cannot collide.
+
+**What you are expected to do is merge it.** That is the whole of a person's
+part, and in `unit: document` it is one merge for a design of any number of
+phases rather than one per phase (S-0083/D-7). Until you do, the engine leaves
+the pull request alone except to keep it showing the tree the battery measured.
+
+Closing one without merging is the other answer, and it is read as declining
+the whole design: every task the document branch carries is abandoned, none is
+re-queued and none escalates for triage (S-0083/D-11). The branch is kept
+under every verdict — nobody deletes it (S-0083/D-14) — so the join from each
+task to the commits its attempts wrote survives a squash merge that rewrote
+them into one.
+
+**What the pass after your answer does.** The engine does not watch the forge;
+on a later pass it asks about the pull requests its own records say it has
+open, before anything lands onto a branch again — one call per open document
+rather than one per phase, and none at all for a pass holding none
+(S-0083/D-12).
+
+- **Merged** is the document's landing (S-0083/D-10): one record naming the
+  squash commit and every task the branch carried, and not a second landing
+  per task — each phase was recorded as landed, in the shape the local lane
+  writes, when it landed on the branch (S-0083/D-6), and what the merge adds
+  is which commit the document became.
+- **Closed** abandons the carried tasks, as above.
+- **Still open** is measured against `main` (S-0083/D-13). An unmoved base
+  already shows the tree the battery judged, and the pass reports that it
+  awaits a person. A base that moved under it — the ordinary case for a branch
+  that lives days — is rebased in a disposable worktree, the battery re-run
+  over the rebased tree, and the branch republished under lease; bounded once
+  per base tip, so a branch against a moving `main` cannot rebase itself in a
+  loop. A red battery puts the branch back where it stood. A conflict never
+  resolves itself: the rebase aborts, the branch is untouched, and every ready
+  task the branch carries escalates as `merge_conflict`.
+
+An armed pass is handed the same publisher and the same read-back `torve merge`
+is handed (S-0083/D-15), so none of this waits for somebody to type the verb.
+
+**Phase after phase, unattended.** Under `pull_request` with `unit: document` a
+task's worktree is cut from the document branch's tip when that branch exists,
+and from the remote's `main` after a fetch when it does not (S-0083/D-9) — a
+phase starts on the tree the previous phase's landing produced, the moment it
+landed. The battery judges the attempt against that same tip, which keeps a
+phase's diff its own work rather than everything the branch already carries.
+
+**Two pieces are in the tree with nothing calling them**, and this section
+describes what the mode does rather than what it will do:
+
+- The document pull request's **body is the task composer's**. The lane hands
+  its publisher the task that just landed, and the publisher composes that
+  task's title and body — so what a person opens reads as the last phase,
+  not as the document. The document composer S-0083/D-8 calls for — the phases
+  on the branch, each contract's rows with their grades, the gate verdicts, the
+  divergence entries, and the phases still to come, read from the document's
+  own phasing rather than estimated (S-0083/D-17) — exists and is tested, and
+  no caller reaches it.
+- The morning report's **document counts are folded and not printed**.
+  `torve night show` prints the night's landings, convictions, endings and
+  waits; the per-document opened, merged and closed counts S-0083/D-16 asks
+  for — and the pull-request counts they were to sit beside — are folds with
+  tests over the night's window and no renderer.
