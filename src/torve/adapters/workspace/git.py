@@ -47,7 +47,9 @@ class GitWorkspace:
 
     # ....................... #
 
-    def create(self, task_id: str, base_ref: str | None, *, resume: bool = False) -> Path:
+    def create(
+        self, task_id: str, base_ref: str | None, *, resume: bool = False, fetch: bool = False
+    ) -> Path:
         with _WORKTREE_LOCK:
             path = naming.worktree(self.root, task_id)
 
@@ -70,6 +72,13 @@ class GitWorkspace:
                     self._git("worktree", "add", str(path), branch)
 
                 return path
+
+            # S-0080/D-10: cut from the remote's tip rather than a local copy
+            # that is stale from the first merge onward. After the resume
+            # check: a continuation cuts from its own branch, which no fetch
+            # moves.
+            if fetch:
+                self._git("fetch", "--quiet", "origin")
 
             if branch == current:
                 # The task's branch is checked out here (dogfooding the

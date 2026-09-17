@@ -6,12 +6,14 @@ stored nowhere (S-0016/D-22)."""
 from __future__ import annotations
 
 import json
+import subprocess
 
 import yaml
 from test_decisions import landed
 from test_plan import plan_repo  # noqa: F401  (fixture)
 from typer.testing import CliRunner
 
+from torve.adapters.workspace.git import GitWorkspace
 from torve.application.planner import plan_document, write_contracts
 from torve.application.projections import (
     QUASI_EXPERIMENT_CAVEAT,
@@ -25,6 +27,8 @@ from torve.base import naming
 from torve.cli import app
 from torve.config.layout import SPECS_DIR
 from torve.domain.states import EscalationReason, TaskState
+from torve.gates.context import resolve_base
+from torve.gates.sabotage import Repo
 
 # ----------------------- #
 
@@ -1444,3 +1448,57 @@ def test_a_gate_with_fewer_runs_than_the_window_reports_what_it_has():
     gate = _gate_health(rows)["rfc-index"]
 
     assert gate["recent_runs"] == 3 and gate["recent_failures"] == 0
+
+
+# ----------------------- #
+# The base an attempt is cut from (S-0080/D-10). `gates/context.py` already
+# prefers origin/main; these cover the fetch that makes the preference mean
+# the tree a pull request will be merged against.
+
+
+def _tip(root, ref: str) -> str:
+    out = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", ref], capture_output=True, text=True, check=True
+    )
+    return out.stdout.strip()
+
+
+def _remote_pair(tmp_path):
+    """An upstream whose main has moved, and a clone whose origin/main has not."""
+
+    upstream = Repo(tmp_path / "upstream")
+    upstream.root.mkdir(parents=True)
+    upstream.seed()
+    upstream.git("checkout", "-q", "main")
+
+    clone = Repo(tmp_path / "clone")
+    subprocess.run(
+        ["git", "clone", "-q", str(upstream.root), str(clone.root)], check=True, capture_output=True
+    )
+
+    upstream.write("src/app.py", "print('moved')\n")
+    upstream.commit("upstream moves on")
+
+    return upstream, clone
+
+
+def test_resolve_base_without_a_fetch_reads_a_stale_origin_main(tmp_path):
+    upstream, clone = _remote_pair(tmp_path)
+
+    assert resolve_base(clone.root, None) == "origin/main"
+    assert _tip(clone.root, "origin/main") != _tip(upstream.root, "main")
+
+
+def test_resolve_base_fetches_before_it_prefers_origin_main(tmp_path):
+    upstream, clone = _remote_pair(tmp_path)
+
+    assert resolve_base(clone.root, None, fetch=True) == "origin/main"
+    assert _tip(clone.root, "origin/main") == _tip(upstream.root, "main")
+
+
+def test_a_worktree_that_fetches_is_cut_from_the_remote_tip(tmp_path):
+    upstream, clone = _remote_pair(tmp_path)
+
+    path = GitWorkspace(clone.root).create("T-0422", "origin/main", fetch=True)
+
+    assert _tip(path, "HEAD") == _tip(upstream.root, "main")

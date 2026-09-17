@@ -94,10 +94,18 @@ class GateContext:
 # ....................... #
 
 
-def resolve_base(root: Path, base: str | None) -> str | None:
+def resolve_base(root: Path, base: str | None, *, fetch: bool = False) -> str | None:
     """The requested base ref, or the first of origin/main and main that
     exists. None means no base is resolvable (fresh repository) and diff-input
-    gates run against an empty diff."""
+    gates run against an empty diff.
+
+    `fetch` updates the remote's refs first (S-0080/D-10): the preference for
+    origin/main only means the tree a pull request will be merged against if
+    origin/main is not itself a local copy, stale from the first merge onward.
+    A failed fetch raises — cutting from a stale copy is what it prevents."""
+
+    if fetch:
+        git(root, "fetch", "--quiet", "origin")
 
     candidates = [base] if base else ["origin/main", "main"]
 
