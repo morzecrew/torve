@@ -11,7 +11,7 @@ import pytest
 
 import torve.adapters.vcs.git as git_module
 from torve.adapters.vcs.git import GhScm, GitVcs
-from torve.application.forge import compose_pr
+from torve.application.forge import DocumentLanding, compose_document_pr, compose_pr
 from torve.domain.attempt import GateResult
 from torve.domain.task import InheritedDecision, Scope, Task
 
@@ -294,3 +294,124 @@ def test_ghci_lets_a_rerun_supersede_the_run_it_replaced(monkeypatch):
     )
     ci, _ = ci_with_script(monkeypatch, [mixed])
     assert ci.conclusion("abc1234") == "failure"
+
+
+# ....................... #
+# The document composer (S-0083/D-8): one body for the landings a document
+# branch carries so far, with the phases still to come read from the
+# document's own phasing list (S-0083/D-17) — never a count somebody derived.
+
+PHASES = [
+    {
+        "phase": 1,
+        "title": "the unit is a term",
+        "intent": "Give promotion a unit.",
+        "scope": ["src/torve/config/runconfig.py"],
+    },
+    {
+        "phase": 1,
+        "title": "a document has a branch name",
+        "intent": "Name the branch from the spec.",
+        "scope": ["src/torve/base/naming.py"],
+    },
+    {
+        "phase": 2,
+        "title": "the lane lands onto it",
+        "intent": "Land every candidate onto the branch.",
+        "scope": ["src/torve/application/lane.py"],
+        "depends_on": [1],
+    },
+]
+
+
+def phase_task(task_id: str, phase: int, title: str) -> Task:
+    return Task(
+        id=task_id,
+        spec="S-0090",
+        phase=phase,
+        title=title,
+        intent="Some contract prose the body never repeats.",
+        scope=Scope(),
+        decisions=[InheritedDecision(id="S-0090/D-1", grade="ASSUMED", text="the unit is a term")],
+    )
+
+
+def corpus_with_phasing(tmp_path: Path) -> Path:
+    from test_decisions import document, place
+
+    root = tmp_path / "repo"
+    spec_dir = root / ".torve" / "specs"
+    spec_dir.mkdir(parents=True)
+    place(
+        spec_dir,
+        "0090",
+        document(
+            "0090",
+            rows=[("S-0090/D-1", "ASSUMED", "the unit is a term", "—", "cheap to revisit")],
+            title="Landing by document",
+            phasing=PHASES,
+        ),
+    )
+    return root
+
+
+def test_the_document_body_carries_the_landings_and_the_phases_still_to_come(tmp_path: Path):
+    root = corpus_with_phasing(tmp_path)
+    log_dir = root / ".torve" / "tasks" / "T-8402"
+    log_dir.mkdir(parents=True)
+    (log_dir / "log.yaml").write_text(
+        "schema_version: 1\ntask: T-8402\ndrift_count: 0\nentries:\n"
+        "  - decision: S-0090/D-1\n    kind: departed\n    claim: the helper already existed\n"
+        "  - decision: S-0090/D-1\n    kind: resolved\n    claim: routine\n",
+        encoding="utf-8",
+    )
+    landings = [
+        DocumentLanding(
+            task=phase_task("T-8401", 1, "the unit is a term"),
+            sha="a" * 40,
+            results=[GateResult(name="scope", outcome="pass", state="blocking", duration_s=0.2)],
+        ),
+        DocumentLanding(
+            task=phase_task("T-8402", 1, "a document has a branch name"),
+            sha="b" * 40,
+            results=[GateResult(name="scope", outcome="fail", state="blocking", duration_s=0.3)],
+        ),
+    ]
+
+    title, body = compose_document_pr("S-0090", landings, root)
+
+    # The title says which document and how much of it; phase 1 holds two
+    # entries and counts once.
+    assert title == "S-0090: Landing by document · 1/2 phases"
+    assert "1 of this document's 2 phases are still to come" in body
+    # Every task the branch carries, with its rows, its gates and its
+    # divergences — and nothing the agent wrote.
+    assert "## T-8401 · phase 1 · `aaaaaaaaaaaa`" in body
+    assert "## T-8402 · phase 1 · `bbbbbbbbbbbb`" in body
+    assert "- gates: all 1 pass" in body
+    assert "- gates: scope fail" in body
+    assert "- S-0090/D-1 (ASSUMED): the unit is a term" in body
+    assert "- divergence: S-0090/D-1 departed: the helper already existed" in body
+    assert "routine" not in body
+    assert "Some contract prose" not in body
+    # The phases to come are named from the phasing list, by number and title.
+    assert "- phase 2 — the lane lands onto it" in body
+    assert "- phase 1 —" not in body
+
+
+def test_a_document_fully_landed_says_so_and_an_unreadable_one_names_no_phases(tmp_path: Path):
+    root = corpus_with_phasing(tmp_path)
+    landings = [
+        DocumentLanding(task=phase_task("T-8401", 1, "one")),
+        DocumentLanding(task=phase_task("T-8403", 2, "two")),
+    ]
+
+    _, body = compose_document_pr("S-0090", landings, root)
+    assert "Every phase of this document is on this branch (2)." in body
+    assert "Still to come" not in body
+
+    # No corpus to read: the composer names no phases rather than guessing one.
+    title, bare = compose_document_pr("S-0091", landings, tmp_path / "nowhere")
+    assert title == "S-0091: 2 landed"
+    assert "phases" not in bare
+    assert "## T-8403 · phase 2" in bare

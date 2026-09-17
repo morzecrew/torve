@@ -7,12 +7,14 @@ attached, checkable without opening a terminal.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
 import yaml
 
 from torve.config import layout
+from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
 from torve.domain.task import Task
 
@@ -183,5 +185,131 @@ def compose_pr(
         footer.append(f"trace: {trace_text}")
 
     lines.append(" · ".join(footer))
+
+    return title, "\n".join(lines)
+
+
+# ....................... #
+# The document composer (S-0083/D-8): one pull request for a document branch,
+# composed from the landings the branch carries so far. Takes no configuration
+# and no lane — the records it reads are the tasks, their rows, their gates and
+# their logs, plus the document's own phasing.
+
+
+@dataclass(frozen=True)
+class DocumentLanding:
+    """One phase as the document branch carries it: the contract that landed,
+    the sha the landing produced and the battery that judged it. There is no
+    field an agent's prose can occupy."""
+
+    task: Task
+    sha: str = ""
+    results: list[GateResult] = field(default_factory=list)
+
+
+def _phasing(root: Path, document: str) -> tuple[str, list[tuple[int, str]]]:
+    """The document's title and its phasing as (phase, title), read from the
+    corpus (S-0083/D-17): the phases still to come are named from the record
+    the document itself carries, never counted from an estimate. A document
+    that is absent or does not load names none."""
+
+    directory = document_dir(root / layout.SPECS_DIR, document)
+
+    if directory is None:
+        return "", []
+
+    try:
+        doc = load_document(directory)
+
+    except SpecError:
+        return "", []
+
+    return doc.title, [(phase.phase, phase.title) for phase in doc.phasing]
+
+
+def _gates_line(results: list[GateResult]) -> str:
+    red = [r for r in results if r.outcome not in ("pass", "bypassed")]
+
+    if red:
+        return "gates: " + ", ".join(f"{r.name} {r.outcome}" for r in red)
+
+    return f"gates: all {len(results)} pass"
+
+
+def compose_document_pr(
+    document: str,
+    landings: list[DocumentLanding],
+    root: Path,
+) -> tuple[str, str]:
+    """(title, body) for a document branch's one pull request, composed
+    entirely from records: every task the branch carries, the rows each
+    contract carried with their grades, the gates' verdicts and the
+    divergence entries, and the phases the document has still to come
+    (S-0083/D-8). Nothing an agent wrote as prose reaches it."""
+
+    doc_title, phasing = _phasing(root, document)
+    landed = {landing.task.phase for landing in landings if landing.task.phase}
+    # A phase may hold several entries, so the count is over phase numbers —
+    # what a reviewer counts merges of, not contracts.
+    numbers = {number for number, _ in phasing}
+    to_come = sorted(numbers - landed)
+    remaining = [(number, title) for number, title in phasing if number in set(to_come)]
+
+    subject = doc_title or f"{len(landings)} landed"
+
+    if numbers:
+        subject = f"{subject} · {len(numbers) - len(to_come)}/{len(numbers)} phases"
+
+    title = f"{document}: {subject}"
+
+    if len(title) > 72:
+        title = title[:71].rstrip() + "…"
+
+    lines = [
+        f"**{document} · {len(landings)} landing(s) on this branch**",
+        "",
+    ]
+
+    if to_come:
+        lines += [
+            (
+                f"Part of a design: {len(to_come)} of this document's "
+                f"{len(numbers)} phases are still to come, so what is below is "
+                "not the whole of it."
+            ),
+            "",
+        ]
+    elif numbers:
+        lines += [f"Every phase of this document is on this branch ({len(numbers)}).", ""]
+
+    for landing in landings:
+        task = landing.task
+        phase = f" · phase {task.phase}" if task.phase else ""
+        sha = f" · `{landing.sha[:12]}`" if landing.sha else ""
+
+        lines += [f"## {task.id}{phase}{sha}", ""]
+
+        if task.title.strip():
+            lines += [task.title.strip(), ""]
+
+        if landing.results:
+            lines.append(f"- {_gates_line(landing.results)}")
+
+        for decision in task.decisions:
+            lines.append(f"- {decision.id} ({decision.grade}): {decision.text}")
+
+        for divergence in _divergences(root, task.id):
+            lines.append(f"- divergence: {divergence}")
+
+        lines.append("")
+
+    if remaining:
+        lines += [
+            "## Still to come",
+            *(f"- phase {number} — {title}" for number, title in remaining),
+            "",
+        ]
+
+    lines.append("Composed from the landing records; no agent's prose reaches this body.")
 
     return title, "\n".join(lines)
