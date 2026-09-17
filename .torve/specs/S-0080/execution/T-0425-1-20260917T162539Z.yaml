@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0425
+phase: 4
+base: dc424bc86c6248a5f61d176a31e3604ee61ae17d
+commit: 5d36092a6ac11ad9a14f780e588bbe5c5006586e
+at: '2026-09-17T16:25:39Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: OPEN
+  - id: D-17
+    grade: OPEN
+entries:
+  - decision: D-14
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-17T16:24:20Z'
+    claim: >-
+      the night's projection does not exist in this tree — S-0079 phase 3 never landed,
+      so there is no report object to add a column to; the four counts ship as a standalone
+      fold in manager.py taking the window as explicit bounds, ready for the night
+      to call
+    evidence: >-
+      .torve/specs/S-0079/phasing.yaml:72-92 — phase 3 defines the morning report
+      in src/torve/application/manager.py and torve night show; neither exists
+    action: departed
+  - decision: D-14
+    grade: ASSUMED
+    at: '2026-09-17T16:24:20Z'
+    claim: >-
+      the pull request facts are telemetry stream rows, not event-log kinds: the board
+      folds EventRecords and the log has no pull request kind at all, so the four
+      counts fold the engine stream the lane actually writes
+    evidence: >-
+      src/torve/application/lane.py:569-575 — engine_event(root, 'lane_pr_opened',
+      ...); src/torve/domain/events.py:76-97 holds no pull request kind
+    action: decided
