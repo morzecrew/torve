@@ -529,6 +529,9 @@ class NightOpened(BaseModel):
     width: int = 1
     budget_usd: float | None = None
     budget_attempts: int | None = None
+    # The wall-clock end, in minutes from the open (S-0079/D-12): a term of the
+    # night like the two budgets, absent when the night has no end but the queue.
+    minutes: int | None = None
     stop_on: list[EscalationReason] = Field(default_factory=list)
     lease_seconds: int
     knobs: dict[str, str] = Field(default_factory=dict)
@@ -554,6 +557,12 @@ class NightClosed(BaseModel):
     reason: Literal["drained", "budget_usd", "budget_attempts", "wall_clock", "escalation"]
     # The escalation class that stopped the night, for `escalation`.
     detail: str = ""
+    # What the night did and how late it closed (S-0079/D-12): the attempts it
+    # handled, and the seconds past its wall-clock end the close landed — the
+    # end is soft, so an attempt in flight is never interrupted and the overrun
+    # is the record of that.
+    handled: int = 0
+    overran_seconds: float = 0.0
 
 
 # ....................... #
