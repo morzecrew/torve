@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../schemas/harness.json
+# The night twin of `claude-subscription` (S-0079/D-8): the same image, the same
+# equipment channels, the same four day knobs, and the three that belong to a run
+# nobody is awake for. A second manifest rather than three keys on the day seat,
+# because all three are wrong at 11:00 — when the right answer to an overloaded
+# provider is to stop and to a question is to answer it — and because `env` is the
+# one knob surface that joins the regime digest (S-0063/D-10): a night attempt and
+# a day attempt are two regimes the ledger tells apart without anyone remembering
+# to say which was which.
+#
+# Nothing is inherited. Neither file references another of its kind (S-0061/D-8),
+# so the day values are repeated here and the reasons for them are read there
+# rather than copied — what a test holds in step instead is that this manifest is
+# the day manifest plus exactly the three knobs below.
+#
+# The three, with the names this file chooses (S-0079/D-9). Torve sets them and
+# interprets none of them, which is what keeps a differently-spelled harness a
+# manifest edit rather than a code change:
+#
+#   CLAUDE_FALLBACK_MODEL          what to continue on when the seat's own model is
+#                                  overloaded — at 03:00 a smaller model that
+#                                  finishes the attempt beats a capacity error that
+#                                  ends it
+#   CLAUDE_CAPACITY_RETRY_SECONDS  how long to keep retrying a capacity error before
+#                                  the attempt ends. Bounded, not a boolean: a
+#                                  provider that is down all night must not be able
+#                                  to spend the whole night on one attempt
+#   CLAUDE_DENY_TOOLS              what a night seat may not call at all.
+#                                  `AskUserQuestion` waits for a person, and a
+#                                  question nobody will read before morning is a
+#                                  turn spent on nothing — denied rather than
+#                                  bypass-approved, which is the difference between
+#                                  this and `CLAUDE_PERMISSION_MODE`
+#
+# What the image owes them is its own business (S-0063/D-1): `/opt/torve/run`
+# mapping the first onto `--fallback-model`, the third onto `--disallowed-tools`,
+# and the second onto its own retry of a capacity error. That is a change under
+# `sandboxes/claude/`, which this task's scope does not reach; the declaration
+# lands first because the declaration is what the digest carries, and an image
+# that maps none of them ignores all three rather than failing.
+adapter: subscription
+image: claude-sandbox:2.1.252
+equip_root: ~/.claude/skills
+kinds: [skill, plugin, mcp, hook, agent]
+env:
+  CLAUDE_PERMISSION_MODE: bypassPermissions
+  BASH_MAX_OUTPUT_LENGTH: "20000"
+  MAX_MCP_OUTPUT_TOKENS: "5000"
+  CLAUDE_TOOLS: Bash,Read,Edit,Write,Glob,Grep
+  CLAUDE_FALLBACK_MODEL: claude-sonnet-5
+  CLAUDE_CAPACITY_RETRY_SECONDS: "1800"
+  CLAUDE_DENY_TOOLS: AskUserQuestion
+api: [anthropic]

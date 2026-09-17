@@ -624,3 +624,53 @@ def test_a_manifest_naming_a_credential_is_refused_with_where_it_went(root: Path
         load_harness(root, "old")
 
     assert ".torve/providers/" in str(excinfo.value)
+
+
+# ....................... #
+# The night's knobs are declared where every knob is declared (S-0079/D-8)
+
+NIGHT_KNOBS = ("CLAUDE_FALLBACK_MODEL", "CLAUDE_CAPACITY_RETRY_SECONDS", "CLAUDE_DENY_TOOLS")
+"""The three the night seat carries and the day seat must not (S-0079/D-9). The
+names are the manifest's choice; what is asserted here is where they live."""
+
+
+def test_the_night_seat_is_the_day_seat_plus_the_three_night_knobs():
+    """This repository's own manifests, not a fixture: the decision is about
+    where these knobs are declared, so a fixture asserting the same shape would
+    pass over an empty directory.
+
+    Neither manifest inherits the other (S-0061/D-8), so the night twin repeats
+    the day's values — and this is the check that keeps the copy in step, which
+    is the price the duplication pays. A fallback model on the day seat is the
+    failure the split exists to prevent: the right answer to an overloaded
+    provider at 11:00 is to stop."""
+
+    night = load_harness(Path("."), "claude-subscription-night")
+    day = load_harness(Path("."), "claude-subscription")
+
+    assert set(NIGHT_KNOBS) <= set(night.env)
+    assert not set(NIGHT_KNOBS) & set(day.env)
+    assert {key: value for key, value in night.env.items() if key not in NIGHT_KNOBS} == day.env
+    assert (night.adapter, night.image, night.equip_root, night.kinds, night.api) == (
+        day.adapter,
+        day.image,
+        day.equip_root,
+        day.kinds,
+        day.api,
+    )
+
+
+def test_the_engine_interprets_no_night_knob():
+    """S-0079/D-9's one constraint, as a check rather than as a promise: torve
+    sets these and never reads them, so a harness spelling any of them
+    differently is a manifest edit and never a code change.
+
+    The moment one name appears in a module, the engine has learned what a
+    capacity error or a permission prompt is, and the manifest has stopped
+    being the only place it is written."""
+
+    for path in sorted(Path("src").rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+
+        for knob in NIGHT_KNOBS:
+            assert knob not in text, f"{path} reads {knob}, which is the harness's to mean"
