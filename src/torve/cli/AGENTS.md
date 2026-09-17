@@ -407,4 +407,32 @@ The lane leg a served night runs is handed `conflict_disposal`, so a candidate w
 - Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py`
 - Consequence: one class of overnight escalation stops waiting for a person, and a candidate disposed of this way cannot be re-queued twice against the same tip because `conflict_base` bounds it
 
+### S-0082/D-8 — `ASSUMED` (The arms can be launched)
+
+Arm mode is the third mode of `torve eval`, told apart by `--arm` — repeatable, defaulting to all three — and refused at parse together with a skill argument or with `--image` or `--variant`; `--report` is not touched
+
+- Paths: `src/torve/cli/evals.py`
+- Consequence: the arms land in the ledger the reading already reads, and no invocation can be both a comparison inside the apparatus and a comparison that removes it
+
+### S-0082/D-9 — `ASSUMED` (The arms can be launched)
+
+`--arm` without `--task` is refused before any spend, and the refusal names which tasks are eligible rather than only which option is missing
+
+- Paths: `src/torve/cli/evals.py`
+- Consequence: the first invocation anybody types is answered with the set it could have named, so the launcher is usable without reading this document
+
+### S-0082/D-10 — `ASSUMED` (The arms can be launched)
+
+The seat is the task's own tier unless `--tier` names another, every arm of one invocation runs on the same seat, and `--tier` given with an arm names the seat the arms run on rather than a candidate under measurement
+
+- Paths: `src/torve/cli/evals.py`
+- Consequence: the same three arms can later be run on a variant seat without a second axis, and a difference between arms is never a difference between seats
+
+### S-0082/D-11 — `ASSUMED` (The arms can be launched)
+
+Before the first replay the verb prints which arms it will run over which tasks and what each of those tasks' recorded attempts cost, and adds no ceiling of its own — an arm run is bounded by the contract's budget and the broker's mid-run refusal
+
+- Paths: `src/torve/cli/evals.py`
+- Consequence: the largest deliberate spend behind one command in this engine says so before it starts, and there is no second, weaker budget mechanism beside the working one
+
 <!-- /torve:managed -->

@@ -207,10 +207,49 @@ In `pull_request` mode a worktree is cut from the remote's `main` after a fetch,
 - Paths: `src/torve/adapters/workspace/git.py` `src/torve/gates/context.py`
 - Consequence: an attempt builds on the base its pull request will be merged against, rather than on a copy that is stale from the first merge onward
 
+### S-0081/D-1 — `ASSUMED` (The test that proves nothing, and the conviction the record can name)
+
+`red-on-base` is a builtin gate declared beside `no-test-tampering`, entering at `shadow` with a sabotage pair that proves it can convict and can pass
+
+- Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/__init__.py` `.torve/gates.yaml`
+- Consequence: the gate produces its own false-positive rate before it can block anything, and promotion is an amendment with that rate attached rather than a line in this document
+
+### S-0081/D-2 — `LOCKED` (The test that proves nothing, and the conviction the record can name)
+
+The gate's input is the test files whose test functions differ from their base version as parsed syntax, never the test files present in the diff
+
+- Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/__init__.py`
+- Consequence: a move, a rename or a reformat qualifies nothing, so the gate cannot be routed around by leaving tests untouched, and a refactor that reorganises the suite pays nothing
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0081/D-3 — `ASSUMED` (The test that proves nothing, and the conviction the record can name)
+
+The verdict is a conviction only when every qualifying test passes on base; a candidate-side failure is reported as skipped and left to `acceptance`
+
+- Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/__init__.py`
+- Consequence: one failing test is never filed under two gate names, so the retry rung and the repair routing are pointed at the failure's actual class
+
+### S-0081/D-4 — `ASSUMED` (The test that proves nothing, and the conviction the record can name)
+
+A diff that changes no file outside the manifest's test patterns is not judged by this gate
+
+- Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/__init__.py`
+- Consequence: a contract whose whole job is adding missing tests is not convicted for it, and an attempt that splits its source change away from its tests is unjudged in both halves
+
+### S-0081/D-5 — `OPEN` (The test that proves nothing, and the conviction the record can name)
+
+How the base tree is materialised and where the base pass runs is implementation's, under three constraints — the command goes through the pass's own executor, nothing the gate writes outlives its own call, and only the qualifying files run
+
+- Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/sabotage.py`
+- Consequence: the declared timeout is what the choice is judged by, and a materialisation that puts this gate beside `coverage-delta` in cost has failed whatever else it does
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail
   - Paths: `.torve/gates.yaml` `src/torve/gates/**`
+  - Check: `uv run torve gates check`
+- **S-0081/I-1**: Every gate in the manifest, this one included, can be made to fail and can be made to pass
+  - Paths: `.torve/gates.yaml` `src/torve/gates/sabotage.py`
   - Check: `uv run torve gates check`
 
 <!-- /torve:managed -->

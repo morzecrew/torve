@@ -2,13 +2,13 @@
 id: S-0082
 title: The arms can be launched
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0074]
 informed_by: [S-0004, S-0009, S-0021, S-0027]
 supersedes: []
 superseded_by: null
-owner: author role
+owner: Lev Litvinov
 schema_version: 4
 summary: |
   S-0074 built the three-arm axis and left no way to start it: `torve eval` cannot name an

@@ -3,13 +3,13 @@ id: S-0081
 title: >-
   The test that proves nothing, and the conviction the record can name
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0069]
 informed_by: [S-0055, S-0070, S-0071]
 supersedes: []
 superseded_by: null
-owner: author role
+owner: Lev Litvinov
 schema_version: 4
 summary: |
   A test that is green on the tree it was written against proves nothing about the change

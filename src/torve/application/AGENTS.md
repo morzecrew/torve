@@ -1093,6 +1093,69 @@ What the engine does with a candidate whose branch the forge can no longer resol
 - Paths: `src/torve/application/lane.py`
 - Consequence: a repository configured to delete head branches on merge produces a stated gap in the record rather than a task that quietly pushes itself back to the forge
 
+### S-0081/D-6 — `ASSUMED` (The test that proves nothing, and the conviction the record can name)
+
+The repair fact in the attempt record names the attempt number it repairs beside the convicting gate
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/dispatch.py`
+- Consequence: whether taking the conviction as input beat re-dispatching from base becomes a query over the record, which is the question S-0069 exists to answer and currently cannot be asked of anything but a transcript
+
+### S-0081/D-7 — `ASSUMED` (The test that proves nothing, and the conviction the record can name)
+
+`red-on-base` joins the set of convictions that route a repair, and only once it blocks
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: the first widening of that set since it was fixed at four, with its reason on the record, so the next one is argued rather than edited in
+
+### S-0082/D-1 — `ASSUMED` (The arms can be launched)
+
+The arm reaches the attempt as a composed prompt — the dispatch carries which arm is running, and an arm whose prompt is bare hands the session `build_prompt(task, bare=True)` through `AgentContext.prompt` instead of letting the adapter compose one — so the prompt's removal and the battery's are two properties of one replay
+
+- Paths: `src/torve/application/dispatch.py` `src/torve/application/runner.py` `src/torve/application/session.py`
+- Consequence: the gated arm — the bare prompt with the battery judging what comes back — is a combination of two flags rather than a third mechanism, and the arm that runs today under the name `bare` stops being the configured prompt with the gates off
+
+### S-0082/D-2 — `OPEN` (The arms can be launched)
+
+Whether a bare arm's worktree is also stripped of the projected contract, the materialised skill set and the context pack is decided at implementation, and whichever way it is decided the replay's record names which removals were in force
+
+- Paths: `src/torve/application/session.py`
+- Consequence: a reader of a bare arm's numbers can tell what the agent could still open, so the arm's limit is a recorded fact rather than something rediscovered by whoever doubts the result
+
+### S-0082/D-3 — `ASSUMED` (The arms can be launched)
+
+Which tasks an arm run may name is read from the landings the tree holds — completed, with a landing that names a commit — and what those tasks already cost is read from the telemetry ledger, both by one reader that takes no configuration and no agent
+
+- Paths: `src/torve/application/evals.py`
+- Consequence: the refusal for an arm with no task and the pre-flight the verb prints come from the same read, so they can never disagree about what is eligible
+
+### S-0082/D-4 — `ASSUMED` (The arms can be launched)
+
+The three arms are one replay function taking the arm by name, and `run_bare_shadow` becomes its bare case rather than a second copy of `run_shadow`
+
+- Paths: `src/torve/application/evals.py`
+- Consequence: the isolation every arm depends on — replay from the parent commit in a truncated clone, merging nothing — is written once, so an arm cannot acquire a landing path by being added to a copy nobody re-read
+
+### S-0082/D-5 — `ASSUMED` (The arms can be launched)
+
+One eval record per invocation, `kind: arm-eval`, whose `arms` map is keyed by the three arm names and whose rows are the ones `_arm_row` already writes, so `three_arm_table` reads it with no change to the reading
+
+- Paths: `src/torve/application/evals.py`
+- Consequence: the reader S-0074 built is the reader, unversioned and unbranched — a record written today and a record written a year from now are read by the same six lines
+
+### S-0082/D-6 — `ASSUMED` (The arms can be launched)
+
+An arm record carries no verdict field — no `matched` beside the rows — because three arms are not equally exposed to the same failures and a boolean over them is the mean the axis already refused
+
+- Paths: `src/torve/application/evals.py`
+- Consequence: nothing downstream can act on an arm run without reading it per task, which is the only way it can honestly be read
+
+### S-0082/D-7 — `OPEN` (The arms can be launched)
+
+Whether an arm run that raises partway through lands the rows it has or lands nothing is decided at implementation, and the record says which it did
+
+- Paths: `src/torve/application/evals.py`
+- Consequence: a three-replay invocation that dies on the third does not silently become a two-arm record that reads like a complete one
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
@@ -1104,5 +1167,8 @@ What the engine does with a candidate whose branch the forge can no longer resol
 - **S-0062/I-2**: Every equipment item a run used is named by a cache key that resolves to a source and a ref an operator wrote.
   - Paths: `src/torve/config/equipment.py` `src/torve/application/telemetry.py`
   - Check: `uv run pytest tests/test_equipment.py -k reconstructable`
+- **S-0082/I-1**: An arm replay merges nothing and records no result for a task whose landing names no commit, whichever arm it is and however the arm was launched
+  - Paths: `src/torve/application/evals.py`
+  - Check: `uv run pytest tests/test_evals.py`
 
 <!-- /torve:managed -->
