@@ -1219,20 +1219,20 @@ def test_a_named_task_narrows_the_leg_to_that_candidate(tmp_path):
     assert (repo / "two.py").is_file()
 
 
-def test_a_conflict_escalates_for_the_leg_exactly_as_it_does_for_the_verb(tmp_path):
-    """The lane has two callers now, and they must treat one repository
-    the same way: `torve merge` passes no conflict disposal, so neither
-    does the leg. A candidate whose rebase conflicts is escalated, its
-    branch parks untouched for the human's turn, and the automatic capture
-    and re-queue — the disposal of the next phase's caller — has left no
-    trace of having been here."""
+def test_the_leg_disposes_of_a_conflict_the_verb_escalates(tmp_path):
+    """The lane has two callers and one disposal (S-0079/D-10): `torve merge`
+    passes no conflict disposal, so a conflict under the verb escalates for
+    the operator standing at the terminal; the served leg passes it, so a
+    candidate whose rebase conflicts is captured for the revision loop and
+    re-queued, bounded by `conflict_base` so the same tip is never re-queued
+    twice. Nothing lands, and the branch stands as measured."""
 
     from torve.base import naming
 
     repo = landing_repo(tmp_path)
     ready_candidate(repo, "T-7102", "app.py", "candidate = 2\n")
     # The base moves under the candidate, touching the same line: the
-    # rebase conflicts, and the escalation is the disposal.
+    # rebase conflicts, and the re-queue is the disposal.
     (repo / "app.py").write_text("base = 9\n", encoding="utf-8")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
@@ -1242,26 +1242,25 @@ def test_a_conflict_escalates_for_the_leg_exactly_as_it_does_for_the_verb(tmp_pa
     land_in_a_pass(repo, armed())
 
     state = run_state(repo, "T-7102")
-    assert state.state is TaskState.ESCALATED
-    assert "merge_conflict" in state.escalation.reason
-    # The two carriers of an automatic disposal: no base remembered, no
-    # diff captured — only the escalation a person resolves.
-    assert state.conflict_base is None
-    assert not (repo / ".torve" / "tasks" / "T-7102" / "feedback.md").exists()
+    assert state.state is TaskState.QUEUED
+    # The two carriers of the automatic disposal: the base it conflicted
+    # against, and the superseded diff captured for the next attempt.
+    assert state.conflict_base == base_tip
+    assert (repo / ".torve" / "tasks" / "T-7102" / "feedback.md").exists()
 
-    # Nothing landed and the branch stands as measured: parked, not
+    # Nothing landed and the branch stands as measured: re-queued, not
     # superseded.
     assert git(repo, "rev-parse", "HEAD") == base_tip
     assert git(repo, "rev-parse", naming.branch("T-7102")) == branch_tip
     assert [e["task"] for e in engine_events(repo, "lane_conflict")] == ["T-7102"]
 
 
-def test_approvals_short_refuses_the_leg_as_it_refuses_the_verb(tmp_path):
-    """The measured case: a conflicting candidate short of its approvals
-    is refused by the prompt before any probe — 'approvals short', the run
-    state left ready — exactly as the manual verb leaves it. A disposal the
-    verb does not have cannot fire for the leg and quietly re-queue what
-    the operator's own command reports as short."""
+def test_a_conflicting_candidate_short_of_approvals_is_disposed_of_by_the_probe(tmp_path):
+    """The pre-approval probe (S-0006/D-13, S-0006/A-2) fires only for a
+    caller that passes a disposal, and the served leg now does (S-0079/D-10):
+    a conflicting candidate short of its approvals is not offered for
+    approval on a tip that cannot land — it is captured and re-queued, and
+    the approvals prompt is never reached."""
 
     repo = landing_repo(tmp_path)
     ready_candidate(repo, "T-7201", "app.py", "candidate = 2\n")
@@ -1272,8 +1271,11 @@ def test_approvals_short_refuses_the_leg_as_it_refuses_the_verb(tmp_path):
 
     land_in_a_pass(repo, armed(approvals=2))
 
-    assert [e["task"] for e in engine_events(repo, "lane_approvals_short")] == ["T-7201"]
-    assert run_state(repo, "T-7201").state is TaskState.READY
+    assert engine_events(repo, "lane_approvals_short") == []
+    probes = engine_events(repo, "lane_conflict")
+    assert [e["task"] for e in probes] == ["T-7201"]
+    assert probes[0]["probe"] is True
+    assert run_state(repo, "T-7201").state is TaskState.QUEUED
     assert git(repo, "rev-parse", "HEAD") == base_tip
 
 
