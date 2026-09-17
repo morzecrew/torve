@@ -1,0 +1,340 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0082
+title: The arms can be launched
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0074]
+informed_by: [S-0004, S-0009, S-0021, S-0027]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  S-0074 built the three-arm axis and left no way to start it: `torve eval` cannot name an
+  arm, and `--report` says "no arm results in the eval ledger" whatever is replayed.
+
+  This is the launcher and the one arm it turns out to be missing. `torve eval --arm <name>
+  --task T-xxxx`, both repeatable, `--arm` defaulting to all three, replays each named task
+  under each named arm from the task's parent commit in a truncated clone — exactly as the
+  skill and configuration evals replay — and lands one eval record per invocation whose rows
+  name the arm that produced them, so `three_arm_table` reads them with no change to the
+  reading.
+motivation: |
+  The axis is built and unreachable. `torve eval`'s options are a skill argument, `--task`,
+  `--report`, `--tier`, `--image`, `--variant` and `--depth`: none of them names an arm.
+  `run_bare_shadow` in `src/torve/application/evals.py` has exactly two references in the
+  tree and both are in `tests/test_evals.py`. The reader that would print the result runs,
+  and prints nothing: `torve eval --report` against this repository's ledger today says "no
+  arm results in the eval ledger — nothing to report".
+
+  It will keep saying that whatever gets replayed, because nothing writes a row that names
+  an arm. The ledger holds ten records — eight `config-eval` and two `skill-eval` — and the
+  only arm keys in any of them are `incumbent`, `candidate`, `with` and `without`.
+  `three_arm_table` filters on `ARMS`, so every one of those ten contributes nothing and a
+  ledger of a hundred more would contribute nothing either.
+
+  The cost of leaving it here is the cost S-0074 opened with, unchanged and now paid for
+  twice: the engine has still never been run against its own null hypothesis, and the
+  instrument that would answer it is written, tested and idle. The one number the
+  repository has — 85 landed tasks stopped at least once by a blocking gate — still says
+  the gates fired and still cannot say what would have shipped without them.
+current_state: |
+  **The prompt mode exists and has no production caller.** `build_prompt`'s `bare=True`
+  branch is `src/torve/adapters/agent/harness.py`'s `build_prompt` and returns the task id, a blank line
+  and the intent. Nothing outside `tests/test_tiering.py` calls it. `run_agent_session`
+  never sets `AgentContext.prompt`, so the adapter composes its own prompt on every attempt
+  — rows, pack, working rules and all — and `HarnessAgent.run` only stages a composed
+  prompt verbatim when the runner hands one down.
+
+  **So what runs today as the bare arm is not the bare arm.** `run_bare_shadow` passes
+  `bare=True` to `real_hooks`, and `real_hooks` uses that flag for one thing: it swaps the
+  gate pass for `_bare_gates`, which judges nothing (`src/torve/application/runner.py`, in `real_hooks` and `_bare_gates`). The prompt is untouched. The arm that is runnable today is therefore *the
+  configured prompt with the battery removed* — half of S-0074/D-2's bare arm and none of
+  S-0074/D-3's other half is wrong, but the two were never joined.
+
+  **The gated arm does not exist, and the tree already uses its name for something else.**
+  There is no flag that keeps the battery and strips the prompt.
+  `tests/test_evals.py` labels a plain `run_shadow` as `annotation={"arm": "gated"}`;
+  that replay is the configured arm under a second name. The correction is this document's,
+  not a finding against the test — the vocabulary landed before the mode it names.
+
+  **The seat is the task's, and `--tier` is taken.** A replay resolves its seat through
+  `tier_name_for(task)`; no replay surface overrides it. `torve eval --tier` already means
+  "the seat under measurement" and pairs with `--image` or `--variant`
+  (`src/torve/cli/evals.py`), so an arm run that reuses the flag gives it a second meaning
+  and owes a refusal where the two would meet.
+
+  **Eligibility is already readable, and nothing reads it for this.**
+  `shipped_landings(root)` in `src/torve/application/projections.py` answers task id to
+  the commit its landing names, from the landing files in the tree and with no git, no
+  store and no telemetry. Against this repository it returns 119 entries; `shipped_ids`
+  returns 122. Those three without a commit are exactly the tasks `run_shadow` refuses with
+  "no shipped commit found", and today that refusal arrives after a configuration has been
+  loaded and a task contract parsed.
+
+  **`run_bare_shadow` is a copy of `run_shadow`.** Roughly 110 lines, differing in the
+  `bare=True` argument, a docstring and a comment. A third arm added the same way is a third
+  copy.
+
+  **No verb in this engine carries a spend ceiling.** The bounds that exist are the
+  contract's own `Budget` — `iterations`, `tokens`, `wallclock_minutes` — and the broker's
+  mid-run token refusal, which escalates `COST_ANOMALY` from `src/torve/application/session.py`
+  (S-0021/D-6). `torve eval` has no `--budget` and no confirmation prompt, and neither do
+  `torve run`, `torve shadow` or `torve tick`.
+goals: |
+  `torve eval --arm <name> --task T-xxxx` runs, with both options repeatable and `--arm`
+  defaulting to all three, and lands one eval record per invocation whose rows name the arm
+  that produced each of them.
+
+  `torve eval --report` prints a populated table afterwards, with no change to the reading:
+  the rows it already knows how to read are the rows this writes.
+
+  The gated arm — the bare prompt with the battery judging what comes back — exists as a
+  replay mode, so the three arms S-0074 named are three arms that can be run rather than
+  two halves and a name.
+
+  A person can tell what an arm run is about to cost before it starts, from what the same
+  tasks already cost when they were done for real.
+non_goals: |
+  No change to what an arm removes. The three arms are S-0074's, and the point of an
+  instrument is that it is not adjusted to make its reading nicer.
+
+  No verdict, and no scalar. The record carries rows; whether the arms are read as a
+  distribution is S-0074/D-4's and is already built.
+
+  No new landing path. S-0074/D-3 is LOCKED and stays: nothing an arm produces is ever
+  merged, and a bare run that could land its work is still refused before it starts.
+
+  No new spend ceiling. An arm run is bounded by the bounds that already exist, and this
+  document is careful not to invent a budget mechanism in a verb.
+design:
+  - key: the-verb-grows-a-third-mode
+    md: |
+      `torve eval` has two modes today, told apart by their arguments: a skill argument
+      measures a skill against its without-skill baseline, and `--tier` with `--image` or
+      `--variant` measures a candidate configuration against the incumbent. The arm run is
+      the third, and it is told apart the same way — by `--arm`.
+
+          torve eval --arm bare --arm gated --task T-0426 --task T-0419
+          torve eval --task T-0426                 # all three arms
+          torve eval --arm configured --tier executor.lean --task T-0426
+
+      Both options repeat. `--arm` omitted means all three, because the axis is the three
+      arms and running two of them is the narrowing a person asks for explicitly. `--arm`
+      given together with a skill argument, or with `--image` or `--variant`, is refused at
+      parse: those name a comparison inside the apparatus and this one removes it, and a
+      single invocation cannot be both.
+
+      `--task` is not optional here. `--arm` with no task is refused before any spend, and
+      the refusal names what would have been eligible — completed, with a landing that names
+      a commit — rather than saying only that something is missing. There is no `--all`: an
+      arm run over 119 tasks is 357 replays and nobody typed that on purpose.
+
+      `--report` is untouched. It reads the ledger, runs nothing, needs no configuration,
+      and this document's only effect on it is that there will finally be something to read.
+  - key: an-arm-is-two-removals-on-one-replay
+    md: |
+      S-0074 named two removals and built one of them. The battery's removal travels as a
+      property of the replay — `real_hooks` swaps the gate pass for one that runs nothing,
+      and the manifest is never edited (S-0074/D-3, LOCKED). The prompt's removal was
+      written into `build_prompt` and never wired to anything.
+
+      Wiring it is the same shape. The adapter already accepts a composed prompt through
+      `AgentContext.prompt` and stages it verbatim — that is how the review leg hands down
+      an input it assembled itself — so the dispatch carries which arm is running, and an
+      arm whose prompt is bare hands the session `build_prompt(task, bare=True)` instead of
+      letting the adapter compose one. Nothing is edited: not the manifest, not the
+      contract, not the gate set.
+
+      With both removals as properties of one replay, the three arms are three combinations
+      of two booleans and no new mechanism:
+
+          bare        bare prompt, no battery
+          gated       bare prompt, battery judging what comes back
+          configured  the prompt the adapter composes, the battery as configured
+
+      The fourth combination — the configured prompt with the battery removed — is what
+      `run_bare_shadow` runs today. It is not on the axis, and it stops being reachable
+      under the name `bare` when this lands.
+  - key: one-record-per-invocation
+    md: |
+      The skill and configuration evals each land one record pairing two arms. An arm run
+      lands one record over up to three, in the shape the reader already reads:
+
+          {"kind": "arm-eval", "at": "...", "tasks": ["T-0426"],
+           "arms": {"bare":       [{"arm": "bare", "task": "T-0426", ...}],
+                    "gated":      [...],
+                    "configured": [...]}}
+
+      The rows are `_arm_row`'s, unchanged: `arm`, `task`, `state`, `attempts`, `cost_usd`.
+      `three_arm_table` walks `arms`, keeps the keys that are in `ARMS` and takes the last
+      line per task-arm pair, so it reads this record with no change whatsoever — which is
+      the one property that makes the record worth writing in this shape rather than a
+      nicer one.
+
+      What the record does *not* carry is a verdict. `baseline_matched` and
+      `candidate_matched` are booleans over two arms that were exposed to the same failures;
+      three arms were not, and S-0074/D-4 already settled that the reading is per task and
+      the summary is a distribution. A `matched` field here would be the mean that decision
+      refused, wearing a boolean's clothes.
+
+      Each replay's own telemetry record is appended as it is today, carrying the regime
+      digest of the unchanged manifest. The eval record is the pairing; the telemetry
+      records are what it pairs.
+  - key: what-the-bare-worktree-still-carries
+    md: |
+      The bare prompt is not the same thing as a bare worktree, and the difference is worth
+      writing down before someone reads a number as though it were.
+
+      `run_agent_session` calls `project_contract(worktree, task)`, materialises the role's
+      skill set under `.torve/skills/`, and builds and materialises the context pack — all
+      of it before the prompt is composed, all of it on the host, none of it conditional on
+      anything an arm sets today. A bare prompt that mentions none of them does not make
+      them absent from the tree the agent is standing in. An agent that opens
+      `.torve/contract.yaml` has read the rows the arm claims to have removed.
+
+      S-0074/D-2 says the absence is asserted directly rather than read back out of a
+      transcript, and that is exactly what the existing test does — it asserts a property of
+      the *prompt*. That test stays true and stays insufficient. What to do about the
+      worktree is left open deliberately: stripping it is a second mechanism with its own
+      failure modes, and the honest interim is a record that says which removals were in
+      force. The guide says so too, because "a sentence and a worktree" is the sentence a
+      reader will quote.
+  - key: what-it-costs-to-ask
+    md: |
+      An arm run on one task is up to three replays of a task that already took as many
+      attempts as it took. That is the largest deliberate spend this engine offers behind a
+      single command, and the only honest thing to do is say so before it starts rather than
+      after.
+
+      So the verb prints, before the first replay: which arms, over which tasks, and what
+      each of those tasks' recorded attempts cost when they were done for real. It is a
+      read, not an estimate — the ledger holds what the task cost, and three replays of it
+      will cost something of that order. No forecast is computed, because a forecast that is
+      wrong is worse than a number that is merely historical.
+
+      Nothing new bounds it. The contract's `Budget` bounds each replay's attempts and
+      tokens as it bounds every attempt, and the broker refuses past the run's token budget
+      mid-attempt and escalates `COST_ANOMALY`. Those refusals are what an arm run honours;
+      inventing a per-verb ceiling here would put a second, weaker budget mechanism beside a
+      working one.
+tests: |
+  The gated arm is tested by what it has and has not: its prompt carries the intent and
+  neither the inherited rows nor the pack, and the battery judged its attempt — both
+  asserted on one replay, in `tests/test_evals.py` beside the bare arm's existing test.
+
+  The bare arm's prompt reaches the agent: the test is that the attempt ran against the
+  prompt `build_prompt(task, bare=True)` produces, not that the function can produce it —
+  which is what `tests/test_tiering.py` already covers and what this document found to be
+  the whole of the coverage.
+
+  The record is tested for the property that makes it worth its shape: a record this writes,
+  fed to `three_arm_table` with nothing else, yields the table `torve eval --report` prints.
+
+  The refusals are tested as refusals, in the CLI tests that already cover every other shape
+  `torve eval` refuses: an arm with a skill argument, an arm with `--image` or `--variant`,
+  and `--arm` with no task — the last asserting that the message names eligible tasks.
+
+  Not tested: that an arm run is affordable. That is a fact about a wallet.
+docs: |
+  The operating guide's arm section gains how to launch the arms beside how to read them,
+  and loses the claim it cannot support — that the bare arm is handed "a sentence and a
+  worktree" — in favour of what the worktree actually carries.
+out_of_scope: |
+  Changing what an arm removes. The axis is S-0074's; a document that both builds the
+  instrument and adjusts its scale measures its author.
+
+  A mean, an aggregate or a scalar over tasks. S-0074/D-4 settled the reading and
+  `_distribution` implements it; a summary line added here would be the thing that decision
+  refused.
+
+  Running the arms inside a night. `torve tick` schedules work that lands, and an arm lands
+  nothing; putting a three-replay measurement in an unattended loop is a scheduling
+  decision with its own budget question, and it is not this one.
+
+  A second repository. Everything here reads this repository's landings, ledger and tasks.
+
+  Stripping the bare arm's worktree of the contract, the skills and the pack. Named in the
+  design and left as an open row rather than smuggled in beside the launcher.
+risks: |
+  **The bare arm will be read as barer than it is.** Its worktree still carries the
+  projected contract, the materialised skills and the context pack, and the prompt's silence
+  about them is not their absence. The mitigation is that the document says so, the guide
+  says so, and the open row keeps it a known limit rather than a discovered one — but a
+  number quoted a year later carries none of that, which is why the guide's own sentence is
+  corrected in the same breath.
+
+  **Three arms on a fake seat measure nothing, and will look like a measurement.** This
+  repository's seats are on the fake adapter until real runs produce numbers; the skill eval
+  already refuses a verdict under `simulated`, and an arm run carries no verdict to refuse.
+  A record of three arms that all ran a scenario file is a shaped absence, and the reader
+  cannot tell it from a result.
+
+  **The launcher makes the expensive thing one keystroke away.** `--arm` defaulting to all
+  three is a convenience that triples the default spend. The pre-flight is the whole
+  mitigation, and a pre-flight nobody reads is not one.
+
+  **`--tier` now means two things.** The seat an arm runs on, and the seat under
+  measurement in a configuration eval. The refusal where they meet is the guard, and a
+  refusal is a worse answer than a flag that never needed disambiguating — the alternative
+  was a second spelling, and it lost on the grounds recorded below.
+alternatives:
+  - option: >-
+      A separate verb — `torve arms` — rather than a third mode of `torve eval`
+    rejected_because: >-
+      The record lands in the eval ledger and `torve eval --report` already reads
+      it there. A second verb would own half of one ledger, and the first question
+      anyone asked would be why the arms are not an eval.
+    cites: [S-0074/D-1]
+  - option: >-
+      A distinct flag for the seat — `--seat` or `--arm-tier` — instead of reusing
+      `--tier`
+    rejected_because: >-
+      Two spellings of one concept in one verb, where the second exists only to avoid
+      a refusal the first needs anyway: `--arm` already refuses to combine with `--image`
+      and `--variant`, so the collision is bounded by a check the mode owes regardless.
+  - option: >-
+      Infer which arms to run from the gaps in the ledger — replay whatever is missing
+    rejected_because: >-
+      A verb that decides its own spend from a file is not a launcher. The gap is
+      119 tasks wide, and the first invocation would be indistinguishable from an
+      accident.
+  - option: >-
+      Record the arms under the `with`/`without` keys the ledger already carries
+    rejected_because: >-
+      `three_arm_table` filters on `ARMS` precisely so a configuration comparison
+      cannot be mistaken for an axis one. Overloading the existing keys would make
+      a skill eval and an arm run indistinguishable in the ledger, which is the one
+      thing S-0074/D-1 exists to prevent.
+    cites: [S-0074/D-1]
+  - option: >-
+      Express the gated arm by minting a contract whose acceptance is the battery's
+      commands
+    rejected_because: >-
+      That is an edit to the contract, and S-0074/D-3 is LOCKED against exactly this:
+      an arm's removals travel as properties of the replay, never as edits to the
+      manifest or the thing being judged. The regime digest would also stop being
+      comparable across arms, which is what makes the record rebuildable.
+    cites: [S-0074/D-3]
+  - option: >-
+      Ship the launcher against the half-arm that exists and add the prompt removal
+      later
+    rejected_because: >-
+      The first three-arm table ever recorded would then be a table of the configured
+      prompt against itself, twice, and the ledger is append-only — the wrong reading
+      would outlive the correction. What is cheap now is one flag threaded through
+      a dispatch.
+questions:
+  - id: Q-1
+    text: >-
+      Which tasks make an honest first set? A task whose contract was the only thing
+      keeping it narrow will flatter the apparatus, and a task the bare arm cannot
+      fail will flatter the harness; picking the set is the part of this measurement
+      that cannot be automated, and it is not settled here.
+  - id: Q-2
+    text: >-
+      Should an arm run refuse a seat on the fake adapter outright, as the skill eval
+      refuses a verdict under it? An arm run carries no verdict to withhold, so the
+      existing guard has nothing to bite on, and a recorded run of three fake arms
+      is a shaped absence that reads like a result.

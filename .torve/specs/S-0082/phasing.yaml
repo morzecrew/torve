@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the arm reaches the attempt
+    intent: >-
+      The dispatch carries which arm is running and an arm whose prompt is bare hands
+      the session the prompt `build_prompt(task, bare=True)` produces, through the
+      composed-prompt seam the review leg already uses, so the prompt's removal and
+      the battery's are two properties of one replay and the gated combination becomes
+      expressible. Nothing is edited — not the manifest, not the contract — and a
+      bare run that would land its work is still refused. Settles D-1, and D-2 is
+      implementation's within it.
+    scope:
+      - src/torve/application/dispatch.py
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - tests/test_dispatch.py
+      - tests/test_runner.py
+      - tests/test_session.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_dispatch.py tests/test_runner.py tests/test_session.py
+      - uv run mypy src
+    character: structural
+  - phase: 1
+    title: what is eligible, and what it already cost
+    intent: >-
+      One reader answering which tasks an arm run may name — completed, with a landing
+      that names a commit, from the landing files the tree holds — and what each of
+      them cost when it was done for real, from the telemetry ledger. It takes no
+      configuration and no agent, so the refusal and the pre-flight the later phases
+      print come from the same read and cannot disagree. Settles D-3.
+    scope: [src/torve/application/evals.py, tests/test_evals.py]
+    acceptance:
+      - uv run pytest tests/test_evals.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: three arms, one replay, one record
+    intent: >-
+      The three arms become one replay function taking the arm by name — `run_bare_shadow`
+      folded into it as the bare case rather than left as a second copy of `run_shadow`
+      — and one eval record per invocation, `kind: arm-eval`, whose `arms` map is
+      keyed by the three names and whose rows are the ones `_arm_row` already writes.
+      No verdict field rides it. Waits on phase 1 because the gated arm needs the
+      prompt property that phase carries. Settles D-4, D-5 and D-6, and D-7 is implementation's
+      within it.
+    scope: [src/torve/application/evals.py, tests/test_evals.py]
+    acceptance:
+      - uv run pytest tests/test_evals.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: the verb names an arm
+    intent: >-
+      `torve eval --arm <name> --task T-xxxx`, both repeatable, `--arm` defaulting
+      to all three: the third mode of the verb, refusing to combine with a skill argument
+      or with `--image` or `--variant`, refusing an arm with no task and naming what
+      was eligible, taking the seat from the task unless `--tier` names another, and
+      saying what it is about to run and what those tasks already cost before it starts.
+      `--report` is untouched and finally has something to read. Settles D-8, D-9,
+      D-10 and D-11.
+    scope: [src/torve/cli/evals.py, tests/test_evals.py]
+    acceptance:
+      - uv run pytest tests/test_evals.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: the guide says how to launch an arm
+    intent: >-
+      The operating guide's arm section gains the launcher beside the reading, and
+      its claim that the bare arm is handed a sentence and a worktree is corrected
+      to what the worktree actually carries. Written once the verb exists, from what
+      it does rather than from what this document intended. Settles D-12.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py
+    depends_on:
+      - 3
+    character: routine

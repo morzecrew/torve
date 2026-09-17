@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The arm reaches the attempt as a composed prompt — the dispatch carries which
+      arm is running, and an arm whose prompt is bare hands the session `build_prompt(task,
+      bare=True)` through `AgentContext.prompt` instead of letting the adapter compose
+      one — so the prompt's removal and the battery's are two properties of one replay
+    paths:
+      - src/torve/application/dispatch.py
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+    consequence: >-
+      the gated arm — the bare prompt with the battery judging what comes back — is
+      a combination of two flags rather than a third mechanism, and the arm that runs
+      today under the name `bare` stops being the configured prompt with the gates
+      off
+    rationale: >-
+      `build_prompt`'s `bare=True` branch has no caller outside `tests/test_tiering.py`,
+      and `real_hooks(bare=True)` swaps the gate pass and nothing else; the adapter
+      already stages a composed prompt verbatim for the review leg, so the seam is
+      the one the engine uses
+    cites: [S-0074/D-2, S-0074/D-3]
+  - id: D-2
+    grade: OPEN
+    text: >-
+      Whether a bare arm's worktree is also stripped of the projected contract, the
+      materialised skill set and the context pack is decided at implementation, and
+      whichever way it is decided the replay's record names which removals were in
+      force
+    paths: [src/torve/application/session.py]
+    consequence: >-
+      a reader of a bare arm's numbers can tell what the agent could still open, so
+      the arm's limit is a recorded fact rather than something rediscovered by whoever
+      doubts the result
+    rationale: >-
+      `run_agent_session` projects the contract, materialises the role's skills and
+      builds the pack into the worktree before the prompt is composed and unconditionally;
+      a bare prompt that mentions none of them does not make them absent from the
+      tree the agent stands in, and stripping them is a second mechanism with its
+      own failures
+    cites: [S-0074/D-2]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Which tasks an arm run may name is read from the landings the tree holds — completed,
+      with a landing that names a commit — and what those tasks already cost is read
+      from the telemetry ledger, both by one reader that takes no configuration and
+      no agent
+    paths: [src/torve/application/evals.py]
+    consequence: >-
+      the refusal for an arm with no task and the pre-flight the verb prints come
+      from the same read, so they can never disagree about what is eligible
+    rationale: >-
+      `shipped_landings` answers task id to landed commit from the landing files alone
+      and returns 119 of this repository's 122 landed tasks; without it the eligibility
+      answer arrives only as `run_shadow`'s "no shipped commit found", after a configuration
+      has been loaded and a contract parsed
+    cites: [S-0074/D-1]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The three arms are one replay function taking the arm by name, and `run_bare_shadow`
+      becomes its bare case rather than a second copy of `run_shadow`
+    paths: [src/torve/application/evals.py]
+    consequence: >-
+      the isolation every arm depends on — replay from the parent commit in a truncated
+      clone, merging nothing — is written once, so an arm cannot acquire a landing
+      path by being added to a copy nobody re-read
+    rationale: >-
+      `run_bare_shadow` is roughly 110 lines differing from `run_shadow` in one argument,
+      a docstring and a comment; a third arm added the same way is a third copy of
+      the code S-0074/D-3 is LOCKED over
+    cites: [S-0074/D-3]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      One eval record per invocation, `kind: arm-eval`, whose `arms` map is keyed
+      by the three arm names and whose rows are the ones `_arm_row` already writes,
+      so `three_arm_table` reads it with no change to the reading
+    paths: [src/torve/application/evals.py]
+    consequence: >-
+      the reader S-0074 built is the reader, unversioned and unbranched — a record
+      written today and a record written a year from now are read by the same six
+      lines
+    rationale: >-
+      `three_arm_table` walks `arms`, keeps the keys in `ARMS` and takes the last
+      line per task-arm pair; writing anything the reader would have to be taught
+      would make the first arm record and the reading land in different phases and
+      disagree in between
+    cites: [S-0074/D-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      An arm record carries no verdict field — no `matched` beside the rows — because
+      three arms are not equally exposed to the same failures and a boolean over them
+      is the mean the axis already refused
+    paths: [src/torve/application/evals.py]
+    consequence: >-
+      nothing downstream can act on an arm run without reading it per task, which
+      is the only way it can honestly be read
+    rationale: >-
+      `baseline_matched` and `candidate_matched` compare two arms that saw the same
+      failures; S-0074/D-4 settled that the arms are reported per task and any aggregate
+      is a distribution, and `_distribution` already implements it
+    cites: [S-0074/D-4]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      Whether an arm run that raises partway through lands the rows it has or lands
+      nothing is decided at implementation, and the record says which it did
+    paths: [src/torve/application/evals.py]
+    consequence: >-
+      a three-replay invocation that dies on the third does not silently become a
+      two-arm record that reads like a complete one
+    rationale: >-
+      the existing evals append their record once, after every arm of every task has
+      run, so an infrastructure failure loses the whole invocation; an arm run costs
+      enough that throwing away two completed replays deserves to be a decision rather
+      than an inheritance
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Arm mode is the third mode of `torve eval`, told apart by `--arm` — repeatable,
+      defaulting to all three — and refused at parse together with a skill argument
+      or with `--image` or `--variant`; `--report` is not touched
+    paths: [src/torve/cli/evals.py]
+    consequence: >-
+      the arms land in the ledger the reading already reads, and no invocation can
+      be both a comparison inside the apparatus and a comparison that removes it
+    rationale: >-
+      the verb already tells its two modes apart by their arguments and refuses every
+      combination that means two things at once; a fourth verb would own half of one
+      ledger
+    cites: [S-0074/D-1]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `--arm` without `--task` is refused before any spend, and the refusal names
+      which tasks are eligible rather than only which option is missing
+    paths: [src/torve/cli/evals.py]
+    consequence: >-
+      the first invocation anybody types is answered with the set it could have named,
+      so the launcher is usable without reading this document
+    rationale: >-
+      an arm run over every eligible task is 357 replays, so there is no `--all` to
+      fall back on and the missing option is the whole of the invocation
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The seat is the task's own tier unless `--tier` names another, every arm of
+      one invocation runs on the same seat, and `--tier` given with an arm names the
+      seat the arms run on rather than a candidate under measurement
+    paths: [src/torve/cli/evals.py]
+    consequence: >-
+      the same three arms can later be run on a variant seat without a second axis,
+      and a difference between arms is never a difference between seats
+    rationale: >-
+      a replay resolves its seat through `tier_name_for(task)` and no replay surface
+      overrides it today; reusing the flag costs one refusal where it meets `--image`
+      and `--variant`, which the mode owes regardless
+    cites: [S-0074/D-1]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      Before the first replay the verb prints which arms it will run over which tasks
+      and what each of those tasks' recorded attempts cost, and adds no ceiling of
+      its own — an arm run is bounded by the contract's budget and the broker's mid-run
+      refusal
+    paths: [src/torve/cli/evals.py]
+    consequence: >-
+      the largest deliberate spend behind one command in this engine says so before
+      it starts, and there is no second, weaker budget mechanism beside the working
+      one
+    rationale: >-
+      an arm run on one task is up to three replays of a task that took as many attempts
+      as it took; the bounds that exist are the contract's `Budget` and the broker's
+      token refusal escalating `COST_ANOMALY`, and no verb in this engine carries
+      a spend ceiling
+    cites: [S-0021/D-6]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      The operating guide's arm section gains how to launch the arms beside how to
+      read them, and its claim that the bare arm is handed a sentence and a worktree
+      is corrected to what the worktree actually carries
+    paths: [pages/docs/operating.md]
+    consequence: >-
+      the sentence a reader quotes a year later is the one the code supports, rather
+      than the one the design hoped for
+    rationale: >-
+      the section is written as though the arms run and the bare prompt reaches the
+      agent; both became true only here, and the worktree's contract, skills and pack
+      were never removed at all
+    cites: [S-0074/D-2]
+invariants:
+  - id: I-1
+    statement: >-
+      An arm replay merges nothing and records no result for a task whose landing
+      names no commit, whichever arm it is and however the arm was launched
+    paths: [src/torve/application/evals.py]
+    check: uv run pytest tests/test_evals.py
