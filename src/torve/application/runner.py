@@ -641,8 +641,17 @@ async def _bare_gates(run: Dispatch, _state: RunState) -> tuple[int, str, str]:
 # the ledger's per-gate repeat counts can tell those apart. Widening this set
 # is a decision with those counts behind it (S-0069/D-5's own consequence);
 # it does not happen by editing this line.
+#
+# `red-on-base` is the first widening, argued rather than edited in
+# (S-0081/D-7): its check is the same kind of pure function of the tree — a
+# test that is green against base is a property of the two trees, not a
+# verdict on the approach — and the repair is the one the conviction names,
+# writing the test the change had to make green. It qualifies only once it
+# blocks, which is the rule every name here already reads below: while the
+# gate stands at `shadow` (S-0081/D-1) its failure is a fact and routes
+# where it routes today.
 REPAIR_GATES: frozenset[str] = frozenset(
-    {"layering", "scope", "user-facing-text", "decisions-reported"}
+    {"layering", "scope", "user-facing-text", "decisions-reported", "red-on-base"}
 )
 
 
