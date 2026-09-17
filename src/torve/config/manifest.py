@@ -80,7 +80,7 @@ class Gate(BaseModel):
     axis: GateAxis | None = None
     """The optional conviction label (S-0034/D-4): what a red result from this gate means.
     Derived for unlabeled entries, functional."""
-    sabotage: str | None = None
+    sabotage: str | None = Field(default=None, min_length=1)
     """The twin's CASES family or test path (S-0036/D-3) — the evidence that this gate can
     convict. Must be a non-blank reference."""
     commands: list[str] = Field(default_factory=list)

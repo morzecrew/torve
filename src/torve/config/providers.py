@@ -156,7 +156,7 @@ class Route(BaseModel):
 
     model_config = STRICT
 
-    base_url: str = ""
+    base_url: str = Field(default="", pattern=r"^https?://")
     """Where this dialect is served (http:// or https://). Named `base_url` because that
     is what every client calls it; it was `upstream` while it lived on the broker."""
     compat: Compat = Field(default_factory=Compat)
