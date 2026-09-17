@@ -590,6 +590,49 @@ def test_the_hook_flag_points_inside_the_harness_directory(tmp_path: Path) -> No
     assert words[words.index("--plugin-dir") + 1] == str(tmp_path / "equipment")
 
 
+def test_two_skills_sharing_a_directory_name_are_refused(tmp_path: Path) -> None:
+    """Skills land in the skills root under their directory's name, and
+    `dirs_exist_ok` is there for a re-run of the same item — so two items
+    whose directories share a name would merge into one skill without a
+    word. Found by CodeAnt on a copy of this file: the second is refused,
+    naming both, and the same item listed twice still lands once."""
+
+    first = tmp_path / "one" / "readable-code"
+    second = tmp_path / "two" / "readable-code"
+    for where in (first, second):
+        where.mkdir(parents=True)
+        (where / "SKILL.md").write_text("---\nname: readable-code\n---\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    args = tmp_path / "args"
+    env = {**os.environ, "TORVE_EQUIP_ROOT": str(tmp_path / "root")}
+    script = str(DEFINITIONS / "claude" / "toolkit" / "equip_flags.py")
+
+    manifest.write_text(
+        json.dumps({"items": [{"kind": "skill", "path": str(first)}] * 2}), encoding="utf-8"
+    )
+    subprocess.run(
+        [sys.executable, script, str(manifest), str(args)], check=True, capture_output=True, env=env
+    )
+    assert (tmp_path / "root" / "readable-code" / "SKILL.md").is_file()
+
+    manifest.write_text(
+        json.dumps(
+            {
+                "items": [
+                    {"kind": "skill", "path": str(first)},
+                    {"kind": "skill", "path": str(second)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    refused = subprocess.run(
+        [sys.executable, script, str(manifest), str(args)], capture_output=True, env=env
+    )
+    assert refused.returncode != 0
+    assert b"two skills named 'readable-code'" in refused.stderr
+
+
 def test_the_mcp_flag_points_at_the_config_file(tmp_path: Path) -> None:
     """The same mapping mistake as the hook flag, one kind over, and it fails
     quietly instead of loudly: a replay came back with `mcp_servers: []` beside
