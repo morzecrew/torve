@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0426
+phase: 5
+base: f899f323d6fc5229c17201386ef62a829fb825c7
+commit: a1fcc53785b44e1e4d2a38b793f3ef31ae90a4a6
+at: '2026-09-17T16:40:11Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: OPEN
+  - id: D-17
+    grade: OPEN
+entries:
+  - decision: D-15
+    grade: ASSUMED
+    at: '2026-09-17T16:38:01Z'
+    claim: >-
+      The phase settles as written: the configuration names `promotion.landing: local`
+      explicitly with the commented explanation every other section carries, and the
+      remark pinning `base` to the local `main` is removed together with the pin it
+      explains — the remark carried its own exit clause (remove the line once the
+      work is pushed and the preference is true again) and the row rationale at .torve/specs/S-0080/decisions.yaml:216-219
+      calls the expired workaround worse than none, so what goes is the workaround
+      and its remark, and `base` returns to the default `resolve_base` preference
+      for `origin/main`, which the document measures as true now. The `.torve/schemas/config.json`
+      lag behind the `landing` field is pre-existing from the phase that added the
+      field and sits outside this scope.
+    evidence: >-
+      .torve/specs/S-0080/document.yaml:71-74 — the current_state says the rev-list
+      gap to the published remote is zero on both sides, so `main` and `origin/main`
+      agree
+    action: decided
+    proposal: >-
+      D-15 names only the remark while the exit clause and the rationale remove the
+      pin with it; the amendment should say the `base` pin and its remark go together
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-09-17T16:38:01Z'
+    claim: >-
+      The comment on `scm.open_pr: false` gives as its reason that nothing is pushed
+      to the remote yet; the same gap closure that expires the base remark expires
+      that statement too, while D-15 names only the base remark. The key stays false
+      — this repository opens no pull requests because it lands locally — but the
+      comment now names the mode above it as the reason instead of an expired fact.
+    evidence: >-
+      .torve/config.yaml:63 — the open_pr line whose comment this entry precedes rewriting;
+      after the edit the same line names the landing mode
+    action: decided
+    proposal: >-
+      the phase intent should read the remark about the remote as covering every stale
+      remote-staleness reason in the file, not only the one on `base`
+  - decision: S-0055/D-4
+    grade: LOCKED
+    at: '2026-09-17T16:38:09Z'
+    claim: >-
+      Close-out for a touched LOCKED area: every line this task adds to the run configuration
+      names a landing mode or explains one, and rewrites a comment. The file still
+      carries variable names and never values — no credential, key or DSN enters the
+      diff.
+    evidence: >-
+      .torve/config.yaml:59-60 — the `promotion:` header and `landing: local` line
+      this task adds, the only key lines it introduces
+    action: decided
