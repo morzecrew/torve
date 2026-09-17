@@ -4,7 +4,7 @@ title: >-
   The test that proves nothing, and the conviction the record can name
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0069]
 informed_by: [S-0055, S-0070, S-0071]
 supersedes: []
