@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0078
+title: The dsh seat is measurable, like the other two
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0075]
+informed_by: [S-0066]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  A dsh attempt reports its tokens and reports nothing about how it spent them: the image's reporter writes one nameless `tool-call` line per call, so the classifier that reads every claude attempt reads none of dsh's, and the seat cannot be compared on anything but price.
+motivation: |
+  The engine can say what a claude attempt did with its turns and cannot say it for a dsh one. Measured on the replays of T-0417, the dsh trace carries this:
+
+  ```
+  {"type":"turn","usage":{"outputTokens":326}}
+  {"type":"tool-call"}
+  {"type":"tool-call"}
+  ```
+
+  `classify_tool_calls` reads a name and returns nothing without one, so every dsh attempt profiles as empty: no orientation share, no calls before the first edit, no bytes by class, no reruns. The ledger says so in its own way — `executor.dsh` shows seven landings against `lines 0`, because the per-changed-line figures are computed from a profile that was never produced.
+
+  This is the half of the Arming Order's E1 that was never finished, and its note said what it would cost: *Code Mode without tool-call counts is a landing rate with no explanation.* That bill has now come due twice. The tool narrowing that landed for both seats was measured on claude and assumed for dsh. The seat comparison this repository is currently running can rank dsh on cache-read and cannot say whether a cheap dsh attempt read less or merely read the same things in fewer, larger calls.
+current_state: |
+  The reporter walks the session log and already finds every call. It then discards everything about it — `sandboxes/dsh/toolkit/report-usage`:
+
+  ```js
+  if (chunk && TOOL_TYPES.has(chunk.type)) stream.push({ type: "tool-call" });
+  ```
+
+  What it discards is present in the bytes it is already holding. dsh's own type definitions, read from the image at 0.1.1-rc.2:
+
+  ```ts
+  export interface ToolCallBlock {
+      type: 'tool-call';
+      /** Provider-issued call id; correlates with the matching tool result. */
+      id: CallId;
+      name: string;
+      /** Raw JSON string as produced by the model. */
+      arguments: string;
+  }
+  export interface ToolResultBlock {
+      type: 'tool-result';
+      toolCallId: CallId;
+      content: ContentBlock[];
+  }
+  ```
+
+  And the engine already accepts every one of those spellings. `_TOOL_EVENT_TYPES` holds `tool-call`; `_NAME_KEYS` holds `name`; `_INPUT_KEYS` holds `arguments`; `_CALL_ID_KEYS` holds `id`; `_TOOL_RESULT_TYPES` holds `tool-result`; `_LATENCY_NAMES` holds `durationMs`. A top-level `tool-call` line is read at `_tool_call_facts`'s third position and dropped by one filter — `fact["name"]` is empty, so it is unreported rather than counted as `other`.
+
+  So the engine is not owed a change. The scanner was written for three harnesses and the third one never spoke to it.
+goals: |
+  - A dsh attempt produces the same burn profile a claude attempt does: classes, calls before the first edit, bytes by class, reruns.
+  - `torve ledger` reports per-changed-line figures for `executor.dsh` rather than `lines 0`.
+  - The seat comparison can say *why* a dsh attempt was cheap, not only that it was.
+non_goals: |
+  - Cost per dsh attempt. The plan is a prepaid quota and the provider record carries no price on purpose (S-0064/D-12); an absent cost stays absent.
+  - Changing what dsh is given. This document makes an existing seat legible; the tool set, the door and the reasoning level are settled elsewhere.
+  - The other two images. mimo already emits and claude already parses.
+tests: |
+  `tests/test_sandbox_defs.py` drives the reporter over a fixture session log and asserts the emitted stream, the way it already drives `model_overlay.py` and `equip_flags.py`. The engine half needs no test because it needs no change — what needs one is the claim that it needs no change, so the fixture's emitted lines are fed to `parse_tool_calls` and the resulting facts asserted.
+docs: |
+  `sandboxes/AGENTS.md` describes what each image's reporter emits; the dsh entry changes from a count to a stream.
+out_of_scope: |
+  The `reasoningTokens` field, which the reporter already collects and the engine deliberately does not extract (its cost math bills `outputTokens` as the whole output). It stays out for the same reason.
+risks: |
+  The log's shape is read from one version of one image. A later dsh renames the block or moves the fields and the reporter goes quiet again — which is the failure this document is fixing, so the check has to be one that fails loudly: a reporter that finds turns and no named calls is a broken reporter, not an attempt that made none, and the fixture is what says so.
+
+  The second risk is that the profile arrives and disagrees with the claude corpus — that dsh's orientation share is not comparable because pi-ai's tools are not claude's. `grep` is `grep` and `read` is `read`, but `str_replace_editor` and `bash` do not partition the same way. The classifier's vocabulary was derived from claude's names and may need rows for dsh's; that is work this document should expect rather than be surprised by.

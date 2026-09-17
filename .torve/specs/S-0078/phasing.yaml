@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the reporter names what it counts
+    intent: >-
+      The image's reporter carries the name, the parsed arguments and the id of every
+      call it already finds, and emits a result line joined by that id so a call's
+      bytes and latency reach the profile. The fixture drives the reporter over a
+      session log and then feeds what it emitted to the engine's own scanner, so the
+      claim that the engine needs no change is asserted rather than assumed.
+    scope: [sandboxes/dsh/toolkit/report-usage, tests/test_sandbox_defs.py]
+    acceptance:
+      - uv run pytest
+      - uv run ruff check .
+    character: routine
+  - phase: 2
+    title: the classifier's vocabulary covers pi-ai's tools
+    intent: >-
+      With real dsh profiles in hand, the classifier's classes are checked against
+      the names pi-ai actually uses - `bash`, `read`, `write`, `edit`, `glob`, `grep`,
+      `skill` - and any that fall to `other` are given a row. Phase 1 first, because
+      what needs a row is a question only a profile can answer.
+    scope: [src/torve/application/telemetry.py, tests/test_attempt_record.py]
+    acceptance:
+      - uv run pytest
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural

@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The image's reporter carries the call's name, its arguments and its id, and
+      emits a result line joined to it by that id
+    paths: [sandboxes/dsh/toolkit/report-usage]
+    consequence: >-
+      a dsh attempt profiles like a claude one, and the engine's scanner is not touched
+      to make it happen
+    rationale: >-
+      measured against the image at 0.1.1-rc.2: dsh's own `ToolCallBlock` carries
+      `id`, `name` and `arguments`, and `ToolResultBlock` carries `toolCallId` and
+      `content`. The scanner already accepts every one of those spellings - `tool-call`
+      is in `_TOOL_EVENT_TYPES`, `name` in `_NAME_KEYS`, `arguments` in `_INPUT_KEYS`,
+      `id` in `_CALL_ID_KEYS` - so a named line is read at the third position of `_tool_call_facts`
+      and only the empty-name filter drops it today. The reporter is where the loss
+      happens and therefore where the fix belongs (S-0063/D-1: the image is the only
+      thing that knows what harness it contains)
+    cites: [S-0066/D-3, S-0075/D-2]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `arguments` is parsed into an object before it is emitted, and a string that
+      will not parse is emitted as no input rather than as text
+    paths: [sandboxes/dsh/toolkit/report-usage]
+    consequence: >-
+      the classifier reads a command and a path where there is one, and a call whose
+      arguments were malformed still counts as a call
+    rationale: >-
+      dsh spells `arguments` as a raw JSON string and the scanner's `_call_input`
+      returns a value only when it is a mapping, so an unparsed string reaches the
+      classifier as no input at all and every dsh call lands in one class. Parsing
+      in the image rather than teaching the scanner a second shape keeps one meaning
+      per key across three harnesses
+    cites: [S-0075/D-2]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      A reporter that finds turns and no named call fails the build rather than reporting
+      an attempt that made none
+    paths: [tests/test_sandbox_defs.py, sandboxes/dsh/toolkit/report-usage]
+    consequence: >-
+      a later dsh that renames the block or moves the fields is caught by the image's
+      own tests instead of by a quarter of silent, unprofiled attempts
+    rationale: >-
+      this is the failure being repaired, so it must not be able to recur quietly.
+      The reporter has been dropping names since it was written and nothing went red:
+      the profile was empty, the ledger read `lines 0`, and both looked like facts
+      about the seat. The same shape as the equipment cache whose key could not move
+      and the `maxBytes` the door dropped - a truth the record states confidently
+      and has not checked
+    cites: [S-0066/D-3]
+invariants:
+  - id: I-1
+    statement: >-
+      Every harness the fleet runs produces a burn profile the same classifier can
+      read
+    paths: [sandboxes/dsh/toolkit/report-usage, src/torve/application/telemetry.py]
+    check: >-
+      uv run pytest tests/test_sandbox_defs.py -k reporter
