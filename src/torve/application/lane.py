@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from torve.application.feedback import capture_feedback
@@ -116,9 +116,13 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
 # ....................... #
 
 
-def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
+def _regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str]:
     """The full battery over the rebased tree, exactly as `torve gates run`
-    would judge it — fail-closed on a missing manifest."""
+    would judge it — fail-closed on a missing manifest.
+
+    A document branch carries several tasks' work and is judged under no one
+    task's contract (S-0083/D-13): `task_id` is None there, and the battery
+    reads the manifest's own scope as it does anywhere else with no task."""
 
     from torve.gates.context import build_context, load_task, resolve_base
     from torve.gates.runner import run_gates
@@ -131,16 +135,17 @@ def _regate(workdir: Path, base_ref: str, task_id: str) -> tuple[int, str]:
     from torve.config.manifest import load_manifest
 
     manifest = load_manifest(manifest_path)
-    task_path = layout.task_file(workdir, task_id)
+    task_path = layout.task_file(workdir, task_id) if task_id else None
+    landed = task_path is not None and task_path.is_file()
 
     ctx = build_context(
         workdir,
         manifest,
         base=resolve_base(workdir, base_ref),
-        task_path=task_path if task_path.is_file() else None,
+        task_path=task_path if landed else None,
     )
 
-    if task_path.is_file():
+    if landed and task_path is not None:
         ctx.task = load_task(task_path)
 
     report = run_gates(ctx)
@@ -861,6 +866,328 @@ def _forge_verdict(
 
 # ....................... #
 
+# What the stream last recorded about a document branch's own pull request
+# (S-0083/D-10, S-0083/D-11). A verdict is terminal here for the reason it is
+# terminal per task: the lane reads it back from its own records and never
+# asks the forge about that branch again.
+_DOCUMENT_VERDICTS = {
+    "lane_document_landed": "landed",
+    "lane_document_closed": "closed",
+    "lane_pr_unresolved": "unresolved",
+}
+
+
+@dataclass
+class _Document:
+    """What the lane's own records say about one document branch: the verdict
+    its pull request carries, every task its landings named, and the base tip
+    a rebase of it last conflicted against."""
+
+    verdict: str = ""
+    tasks: list[str] = field(default_factory=list)
+    conflict_base: str = ""
+
+
+def _document_ledger(root: Path) -> dict[str, _Document]:
+    """The document pull requests the lane holds, from its own recorded
+    events (S-0083/D-12): a branch is open from the first landing onto it, and
+    a later verdict closes it out. The tasks are read from the same landings,
+    so the join from the branch back to the work it carries needs no second
+    record and no forge call (S-0083/D-10).
+
+    Only a branch a landing named is tracked, so a task branch the forge
+    could not resolve is not mistaken for a document."""
+
+    from torve.application.projections import stream_rows
+
+    ledger: dict[str, _Document] = {}
+
+    for row in stream_rows(root):
+        event = str(row.get("event", ""))
+        branch = str(row.get("branch") or "")
+
+        if not branch:
+            continue
+
+        if event == "lane_landed" and row.get("unit") == "document":
+            entry = ledger.setdefault(branch, _Document())
+            entry.verdict = "open"
+            task = str(row.get("task") or "")
+
+            if task and task not in entry.tasks:
+                entry.tasks.append(task)
+
+        elif branch not in ledger:
+            continue
+
+        elif event in _DOCUMENT_VERDICTS:
+            ledger[branch].verdict = _DOCUMENT_VERDICTS[event]
+
+        elif event == "lane_document_conflict":
+            ledger[branch].conflict_base = str(row.get("base_tip") or "")
+
+    return ledger
+
+
+# ....................... #
+
+
+def _escalate_document(root: Path, branch: str, tasks: list[str], detail: str) -> None:
+    """A document branch a person has to unstick escalates the work it
+    carries (S-0083/D-13): the branch has no run state of its own, and an
+    escalation nobody can see is not one — the queue's age has to start
+    counting somewhere. A task that has already moved on is left alone."""
+
+    for task_id in tasks:
+        path = naming.state_file(root, task_id)
+
+        if not path.is_file():
+            continue
+
+        state = RunState.load(path)
+
+        if state.state is TaskState.READY:
+            state.escalate(EscalationReason.MERGE_CONFLICT, detail)
+
+
+# ....................... #
+
+
+def _rebase_document(
+    root: Path,
+    vcs: LaneVcs,
+    publish: Publisher,
+    document: str,
+    branch: str,
+    entry: _Document,
+    number: int,
+    results: list[LaneResult],
+) -> None:
+    """A pull request still open (S-0083/D-13). Against an unmoved base it
+    already shows the tree the battery judged and it is a person's turn. A
+    base that moved under it is the ordinary case for a branch that lives
+    days: rebase in a disposable worktree, re-run the battery over the
+    rebased tree, republish under lease — bounded once per base tip, so a
+    branch against a moving `main` cannot rebase itself in a loop.
+
+    A conflict aborts and escalates for a person; the lane never resolves
+    one, and the branch is left exactly as it was (S-0083/D-14)."""
+
+    from torve.gates.context import resolve_base
+
+    branch_tip = vcs.tip(root, branch)
+    base = resolve_base(root, None, fetch=True)
+    base_tip = vcs.tip(root, base) if base else None
+
+    if (
+        branch_tip is None
+        or base is None
+        or base_tip is None
+        or vcs.is_ancestor(root, base_tip, branch_tip)
+    ):
+        results.append(
+            LaneResult(
+                document,
+                branch,
+                "pull request open",
+                f"pull request #{number} awaits a person",
+                branch_tip or "",
+            )
+        )
+
+        return
+
+    if entry.conflict_base == base_tip:
+        # Once per base tip (S-0006/D-12): the same conflict against the same
+        # base is the person's, and re-running it buys no new signal.
+        results.append(
+            LaneResult(
+                document,
+                branch,
+                "conflict",
+                f"merge_conflict: {branch!r} still conflicts with {base!r} — escalated",
+                branch_tip,
+            )
+        )
+
+        return
+
+    workdir = root / naming.WORKTREE_DIR / f"lane-{document}"
+
+    if not vcs.rebase_in_worktree(root, branch, base, workdir):
+        engine_event(
+            root,
+            "lane_document_conflict",
+            {"branch": branch, "base_tip": base_tip, "tasks": entry.tasks, "pr": number},
+        )
+        _escalate_document(
+            root,
+            branch,
+            entry.tasks,
+            f"the document branch {branch!r} no longer rebases onto {base!r}; "
+            "a person resolves it — the branch is untouched",
+        )
+        results.append(
+            LaneResult(
+                document,
+                branch,
+                "conflict",
+                f"merge_conflict: rebase onto {base!r} aborted, branch untouched — run escalated",
+                branch_tip,
+            )
+        )
+
+        return
+
+    try:
+        exit_code, summary = _regate(workdir, base, None)
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    if exit_code != 0:
+        # Back where it stood: a branch left on the new base reads to the
+        # next pass as a base that never moved, which is the path that skips
+        # the battery.
+        vcs.reset_branch(root, branch, branch_tip)
+        engine_event(root, "lane_gates_red", {"branch": branch, "gates": summary})
+        results.append(LaneResult(document, branch, "gates red", summary, branch_tip))
+
+        return
+
+    rebased = vcs.tip(root, branch) or branch_tip
+    reference = _publish(root, publish, entry.tasks[-1], branch, rebased, results)
+
+    if reference is None:
+        vcs.reset_branch(root, branch, branch_tip)
+        return
+
+    engine_event(
+        root,
+        "lane_document_rebased",
+        {"branch": branch, "sha": rebased, "pr": reference, "tasks": entry.tasks},
+    )
+    results.append(
+        LaneResult(document, branch, "pull request", f"rebased onto {base}, gates green", rebased)
+    )
+
+
+# ....................... #
+
+
+def _document_verdicts(
+    root: Path,
+    vcs: LaneVcs,
+    forge: Forge,
+    publish: Publisher,
+    results: list[LaneResult],
+) -> dict[str, tuple[str, str]]:
+    """The later pass's read-back at the document unit (S-0083/the-engine-reads-what-the-person-did).
+
+    One forge call per open document pull request the lane's own records
+    name, and none at all for a pass holding none (S-0083/D-12) — a document
+    of six phases costs one call per pass rather than six, because the
+    question is now per document.
+
+    **Merged** is the document's landing (S-0083/D-10): one record naming the
+    squash commit and every task the branch carried, and not a second landing
+    per task — each task's landing was recorded when it landed on the branch,
+    and what the merge adds is which commit the document became.
+
+    **Closed** abandons every task the branch carries (S-0083/D-11): a person
+    who declined a design declined all of it. Never re-queued and never
+    escalated for triage.
+
+    **Still open** is `_rebase_document`'s. Under every verdict the branch is
+    kept (S-0083/D-14), so the join from each task to its own commits survives
+    a merge that squashed them into one.
+
+    Returns what each carried task is now, as (action, branch): a task the
+    record says landed on a document branch has landed, whatever a rebase of
+    that branch did to the ancestry its own tip used to have, and a task on a
+    branch a person closed is abandoned rather than offered a second pull
+    request.
+    """
+
+    carried: dict[str, tuple[str, str]] = {}
+
+    for branch, entry in sorted(_document_ledger(root).items()):
+        for task_id in entry.tasks:
+            carried[task_id] = (
+                "abandoned" if entry.verdict == "closed" else "already landed",
+                branch,
+            )
+
+        if entry.verdict != "open":
+            continue
+
+        info = forge(branch)
+        document = branch.rsplit("/", 1)[-1]
+
+        if info is None:
+            engine_event(root, "lane_pr_unresolved", {"branch": branch, "tasks": entry.tasks})
+            results.append(
+                LaneResult(
+                    document,
+                    branch,
+                    "pr unresolved",
+                    "the forge knows no pull request for the branch; not re-opened",
+                )
+            )
+
+        elif info.state == "merged":
+            sha = info.merge_commit or info.head_sha
+
+            engine_event(
+                root,
+                "lane_document_landed",
+                {
+                    "branch": branch,
+                    "sha": sha,
+                    "pr": info.number,
+                    "tasks": entry.tasks,
+                    # Read after the fact: `at` is when the engine asked, not
+                    # when the person clicked.
+                    "observed": True,
+                },
+            )
+            results.append(
+                LaneResult(
+                    document,
+                    branch,
+                    "landed",
+                    f"pull request #{info.number} merged, carrying {', '.join(entry.tasks)}",
+                    sha,
+                )
+            )
+
+        elif info.state == "closed":
+            engine_event(
+                root,
+                "lane_document_closed",
+                {"branch": branch, "pr": info.number, "tasks": entry.tasks},
+            )
+            results.append(
+                LaneResult(
+                    document,
+                    branch,
+                    "abandoned",
+                    f"pull request #{info.number} was closed without merging, "
+                    f"abandoning {', '.join(entry.tasks)}",
+                )
+            )
+
+        else:
+            _rebase_document(root, vcs, publish, document, branch, entry, info.number, results)
+
+        if info is not None and info.state == "closed":
+            carried.update(dict.fromkeys(entry.tasks, ("abandoned", branch)))
+
+    return carried
+
+
+# ....................... #
+
 
 def _land_fast_forward(
     root: Path,
@@ -1126,7 +1453,9 @@ def process_lane(
 
     A `forge` is the same mode's read-back: on a later pass each candidate
     with a pull request open is asked about, and the verdict is recorded
-    (S-0080/the-landing-arrives-as-an-answer). A dry run asks nothing, as it publishes nothing.
+    (S-0080/the-landing-arrives-as-an-answer) — at the document unit once per
+    open document rather than once per task (S-0083/D-12). A dry run asks
+    nothing, as it publishes nothing.
 
     `unit` is the landing unit (S-0083/D-1), a term of the same configuration:
     `document` lands every phase of a document onto the document's own branch
@@ -1152,6 +1481,15 @@ def process_lane(
     # lane's record of what it has open (S-0080/D-16).
     ledger = _pr_ledger(root) if forge is not None and not dry_run else {}
 
+    carried: dict[str, tuple[str, str]] = {}
+
+    if forge is not None and publish is not None and not dry_run:
+        # Before the candidates, so a document a person merged or closed this
+        # evening is recorded before anything lands onto its branch again.
+        # Asked per document rather than per task, from the lane's own
+        # records, so a pass holding none asks nothing (S-0083/D-12).
+        carried = _document_verdicts(root, vcs, forge, publish, results)
+
     for state in ready_candidates(root):
         if only is not None and state.task_id != only:
             continue
@@ -1166,6 +1504,15 @@ def process_lane(
                     task_id, branch, "no branch", "ran outside the engine or already cleaned up"
                 )
             )
+
+            continue
+
+        if task_id in carried:
+            # The record, not the ancestry: a rebase of the document branch
+            # rewrote the commits this tip used to be an ancestor of, and the
+            # work is on that branch either way (S-0083/D-10, S-0083/D-11).
+            action, held = carried[task_id]
+            results.append(LaneResult(task_id, held, action, f"carried by {held}", sha=branch_tip))
 
             continue
 

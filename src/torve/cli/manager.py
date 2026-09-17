@@ -123,7 +123,7 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
         # the manager unable to reclaim, mint or dispatch (T-0284).
         from torve.adapters.vcs.git import GitLane
         from torve.application.lane import conflict_disposal, process_lane
-        from torve.cli.merge import _resolve_ci
+        from torve.cli.merge import _forge, _publisher, _resolve_ci
 
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
@@ -142,6 +142,15 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
             on_conflict=conflict_disposal(root, GitLane()),
+            # The landing act and the read-back the manual verb is handed
+            # (S-0083/D-15): without them an armed pass under
+            # `landing: pull_request` fast-forwards the checkout's base
+            # locally, which is the one act that mode exists to avoid — and a
+            # unit for a night nothing but the manual verb can reach is a unit
+            # for nothing.
+            publish=_publisher(root, config),
+            forge=_forge(config),
+            unit=config.promotion.unit,
         )
 
         return [result.task for result in results if result.landed]

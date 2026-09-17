@@ -1368,3 +1368,290 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
 
     assert result.exit_code == 0, result.output
     assert seen == [("T-7209", naming.document_branch("S-0905"))]
+
+
+# The later pass at the document unit (S-0083/D-10, S-0083/D-11, S-0083/D-12,
+# S-0083/D-13, S-0083/D-14): one question per open document, and the verdict a
+# person gave recorded once for the whole branch.
+
+
+def _landed_document(
+    root: Path, tmp_path: Path, spec: str, phases: dict[str, str], published: list
+) -> str:
+    """A document branch carrying one landing per phase — the record a later
+    pass reads its own open pull request back from."""
+
+    _origin(root, tmp_path)
+
+    for task_id, filename in phases.items():
+        candidate(root, task_id, filename, f"# {task_id}\n")
+
+    for task_id in phases:
+        _contract(root, task_id, spec)
+
+    process_lane(root, GitLane(), publish=_recording_publisher(published), unit="document")
+
+    return naming.document_branch(spec)
+
+
+def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(
+        lane_repo, tmp_path, "S-0910", {"T-7301": "one.py", "T-7302": "two.py"}, published
+    )
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=21, state="merged", merge_commit="d" * 40), asked),
+        unit="document",
+    )
+
+    # One question for the document, not one per phase (S-0083/D-12).
+    assert asked == [document]
+    assert [r.action for r in results] == ["landed", "already landed", "already landed"]
+    assert results[0].sha == "d" * 40
+    assert "T-7301, T-7302" in results[0].detail
+
+    landing = [e for e in _events(lane_repo) if e.get("event") == "lane_document_landed"]
+    assert len(landing) == 1
+    assert landing[0]["sha"] == "d" * 40
+    assert landing[0]["pr"] == 21
+    assert landing[0]["tasks"] == ["T-7301", "T-7302"]
+    # Not a second landing per task: the two on the stream are the two the
+    # phases wrote when they landed on the branch (S-0083/D-10).
+    assert [e["task"] for e in _events(lane_repo) if e.get("event") == "lane_landed"] == [
+        "T-7301",
+        "T-7302",
+    ]
+    # S-0083/D-14: nobody deletes the branch, so the commits the squash
+    # rewrote stay reachable task by task.
+    assert git(lane_repo, "show", f"{document}:two.py")
+
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=21, state="merged", merge_commit="d" * 40), asked),
+        unit="document",
+    )
+    # The verdict is terminal: no second question and no second pull request.
+    assert asked == [document]
+    assert [r.action for r in again] == ["already landed", "already landed"]
+    assert len(published) == 2
+
+
+def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch(
+    lane_repo, tmp_path
+):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(
+        lane_repo, tmp_path, "S-0911", {"T-7303": "three.py", "T-7304": "four.py"}, published
+    )
+    tip = git(lane_repo, "rev-parse", document)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=22, state="closed"), asked),
+        unit="document",
+    )
+
+    assert [r.action for r in results] == ["abandoned", "abandoned", "abandoned"]
+    assert "T-7303, T-7304" in results[0].detail
+    closed = [e for e in _events(lane_repo) if e.get("event") == "lane_document_closed"]
+    assert len(closed) == 1
+    assert closed[0]["tasks"] == ["T-7303", "T-7304"]
+    assert closed[0]["pr"] == 22
+    # A person declined the design, not a triage queue: nothing is escalated
+    # and nothing is re-queued (S-0083/D-11).
+    for task_id in ("T-7303", "T-7304"):
+        state = RunState.load(naming.state_file(lane_repo, task_id))
+        assert state.state is TaskState.READY
+        assert state.escalation is None
+
+    # The branch is kept, and the work on it is never offered a second pull
+    # request.
+    assert git(lane_repo, "rev-parse", document) == tip
+
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=22, state="closed"), asked),
+        unit="document",
+    )
+    assert [r.action for r in again] == ["abandoned", "abandoned"]
+    assert asked == [document]
+    assert len(published) == 2
+
+
+def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0912", {"T-7305": "five.py"}, published)
+
+    (lane_repo / "app.py").write_text("base = 5\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves")
+    git(lane_repo, "push", "-q", "origin", "main")
+    moved = git(lane_repo, "rev-parse", "origin/main")
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=23, state="open"), asked),
+        unit="document",
+    )
+
+    assert asked == [document]
+    assert [r.action for r in results] == ["pull request", "already landed"]
+    # The branch a person is looking at is the one the battery just judged,
+    # sitting on the remote's `main` (S-0083/D-13).
+    tip = git(lane_repo, "rev-parse", document)
+    assert results[0].sha == tip
+    assert git(lane_repo, "merge-base", "--is-ancestor", moved, tip) == ""
+    assert git(lane_repo, "show", f"{document}:five.py")
+    assert published[-1] == ("T-7305", document)
+
+    # Rebased onto the tip it now sits on: the next pass has nothing to do.
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=23, state="open"), asked),
+        unit="document",
+    )
+    assert [r.action for r in again] == ["pull request open", "already landed"]
+    assert len(published) == 2
+
+
+def test_an_open_document_on_an_unmoved_base_spends_no_push(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0913", {"T-7306": "six.py"}, published)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=24, state="open"), asked),
+        unit="document",
+    )
+
+    assert asked == [document]
+    assert [r.action for r in results] == ["pull request open", "already landed"]
+    assert "#24" in results[0].detail
+    assert len(published) == 1
+
+
+def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    # The phase and the base both write `app.py`, so no rebase of the branch
+    # onto the moved remote can be clean.
+    document = _landed_document(lane_repo, tmp_path, "S-0914", {"T-7307": "app.py"}, published)
+    tip = git(lane_repo, "rev-parse", document)
+
+    (lane_repo / "app.py").write_text("base = 7\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves onto the same line")
+    git(lane_repo, "push", "-q", "origin", "main")
+    base_tip = git(lane_repo, "rev-parse", "origin/main")
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=25, state="open"), asked),
+        unit="document",
+    )
+
+    assert [r.action for r in results] == ["conflict"]
+    conflicts = [e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]
+    assert len(conflicts) == 1
+    assert conflicts[0]["base_tip"] == base_tip
+    assert conflicts[0]["tasks"] == ["T-7307"]
+    # The engine never resolves one: the branch stands exactly as measured
+    # and the work it carries waits on a person.
+    assert git(lane_repo, "rev-parse", document) == tip
+    state = RunState.load(naming.state_file(lane_repo, "T-7307"))
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=25, state="open"), asked),
+        unit="document",
+    )
+
+    # Bounded once per base tip: the same collision against the same base is
+    # reported, never rebased a second time.
+    assert [r.action for r in again] == ["conflict"]
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]) == 1
+    assert git(lane_repo, "rev-parse", document) == tip
+    assert len(published) == 1
+
+
+def test_a_pass_holding_no_document_asks_the_forge_nothing(lane_repo, tmp_path):
+    # S-0083/D-12: the lane's own records are what it holds open, so an idle
+    # night spends no forge call at all.
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7308", "eight.py", "eight = 8\n")
+    _contract(lane_repo, "T-7308", "S-0915")
+    published: list[tuple[str, str]] = []
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(state="merged", merge_commit="e" * 40), asked),
+        unit="document",
+    )
+
+    assert asked == []
+    assert [r.action for r in results] == ["landed"]
+
+
+def test_the_served_leg_publishes_and_reads_back_as_the_manual_verb_does(lane_repo, tmp_path):
+    # S-0083/D-15: handed neither, an armed pass under `landing: pull_request`
+    # fast-forwards the checkout's base locally — the one act the mode exists
+    # to avoid.
+    import torve.cli.merge as merge_module
+
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7309", "nine.py", "nine = 9\n")
+    _contract(lane_repo, "T-7309", "S-0916")
+    base_before = git(lane_repo, "rev-parse", "main")
+
+    config = RunnerConfig(
+        promotion=PromotionConfig(auto_merge=True, landing="pull_request", unit="document")
+    )
+    published: list[tuple[str, str]] = []
+    asked: list[str] = []
+    original = (merge_module._publisher, merge_module._forge)
+    merge_module._publisher = lambda root, config: _recording_publisher(published)
+    merge_module._forge = lambda config: _forge(_pr(number=26, state="open"), asked)
+
+    try:
+        leg = _lane_leg(lane_repo, config, only=None)
+        assert leg is not None
+        assert asyncio.run(leg()) == ["T-7309"]
+        assert asyncio.run(leg()) == []
+    finally:
+        merge_module._publisher, merge_module._forge = original
+
+    document = naming.document_branch("S-0916")
+    assert published == [("T-7309", document)]
+    # The second pass asked about the document the first left open, and the
+    # checkout's base was never moved by either.
+    assert asked == [document]
+    assert git(lane_repo, "rev-parse", "main") == base_before

@@ -38,7 +38,7 @@ from torve.domain.states import (
 if TYPE_CHECKING:
     from rich.console import Console
 
-    from torve.application.lane import LaneResult, Publisher
+    from torve.application.lane import Forge, LaneResult, Publisher
     from torve.application.ports import CiStatus
     from torve.config.runconfig import RunnerConfig
 
@@ -50,7 +50,10 @@ _MARKS = {
     "would land": "pass",
     "would rebase": "pass",
     "pull request": "pass",
+    "pull request open": "pass",
     "would open pull request": "pass",
+    "abandoned": "skipped",
+    "pr unresolved": "skipped",
     "pr refused": "fail",
     "conflict": "fail",
     "gates red": "fail",
@@ -161,6 +164,26 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
         return scm.open_pr(root, branch, title, body)
 
     return publish
+
+
+# ....................... #
+
+
+def _forge(config: RunnerConfig) -> Forge | None:
+    """The later pass's read-back, or None in `local` mode — the same term of
+    configuration the publisher is built from (S-0080/D-1).
+
+    What the forge holds for a branch, asked once per pull request the lane's
+    own records say it has open: merged is the landing, closed is a person
+    declining the work, and still open against a moved base is rebased,
+    re-measured and republished."""
+
+    if config.promotion.landing != "pull_request":
+        return None
+
+    from torve.adapters.vcs.git import GhScm
+
+    return GhScm(config.scm.repo, config.scm.token_env).pr_for_branch
 
 
 # ....................... #
@@ -328,6 +351,10 @@ def merge_cmd(
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
             publish=_publisher(root, config),
+            # The verdict a person gave arrives as an answer to a question the
+            # engine asks (S-0080/D-6): once per open pull request the lane's
+            # own records name, and nothing at all when it holds none.
+            forge=_forge(config),
             # The landing unit is a term of configuration and nothing else
             # (S-0083/D-1); a local landing has no pull request to be one per,
             # and the lane ignores it there (S-0083/D-2).
