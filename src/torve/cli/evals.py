@@ -23,6 +23,7 @@ from torve.cli.console import (
     Format,
     closing,
     emit_json,
+    err,
     fail,
     header,
     id_list,
@@ -132,6 +133,34 @@ def _report_arms(root: Path, task_ids: list[str], fmt: Format) -> None:
 # ....................... #
 
 
+def _preflight(arms: list[str], costs: dict[str, dict[str, Any]], seat: str, fmt: Format) -> None:
+    """What an arm run is about to do, before it does it (S-0082/D-11): which arms
+    over which tasks on which seat, and what those tasks' recorded attempts
+    already cost when they were done for real. No ceiling of its own — an arm
+    run is bounded by the contract's budget and the broker's mid-run refusal.
+    Under --format json it goes to stderr, so stdout stays one document."""
+
+    console = err() if fmt is Format.JSON else out(fmt)
+    header(console, "eval", f"arms {', '.join(arms)} · seat {seat}")
+    table = make_table("task", "recorded attempts", "cost usd")
+
+    for task_id, row in costs.items():
+        cost = row["cost_usd"]
+        table.add_row(task_id, str(row["attempts"]), "-" if cost is None else f"{cost:.4f}")
+
+    console.print(table)
+    console.print(
+        Text(
+            f"{len(arms) * len(costs)} replay(s) about to start, nothing merged — an arm run "
+            "is bounded by the contract's budget and the broker's refusal, and by nothing here",
+            STYLE_WARN,
+        )
+    )
+
+
+# ....................... #
+
+
 def eval_cmd(
     skill: Annotated[
         str | None,
@@ -149,6 +178,15 @@ def eval_cmd(
             "narrows the reading to the named tasks instead.",
         ),
     ] = [],  # noqa: B006 — typer reads the default, and a list option is never mutated
+    arm_names: Annotated[
+        list[str],
+        typer.Option(
+            "--arm",
+            help="An arm of the apparatus axis to replay — bare, gated or configured; "
+            "repeatable, and all three when omitted. Refuses to combine with a skill "
+            "argument or with --image or --variant.",
+        ),
+    ] = [],  # noqa: B006 — typer reads the default, and a list option is never mutated
     report: Annotated[
         bool,
         typer.Option(
@@ -162,7 +200,8 @@ def eval_cmd(
         typer.Option(
             "--tier",
             help="The seat tier under measurement; pairs with --image or --variant "
-            "instead of a skill argument.",
+            "instead of a skill argument. On an arm run it names the seat every arm "
+            "runs on instead of the task's own.",
         ),
     ] = None,
     image: Annotated[
@@ -187,9 +226,12 @@ def eval_cmd(
     """Measure a skill against its without-skill baseline, or (with --tier plus
     --image or --variant instead of a skill) a candidate configuration against
     the incumbent: every named task replays twice in shadow, and one eval
-    record lands in the evals ledger. Nothing a replay produces is ever
-    merged. With --report nothing runs: the arms already recorded are read
-    back from the ledger, one table per task."""
+    record lands in the evals ledger. Naming neither — a bare --task, or
+    --arm — replays the named tasks across the apparatus arms instead, all
+    three unless --arm narrows them, on the task's own seat unless --tier
+    names another. Nothing a replay produces is ever merged. With --report
+    nothing runs: the arms already recorded are read back from the ledger,
+    one table per task."""
 
     if report:
         # The reading needs the ledger and nothing else — no configuration,
@@ -211,7 +253,10 @@ def eval_cmd(
     )
     from torve.application.dispatch import RunDeps
     from torve.application.evals import (
+        ARMS,
         candidate_config,
+        eligible_tasks,
+        run_arm_eval,
         run_config_eval,
         run_skill_eval,
         without_skill,
@@ -219,10 +264,40 @@ def eval_cmd(
     from torve.application.ports import Agent
     from torve.application.shadow import ShadowSource
     from torve.cli.run import build_tier_agent
-    from torve.config.runconfig import ProviderDenied, route_provider, tier_for
+    from torve.config.runconfig import ProviderDenied, route_provider, tier_for, tier_name_for
     from torve.domain.task import Task
 
     config_mode = tier is not None or image is not None or variant is not None
+
+    # The third mode, told apart by its own argument (S-0082/D-8) — and by naming
+    # neither of the other two's, since the axis is the three arms and an
+    # invocation that names no comparison inside the apparatus is a run of it.
+    # `--tier` here is the seat the arms run on (S-0082/D-10), never a candidate.
+    arm_mode = bool(arm_names) or (skill is None and not config_mode)
+
+    if arm_mode:
+        if skill is not None:
+            raise fail(
+                "configuration error: give a skill argument or --arm, not both — one names "
+                "a comparison inside the apparatus and the other removes it",
+                EXIT_CONFIG,
+            )
+
+        if image is not None or variant is not None:
+            raise fail(
+                "configuration error: --arm refuses to combine with --image or --variant — "
+                "one names a comparison inside the apparatus and the other removes it",
+                EXIT_CONFIG,
+            )
+
+        arms = list(arm_names) or list(ARMS)
+        unknown = [name for name in arms if name not in ARMS]
+
+        if unknown:
+            raise fail(
+                f"configuration error: unknown arm {unknown[0]!r} — the arms are {', '.join(ARMS)}",
+                EXIT_CONFIG,
+            )
 
     if skill is not None and config_mode:
         raise fail(
@@ -230,7 +305,11 @@ def eval_cmd(
             EXIT_CONFIG,
         )
 
-    if skill is None and not (tier is not None and (image is not None or variant is not None)):
+    if (
+        skill is None
+        and not arm_mode
+        and not (tier is not None and (image is not None or variant is not None))
+    ):
         raise fail(
             "configuration error: give a skill argument, or --tier with either "
             "--image or --variant",
@@ -244,6 +323,37 @@ def eval_cmd(
             EXIT_CONFIG,
         )
 
+    root = root.resolve()
+    eligible: dict[str, dict[str, Any]] = {}
+
+    if arm_mode:
+        # One read answers both the refusal and the pre-flight, so they can
+        # never disagree about what an arm run may name (S-0082/D-3, S-0082/D-9).
+        eligible = eligible_tasks(root)
+        listing = (
+            f"eligible now: {id_list(sorted(eligible))}"
+            if eligible
+            else "nothing is eligible yet — a task becomes eligible once a landing names "
+            "the commit a replay starts from"
+        )
+
+        if not task_ids:
+            raise fail(
+                f"configuration error: give at least one --task to replay; {listing}",
+                EXIT_CONFIG,
+            )
+
+        outside = [task_id for task_id in task_ids if task_id not in eligible]
+
+        if outside:
+            raise fail(
+                f"configuration error: no landing of {outside[0]} names a commit, so no "
+                f"replay can start from it; {listing}",
+                EXIT_CONFIG,
+            )
+
+        eligible = {task_id: eligible[task_id] for task_id in task_ids}
+
     if not task_ids:
         raise fail(
             "configuration error: give at least one --task to replay, or --report to read "
@@ -251,7 +361,6 @@ def eval_cmd(
             EXIT_CONFIG,
         )
 
-    root = root.resolve()
     config = load_config(root, config_path)
     tasks: list[Task] = []
 
@@ -263,11 +372,37 @@ def eval_cmd(
 
         tasks.append(load_task(task_file))
 
+    seat = ""
+
     try:
-        if skill is not None:
+        if arm_mode:
+            # The seat is the task's own unless --tier names another, and every
+            # arm of one invocation runs on the same one — a difference between
+            # arms is never a difference between seats (S-0082/D-10).
+            seats = {tier} if tier is not None else {tier_name_for(task) for task in tasks}
+
+            if len(seats) > 1:
+                raise ValueError(
+                    f"these tasks name {', '.join(sorted(seats))} — every arm of one "
+                    "invocation runs on the same seat; name one with --tier"
+                )
+
+            seat = seats.pop()
+
+            if tier is not None:
+                # The named seat replaces each task's own, so the agent built
+                # here and the image the replay resolves are one seat.
+                named = tier_for(config, seat)
+                config = config.model_copy(
+                    update={"tiers": {**config.tiers, **{t.tier: named for t in tasks}}}
+                )
+
+            incumbent_agent = build_tier_agent(config, root, seat)
+            candidate_agent: Agent | None = None
+        elif skill is not None:
             without_skill(config, skill)  # refuse before any spend
             incumbent_agent = build_tier_agent(config, root, tasks[0].tier)
-            candidate_agent: Agent | None = None
+            candidate_agent = None
         else:
             assert tier is not None
             # Refuse before any spend: the candidate config validates the
@@ -312,7 +447,12 @@ def eval_cmd(
     )
 
     try:
-        if skill is not None:
+        if arm_mode:
+            _preflight(arms, eligible, seat, fmt)
+
+            with live_status(f"{len(arms)} arm(s) over {len(tasks)} task(s) on {seat}", fmt):
+                record = run_arm_eval(root, tasks, config, deps, source, tuple(arms))
+        elif skill is not None:
             with live_status(f"eval of {skill} over {len(tasks)} task(s), two arms", fmt):
                 record = run_skill_eval(root, skill, tasks, config, deps, source)
         else:
@@ -341,6 +481,11 @@ def eval_cmd(
     if fmt is Format.JSON:
         emit_json(record)
         raise typer.Exit(EXIT_OK)
+
+    if record["kind"] == "arm-eval":
+        # The reading is the one already built: the record just landed is read
+        # back out of the ledger it landed in, per task and never as a mean.
+        _report_arms(root, task_ids, fmt)
 
     console = out(fmt)
 

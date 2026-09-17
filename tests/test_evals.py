@@ -528,14 +528,17 @@ def _bare_task_repo(root, tier: str = "executor"):
     )
 
 
-def test_eval_cli_refuses_neither_skill_nor_tier_with_an_override(tmp_path):
+def test_eval_cli_naming_neither_skill_nor_override_is_an_arm_run(tmp_path):
+    """S-0082/D-8: an invocation naming no comparison inside the apparatus is a
+    run of the arms that remove it — refused here because the named task has
+    no landing a replay could start from, never as a missing argument."""
     root = tmp_path / "repo"
     _bare_task_repo(root)
 
     result = CliRunner().invoke(app, ["eval", "--task", "T-0042", "--root", str(root)])
 
     assert result.exit_code == 3
-    assert "give a skill argument, or --tier with either --image or --variant" in result.stderr
+    assert "no landing of T-0042 names a commit" in result.stderr
 
 
 def test_eval_cli_refuses_a_skill_together_with_config_overrides(tmp_path):
@@ -1060,3 +1063,159 @@ def test_an_arm_that_raises_partway_lands_the_rows_it_has_and_says_so(tmp_path, 
     assert len(ledger) == 1 and record["complete"] is False
     assert [row["arm"] for rows in record["arms"].values() for row in rows] == ["bare", "gated"]
     assert record["arms"]["configured"] == []
+
+
+# ....................... #
+# The launcher (S-0082/D-8 to S-0082/D-11): the third mode of the verb, what it
+# refuses, the seat it takes, and what it says before it spends.
+
+
+def _arm_run_repo(root, task="T-0042", tier="executor"):
+    """A repository where one task is eligible: a contract, a landing naming
+    a commit, and two live attempts in the telemetry ledger."""
+
+    _bare_task_repo(root, tier)
+    _landing(root, task, commit="a" * 40)
+    _telemetry(
+        root,
+        {"task_id": task, "agent": {"adapter": "claude", "cost_usd": 0.25}},
+        {"task_id": task, "agent": {"adapter": "claude", "cost_usd": 0.5}},
+    )
+
+
+def test_eval_cli_refuses_an_arm_together_with_a_skill(tmp_path):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+
+    result = CliRunner().invoke(
+        app, ["eval", "flag-dont-flip", "--arm", "bare", "--task", "T-0042", "--root", str(root)]
+    )
+
+    assert result.exit_code == 3
+    assert "not both" in result.stderr
+
+
+def test_eval_cli_refuses_an_arm_together_with_a_configuration_override(tmp_path):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+
+    for override in (["--image", "torve-agent:candidate"], ["--variant", "indexed"]):
+        result = CliRunner().invoke(
+            app,
+            [
+                "eval",
+                "--arm",
+                "bare",
+                "--task",
+                "T-0042",
+                "--tier",
+                "executor",
+                "--root",
+                str(root),
+                *override,
+            ],
+        )
+
+        assert result.exit_code == 3
+        assert "--arm refuses to combine with --image or --variant" in result.stderr
+
+
+def test_eval_cli_refuses_an_unknown_arm(tmp_path):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+
+    result = CliRunner().invoke(
+        app, ["eval", "--arm", "ghost", "--task", "T-0042", "--root", str(root)]
+    )
+
+    assert result.exit_code == 3
+    assert "unknown arm 'ghost'" in result.stderr
+
+
+def test_eval_cli_refuses_an_arm_with_no_task_and_names_what_was_eligible(tmp_path):
+    """S-0082/D-9: the first invocation anybody types is answered with the set it
+    could have named — before any spend."""
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+
+    result = CliRunner().invoke(app, ["eval", "--arm", "bare", "--root", str(root)])
+
+    assert result.exit_code == 3
+    assert "give at least one --task" in result.stderr
+    assert "T-0042" in result.stderr
+
+
+def test_eval_cli_refuses_an_arm_with_no_task_where_nothing_is_eligible(tmp_path):
+    root = tmp_path / "repo"
+    _bare_task_repo(root)
+
+    result = CliRunner().invoke(app, ["eval", "--arm", "bare", "--root", str(root)])
+
+    assert result.exit_code == 3
+    assert "nothing is eligible yet" in result.stderr
+
+
+def _arm_run_recorded(monkeypatch, root):
+    """run_arm_eval replaced by a record that lands in the ledger — the launcher
+    under test is the parsing, the seat and the pre-flight, not the replay."""
+
+    seen = {}
+
+    def fake(run_root, tasks, config, deps, source, arms=ARMS):
+        seen["arms"] = tuple(arms)
+        seen["tasks"] = [task.id for task in tasks]
+        seen["adapter"] = getattr(deps.agent, "kind", "unknown")
+        record = {
+            "schema_version": 1,
+            "kind": "arm-eval",
+            "arms": {arm: [_arm_row(arm, task.id) for task in tasks] for arm in arms},
+        }
+        ledger = run_root / layout.TORVE_DIR / EVAL_LEDGER
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+        return record
+
+    monkeypatch.setattr(evals, "run_arm_eval", fake)
+
+    return seen
+
+
+def test_eval_cli_runs_every_arm_on_the_tasks_seat_and_says_so_first(tmp_path, monkeypatch):
+    """S-0082/D-10 and S-0082/D-11: all three arms unless narrowed, the seat taken
+    from the task, and what the task already cost printed before anything
+    replays — then the arms read back from the ledger they landed in."""
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+    seen = _arm_run_recorded(monkeypatch, root)
+
+    result = CliRunner().invoke(app, ["eval", "--task", "T-0042", "--root", str(root)])
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["arms"] == ARMS and seen["tasks"] == ["T-0042"]
+    # The pre-flight: the seat, and what the task's live attempts cost.
+    assert "seat executor" in result.stdout
+    assert "0.7500" in result.stdout
+    assert "3 replay(s) about to start" in result.stdout
+    # And the reading S-0074 built, over the record this run landed.
+    assert "arms green" in result.stdout
+
+
+def test_eval_cli_narrows_the_arms_and_takes_the_seat_from_tier(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+    (root / ".torve" / "config.yaml").write_text(
+        "tiers:\n  executor: {harness: fake}\n  lean: {harness: fake}\n", encoding="utf-8"
+    )
+    seen = _arm_run_recorded(monkeypatch, root)
+    seat = ["--tier", "lean"]
+
+    result = CliRunner().invoke(
+        app,
+        ["eval", "--arm", "bare", "--arm", "gated", "--task", "T-0042", *seat, "--root", str(root)],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["arms"] == ("bare", "gated")
+    assert "seat lean" in result.stdout
+    assert "2 replay(s) about to start" in result.stdout
