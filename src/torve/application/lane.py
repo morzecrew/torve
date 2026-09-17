@@ -341,8 +341,9 @@ def conflict_disposal(root: Path, vcs: LaneVcs) -> Callable[[str], str]:
     (S-0006/D-12); that bound lives in the lane's own disposal path, so a
     caller cannot loosen it through this factory.
 
-    The manual lane passes nothing: `torve merge` escalates as it always
-    has, and this factory is inert until an unattended caller wires it.
+    The served lane leg is the caller (S-0079/D-10); the manual lane passes
+    nothing, so `torve merge` escalates as it always has — the operator
+    standing at the terminal is exactly who should see a conflict.
     """
 
     def dispose(task_id: str) -> str:

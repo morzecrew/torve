@@ -4,6 +4,7 @@ for a human."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 from pathlib import Path
@@ -17,6 +18,8 @@ from torve.application.lane import conflict_disposal, process_lane
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
+from torve.cli.manager import _lane_leg
+from torve.config.runconfig import PromotionConfig, RunnerConfig
 from torve.domain.states import TaskState
 
 
@@ -371,6 +374,22 @@ def test_the_manual_lane_captures_nothing(lane_repo):
     assert result.exit_code == 2, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "conflict"
     assert not feedback_file(lane_repo, "T-7009").exists()
+
+
+def test_the_served_leg_disposes_of_the_conflict_the_manual_verb_escalates(lane_repo):
+    # S-0079/D-10: the pass's landing leg is handed `conflict_disposal`, so an
+    # overnight conflict is captured and re-queued under the `conflict_base`
+    # bound instead of waiting for a person. The disposal is the one
+    # argument where the leg and `torve merge` differ.
+    base_tip = conflicting_candidate(lane_repo, "T-7010")
+    leg = _lane_leg(lane_repo, RunnerConfig(promotion=PromotionConfig(auto_merge=True)), only=None)
+    assert leg is not None
+    assert asyncio.run(leg()) == []  # nothing landed — the conflict was disposed of
+
+    state = RunState.load(naming.state_file(lane_repo, "T-7010"))
+    assert state.state is TaskState.QUEUED
+    assert state.conflict_base == base_tip
+    assert "+candidate = 10" in feedback_file(lane_repo, "T-7010").read_text(encoding="utf-8")
 
 
 def test_a_disposal_with_no_branch_to_read_refuses_cleanly(lane_repo):

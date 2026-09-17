@@ -122,15 +122,16 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
         # configuration that names no remote, and refusing it out here left
         # the manager unable to reclaim, mint or dispatch (T-0284).
         from torve.adapters.vcs.git import GitLane
-        from torve.application.lane import process_lane
+        from torve.application.lane import conflict_disposal, process_lane
         from torve.cli.merge import _resolve_ci
 
         # Landing is git in a blocking world: run it off the loop so a slow
-        # rebase cannot stall the pass's clock. The arguments are `merge_cmd`
-        # to the letter — the verb passes no conflict disposal (its own
-        # automatic re-queue is separate, later work), and a leg that passed
-        # one would leave the same conflicting candidate disposed of one way
-        # by `torve merge` and another by the pass.
+        # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
+        # but for the conflict disposal (S-0079/D-10): a candidate whose rebase
+        # conflicts against a moved base is re-queued here instead of waiting
+        # for a person, bounded as ever by `conflict_base`. `torve merge`
+        # passes none — the operator standing at the terminal is exactly who
+        # should see a conflict.
         results = await asyncio.to_thread(
             process_lane,
             root,
@@ -140,6 +141,7 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             approvals_required=config.promotion.approvals,
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
+            on_conflict=conflict_disposal(root, GitLane()),
         )
 
         return [result.task for result in results if result.landed]
