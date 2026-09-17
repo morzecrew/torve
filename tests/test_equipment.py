@@ -953,6 +953,21 @@ def test_the_refusal_reads_the_contract_and_blocks_only_inside_scope(tmp_path: P
     assert not guard.is_allowed("src/torve/config/equipment.py", patterns)
     assert guard.allow_patterns(tmp_path / "missing.yaml") == []
 
+    # Deny wins over allow, and an empty allow is unconstrained — the scope
+    # gate's own reading, so the hook never refuses what the gate would pass.
+    denied = tmp_path / "denied.yaml"
+    denied.write_text(
+        "scope:\n  allow:\n  - src/**\n  deny:\n  - src/torve/secrets/**\n", encoding="utf-8"
+    )
+    allow, deny = guard.allow_patterns(denied), guard.deny_patterns(denied)
+
+    assert deny == ["src/torve/secrets/**"]
+    assert not guard.is_allowed("src/torve/secrets/key.py", allow, deny)
+    assert guard.is_allowed("src/torve/other.py", allow, deny)
+    assert guard.is_allowed("anything/at/all.py", [], [])
+    assert not guard.is_allowed("src/torve/secrets/key.py", [], deny)
+    assert "scope.deny" in guard.refusal("src/torve/secrets/key.py", allow, deny)
+
 
 def test_a_large_out_of_scope_read_is_answered_with_the_files_shape(tmp_path: Path) -> None:
     """Measured on T-0407: seven calls carried 70% of the attempt's orientation
