@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import subprocess
 from functools import partial
+from types import SimpleNamespace
 
 import pytest
 from conftest import harness
@@ -30,13 +31,15 @@ from torve.adapters.workspace.git import (
     parent_of,
     shipped_commit,
 )
+from torve.application import evals
 from torve.application.dispatch import RunDeps
 from torve.application.evals import (
     ARMS,
     EVAL_LEDGER,
     candidate_config,
     eligible_tasks,
-    run_bare_shadow,
+    run_arm_eval,
+    run_arm_shadow,
     run_config_eval,
     run_skill_eval,
     three_arm_table,
@@ -483,7 +486,7 @@ def test_bare_arm_replays_without_the_battery_and_still_merges_nothing(repo):
 
     # The same task, the same harness — once judged by the battery, once not.
     gated = run_shadow(repo.root, task, config, deps, source, annotation={"arm": "gated"})
-    bare = run_bare_shadow(repo.root, task, config, deps, source, annotation={"arm": "bare"})
+    bare = run_arm_shadow(repo.root, task, config, deps, source, "bare")
 
     # The bare arm reached green with no battery judging anything.
     assert bare["state"] == "ready" and bare["attempts"] == 1
@@ -956,3 +959,104 @@ def test_eligible_tasks_of_a_tree_with_no_landings_is_empty(tmp_path):
     root.mkdir()
 
     assert eligible_tasks(root) == {}
+
+
+# ....................... #
+# One record per invocation (S-0082/D-5): the three arms replayed by name,
+# no verdict beside the rows (S-0082/D-6), and what a run that dies partway
+# leaves behind (S-0082/D-7).
+
+
+def _shadow_record(task, state="ready", attempts=1, cost=0.01):
+    return {"task_id": task, "state": state, "attempts": attempts, "cost_usd_total": cost}
+
+
+def _arms_ran(monkeypatch, outcome):
+    """run_arm_shadow replaced by `outcome(task, arm)` — the record's shape
+    and the partial-landing behaviour are the eval's, not the replay's."""
+    ran = []
+
+    def fake(root, task, config, deps, source, arm, commit=None, annotation=None):
+        ran.append((task.id, arm))
+        return outcome(task.id, arm)
+
+    monkeypatch.setattr(evals, "run_arm_shadow", fake)
+
+    return ran
+
+
+def test_arm_eval_writes_one_record_the_three_arm_reader_reads(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    (root / layout.TORVE_DIR).mkdir(parents=True)
+    tasks = [SimpleNamespace(id="T-0042"), SimpleNamespace(id="T-0043")]
+    ran = _arms_ran(monkeypatch, lambda task, arm: _shadow_record(task))
+
+    record = run_arm_eval(root, tasks, RunnerConfig(), None, None)
+
+    # Every arm over every task, one record naming all three.
+    assert ran == [(task.id, arm) for task in tasks for arm in ARMS]
+    assert record["kind"] == "arm-eval" and record["complete"] is True
+    assert record["tasks"] == ["T-0042", "T-0043"]
+    assert set(record["arms"]) == set(ARMS)
+    assert record["arms"]["bare"] == [
+        {"arm": "bare", "task": "T-0042", "state": "ready", "attempts": 1, "cost_usd": 0.01},
+        {"arm": "bare", "task": "T-0043", "state": "ready", "attempts": 1, "cost_usd": 0.01},
+    ]
+    # No verdict rides the record (S-0082/D-6): three arms are not equally
+    # exposed to the same failures, so there is no boolean over them.
+    assert not [key for key in record if "match" in key]
+
+    # One line in the ledger, and the reader S-0074 built reads it unchanged.
+    assert len((root / layout.TORVE_DIR / EVAL_LEDGER).read_text().splitlines()) == 1
+    assert set(three_arm_table(root)) == {"T-0042", "T-0043"}
+    assert set(three_arm_table(root)["T-0042"]) == set(ARMS)
+
+
+def test_arm_eval_runs_only_the_arms_it_is_given(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    (root / layout.TORVE_DIR).mkdir(parents=True)
+    ran = _arms_ran(monkeypatch, lambda task, arm: _shadow_record(task))
+
+    record = run_arm_eval(
+        root, [SimpleNamespace(id="T-0042")], RunnerConfig(), None, None, arms=("bare", "gated")
+    )
+
+    assert ran == [("T-0042", "bare"), ("T-0042", "gated")]
+    assert set(record["arms"]) == {"bare", "gated"}
+
+
+def test_an_unknown_arm_refuses_before_anything_is_replayed(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    (root / layout.TORVE_DIR).mkdir(parents=True)
+    ran = _arms_ran(monkeypatch, lambda task, arm: _shadow_record(task))
+
+    with pytest.raises(ValueError, match="unknown arm 'ghost'"):
+        run_arm_eval(root, [SimpleNamespace(id="T-0042")], RunnerConfig(), None, None, ("ghost",))
+
+    assert ran == []
+    assert not (root / layout.TORVE_DIR / EVAL_LEDGER).exists()
+
+
+def test_an_arm_that_raises_partway_lands_the_rows_it_has_and_says_so(tmp_path, monkeypatch):
+    """S-0082/D-7: an invocation that dies on the third arm never reads like a
+    two-arm record that finished — the rows it bought are kept, `complete`
+    says they are not all of them, and the failure still reaches the caller."""
+    root = tmp_path / "repo"
+    (root / layout.TORVE_DIR).mkdir(parents=True)
+
+    def outcome(task, arm):
+        if arm == "configured":
+            raise RuntimeError("the sandbox died")
+
+        return _shadow_record(task)
+
+    _arms_ran(monkeypatch, outcome)
+
+    with pytest.raises(RuntimeError, match="the sandbox died"):
+        run_arm_eval(root, [SimpleNamespace(id="T-0042")], RunnerConfig(), None, None)
+
+    ledger = (root / layout.TORVE_DIR / EVAL_LEDGER).read_text().splitlines()
+    record = json.loads(ledger[0])
+    assert len(ledger) == 1 and record["complete"] is False
+    assert [row["arm"] for rows in record["arms"].values() for row in rows] == ["bare", "gated"]
+    assert record["arms"]["configured"] == []

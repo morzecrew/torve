@@ -439,28 +439,34 @@ def run_config_eval(
 # ....................... #
 
 
-def run_bare_shadow(
+def run_arm_shadow(
     root: Path,
     task: Task,
     config: RunnerConfig,
     deps: RunDeps,
     source: ShadowSource,
+    arm: str,
     commit: str | None = None,
     annotation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The bare arm's replay (S-0074/D-3): the same shadow replay as
-    `run_shadow`, with the battery removed as a property of the replay — the
-    bare flag swaps the gate pass for one that runs nothing, and the gate
-    manifest is never the thing that changed (a manifest with gates removed
-    would be a different regime, and the regime digest would be right to say
-    so). A bare arm still merges nothing (S-0004/D-4): the land hook is the
-    same no-op a gated replay's is. The record's `config_hash` is the
-    unchanged manifest's — the same regime the gated arm replayed under.
+    """One arm's replay, taken by name (S-0082/D-4): the isolation every arm
+    depends on — replay from the parent commit in a truncated clone, merging
+    nothing (S-0004/D-4) — is written here once, and the bare arm is a case of
+    it rather than a second copy. The arm travels to the dispatch, which reads
+    both removals off it (S-0082/D-1): the prompt's, and the battery's, whose
+    gate pass becomes one that runs nothing (S-0074/D-3). Neither removal is
+    ever an edit to the gate manifest or the contract — a manifest with gates
+    removed would be a different regime and the regime digest would be right
+    to say so — so an arm's `config_hash` is the unchanged manifest's, the
+    same regime every other arm replayed under.
 
-    Raises ValueError when no shipped commit is findable; RuntimeError on
-    infrastructure failure — as run_shadow does."""
+    Raises ValueError for an unknown arm or when no shipped commit is
+    findable; RuntimeError on infrastructure failure — as run_shadow does."""
 
     import asyncio
+
+    if arm not in ARMS:
+        raise ValueError(f"unknown arm {arm!r} — the arms are {', '.join(ARMS)}")
 
     resolved = commit or source.shipped_commit(task.id)
 
@@ -480,9 +486,7 @@ def run_bare_shadow(
 
     state.transition(TaskState.CLAIMED, f"shadow replay of {resolved[:10]} from {parent[:10]}")
 
-    inner = real_hooks(
-        root, task, config, deps, workspace, shadow=True, gates_base=parent, bare=True
-    )
+    inner = real_hooks(root, task, config, deps, workspace, shadow=True, gates_base=parent, arm=arm)
     costs: list[float] = []
     traces: list[str] = []
     model_versions: list[str] = []
@@ -551,11 +555,72 @@ def run_bare_shadow(
     shipped_files = set(record["shipped_diff"].get("files", {}))
     record["overlap_files"] = sorted(shadow_files & shipped_files)
 
-    if annotation is not None:
-        # The bare arm's name is a property of the replay, like the gated
-        # arm's: carried on the record, never read back from any gate output.
-        record["eval"] = annotation
+    # The arm's name is a property of the replay: carried on the record,
+    # never read back from any gate output.
+    record["eval"] = {**(annotation or {}), "arm": arm}
 
     append_record(root / layout.TORVE_DIR / "telemetry.jsonl", record)
+
+    return record
+
+
+# ....................... #
+
+
+def run_arm_eval(
+    root: Path,
+    tasks: list[Task],
+    config: RunnerConfig,
+    deps: RunDeps,
+    source: ShadowSource,
+    arms: tuple[str, ...] = ARMS,
+) -> dict[str, Any]:
+    """Every named arm over every task, one eval record appended and returned
+    (S-0082/D-5): `kind: arm-eval`, the `arms` map keyed by the arm names and
+    its rows the ones `_arm_row` already writes, so the three-arm reader reads
+    it with no change to the reading.
+
+    The record carries no verdict (S-0082/D-6): three arms are not equally
+    exposed to the same failures, and a boolean over them is the mean the
+    axis already refused — nothing downstream can act on an arm run without
+    reading it per task.
+
+    S-0082/D-7: an invocation that raises partway through lands the rows it
+    has, and `complete` says so — a three-replay invocation that dies on the
+    third never reads like a two-arm record that finished. The exception
+    still reaches the caller.
+
+    Raises ValueError for an unknown arm or a task with no shipped commit;
+    RuntimeError on infrastructure failure — as run_arm_shadow does."""
+
+    unknown = [arm for arm in arms if arm not in ARMS]
+
+    if unknown:
+        # Before any replay: an arm nobody can run is a refusal, never a
+        # record of the arms that ran before it was reached.
+        raise ValueError(f"unknown arm {unknown[0]!r} — the arms are {', '.join(ARMS)}")
+
+    results: dict[str, list[dict[str, Any]]] = {arm: [] for arm in arms}
+    complete = False
+
+    try:
+        for task in tasks:
+            for arm in arms:
+                shadow = run_arm_shadow(root, task, config, deps, source, arm)
+                results[arm].append(_arm_row(shadow, arm))
+
+        complete = True
+    finally:
+        record = {
+            "schema_version": SCHEMA_VERSION,
+            "kind": "arm-eval",
+            "at": stamp(),
+            "tasks": [task.id for task in tasks],
+            "arms": results,
+            # Whether every named arm ran every named task (S-0082/D-7).
+            "complete": complete,
+        }
+
+        append_record(root / layout.TORVE_DIR / EVAL_LEDGER, record)
 
     return record
