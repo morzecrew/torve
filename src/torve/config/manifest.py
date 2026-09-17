@@ -169,6 +169,9 @@ BUILTIN_INPUTS: dict[str, str] = {
     "source-layout": "diff",
     "user-facing-text": "diff",
     "acceptance": "worktree",
+    # S-0081: runs the changed test functions against the base tree, so it needs
+    # the worktree and the base, not the diff alone.
+    "red-on-base": "worktree",
 }
 BUILTIN_TIMEOUTS: dict[str, float] = {
     "scope": 30,
@@ -179,6 +182,7 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     "source-layout": 30,
     "user-facing-text": 30,
     "acceptance": 600,
+    "red-on-base": 300,
 }
 SHELL_GATE_TIMEOUT = 600.0
 

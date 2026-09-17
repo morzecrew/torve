@@ -175,6 +175,24 @@ gates:
     # 1.5s over three runs of the projection across 32 governed directories.
     timeout: 17
     sabotage: tests/test_colocation.py
+  # Does the attempt's own test code already pass on the tree it started from
+  # (S-0081/D-1)? Not a builtin of the cheap kind: it runs the qualifying test
+  # functions against the base tree, so it declares a real timeout. Enters at
+  # shadow and is promoted on its own false-positive rate. The twin is the
+  # gate's own test file: it reddens when the gate stops convicting.
+  #
+  # The entry lands after the builtin (T-0438): the battery that judges an
+  # attempt runs the engine as landed, so a manifest naming a builtin the
+  # landed engine lacks is an infrastructure failure, not a red gate.
+  - name: red-on-base
+    run: "@red-on-base"
+    state: shadow
+    origin: S-0081
+    # Two runs of the changed test files only, plus a worktree checkout of the
+    # base. The whole suite is 25s; the qualifying slice is a fraction of that,
+    # and 300 is the headroom a contract that rewrites every test file wants.
+    timeout: 300
+    sabotage: tests/test_gates.py
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
