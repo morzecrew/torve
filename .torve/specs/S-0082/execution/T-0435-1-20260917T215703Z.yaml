@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0435
+phase: 2
+base: 7580835e13515c2ead0300a36c1728af04360c17
+commit: 2b87023fb19b1c3c930dc2edf7cd17b01f29156b
+at: '2026-09-17T21:57:03Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: OPEN
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: OPEN
+    at: '2026-09-17T21:55:21Z'
+    claim: >-
+      an arm run that raises partway lands the rows it already bought and the record's
+      complete flag says it is not all of them; the exception still reaches the caller
+    evidence: >-
+      src/torve/application/evals.py:604-621 — complete is set only after every arm
+      ran, and the finally block appends the record either way
+    action: decided
