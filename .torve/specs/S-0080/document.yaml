@@ -4,7 +4,7 @@ title: >-
   The lane opens a pull request, and a person lands it
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0079]
 informed_by: [S-0059, S-0065, S-0068]
 supersedes: []

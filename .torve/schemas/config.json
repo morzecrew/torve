@@ -364,6 +364,16 @@
           "title": "Auto Merge",
           "type": "boolean"
         },
+        "landing": {
+          "default": "local",
+          "description": "S-0080/D-1: the act that lands a promoted candidate \u2014 `local` fast-forwards the base\nhere, `pull_request` pushes the branch and opens the task's pull request on the forge.\nA term of configuration, never inferred from whether a remote exists or from\n`scm.open_pr`; `local` is the default so a repository configured today lands as it does\ntoday.",
+          "enum": [
+            "local",
+            "pull_request"
+          ],
+          "title": "Landing",
+          "type": "string"
+        },
         "quiet_window": {
           "default": 0,
           "description": "\u00a73's quiet window, in seconds: a landing whose branch tip is younger than this\nrefuses \u2014 pushing resets the window. Zero disables it.",
