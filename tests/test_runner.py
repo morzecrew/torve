@@ -2004,6 +2004,9 @@ def test_a_qualifying_conviction_routes_the_next_attempt_as_a_repair(repo, monke
     # The repair attempt carries the gate's command alongside everything the
     # contract declared, and says which gate it repairs.
     assert seen[1]["meta"]["repair"] == "scope"
+    # S-0081/D-6: beside the gate, the attempt it repairs — the `attempt` of
+    # the row that carries the conviction, so the two rows join.
+    assert seen[1]["meta"]["repair_of_attempt"] == seen[0]["meta"]["attempt"] == 1
     assert seen[1]["acceptance"] == ["uv run pytest", "torve gates run --only scope"]
     # The convicted tree is the repair's starting tree: committed on the
     # attempt that was convicted, trailed so no one reads it as landed.
@@ -2037,6 +2040,7 @@ def test_a_second_conviction_on_the_same_gate_routes_where_it_routed_today(repo,
     # The second conviction of the same gate: no repair, the contract's own
     # acceptance exactly, and the tree left as the retry finds it today.
     assert "repair" not in seen[2]["meta"]
+    assert "repair_of_attempt" not in seen[2]["meta"]
     assert seen[2]["acceptance"] == ["uv run pytest"]
     assert len(_convicted_commits(vcs)) == 1
 
@@ -2142,6 +2146,9 @@ def test_a_different_gate_still_earns_its_own_repair(repo, monkeypatch):
     assert state.state is TaskState.READY
     assert seen[1]["meta"]["repair"] == "scope"
     assert seen[2]["meta"]["repair"] == "layering"
+    # Each repair names its own conviction, never the run's first one.
+    assert seen[1]["meta"]["repair_of_attempt"] == 1
+    assert seen[2]["meta"]["repair_of_attempt"] == 2
     assert seen[2]["acceptance"] == ["uv run pytest", "uv run lint-imports"]
     assert len(_convicted_commits(vcs)) == 2
 

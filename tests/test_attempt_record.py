@@ -156,6 +156,53 @@ def test_gate_outcomes_are_derived_from_the_results(gated):
     assert set(outcomes) == {str(one["name"]) for one in payload["results"]}
 
 
+def test_the_repair_fact_names_the_attempt_it_repairs(repo):
+    """S-0081/D-6: the repair row carries the number of the attempt its
+    conviction came from beside the convicting gate's name, so the join is a
+    query over the record. Additive — a row carrying the gate and not the
+    number still reads as a repair, one whose conviction is unknown."""
+
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), None)
+    repo.write("src/app.py", "print('changed')\n")
+    repo.commit("the work")
+
+    ctx = context_for(repo)
+    convicted = build_record(
+        ctx,
+        RunReport(
+            exit_code=1,
+            results=[GateResult(name="scope", outcome="fail", state="blocking", exit_code=1)],
+        ),
+        "cafe1234",
+        agent=AGENT | {"attempt": 1},
+    )
+    repaired = build_record(
+        ctx,
+        RunReport(exit_code=0, results=[]),
+        "cafe1234",
+        agent=AGENT | {"attempt": 2, "repair": "scope", "repair_of_attempt": 1},
+    )
+
+    convicted_payload = record_payload(convicted, 1)
+    payload = record_payload(repaired, 2)
+
+    assert payload["agent"]["repair"] == "scope"
+    assert payload["agent"]["repair_of_attempt"] == convicted_payload["attempt"]
+
+    # Both carriers, as every other field of the block: the event accepts it
+    # and the row renders back unchanged.
+    validate_payload(EventKind.GATES_EVALUATED, payload)
+    assert record_row(payload, task_id=repaired["task_id"], at=repaired["at"]) == repaired
+
+    # The pre-key shape: a repair whose conviction cannot be named.
+    older = build_record(
+        ctx, RunReport(exit_code=0, results=[]), "cafe1234", agent=AGENT | {"repair": "scope"}
+    )
+
+    assert "repair_of_attempt" not in older["agent"]
+
+
 def test_a_payload_with_an_unknown_field_is_refused(gated):
     payload = record_payload(gated, 2) | {"invented": True}
 

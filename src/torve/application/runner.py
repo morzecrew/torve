@@ -722,18 +722,27 @@ def _route_repair(run: Dispatch, state: RunState) -> None:
     (S-0054/D-12).
 
     The contract does not change: the battery judges the task file on disk,
-    and this mutates only the in-memory copy the attempt is prompted from."""
+    and this mutates only the in-memory copy the attempt is prompted from.
+
+    The stamp names the attempt it repairs beside the gate (S-0081/D-6): the
+    repair row's `repair_of_attempt` is the `attempt` of the row that carries
+    the conviction, so whether repairing beat retrying from base is a join
+    over the record rather than a reading of a transcript. Additive — a row
+    carrying `repair` and no `repair_of_attempt` was written before this key
+    and still reads as a repair, one whose conviction is unknown."""
 
     picked = _repair_gate(run)
 
     if picked is None:
         run.meta.pop("repair", None)
+        run.meta.pop("repair_of_attempt", None)
         run.task = run.task.model_copy(update={"acceptance": list(run.contract_acceptance)})
         return
 
     gate, command = picked
     run.repaired_gates.add(gate)
     run.meta["repair"] = gate
+    run.meta["repair_of_attempt"] = state.attempts
     run.task = run.task.model_copy(update={"acceptance": [*run.contract_acceptance, command]})
     _commit_convicted_tree(run, state, gate)
 
