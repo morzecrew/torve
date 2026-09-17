@@ -1242,6 +1242,12 @@ class PromotionConfig(BaseModel):
     remote actually saw."""
 
     model_config = STRICT
+    landing: Literal["local", "pull_request"] = "local"
+    """S-0080/D-1: the act that lands a promoted candidate — `local` fast-forwards the base
+    here, `pull_request` pushes the branch and opens the task's pull request on the forge.
+    A term of configuration, never inferred from whether a remote exists or from
+    `scm.open_pr`; `local` is the default so a repository configured today lands as it does
+    today."""
     auto_merge: bool = False
     """S-0052/D-2: S-0006/D-2's opt-in, restored with its original default of false. Off, a
     manager pass never lands and behaves exactly as it did before the landing leg existed —
@@ -1874,5 +1880,21 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
             "promotion.require_ci, promotion.require_review, promotion.approvals "
             "or promotion.quiet_window"
         )
+
+    # S-0080/D-2: a landing mode whose every landing could only ever fail is
+    # refused while a person is still at the terminal, not at the first
+    # candidate in the night.
+    if loaded.promotion.landing == "pull_request":
+        if not loaded.scm.repo:
+            raise ValueError(
+                f"{resolved}: promotion.landing is pull_request with no forge repository — "
+                "set scm.repo to the owner/name the pull request opens against"
+            )
+
+        if not loaded.scm.open_pr:
+            raise ValueError(
+                f"{resolved}: promotion.landing is pull_request with scm.open_pr off — "
+                "set scm.open_pr to true"
+            )
 
     return loaded

@@ -746,3 +746,58 @@ def test_a_criterion_loads_without_auto_merge_and_the_default_config_still_loads
 
     assert promotion.require_review is True and promotion.auto_merge is False
     assert load(tmp_path, "schema_version: 1\n").promotion.armed() is False
+
+
+# ....................... #
+# The landing mode (S-0080/D-1, S-0080/D-2): a term of configuration with `local`
+# as the default, and `pull_request` refused at load when the forge it needs is
+# not configured.
+
+
+def test_landing_defaults_to_local_and_is_never_inferred_from_the_forge(tmp_path: Path) -> None:
+    # A configured remote decides nothing: the act a repository lands by changes
+    # only when somebody writes that it should.
+    assert load(tmp_path, "schema_version: 1\n").promotion.landing == "local"
+
+    configured = load(
+        tmp_path,
+        "schema_version: 1\nscm:\n  repo: acme/widgets\n  open_pr: true\n",
+    )
+
+    assert configured.promotion.landing == "local"
+
+
+def test_pull_request_loads_with_a_repository_and_open_pr(tmp_path: Path) -> None:
+    config = load(
+        tmp_path,
+        "schema_version: 1\npromotion:\n  landing: pull_request\n"
+        "scm:\n  repo: acme/widgets\n  open_pr: true\n",
+    )
+
+    assert config.promotion.landing == "pull_request"
+
+
+def test_an_unknown_landing_mode_is_refused_by_the_vocabulary(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="landing"):
+        load(tmp_path, "schema_version: 1\npromotion:\n  landing: forge\n")
+
+
+@pytest.mark.parametrize(
+    ("scm", "missing"),
+    [
+        ("", "scm.repo"),
+        ("scm:\n  open_pr: true\n", "scm.repo"),
+        ("scm:\n  repo: acme/widgets\n", "scm.open_pr"),
+    ],
+)
+def test_pull_request_is_refused_at_load_naming_the_field_to_set(
+    tmp_path: Path, scm: str, missing: str
+) -> None:
+    # The mode could only ever fail at the first landing, hours into an
+    # unattended night; it fails here instead, naming what to set.
+    with pytest.raises(ValueError, match=r"promotion\.landing is pull_request") as excinfo:
+        load(tmp_path, f"schema_version: 1\npromotion:\n  landing: pull_request\n{scm}")
+
+    message = str(excinfo.value)
+
+    assert missing in message and "config.yaml" in message
