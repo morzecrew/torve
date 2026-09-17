@@ -266,7 +266,20 @@ def test_the_overlay_carries_every_endpoint_fact_the_deleted_files_did() -> None
     efforts = route["models"][0]["reasoningEfforts"]
 
     assert efforts is not False
-    assert {"low", "medium", "high"} <= set(map(str, efforts))
+    # `off` is a YAML 1.1 boolean, so the disabled rung's key loads as False on
+    # both sides of the seam — it is written unquoted here and read unquoted by
+    # pi-ai's own loader, which is why it has always been spelled this way.
+    assert set(efforts) == {False, "medium"}
+
+    # The map is the level the engine named, never a fixed list. A fixed
+    # off/low/medium/high was four names against a record that may hold any:
+    # `deepseek-v4.1-flash` declares seven, so `xhigh`, `max`, `minimal` and
+    # `ultra` each passed the engine's check against the record and then
+    # reached a map with no entry for them.
+    exotic = _render_dsh_model(**{**SEAM, "TORVE_REASONING": "ultra"})[0]
+    reachable = exotic["config"]["providers"]["modelstudio"]["models"][0]["reasoningEfforts"]
+
+    assert set(reachable) == {False, "ultra"}
 
     off = _render_dsh_model(**{**SEAM, "TORVE_REASONING": ""})[0]
     assert off["config"]["providers"]["modelstudio"]["models"][0]["reasoningEfforts"] is False

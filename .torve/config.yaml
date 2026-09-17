@@ -128,6 +128,43 @@ tiers:
     # which it reaches (S-0064/D-4). pi-ai's overlay is openai-completions
     # today; the anthropic route is the same credential and a different seat.
     dialect: openai
+  # A replay arm, never a seat anything lands from: the same harness and the
+  # same credential as `executor.dsh`, with the newer deepseek in place of qwen
+  # and its reasoning asked for by name. `medium` is the middle of the seven the
+  # record probed for this model, and the record is what refuses a level the
+  # endpoint would have refused (S-0064/D-7) — this model has no `none`, so it
+  # cannot be asked to stop reasoning at all.
+  executor.dsh-deepseek:
+    harness: dsh
+    model: deepseek-v4.1-flash
+    provider: modelstudio
+    dialect: openai
+    reasoning: medium
+  # The control the first dsh arm turned out to need. `executor.dsh` declares no
+  # reasoning at all, and for this image that is not the same as declaring
+  # `none`: the overlay writes `reasoningEfforts: false`, which strips the
+  # capability from the model rather than setting it low. So the arm that ran
+  # qwen against deepseek-at-medium was really reasoning-off against
+  # reasoning-medium, and the model was never the only variable. This is the
+  # same seat with the level named, so the pair differs in the model alone.
+  executor.dsh-qwen-medium:
+    harness: dsh
+    model: qwen3.8-flash
+    provider: modelstudio
+    dialect: openai
+    reasoning: medium
+  # The third corner of the same comparison: `deepseek-v4.1-flash` again, at the
+  # same reasoning level, over the other harness and the other dialect. What it
+  # isolates is the harness — the dsh arm above and this one differ in nothing
+  # else, so a difference between them belongs to claude against pi-ai rather
+  # than to the model.
+  executor.deepseek41:
+    harness: claude-subscription
+    profile: claude-lean
+    model: deepseek-v4.1-flash
+    provider: modelstudio
+    dialect: anthropic
+    reasoning: medium
   # The same credential and the same model, reached over the other dialect
   # (S-0064 phase 4). claude speaks only Anthropic Messages; ModelStudio serves
   # it at /apps/anthropic, so this seat is a configuration rather than a port.

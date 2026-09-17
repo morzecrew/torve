@@ -87,6 +87,20 @@ if [ -n "${CLAUDE_TOOLS:-}" ]; then
     set -- "$@" --tools "$CLAUDE_TOOLS"
 fi
 
+# The reasoning level the seat asked for (S-0064/D-7). `TORVE_REASONING` is the
+# engine's name for it on every harness; `--effort` is what this one calls it,
+# which is the same translation `equip` does for every other flag.
+#
+# Passed through rather than mapped. The engine refuses a level the provider
+# record does not declare, and claude refuses one it does not take — so a level
+# neither wants dies at boot with claude's own message naming the flag, instead
+# of being quietly dropped by a list in here that a record could outgrow. That
+# list is exactly what made four of `deepseek-v4.1-flash`'s seven levels
+# unreachable on the other image.
+if [ -n "${TORVE_REASONING:-}" ]; then
+    set -- "$@" --effort "$TORVE_REASONING"
+fi
+
 # The door (S-0066/D-1). The worktree arrives carrying files other readers
 # wrote — `.mcp.json`, `.claude/skills`, `.claude/agents`, `CLAUDE.md` — and
 # claude reads every one of them unasked. None is equipment, none is pinned,

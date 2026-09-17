@@ -81,13 +81,20 @@ lines.append("            input: [text]")
 # `reasoningTokens: 0` while the endpoint returned reasoning tokens for the same
 # prompt. The engine refuses an effort the model does not declare, so a level
 # that arrives here is one the model has.
+#
+# The map is the level the engine named and nothing else. A fixed
+# off/low/medium/high list was four names against a record that may hold any:
+# `deepseek-v4.1-flash` declares minimal, low, medium, high, xhigh, max and
+# ultra, so four of its seven passed the engine's check and then reached a map
+# with no entry for them. Two lists, one validated against and a different one
+# used, is the shape of every silent drop this image has had — `maxBytes`
+# included. `off:` stays beside it because pi-ai's own schema wants the
+# disabled rung present, and it is the one name that never comes from a record.
 if effort:
     lines += [
         "            reasoningEfforts:",
         "              off:",
-        "              low: low",
-        "              medium: medium",
-        "              high: high",
+        f"              {effort}: {effort}",
     ]
 else:
     lines.append("            reasoningEfforts: false")
