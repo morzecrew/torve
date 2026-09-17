@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0443
+phase: 2
+base: 6598780e4b6d09dad232d04883ab99315d199a8c
+commit: 4287b499daee7026bab72aa12a90cebf418cca81
+at: '2026-09-17T23:28:26Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: ASSUMED
+  - id: D-17
+    grade: OPEN
+  - id: D-18
+    grade: OPEN
+entries:
+  - decision: D-18
+    grade: OPEN
+    at: '2026-09-17T23:26:58Z'
+    claim: >-
+      the document branch is cut when the first candidate of the document is resolved
+      in the pass, not at the first worktree: the landing decision needs the branch
+      to compare ancestry against, so it must exist before the fast-forward-or-rebase
+      choice, and a dry run cuts nothing
+    evidence: >-
+      src/torve/application/lane.py:637 — the cut is guarded on the branch not resolving
+      and on the pass not being a dry run; src/torve/application/lane.py:1174 is the
+      one place a candidate's target is resolved, so every later landing finds the
+      same ref
+    action: decided
+  - decision: D-7
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-09-17T23:26:58Z'
+    claim: >-
+      the lane hands the document branch to the same Publisher the task unit uses,
+      so the push under lease and the open-or-refresh are unchanged; the title and
+      body are still composed from the one task, because the composer that reads the
+      branch's landings is D-8's and forge.py is outside this scope
+    evidence: >-
+      src/torve/cli/merge.py:153 — the publisher pushes whatever branch it is handed
+      and composes the text from the task it is handed; src/torve/application/lane.py:653
+      hands it the document branch
+    action: decided
