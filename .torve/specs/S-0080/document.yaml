@@ -3,13 +3,13 @@ id: S-0080
 title: >-
   The lane opens a pull request, and a person lands it
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0079]
 informed_by: [S-0059, S-0065, S-0068]
 supersedes: []
 superseded_by: null
-owner: author role
+owner: Lev Litvinov
 schema_version: 4
 summary: |
   torve is about to run on a repository where nothing reaches `main` except through a merged
