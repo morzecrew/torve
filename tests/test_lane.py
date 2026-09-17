@@ -1165,3 +1165,206 @@ def test_a_dry_run_asks_the_forge_nothing(lane_repo):
 
     assert asked == []
     assert [r.action for r in results] == ["would open pull request"]
+
+
+# `unit: document`: one branch and one pull request per document (S-0083/D-4,
+# S-0083/D-5, S-0083/D-6, S-0083/D-7, S-0083/D-18).
+
+
+def _origin(root: Path, tmp_path: Path) -> Path:
+    """A remote to cut the document branch from — `unit: document` cuts from
+    the remote's `main` after a fetch, never from the local copy."""
+    remote = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(remote)], check=True)
+    git(root, "remote", "add", "origin", str(remote))
+    git(root, "push", "-q", "origin", "main")
+    return remote
+
+
+def _contract(root: Path, task_id: str, spec: str | None) -> None:
+    """The contract is what names the document — written after every
+    candidate, because `candidate` stages the whole tree onto its branch."""
+    path = root / ".torve" / "tasks" / task_id / "contract.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = f"schema_version: 2\nid: {task_id}\ndecisions: []\n"
+    path.write_text(body + (f"spec: {spec}\n" if spec else ""), encoding="utf-8")
+
+
+def test_the_first_phase_cuts_the_document_branch_and_lands_onto_it(lane_repo, tmp_path):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7201", "one.py", "one = 1\n")
+    _contract(lane_repo, "T-7201", "S-0900")
+    base_before = git(lane_repo, "rev-parse", "main")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+
+    document = naming.document_branch("S-0900")
+    # The landing is onto the document's branch, and what is published is that
+    # branch — the checkout's base is untouched, as in any pull-request mode.
+    assert [r.action for r in results] == ["landed"]
+    assert results[0].branch == document
+    assert published == [("T-7201", document)]
+    assert git(lane_repo, "rev-parse", document) == git(
+        lane_repo, "rev-parse", naming.branch("T-7201")
+    )
+    assert git(lane_repo, "rev-parse", "main") == base_before
+
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[0]["unit"] == "document" and landed[0]["branch"] == document
+    assert landed[0]["mode"] == "fast-forward"
+    assert landed[0]["sha"] == git(lane_repo, "rev-parse", document)
+
+    # The branch is cut once: a later pass finds the phase already landed on
+    # it and spends no second publication.
+    again = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+    assert [r.action for r in again] == ["already landed"]
+    assert len(published) == 1
+
+
+def test_a_second_phase_rebases_onto_the_document_branch_and_lands_onto_the_same_ref(
+    lane_repo, tmp_path
+):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7202", "two.py", "two = 2\n")
+    candidate(lane_repo, "T-7203", "three.py", "three = 3\n")
+    _contract(lane_repo, "T-7202", "S-0901")
+    _contract(lane_repo, "T-7203", "S-0901")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+
+    document = naming.document_branch("S-0901")
+    # Both phases landed onto the one branch: the first fast-forwards it as
+    # measured, the second was rebased onto it and the battery re-run first.
+    assert [r.action for r in results] == ["landed", "landed"]
+    assert published == [("T-7202", document), ("T-7203", document)]
+    assert [e["mode"] for e in _events(lane_repo) if e.get("event") == "lane_landed"] == [
+        "fast-forward",
+        "rebased",
+    ]
+
+    tip = git(lane_repo, "rev-parse", document)
+    assert results[1].sha == tip
+    # One branch, carrying both phases' work.
+    assert git(lane_repo, "show", f"{document}:two.py") == "two = 2"
+    assert git(lane_repo, "show", f"{document}:three.py") == "three = 3"
+    assert git(lane_repo, "rev-parse", "main") != tip
+
+
+def test_a_contract_naming_no_document_lands_by_the_task_unit(lane_repo, tmp_path):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7204", "four.py", "four = 4\n")
+    # A candidate with no contract at all is the same case: nothing infers a
+    # document for it.
+    candidate(lane_repo, "T-7205", "five.py", "five = 5\n")
+    _contract(lane_repo, "T-7204", None)
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+
+    assert [r.action for r in results] == ["pull request", "pull request"]
+    assert published == [
+        ("T-7204", naming.branch("T-7204")),
+        ("T-7205", naming.branch("T-7205")),
+    ]
+    assert not [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+
+
+def test_a_refused_publication_puts_the_document_branch_back(lane_repo, tmp_path):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7206", "six.py", "six = 6\n")
+    _contract(lane_repo, "T-7206", "S-0902")
+
+    def refuse(task_id: str, branch: str) -> str:
+        raise RuntimeError("gh pr create failed")
+
+    results = process_lane(lane_repo, GitLane(), publish=refuse, unit="document")
+
+    document = naming.document_branch("S-0902")
+    assert [r.action for r in results] == ["pr refused"]
+    # The landing is the publication too, so the branch stays where it was cut
+    # and the next pass lands the phase again.
+    assert git(lane_repo, "rev-parse", document) == git(lane_repo, "rev-parse", "main")
+    assert not [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+
+    published: list[tuple[str, str]] = []
+    again = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+    assert [r.action for r in again] == ["landed"]
+    assert published == [("T-7206", document)]
+
+
+def test_the_local_landing_ignores_the_unit(lane_repo, tmp_path):
+    # S-0083/D-2: no publisher is a local landing, which has no pull request to
+    # be one per — the unit is inert rather than refused.
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7207", "seven.py", "seven = 7\n")
+    _contract(lane_repo, "T-7207", "S-0903")
+
+    results = process_lane(lane_repo, GitLane(), unit="document")
+
+    assert [r.action for r in results] == ["landed"]
+    assert results[0].detail == "fast-forward"
+    assert git(lane_repo, "rev-parse", "main") == git(
+        lane_repo, "rev-parse", naming.branch("T-7207")
+    )
+    assert GitLane().tip(lane_repo, naming.document_branch("S-0903")) is None
+
+
+def test_a_dry_run_cuts_no_document_branch(lane_repo, tmp_path):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7208", "eight.py", "eight = 8\n")
+    _contract(lane_repo, "T-7208", "S-0904")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        dry_run=True,
+        publish=_recording_publisher(published),
+        unit="document",
+    )
+
+    assert published == []
+    assert GitLane().tip(lane_repo, naming.document_branch("S-0904")) is None
+    assert [r.action for r in results] == ["would rebase"]
+
+
+def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
+    # S-0083/D-1: a term of configuration, never inferred from whether the
+    # ready candidates happen to share a document.
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7209", "nine.py", "nine = 9\n")
+    _contract(lane_repo, "T-7209", "S-0905")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "scm:\n  open_pr: true\n  repo: owner/name\n",
+        encoding="utf-8",
+    )
+    # Committed, or the lane refuses the pass on a dirty checkout.
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "configure the unit")
+
+    seen: list[tuple[str, str]] = []
+    import torve.cli.merge as merge_module
+
+    original = merge_module._publisher
+    merge_module._publisher = lambda root, config: _recording_publisher(seen)
+
+    try:
+        result = invoke_merge(lane_repo)
+    finally:
+        merge_module._publisher = original
+
+    assert result.exit_code == 0, result.output
+    assert seen == [("T-7209", naming.document_branch("S-0905"))]

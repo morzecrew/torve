@@ -328,6 +328,10 @@ def merge_cmd(
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
             publish=_publisher(root, config),
+            # The landing unit is a term of configuration and nothing else
+            # (S-0083/D-1); a local landing has no pull request to be one per,
+            # and the lane ignores it there (S-0083/D-2).
+            unit=config.promotion.unit,
         )
 
     except RuntimeError as exc:

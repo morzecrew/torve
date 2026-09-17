@@ -536,6 +536,32 @@ def _quiet_window(
 # ....................... #
 
 
+def _publish(
+    root: Path,
+    publish: Publisher,
+    task_id: str,
+    branch: str,
+    sha: str,
+    results: list[LaneResult],
+) -> str | None:
+    """The push under lease and the forge call, or None when the forge
+    refused — which is this candidate's refusal and not the pass's: the
+    remaining candidates are still landed or still refused on their own
+    terms."""
+
+    try:
+        return publish(task_id, branch)
+
+    except RuntimeError as exc:
+        engine_event(root, "lane_pr_refused", {"task": task_id, "sha": sha, "detail": str(exc)})
+        results.append(LaneResult(task_id, branch, "pr refused", str(exc), sha))
+
+        return None
+
+
+# ....................... #
+
+
 def _open_pull_request(
     root: Path,
     publish: Publisher,
@@ -558,13 +584,9 @@ def _open_pull_request(
     remaining candidates are still landed or still refused on their own
     terms."""
 
-    try:
-        reference = publish(task_id, branch)
+    reference = _publish(root, publish, task_id, branch, sha, results)
 
-    except RuntimeError as exc:
-        engine_event(root, "lane_pr_refused", {"task": task_id, "sha": sha, "detail": str(exc)})
-        results.append(LaneResult(task_id, branch, "pr refused", str(exc), sha))
-
+    if reference is None:
         return
 
     engine_event(
@@ -574,6 +596,116 @@ def _open_pull_request(
     )
 
     results.append(LaneResult(task_id, branch, "pull request", reference or mode, sha))
+
+
+# ....................... #
+
+
+def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> str | None:
+    """The branch this candidate's phases land onto under `unit: document`,
+    or None when the contract names no document — that candidate lands by the
+    task unit whatever the unit says, and nothing here infers a document for
+    it (S-0083/D-4). An unreadable contract is a contract naming no document:
+    the lane's own no-branch and gate handling reports the run, it does not
+    die on the file.
+
+    The branch is cut once per document (S-0083/D-18), from the remote's `main`
+    after a fetch (S-0083/D-5), the first time a candidate of that document
+    reaches the landing criteria — every later landing finds it and targets
+    the same ref, so two phases of one document cannot leave two branches. A
+    dry run cuts nothing, as it publishes nothing.
+    """
+
+    from torve.gates.context import load_task, resolve_base
+
+    contract = layout.task_file(root, task_id)
+
+    if not contract.is_file():
+        return None
+
+    try:
+        spec = load_task(contract).spec
+
+    except ValueError:
+        return None
+
+    if spec is None:
+        return None
+
+    branch = naming.document_branch(spec)
+
+    if vcs.tip(root, branch) is None and not dry_run:
+        base = resolve_base(root, None, fetch=True)
+        tip = vcs.tip(root, base) if base else None
+
+        if tip is None:
+            raise RuntimeError(f"no base to cut {branch!r} from — the remote has no main")
+
+        vcs.reset_branch(root, branch, tip)
+        engine_event(root, "lane_document_branch", {"task": task_id, "branch": branch, "sha": tip})
+
+    return branch
+
+
+# ....................... #
+
+
+def _land_document(
+    root: Path,
+    vcs: LaneVcs,
+    publish: Publisher,
+    task_id: str,
+    document: str,
+    tip: str,
+    mode: str,
+    approver: str,
+    results: list[LaneResult],
+) -> None:
+    """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
+
+    The candidate's tip becomes the document branch's tip — the lane's own
+    fast-forward of a ref it never checks out, after the same criteria, probe
+    and rebase the task unit applies, so the two units cannot drift apart.
+    The landing is recorded in the `lane_landed` shape the local lane writes,
+    with the unit and the branch named: a phase that landed on a branch is
+    landed as far as the record is concerned, and the ledger's counts keep
+    reading one record shape.
+
+    Then the branch is pushed under lease and the document's one pull request
+    opened or refreshed, and the pass stops — merging is a person's single
+    act on the forge, whatever number of phases the branch carries.
+
+    A forge that refuses puts the ref back where it was: the publication is
+    half of this landing, so a landing nobody could publish is one the next
+    pass must make again.
+    """
+
+    before = vcs.tip(root, document)
+    vcs.reset_branch(root, document, tip)
+    reference = _publish(root, publish, task_id, document, tip, results)
+
+    if reference is None:
+        if before is not None:
+            vcs.reset_branch(root, document, before)
+
+        return
+
+    engine_event(
+        root,
+        "lane_landed",
+        {
+            "task": task_id,
+            "mode": mode,
+            "sha": tip,
+            "approver": approver,
+            "carried": _carried(root, task_id),
+            "unit": "document",
+            "branch": document,
+            "pr": reference,
+        },
+    )
+
+    results.append(LaneResult(task_id, document, "landed", f"{mode} onto {document}", tip))
 
 
 # ....................... #
@@ -740,6 +872,7 @@ def _land_fast_forward(
     approver: str,
     results: list[LaneResult],
     publish: Publisher | None = None,
+    document: str | None = None,
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -754,9 +887,14 @@ def _land_fast_forward(
         return
 
     if publish is not None:
-        _open_pull_request(
-            root, publish, task_id, branch, branch_tip, "fast-forward", approver, results
-        )
+        if document is not None:
+            _land_document(
+                root, vcs, publish, task_id, document, branch_tip, "fast-forward", approver, results
+            )
+        else:
+            _open_pull_request(
+                root, publish, task_id, branch, branch_tip, "fast-forward", approver, results
+            )
 
         return
 
@@ -838,6 +976,7 @@ def _land_rebased(
     approver: str,
     results: list[LaneResult],
     publish: Publisher | None = None,
+    document: str | None = None,
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -879,16 +1018,16 @@ def _land_rebased(
         # The rebased tip is what the battery just measured, so that is the
         # tree the pull request must show (S-0080/D-9); the publisher's push
         # is leased, so a branch that moved under the engine refuses.
-        _open_pull_request(
-            root,
-            publish,
-            task_id,
-            branch,
-            vcs.tip(root, branch) or branch_tip,
-            "rebased",
-            approver,
-            results,
-        )
+        rebased_tip = vcs.tip(root, branch) or branch_tip
+
+        if document is not None:
+            _land_document(
+                root, vcs, publish, task_id, document, rebased_tip, "rebased", approver, results
+            )
+        else:
+            _open_pull_request(
+                root, publish, task_id, branch, rebased_tip, "rebased", approver, results
+            )
 
         return
 
@@ -926,6 +1065,7 @@ def _land_candidate(
     approver: str,
     results: list[LaneResult],
     publish: Publisher | None = None,
+    document: str | None = None,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -933,7 +1073,7 @@ def _land_candidate(
         # The base has not moved under this branch: the tree that would
         # land is byte-identical to the one the gates measured.
         _land_fast_forward(
-            root, vcs, task_id, branch, branch_tip, dry_run, approver, results, publish
+            root, vcs, task_id, branch, branch_tip, dry_run, approver, results, publish, document
         )
         return
 
@@ -957,6 +1097,7 @@ def _land_candidate(
         approver,
         results,
         publish,
+        document,
     )
 
 
@@ -975,6 +1116,7 @@ def process_lane(
     on_conflict: Callable[[str], str] | None = None,
     publish: Publisher | None = None,
     forge: Forge | None = None,
+    unit: str = "task",
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -984,7 +1126,14 @@ def process_lane(
 
     A `forge` is the same mode's read-back: on a later pass each candidate
     with a pull request open is asked about, and the verdict is recorded
-    (S-0080/the-landing-arrives-as-an-answer). A dry run asks nothing, as it publishes nothing."""
+    (S-0080/the-landing-arrives-as-an-answer). A dry run asks nothing, as it publishes nothing.
+
+    `unit` is the landing unit (S-0083/D-1), a term of the same configuration:
+    `document` lands every phase of a document onto the document's own branch
+    behind one pull request, `task` opens one per task. It governs only where
+    there is a pull request to be one per, so a `local` landing ignores it
+    (S-0083/D-2), and only a candidate whose contract names a document
+    (S-0083/D-4)."""
 
     base = vcs.current_branch(root)
 
@@ -1020,7 +1169,16 @@ def process_lane(
 
             continue
 
-        if vcs.is_ancestor(root, branch_tip, base):
+        # Where this candidate lands: the document's branch under
+        # `unit: document`, the checkout's base otherwise (S-0083/D-4).
+        document = (
+            _document_branch(root, vcs, task_id, dry_run)
+            if publish is not None and unit == "document"
+            else None
+        )
+        target = document or base
+
+        if vcs.is_ancestor(root, branch_tip, target):
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
             continue
 
@@ -1028,7 +1186,7 @@ def process_lane(
             forge is not None
             and ledger
             and _forge_verdict(
-                root, vcs, forge, ledger, task_id, base, branch, branch_tip, approver, results
+                root, vcs, forge, ledger, task_id, target, branch, branch_tip, approver, results
             )
         ):
             continue
@@ -1049,7 +1207,7 @@ def process_lane(
             root,
             vcs,
             state,
-            base,
+            target,
             branch,
             branch_tip,
             approvals_required,
@@ -1074,12 +1232,13 @@ def process_lane(
             task_id,
             branch,
             branch_tip,
-            base,
+            target,
             dry_run,
             on_conflict,
             approver,
             results,
             publish,
+            document,
         )
 
     return results
