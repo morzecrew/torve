@@ -367,3 +367,131 @@ def test_a_harness_reading_the_mount_excludes_nothing(tmp_path):
     exclude = worktree / ".git" / "info" / "exclude"
 
     assert not exclude.is_file() or "/.dsh" not in exclude.read_text(encoding="utf-8")
+
+
+# ....................... #
+# The arm reaches the attempt as a composed prompt (S-0082/D-1, S-0082/D-2)
+
+
+def _arm_session(tmp_path, **arm) -> dict:
+    """Drive one attempt under *arm* and hand back what the agent was given,
+    what the worktree carried when it looked, and the record the attempt left."""
+
+    import asyncio
+    import json
+    import subprocess
+
+    from torve.application.ports import AgentResult, SandboxHandle
+    from torve.application.runner import drive_attempts, real_hooks
+    from torve.domain.states import TaskState
+
+    seen: dict = {}
+
+    class LookingAgent:
+        kind = "harness"
+
+        def run(self, ctx):
+            pack = ctx.workspace / ".torve" / "context" / "index.md"
+            seen["prompt"] = ctx.prompt
+            seen["pack"] = pack.is_file()
+            seen["contract"] = (ctx.workspace / ".torve" / "tasks" / TASK_ID).is_dir()
+            seen["skills"] = sorted(p.name for p in (ctx.workspace / ".torve" / "skills").iterdir())
+
+            return AgentResult(exit_code=1, output="", cost_usd=0.0, model_version="m")
+
+    class InertRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def resolve_image(self, image):
+            return None
+
+        def sync_out(self, handle, worktree):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+    worktree = tmp_path / "wt"
+    (worktree / ".torve" / "skills").mkdir(parents=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
+
+    config = RunnerConfig(
+        poison_ceiling=1,
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="harness", provider="p", model="m"),
+        },
+    )
+    task = Task(id=TASK_ID, decisions=[], intent="make the thing work, and say why")
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=InertRuntime(),  # type: ignore[arg-type]
+        agent=LookingAgent(),  # type: ignore[arg-type]
+        vcs=None,  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+    state = RunState(task_id=task.id, path=tmp_path / "state.json")
+    state.transition(TaskState.CLAIMED, "test claim")
+
+    asyncio.run(
+        drive_attempts(
+            state,
+            task,
+            config,
+            real_hooks(tmp_path, task, config, deps, worktree, shadow=True, **arm),
+        )
+    )
+
+    ledger = (tmp_path / ".torve" / "telemetry.jsonl").read_text(encoding="utf-8")
+    rows = [json.loads(line) for line in ledger.splitlines() if line.strip()]
+    seen["agent_block"] = next(row["agent"] for row in rows if "agent" in row)
+
+    return seen
+
+
+# ....................... #
+
+
+@pytest.mark.parametrize("arm", [{"arm": "bare"}, {"bare": True}, {"arm": "gated"}])
+def test_an_arm_whose_prompt_is_bare_is_handed_it_and_nothing_else(tmp_path, arm):
+    """S-0082/D-1: the prompt's removal is a property of the replay, handed to
+    the session through the composed-prompt seam the review leg already uses —
+    so the adapter composes nothing and the intent is the whole prompt.
+
+    S-0082/D-2: the worktree is stripped of what the runner would have written
+    into it — the projected contract, the skill set, the context pack — and the
+    record names the removals that were in force, so a reader of the arm's
+    numbers can tell what the agent could still open."""
+
+    seen = _arm_session(tmp_path, **arm)
+
+    assert seen["prompt"] == f"# Torve task {TASK_ID}\n\nmake the thing work, and say why"
+    assert not seen["pack"]
+    assert not seen["contract"]
+    assert seen["skills"] == []
+    assert seen["agent_block"]["arm"] == arm.get("arm", "bare")
+    assert "prompt" in seen["agent_block"]["removed"]
+    assert "context-pack" in seen["agent_block"]["removed"]
+    assert ("battery" in seen["agent_block"]["removed"]) == (arm.get("arm", "bare") == "bare")
+
+
+# ....................... #
+
+
+def test_the_configured_arm_composes_its_prompt_in_the_adapter_as_it_did(tmp_path):
+    """The other side of S-0082/D-1: torve as configured hands the adapter no
+    prompt — composing one is the adapter's, from the apparatus the runner
+    writes into the worktree — and its record names no removal at all."""
+
+    seen = _arm_session(tmp_path)
+
+    assert seen["prompt"] is None
+    assert seen["pack"]
+    assert "removed" not in seen["agent_block"]
+    assert "arm" not in seen["agent_block"]

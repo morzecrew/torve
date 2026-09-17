@@ -317,3 +317,40 @@ def test_a_priced_seat_that_reported_no_counts_stays_unreported():
 
     assert block["cost_usd"] is None
     assert block["adapter_cost_usd"] == 47.0
+
+
+def test_the_dispatch_carries_which_arm_is_running(tmp_path):
+    """S-0082/D-1: both removals are read from the one name the dispatch
+    carries, so the leg that composes the prompt and the leg that runs the
+    battery cannot disagree about which arm produced the numbers."""
+
+    from torve.application.dispatch import BARE, CONFIGURED, GATED, open_dispatch
+
+    def arm_of(name: str):
+        return open_dispatch(
+            tmp_path,
+            Task(id=TASK_ID, decisions=[]),
+            RunnerConfig(),
+            _deps(),
+            tmp_path / "wt",
+            shadow=True,
+            arm=name,
+        )
+
+    bare, gated, configured = arm_of(BARE), arm_of(GATED), arm_of(CONFIGURED)
+
+    assert (bare.prompt_removed, bare.battery_removed) == (True, True)
+    assert (gated.prompt_removed, gated.battery_removed) == (True, False)
+    assert (configured.prompt_removed, configured.battery_removed) == (False, False)
+    # The default is torve as configured: an arm is named on purpose or not at all.
+    assert (
+        arm_of(CONFIGURED).arm
+        == open_dispatch(
+            tmp_path,
+            Task(id=TASK_ID, decisions=[]),
+            RunnerConfig(),
+            _deps(),
+            tmp_path / "wt",
+            shadow=True,
+        ).arm
+    )

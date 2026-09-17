@@ -118,6 +118,18 @@ class RunDeps:
 # ....................... #
 
 
+# The arm axis (S-0074/D-1, S-0082/D-1): an arm is named by the apparatus it
+# removes, and each removal is a property of the replay rather than an edit to
+# the manifest or the contract. Two properties, one name — the prompt's removal
+# and the battery's — so `gated` (the bare prompt with the battery still
+# judging what comes back) is a combination of the two rather than a third
+# mechanism. The eval ledger names the same three arms.
+BARE, GATED, CONFIGURED = "bare", "gated", "configured"
+
+
+# ....................... #
+
+
 @dataclass
 class GatePass:
     """What the last gate pass produced. The reviewer judges exactly what the
@@ -182,6 +194,28 @@ class Dispatch:
     # it routes today.
     contract_acceptance: tuple[str, ...] = ()
     repaired_gates: set[str] = field(default_factory=set)
+
+    # Which arm is running (S-0082/D-1). Both removals are read from this one
+    # name, so the leg that composes the prompt and the leg that runs the
+    # battery can never disagree about which arm produced the numbers.
+    arm: str = CONFIGURED
+
+    # ....................... #
+
+    @property
+    def prompt_removed(self) -> bool:
+        """Whether this arm's session is handed a bare prompt — the task's
+        intent and nothing else — instead of the composed one."""
+
+        return self.arm in (BARE, GATED)
+
+    # ....................... #
+
+    @property
+    def battery_removed(self) -> bool:
+        """Whether this arm's gate pass runs nothing (S-0074/D-3)."""
+
+        return self.arm == BARE
 
     # ....................... #
 
@@ -360,6 +394,7 @@ def open_dispatch(
     shadow: bool = False,
     gates_base: str | None = None,
     resume: bool = False,
+    arm: str = CONFIGURED,
 ) -> Dispatch:
     """Settle the regime this run starts under, refusing what must be
     refused first. Every fallible step of setup happens here; the broker
@@ -445,6 +480,7 @@ def open_dispatch(
         shadow=shadow,
         gates_base=gates_base,
         resume=resume,
+        arm=arm,
         contract_acceptance=tuple(task.acceptance),
         tier_name=tier_name,
         tier=tier,

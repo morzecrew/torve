@@ -311,6 +311,22 @@ def _record_broker_usage(
 # ....................... #
 
 
+def bare_prompt(task: Task) -> str:
+    """The bare arm's prompt (S-0074/D-2): the task's intent and nothing else —
+    no inherited rows, no context pack, no working rules, no scope or
+    acceptance. The absence is the point.
+
+    Composed here rather than read from the harness adapter's `build_prompt`
+    (S-0082/D-1): the application cannot import an adapter (S-0015's layering),
+    and the composed-prompt seam the review leg already uses hands the adapter
+    a prompt to stage verbatim — which is the seam this travels through."""
+
+    return "\n".join([f"# Torve task {task.id}", "", task.intent.strip() if task.intent else ""])
+
+
+# ....................... #
+
+
 async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     """One attempt: compose the sandbox, run the agent in it, record how it
     ended. The sandbox dies in the `finally` whatever happens — a cancelled
@@ -361,16 +377,34 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     # S-0056/D-9: with a store, the contract is the board's; the worktree gets
     # a projection of it for the gates and the log verbs, beside the
     # skills and the pack. A tracked contract (the file mode) is left as is.
-    from torve.application.planner import project_contract
+    #
+    # S-0082/D-2: an arm whose prompt is bare is not handed the apparatus by
+    # the back door. What the runner would have written into the worktree is
+    # not written — no projected contract, no skill set, no context pack below
+    # — and the record names the removals that were in force, so a reader of
+    # the arm's numbers can tell what the agent could still open. Nothing the
+    # tree already carried is deleted: a deletion would land in the replay's
+    # own diff and be read as work the arm did.
+    if run.prompt_removed:
+        run.meta.update(
+            arm=run.arm,
+            removed=["prompt", "contract", "skills", "context-pack"]
+            + (["battery"] if run.battery_removed else []),
+            # Not None, which is the shape's "nothing has filled this in yet":
+            # this arm wrote no skills, and that is a measured fact.
+            skills=[],
+        )
+    else:
+        from torve.application.planner import project_contract
 
-    project_contract(worktree, task)
+        project_contract(worktree, task)
 
-    run.meta["skills"] = materialize(
-        task.role,
-        worktree / ".torve" / "skills",
-        effective_skill_sets(run.tier, task.role, config.skills.sets),
-        layout.skills_vendor_dir(worktree),
-    )
+        run.meta["skills"] = materialize(
+            task.role,
+            worktree / ".torve" / "skills",
+            effective_skill_sets(run.tier, task.role, config.skills.sets),
+            layout.skills_vendor_dir(worktree),
+        )
 
     # The equipment this seat declares, warmed and made mountable (S-0062/D-4).
     # Host-side, before the sandbox exists: an attempt that has to reach the
@@ -393,16 +427,17 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     from torve.application.contextpack import build as build_pack
     from torve.application.contextpack import materialize as materialize_pack
 
-    materialize_pack(
-        worktree,
-        build_pack(
-            root,
-            root / config.specs.path,
-            task,
-            layout.gates_file(worktree),
-            replay=shadow,
-        ),
-    )
+    if not run.prompt_removed:
+        materialize_pack(
+            worktree,
+            build_pack(
+                root,
+                root / config.specs.path,
+                task,
+                layout.gates_file(worktree),
+                replay=shadow,
+            ),
+        )
 
     # The revision loop (S-0005/the-revision-loop-added-by-a-32-2026-08-24, S-0005/D-13): a retry's feedback
     # record travels into the sandbox beside the skills; the prompt
@@ -480,6 +515,11 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 timeout_s=agent_timeout_for(config, run.tier),
                 broker=run.broker_handle,
                 resume=resume,
+                # The arm's prompt travels as a property of the replay
+                # (S-0082/D-1), through the seam the review leg already uses:
+                # a composed prompt is staged verbatim, and the adapter
+                # composes one only when handed none.
+                prompt=bare_prompt(task) if run.prompt_removed else None,
             ),
         )
 

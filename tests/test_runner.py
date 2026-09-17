@@ -2558,3 +2558,51 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
     assert landing.agent == committed[0][1].split(" <")[0]
     assert landing.entries[0].claim == "held"
     assert [(one.id, one.grade) for one in landing.decisions] == [("S-0001/D-1", "LOCKED")]
+
+
+def test_the_gated_arm_removes_the_prompt_and_keeps_the_battery(tmp_path):
+    """S-0082/D-1: the gated arm is the two removals combined, not a third
+    mechanism — the prompt's removal is in force and the battery's is not, so
+    the pass this hook set runs is the real one and leaves the record a real
+    pass leaves."""
+    import asyncio
+    import subprocess
+
+    from torve.application.runner import real_hooks
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RunnerConfig
+
+    worktree = tmp_path / "wt"
+    manifest = layout.gates_file(worktree)
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", "-b", "main", str(worktree)], check=True)
+    subprocess.run(["git", "-C", str(worktree), "add", "-A"], check=True)
+    git = ["git", "-C", str(worktree), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "commit", "-q", "--no-gpg-sign", "-m", "seed"], check=True)
+
+    deps = _dispatch_deps(_StubRuntime("sha256:whatever"))
+    hooks = real_hooks(
+        tmp_path, _executor_task(), RunnerConfig(), deps, worktree, shadow=True, arm="gated"
+    )
+
+    asyncio.run(hooks.gates(RunState(task_id=TASK_ID, path=tmp_path / "state.json")))
+
+    telemetry = tmp_path / ".torve" / "telemetry.jsonl"
+
+    assert telemetry.is_file() and telemetry.read_text(encoding="utf-8").strip(), (
+        "the gated arm's battery ran nothing — its removal is the bare arm's, not this one's"
+    )
+
+
+def test_no_arm_but_the_configured_one_may_land_its_work(tmp_path):
+    """S-0074/D-3, S-0082/D-1: an arm is a replay's flag whichever apparatus it
+    removes, so a live dispatch asking for one is refused at hook
+    construction, before any spend."""
+    from torve.application.runner import real_hooks
+    from torve.config.runconfig import RunnerConfig
+
+    deps = _dispatch_deps(_StubRuntime("sha256:whatever"))
+
+    with pytest.raises(ValueError, match="a gated run is a replay"):
+        real_hooks(tmp_path, _executor_task(), RunnerConfig(), deps, tmp_path / "wt", arm="gated")

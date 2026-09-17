@@ -40,6 +40,8 @@ from forze.base.primitives import JsonDict
 
 from torve.application import decisions
 from torve.application.dispatch import (
+    BARE,
+    CONFIGURED,
     Dispatch,
     GatePass,
     RunDeps,
@@ -905,6 +907,7 @@ def real_hooks(
     gates_base: str | None = None,
     resume: bool = False,
     bare: bool = False,
+    arm: str | None = None,
 ) -> AttemptHooks:
     """Bind one dispatch's steps into the hooks the loop drives (S-0046).
 
@@ -913,16 +916,24 @@ def real_hooks(
     configuration calls for, and opens the broker last — after every step
     above it that can still fail (S-0046/D-4).
 
-    `bare` is the arm axis (S-0074/D-3): the battery's removal travels as a
-    property of the replay — the gate pass is swapped for `_bare_gates`, a
-    pass that runs nothing — never as an edit to the gate manifest. It is a
-    replay's flag: a bare run that would land its work is refused here,
-    because a bare arm cannot land anything (S-0074/D-3)."""
+    `arm` is the arm axis (S-0074/D-1, S-0082/D-1): the dispatch carries which
+    arm is running, and both removals are read from it — the battery's swaps
+    the gate pass for `_bare_gates`, a pass that runs nothing, and the
+    prompt's is the attempt leg's (S-0082/D-1). Neither is ever an edit to the
+    manifest or the contract. `bare` is the older spelling of `arm=BARE` and
+    names the same arm.
 
-    if bare and not shadow:
+    Every arm but `configured` is a replay's flag: an arm run that would land
+    its work is refused here, because an arm cannot land anything
+    (S-0074/D-3)."""
+
+    arm = arm or (BARE if bare else CONFIGURED)
+
+    if arm != CONFIGURED and not shadow:
         raise ValueError(
-            "a bare run is a replay — removing the battery is a property of the "
-            "replay, never of a live dispatch that would land its work"
+            f"a {arm} run is a replay — removing the apparatus it names is a "
+            "property of the replay, never of a live dispatch that would land "
+            "its work"
         )
 
     run = open_dispatch(
@@ -934,6 +945,7 @@ def real_hooks(
         shadow=shadow,
         gates_base=gates_base,
         resume=resume,
+        arm=arm,
     )
 
     # Revert is mechanical (S-0010/revert-as-a-role, S-0010/D-7): no agent, no attempt
@@ -957,7 +969,7 @@ def real_hooks(
     return AttemptHooks(
         attempt=attempt,
         halted=partial(halted, run),
-        gates=partial(_bare_gates, run) if bare else partial(judge, run),
+        gates=partial(_bare_gates, run) if run.battery_removed else partial(judge, run),
         land=partial(land, run),
         review=review,
         close=partial(close_dispatch, run),
