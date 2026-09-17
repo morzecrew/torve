@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      the gate that reads a test against the tree it was written for
+    intent: >-
+      `red-on-base` joins the builtins and the manifest at `shadow` with a sabotage
+      pair: the files whose test functions changed are parsed out of the diff, run
+      against the base tree's source with the attempt's own test code, and a pass
+      on base from every one of them is a conviction naming the files. A move, a rename
+      or a reformat qualifies nothing, a diff with no changed source is not judged,
+      and a candidate failure is `acceptance`'s conviction rather than this gate's.
+      Settles D-1 through D-5.
+    scope:
+      - src/torve/gates/red_on_base.py
+      - src/torve/gates/__init__.py
+      - src/torve/gates/contract.py
+      - src/torve/gates/sabotage.py
+      - tests/test_gates.py
+      - tests/test_sabotage.py
+      - .torve/gates.yaml
+    acceptance:
+      - >-
+        uv run pytest tests/test_gates.py tests/test_sabotage.py
+    character: structural
+  - phase: 1
+    title: the record names the conviction a repair repairs
+    intent: >-
+      The repair fact the runner stamps gains the attempt number it repairs beside
+      the gate's name, so a repair row in the attempt record joins the conviction
+      row it came from and S-0069's own question can be asked of the record rather
+      than of a transcript. Additive, and a row written without the key keeps reading
+      as a repair whose conviction is unknown. Settles D-6.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/dispatch.py
+      - tests/test_runner.py
+      - tests/test_dispatch.py
+      - tests/test_attempt_record.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_dispatch.py tests/test_attempt_record.py
+    character: structural
+  - phase: 2
+    title: the gate earns a repair when it blocks
+    intent: >-
+      `red-on-base` is admitted to S-0069's qualifying set, so a blocking conviction
+      from it routes the next attempt as a repair — the convicted tree, the gate's
+      own command added to the acceptance, once per dispatch — while a shadow conviction
+      still routes where it routes today. It waits on phase 1 because a set cannot
+      name a gate that does not exist. Settles D-7.
+    scope: [src/torve/application/runner.py, tests/test_runner.py]
+    acceptance:
+      - uv run pytest tests/test_runner.py
+    depends_on:
+      - 1
+    character: structural

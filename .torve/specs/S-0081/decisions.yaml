@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `red-on-base` is a builtin gate declared beside `no-test-tampering`, entering
+      at `shadow` with a sabotage pair that proves it can convict and can pass
+    paths:
+      - src/torve/gates/red_on_base.py
+      - src/torve/gates/__init__.py
+      - .torve/gates.yaml
+    consequence: >-
+      the gate produces its own false-positive rate before it can block anything,
+      and promotion is an amendment with that rate attached rather than a line in
+      this document
+    rationale: >-
+      every entry in the thirteen-gate manifest arrived this way and the manifest
+      refuses a twinless entry outright; a gate whose subject is evidence rather than
+      code has more ways to be wrong than the ones already there, not fewer
+    cites: [S-0055/D-15]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The gate's input is the test files whose test functions differ from their base
+      version as parsed syntax, never the test files present in the diff
+    paths: [src/torve/gates/red_on_base.py, src/torve/gates/__init__.py]
+    consequence: >-
+      a move, a rename or a reformat qualifies nothing, so the gate cannot be routed
+      around by leaving tests untouched, and a refactor that reorganises the suite
+      pays nothing
+    rationale: >-
+      a diff-line rule convicts on work that carries no claim at all, and the first
+      refactor to be convicted by it teaches every later attempt that touching a test
+      file is expensive — which is the opposite of what the gate is for
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The verdict is a conviction only when every qualifying test passes on base;
+      a candidate-side failure is reported as skipped and left to `acceptance`
+    paths: [src/torve/gates/red_on_base.py, src/torve/gates/__init__.py]
+    consequence: >-
+      one failing test is never filed under two gate names, so the retry rung and
+      the repair routing are pointed at the failure's actual class
+    rationale: >-
+      `coverage-delta` already carries the cost of the opposite choice — it runs the
+      suite before it can measure and had to grow a sentence explaining that a red
+      there is a failing test rather than a coverage shortfall
+    cites: [S-0070/D-6]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A diff that changes no file outside the manifest's test patterns is not judged
+      by this gate
+    paths: [src/torve/gates/red_on_base.py, src/torve/gates/__init__.py]
+    consequence: >-
+      a contract whose whole job is adding missing tests is not convicted for it,
+      and an attempt that splits its source change away from its tests is unjudged
+      in both halves
+    rationale: >-
+      with no source change the base tree and the candidate tree hold the same code,
+      so every added test passes on base by construction and the conviction would
+      say nothing about the attempt
+  - id: D-5
+    grade: OPEN
+    text: >-
+      How the base tree is materialised and where the base pass runs is implementation's,
+      under three constraints — the command goes through the pass's own executor,
+      nothing the gate writes outlives its own call, and only the qualifying files
+      run
+    paths: [src/torve/gates/red_on_base.py, src/torve/gates/sabotage.py]
+    consequence: >-
+      the declared timeout is what the choice is judged by, and a materialisation
+      that puts this gate beside `coverage-delta` in cost has failed whatever else
+      it does
+    rationale: >-
+      gates run outside the agent session against the tree it left behind, and the
+      landing commits whatever the worktree holds — a scratch directory that survives
+      the gate call would be committed as the attempt's work. Those two facts bound
+      the answer; which of the several trees that satisfy them is cheapest is a measurement,
+      and this document has not taken it
+    cites: [S-0055/D-2, S-0071/D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The repair fact in the attempt record names the attempt number it repairs beside
+      the convicting gate
+    paths: [src/torve/application/runner.py, src/torve/application/dispatch.py]
+    consequence: >-
+      whether taking the conviction as input beat re-dispatching from base becomes
+      a query over the record, which is the question S-0069 exists to answer and currently
+      cannot be asked of anything but a transcript
+    rationale: >-
+      `_route_repair` stamps the gate's name alone, so the record can count repairs
+      and cannot pair one with its conviction; the key is additive and its absence
+      keeps reading as a row written before it existed
+    cites: [S-0069/D-3, S-0069/D-6]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `red-on-base` joins the set of convictions that route a repair, and only once
+      it blocks
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      the first widening of that set since it was fixed at four, with its reason on
+      the record, so the next one is argued rather than edited in
+    rationale: >-
+      the set is the gates whose reds name a property of the tree rather than a verdict
+      on the approach, and this red is the most complete statement of that kind in
+      the battery — these files pass on base, write one that does not — while the
+      work that produced them is not in question, which is S-0069/D-4's own argument
+      for repairing from the convicted tree
+    cites: [S-0069/D-4, S-0069/D-5]
+invariants:
+  - id: I-1
+    statement: >-
+      Every gate in the manifest, this one included, can be made to fail and can be
+      made to pass
+    paths: [.torve/gates.yaml, src/torve/gates/sabotage.py]
+    check: uv run torve gates check

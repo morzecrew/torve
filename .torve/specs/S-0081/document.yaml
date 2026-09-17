@@ -1,0 +1,336 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0081
+title: >-
+  The test that proves nothing, and the conviction the record can name
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0069]
+informed_by: [S-0055, S-0070, S-0071]
+supersedes: []
+superseded_by: null
+owner: author role
+schema_version: 4
+summary: |
+  A test that is green on the tree it was written against proves nothing about the change
+  it arrived with, and no gate in the battery notices; `red-on-base` runs an attempt's
+  changed tests against the base source and convicts when every one of them passes there.
+
+  It is the first gate that judges the evidence rather than the code, so it enters at
+  `shadow` with a sabotage twin like every other. It is also the first gate the repair
+  routing is widened for: a conviction here names a property of the tree — these tests do
+  not discriminate — and the repair for it is one test that does.
+motivation: |
+  The battery already refuses a green earned by weakening the suite: `no-test-tampering`
+  reddens on an edit to an existing test outside the contract's licence (S-0055/D-19). It
+  says nothing at all about a test that is added, and its own docstring is explicit —
+  "adding a brand-new test file is not tampering". The cheapest way to satisfy an
+  acceptance command has always been to add a test that asserts what the tree already
+  does, and nothing in the thirteen entries of `.torve/gates.yaml` can tell that apart
+  from a test that would have caught the bug.
+
+  The one entry that reads added tests at all is `coverage-delta`, and it reads them for
+  the wrong property. Coverage says a line was executed; it does not say anything would
+  have noticed had the line been wrong. It is also the most expensive thing in the
+  battery by an order of magnitude — 164s median over 228 runs, 271s at p90, 600s at
+  worst, against the 6s the builtins declare — because it runs the whole suite under
+  instrumentation before it can measure a delta at all.
+
+  The discriminating question is cheap, and it is the one a person asks in review: would
+  this test have failed before the change? Running the attempt's own changed tests
+  against the base source answers it exactly, with no instrumentation and no suite.
+current_state: |
+  **Thirteen gates, eight builtins, none of them about evidence.** `src/torve/gates/`
+  holds eight builtin checks wired in `BUILTINS`; `.torve/gates.yaml` declares thirteen
+  entries over them. Every one judges the diff, the tree or the log. `acceptance` runs
+  the contract's commands and reports pass or fail (`src/torve/gates/acceptance.py`);
+  since S-0070/D-6 it also names the suite it judged, which is the nearest the battery
+  comes to asking what a green was worth.
+
+  **The repair half is already built, and this document is careful not to rebuild it.**
+  S-0069 is accepted and complete. `_route_repair` in `src/torve/application/runner.py`
+  routes a qualifying conviction to a repair attempt whose acceptance gains the gate's
+  own command beside everything the contract declared (S-0069/D-3), starting from the
+  convicted tree rather than from base (S-0069/D-4) by way of
+  `_commit_convicted_tree`, once per gate per dispatch (S-0069/D-6). The conviction
+  reaches the attempt as evidence in the prompt — gate, output tail, touched paths,
+  governing rows — in `build_prompt` (S-0069/D-1, D-2). Its tests are
+  `tests/test_runner.py::test_a_qualifying_conviction_routes_the_next_attempt_as_a_repair`
+  and its siblings.
+
+  Two facts about that half are what remain. The qualifying set is a frozen four —
+  `REPAIR_GATES = {"layering", "scope", "user-facing-text", "decisions-reported"}` — and
+  its own comment says widening it is a decision with the ledger's counts behind it,
+  never an edit to that line. And `_route_repair` stamps `run.meta["repair"] = gate`,
+  which rides into the attempt record's agent block through `build_record`: the name of
+  the gate, and nothing that joins the repair to the attempt it repaired. A reader of the
+  record can count repairs; it cannot pair one with its conviction.
+goals: |
+  A test added by an attempt is worth what it discriminates, and the battery can say so
+  in the same pass that judges everything else, without running the suite twice.
+
+  The gate's own conviction becomes a repair attempt rather than a re-dispatch, once the
+  gate has soaked long enough to block — the same route S-0069 built, reached by one more
+  gate.
+
+  A repair in the record names the attempt it repaired, so the question S-0069 exists to
+  answer — did taking the conviction as input do better than re-dispatching from base —
+  can be asked of the record rather than of a transcript.
+non_goals: |
+  Rebuilding the repair mode. S-0069 shipped it and this document inherits it; what is
+  here is one gate joining its qualifying set and one field the record was missing.
+  Restating S-0069's rows as new ones would give the corpus two owners for one mechanism.
+
+  Narrowing a repair's scope. The plan this document came from asked for a repair whose
+  scope is the touched paths plus their tests; S-0069 deliberately leaves the contract
+  alone, and that rejection is recorded below rather than quietly reversed here.
+
+  Promoting `red-on-base` to blocking. It enters at `shadow` like every gate before it
+  (S-0055/D-15), and promotion is an amendment with soak evidence behind it, not a line
+  in this document.
+
+  Retiring `coverage-delta`. The two answer different questions and the evidence that one
+  makes the other redundant does not exist yet.
+design:
+  - key: what-a-green-test-does-not-say
+    md: |
+      A suite's green is a claim about the tree it ran on, and the battery reads it as a
+      claim about the change. The gap is where a test that asserts existing behaviour
+      lives: it is green on the candidate, it is green on base, and every gate in the
+      pass agrees it is a test.
+
+      The discriminating question needs both trees and neither needs the whole suite.
+      Run the attempt's own changed tests against the base source: at least one must
+      fail, because the change they accompany is a change in behaviour those tests are
+      supposed to notice. If all of them pass, the tests did not exercise the change, and
+      the gate says which files.
+
+      That makes this the first gate whose subject is the evidence rather than the code.
+      A red does not mean the work is wrong — the candidate is green by construction
+      before this gate is reached — it means nothing in the diff would have caught the
+      work being wrong.
+  - key: the-files-whose-test-functions-changed
+    md: |
+      The input is not "test files in the diff". A file moved, renamed or reformatted is
+      in the diff and says nothing, and a gate that convicts on it is a gate every
+      refactor learns to route around.
+
+      So the gate compares parsed test functions, not lines. For each diff entry matching
+      the manifest's `tests.patterns`, the candidate file and its base version are parsed
+      and their test functions compared as syntax, so a whitespace change, a reordering
+      or an import rearrangement is invisible:
+
+      ```python
+      def test_functions(source: str) -> dict[str, str]:
+          """Test function name -> its parsed shape, formatting discarded."""
+          tree = ast.parse(source)
+          return {
+              node.name: ast.dump(node)
+              for node in ast.walk(tree)
+              if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+              and node.name.startswith("test_")
+          }
+      ```
+
+      A file qualifies when that mapping differs from the base version's — a new
+      function, a removed one, or one whose body changed. A rename (`R` in the diff)
+      compares against `old_path`'s base content, so moving a file whole qualifies
+      nothing. A file that parses on neither side is reported and not judged: the gate
+      never converts a syntax error into a verdict about evidence.
+
+      When no file qualifies, the gate passes with that sentence, and the attempt pays
+      nothing.
+  - key: the-two-runs-and-the-verdict
+    md: |
+      The base pass runs exactly the qualifying files, with the candidate's test code, on
+      the base tree's source. The candidate pass is the same files on the candidate.
+      Three outcomes, and only one of them is a conviction:
+
+      - at least one base failure, all candidate passes — `pass`, which is what the gate
+        exists to see;
+      - every base test passes — `fail`, naming each qualifying file and the count of
+        test functions in it that changed;
+      - a candidate failure — `skipped`, with the failure quoted. The candidate being red
+        is `acceptance`'s conviction to make, and two gates reporting one failing test
+        under two names is how a retry gets pointed at the wrong thing.
+
+      Where the base tree is materialised, and how the base pass is run without a second
+      installed environment, is deliberately left to implementation below. Three things
+      are not: the command goes through the pass's own executor, so it runs where every
+      other gate command runs (S-0055/D-2); nothing the gate writes survives its own
+      call, because the landing commits whatever the worktree holds; and only the
+      qualifying files run, never the suite.
+  - key: the-gate-that-earns-a-repair
+    md: |
+      S-0069's qualifying set is the gates whose reds name a property of the tree rather
+      than a verdict on the approach — the tree a mechanical conviction names is
+      repaired, not rebuilt. `acceptance` is outside it on purpose: a suite that fails
+      twice may be a tree worth keeping or an approach worth abandoning, and only the
+      per-gate repeat counts can tell those apart.
+
+      `red-on-base` is on the qualifying side of that line, and more cleanly than
+      anything already in the set. Its red is a complete statement of what to do: these
+      test files pass on base, write one that does not. The work that produced them is
+      not in question, which is precisely S-0069/D-4's argument for starting a repair
+      from the convicted tree rather than from base.
+
+      It joins the set when it blocks, not when it lands. A shadow conviction is a fact,
+      not a conviction, and `_repair_gate` already reads `state == "blocking"` for
+      exactly this reason; a gate nobody has seen convict for real must not be routing
+      attempts.
+  - key: a-repair-the-record-can-join
+    md: |
+      `run.meta["repair"] = gate` is enough to know an attempt was a repair and of what
+      kind. It is not enough to ask whether the repair worked, because the row cannot be
+      paired with the attempt that was convicted — and that pairing is the whole
+      question S-0069 was written to settle.
+
+      The fix is one field, not a schema: the repair fact becomes the gate beside the
+      attempt number it repairs, so a reader joins the repair row to the conviction row
+      within one task's attempts. The key is additive, and absence keeps reading as
+      "written before this key existed" (S-0038/D-6) exactly as every other key in that
+      record does — the pre-S-0081 rows stay readable as repairs whose conviction is
+      unknown, never as repairs of attempt zero.
+tests: |
+  The gate's twin is the sabotage suite's rule, not a new one (S-0055/D-15): a case that
+  adds a test asserting what the base tree already does must make the gate red, and its
+  clean sibling — a test that fails on base and passes on the candidate — must make it
+  green. Without both, a gate that silently stops firing is indistinguishable from a
+  clean tree.
+
+  Three shapes in `tests/test_gates.py` carry the input rule, because they are what a
+  refactor will hit first: a test file reformatted with no function changed, a test file
+  renamed whole, and a diff whose only changes are test files. Each must pass without
+  running anything.
+
+  The repair widening is tested where S-0069's own routing is, in `tests/test_runner.py`:
+  a blocking `red-on-base` conviction routes the next attempt as a repair and a shadow
+  one does not, which is the same pair every gate in the qualifying set already has.
+
+  The record's join is tested in `tests/test_attempt_record.py` for the two readings that
+  matter: a repair row carries the gate and the convicted attempt number, and a row
+  written without the key still reads as a repair rather than as a repair of attempt
+  zero.
+docs: |
+  `.torve/gates.yaml` gains the entry with its measured timeout and the sentence saying
+  what a red means, because a gate whose red reads as "your code is broken" when it means
+  "your test is worthless" costs an attempt to decode.
+
+  The managed sections beside `src/torve/gates/` and `src/torve/application/` are
+  rendered from the rows and follow automatically; the operating page gains the sentence
+  an operator needs, which is that a red here is about the diff's tests and never about
+  the diff's code.
+out_of_scope: |
+  Promotion to blocking, and therefore the repair routing actually firing. Both wait on
+  soak evidence the gate has to run to produce; the row that admits it to the qualifying
+  set is written now so that promotion is one amendment rather than two decisions.
+
+  Languages other than Python. The input rule is a parse, and the parser here is `ast`. A
+  repository whose tests are not Python gets a gate that qualifies nothing and passes,
+  which is the correct degenerate behaviour; making it plural is a different document
+  with a second parser in it.
+
+  Whether `coverage-delta` survives. If this gate blocks and holds, the case for a
+  600-second shadow entry measuring a weaker property gets thin — but that is a decision
+  with soak numbers behind it, and none exist yet.
+
+  The wider repair question of which convictions should qualify. S-0069/D-5 owns that
+  set and says it grows on the ledger's evidence; this document adds one gate with its
+  reason and does not reopen the rule.
+risks: |
+  **A refactor with no behaviour change convicts.** Tests that are correct and exercise
+  the change can still pass on base when the change was a rename or an extraction. This
+  is the gate's largest false-positive class and it is why the gate enters at `shadow`:
+  the soak is how often it fires on work a person would have accepted, and a rate that
+  does not fall sharply is a reason to retire the gate rather than to promote it.
+
+  **The conviction teaches the wrong lesson.** A model told "at least one test must fail
+  on base" can satisfy the gate with a test that fails on base for a trivial reason —
+  asserting against a symbol that does not exist there. The gate cannot tell that apart
+  from a real discriminator, and nothing here claims it can; what it removes is the test
+  that asserts existing behaviour, which is the failure actually observed.
+
+  **A test-only task has no change to exercise.** A contract whose whole job is adding
+  missing tests would convict on every file, which is why the gate does not judge a diff
+  with no changed source. That exemption is also an opening: an attempt that lands its
+  source change and its tests in separate attempts is unjudged in each. The pass is over
+  the diff against merge-base, not against the previous attempt, so this only bites when
+  the task itself is split that way.
+
+  **The cheapness claim is a claim.** Only the qualifying files run, but they run against
+  a tree that has to exist, and materialising it badly would put this gate beside
+  `coverage-delta` in cost rather than beside the builtins. The declared timeout is the
+  guard, and it is measured before it is written, never rounded at the keyboard
+  (S-0071/D-3).
+sections:
+  - key: what-this-document-does-not-add
+    md: |
+      The plan this document was written from asked for a repair role in terms that read
+      as new work: a conviction minting a repair attempt whose input is the conviction
+      itself, continuing from the convicted tip rather than from base, with the gate's
+      command added to the acceptance. All of that exists. It is S-0069, accepted and
+      complete, and its rows are inherited here rather than restated.
+
+      Two of the plan's specifics are genuinely absent and are designed above: the record
+      cannot join a repair to its conviction, and no gate has been added to the
+      qualifying set since S-0069 fixed it at four. One is absent on purpose and is
+      recorded as rejected rather than built: narrowing a repair attempt's scope to the
+      touched paths plus their tests.
+
+      Saying so here is cheaper than the alternative. A second document owning a shipped
+      mechanism is how a corpus starts disagreeing with itself, and the disagreement
+      surfaces at the worst moment, which is when someone amends one of the two.
+alternatives:
+  - option: >-
+      Make `coverage-delta` blocking instead of adding a gate
+    rejected_because: >-
+      Coverage says a line executed, not that anything would have noticed it being
+      wrong — a test asserting existing behaviour scores full coverage on the lines
+      it never discriminates. It is also 164s median against the builtins' 6s, and
+      it runs the whole suite before it can measure anything, which is the cost the
+      discriminating question does not have to pay.
+    cites: [S-0071/D-6]
+  - option: >-
+      Run the whole suite against the base tree rather than the changed test files
+    rejected_because: >-
+      The base tree's suite failing tells you nothing about the attempt — it is either
+      the tests that were already there, passing, or a pre-existing failure that would
+      convict every attempt on the branch. The signal lives entirely in the files
+      the attempt changed, and the rest is cost.
+  - option: >-
+      Take any test file in the diff as the gate's input
+    rejected_because: >-
+      A move, a rename or a reformat is in the diff and carries no claim, and a gate
+      that convicts on them is a gate every refactor learns to route around by not
+      touching tests. Parsing is what makes the input the attempt's claim rather than
+      its diff.
+  - option: >-
+      Narrow a repair attempt's scope to the paths the convicted diff touched plus
+      their tests
+    rejected_because: >-
+      The contract is what the engine agreed to before the attempt ran, and a repair
+      that narrows it is a contract nobody signed — S-0069 settled this when the conviction
+      became an input, and the prompt says so in as many words. The conviction already
+      names the touched paths as evidence, which is the part that was actually needed.
+    cites: [S-0069/D-1, S-0069/D-2]
+  - option: >-
+      Mint a repair for every conviction rather than for a qualifying set
+    rejected_because: >-
+      `acceptance` is the largest conviction class and the one where a repair is least
+      obviously right: a suite failing twice may be a tree worth keeping or an approach
+      worth abandoning, and only the per-gate repeat counts tell those apart. The
+      set grows one gate at a time with a reason attached, which is what this document
+      does.
+    cites: [S-0069/D-5]
+questions:
+  - id: Q-1
+    text: >-
+      Should a diff that changes tests and no source be skipped, as designed here,
+      or convict with a different sentence? Skipping is right for a task whose job
+      is adding missing tests and wrong for an attempt that split its source change
+      into an earlier attempt; the soak should say which shape actually occurs.
+  - id: Q-2
+    text: >-
+      Does `red-on-base` blocking make `coverage-delta` redundant, and if so is the
+      answer to retire it or to narrow it to the property this gate does not cover?
+      Needs soak numbers from both.
