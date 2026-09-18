@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/unsigned-commits-under-required-signatures
+kind: operator
+ref: 'bloomery PR #136, 2026-09-18: BLOCKED with 15 checks green, approved, no threads open
+  — six unsigned attempt and landing commits'
+title: An adopter's required_signatures rule blocks every document pull request the engine
+  opens
+at: '2026-09-18T18:38:49Z'
+summary: |
+  bloomery's `main` carries a `required_signatures` ruleset. Every commit
+  the engine makes is unsigned: the attempt's checkpoint is made inside the
+  sandbox under the seat's identity (`subscription/claude-opus-5`), and the
+  lane's landing commit is made on the host under the same identity, with no
+  key. The document pull request #136 therefore read BLOCKED with all
+  fifteen checks green, an approval and no thread open; the operator's own
+  commits on the same branch (a merge of main, a review fix) verified, because
+  the host's git signs with their SSH key. #133 before it merged only by the
+  owner's bypass, which is the same act every document would need.
+
+  What the engine could do: sign the landing commit on the host, which is
+  one `-S` away when the operator's git is configured to sign, and would
+  leave only the sandbox's checkpoints unsigned; or squash the attempt's
+  checkpoints into the landing commit on the document branch so that the
+  branch carries only host-made, signable commits (S-0083/D-14 keeps the
+  attempt commits for the record's join, so this trades that join for the
+  rule). What it cannot do is sign inside the sandbox: the key stays on the
+  host by design (S-0060). Until one of these lands, a `required_signatures`
+  adopter merges every document by bypass, and `torve doctor` says nothing
+  about it — reading the base branch's rules at `init` and naming the
+  conflict is the smaller first step.
