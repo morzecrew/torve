@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/document-merged-before-its-last-phase
+kind: operator
+ref: 'bloomery PR #133, 2026-09-18: merged carrying T-0001 while T-0002 and T-0003 were still
+  to land'
+title: A document pull request merged before its last phase leaves the branch behind main
+at: '2026-09-18T16:24:19Z'
+summary: |
+  S-0083 assumes the person merges the document's pull request once, after
+  its last phase has landed on the branch (D-7, D-10). bloomery PR #133 was
+  merged carrying T-0001 alone while T-0002 and T-0003 were still to come.
+  The read-back records the document landed (D-10) and keeps the branch
+  (D-14), and the next phase still lands onto that branch and opens a new
+  pull request from it — but the branch now trails main by the squash commit
+  the merge made, so the new pull request's diff shows the earlier phases'
+  files a second time, and the ledger flips the same document from merged
+  back to open with its task list carried over.
+
+  The lane could treat a merged document whose contracts are not all landed
+  as a branch to rebase onto the remote's main before the next landing —
+  D-13's rebase, triggered by the merge rather than by a dirty merge — so the
+  next pull request carries only what main lacks. Until then the operator
+  merges main into the branch by hand before rerunning the next phase.

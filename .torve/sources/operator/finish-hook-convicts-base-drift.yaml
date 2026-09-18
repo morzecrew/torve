@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/finish-hook-convicts-base-drift
+kind: operator
+ref: 'bloomery T-0002 attempt 1, 2026-09-18: agent_timeout after the stop hook reported drift
+  the #132 acceptances left on main'
+title: The implement finish hook convicts an attempt for projection drift already on its base
+at: '2026-09-18T16:24:18Z'
+summary: |
+  bloomery's seven acceptances landed in PR #132 without `torve spec project`
+  being re-run, so `torve spec project --check` exited 3 on main with 30
+  drifting directories. The implement finish hook runs that check at every
+  stop and reports drift as the attempt's debt, so every attempt on that base
+  was convicted for drift it did not cause. T-0001 satisfied the hook by
+  luck: the one governed directory inside its scope was `comparisons/`, and
+  projecting it landed a `comparisons/AGENTS.md` nobody asked for. T-0002's
+  scope held no governed directory: it finished its work, was told to re-run
+  the projection, and timed out. Had it run the verb, the 30 files written
+  outside its scope would have convicted it at the scope gate instead.
+
+  Two gaps. The hook cannot tell drift the attempt made from drift it
+  inherited — comparing the check's file list against the base's, or limiting
+  the conviction to directories inside the contract's scope, would. And
+  nothing after an acceptance says the projection is now stale: `torve spec
+  check` passes, `torve doctor` is green, and the drift surfaces only inside
+  a sandbox at the end of a paid attempt. Repaired for bloomery by projecting
+  on main (PR #134); the engine still owes the check at acceptance time.
