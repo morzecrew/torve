@@ -7,6 +7,7 @@ license = { file = "LICENSE" }
 requires-python = ">=3.13,<3.15"
 authors = [{ name = "morzecrew" }]
 dependencies = [
+    "attrs>=25",
     "forze>=0.6.0",
     "pathspec>=0.12",
     "pydantic>=2.7",
@@ -199,6 +200,9 @@ skips = ["B101", "B404", "B603", "B607"]
 
 [tool.deptry]
 known_first_party = ["torve"]
+# The engine's own hooks under `.torve/agents/hooks/` import each other as
+# siblings; they are not a package and never ship.
+extend_exclude = [".torve"]
 ignore_notebooks = true
 
 [tool.deptry.per_rule_ignores]

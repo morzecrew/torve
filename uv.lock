@@ -1696,6 +1696,7 @@ name = "torve"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "attrs" },
     { name = "forze" },
     { name = "pathspec" },
     { name = "pydantic" },
@@ -1747,6 +1748,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "attrs", specifier = ">=25" },
     { name = "forze", specifier = ">=0.6.0" },
     { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = ">=0.6.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2" },
