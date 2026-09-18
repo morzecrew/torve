@@ -847,6 +847,12 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
     # environments the adapters compose.
     token = os.environ.get(config.scm.token_env) if config.scm.token_env else None
 
+    # Under `promotion.unit: document` the pull request is the document's and the
+    # lane's to open (S-0083/D-1): the task branch stays local, because a task
+    # pull request beside the document's is the one-per-task unit by another door.
+    publishes = config.scm.open_pr and not (
+        config.promotion.landing == "pull_request" and config.promotion.unit == "document"
+    )
     pushed = (
         await asyncio.to_thread(
             # supersede (S-0010/D-10, S-0010/A-1): the attempt owns the task's
@@ -862,13 +868,13 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
         # off the candidate stays local — pushing a branch is publishing,
         # and on a repository whose base was never pushed it publishes the
         # entire history.
-        if sha and config.scm.open_pr
+        if sha and publishes
         else False
     )
 
     pr_url = ""
 
-    if pushed and config.scm.open_pr:
+    if pushed and publishes:
         title, pr_body = compose_pr(
             task,
             state.attempts,
