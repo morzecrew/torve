@@ -16,7 +16,7 @@ import yaml
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
-from torve.domain.task import Task
+from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
 
@@ -68,6 +68,20 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
 # ....................... #
 
 
+def _decision_table(decisions: list[InheritedDecision]) -> list[str]:
+    """The rows a contract carried, as a table: a reviewer scans a grade
+    column; a bullet per row hides it inside the prose."""
+
+    def cell(text: str) -> str:
+        return " ".join(text.split()).replace("|", "\\|")
+
+    return [
+        "| Decision | Grade | Text |",
+        "| --- | --- | --- |",
+        *(f"| {d.id} | `{d.grade}` | {cell(d.text)} |" for d in decisions),
+    ]
+
+
 def compose_pr(
     task: Task,
     attempts: int,
@@ -83,8 +97,9 @@ def compose_pr(
     verdicts and the divergence entries (S-0080/D-4). The agent's output
     appears nowhere: if it had something to say beyond code, it belongs in
     an execution-log entry with evidence. The body leads with what a
-    reader decides from — what changed, whether the gates held, where the
-    control surface is — and folds the contract behind a details block."""
+    reader decides from — the contract, what changed, whether the gates held,
+    where the control surface is. The contract is the paragraph a reviewer
+    reads first, so it is in the open and not behind a details block."""
 
     summary = task.intent.strip().splitlines()[0] if task.intent.strip() else "task"
 
@@ -122,6 +137,12 @@ def compose_pr(
             "",
         ]
 
+    if task.intent.strip():
+        lines += ["## Contract", "", task.intent.strip(), ""]
+
+        if task.acceptance:
+            lines += ["**Acceptance**", *(f"- `{command}`" for command in task.acceptance), ""]
+
     if changed:
         lines += ["## Changed", *(f"- `{path}`" for path in changed), ""]
 
@@ -151,19 +172,7 @@ def compose_pr(
         lines += ["## Divergences", *(f"- {d}" for d in divergences), ""]
 
     if task.decisions:
-        lines += [
-            "## Inherited decisions",
-            *(f"- {d.id} ({d.grade}): {d.text}" for d in task.decisions),
-            "",
-        ]
-
-    if task.intent.strip():
-        lines += ["<details><summary>Contract</summary>", "", task.intent.strip(), ""]
-
-        if task.acceptance:
-            lines += ["**Acceptance**", *(f"- `{command}`" for command in task.acceptance), ""]
-
-        lines += ["</details>", ""]
+        lines += ["## Inherited decisions", "", *_decision_table(task.decisions), ""]
 
     cost = meta.get("cost_usd")
     trace = meta.get("trace_ref")
@@ -245,7 +254,8 @@ def compose_document_pr(
     entirely from records: every task the branch carries, the rows each
     contract carried with their grades, the gates' verdicts and the
     divergence entries, and the phases the document has still to come
-    (S-0083/D-8). Nothing an agent wrote as prose reaches it."""
+    (S-0083/D-8). The contract's intent is the author's paragraph and is in
+    the open; nothing an agent wrote as prose reaches it."""
 
     doc_title, phasing = _phasing(root, document)
     landed = {landing.task.phase for landing in landings if landing.task.phase}
@@ -290,16 +300,19 @@ def compose_document_pr(
         lines += [f"## {task.id}{phase}{sha}", ""]
 
         if task.title.strip():
-            lines += [task.title.strip(), ""]
+            lines += [f"**{task.title.strip()}**", ""]
+
+        if task.intent.strip():
+            lines += [task.intent.strip(), ""]
 
         if landing.results:
             lines.append(f"- {_gates_line(landing.results)}")
 
-        for decision in task.decisions:
-            lines.append(f"- {decision.id} ({decision.grade}): {decision.text}")
-
         for divergence in _divergences(root, task.id):
             lines.append(f"- divergence: {divergence}")
+
+        if task.decisions:
+            lines += ["", *_decision_table(task.decisions)]
 
         lines.append("")
 

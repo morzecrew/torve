@@ -57,16 +57,19 @@ def test_the_pr_is_composed_from_records_never_prose(tmp_path: Path):
     long_title, _ = compose_pr(long_task, 1, "d", meta, [], tmp_path)
     assert len(long_title) <= len("T-8301: ") + 72
     assert "attempt 2" in body and "`cafecafe1234`" in body
-    # The body leads with what changed and where the control surface is;
-    # the contract folds behind a details block (owner feedback: the wall
-    # of intent buried the decision-relevant facts).
+    # The body leads with the contract — the paragraph a reviewer reads
+    # first, in the open and not behind a details block (owner feedback) —
+    # then what changed and where the control surface is.
+    assert "## Contract" in body and "<details>" not in body
+    assert body.index("## Contract") < body.index("## Changed")
     assert "- `src/keys.py`" in body
     assert "merge button is never used" in body
     assert "supersedes the previous candidate" in body  # attempt 2 note
-    assert "<details><summary>Contract</summary>" in body
     assert "- `uv run pytest`" in body
     assert "all 1 pass (slowest: scope 0.2s)" in body
-    assert "- D-9 (LOCKED): keys rotate" in body
+    # The rows a contract carried are a table, so the grade is a column.
+    assert "| Decision | Grade | Text |" in body
+    assert "| D-9 | `LOCKED` | keys rotate |" in body
     # Divergences surface; routine resolved entries do not.
     assert "D-9 departed: took the other road" in body
     assert "routine" not in body
@@ -92,7 +95,7 @@ def test_the_landings_body_names_its_document_and_drops_the_ff_sentence(tmp_path
     _, body = compose_pr(task, 1, "d", meta, [], tmp_path, landing="pull_request")
     assert "S-0080" in body
     assert "merge button" not in body
-    assert "- D-9 (LOCKED): keys rotate" in body
+    assert "| D-9 | `LOCKED` | keys rotate |" in body
 
     _, local_body = compose_pr(task, 1, "d", meta, [], tmp_path)
     assert "merge button is never used" in local_body
@@ -384,16 +387,16 @@ def test_the_document_body_carries_the_landings_and_the_phases_still_to_come(tmp
     # entries and counts once.
     assert title == "S-0090: Landing by document · 1/2 phases"
     assert "1 of this document's 2 phases are still to come" in body
-    # Every task the branch carries, with its rows, its gates and its
-    # divergences — and nothing the agent wrote.
+    # Every task the branch carries, with its contract, its rows as a
+    # table, its gates and its divergences — and nothing the agent wrote.
     assert "## T-8401 · phase 1 · `aaaaaaaaaaaa`" in body
     assert "## T-8402 · phase 1 · `bbbbbbbbbbbb`" in body
+    assert "Some contract prose the body never repeats." in body
     assert "- gates: all 1 pass" in body
     assert "- gates: scope fail" in body
-    assert "- S-0090/D-1 (ASSUMED): the unit is a term" in body
+    assert "| S-0090/D-1 | `ASSUMED` | the unit is a term |" in body
     assert "- divergence: S-0090/D-1 departed: the helper already existed" in body
     assert "routine" not in body
-    assert "Some contract prose" not in body
     # The phases to come are named from the phasing list, by number and title.
     assert "- phase 2 — the lane lands onto it" in body
     assert "- phase 1 —" not in body
@@ -415,3 +418,39 @@ def test_a_document_fully_landed_says_so_and_an_unreadable_one_names_no_phases(t
     assert title == "S-0091: 2 landed"
     assert "phases" not in bare
     assert "## T-8403 · phase 2" in bare
+
+
+def test_the_publisher_composes_a_document_branch_from_every_task_it_carries(tmp_path: Path):
+    # S-0083/D-8: the pull request the lane opens for a document branch is the
+    # document's — every task the records say the branch carries plus the
+    # one landing now, which is published before its own record is written.
+    # The observed failure: bloomery #136 carried two phases and wore the
+    # last task's title.
+    import yaml
+
+    from torve.application.telemetry import engine_event
+    from torve.cli.merge import _document_pr_text
+
+    root = corpus_with_phasing(tmp_path)
+    branch = "torve/S-0090"
+
+    for task in (
+        phase_task("T-8401", 1, "the unit is a term"),
+        phase_task("T-8403", 2, "the lane lands onto it"),
+    ):
+        contract = root / ".torve" / "tasks" / task.id / "contract.yaml"
+        contract.parent.mkdir(parents=True)
+        contract.write_text(yaml.safe_dump(task.model_dump(mode="json")), encoding="utf-8")
+
+    engine_event(
+        root,
+        "lane_landed",
+        {"task": "T-8401", "branch": branch, "unit": "document", "sha": "a" * 40},
+    )
+
+    title, body = _document_pr_text(root, "T-8403", branch)
+
+    assert title == "S-0090: Landing by document · 2/2 phases"
+    assert "## T-8401 · phase 1 · `aaaaaaaaaaaa`" in body
+    assert "## T-8403 · phase 2" in body
+    assert "Every phase of this document is on this branch (2)." in body

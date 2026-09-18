@@ -134,6 +134,48 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
 # ....................... #
 
 
+def _document_pr_text(root: Path, task_id: str, branch: str) -> tuple[str, str]:
+    """The document pull request's title and body (S-0083/D-8): every task
+    the lane's records say the branch carries, plus the one landing now —
+    it is published before its own record is written — each with its rows,
+    the gates of its last recorded attempt and its landing sha."""
+
+    from torve.application.forge import DocumentLanding, compose_document_pr
+    from torve.application.lane import document_tasks
+    from torve.application.projections import stream_rows
+    from torve.config import layout
+    from torve.domain.attempt import GateResult
+    from torve.gates.context import load_task
+
+    carried = document_tasks(root, branch)
+    task_ids = carried + ([task_id] if task_id not in carried else [])
+    rows = stream_rows(root)
+    landings = []
+
+    for carried_id in task_ids:
+        judged = [r for r in rows if r.get("task_id") == carried_id and "results" in r]
+        recorded: list[Any] = (judged[-1].get("results") or []) if judged else []
+        landed = [
+            r
+            for r in rows
+            if r.get("event") == "lane_landed"
+            and r.get("task") == carried_id
+            and r.get("branch") == branch
+        ]
+        landings.append(
+            DocumentLanding(
+                task=load_task(layout.task_file(root, carried_id)),
+                sha=str(landed[-1].get("sha") or "") if landed else "",
+                results=[GateResult.model_validate(r) for r in recorded],
+            )
+        )
+
+    return compose_document_pr(branch.rsplit("/", 1)[-1], landings, root)
+
+
+# ....................... #
+
+
 def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
     """`pull_request` mode's landing act, or None in `local` mode
     (S-0080/D-1: the mode is this term of configuration and nothing else).
@@ -149,6 +191,7 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
     import os
 
     from torve.adapters.vcs.git import GhScm, GitVcs
+    from torve.base import naming
 
     vcs = GitVcs()
     scm = GhScm(config.scm.repo, config.scm.token_env)
@@ -159,7 +202,12 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
         if not vcs.republish_branch(root, branch, token):
             raise RuntimeError(f"no origin to publish {branch!r} to")
 
-        title, body = _pr_text(root, task_id)
+        # A document branch's pull request is the document's, composed from
+        # every task it carries (S-0083/D-8); a task branch's is the task's.
+        if branch == naming.document_branch(branch.rsplit("/", 1)[-1]):
+            title, body = _document_pr_text(root, task_id, branch)
+        else:
+            title, body = _pr_text(root, task_id)
 
         return scm.open_pr(root, branch, title, body)
 

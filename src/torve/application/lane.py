@@ -932,6 +932,19 @@ def _document_ledger(root: Path) -> dict[str, _Document]:
 # ....................... #
 
 
+def document_tasks(root: Path, branch: str) -> list[str]:
+    """The tasks the lane's own records say a document branch carries, in
+    landing order — what the document's pull request is composed from
+    (S-0083/D-8). Empty for a branch no landing has named yet."""
+
+    entry = _document_ledger(root).get(branch)
+
+    return list(entry.tasks) if entry is not None else []
+
+
+# ....................... #
+
+
 def _escalate_document(root: Path, branch: str, tasks: list[str], detail: str) -> None:
     """A document branch a person has to unstick escalates the work it
     carries (S-0083/D-13): the branch has no run state of its own, and an
