@@ -62,7 +62,7 @@ quality strict="false":
     just _uv_cmd "Formatting" {{ strict }} ruff format --check "src"
     just _uv_cmd "Types" {{ strict }} mypy "src"
     just _uv_cmd "Imports" {{ strict }} lint-imports
-    just _uv_cmd "RFC corpus" {{ strict }} torve rfc check
+    just _uv_cmd "Spec corpus" {{ strict }} torve spec check
     just _uv_cmd "Dead code" {{ strict }} vulture
     just _uv_cmd "Dependencies" {{ strict }} deptry .
     just _uv_cmd "Security" {{ strict }} bandit -c pyproject.toml -r "src"

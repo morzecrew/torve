@@ -182,6 +182,9 @@ paths = ["src/torve"]
 sort_by_size = true
 # bloomery's floor: 60 drowns in pydantic model_config/field false positives
 min_confidence = 80
+# `indentless` is PyYAML's keyword on the override; `--check` is the only
+# mode of `spec fmt` and the flag is kept for its callers.
+ignore_names = ["indentless", "check_only"]
 
 # ....................... #
 # Security
