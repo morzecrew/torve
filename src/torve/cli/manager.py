@@ -515,7 +515,8 @@ def serve_cmd(
         int | None,
         typer.Option(
             "--slot",
-            help="This worker's slot — its own auth and cache volumes (S-0004/D-2). Overrides "
+            # A slot is a worker's own auth and cache volumes (S-0004/D-2).
+            help="This worker's slot — its own auth and cache volumes. Overrides "
             "the configuration's `worker_slot`, so a second worker of a width-2 night is one "
             "flag rather than a second configuration file.",
         ),
