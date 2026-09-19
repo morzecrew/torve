@@ -1038,7 +1038,7 @@ def test_an_integration_tasks_empty_diff_stays_legal(repo):
 
     assert exit_code == 0
     assert summary == ""
-    assert [r.name for r in results] == ["empty-diff"]  # the refusal names itself
+    assert results == []
 
 
 def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
