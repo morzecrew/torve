@@ -134,13 +134,13 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
 # ....................... #
 
 
-def _document_pr_text(root: Path, task_id: str, branch: str) -> tuple[str, str]:
+def _document_pr_text(root: Path, task_id: str, branch: str) -> tuple[str, str, bool]:
     """The document pull request's title and body (S-0083/D-8): every task
     the lane's records say the branch carries, plus the one landing now —
     it is published before its own record is written — each with its rows,
     the gates of its last recorded attempt and its landing sha."""
 
-    from torve.application.forge import DocumentLanding, compose_document_pr
+    from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import document_tasks
     from torve.application.projections import stream_rows
     from torve.config import layout
@@ -170,7 +170,10 @@ def _document_pr_text(root: Path, task_id: str, branch: str) -> tuple[str, str]:
             )
         )
 
-    return compose_document_pr(branch.rsplit("/", 1)[-1], landings, root)
+    document = branch.rsplit("/", 1)[-1]
+    title, body = compose_document_pr(document, landings, root)
+
+    return title, body, document_complete(document, landings, root)
 
 
 # ....................... #
@@ -205,9 +208,14 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
         # A document branch's pull request is the document's, composed from
         # every task it carries (S-0083/D-8); a task branch's is the task's.
         if branch == naming.document_branch(branch.rsplit("/", 1)[-1]):
-            title, body = _document_pr_text(root, task_id, branch)
-        else:
-            title, body = _pr_text(root, task_id)
+            # Draft while phases are still to come, ready at the last one: a
+            # person who merges a draft merges knowingly, and the document's
+            # later phases then land on a branch behind main.
+            title, body, complete = _document_pr_text(root, task_id, branch)
+
+            return scm.open_pr(root, branch, title, body, draft=not complete)
+
+        title, body = _pr_text(root, task_id)
 
         return scm.open_pr(root, branch, title, body)
 

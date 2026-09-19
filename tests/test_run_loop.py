@@ -128,7 +128,7 @@ class MockVcs:
 
 
 class MockScm:
-    def open_pr(self, worktree, branch, title, body):
+    def open_pr(self, worktree, branch, title, body, *, draft=False):
         raise AssertionError("PR leg is deferred; nothing should call the forge")
 
 

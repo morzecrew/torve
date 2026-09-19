@@ -448,9 +448,26 @@ def test_the_publisher_composes_a_document_branch_from_every_task_it_carries(tmp
         {"task": "T-8401", "branch": branch, "unit": "document", "sha": "a" * 40},
     )
 
-    title, body = _document_pr_text(root, "T-8403", branch)
+    title, body, complete = _document_pr_text(root, "T-8403", branch)
 
+    assert complete  # both phases on the branch: the pull request is ready, not a draft
     assert title == "S-0090: Landing by document · 2/2 phases"
     assert "## T-8401 · phase 1 · `aaaaaaaaaaaa`" in body
     assert "## T-8403 · phase 2" in body
     assert "Every phase of this document is on this branch (2)." in body
+
+
+def test_a_document_with_phases_still_to_come_is_a_draft(tmp_path: Path):
+    """S-0083/D-7 opens the document's one pull request at the first landing;
+    while phases are still to come it is a draft, so a person who merges it
+    merges knowingly (bloomery #133 was merged after phase 1 of 3, and the
+    later phases landed on a branch behind main)."""
+    from torve.application.forge import document_complete
+
+    root = corpus_with_phasing(tmp_path)
+    first = [DocumentLanding(task=phase_task("T-8401", 1, "one"))]
+    both = [*first, DocumentLanding(task=phase_task("T-8403", 2, "two"))]
+
+    assert not document_complete("S-0090", first, root)
+    assert document_complete("S-0090", both, root)
+    assert document_complete("S-0091", first, tmp_path / "nowhere")  # no phasing to wait on

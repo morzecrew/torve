@@ -533,7 +533,14 @@ class GhScm:
 
     # ....................... #
 
-    def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
+    def open_pr(
+        self, worktree: Path, branch: str, title: str, body: str, *, draft: bool = False
+    ) -> str:
+        """Open the branch's pull request, or refresh the one it has. `draft`
+        opens it as a draft — a document whose phases are still to come is
+        not ready for a person's merge — and a refresh with `draft` off marks a
+        draft ready; nothing here turns a ready pull request back into one."""
+
         env = None
 
         if self.token_env:
@@ -557,7 +564,17 @@ class GhScm:
                 command, capture_output=True, text=True, check=False, cwd=worktree, env=env
             )
 
-        proc = run_gh("pr", "create", "--head", branch, "--title", title, "--body", body)
+        proc = run_gh(
+            "pr",
+            "create",
+            "--head",
+            branch,
+            "--title",
+            title,
+            "--body",
+            body,
+            *(["--draft"] if draft else []),
+        )
 
         if proc.returncode == 0:
             return proc.stdout.strip()
@@ -581,6 +598,11 @@ class GhScm:
             if listed:
                 number = int(listed[0]["number"])
                 run_gh("pr", "edit", str(number), "--title", title, "--body", body)
+
+                if not draft:
+                    # Idempotent: `gh pr ready` on a ready pull request only
+                    # says so, and the answer is not the landing's to refuse.
+                    run_gh("pr", "ready", str(number))
 
                 return str(listed[0].get("url", ""))
 
@@ -899,7 +921,9 @@ class NullScm:
     """The --no-pr mode: no remote exists yet, so the PR leg is recorded as
     deferred rather than silently skipped."""
 
-    def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str:
+    def open_pr(
+        self, worktree: Path, branch: str, title: str, body: str, *, draft: bool = False
+    ) -> str:
         return ""
 
 

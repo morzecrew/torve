@@ -245,6 +245,17 @@ def _gates_line(results: list[GateResult]) -> str:
     return f"gates: all {len(results)} pass"
 
 
+def document_complete(document: str, landings: list[DocumentLanding], root: Path) -> bool:
+    """Whether every phase the document's phasing names has a landing on the
+    branch — the pull request's draft flag is this, read from the same
+    records the body is composed from. A document with no readable phasing
+    is complete when anything landed: nothing says otherwise."""
+    _, phasing = _phasing(root, document)
+    numbers = {number for number, _ in phasing}
+    landed = {landing.task.phase for landing in landings if landing.task.phase}
+    return not (numbers - landed)
+
+
 def compose_document_pr(
     document: str,
     landings: list[DocumentLanding],
