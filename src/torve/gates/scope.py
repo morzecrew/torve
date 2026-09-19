@@ -16,6 +16,16 @@ from torve.gates.contract import BuiltinOutcome, spec
 # ----------------------- #
 
 
+#: The lock files a manifest's change rewrites, by manifest.
+LOCKS_OF: dict[str, tuple[str, ...]] = {
+    "pyproject.toml": ("uv.lock", "poetry.lock", "pdm.lock"),
+    "Pipfile": ("Pipfile.lock",),
+    "package.json": ("package-lock.json", "pnpm-lock.yaml", "yarn.lock"),
+    "Cargo.toml": ("Cargo.lock",),
+    "go.mod": ("go.sum",),
+}
+
+
 def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     scope = ctx.task.scope if ctx.task is not None else ctx.manifest.scope
     implicit: set[str] = set()
@@ -44,6 +54,15 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
     allow = spec(scope.allow) if scope.allow else None
     deny = spec(scope.deny) if scope.deny else None
+
+    # A lock file rides with its manifest: a scope that admits `pyproject.toml`
+    # admits the `uv.lock` a dependency change rewrites, because refusing the
+    # lock refuses the change the scope allowed (bloomery T-0008, 2026-09-19:
+    # 24 minutes of work convicted on `outside allow: uv.lock`).
+    if allow is not None:
+        for manifest, locks in LOCKS_OF.items():
+            if allow.match_file(manifest):
+                implicit.update(locks)
 
     denied: list[str] = []
     outside: list[str] = []

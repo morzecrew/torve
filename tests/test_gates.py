@@ -781,3 +781,23 @@ def test_decisions_a_bare_local_id_names_the_tasks_own_row(repo):
     repo.commit("touches the governed file")
     result = check_decisions_reported(GATE, context_for(repo))
     assert result.outcome == "pass", result.output
+
+
+def test_scope_admits_the_lock_file_of_a_manifest_it_admits(repo):
+    """A scope that admits `pyproject.toml` admits the `uv.lock` a dependency
+    change rewrites; refusing the lock refuses the change the scope allowed
+    (bloomery T-0008, 2026-09-19). A lock without its manifest in scope is
+    still outside."""
+    repo.seed()
+    repo.task(base_task(allow=["pyproject.toml", "src/**"]), log_document())
+    repo.write("pyproject.toml", "[project]\nname = 'x'\n")
+    repo.write("uv.lock", "version = 1\n")
+    repo.commit("a dependency and its lock")
+    result = check_scope(GATE, context_for(repo))
+    assert result.outcome == "pass", result.output
+
+    repo.task(base_task(allow=["src/**"]), log_document())
+    repo.write("uv.lock", "version = 2\n")
+    repo.commit("the lock alone")
+    result = check_scope(GATE, context_for(repo))
+    assert result.outcome == "fail" and "uv.lock" in result.output
