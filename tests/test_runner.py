@@ -1052,7 +1052,7 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
     exit_code, _summary, _digest, results, _patch = _gate_pass(repo, worktree)
 
     assert exit_code == 0
-    assert [r.name for r in results] == ["empty-diff"]  # the refusal names itself
+    assert results == []
 
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
     records = [json.loads(line) for line in telemetry.read_text().splitlines()]
