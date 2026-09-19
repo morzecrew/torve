@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0452
+phase: 2
+base: e800f9e4dae803834ecf7eb87728febbaff07b29
+commit: 5a0a3d9df12e5627b5d38bc1fe980b7d8f169ac0
+at: '2026-09-19T09:50:22Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-6
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T09:48:50Z'
+    claim: >-
+      the board half of D-6 cannot be built: torve manager board renders its table
+      in src/torve/cli/manager.py, which the scope does not allow; the night half
+      and the shared projection are done
+    evidence: >-
+      src/torve/cli/manager.py:446-468 — the board's table is built and printed here,
+      and the file is outside this task's allow list
+    action: departed
+    proposal: >-
+      amend the scope of the phase to name src/torve/cli/manager.py and tests/test_manager.py,
+      or mint a follow-up phase for the board's column; cross_document_waits in projections.py
+      is the call it needs
+    notes: >-
+      cross_document_waits(root, landed) in src/torve/application/projections.py is
+      the whole fact D-6 asks for; night show renders it as a fifth table and carries
+      it in --format json.
