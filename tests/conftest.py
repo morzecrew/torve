@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +18,18 @@ from torve.gates.sabotage import LOCKED_D1, Repo, base_task
 # text, which a hand-written log carries unquoted and YAML then reads as a
 # nested mapping — or refuses outright.
 HOSTILE = "src/app.py:1 — the call is `timeout: 600` here, and the overlay names it too"
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Help text is read as words, never as escape codes.
+
+    Typer forces a colour terminal whenever `GITHUB_ACTIONS` is set, so under
+    CI a `--help` rendering carries ANSI styling that splits `--port` into
+    fragments no substring assertion finds. Its own switch turns that off; set
+    here, before any test module imports typer, since typer reads it once at
+    import."""
+
+    os.environ.setdefault("_TYPER_FORCE_DISABLE_TERMINAL", "1")
 
 
 def torve_sandboxes(runtime, root: Path) -> list:
