@@ -1295,3 +1295,26 @@ def test_init_ignores_the_worktree_directory_through_the_hosts_exclude(tmp_path)
     assert worktrees_ignored(tmp_path) is True
     assert exclude_worktrees(tmp_path) is False  # once
     assert (tmp_path / ".git" / "info" / "exclude").read_text().count(".wt/") == 1
+
+
+# ----------------------- #
+# A failing gate's detail keeps its tail: a test runner names what failed in
+# its last lines, and a head-only cap hid them behind progress dots.
+
+
+def test_failure_detail_keeps_the_tail():
+    from io import StringIO
+
+    from rich.console import Console
+
+    from torve.cli.console import failure_detail
+
+    text = "\n".join(f"line {i}" for i in range(100))
+    out = StringIO()
+    failure_detail(Console(file=out, width=200, force_terminal=False), text, limit=40)
+    rendered = out.getvalue()
+
+    assert "line 0" in rendered
+    assert "line 99" in rendered
+    assert "60 line(s) omitted" in rendered
+    assert "line 50" not in rendered

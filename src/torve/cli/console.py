@@ -228,15 +228,30 @@ def mark(outcome: str) -> Text:
 
 def failure_detail(console: Console, text: str, limit: int = 40) -> None:
     """A failing row's expansion: indented, capped, never
-    interleaved with other rows."""
+    interleaved with other rows.
+
+    The cap keeps both ends. A test runner names what failed in its last
+    lines, so a head-only cap showed a page of progress dots and hid the
+    one line that mattered."""
 
     lines = text.splitlines()
 
-    for line in lines[:limit]:
+    if len(lines) <= limit:
+        for line in lines:
+            console.print(Text(f"      {line}"))
+
+        return
+
+    head = limit // 4
+    tail = limit - head
+
+    for line in lines[:head]:
         console.print(Text(f"      {line}"))
 
-    if len(lines) > limit:
-        console.print(Text(f"      … {len(lines) - limit} more line(s)", style=STYLE_DIM))
+    console.print(Text(f"      … {len(lines) - limit} line(s) omitted", style=STYLE_DIM))
+
+    for line in lines[-tail:]:
+        console.print(Text(f"      {line}"))
 
 
 # ....................... #
