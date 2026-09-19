@@ -23,3 +23,11 @@ summary: |
   does, and `torve run --resume` cuts from the branch's tip when one exists
   (S-0026/D-9 already says what that means). A halted attempt that says why
   it halted has usually done most of the work.
+
+  Read against the corpus: S-0026/D-8 (LOCKED) says continuation fires only
+  on budget exhaustion and never on a judged escalation, and a halt is one —
+  a person's decision stands in the way. So a resume verb for halts is not
+  a fix but an amendment for the owner to weigh: whether a halt on a scope
+  gap, once the person widens the scope, is a clock that ran out or a
+  judgement on the work. Checkpointing the halted tree costs nothing either
+  way, and would at least leave the work reachable by name.
