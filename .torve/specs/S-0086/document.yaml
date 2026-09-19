@@ -129,9 +129,9 @@ design:
       task's id as the author — and grouped with the forge's threads by the same anchor
       rule (S-0084/D-3): a bot and the tier flagging one null check are one finding.
 
-      From there nothing is new. The round is composed as S-0084/D-7 and D-8 say, the
-      finding's text fenced as a third-party claim; the injection refusal (D-9) applies to a
-      recorded claim as to a thread; the rails (D-10, D-11) hold. The leg's per-pass bound
+      From there nothing is new. The round is composed as S-0084/D-7 and S-0084/D-8 say, the
+      finding's text fenced as a third-party claim; the injection refusal (S-0084/D-9) applies to a
+      recorded claim as to a thread; the rails (S-0084/D-10, S-0084/D-11) hold. The leg's per-pass bound
       counts a record-sourced round like any other.
 
       A finding whose evidence is a command rather than a citation has no line to anchor.

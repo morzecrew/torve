@@ -82,8 +82,8 @@ decisions:
       one finding, one round, whatever surface raised it; a person reading the pull
       request sees what the tier found and what became of it
     rationale: >-
-      no thread exists to resolve, and S-0084/D-12 and D-14 already fix that an answer
-      follows a landing and that a finding is never worked twice
+      no thread exists to resolve, and S-0084/D-12 and S-0084/D-14 already fix that
+      an answer follows a landing and that a finding is never worked twice
     cites: [S-0084/D-12, S-0084/D-13, S-0084/D-14]
   - id: D-6
     grade: ASSUMED
