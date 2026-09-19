@@ -1,0 +1,259 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0085
+title: A document builds on another document's tree
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0083]
+informed_by: [S-0059, S-0084]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  A phasing file can say which documents' landed trees its own work builds on, and the
+  engine keeps that order across documents the way it already keeps it within one. The
+  corpus has one cross-document edge, `depends_on`, and it is about decisions: a document
+  inherits settled rows from the documents it names, and `torve plan` refuses unless they
+  are accepted. Nothing says that one document's phases need another document's files on
+  the base they are cut from, so a night at width mints the second document onto a `main`
+  that does not hold the first, and its attempts fail against a tree that is not there.
+
+  The grammar is one list in the phasing file, `after`, naming documents. The planner turns
+  it into the contract edge the board already honours — every task of the document's first
+  phases depends on every task of each named document — and a dependency is satisfied
+  only by a landing the dependent's base holds. The one fact the base did not carry is
+  supplied beneath: a document's landing on the base is its tasks' landing, so a
+  squash-merged document's tasks are on `main` by the commit `main` holds, and not by a
+  branch commit the merge threw away.
+motivation: |
+  On bloomery, on 2026-09-19, S-0008 ("Fuzzing the compile boundary") landed four phases
+  onto its document branch and opened pull request #147, which awaits a person. S-0009
+  ("Continuous fuzzing in CI") is accepted, planned as T-0013..T-0015, and every one of its
+  three phases scopes files under `fuzz/` — the harness, the seeds and the corpus that S-0008
+  creates. Its document declares `depends_on: []`, correctly: it inherits no decision from
+  S-0008. It builds on S-0008's tree, which is a different claim, and the corpus has no
+  field for it.
+
+  The operator held S-0009 back by hand. Had the night taken it, the engine would have done
+  exactly what its rows say: cut T-0013 from the remote's `main` (S-0083/D-5), where no
+  `fuzz/` exists, and dispatched an agent to extend a package that is not in its tree. The
+  attempt would have re-invented the harness or failed its acceptance, and either outcome
+  is a night spent on a phase whose precondition was one line nobody could write.
+
+  The same shape recurs whenever two accepted documents touch one region of the tree in
+  sequence, which is the ordinary case for a corpus of small documents. Within a document
+  the engine already keeps the order: phasing `depends_on` becomes contract `depends_on`,
+  the board waits for the landing, and since 2026-09-19 the served manager also waits for
+  that landing to be on the base the dependent is cut from. Across documents the contract
+  edge exists — it is a list of task ids, so it can name a task of any document — but no
+  planner writes it, and even written by hand it does not hold: bloomery merges by squash,
+  so the commit the lane stamped on T-0011 is not an ancestor of `main` after #147 merges,
+  and a dependent waiting on that ancestry waits forever.
+current_state: |
+  Three edges exist and none is the one needed.
+
+  - Document `depends_on` (S-0007/D-7) is decision inheritance. `torve plan` refuses unless
+    every target is accepted, and copies their settled rows onto the contracts. It carries
+    no claim about the tree and is not read by the board.
+  - Phasing `depends_on` is a list of phase integers within one document. The planner turns
+    it into contract `depends_on` by looking up the task ids it just assigned to those
+    phases (`ids_by_phase`), so it cannot point outside the document.
+  - Contract `depends_on` is a list of task ids. `blocked_by` waits for each to be landed on
+    the board (`TaskState.READY`); the served manager's `on_base` predicate additionally
+    waits for each landed sha to be an ancestor of the base the task would be cut from —
+    the document branch's tip when one exists, the configured base otherwise.
+
+  The landings the engine knows come from two projections joined on serve: `shipped_landings`
+  reads the tree's landing files and `lane_landings` reads `lane_landed` events from this
+  host's stream. A document's merge is recorded as `lane_document_landed` with the merge
+  commit and the tasks the branch carried, and nothing reads it as a landing of those tasks:
+  `documents()` counts it, and the tasks keep the branch commits they landed as.
+
+  On bloomery's forge every pull request is squash-merged. So for T-0011, the last phase of
+  S-0008, the board holds `landed_sha: d7718e12` — a commit on `torve/S-0008` — and after
+  #147 merges `main` holds a squash commit whose parents do not include it. `is_ancestor`
+  says no, forever.
+goals: |
+  - One line in a phasing file says "this document's work comes after that document's",
+    and a night at any width keeps the order without a person holding a document back.
+  - The order is kept by the edge the board already honours, so nothing new is claimable,
+    blocked or landed by a second mechanism.
+  - A document that merged is on the base by the commit the base holds, whatever the forge's
+    merge method, so ancestry answers the same question for a squash as for a fast-forward.
+  - A document naming one that has not been planned is refused by name at `torve plan`, not
+    discovered as a task nobody can satisfy.
+non_goals: |
+  - Stacking: cutting the dependent's branch from the dependency's branch so the two can
+    proceed before the first merges. The alternatives close it.
+  - Phase-granular edges, naming one phase of another document. The grammar names documents; a case that
+    needs a phase inside one is a case for a later amendment.
+  - Reading dependency order from scope overlap. Two documents sharing a glob is a fact the
+    planner could compute and a claim it should not make; the edge is declared.
+  - Any change to what document `depends_on` means.
+design:
+  - key: one-word-in-the-phasing-file
+    md: |
+      The phasing file, which already holds everything the planner consumes, gains one
+      top-level list:
+
+      ```yaml
+      # yaml-language-server: $schema=../../schemas/phasing.json
+      after: [S-0008]
+      phasing:
+        - phase: 1
+          title: The replay job
+          ...
+      ```
+
+      `after` names documents whose landed tree this document's work builds on. It lives in
+      the phasing file and not the document header because it is a fact about the work
+      order, read by `torve plan`, and the header's `depends_on` is a fact about decisions,
+      read by the same verb for a different refusal (S-0007/D-7). A document may name a
+      document in both, in one, or in neither: S-0009 inherits nothing from S-0008 and builds
+      on all of it.
+
+      `torve spec check` refuses an `after` naming a document that does not exist or is not
+      accepted, with the same wording `depends_on` gets, and the JSON schema beside the corpus
+      carries the field so an editor sees it.
+  - key: the-planner-writes-the-edge-the-board-already-honours
+    md: |
+      `torve plan S-0009` turns `after` into contract `depends_on`. For each named document
+      it looks up the tasks minted from it — the board's contracts when a store holds them,
+      the task files either way, the same lookup `_already_minted` makes — and adds every one
+      of them to the `depends_on` of each task of S-0009 whose phasing entry has no
+      in-document predecessor. Later phases inherit the order through their own edges, as
+      they do today.
+
+      Two refusals and one exemption. A named document with no minted tasks refuses the plan
+      by name: "S-0009 comes after S-0008, which has no tasks — plan S-0008 first". A named
+      document that is not accepted refuses as `depends_on` does. A named document whose
+      `implementation` is `complete` adds no edge: its tree is on the base by the corpus's own
+      word, and there may be no tasks to name — the migrated documents S-0018..S-0077 on
+      bloomery are complete and have none.
+
+      Nothing else in the engine learns a new word. The contract that comes out is a contract
+      the board, the worker, the lane and every projection already read; `blocked_by` waits
+      for the landing and `on_base` waits for the landing to be on the base. A task minted by
+      hand with the same `depends_on` behaves the same, which is the test that the grammar
+      adds nothing the edge did not already mean.
+  - key: a-documents-landing-is-its-tasks-landing
+    md: |
+      The one piece the edge was missing. When the lane reads a document's pull request back
+      as merged it records `lane_document_landed` with the merge commit and the task ids the
+      branch carried. `lane_landings` now reads that event beside `lane_landed`, and stamps
+      each carried task with the merge commit, newest winning — so after #147 merges, T-0011's
+      landing on the board is the squash commit on `main`, and `is_ancestor` against a base
+      cut from `main` says yes.
+
+      This is the right fact and not a workaround for squash. A document landing by merge
+      commit or by rebase would produce the same answer, since the branch commits are then
+      ancestors of `main` as well; the squash case is the one where the two answers differ,
+      and the merge commit is the one that is true of the base. It also closes the gap the
+      operator filed on 2026-09-19 from the other side: a phase run by hand and landed by
+      `torve merge` reaches the served manager through `lane_landed`, and a document merged
+      by a person reaches it through this.
+
+      `shipped_landings` is unchanged: it reads the tree's landing files, which is what the
+      corpus holds, and the tree does not know the forge's merge commit until the base is
+      fetched. The join on serve — lane landings over shipped landings — stays as it is.
+  - key: what-a-night-shows
+    md: |
+      A task waiting on another document's landing shows the document, not only the task
+      ids: `torve night show` and `torve manager board` mark it "waits on S-0008's landing"
+      beside the task ids it waits on. The projection already computes `unsatisfied_depends_on`
+      per document for the corpus view; the board view gains the same word for a task.
+tests: |
+  - The planner: a phasing file with `after: [S-0008]` mints tasks whose first-phase
+    `depends_on` names every S-0008 task and whose later phases name only their own
+    predecessors; an unplanned target refuses by name; an unaccepted target refuses as
+    `depends_on` does; a complete target adds no edge; a cycle through `after` and
+    `depends_on` together refuses.
+  - The projection: a stream holding `lane_landed` for T-0011 at a branch commit and then
+    `lane_document_landed` carrying T-0011 at a merge commit yields the merge commit for
+    T-0011; the reverse order yields the same, newest winning; a document event carrying no
+    tasks changes nothing.
+  - The served manager, end to end with the fake forge: two documents, the second after the
+    first, at width 2 — the second's first task is not claimed while the first document's
+    pull request is open, and is claimed on the pass after the read-back records it merged.
+  - `torve spec check` on a phasing file naming an absent or unaccepted document.
+docs: |
+  `pages/docs/operating.md` gains a paragraph under the night's ordering: what `after` says,
+  that it is the work order and not decision inheritance, and that a squash-merged document
+  reaches its dependents by the merge commit. `AGENTS.md` for the spec writer names the field
+  beside `depends_on` with the one-line distinction.
+out_of_scope: |
+  - Stacked branches; see the alternatives.
+  - Re-planning documents already minted without the edge. S-0009's T-0013..T-0015 exist
+    with `depends_on: []`; what to do with them is Q-1.
+  - Reading `after` from the document header instead of the phasing file, or moving
+    `depends_on` the other way.
+risks: |
+  - A document names a dependency it does not need, and its whole plan waits on a pull
+    request a person never merges. The cost is visible — the board shows what it waits on —
+    and the fix is an amendment to the phasing file, not an engine change.
+  - The merge-commit stamp lands on a task whose branch commit some reader still holds; the
+    two disagree about which commit "landed" T-0011. Every reader of landings goes through
+    the projections (S-0059/D-12), and the newest fact wins there as it does today for a
+    re-landed task, so the disagreement is the one the record already tolerates.
+  - The lookup of a named document's tasks reads task files as well as the board, and a
+    stale task file for a document whose tasks were re-minted names ids the board no longer
+    holds. `_already_minted` has the same exposure today, and the plan refuses on a
+    duplicate rather than minting through it.
+alternatives:
+  - option: >-
+      Stack the dependent's branch on the dependency's: cut `torve/S-0009` from the
+      tip of `torve/S-0008` and let both proceed before the first merges
+    rejected_because: >-
+      It changes what a document branch is. S-0083/D-5 cuts every document branch
+      from the remote's `main`, so a document's pull request shows exactly its own
+      phases; a stacked branch's pull request shows two documents' work until the
+      first merges, and the forge re-targets or closes it when that happens, depending
+      on the forge. The gain is concurrency between two documents that touch one region
+      of the tree, which is the concurrency the phasing already forbids within one
+      document (same-phase scopes are disjoint). Waiting for the merge costs the dependent
+      one night at most, and keeps the pull request a person reads truthful.
+    cites: [S-0083/D-5]
+  - option: >-
+      Infer the order from scope: two documents whose phasing globs intersect are
+      ordered by acceptance date, or refused together
+    rejected_because: >-
+      Scope overlap is neither necessary nor sufficient. S-0009's phases scope `fuzz/replay.py`
+      and `fuzz/seeds.py`, which S-0008 never touches by name, under a `fuzz/**` glob
+      that does intersect; a document could depend on a helper in `src/` with no glob
+      in common. The planner can compute the overlap and cannot know what it means,
+      and a claim about the work order belongs to the person who wrote the phasing.
+  - option: Overload document `depends_on` to mean both
+    rejected_because: >-
+      S-0007/D-7 is LOCKED on what `depends_on` means and every accepted document
+      was written under it; S-0009's `depends_on: []` is correct today and would become
+      a lie. Two claims, two words.
+  - option: >-
+      Stamp the merge commit onto the tree's landing files instead of the stream,
+      so `shipped_landings` answers without the lane's record
+    rejected_because: >-
+      The landing file is the attempt's own account of what it landed, written in
+      the worktree before the commit exists on the base; the merge commit is a fact
+      the forge produces after the branch is done. Writing it back into the tree means
+      a commit onto `main` for every merge, which is a second landing to record the
+      first. The stream is where the lane's read-backs already go.
+questions:
+  - id: Q-1
+    text: >-
+      S-0009's tasks T-0013..T-0015 are minted with `depends_on: []`. Should the planner
+      offer a re-mint that keeps the ids and rewrites the edges, or is the answer
+      a hand edit of the three contracts naming T-0008..T-0011 — which this design
+      says behaves the same?
+  - id: Q-2
+    text: >-
+      A named document whose `implementation` is `complete` adds no edge, on the corpus's
+      word. The migrated documents on bloomery are complete by construction; a document
+      marked complete by hand before its pull request merged would be trusted the
+      same way. Is `implementation` the right witness, or should the exemption also
+      ask the forge?
+  - id: Q-3
+    text: >-
+      The merge-commit stamp reaches the board from this host's stream. Two hosts
+      serving one partition each read their own stream, so the host that did not read
+      the merge back does not learn it until the record carries the document landing.
+      Is `lane_document_landed` already on the record, or only in `.torve/telemetry.jsonl`?

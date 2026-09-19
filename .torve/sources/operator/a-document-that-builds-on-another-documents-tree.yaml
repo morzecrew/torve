@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-document-that-builds-on-another-documents-tree
+kind: operator
+ref: 'bloomery S-0009, 2026-09-19: three phases scope fuzz/ from S-0008 (#147 open), document
+  declares depends_on: [] — correctly — and the operator holds it back by hand'
+title: A document that builds on another document's tree has no way to say so
+at: '2026-09-19T04:40:15Z'
+summary: |
+  The corpus has one cross-document edge, `depends_on`, and it is decision
+  inheritance: `torve plan` refuses unless the targets are accepted and copies
+  their settled rows. It says nothing about the tree. S-0009's three phases
+  all scope `fuzz/`, which S-0008 creates, and S-0009 correctly inherits no
+  decision from S-0008 — so its `depends_on` is empty, and a night at width
+  would cut T-0013 from the remote's `main`, where no `fuzz/` exists, and
+  dispatch an agent to extend a package that is not in its tree.
+
+  The contract edge already reaches across documents (a list of task ids),
+  but no planner writes it, and written by hand it still does not hold under
+  a squash merge: the commit the lane stamped on T-0011 is never an ancestor
+  of `main` after #147 merges, so a dependent waiting on that ancestry waits
+  forever. Two things are missing — one word in the phasing file the planner
+  turns into the edge, and a document's merge recorded as its tasks' landing
+  by the commit the base holds. Filed as S-0085.

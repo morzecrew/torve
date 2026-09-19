@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A phasing file names the documents whose landed tree its work builds on under
+      a top-level `after`, as document ids; the header's `depends_on` keeps its one
+      meaning, decision inheritance, and says nothing about trees
+    paths:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - .torve/schemas/phasing.json
+    consequence: >-
+      S-0009 declares `after: [S-0008]` and `depends_on: []` and both are true; a
+      document may name one document in both lists or in either
+    rationale: >-
+      S-0007/D-7 is LOCKED on what `depends_on` means and every accepted document
+      was written under it — S-0009's empty list is correct today and overloading
+      the word would make it a lie
+    cites: [S-0007/D-7]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `torve plan` turns `after` into contract `depends_on`: every task of the document's
+      phases with no in-document predecessor depends on every task minted from each
+      named document; a named document with no minted tasks refuses the plan by name,
+      one that is not accepted refuses as `depends_on` does, and one whose implementation
+      is complete adds no edge
+    paths: [src/torve/application/planner.py, tests/test_plan.py]
+    consequence: >-
+      nothing downstream learns a new word — the board, the worker, the lane and every
+      projection read the contract they already read, and a contract edited by hand
+      to the same edge behaves the same
+    rationale: >-
+      the contract edge already reaches across documents, since it is a list of task
+      ids; what was missing was a writer for it, and one refusal so that a dependency
+      nobody planned is named at plan time rather than found as a task nobody can
+      satisfy
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A document's landing on the base is its tasks' landing: `lane_landings` reads
+      `lane_document_landed` beside `lane_landed` and stamps each task the branch
+      carried with the merge commit, newest winning
+    paths: [src/torve/application/projections.py, tests/test_projections.py]
+    consequence: >-
+      a squash-merged document's tasks are on the base by the commit the base holds,
+      so ancestry answers the same question for a squash as for a fast-forward; `shipped_landings`
+      and the tree's landing files are unchanged
+    rationale: >-
+      bloomery merges by squash, so the commit the lane stamped on T-0011 is never
+      an ancestor of `main` and a dependent waiting on that ancestry waits forever;
+      the merge commit is the fact that is true of the base under every merge method
+    cites: [S-0059/D-12, S-0083/D-5]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A dependency is satisfied by a landing that is an ancestor of the base the dependent
+      would be cut from, and by nothing else; the board's landed set alone does not
+      claim
+    paths: [src/torve/cli/manager.py, src/torve/application/worker.py]
+    consequence: >-
+      a dependent is never cut without its predecessor, within a document or across
+      two; the wait is visible on the board as the task and the document it waits
+      on
+    rationale: >-
+      the served manager already keeps this since 2026-09-19 for phases of one document
+      (T-0006 was cut before T-0005 landed, and the fix was this predicate); a row
+      makes it the engine's word rather than a commit's
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `after` names documents, never phases; a case that needs a phase inside one
+      is a case for an amendment, with the case written down
+    paths: [src/torve/domain/spec.py]
+    consequence: >-
+      the grammar is one list of ids and the planner's lookup is one call per id;
+      a dependent waits for the whole named document, which under S-0083/D-5 is when
+      its tree reaches the base anyway
+    rationale: >-
+      a phase of another document is on its document branch and not on the base until
+      the whole document merges, so a phase-granular edge could only be satisfied
+      by stacking, which the alternatives close
+    cites: [S-0083/D-5]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A task waiting on another document's landing shows the document beside the task
+      ids it waits on, in `torve night show` and `torve manager board`
+    paths: [src/torve/cli/night.py, src/torve/application/projections.py]
+    consequence: >-
+      a person reading the board sees "waits on S-0008's landing" and knows which
+      pull request to look at, rather than four task ids to resolve by hand
+    rationale: >-
+      the risk this design takes on is a plan that waits on a pull request a person
+      never merges, and the cost is bounded only if the wait is legible

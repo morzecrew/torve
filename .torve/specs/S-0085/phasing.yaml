@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: a document's landing is its tasks' landing
+    intent: >-
+      The landings projection reads `lane_document_landed` beside `lane_landed` and
+      stamps every task the merged branch carried with the merge commit, newest winning,
+      so a squash-merged document's tasks are on the base by the commit the base holds.
+      Nothing else changes: `shipped_landings` still reads the tree, the join on serve
+      stays lane over shipped, and a document event carrying no tasks stamps nothing.
+      Settles D-3 and writes D-4 down as the served manager's existing predicate,
+      with a test that a dependent of a task landed on a branch and then merged by
+      squash is on base after the merge and not before.
+    scope:
+      - src/torve/application/projections.py
+      - src/torve/cli/manager.py
+      - tests/test_projections.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_projections.py tests/test_manager.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      the phasing file says after, and the planner writes the edge
+    intent: >-
+      The phasing file gains a top-level `after` list of document ids, carried by
+      the domain model and the JSON schema beside the corpus, refused by `torve spec
+      check` when it names an absent or unaccepted document. `torve plan` turns it
+      into contract `depends_on` on every task of the document's first phases, naming
+      every task minted from each named document; it refuses by name when a named
+      document has no minted tasks and adds no edge when the named document's implementation
+      is complete. The board and night views mark a task waiting on another document's
+      landing with the document's id. Settles D-1, D-2, D-5 and D-6.
+    scope:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - .torve/schemas/phasing.json
+      - src/torve/application/planner.py
+      - src/torve/application/projections.py
+      - src/torve/cli/night.py
+      - tests/test_plan.py
+      - tests/test_spec.py
+      - tests/test_projections.py
+      - pages/docs/operating.md
+      - src/torve/config/AGENTS.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_spec.py tests/test_projections.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
