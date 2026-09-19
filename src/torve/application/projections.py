@@ -108,13 +108,25 @@ def lane_landings(root: Path) -> dict[str, str]:
     stream — the landings on a document branch that the base's tree does not
     yet hold. A phase run by hand and landed by `torve merge` is a landing the
     served manager would otherwise never hear of, and its dependents would
-    wait on the board forever (bloomery S-0008, 2026-09-19). Newest wins."""
+    wait on the board forever (bloomery S-0008, 2026-09-19). Newest wins.
+
+    A document's landing is its tasks' landing (S-0085/D-3): the merge commit
+    the base holds stamps every task the branch carried, so ancestry answers
+    the same for a squash — whose branch commits the base never holds — as for
+    a fast-forward. `shipped_landings` and the tree's landing files are
+    unchanged."""
 
     landed: dict[str, str] = {}
 
     for row in stream_rows(root):
-        if row.get("event") == "lane_landed" and row.get("task") and row.get("sha"):
+        event = row.get("event")
+
+        if event == "lane_landed" and row.get("task") and row.get("sha"):
             landed[str(row["task"])] = str(row["sha"])
+
+        elif event == "lane_document_landed" and row.get("sha"):
+            for task_id in row.get("tasks") or []:
+                landed[str(task_id)] = str(row["sha"])
 
     return landed
 

@@ -176,6 +176,46 @@ def test_a_dependency_is_satisfied_only_by_a_landing():
     run(scenario)
 
 
+def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
+    """S-0085/D-4: a dependency is satisfied by a landing that is an ancestor
+    of the base the dependent would be cut from, and by nothing else. The
+    branch commit a task landed as is an ancestor of no base once its document
+    is squash-merged, so the dependent waits forever unless the merge commit is
+    the landing the board holds (S-0085/D-3, bloomery S-0008, 2026-09-19)."""
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.manager import _dependencies_on_base
+    from torve.config.runconfig import RunnerConfig
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Squashing Human")
+    repo.git("config", "user.email", "human@example.invalid")
+    repo.write("src/a/app.py", "print('hello')\n")
+    repo.commit("init")
+
+    repo.git("checkout", "-q", "-b", "torve/S-0008")
+    repo.write("src/a/app.py", "print('landed')\n")
+    repo.commit("the phase")
+    branch_sha = GitLane().tip(repo.root, "HEAD")
+
+    repo.git("checkout", "-q", "main")
+    repo.git("merge", "--squash", "torve/S-0008")
+    repo.commit("squash-merge the document")
+    merge_sha = GitLane().tip(repo.root, "main")
+
+    def board_with(sha: str | None) -> Board:
+        return Board(tasks={"T-1": TaskView(task_id="T-1", state=TaskState.READY, landed_sha=sha)})
+
+    on_base = _dependencies_on_base(repo.root, RunnerConfig())
+    dependent = task("T-2", allow=["src/b/**"], depends_on=["T-1"])
+
+    assert not on_base(dependent, board_with(branch_sha))
+    assert on_base(dependent, board_with(merge_sha))
+
+
 def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
     async def scenario(log):
         await mint(log, "T-1", allow=["src/**"])

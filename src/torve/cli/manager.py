@@ -168,7 +168,11 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
     `promotion.unit: document` when the branch exists, the configured base
     otherwise. The board's `landed` is the attempt's word (LANDING_RECORDED at
     green); the lane puts the candidate on the base on a later pass, and a
-    dependent cut in between is cut without its predecessor."""
+    dependent cut in between is cut without its predecessor.
+
+    S-0085/D-4: a landing an ancestor of that base satisfies a dependency, and
+    nothing else does — across two documents as within one, since a
+    squash-merged document's tasks carry the merge commit here (S-0085/D-3)."""
 
     from torve.adapters.vcs.git import GitLane
     from torve.base import naming
