@@ -134,11 +134,14 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
 # ....................... #
 
 
-def _document_pr_text(root: Path, task_id: str, branch: str) -> tuple[str, str, bool]:
+def _document_pr_text(
+    root: Path, task_id: str, branch: str, tip: str | None = None
+) -> tuple[str, str, bool]:
     """The document pull request's title and body (S-0083/D-8): every task
     the lane's records say the branch carries, plus the one landing now —
-    it is published before its own record is written — each with its rows,
-    the gates of its last recorded attempt and its landing sha."""
+    it is published before its own record is written, so its sha is `tip`,
+    the branch's tip the lane just set — each with its rows, the gates of its
+    last recorded attempt and its landing sha."""
 
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import document_tasks
@@ -165,7 +168,7 @@ def _document_pr_text(root: Path, task_id: str, branch: str) -> tuple[str, str, 
         landings.append(
             DocumentLanding(
                 task=load_task(layout.task_file(root, carried_id)),
-                sha=str(landed[-1].get("sha") or "") if landed else "",
+                sha=str(landed[-1].get("sha") or "") if landed else (tip or ""),
                 results=[GateResult.model_validate(r) for r in recorded],
             )
         )
@@ -193,10 +196,11 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
 
     import os
 
-    from torve.adapters.vcs.git import GhScm, GitVcs
+    from torve.adapters.vcs.git import GhScm, GitLane, GitVcs
     from torve.base import naming
 
     vcs = GitVcs()
+    lane = GitLane()
     scm = GhScm(config.scm.repo, config.scm.token_env)
 
     def publish(task_id: str, branch: str) -> str:
@@ -211,7 +215,9 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
             # Draft while phases are still to come, ready at the last one: a
             # person who merges a draft merges knowingly, and the document's
             # later phases then land on a branch behind main.
-            title, body, complete = _document_pr_text(root, task_id, branch)
+            title, body, complete = _document_pr_text(
+                root, task_id, branch, tip=lane.tip(root, branch)
+            )
 
             return scm.open_pr(root, branch, title, body, draft=not complete)
 

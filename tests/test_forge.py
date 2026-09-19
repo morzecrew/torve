@@ -394,7 +394,11 @@ def test_the_document_body_carries_the_landings_and_the_phases_still_to_come(tmp
     assert "Some contract prose the body never repeats." in body
     assert "- gates: all 1 pass" in body
     assert "- gates: scope fail" in body
+    # The rows once, under the document, not once per task (bloomery #155
+    # carried the same seven-row table three times).
     assert "| S-0090/D-1 | `ASSUMED` | the unit is a term |" in body
+    assert body.count("| Decision | Grade | Text |") == 1
+    assert body.index("## Decisions") < body.index("## T-8401")
     assert "- divergence: S-0090/D-1 departed: the helper already existed" in body
     assert "routine" not in body
     # The phases to come are named from the phasing list, by number and title.
@@ -448,12 +452,14 @@ def test_the_publisher_composes_a_document_branch_from_every_task_it_carries(tmp
         {"task": "T-8401", "branch": branch, "unit": "document", "sha": "a" * 40},
     )
 
-    title, body, complete = _document_pr_text(root, "T-8403", branch)
+    title, body, complete = _document_pr_text(root, "T-8403", branch, tip="c" * 40)
 
     assert complete  # both phases on the branch: the pull request is ready, not a draft
     assert title == "S-0090: Landing by document · 2/2 phases"
     assert "## T-8401 · phase 1 · `aaaaaaaaaaaa`" in body
-    assert "## T-8403 · phase 2" in body
+    # The one landing now has no record yet; its sha is the tip the lane set
+    # (bloomery #147 and #155 showed the last section without one).
+    assert "## T-8403 · phase 2 · `cccccccccccc`" in body
     assert "Every phase of this document is on this branch (2)." in body
 
 

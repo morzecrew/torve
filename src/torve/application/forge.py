@@ -303,6 +303,18 @@ def compose_document_pr(
     elif numbers:
         lines += [f"Every phase of this document is on this branch ({len(numbers)}).", ""]
 
+    # The rows once, for the document: every phase inherits the same table
+    # from the same document, and a body that repeated it per task made a
+    # three-phase pull request three tables long (bloomery #155).
+    rows: dict[str, InheritedDecision] = {}
+
+    for landing in landings:
+        for decision in landing.task.decisions:
+            rows.setdefault(decision.id, decision)
+
+    if rows:
+        lines += ["## Decisions", "", *_decision_table(list(rows.values())), ""]
+
     for landing in landings:
         task = landing.task
         phase = f" · phase {task.phase}" if task.phase else ""
@@ -321,9 +333,6 @@ def compose_document_pr(
 
         for divergence in _divergences(root, task.id):
             lines.append(f"- divergence: {divergence}")
-
-        if task.decisions:
-            lines += ["", *_decision_table(task.decisions)]
 
         lines.append("")
 
