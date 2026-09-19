@@ -1677,3 +1677,32 @@ def test_the_close_names_why_it_stopped_and_how_far_past_the_end_it_landed(tmp_p
         )
 
     run(scenario)
+
+
+def test_an_escalation_stop_is_recorded_as_the_bound_and_its_class(tmp_path):
+    """`reached` says `escalation:<class>`; the record holds the bound the
+    payload admits and the class beside it. The first served night crashed at
+    its own close on a reason the payload did not admit (2026-09-19)."""
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log, PARTITION, config=NightConfig(minutes=30), actor_id="manager-1"
+        )
+        stopped = await close_night(
+            log,
+            PARTITION,
+            night,
+            reason="escalation:locked_conflict",
+            handled=1,
+            actor_id="manager-1",
+        )
+        assert stopped == "escalation:locked_conflict"
+        closes = [
+            e for e in await log.since(partition=PARTITION) if e.kind is EventKind.NIGHT_CLOSED
+        ]
+        assert closes[-1].payload["reason"] == "escalation"
+        assert closes[-1].payload["detail"] == "locked_conflict"
+
+    run(scenario)

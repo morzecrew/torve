@@ -750,6 +750,9 @@ async def close_night(
     """
 
     closed_at = now or datetime.now(UTC)
+    # `reached` names an escalation stop as `escalation:<class>`; the record
+    # holds the bound in `reason` and the class in `detail`.
+    bound, _, detail = reason.partition(":")
 
     if NIGHT_CLOSED is not None and NIGHT_SUBJECT is not None:
         await log.record(
@@ -760,7 +763,8 @@ async def close_night(
             actor_kind=ActorKind.MANAGER,
             actor_id=actor_id,
             payload={
-                "reason": reason,
+                "reason": bound,
+                "detail": detail,
                 "handled": handled,
                 "overran_seconds": max(0.0, (closed_at - night.ends_at).total_seconds()),
             },
