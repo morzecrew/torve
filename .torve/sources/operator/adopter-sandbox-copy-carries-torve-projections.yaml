@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/adopter-sandbox-copy-carries-torve-projections
+kind: operator
+ref: 'bloomery, 2026-09-18/19: spec check flagged .torve/sandbox/claude/AGENTS.md citing S-0063/D-18;
+  rewording it made doctor refuse the image'
+title: The sandbox definition an adopter receives carries torve's own AGENTS.md projections
+at: '2026-09-19T00:24:45Z'
+summary: |
+  `torve init` copies `sandboxes/claude/` into the adopter's `.torve/sandbox/`,
+  and that copy includes the two `AGENTS.md` files torve's own `spec project`
+  renders for its sandbox directories — rows of torve's corpus, cited as
+  `S-0063/D-18`, `S-0073/D-8`. In the adopter, the tree scan reads those as
+  citations into the adopter's corpus and refuses them (bloomery: two
+  problems on an otherwise clean corpus). Rewording the two files by hand
+  cleared the scan and then made `torve doctor` refuse the sandbox image:
+  the image bakes `toolkit/`, and doctor holds the adopter's copy to the
+  image's bytes. The way out on the night of 2026-09-19 was to build the
+  image from the adopter's copy, which leaves torve's own doctor red until
+  torve rebuilds — one image tag, two trees claiming it.
+
+  Two gaps, either closes it. The projection has no business in a sandbox
+  definition that ships: render it into torve's tree but keep it out of the
+  files `init` copies, or the scan should skip `.torve/` in an adopter the
+  way it skips its own fixtures. And the doctor's equality check should
+  name which bytes it compares, so a note is not mistaken for the toolkit.
