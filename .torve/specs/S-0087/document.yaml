@@ -1,0 +1,187 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0087
+title: >-
+  A document names its change, and its pull request wears the name
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0083]
+informed_by: [S-0080, S-0084]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  The pull request the lane opens for a document is titled `S-0009: Continuous fuzzing in
+  CI · 3/3 phases`, and the squash commit a person merges it as carries that title into
+  `main`'s history, where every hand commit reads `<gitmoji> <type>(<scope>): <description>`.
+  The engine's landings are the one kind of commit on `main` that release tooling cannot
+  read, and a person retitles them by hand or lets the history split in two.
+
+  A document gains one header field, `change`: the release type its landing is (`feat`,
+  `fix`, `refactor`, `docs`, `perf`, `build`, `ci`, `chore`, `test`), an optional scope, and
+  whether it breaks. The composer titles the document's pull request from it — gitmoji,
+  type, scope, `!` when breaking, the document's title as the description — and appends
+  the phase count only while the pull request is a draft, so the title the last landing
+  leaves is the one the squash commit takes unedited. A task-unit pull request wears the
+  same name. A document without the field is titled as today, so nothing accepted before
+  this changes.
+motivation: |
+  bloomery's `main` after 2026-09-19: `S-0009: Continuous fuzzing in CI · 3/3 phases
+  (#155)`, `S-0004: Observability: logging and a warnings channel · 1/1 phases (#149)`,
+  between `🐛 fix(fuzz): the seeds are the golden tier's inputs …` and `📝 docs(spec):
+  S-0009 is implemented …`. The repository's own commit discipline — gitmoji, conventional
+  type, scope — is what its release notes and its SemVer bump are derived from, and the
+  engine's merges are invisible to it: a feature the engine landed never reaches the
+  release notes, because it is filed under no type at all.
+
+  The operator asked for this on 2026-09-18, beside the table for decisions and the
+  contract in the open (S-0083/D-8 settled those): "gitmoji-shaped titles" was the one
+  part of composition left open. The composer has every fact but one — the type. The
+  document's `kind` is `design` or `convention` and says nothing about whether its
+  landing adds, fixes or refactors; the title is a description already; the scope is the
+  document's to name, not the planner's to guess. One field, declared where the rest of
+  the document's word is declared.
+current_state: |
+  `compose_document_pr` (S-0083/D-8) titles the pull request `<document>: <title> · n/m
+  phases`, truncated at 72 characters, and composes the body from the landing records.
+  `compose_pr` titles a task-unit pull request from the task. Neither knows a type. The
+  publisher marks the document's pull request a draft until the last phase lands and
+  `gh pr ready` at the end (S-0083/D-7); the title does not change at that moment.
+
+  The `Document` header carries `id`, `title`, `kind`, `status`, `implementation`, the
+  dependency lists, `owner` and `schema_version`. The JSON schema beside the corpus is
+  generated from the model (`torve init`), and an editor sees the fields.
+
+  A squash merge on the forge takes the pull request's title as the commit's subject,
+  with ` (#N)` appended, and the body as the message body. The operator's commit check
+  (`check_commit_msg.py`) reads messages, not titles, and runs on branches and hooks;
+  nothing on `main` refuses an untyped subject, which is why the history splits rather
+  than the merge failing.
+goals: |
+  - Every landing the engine merges reads in `main`'s history the way a hand commit does,
+    with a type release tooling can read and a gitmoji a person can scan.
+  - The title is declared once, in the document, and never guessed from the diff.
+  - The title the last landing leaves is the one the squash commit takes unedited; the
+    draft's phase count never reaches history.
+  - A document written before this is titled exactly as before.
+non_goals: |
+  - Typing the engine's own per-attempt commits on a document branch. Those are squashed
+    away by the merge; their subjects are the runner's (S-0010/D-4) and stay.
+  - Deriving the type from the phasing, the scope from the diff, or the break from a
+    schema change. Declared, never inferred.
+  - Changing the body. S-0083/D-8's composition stands.
+design:
+  - key: one-field-on-the-header
+    md: |
+      ```yaml
+      id: S-0009
+      title: Continuous fuzzing in CI
+      change:
+        type: ci          # feat | fix | refactor | perf | docs | test | build | ci | chore
+        scope: fuzz       # optional, a noun
+        breaking: false   # optional, default false
+      ```
+
+      `change` is optional on the model, so every document in the corpus loads as it is;
+      `torve spec check` warns when an accepted `design` document has none, since its
+      landing will be untyped, and says nothing for a `convention`, which lands nothing.
+      The type list is Conventional Commits' as the operator's mapping reads it, and the
+      gitmoji for each is the mapping's one choice: ✨ feat, 🐛 fix, ♻️ refactor, ⚡️ perf,
+      📝 docs, ✅ test, 📦️ build, 👷 ci, 🔧 chore — 💥 in place of the type's own when
+      `breaking` is true, and `!` before the colon.
+  - key: the-title-is-the-change-then-the-document
+    md: |
+      With `change` present the document pull request is titled
+
+      ```text
+      👷 ci(fuzz): continuous fuzzing in CI · 1/3 phases      ← while a draft
+      👷 ci(fuzz): continuous fuzzing in CI                   ← at the last landing
+      ```
+
+      The description is the document's title with its first letter lowered, since the
+      conventional description is a sentence's tail; a title already starting with an
+      identifier or a backtick is left as it is. The ` · n/m phases` suffix rides only while
+      phases are still to come — the publisher already knows that moment, because it is the
+      one where it marks the pull request ready (S-0083/D-7) — so the subject the squash
+      merge takes is one line in the format, with nothing to edit. The 72-character bound
+      applies to the whole; a title that overflows is cut at the description, never at
+      the type.
+
+      Without `change` the title is today's, `S-0009: Continuous fuzzing in CI · 3/3
+      phases`, unchanged in every byte.
+  - key: the-task-unit-wears-it-too
+    md: |
+      Under `unit: task`, `compose_pr` titles the task's pull request from the same field
+      of the task's document, with the phase's title as the description; a task naming no
+      document, or a document without the field, is titled as today. One rule, both units.
+  - key: where-the-name-comes-from
+    md: |
+      The composer reads the field off the corpus at composition time, through the same
+      `_phasing` read that already fetches the document's title and phase list — one load,
+      no second seam. A document whose `change` cannot be read (a corpus with no such
+      document, an unreadable file) titles as today; the composition never fails on the
+      field.
+tests: |
+  - The model: `change` loads with type, optional scope and breaking; an unknown type is
+    refused with the list named; a document without the field loads unchanged and dumps
+    without it.
+  - The composer: a document with `change` and phases to come is titled with the gitmoji,
+    type, scope and count; the same document at its last landing has no count; `breaking`
+    yields 💥 and `!`; a document without the field is titled byte-for-byte as before; a
+    long title is cut at the description with the type intact.
+  - The task unit: `compose_pr` wears the document's change with the phase's title.
+  - `torve spec check`: an accepted design without `change` is a warning naming the field;
+    a convention is not.
+  - The schema: `torve init` writes the field and `spec check` is clean after it.
+docs: |
+  `src/torve/config/AGENTS.md` (the spec writer) names the field beside `kind` with the
+  type list; `pages/docs/operating.md`'s document pull request paragraph shows the two
+  titles.
+out_of_scope: |
+  - A changelog entry from the landing (the operator's keep-a-changelog discipline). The
+    typed title is what that discipline reads; writing the entry is its own document.
+  - Retitling pull requests already open when this lands. The next landing on each
+    retitles it, since every landing recomposes.
+risks: |
+  - A wrong `change` on a document mislabels a release: a `feat` filed as `chore` never
+    reaches the notes. The field is reviewed with the document at acceptance, which is
+    where the rest of its word is reviewed.
+  - The lowered first letter mangles a title that starts with a proper noun. The rule
+    spares titles starting with an identifier or a backtick and nothing else; a document
+    whose title begins with a name writes it lowered or accepts the mangling — a
+    description in the format is lower-case by convention, and the exception list is short
+    on purpose.
+alternatives:
+  - option: >-
+      Infer the type from what landed — a phase touching only `pages/` is `docs`,
+      only `tests/` is `test`, otherwise `feat`
+    rejected_because: >-
+      The type is a claim about what the change means to a release, not about which
+      directories it touched; a fix that adds a test and a doc is `fix`, and no diff
+      says so. The operator's discipline says never guess a scope; a type is guessed
+      the same way.
+  - option: >-
+      Put the type on each phase rather than on the document
+    rejected_because: >-
+      The squash commit is one commit for the document, and one commit has one type;
+      a document whose phases were `feat`, `test` and `docs` is a feature, which is
+      the dominant-type rule the commit discipline already states.
+  - option: Retitle at merge time with a forge automation
+    rejected_because: >-
+      The forge is a third party's surface and the title would then be composed twice,
+      once by the record and once by a script nobody's record holds; the composer
+      already writes the title at every landing, and the last landing is exactly the
+      moment the final title is known.
+questions:
+  - id: Q-1
+    text: >-
+      Should an accepted `design` document without `change` be refused at plan time
+      rather than warned at check, so a landing can never be untyped? The warning
+      is the gentler reading for the thirty documents already accepted; a refusal
+      is the stricter one for every document after this.
+  - id: Q-2
+    text: >-
+      The body's first line is `**S-0009 · 3 landing(s) on this branch**`, and a squash
+      commit's body starts there. Should the composition open with the document's
+      summary instead, so the commit body reads as a body?

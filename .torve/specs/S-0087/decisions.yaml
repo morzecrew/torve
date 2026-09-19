@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A document's header may carry `change` — a Conventional Commits type from the
+      operator's mapping, an optional scope, and `breaking`, default false; the field
+      is optional on the model, and `torve spec check` warns when an accepted design
+      document has none
+    paths:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - .torve/schemas/document.json
+    consequence: >-
+      every document in the corpus loads as it is, and the one whose landing would
+      be untyped is named at check, not discovered in `main`'s history
+    rationale: >-
+      the type is a claim about what the landing means to a release and no diff says
+      it; declared where the rest of the document's word is declared
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      With `change` present the composer titles the document's pull request `<gitmoji>
+      <type>(<scope>)[!]: <title lowered>`, appends ` · n/m phases` only while phases
+      are still to come, and cuts an overflowing title at the description; without
+      the field the title is today's, byte for byte
+    paths: [src/torve/application/forge.py, tests/test_forge.py]
+    consequence: >-
+      the subject the squash merge takes at the last landing is one line in the repository's
+      own format with nothing to edit, and no document accepted before this changes
+      title
+    rationale: >-
+      the last landing is the moment the publisher already marks the pull request
+      ready (S-0083/D-7), so it is the moment the final title is known
+    cites: [S-0083/D-7, S-0083/D-8]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Under the task unit `compose_pr` wears the task's document's `change` with the
+      phase's title as the description; a task naming no document, or a document without
+      the field, is titled as today
+    paths: [src/torve/application/forge.py, tests/test_forge.py]
+    consequence: >-
+      one rule for both units; a repository landing by task gets typed history too
+    rationale: >-
+      the field is the document's, and a task is a phase of one
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The composer reads `change` through the same corpus read that fetches the document's
+      title and phasing, and a field it cannot read titles as today — the composition
+      never fails on it
+    paths: [src/torve/application/forge.py]
+    consequence: >-
+      one load per composition, and a corpus the publisher cannot read costs the title
+      its type, not the landing its pull request
+    rationale: >-
+      S-0083/D-8 composes from records and tolerates an unreadable corpus by naming
+      no phases; the type joins that read on the same terms
+    cites: [S-0083/D-8]

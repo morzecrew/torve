@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: the header names the change
+    intent: >-
+      The `Document` model gains an optional `change` — type from the Conventional
+      Commits list the operator's mapping reads, optional scope, `breaking` default
+      false — the JSON schema follows through `torve init`, and `torve spec check`
+      warns when an accepted design document has none and says nothing for a convention.
+      Every document in the corpus loads and dumps unchanged. Settles D-1.
+    scope:
+      - src/torve/domain/spec.py
+      - src/torve/config/spec.py
+      - .torve/schemas/document.json
+      - tests/test_spec.py
+      - tests/test_cli_spec.py
+      - src/torve/config/AGENTS.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_cli_spec.py
+      - >-
+        uv run torve init --root . && uv run torve spec check
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: the pull request wears the name
+    intent: >-
+      The document composer titles a pull request from `change` — gitmoji, type, scope,
+      `!` when breaking, the document's title lowered as the description — with the
+      phase count only while phases are still to come and an overflow cut at the description;
+      a document without the field is titled byte for byte as today. The task-unit
+      composer wears the same field with the phase's title. The field is read through
+      the corpus read the composer already makes, and one it cannot read titles as
+      today. Settles D-2, D-3 and D-4.
+    scope:
+      - src/torve/application/forge.py
+      - src/torve/cli/merge.py
+      - tests/test_forge.py
+      - pages/docs/operating.md
+    acceptance:
+      - uv run pytest tests/test_forge.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
