@@ -225,7 +225,7 @@ async def _serve(
     from torve.application.executors import runner_execute
     from torve.application.fleet import escalated_tasks
     from torve.application.manager import project
-    from torve.application.projections import shipped_landings
+    from torve.application.projections import lane_landings, shipped_landings
     from torve.application.residency import close_night, open_night, ran_here, reached, serve
     from torve.application.worker import Worker
     from torve.cli import assembly
@@ -242,7 +242,9 @@ async def _serve(
     # history does not offer a worker somebody's finished work. One batched
     # log pass, and the same evidence the projections call shipped (S-0049/A-2) —
     # the engine's trailer and a human's citation both mean finished.
-    landings = shipped_landings(root)
+    # The lane's own landings beside the tree's: a task landed onto a document
+    # branch is landed, whether or not the base holds its landing file yet.
+    landings = {**lane_landings(root), **shipped_landings(root)}
     ran = ran_here(root)
 
     async def paused() -> bool:

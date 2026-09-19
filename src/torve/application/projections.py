@@ -103,6 +103,22 @@ def shipped_landings(root: Path, spec_dir: Path | None = None) -> dict[str, str]
     return landed_by_task(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
 
 
+def lane_landings(root: Path) -> dict[str, str]:
+    """Task id to the commit the lane landed it as, from this host's own
+    stream — the landings on a document branch that the base's tree does not
+    yet hold. A phase run by hand and landed by `torve merge` is a landing the
+    served manager would otherwise never hear of, and its dependents would
+    wait on the board forever (bloomery S-0008, 2026-09-19). Newest wins."""
+
+    landed: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        if row.get("event") == "lane_landed" and row.get("task") and row.get("sha"):
+            landed[str(row["task"])] = str(row["sha"])
+
+    return landed
+
+
 def shipped_ids(root: Path, spec_dir: Path | None = None) -> set[str]:
     """Task ids the tree records as landed, with or without a commit — the
     denominator every rate is divided by, whichever reader asks."""
