@@ -609,7 +609,7 @@ def test_the_target_s_touched_files_leave_the_engine_s_records_out(seeded):
     command-evidence finding anchors to the work (bloomery #160: every such
     finding was refused for anchoring at `.torve/specs/…/execution/`)."""
 
-    seeded.write(".torve/tasks/T-0901/feedback.md", "the record\n")
+    seeded.write(f"{layout.TORVE_DIR}/tasks/T-0901/feedback.md", "the record\n")
     seeded.write("src/app.py", "print('hello again')\n")
     seeded.commit("the target's work, with its record")
     open_document(seeded.root, sha=head(seeded.root))
