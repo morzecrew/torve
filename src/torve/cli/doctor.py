@@ -109,10 +109,14 @@ def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
 
 
 # What the image carries at `/opt/torve`, listed the way the tree can be
-# listed beside it: one line per file, path then digest, sorted.
+# listed beside it: one line per file, path then digest, sorted. An
+# `AGENTS.md` under the toolkit is the corpus's projection onto it, not a
+# byte the image runs: an adopter's copy carries torve's rows there, and
+# rewording or deleting them must not read as a toolkit the image lacks
+# (operator/adopter-sandbox-copy-carries-torve-projections).
 _TOOLKIT_LIST = (
     "cd /opt/torve 2>/dev/null && find . -type f ! -path './__pycache__/*' "
-    "! -name '*.pyc' -exec md5sum {} + | awk '{print $2, $1}' | sort"
+    "! -name '*.pyc' ! -name 'AGENTS.md' -exec md5sum {} + | awk '{print $2, $1}' | sort"
 )
 
 
@@ -125,6 +129,9 @@ def _toolkit_tree(where: Path) -> dict[str, str]:
 
     for path in where.rglob("*"):
         if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
+            continue
+
+        if path.name == "AGENTS.md":
             continue
 
         digest = hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest()

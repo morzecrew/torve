@@ -283,3 +283,21 @@ def test_doctor_json_carries_both_statements_and_stays_green(tmp_path: Path):
     assert checks["standing-refused"]["ok"] is True
     assert "refused instantiation 1 time" in checks["standing-refused"]["detail"]
     assert result.exit_code == 0
+
+
+# ----------------------- #
+# The toolkit an image is held to is the toolkit's bytes: a projected
+# `AGENTS.md` under it is the corpus's, and an adopter's reworded or deleted
+# copy must not read as a toolkit the image lacks.
+
+
+def test_the_toolkit_listing_leaves_the_projection_out(tmp_path: Path):
+    from torve.cli.doctor import _TOOLKIT_LIST, _toolkit_tree
+
+    (tmp_path / "run").write_text("#!/bin/sh\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("<!-- torve:managed x -->\n", encoding="utf-8")
+    (tmp_path / "deep").mkdir()
+    (tmp_path / "deep" / "AGENTS.md").write_text("rows\n", encoding="utf-8")
+
+    assert set(_toolkit_tree(tmp_path)) == {"./run"}
+    assert "! -name 'AGENTS.md'" in _TOOLKIT_LIST
