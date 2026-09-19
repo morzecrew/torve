@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0454
+phase: 2
+base: 63b2fd6ea6569f8b8955ab51526d5461fcf310c8
+commit: 90ff52c91b9dd720367912de0a256e535e1ea39b
+at: '2026-09-19T15:12:20Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    kind: contradicted
+    at: '2026-09-19T15:10:45Z'
+    claim: >-
+      a recorded finding cannot be scanned for injection by word: the S-0084/D-9 scan
+      refuses any text matching \brun\b, which every command-evidence finding carries,
+      so D-4's command-evidence round is unreachable while the scan applies to both
+      sources; record threads are exempted from the word scan and keep the anchor
+      check and the fence
+    evidence: >-
+      src/torve/application/reviewleg.py:83 — the scan; src/torve/application/reviewleg.py:223
+      is the exemption, and tests/test_reviewleg.py names a command-evidence round
+      that the scan would have refused
+    action: departed
+    proposal: >-
+      ASSUMED — the word-level injection scan governs the forge's threads only; a
+      record-sourced finding is the engine's own reviewer and is bounded by the anchor
+      check, the phasing scope and the round's own scope
+  - decision: D-5
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-19T15:10:45Z'
+    claim: >-
+      the pull-request comment a recorded answer owes cannot reach the forge in production:
+      the leg's only wiring builds a forge with no comment surface, and that file
+      is outside this contract's scope, so the leg posts the comment only to a forge
+      that carries one and always writes the stream record
+    evidence: >-
+      src/torve/cli/manager.py:167 — the leg's forge has pr_for_branch, reply_thread
+      and resolve_thread and no comment; src/torve/application/reviewleg.py:143 is
+      the surface it would have to satisfy
+    action: departed
+    proposal: >-
+      a follow-up naming src/torve/cli/manager.py in scope, so _ThreadForge delegates
+      comment to GhScm.comment, which already exists and dedupes by marker key
