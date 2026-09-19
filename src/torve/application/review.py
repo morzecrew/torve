@@ -540,6 +540,26 @@ class ReviewOutcome:
     discarded: list[str] = field(default_factory=list)
     unparseable: bool = False
     refusal: str | None = None
+    # S-0086/D-1: this verdict took a second ask, because the first was
+    # unreadable. False is the ordinary case, and a readable verdict is never
+    # re-asked.
+    second_ask: bool = False
+
+
+# ....................... #
+
+
+def read_verdict(output: str) -> tuple[list[Finding] | None, str | None]:
+    """(findings, refusal) for one reviewer answer. Findings None with no
+    refusal is no document at all; None with a refusal is a document the
+    schema refused by field (S-0054/D-15). Either way the verdict is
+    unreadable, which is what `findings is None` says."""
+
+    try:
+        return parse_findings(output), None
+
+    except SchemaRefusal as exc:
+        return None, str(exc)
 
 
 # ....................... #
@@ -711,6 +731,21 @@ def run_review(
             _time.sleep(15)
             result = agent.run(context)
 
+        findings, refusal = read_verdict(result.output)
+
+        # S-0086/D-1: an unreadable verdict — no findings document at all, or
+        # one the schema refused — is asked once more of the same reviewer in
+        # this same staged copy, which is why the verdict is read here and not
+        # after the copy is gone. A green-gated task was escalated because the
+        # reviewer's envelope carried no document; a reviewer that cannot
+        # answer twice is broken, and a readable verdict is never re-asked.
+        asks = [result]
+
+        if findings is None:
+            result = agent.run(context)
+            findings, refusal = read_verdict(result.output)
+            asks.append(result)
+
     finally:
         runtime.destroy(handle)
         state.sandbox_id = None
@@ -741,13 +776,19 @@ def run_review(
     # (T-0176): an adapter that wrote none left no file, and a record citing
     # a harness-shaped path nothing produced is a fabricated coordinate — as
     # misleading as a missing one.
-    review_trace_ref = None
+    # One trace per ask, numbered by it (S-0086/D-1): a second ask's session is
+    # its own evidence, and both refs ride the record below.
+    review_trace_refs: list[str] = []
 
-    if result.trace_ref is not None:
+    for ask_number, ask in enumerate(asks, start=1):
+        if ask.trace_ref is None:
+            continue
+
         review_worktree = naming.worktree(root, review.id)
-        review_trace = naming.trace_file(review_worktree, 1)
-        review_trace.write_text(result.output, encoding="utf-8")
-        review_trace_ref = naming.trace_ref(review_worktree, 1)
+        naming.trace_file(review_worktree, ask_number).write_text(ask.output, encoding="utf-8")
+        review_trace_refs.append(naming.trace_ref(review_worktree, ask_number))
+
+    review_trace_ref = review_trace_refs[-1] if review_trace_refs else None
 
     # T-0186: the reviewer's self-reported token counts must survive the
     # rebuild below — the rebuilt AgentResult is the base shape and carries
@@ -766,13 +807,9 @@ def run_review(
         broker.usage(broker_handle) if broker is not None and broker_handle is not None else None
     )
 
-    refusal: str | None = None
-
-    try:
-        findings = parse_findings(result.output)
-    except SchemaRefusal as exc:
-        findings, refusal = None, str(exc)
-
+    # The verdict was read in the copy, so a second ask could still reach the
+    # same reviewer there (S-0086/D-1); what is left here is what it produced.
+    second_ask = len(asks) > 1
     unparseable = findings is None and refusal is None
     kept: list[Finding] = []
     discarded: list[str] = []
@@ -820,6 +857,9 @@ def run_review(
         "discarded": discarded,
         "unparseable": unparseable,
         "refusal": refusal,
+        # Which reviews needed a second ask (S-0086/D-1), so the ledger can
+        # count how often a harness fails to produce a findings document.
+        "second_ask": second_ask,
         "agent": {
             "tier": review.tier,
             "adapter": getattr(agent, "kind", tier.adapter),
@@ -828,6 +868,10 @@ def run_review(
             "model_version": result.model_version,
             "cost_usd": result.cost_usd,
             "trace_ref": result.trace_ref,
+            # Both asks' traces when there were two (S-0086/D-1): the verdict
+            # that escalated is `trace_ref`, and the unreadable answer before
+            # it is evidence for whoever asks why the harness failed.
+            **({"trace_refs": review_trace_refs} if second_ask else {}),
             # The review's own span (the broker clock covers the whole run,
             # so it can never answer "how long was the review"): two wall
             # stamps for the humans, the monotonic duration as the truth.
@@ -871,6 +915,7 @@ def run_review(
         discarded=discarded,
         unparseable=unparseable,
         refusal=refusal,
+        second_ask=second_ask,
     )
 
 
@@ -1173,8 +1218,8 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
 
     if outcome.refusal is not None:
         # S-0054/D-15: a document that fails the schema is refused by name —
-        # the reviewer had one attempt, so the refusal escalates as the
-        # verdict it could not deliver, never as a clean review.
+        # the reviewer was asked twice (S-0086/D-1), so the refusal escalates as
+        # the verdict it could not deliver, never as a clean review.
         state.escalate(
             EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
             f"{outcome.review_id}: review output refused: {outcome.refusal}",

@@ -1122,3 +1122,145 @@ def test_a_shape_failure_is_refused_by_field_never_unparseable(review_rig):
     assert outcome.unparseable is False
     assert outcome.refusal is not None and "findings.0.severity" in outcome.refusal
     assert outcome.fact.startswith("review output refused: ")
+
+
+# ....................... #
+# The second ask (S-0086/D-1): an unreadable verdict costs one more review in
+# the same staged copy, never a phase.
+
+
+class TracingSequencedReviewer(SequencedReviewer):
+    """SequencedReviewer that writes its session where the harness would —
+    the store, named after the workspace it was given — so each ask leaves
+    its own evidence to cite."""
+
+    def run(self, ctx):
+        result = super().run(ctx)
+        trace = naming.trace_file(ctx.workspace, self.calls)
+        trace.write_text(result.output, encoding="utf-8")
+        return AgentResult(exit_code=0, output=result.output, trace_ref=str(trace))
+
+
+def test_an_unreadable_verdict_is_asked_once_more_and_the_second_answer_stands(review_rig):
+    # S-0086/D-1: the first answer carried no findings document at all. The
+    # reviewer is asked again in the same copy, and the readable second
+    # verdict is the review — a stray subprocess costs one more review.
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    reviewer = SequencedReviewer(["prose, no document", reviewer_output([])])
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    # One review, two asks — not a second review task, and not an escalation.
+    assert state.state is TaskState.READY
+    assert state.escalation is None
+    assert state.attempts == 1
+    assert reviewer.calls == 2
+    assert len(sorted((repo.root / ".torve" / "tasks").glob("T-*/contract.yaml"))) == 1
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert len(review_records) == 1
+    # The record names a review that needed the second ask, and records the
+    # answer that was readable.
+    assert review_records[0]["second_ask"] is True
+    assert review_records[0]["unparseable"] is False
+    assert review_records[0]["refusal"] is None
+
+
+def test_a_readable_verdict_is_never_re_asked(review_rig):
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    reviewer = SequencedReviewer([reviewer_output([])])
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.READY
+    assert reviewer.calls == 1
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert review_records[0]["second_ask"] is False
+    assert "trace_refs" not in review_records[0]["agent"]
+
+
+def test_a_second_unreadable_answer_escalates_with_both_trace_refs(review_rig):
+    # S-0086/D-1: a reviewer that cannot answer twice is broken, so the target
+    # escalates as S-0043/D-4 says — with both asks' sessions on the record.
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    reviewer = TracingSequencedReviewer(["prose, no document", "still no document"])
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "gate_infrastructure_failure"
+    assert "unparseable" in state.escalation.detail
+    assert reviewer.calls == 2
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    records = [json.loads(line) for line in telemetry.read_text().splitlines()]
+    review_records = [r for r in records if r.get("kind") == "review"]
+    assert len(review_records) == 1
+    review_id = review_records[0]["task_id"]
+    assert review_records[0]["second_ask"] is True
+    assert review_records[0]["unparseable"] is True
+
+    # Both refs, root-relative and one per ask, and both files are there to
+    # read: the unreadable answers are the evidence for a broken harness.
+    assert review_records[0]["agent"]["trace_refs"] == [
+        f".torve/traces/{review_id}.a1.trace.log",
+        f".torve/traces/{review_id}.a2.trace.log",
+    ]
+    for ask, expected in enumerate(["prose, no document", "still no document"], start=1):
+        trace = naming.trace_file(repo.root / ".wt" / review_id, ask)
+        assert trace.read_text(encoding="utf-8") == expected
+    # The verdict that escalated is the one `trace_ref` names.
+    assert review_records[0]["agent"]["trace_ref"] == f".torve/traces/{review_id}.a2.trace.log"
+
+
+def test_a_refused_document_is_asked_once_more_too(review_rig):
+    # S-0086/D-1 covers both shapes of unreadable: a document the schema
+    # refused by field is re-asked exactly as no document at all is.
+    repo, _runtime, _deps_for = review_rig
+    target, review, worktree = review_inputs(repo)
+    reviewer = SequencedReviewer(
+        [
+            reviewer_output([{"severity": "huge", "claim": "c", "evidence": "src/app.py:1 — e"}]),
+            reviewer_output([]),
+        ]
+    )
+
+    outcome = run_review(
+        repo.root,
+        worktree,
+        target,
+        review,
+        RunnerConfig(),
+        MockRuntime(),
+        reviewer,
+        "diff --git a/src/app.py b/src/app.py\n+x = 1\n",
+        [],
+        "digest",
+    )
+
+    assert reviewer.calls == 2
+    assert outcome.second_ask is True
+    assert outcome.refusal is None
+    assert outcome.unparseable is False
+    assert outcome.fact == "review clean"

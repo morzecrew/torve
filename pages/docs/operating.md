@@ -149,6 +149,29 @@ record, so a repair is visible in the record rather than inferred from a
 prompt — two convictions on one gate show one repair and then the ordinary
 path.
 
+**The third place a tree is committed short of a landing.** An escalation from
+the review stage — a surviving blocker, an unreadable verdict, a broker
+refusal — used to leave a gate-green tree in the worktree only, because the
+candidate is committed after the review. It is now committed first (S-0086/D-2),
+under the same trailer and with no landing:
+
+```
+torve(T-0390): attempt 2 escalated from review
+
+Torve-Checkpoint: T-0390 attempt 2
+```
+
+A commit that fails leaves the escalation exactly as it was and records
+`reviewed_tree_uncommitted` — the reason the run stopped is the review's.
+
+**An unreadable verdict is asked twice.** No findings document at all, or one
+the schema refused by field, buys one more ask of the same reviewer in the
+same staged copy before anything escalates (S-0086/D-1); a readable verdict is
+never re-asked. The review record carries `second_ask` and, when there were
+two, `agent.trace_refs` for both sessions — so the ledger can count how often
+a harness fails to produce a document, and a second unreadable answer
+escalates as it did before with both sessions to read.
+
 **What a repair is handed.** `build_prompt` has a third mode beside
 `continuation` and `revision` (S-0069/D-2): a block naming the gate that
 convicted the previous attempt, the tail of its output, the paths that

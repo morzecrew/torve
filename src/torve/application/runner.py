@@ -114,6 +114,11 @@ class AttemptHooks:
     # next dispatch has a candidate tip to continue from. Never called on a
     # convicted escalation — that restarts from base unchanged.
     checkpoint: Callable[[RunState], None] | None = None
+    # Called once, only when the review stage escalates the target (S-0086/D-2):
+    # commits the gate-green tree on the task's branch under the checkpoint
+    # trailer, so work the attempt did right is not lost to an escalation the
+    # attempt did not cause.
+    reviewed_tree: Callable[[RunState], None] | None = None
 
 
 # ....................... #
@@ -312,7 +317,16 @@ async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool | None:
     review_fact = await hooks.review(state)
 
     if review_fact is None:
-        return None if state.escalation is None else False
+        if state.escalation is None:
+            return None
+
+        # S-0086/D-2: the tree that passed the battery is committed before the
+        # escalation leaves this stage — a blocker, an unreadable verdict and a
+        # broker refusal alike.
+        if hooks.reviewed_tree is not None:
+            hooks.reviewed_tree(state)
+
+        return False
 
     state.transition(TaskState.REVIEWED, review_fact)
     return True
@@ -842,6 +856,38 @@ def _commit_convicted_tree(run: Dispatch, state: RunState, gate: str) -> None:
 # ....................... #
 
 
+def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
+    """An escalation from the review stage leaves the attempt's tree only in
+    the worktree — the candidate is committed at `reviewed → ready`, after the
+    review — so a green-gated tree was lost to a blocker, an unreadable verdict
+    or a broker refusal. S-0086/D-2 commits it on the task's branch here, kin to
+    the budget checkpoint (S-0026/D-9) and the convicted tree (S-0069/D-4): the
+    same trailer, so nothing mistakes it for a landed candidate, and no landing
+    is written (S-0059/D-12).
+
+    A failed commit leaves the escalation as it was: the reason the run stops
+    is the review's, and an infrastructure failure here must not replace it."""
+
+    message = (
+        f"torve({run.task.id}): attempt {state.attempts} escalated from review\n\n"
+        f"Torve-Checkpoint: {run.task.id} attempt {state.attempts}"
+    )
+    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
+
+    try:
+        run.deps.vcs.commit_all(run.worktree, message, author, run.config.vcs.signing_key)
+
+    except Exception as exc:
+        engine_event(
+            run.root,
+            "reviewed_tree_uncommitted",
+            {"task": run.task.id, "attempt": state.attempts, "error": repr(exc)},
+        )
+
+
+# ....................... #
+
+
 async def land(run: Dispatch, state: RunState, digest: str) -> str:
     """The candidate commit, and its branch and pull request where the forge
     leg is on. The commit is the runner's artefact (S-0010/D-1), composed here
@@ -1055,6 +1101,7 @@ def real_hooks(
         review=review,
         close=partial(close_dispatch, run),
         checkpoint=partial(checkpoint, run),
+        reviewed_tree=partial(_commit_reviewed_tree, run),
     )
 
 

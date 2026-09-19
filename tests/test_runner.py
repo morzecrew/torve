@@ -2733,3 +2733,120 @@ def test_the_task_unit_and_a_local_landing_cut_exactly_as_they_cut_today(repo):
     local = RunnerConfig(promotion=PromotionConfig(landing="local", unit="document"))
 
     assert _cut_from(repo.root, task, local) == ("main", False, None)
+
+
+# ....................... #
+# The review stage's checkpoint (S-0086/D-2): the gate-green tree is committed
+# before any escalation the review stage produces.
+
+
+def _review_escalation_run(repo, monkeypatch, reviewer_output, vcs=None, revisions=1):
+    """A gate-green attempt whose review escalates the target, with the vcs
+    that recorded whatever was committed on the way out."""
+    from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace, ScriptedAgent
+
+    import torve.application.runner as run_module
+    from torve.adapters.store.durable import open_store
+    from torve.application.dispatch import RunDeps
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo.seed()
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    # The blocker's evidence must locate against the tree under judgment.
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        run_module,
+        "run_gate_pass",
+        lambda *args, **kwargs: (0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"),
+    )
+
+    vcs = vcs if vcs is not None else MockVcs()
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=vcs,
+        scm=MockScm(),
+        store=open_store,
+        review_agent=ScriptedAgent([AgentResult(exit_code=0, output=reviewer_output)]),
+    )
+    config = RunnerConfig(
+        review=ReviewConfig(on=["task_gated"], blocker_revisions=revisions),
+        poison_ceiling=1,
+    )
+
+    return run_task(repo.root, _contract_task(), config, deps), vcs
+
+
+BLOCKER_VERDICT = json.dumps(
+    {
+        "findings": [
+            {"severity": "blocker", "claim": "the change is wrong", "evidence": "app.py:1 — flag"}
+        ]
+    }
+)
+
+
+@pytest.mark.parametrize(
+    ("verdict", "revisions", "reason"),
+    [
+        ("prose, no document", 1, "gate_infrastructure_failure"),
+        (BLOCKER_VERDICT, 0, "blocker_finding"),
+    ],
+)
+def test_an_escalation_from_review_commits_the_gate_green_tree(
+    repo, monkeypatch, verdict, revisions, reason
+):
+    """S-0086/D-2: an unreadable verdict and a surviving blocker alike leave the
+    tree on the task's branch, under the checkpoint trailer — the escalation
+    itself is unchanged."""
+    from torve.domain.states import TaskState
+
+    state, vcs = _review_escalation_run(repo, monkeypatch, verdict, revisions=revisions)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == reason
+
+    checkpoints = [m for m in vcs.commits if "escalated from review" in m]
+    assert len(checkpoints) == 1
+    assert "Torve-Checkpoint: T-9001 attempt 1" in checkpoints[0]
+    # No landing rides a checkpoint: the candidate is still the landing's to
+    # write (S-0059/D-12).
+    assert not [m for m in vcs.commits if "landing of attempt" in m]
+    assert state.landed_sha is None
+
+
+def test_a_failed_checkpoint_commit_leaves_the_review_escalation_as_it_was(repo, monkeypatch):
+    """S-0086/D-2: the commit is only the tree's record — its failure must not
+    replace the verdict that stopped the run with an infrastructure story."""
+    from test_run_loop import MockVcs
+
+    from torve.domain.states import TaskState
+
+    class RefusingVcs(MockVcs):
+        def commit_all(self, worktree, message, author=None, sign_key=None):
+            raise RuntimeError("index.lock exists")
+
+    state, vcs = _review_escalation_run(
+        repo, monkeypatch, BLOCKER_VERDICT, vcs=RefusingVcs(), revisions=0
+    )
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "blocker_finding"
+    assert "the change is wrong" in state.escalation.detail
+    assert vcs.commits == []
+
+    # The uncommitted tree is an engine-health fact, not a task verdict.
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    uncommitted = [r for r in records if r.get("event") == "reviewed_tree_uncommitted"]
+    assert len(uncommitted) == 1
+    assert uncommitted[0]["task"] == "T-9001"
+    assert "index.lock" in uncommitted[0]["error"]
