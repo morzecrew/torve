@@ -138,6 +138,14 @@ commit itself fails the routing still stands and the engine records
 `repair_tree_uncommitted` — the tree is the one the repair would carry
 anyway, and an infrastructure failure must not replace the conviction.
 
+**A checkpoint survives a recut.** The same trailer marks the tree an
+escalation leaves behind — from the review stage, or when the attempt halts
+on a locked row (S-0086/D-2, S-0086/A-1) — and a rerun cuts the task's branch
+back to base over it. Before it does, the branch's tip is kept under
+`refs/torve/checkpoints/<task>/<sha>` when the base does not already hold it,
+never pushed: `git log refs/torve/checkpoints/T-0020/4d9dfec9` is the work the
+second attempt did, however many reruns later.
+
 **Once.** One gate earns one repair per dispatch (S-0069/D-6). A second
 conviction on the same gate restores the contract's own acceptance and
 routes exactly where it routed before, and the ladder that picks the next
@@ -891,6 +899,16 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
 - **A person's thread is replied to and left** (S-0084/D-11): the engine
   resolves a bot's thread and never yours, so the open threads on a document's
   pull request stay exactly the conversations a person is still having.
+- **A recorded finding is answered once per round**, on the stream and as one
+  keyed comment on the pull request (S-0086/D-5). The reason it was not applied
+  is read from the attempt's log, or from the landing's execution record when
+  the repository keeps its contracts on the record and has no root log — a
+  round that changes nothing and says why lands as its execution record alone,
+  and that is not an empty diff.
+- **`serve --task` is the whole pass, not only the claim.** A worker started
+  with `--task T-0028` imports, lands and dispatches that contract and no
+  other, so a night serving one round leaves every other green candidate on
+  the board for `torve merge` or the next unfiltered pass.
 - **One round per finding.** A finding raised again after a landed reply
   already answered it escalates to you instead of being dispatched a second
   time (S-0084/D-14), so a night cannot spend itself arguing with a bot at the
