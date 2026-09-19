@@ -375,7 +375,7 @@ Every attempt runs on a worktree seeded with the base sha pinned host-side, the 
 - Paths: `src/torve/application/session.py` `src/torve/adapters/agent/harness.py` `.torve/traces/**`
 - Consequence: What an agent saw is reconstructible; what it reasoned is never an input to another agent
 
-### S-0056/D-2 — `LOCKED` (Structure for everything)
+### S-0056/D-2 — `LOCKED` (Structure for everything) — implementation: none
 
 `DecisionDetail` folds into `Decision`; the fenced kinds are gone; a row carries `rationale`, `cites`, `check`, `check_state`, `check_twin`, `superseded_by` and its `fingerprint` on itself
 
@@ -383,14 +383,14 @@ Every attempt runs on a worktree seeded with the base sha pinned host-side, the 
 - Consequence: `inherit_decisions` reads the row; the frontmatter fingerprint map is gone
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-8 — `ASSUMED` (Structure for everything)
+### S-0056/D-8 — `ASSUMED` (Structure for everything) — implementation: none
 
 `SKILL.md`, `AGENTS.md`, the colocated sections and the pack are unchanged: projections rendered from the model, read by harnesses and people
 
 - Paths: `skills/**` `src/torve/application/colocation.py`
 - Consequence: Nothing a harness reads changes shape
 
-### S-0056/D-9 — `LOCKED` (Structure for everything)
+### S-0056/D-9 — `LOCKED` (Structure for everything) — implementation: none
 
 With a store configured, `plan` mints into the record and writes no file; dispatch projects `.torve/tasks/<id>/contract.yaml` into the worktree, gitignored; the log written there is imported after the attempt; without a store the files are the record as today
 
@@ -398,14 +398,14 @@ With a store configured, `plan` mints into the record and writes no file; dispat
 - Consequence: The board is the only place a task is; the file exists for the attempt that reads it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-11 — `ASSUMED` (Structure for everything)
+### S-0056/D-11 — `ASSUMED` (Structure for everything) — implementation: none
 
 `torve migrate telemetry` reads the file once into the record; every reader that opens `.torve/telemetry.jsonl` goes through one function that reads the record when a store is configured and the file when not
 
 - Paths: `src/torve/application/telemetry.py` `src/torve/application/contextpack.py` `src/torve/application/intake.py` `src/torve/application/specquality.py`
 - Consequence: The file is a carrier and an append target, never what a reader with a record opens
 
-### S-0056/D-13 — `OPEN` (Structure for everything)
+### S-0056/D-13 — `OPEN` (Structure for everything) — implementation: none
 
 Whether phase 4 gives `traces/` and `regimes/` a retention window or leaves them to S-0039
 
@@ -1392,35 +1392,35 @@ A task waiting on another document's landing shows the document beside the task 
 - Paths: `src/torve/cli/night.py` `src/torve/application/projections.py`
 - Consequence: a person reading the board sees "waits on S-0008's landing" and knows which pull request to look at, rather than four task ids to resolve by hand
 
-### S-0086/D-1 — `ASSUMED` (The review tier's word reaches the work)
+### S-0086/D-1 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
 
 An unreadable review verdict — unparseable or refused — is asked once more of the same reviewer in the same staged copy before it is escalated; a second unreadable answer escalates as S-0043/D-4 says, with both trace refs on the record, and the record names a review that needed the second ask
 
 - Paths: `src/torve/application/review.py` `tests/test_review_run.py`
 - Consequence: a reviewer's stray subprocess costs one more review and not a phase; the ledger can count how often a harness fails to produce a findings document
 
-### S-0086/D-2 — `ASSUMED` (The review tier's word reaches the work)
+### S-0086/D-2 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
 
 Before any escalation from the review stage the attempt's tree is committed on the task's branch under the checkpoint trailer, kin to the budget checkpoint and the convicted-tree commit — no landing is written, and a commit that fails leaves the escalation as it was
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py`
 - Consequence: nothing that passed the gates is lost to an escalation the attempt did not cause; the operator's hand checkpoint of 2026-09-19 is the engine's own act
 
-### S-0086/D-3 — `ASSUMED` (The review tier's word reaches the work)
+### S-0086/D-3 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
 
 The review-thread leg reads a second source: the stream's `task_gated` review records for tasks an open document branch carries, whose findings are not yet answered; each finding becomes the leg's shape — anchor from its evidence's leading citation, its claim and evidence as the one thread under it, the review task as author — and is grouped with the forge's threads by the same anchor rule
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/threads.py` `tests/test_reviewleg.py`
 - Consequence: a bot and the tier flagging one line are one finding and one round; a non-blocking finding is worked on the branch before the pull request is ready instead of read off the record by a person
 
-### S-0086/D-4 — `ASSUMED` (The review tier's word reaches the work)
+### S-0086/D-4 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
 
 A finding whose evidence is a command rather than a citation anchors to the files its target task's diff touched, as one finding per target; a finding whose citation lies outside the document's phasing scope mints no round and is escalated with the finding named, as an injecting thread is
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: every recorded finding either becomes a round the branch may write or reaches a person by name; none is dropped for having no line
 
-### S-0086/D-5 — `ASSUMED` (The review tier's word reaches the work)
+### S-0086/D-5 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
 
 A recorded finding is answered on the stream, not the forge: when the record says its round landed, the leg writes `review_finding_answered` with the landing sha or the contradicted entry's claim and evidence, posts the same words once as a pull-request comment, and never mints a round for that finding again
 

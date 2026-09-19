@@ -140,6 +140,31 @@ def test_a_governed_directory_gets_a_section_and_an_ungoverned_one_none(tmp_path
     assert "- `src/torve/domain/` — 0 decision(s)" in root
 
 
+def test_an_unimplemented_document_s_rows_say_so_on_the_heading(tmp_path: Path) -> None:
+    """A row of an accepted document is the design's word until the document
+    is implemented; a reader of bloomery's projection took S-0079's rows for
+    facts about the code. Only a complete document's rows carry no state."""
+    from test_decisions import document, place
+
+    rfc_dir = _seed(tmp_path)
+    place(
+        rfc_dir,
+        "0002",
+        document(
+            "0002",
+            rows=[("S-0002/D-1", "ASSUMED", "the IR carries determines", "src/torve/cli/**", "x")],
+            implementation="none",
+            title="Determinations reach the IR",
+        ),
+    )
+
+    project(tmp_path, rfc_dir)
+    cli = (tmp_path / "src/torve/cli/AGENTS.md").read_text(encoding="utf-8")
+
+    assert "### S-0001/D-1 — `LOCKED` (Document 0001)\n" in cli
+    assert "### S-0002/D-1 — `ASSUMED` (Determinations reach the IR) — implementation: none" in cli
+
+
 def test_text_outside_the_markers_survives_byte_for_byte(tmp_path: Path) -> None:
     rfc_dir = _seed(tmp_path)
     own = "# My notes\n\nKeep this.\n"

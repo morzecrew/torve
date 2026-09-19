@@ -9,7 +9,7 @@ Skills ship as package data under `skills/` and are materialised role-scoped int
 - Paths: `skills/**` `.torve/skills-vendor/**` `src/torve/application/skills.py`
 - Consequence: What an agent knows is versioned and named, never ambient
 
-### S-0056/D-8 — `ASSUMED` (Structure for everything)
+### S-0056/D-8 — `ASSUMED` (Structure for everything) — implementation: none
 
 `SKILL.md`, `AGENTS.md`, the colocated sections and the pack are unchanged: projections rendered from the model, read by harnesses and people
 

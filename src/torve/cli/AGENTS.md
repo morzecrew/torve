@@ -98,7 +98,7 @@ Cadence belongs to the manager's pass; there is no resident scanning loop, and t
 - Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
 - Consequence: One process to run and supervise; a pause stops what advances the repository
 
-### S-0056/D-4 — `LOCKED` (Structure for everything)
+### S-0056/D-4 — `LOCKED` (Structure for everything) — implementation: none
 
 Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the model and writes it through one serializer; comments are not preserved and `check` refuses one outside the schema header line; `fmt` survives as `--check` only
 
@@ -106,7 +106,7 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 - Consequence: There is no second renderer to drop a field; the `character:` defect closes by construction
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-6 — `LOCKED` (Structure for everything)
+### S-0056/D-6 — `LOCKED` (Structure for everything) — implementation: none
 
 `torve rfc schema` writes `rfcs/schema/document.json` from the model, drift-checked by `rfc check`; every document's first line names it; `rfc new` emits 0055's shape with the header line
 
@@ -114,7 +114,7 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 - Consequence: An editor validates a row as it is typed; a new document starts small
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-7 — `ASSUMED` (Structure for everything)
+### S-0056/D-7 — `ASSUMED` (Structure for everything) — implementation: none
 
 `torve rfc list` replaces `INDEX.md`; `torve rfc render NNNN` is the only markdown writer and never the source of anything
 

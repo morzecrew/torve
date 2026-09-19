@@ -99,7 +99,7 @@ A fact is an event of a closed kind vocabulary with an authority table; an agent
 - Consequence: An audit trail that can be edited cannot be trusted; the authority table refuses before any store sees the write
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-1 — `LOCKED` (Structure for everything)
+### S-0056/D-1 — `LOCKED` (Structure for everything) — implementation: none
 
 A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's own shape and key order; loading is the model's validator plus the corpus checks; `schema_version` 2, and 1 is refused
 
@@ -107,7 +107,7 @@ A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's ow
 - Consequence: The markdown parser, `load_fences`, the heading and table regexes are deleted; every reader of the corpus is unchanged
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-2 — `LOCKED` (Structure for everything)
+### S-0056/D-2 — `LOCKED` (Structure for everything) — implementation: none
 
 `DecisionDetail` folds into `Decision`; the fenced kinds are gone; a row carries `rationale`, `cites`, `check`, `check_state`, `check_twin`, `superseded_by` and its `fingerprint` on itself
 
@@ -115,7 +115,7 @@ A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's ow
 - Consequence: `inherit_decisions` reads the row; the frontmatter fingerprint map is gone
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0056/D-3 — `LOCKED` (Structure for everything)
+### S-0056/D-3 — `LOCKED` (Structure for everything) — implementation: none
 
 Prose is `sections[].md`, a string the engine never parses, with `key` and `heading` beside it; `level` and `order` are dropped
 

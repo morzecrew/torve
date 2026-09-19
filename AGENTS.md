@@ -54,7 +54,7 @@ Strict typing is a floor over `src/`: `mypy --strict` and `basedpyright` strict 
 - Paths: `src/torve/**` `pyproject.toml`
 - Consequence: A substrate surface change fails at the type check
 
-### S-0056/D-10 — `LOCKED` (Structure for everything)
+### S-0056/D-10 — `LOCKED` (Structure for everything) — implementation: none
 
 Every task directory whose contract names an archived document is deleted, not archived, in one commit; `.torve/tasks/` leaves the tracked exceptions; the retention leg over task directories goes with them
 

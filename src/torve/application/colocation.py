@@ -226,7 +226,16 @@ def render_section(
         lines += [f"## Decisions governing {label}", ""]
 
         for doc, row in rows:
-            lines.append(f"### {row.id} — `{row.grade}` ({doc.title})")
+            # A row of an accepted document is the design's word, not the
+            # tree's, until the document is implemented: a reader of the
+            # projection took S-0079's rows for facts about the code
+            # (bloomery #156). The state rides on the heading.
+            state = (
+                ""
+                if doc.implementation == "complete"
+                else f" — implementation: {doc.implementation}"
+            )
+            lines.append(f"### {row.id} — `{row.grade}` ({doc.title}){state}")
             lines += ["", row.text, ""]
             lines.append("- Paths: " + " ".join(f"`{p}`" for p in row.paths))
 
