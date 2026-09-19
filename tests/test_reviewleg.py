@@ -702,7 +702,7 @@ def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge
 
     assert (answer["finding"], answer["sha"], answer["task"]) == (RECORDED, "cafe123", task_id)
     assert "cafe123" in answer["body"]
-    assert forge.commented == [(7, answer["body"], RECORDED)]
+    assert forge.commented == [(7, answer["body"], task_id)]
     # A recorded finding is answered on the stream, not on a thread that never
     # existed.
     assert forge.replied == [] and forge.resolved == []
@@ -756,6 +756,33 @@ def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(see
     assert "Not applied — the claim does not hold, the caller checks it" in answer["body"]
     assert "Fixed in" not in answer["body"]
     assert forge.commented[0][1] == answer["body"]
+
+
+def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seeded):
+    """S-0086/D-5: the answer is said once as a comment, whatever number of
+    recorded findings the round grouped (bloomery #160: three identical
+    comments for one round)."""
+
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work")
+    open_document(seeded.root, sha=head(seeded.root))
+    reviewed(
+        seeded.root,
+        ("the suite is red", "`uv run pytest` — 3 failed"),
+        ("and the coverage fell", "`uv run diff-cover` — 62%"),
+    )
+    forge = StubForge(pr())
+    terms = config(sources=["record"])
+
+    review_thread_leg(seeded.root, terms, forge, lambda _t: False)
+    (row,) = events(seeded.root, "lane_review_task")
+    task_id = row["task"]
+    engine_event(seeded.root, "lane_landed", {"task": task_id, "sha": "cafe123", "unit": "task"})
+
+    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__)
+
+    assert len(events(seeded.root, "review_finding_answered")) == 2
+    assert len(forge.commented) == 1
 
 
 def test_a_reraise_at_a_moved_anchor_is_a_new_finding(seeded):

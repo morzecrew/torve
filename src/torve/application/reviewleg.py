@@ -792,6 +792,10 @@ def answer_round(
         return 0
 
     answered = 0
+    # Once per round, not once per recorded finding it grouped (S-0086/D-5):
+    # three findings on one line earned three identical comments on
+    # bloomery #160.
+    commented = False
 
     for thread_id in row.get("threads", []):
         # A recorded finding was never on the forge, so it is answered on the
@@ -812,8 +816,9 @@ def answer_round(
                 },
             )
 
-            if isinstance(forge, CommentingForge):
-                forge.comment(int(row.get("pr") or 0), body, str(thread_id))
+            if isinstance(forge, CommentingForge) and not commented:
+                forge.comment(int(row.get("pr") or 0), body, task_id)
+                commented = True
 
             answered += 1
             continue
