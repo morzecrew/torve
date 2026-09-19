@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `torve plan <document> --refresh` admits and derives the document as `plan`
+      does and rewrites each already-minted phase whose contract differs from the
+      derivation in intent, scope, acceptance, decisions, character or tier variant
+      — keeping its id, edges and minted-by — and mints no phase
+    paths:
+      - src/torve/application/planner.py
+      - src/torve/cli/plan.py
+      - tests/test_plan.py
+    consequence: >-
+      an amendment reaches its phases through the one code path that knows how a document
+      becomes a contract, and the hand edit of a contract has no reason left
+    rationale: >-
+      the contract is a copy at write time (S-0007/D-7) and the planner is the writer;
+      twice on 2026-09-19 the operator was the writer instead
+    cites: [S-0007/D-7]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A task that is running, landed, or carried by a document branch is left alone
+      and named with the reason; an escalated or reaped task with no landing is refreshed;
+      no worktree is touched
+    paths: [src/torve/application/planner.py, tests/test_plan.py]
+    consequence: >-
+      an attempt in flight reads the contract it was dispatched under, and a landed
+      phase's terms are the ones its landing was judged by
+    rationale: >-
+      two attempts of one task are judged by one contract; the boundary is the attempt,
+      not the file
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Each rewrite is recorded as `contract_refreshed` on the engine's stream and
+      as `refreshed_at` on the contract's minted-by, and under a partition through
+      the residency path the mint uses
+    paths: [src/torve/application/planner.py, src/torve/application/residency.py]
+    consequence: >-
+      a contract's provenance is readable, and the board's row is the rewritten one
+      on the next pass
+    rationale: >-
+      a contract edited with no record is what this document exists to end
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `--refresh` defaults to a dry run and writes under `--no-dry-run`, as `plan`
+      does; a refresh that would change nothing writes nothing
+    paths: [src/torve/cli/plan.py]
+    consequence: >-
+      the operator reads the table before a contract changes, as they do before one
+      is minted
+    rationale: the verb it extends already has that shape

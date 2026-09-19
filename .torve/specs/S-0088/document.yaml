@@ -1,0 +1,155 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0088
+title: A minted contract follows its amended document
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0085]
+informed_by: [S-0026, S-0069, S-0086]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  A contract is a copy of its document at the moment it was minted — the phase's scope,
+  intent and acceptance, the rows with their grades (S-0007/D-7's copy-at-write-time
+  guarantee). When the document is amended after the mint, the copy is stale, the planner
+  refuses to mint the phase twice, and the operator edits the contract by hand to make the
+  attempt readable: twice on 2026-09-19 alone.
+
+  `torve plan <document> --refresh` rewrites the contracts of the document's phases that
+  have not started, from the document as it now stands, keeping their ids and edges; a
+  task that is running, landed or carried by a branch is left alone and named. Each
+  rewrite is recorded, so the board can say which contract an attempt was cut under.
+motivation: |
+  bloomery, 2026-09-19, twice. T-0008's contract named a scope its phase could not finish
+  in (a navigation entry outside it); the operator widened `scope.allow` in the root
+  contract and in the worktree's copy while the repair attempt ran. T-0020's document
+  counted fourteen golden directories where the tree had fifteen; the attempt was
+  convicted at the scope gate, halted on the count, and the operator amended the row in
+  bloomery's corpus through its amendment verb, then edited the minted contract's scope and row text by hand so
+  the rerun would read what the corpus now said, because `torve plan S-0079` refuses a
+  phase already minted and the contract is the attempt's only source.
+
+  Both hand edits are the right change made in the wrong place: the corpus was amended
+  through its verb, with a record; the contract was edited with none. The planner is the
+  one thing that knows how a document becomes a contract, and it had no verb for doing it
+  again.
+current_state: |
+  `torve plan <document>` derives one contract per phasing entry — `Task` with `spec`,
+  `phase`, `intent`, `scope`, `acceptance`, the inherited rows and their grades, `depends_on`
+  from the phasing's edges and, since S-0085, from `after` — and writes it under
+  `.torve/tasks/<id>/contract.yaml` (file mode) or mints it into the record (partition
+  mode). `_already_minted` refuses a document any of whose phases already has a contract:
+  "what to do with the existing tasks is a human decision". `--reconcile` marks
+  non-terminal tasks minted on the record; nothing rewrites a contract.
+
+  A task's run state lives beside its worktree (`.wt/<id>.state.json`) while a host run
+  is in flight or finished; the record holds the task's state under a served manager. A
+  landing writes a landing file under the document's `execution/`. Between them the engine
+  can say whether a task has started, is running, or has landed.
+
+  A worktree in flight carries its own copy of the contract, projected at dispatch
+  (`project_contract`); the gates read the worktree's copy.
+goals: |
+  - An amendment reaches the phases it governs without a hand edit of the contract.
+  - The rewrite keeps what identifies the task — id, document, phase, edges — and
+    replaces what the document owns.
+  - Nothing in flight or landed is touched; the operator is told which tasks were left
+    and why.
+  - The rewrite is a record, so a contract's provenance is readable.
+non_goals: |
+  - Rewriting a running attempt's worktree copy. An attempt reads the contract it was
+    dispatched under; the next attempt reads the refreshed one.
+  - Re-minting: ids never change, and a phase added to the phasing after the mint is a
+    new mint of that phase alone, refused today and unchanged here.
+  - Refreshing a contract from a document that is not accepted; the refresh admits a
+    document exactly as `plan` does.
+design:
+  - key: the-verb
+    md: |
+      ```console
+      $ torve plan S-0079 --refresh
+       task     phase   refreshed   why
+       T-0020   1       scope, decisions, intent   contract predates S-0079/A-1
+       T-0021   2       —           unchanged
+      refreshed 1 contract(s); left alone: none
+      ```
+
+      `--refresh` admits the document as `plan` does (accepted, dependencies accepted,
+      no cycle), derives the phases as `plan` does, and for each phase already minted
+      compares the derived task with the contract on disk or on the board, field by field:
+      `intent`, `scope`, `acceptance`, `decisions`, `character`, `tier_variant`. A phase
+      whose contract differs is rewritten with the derived values and its own `id`,
+      `depends_on` and `minted_by` kept; one whose contract matches is reported unchanged.
+      A phase not yet minted is not minted by `--refresh` — that is `plan`'s job and
+      stays refused while any phase is minted, unchanged.
+  - key: what-is-left-alone
+    md: |
+      A task is left alone, and named with the reason, when it is running (a run state
+      not terminal), landed (a landing file or a `lane_landed` record), or carried by a
+      document branch (the branch's tip holds the task's landing commit); an escalated or
+      reaped task with no landing is refreshed, since its next attempt starts from base
+      and reads the contract afresh. `--refresh` never touches a worktree.
+  - key: the-record
+    md: |
+      Each rewrite emits `contract_refreshed` on the engine's stream — task, document,
+      the fields that changed, and the amendment the document's latest entry names — and
+      the contract's `minted_by` gains `refreshed_at`. Under a partition the same fact is
+      recorded through the residency path the mint uses, so the board's contract is the
+      rewritten one on the next pass.
+  - key: dry-run-first
+    md: |
+      `--refresh` honours `--dry-run` as `plan` does and defaults to it: the table above is
+      what a dry run prints, and `--no-dry-run` writes. A refresh that would change
+      nothing writes nothing and says so.
+tests: |
+  - A document amended after its mint: `--refresh --no-dry-run` rewrites the unstarted
+    phase's scope, decisions and intent, keeps id and edges, leaves the matching phase
+    unchanged, and emits one `contract_refreshed` per rewrite.
+  - A running task, a landed task and a branch-carried task are each left alone and named;
+    an escalated task with no landing is refreshed.
+  - A dry run writes nothing; a refresh with nothing to change writes nothing and says so.
+  - A document not accepted is refused as `plan` refuses it.
+  - Under a partition the record's contract is the rewritten one.
+docs: |
+  `pages/docs/operating.md`: beside the amendment verb, the sentence that a minted
+  contract follows the amendment through `plan --refresh`; the hand edit the guide
+  currently implies is retired from the text.
+out_of_scope: |
+  - A refresh triggered by the amendment verb itself. Two acts, two records; an operator
+    who amends may not want the phase re-cut yet.
+  - Continuing a halted attempt from its checkpoint under the refreshed contract (S-0026/D-8,
+    S-0086/A-1). The tree is on a ref; what dispatches from it is that question's.
+risks: |
+  - A refresh narrows a scope under a checkpointed tree that used the wider one; the next
+    attempt starts from base and the scope gate judges its own diff, so the narrower
+    contract convicts nothing it did not write.
+  - The comparison misses a field the document owns. The list is the derived `Task`'s
+    fields minus identity and edges, and a test enumerates it against the model.
+alternatives:
+  - option: >-
+      Let `torve plan` re-mint over an existing contract when the document is newer
+    rejected_because: >-
+      Re-minting changes ids, and ids are what the record, the board, the branches
+      and every divergence entry join on; S-0056/D-9 made the contract the board's
+      row, and a row is not replaced because its source moved.
+    cites: [S-0056/D-9]
+  - option: >-
+      Have the attempt read the document rather than the contract
+    rejected_because: >-
+      S-0007/D-7's guarantee is the reason a contract exists: a copy at write time,
+      so an attempt's terms cannot move under it and two attempts of one task are
+      judged by one contract. A refresh between attempts keeps the guarantee; a live
+      read discards it.
+    cites: [S-0007/D-7]
+questions:
+  - id: Q-1
+    text: >-
+      Should the amendment verb print the phases a refresh would touch, so the operator
+      learns the contract is stale at the moment they make it so?
+  - id: Q-2
+    text: >-
+      A refreshed contract under a checkpointed tree (S-0086/A-1): when continuation
+      from a checkpoint exists, which contract does the continued attempt read — the
+      one it was cut under, or the refreshed one?

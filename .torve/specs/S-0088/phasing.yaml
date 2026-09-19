@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      plan --refresh rewrites what the document now says
+    intent: >-
+      The plan verb gains `--refresh`: the document is admitted and derived exactly
+      as for a mint; each already-minted phase's contract is compared field by field
+      with the derivation and rewritten with the derived intent, scope, acceptance,
+      decisions, character and tier variant while keeping its id, edges and minted-by;
+      a phase not yet minted is not minted; a task that is running, landed or carried
+      by a document branch is left alone and named; every rewrite emits `contract_refreshed`
+      and stamps `refreshed_at`; the verb defaults to a dry run and prints the table.
+      Under a partition the rewrite goes through the residency path the mint uses.
+      Settles D-1, D-2, D-3 and D-4.
+    scope:
+      - src/torve/application/planner.py
+      - src/torve/application/residency.py
+      - src/torve/cli/plan.py
+      - tests/test_plan.py
+      - tests/test_residency.py
+      - pages/docs/operating.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_residency.py
+      - uv run mypy src
+    character: structural
