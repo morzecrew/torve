@@ -812,6 +812,6 @@ async def reached(
     if not dispatchable(board, partition) and not board.in_flight():
         # S-0079/D-6's other half: a queue that drains closes the night. It is
         # not an error and it is not the refusal — the work is done.
-        return "queue_drained"
+        return "drained"
 
     return None

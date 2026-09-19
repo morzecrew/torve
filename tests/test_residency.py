@@ -1445,7 +1445,7 @@ def test_a_queue_that_drains_closes_the_night_rather_than_failing_it(tmp_path):
 
         await once(log, worker_over(log, []), tmp_path, PARTITION)
 
-        assert await reached(log, PARTITION, night) == "queue_drained"
+        assert await reached(log, PARTITION, night) == "drained"
 
     run(scenario)
 
