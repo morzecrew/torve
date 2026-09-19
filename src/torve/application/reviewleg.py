@@ -374,7 +374,12 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
     # The pass that calls this leg already holds the engine lock; adopt's own
     # acquire would deadlock against it.
     try:
-        (task_id,) = adopt(root, scratch, config, assume_lock=True)
+        # A round is a phase of its document (S-0084/D-7), not a draft asking
+        # to be one: the threshold that sends a standalone draft to its own
+        # document does not judge it. Its scope crosses whatever rows govern
+        # the files the findings anchor, and the decisions-reported gate
+        # holds the attempt to those rows as it holds every phase.
+        (task_id,) = adopt(root, scratch, config, assume_lock=True, document_threshold=False)
 
     except Exception:
         shutil.rmtree(source.parent, ignore_errors=True)
@@ -574,6 +579,14 @@ def record_threads(
                 body=f"{finding.get('claim', '')}\n\nEvidence: {evidence}",
             )
             cited = _citation(evidence)
+
+            # A citation into the engine's own records or the forge's
+            # configuration is not an anchor: a reviewer citing the execution
+            # file it read is talking about the target's work, not about a
+            # file the round may write (bloomery T-0024, 2026-09-19 — the
+            # leg escalated the finding as out of scope).
+            if cited is not None and cited[0].startswith(FORBIDDEN_ANCHORS):
+                cited = None
 
             if cited is not None:
                 threads.append(

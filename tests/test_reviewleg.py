@@ -558,6 +558,52 @@ def test_a_recorded_finding_and_a_thread_on_one_line_are_one_round(seeded):
     assert row["threads"] == ["t1", RECORDED]
 
 
+def test_a_citation_into_the_engine_s_records_is_no_anchor(seeded):
+    """A reviewer citing the execution file it read is talking about the
+    target's work, not about a file the round may write; the finding anchors
+    to what the target touched, as a command-evidence finding does (bloomery
+    T-0024: the leg had escalated it as out of the phasing scope)."""
+
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work")
+    open_document(seeded.root, sha=head(seeded.root))
+    reviewed(
+        seeded.root,
+        (
+            "nothing tests the new field",
+            ".torve/specs/S-0084/execution/T-0901-1-20260919T000000Z.yaml:3 — the record",
+        ),
+    )
+    forge = StubForge(pr())
+
+    review_thread_leg(seeded.root, config(sources=["record"]), forge, lambda _t: False)
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert (row["path"], row["line"]) == ("src/app.py", None)
+    assert events(seeded.root, "lane_thread_refused") == []
+
+
+def test_a_round_is_not_judged_by_the_document_threshold(seeded, monkeypatch):
+    """S-0084/D-7: a round is a phase of its document, not a draft asking to
+    be one. The adoption path's threshold — the one that sends a standalone
+    draft crossing many locked rows to its own document — refused the first
+    live round on bloomery (#160) for crossing fourteen documents' rows."""
+    from torve.application import intake
+    from torve.application.intake import ThresholdVerdict
+
+    def required(*_args, **_kwargs):
+        return ThresholdVerdict(verdict="document_required", reasons=["crosses locked decisions"])
+
+    monkeypatch.setattr(intake, "_threshold_for_scope", required)
+
+    finding = group_findings([thread("t1")])[0]
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+    task_id = mint_round(seeded.root, config(), round_)
+
+    assert layout.task_file(seeded.root, task_id).is_file()
+
+
 def test_a_command_evidence_finding_anchors_to_what_its_target_touched(seeded):
     """S-0086/D-4: a finding with no line of its own takes the files its
     target task's diff touched, as one finding for that target."""
