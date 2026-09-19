@@ -44,12 +44,13 @@ from torve.cli.options import (
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Callable
 
     from forze.application.execution import ExecutionRuntime
 
     from torve.application.residency import Lane
     from torve.config.runconfig import RunnerConfig
+    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -161,6 +162,51 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
 # ....................... #
 
 
+def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, Board], bool]:
+    """Whether every dependency's landed candidate is an ancestor of the base
+    this task would be cut from: the document branch's tip under
+    `promotion.unit: document` when the branch exists, the configured base
+    otherwise. The board's `landed` is the attempt's word (LANDING_RECORDED at
+    green); the lane puts the candidate on the base on a later pass, and a
+    dependent cut in between is cut without its predecessor."""
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.base import naming
+    from torve.gates.context import resolve_base
+
+    vcs = GitLane()
+
+    def on_base(task: Task, board: Board) -> bool:
+        if not task.depends_on:
+            return True
+
+        base = None
+
+        by_document = (
+            config.promotion.landing == "pull_request" and config.promotion.unit == "document"
+        )
+
+        if by_document and task.spec is not None:
+            base = vcs.tip(root, naming.document_branch(task.spec))
+
+        if base is None:
+            base = resolve_base(root, config.base)
+
+        if base is None:
+            return False
+
+        for dependency in task.depends_on:
+            view = board.tasks.get(dependency)
+            sha = view.landed_sha if view is not None else None
+
+            if not sha or not vcs.is_ancestor(root, sha, base):
+                return False
+
+        return True
+
+    return on_base
+
+
 async def _serve(
     dsn: str | None,
     partition: str,
@@ -266,6 +312,7 @@ async def _serve(
                     partition=partition,
                     seat=worker,
                 ),
+                on_base=_dependencies_on_base(root, config),
             ),
             root,
             partition,

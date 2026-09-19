@@ -56,7 +56,7 @@ def run(scenario):
     asyncio.run(main())
 
 
-async def mint(log, task_id, *, allow=("src/**",)):
+async def mint(log, task_id, *, allow=("src/**",), depends_on=()):
     """One mint carrying its contract (S-0049 S-0049/D-1) — the scope a
     worker's claim reads for disjointness comes off the board now."""
 
@@ -70,7 +70,9 @@ async def mint(log, task_id, *, allow=("src/**",)):
         payload={
             "title": task_id,
             "source_id": "0044",
-            "contract": task(task_id, allow=list(allow)).model_dump(mode="json"),
+            "contract": task(task_id, allow=list(allow))
+            .model_copy(update={"depends_on": list(depends_on)})
+            .model_dump(mode="json"),
         },
     )
 
@@ -267,5 +269,27 @@ def test_a_refused_dispatch_escalates_rather_than_stranding_the_claim():
         # And the claim is gone: an escalated task is a person's, not a
         # worker's.
         assert view.claimed_by is None
+
+    run(scenario)
+
+
+def test_a_claim_waits_for_its_dependency_to_reach_the_base():
+    """The board says a dependency landed the moment its attempt went green;
+    the lane puts that candidate on the base a pass later. A worker handed an
+    `on_base` predicate claims nothing the base does not yet carry (bloomery
+    T-0005 and T-0006 were cut without their predecessors, 2026-09-19)."""
+
+    async def scenario(log):
+        await mint(log, "T-1")
+        await mint(log, "T-2", depends_on=["T-1"])
+        first = worker_over(log, Outcome(attempt=1, exit_code=0, landed_sha="a" * 40))
+        assert await first.once(PARTITION) == "T-1"
+
+        held = Worker(log=log, name="w-2", execute=first.execute, on_base=lambda task, board: False)
+        assert await held.claim(PARTITION) is None
+
+        free = Worker(log=log, name="w-3", execute=first.execute, on_base=lambda task, board: True)
+        claimed = await free.claim(PARTITION)
+        assert claimed is not None and claimed.id == "T-2"
 
     run(scenario)

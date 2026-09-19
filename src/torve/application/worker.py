@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 import attrs
 
-from torve.application.manager import LEASE_SECONDS, dispatchable, project
+from torve.application.manager import LEASE_SECONDS, Board, dispatchable, project
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import EXIT_INFRASTRUCTURE, EscalationReason
 
@@ -49,6 +49,13 @@ class Outcome:
 
 
 Execute = Callable[["Task"], Awaitable[Outcome]]
+# Whether a claimable task's dependencies are on the base it would be cut
+# from. The board says a dependency has landed the moment its attempt went
+# green (LANDING_RECORDED), and the lane puts that candidate on the base
+# on a later pass — under a quiet window, a pass after the one that would
+# have claimed the dependent. Without this a phase is cut from a base that
+# lacks the phase before it (bloomery T-0005, T-0006, 2026-09-19).
+OnBase = Callable[["Task", "Board"], bool]
 
 
 # ....................... #
@@ -62,6 +69,7 @@ class Worker:
     log: EventLog
     name: str
     execute: Execute
+    on_base: OnBase | None = None
 
     # ....................... #
 
@@ -79,7 +87,20 @@ class Worker:
         """
 
         board = project(await self.log.since(partition=partition))
-        task = next((board.tasks[one].contract for one in dispatchable(board, partition)), None)
+        task: Task | None = None
+
+        for one in dispatchable(board, partition):
+            contract = board.tasks[one].contract
+
+            if (
+                contract is not None
+                and self.on_base is not None
+                and not self.on_base(contract, board)
+            ):
+                continue
+
+            task = contract
+            break
 
         if task is None:
             return None
