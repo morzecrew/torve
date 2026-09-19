@@ -1091,6 +1091,36 @@ def test_a_failing_command_s_output_reaches_the_attempt_by_its_tail(tmp_path: Pa
     assert "…" in problem  # the head that went is marked, not silently dropped
 
 
+def test_drift_is_owed_only_inside_the_contract_s_scope(tmp_path: Path) -> None:
+    """Drift on the base is not the attempt's: an attempt cut from a base
+    whose projection is stale is asked to project only what its scope lets
+    it write, and nothing at all when every drifting file is outside it."""
+
+    check = _hook_script("finish_check")
+    contract = tmp_path / "contract.yaml"
+    contract.write_text(
+        "scope:\n  allow:\n  - pages/**\n  deny:\n  - pages/private/**\n", encoding="utf-8"
+    )
+    drifted = ["pages/AGENTS.md", "pages/private/AGENTS.md", "src/torve/AGENTS.md"]
+
+    (problem,) = check.drift_owed(contract, drifted)
+
+    assert "pages/AGENTS.md" in problem
+    assert "pages/private/AGENTS.md" not in problem
+    assert "src/torve/AGENTS.md" not in problem
+    assert check.drift_owed(contract, ["src/torve/AGENTS.md"]) == []
+    assert check.drift_owed(contract, []) == []
+
+    # No scope declared is unconstrained, the scope gate's own reading: every
+    # drifting file is the attempt's to project.
+    unconstrained = tmp_path / "open.yaml"
+    unconstrained.write_text("acceptance: []\n", encoding="utf-8")
+
+    (problem,) = check.drift_owed(unconstrained, drifted)
+
+    assert all(rel in problem for rel in drifted)
+
+
 def test_the_finish_asks_the_acceptance_even_when_the_diff_cannot_be_read(
     tmp_path: Path, monkeypatch
 ) -> None:
