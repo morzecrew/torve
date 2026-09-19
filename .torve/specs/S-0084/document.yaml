@@ -3,7 +3,7 @@ id: S-0084
 title: >-
   The review leg: a pull request's threads become work on its branch
 kind: design
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0080, S-0083]
 informed_by: [S-0069, S-0079]

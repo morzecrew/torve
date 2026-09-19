@@ -586,6 +586,20 @@ Under `landing: local` the unit is ignored rather than refused — a local landi
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: a repository that moves between the two modes edits one key, and a `unit` that survives the switch back is inert rather than wrong
 
+### S-0084/D-5 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The leg's terms are a section of the runner configuration — which logins are bots, how many rounds a pass may mint, and whether the leg runs at all — defaulting off, and refused at load when it is on under any landing but `pull_request` with `unit: document`
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a repository configured today gains nothing until somebody writes that it should, and a configuration that could only ever fail at the first thread fails while a person is standing at the terminal
+
+### S-0085/D-1 — `ASSUMED` (A document builds on another document's tree)
+
+A phasing file names the documents whose landed tree its work builds on under a top-level `after`, as document ids; the header's `depends_on` keeps its one meaning, decision inheritance, and says nothing about trees
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/phasing.json`
+- Consequence: S-0009 declares `after: [S-0008]` and `depends_on: []` and both are true; a document may name one document in both lists or in either
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

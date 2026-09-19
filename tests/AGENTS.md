@@ -70,6 +70,20 @@ The burn profile classifies an attempt's tool calls — pack reads, orientation,
 - Paths: `src/torve/application/telemetry.py` `tests/test_attempt_record.py`
 - Consequence: every mitigation has a class that judges it, so a change can be shown to have moved what it claimed rather than argued to have
 
+### S-0085/D-2 — `ASSUMED` (A document builds on another document's tree)
+
+`torve plan` turns `after` into contract `depends_on`: every task of the document's phases with no in-document predecessor depends on every task minted from each named document; a named document with no minted tasks refuses the plan by name, one that is not accepted refuses as `depends_on` does, and one whose implementation is complete adds no edge
+
+- Paths: `src/torve/application/planner.py` `tests/test_plan.py`
+- Consequence: nothing downstream learns a new word — the board, the worker, the lane and every projection read the contract they already read, and a contract edited by hand to the same edge behaves the same
+
+### S-0085/D-3 — `ASSUMED` (A document builds on another document's tree)
+
+A document's landing on the base is its tasks' landing: `lane_landings` reads `lane_document_landed` beside `lane_landed` and stamps each task the branch carried with the merge commit, newest winning
+
+- Paths: `src/torve/application/projections.py` `tests/test_projections.py`
+- Consequence: a squash-merged document's tasks are on the base by the commit the base holds, so ancestry answers the same question for a squash as for a fast-forward; `shipped_landings` and the tree's landing files are unchanged
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

@@ -31,4 +31,18 @@ The forge credential stays where it is — `gh` on the host, the variable named 
 - Paths: `src/torve/adapters/vcs/git.py`
 - Consequence: a landing route that talks to the forge on every pass adds no second channel for the secret the broker exists to keep out of the sandbox
 
+### S-0084/D-1 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The forge surface answers about a branch with the unresolved review threads of its open pull request beside the state, on `PrInfo` and in the same call — never as a second question the lane has to remember to ask
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: a document of six phases still costs one forge call per pass, so the leg adds a field to the read-back rather than a second rate budget nobody sized
+
+### S-0084/D-2 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The thread read moves to the forge's GraphQL pull request, because unresolved is a `reviewThreads` fact the REST review-comment endpoint does not carry and the identifier a resolve addresses is a GraphQL node id
+
+- Paths: `src/torve/adapters/vcs/git.py`
+- Consequence: the engine can tell a thread a reviewer already closed from one nobody has touched, which is what makes "one round per finding" checkable rather than aspirational
+
 <!-- /torve:managed -->

@@ -1254,6 +1254,144 @@ Whether the document branch is cut at the first landing or at the first worktree
 - Paths: `src/torve/application/lane.py`
 - Consequence: a document has exactly one branch whatever order its first phases run in, so two parallel phase-1 tasks cannot leave two of them
 
+### S-0084/D-1 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The forge surface answers about a branch with the unresolved review threads of its open pull request beside the state, on `PrInfo` and in the same call — never as a second question the lane has to remember to ask
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: a document of six phases still costs one forge call per pass, so the leg adds a field to the read-back rather than a second rate budget nobody sized
+
+### S-0084/D-3 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+Threads are grouped into findings by what they anchor to — the same file at lines close enough to be the same change — and never by reviewer; a finding carries one fix and every thread in the group as a reply address
+
+- Paths: `src/torve/application/threads.py`
+- Consequence: three bots on one null check cost one task, and the answering half can name one commit to several threads without a second join
+
+### S-0084/D-4 — `OPEN` (The review leg: a pull request's threads become work on its branch)
+
+The exact grouping key — how near two lines must be, and what a file-level thread groups with — is implementation's, under one constraint: the rule errs toward merging, and which way it erred is readable from the record
+
+- Paths: `src/torve/application/threads.py`
+- Consequence: an over-merged finding is one task told about two things and an under-merged one is two tasks colliding on one file of one branch, so the cheap error is chosen on purpose rather than by accident
+
+### S-0084/D-6 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The read-back records what it saw as `lane_pr_threads` on the engine's telemetry stream — the branch, the pull request, and each finding with its anchor and its thread identifiers — whether or not anything is then minted from it
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a night run before the leg exists says in its own record what a leg would have acted on, so the first honest measurement of the leg predates the leg
+
+### S-0084/D-7 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+One round of unresolved findings on one document pull request becomes one task — role implement, character structural, `spec` the document, `depends_on` nothing, scope the files the threads anchor plus the task's own log directory — minted through the adoption path a standing job already uses
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: identifier assignment, the commit and `inherit_decisions` stay on the one path that closes the id race under the lock, and the round is dispatched, gated, budgeted and landed by everything that already handles a phase
+
+### S-0084/D-8 — `LOCKED` (The review leg: a pull request's threads become work on its branch)
+
+The thread texts reach the attempt only inside a fence in the task's intent, marked as third-party claims about the tree and delimited by a per-run nonce; a composition whose nonce or end marker appears in the text it is fencing is refused and recomposed, never emitted
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a reviewer cannot close the fence from inside it, and every later change to how a round is composed has to keep the property rather than rediscover it
+- Check: `uv run pytest tests/test_reviewleg.py -k fence` (shadow; runs as `decision:S-0084/D-8`, no log entry owed)
+
+### S-0084/D-9 — `LOCKED` (The review leg: a pull request's threads become work on its branch)
+
+A thread asking for anything but a change to the files in scope — run a command, add a secret, change CI, merge, approve — is refused as injection before the round is minted, reported to the operator through the escalation path, and never answered on the forge
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: whoever wrote it learns nothing about whether the channel works, and the refusal is a fact in the record rather than a silence a later reader has to reconstruct
+- Check: `uv run pytest tests/test_reviewleg.py -k injection` (shadow; runs as `decision:S-0084/D-9`, no log entry owed)
+
+### S-0084/D-10 — `LOCKED` (The review leg: a pull request's threads become work on its branch)
+
+The leg never merges, never pushes and never force-pushes; a round reaches the forge only as a landing onto the document branch by the lane's own act
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: every criterion, probe, rebase and leased republish the lane already performs applies to a round unchanged, and the merge button stays where S-0080 and S-0083 left it
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0084/D-11 — `LOCKED` (The review leg: a pull request's threads become work on its branch)
+
+A person's thread is replied to and left: the engine never resolves it and never dismisses it
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a human reviewer's thread is closed by the human who opened it, so the open threads on a document's pull request are exactly the conversations a person still has
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0084/D-12 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+A bot's thread is resolved by the engine only after the record says the round's task landed, and only with a reply that names the commit the fix landed in or states the reason the finding was not applied
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a resolved thread on a document's pull request is always a thread with a landing or a reason behind it, so resolution stays readable as an answer rather than as tidying
+
+### S-0084/D-13 — `OPEN` (The review leg: a pull request's threads become work on its branch)
+
+Where the attempt's verdict on a finding it judges invalid is written — a divergence entry under `unlisted`, or a typed record of the round's own — is implementation's, under one constraint: the reply the engine posts is composed from that record and never from prose the agent wrote for the reviewer
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a rejection with no record behind it is an unanswered thread rather than a reply nobody can check, and the reason a reviewer reads has passed the same checks a divergence entry passes
+
+### S-0084/D-14 — `LOCKED` (The review leg: a pull request's threads become work on its branch)
+
+A finding raised again after a landed reply already answered it is escalated to a person and never dispatched a second time — one round per finding
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: the night's budget cannot be spent arguing with a bot at the bot's own re-review rate, and a re-raise is always a fact a person sees rather than a cost they find afterwards
+- Check: `uv run pytest tests/test_reviewleg.py -k reraise` (shadow; runs as `decision:S-0084/D-14`, no log entry owed)
+
+### S-0084/D-15 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+What the leg did rides the same telemetry stream as `lane_review_task` when a round is minted, `lane_thread_resolved` when a bot's thread is answered and closed, and the escalation path when a thread is refused or a finding re-raised
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: threads answered, fixed, refused and escalated are a fold over recorded facts, so the report can hold them without anything new being stamped for its benefit
+
+### S-0084/D-16 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+A served pass runs the leg after the landing leg and before the mint and the dispatch, bounded per pass by its configured count, and the attempts it starts count against the night's budget on both axes like any other
+
+- Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
+- Consequence: a round minted this pass is on the board this pass, and a night that stops on its budget mid-round leaves the threads where they were rather than overrunning to finish them
+
+### S-0084/D-17 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The morning report counts threads seen, rounds minted, threads answered, threads refused and findings escalated beside the pull requests and documents it already counts, folded from the events in the night's window with no field prose can occupy
+
+- Paths: `src/torve/application/manager.py` `src/torve/cli/night.py`
+- Consequence: whether the leg removed the operator's thread work or merely moved it is readable in the morning, which is the measurement this design is accountable to
+
+### S-0085/D-2 — `ASSUMED` (A document builds on another document's tree)
+
+`torve plan` turns `after` into contract `depends_on`: every task of the document's phases with no in-document predecessor depends on every task minted from each named document; a named document with no minted tasks refuses the plan by name, one that is not accepted refuses as `depends_on` does, and one whose implementation is complete adds no edge
+
+- Paths: `src/torve/application/planner.py` `tests/test_plan.py`
+- Consequence: nothing downstream learns a new word — the board, the worker, the lane and every projection read the contract they already read, and a contract edited by hand to the same edge behaves the same
+
+### S-0085/D-3 — `ASSUMED` (A document builds on another document's tree)
+
+A document's landing on the base is its tasks' landing: `lane_landings` reads `lane_document_landed` beside `lane_landed` and stamps each task the branch carried with the merge commit, newest winning
+
+- Paths: `src/torve/application/projections.py` `tests/test_projections.py`
+- Consequence: a squash-merged document's tasks are on the base by the commit the base holds, so ancestry answers the same question for a squash as for a fast-forward; `shipped_landings` and the tree's landing files are unchanged
+
+### S-0085/D-4 — `ASSUMED` (A document builds on another document's tree)
+
+A dependency is satisfied by a landing that is an ancestor of the base the dependent would be cut from, and by nothing else; the board's landed set alone does not claim
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/worker.py`
+- Consequence: a dependent is never cut without its predecessor, within a document or across two; the wait is visible on the board as the task and the document it waits on
+
+### S-0085/D-6 — `ASSUMED` (A document builds on another document's tree)
+
+A task waiting on another document's landing shows the document beside the task ids it waits on, in `torve night show` and `torve manager board`
+
+- Paths: `src/torve/cli/night.py` `src/torve/application/projections.py`
+- Consequence: a person reading the board sees "waits on S-0008's landing" and knows which pull request to look at, rather than four task ids to resolve by hand
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

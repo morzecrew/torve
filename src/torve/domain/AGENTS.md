@@ -280,6 +280,20 @@ A night is a subject in the event log — `night.opened` and `night.closed`, bot
 - Paths: `src/torve/domain/events.py`
 - Consequence: a night's report says what the night was started with even after the configuration was edited while it ran, and two nights are comparable because their terms are recorded rather than reconstructed from whatever the file says afterwards
 
+### S-0085/D-1 — `ASSUMED` (A document builds on another document's tree)
+
+A phasing file names the documents whose landed tree its work builds on under a top-level `after`, as document ids; the header's `depends_on` keeps its one meaning, decision inheritance, and says nothing about trees
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/phasing.json`
+- Consequence: S-0009 declares `after: [S-0008]` and `depends_on: []` and both are true; a document may name one document in both lists or in either
+
+### S-0085/D-5 — `ASSUMED` (A document builds on another document's tree)
+
+`after` names documents, never phases; a case that needs a phase inside one is a case for an amendment, with the case written down
+
+- Paths: `src/torve/domain/spec.py`
+- Consequence: the grammar is one list of ids and the planner's lookup is one call per id; a dependent waits for the whole named document, which under S-0083/D-5 is when its tree reaches the base anyway
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

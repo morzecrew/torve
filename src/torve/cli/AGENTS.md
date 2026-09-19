@@ -449,6 +449,34 @@ The served pass's landing leg is handed the publisher and the read-back the manu
 - Paths: `src/torve/cli/manager.py`
 - Consequence: the mode runs unattended, which is the whole point of a landing unit that needs no person between phases
 
+### S-0084/D-16 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+A served pass runs the leg after the landing leg and before the mint and the dispatch, bounded per pass by its configured count, and the attempts it starts count against the night's budget on both axes like any other
+
+- Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
+- Consequence: a round minted this pass is on the board this pass, and a night that stops on its budget mid-round leaves the threads where they were rather than overrunning to finish them
+
+### S-0084/D-17 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
+
+The morning report counts threads seen, rounds minted, threads answered, threads refused and findings escalated beside the pull requests and documents it already counts, folded from the events in the night's window with no field prose can occupy
+
+- Paths: `src/torve/application/manager.py` `src/torve/cli/night.py`
+- Consequence: whether the leg removed the operator's thread work or merely moved it is readable in the morning, which is the measurement this design is accountable to
+
+### S-0085/D-4 — `ASSUMED` (A document builds on another document's tree)
+
+A dependency is satisfied by a landing that is an ancestor of the base the dependent would be cut from, and by nothing else; the board's landed set alone does not claim
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/worker.py`
+- Consequence: a dependent is never cut without its predecessor, within a document or across two; the wait is visible on the board as the task and the document it waits on
+
+### S-0085/D-6 — `ASSUMED` (A document builds on another document's tree)
+
+A task waiting on another document's landing shows the document beside the task ids it waits on, in `torve night show` and `torve manager board`
+
+- Paths: `src/torve/cli/night.py` `src/torve/application/projections.py`
+- Consequence: a person reading the board sees "waits on S-0008's landing" and knows which pull request to look at, rather than four task ids to resolve by hand
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's
