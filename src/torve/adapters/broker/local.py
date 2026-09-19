@@ -81,6 +81,7 @@ CAUSE_BUDGET = "budget"
 CAUSE_CONTAINMENT = "containment"
 CAUSE_PASS_THROUGH = "pass_through"
 CAUSE_AUTHORITY = "authority"
+CAUSE_UPSTREAM = "upstream"
 
 # The intake route's path prefix (S-0045/the-intake-route). One segment, reserved: a
 # provider named this would collide, which is why it carries a leading
@@ -400,9 +401,19 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             # ponytail: whole-response buffering — streamed (SSE) completions
             # arrive at once; switch to chunked relay when a harness needs
             # incremental delivery.
-            conn.request(self.command, target, body=body, headers=headers)
-            resp = conn.getresponse()
-            data = resp.read()
+            try:
+                conn.request(self.command, target, body=body, headers=headers)
+                resp = conn.getresponse()
+                data = resp.read()
+            except (OSError, http.client.HTTPException) as exc:
+                # An upstream that drops the connection — an SSL EOF, a reset,
+                # a timeout — is a refusal the sandbox can read and retry on,
+                # and a counter the record can see; not a traceback on the
+                # operator's console (bloomery, 2026-09-19: three per night).
+                self._refuse(
+                    CAUSE_UPSTREAM, 502, route.provider, message=f"{type(exc).__name__}: {exc}"
+                )
+                return
             tokens, cost = _meter(data)
             state.record(route.provider, tokens, cost)
 

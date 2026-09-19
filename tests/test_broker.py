@@ -1346,3 +1346,36 @@ def test_the_burn_sink_records_seat_consumed_events():
             }
 
     asyncio.run(scenario())
+
+
+def test_an_upstream_that_drops_the_connection_is_a_counted_refusal(monkeypatch):
+    """An SSL EOF or a reset from the provider used to escape the handler as
+    a traceback on the operator's console; the sandbox got a closed socket
+    and no verdict. It is a 502 with a cause the record counts."""
+    import socket
+    import threading
+
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(4)
+    port = listener.getsockname()[1]
+
+    def slam() -> None:
+        for _ in range(4):
+            try:
+                conn, _ = listener.accept()
+            except OSError:
+                return
+            conn.close()  # the upstream hangs up before answering
+
+    threading.Thread(target=slam, daemon=True).start()
+    upstream_url = f"http://127.0.0.1:{port}"
+    broker = LocalBroker(broker_config(upstream_url), host="127.0.0.1")
+    handle = broker.open("run-1", routing_for(upstream_url), BrokerBudget())
+    status, body = broker_post(handle.url_for(PROVIDER) + "/v1/chat/completions", handle.token)
+    assert status == 502
+    assert json.loads(body)["error"]["cause"] == "upstream"
+    usage = broker.close(handle)
+    assert usage.refusals == {"upstream": 1}
+    listener.close()
