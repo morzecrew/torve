@@ -4,8 +4,8 @@ title: The review tier's word reaches the work
 kind: design
 status: accepted
 implementation: none
-depends_on: [S-0043, S-0084]
-informed_by: [S-0026, S-0069]
+depends_on: [S-0084]
+informed_by: [S-0026, S-0043, S-0069]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
