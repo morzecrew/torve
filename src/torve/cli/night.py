@@ -81,7 +81,8 @@ def night_show(
     close is an unfinished night and says so, rather than being lost.
     """
 
-    from torve.application.manager import night_report
+    from torve.application.manager import documents, night_report, pull_requests
+    from torve.application.projections import stream_rows
 
     report = night_report(
         read_log(dsn_for(root, dsn), lambda log: log.since(partition=partition)), night_id=night
@@ -94,11 +95,20 @@ def night_show(
             EXIT_CONFIG,
         )
 
+    # What the night left on the forge (S-0080/D-14, S-0083/D-16): folded from
+    # this host's own stream over the window, because the lane records its
+    # landings and read-backs here and not in the partition's log.
+    rows = stream_rows(root)
+    prs = pull_requests(rows, since=report.opened_at, until=report.closed_at)
+    docs = documents(rows, since=report.opened_at, until=report.closed_at)
+
     if fmt is Format.JSON:
         emit_json(
             {
                 "partition": partition,
                 "night": report.night_id,
+                "pull_requests": prs.__dict__,
+                "documents": docs.__dict__,
                 "opened_at": report.opened_at.isoformat(),
                 "closed_at": report.closed_at.isoformat() if report.closed_at else None,
                 "unfinished": report.unfinished,
@@ -133,6 +143,21 @@ def night_show(
     console = out(fmt)
     header(console, "night show", f"{partition} · {report.night_id}")
     _render(console, report)
+    _table(
+        console,
+        "on the forge",
+        ("unit", "opened", "merged", "conflicted", "closed"),
+        [
+            (
+                "pull requests",
+                str(prs.opened),
+                str(prs.merged),
+                str(prs.conflicted),
+                str(prs.closed),
+            ),
+            ("documents", str(docs.opened), str(docs.merged), "—", str(docs.closed)),
+        ],
+    )
     close = report.close
     closing(
         console,

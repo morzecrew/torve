@@ -809,8 +809,9 @@ marks it ready: a person who merges a draft merges knowingly, since the phases
 that land afterwards land on a branch behind `main`. Nothing turns a ready pull
 request back into a draft.
 
-**One piece is in the tree with nothing rendering it**: the morning report's
-document counts. `torve night show` prints the night's landings, convictions,
-endings and waits; the per-document opened, merged and closed counts
-S-0083/D-16 asks for — and the pull-request counts they were to sit beside —
-are folds with tests over the night's window and no renderer.
+**The morning report counts what the night left on the forge.** `torve night
+show` prints the night's landings, convictions, endings and waits, and then the
+pull requests opened, merged, conflicted and closed inside the window
+(S-0080/D-14) beside the documents opened, merged and closed (S-0083/D-16) —
+folded from this host's own stream, where the lane records its landings and
+read-backs.
