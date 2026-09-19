@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/hand-run-task-invisible-to-the-record
+kind: operator
+ref: 'bloomery S-0008, 2026-09-19: T-0008 ran through torve run (the manager parks a too_large
+  contract); T-0009 depends on it and the board holds no landing for it'
+title: A task run by hand never reaches the record, so a night cannot chain its dependents
+at: '2026-09-19T03:10:45Z'
+summary: |
+  `torve run` executes against this host's state files and the record never
+  hears of it; `serve` mints what the tree already landed from the base's
+  trailers (`shipped_landings`), which a document branch is not on. So a
+  phase run by hand — the only way to dispatch a `too_large` contract short
+  of decomposition — leaves its dependents blocked on the board forever:
+  `blocked_by` sees no landing for the predecessor, the night refuses to
+  open on nothing claimable, and the operator runs the rest of the document
+  by hand as well. The two paths do not compose within one document.
+
+  Either `torve run` records its landing on the partition when the
+  configuration names one, or the served manager's minting reads the
+  document branches' trailers as it reads the base's. The first keeps one
+  record; the second keeps `run` offline.

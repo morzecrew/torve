@@ -792,6 +792,11 @@ rather than one per phase, and none at all for a pass holding none
 An armed pass is handed the same publisher and the same read-back `torve merge`
 is handed (S-0083/D-15), so none of this waits for somebody to type the verb.
 
+**Two workers are two processes.** Width is `torve manager serve … --worker w1`
+and a second `--worker w2 --slot 1` on the same partition: each claims one task
+a pass, a task whose scope clashes with one in flight waits, and the slot names
+the second worker's own auth and cache volumes.
+
 **Phase after phase, unattended.** Under `pull_request` with `unit: document` a
 task's worktree is cut from the document branch's tip when that branch exists,
 and from the remote's `main` after a fetch when it does not (S-0083/D-9) — a
