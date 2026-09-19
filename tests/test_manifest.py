@@ -205,6 +205,19 @@ def test_a_pre_field_manifest_warns_and_loads(tmp_path):
     assert manifest.twinless_gates() == ["scope"]
 
 
+def test_a_pre_field_manifest_is_voiced_once_per_process(tmp_path):
+    # One command loads the manifest from three or four places; the warning
+    # is about the file, and a person sees it once, not once per loader.
+    path = write_manifest(tmp_path, _gate())
+
+    with pytest.warns(TwinlessGateWarning, match="scope"):
+        load_manifest(path)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", TwinlessGateWarning)
+        assert load_manifest(path).twinless_gates() == ["scope"]
+
+
 def test_the_scratch_battery_is_caught_and_still_loads(tmp_path):
     # Same rule at battery scale: no entry carries the field, so all are
     # named in one warning and the load stands — the scenario suite the

@@ -292,6 +292,13 @@ class Manifest(BaseModel):
 # ....................... #
 
 
+# The manifests whose twinless entries this process has already voiced. One
+# command loads the manifest from three or four places, and the warning is a
+# fact about the file, not about the loader that read it — so it is said
+# once per file per process, not once per read.
+_voiced: set[Path] = set()
+
+
 def load_manifest(path: Path) -> Manifest:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -311,7 +318,8 @@ def load_manifest(path: Path) -> Manifest:
     # terminal is running the command.
     twinless = manifest.twinless_gates()
 
-    if twinless:
+    if twinless and path not in _voiced:
+        _voiced.add(path)
         names = ", ".join(twinless)
 
         if any(gate.sabotage is not None for gate in manifest.gates):
