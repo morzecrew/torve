@@ -799,19 +799,18 @@ phase starts on the tree the previous phase's landing produced, the moment it
 landed. The battery judges the attempt against that same tip, which keeps a
 phase's diff its own work rather than everything the branch already carries.
 
-**Two pieces are in the tree with nothing calling them**, and this section
-describes what the mode does rather than what it will do:
+**The pull request is the document's, and a draft until the last phase.** The
+lane composes it from the records of every task the branch carries — each
+contract's rows with their grades, the gate verdicts, the divergence entries —
+and names the phases still to come from the document's own phasing rather than
+an estimate (S-0083/D-8, S-0083/D-17); its title counts them ("· 2/3 phases").
+While phases are still to come it is a draft, and the landing of the last phase
+marks it ready: a person who merges a draft merges knowingly, since the phases
+that land afterwards land on a branch behind `main`. Nothing turns a ready pull
+request back into a draft.
 
-- The document pull request's **body is the task composer's**. The lane hands
-  its publisher the task that just landed, and the publisher composes that
-  task's title and body — so what a person opens reads as the last phase,
-  not as the document. The document composer S-0083/D-8 calls for — the phases
-  on the branch, each contract's rows with their grades, the gate verdicts, the
-  divergence entries, and the phases still to come, read from the document's
-  own phasing rather than estimated (S-0083/D-17) — exists and is tested, and
-  no caller reaches it.
-- The morning report's **document counts are folded and not printed**.
-  `torve night show` prints the night's landings, convictions, endings and
-  waits; the per-document opened, merged and closed counts S-0083/D-16 asks
-  for — and the pull-request counts they were to sit beside — are folds with
-  tests over the night's window and no renderer.
+**One piece is in the tree with nothing rendering it**: the morning report's
+document counts. `torve night show` prints the night's landings, convictions,
+endings and waits; the per-document opened, merged and closed counts
+S-0083/D-16 asks for — and the pull-request counts they were to sit beside —
+are folds with tests over the night's window and no renderer.
