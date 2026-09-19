@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0450
+phase: 3
+base: 51c744cbd78a52a9d35f4f7da22f46f1ea4c9e0e
+commit: bf69ac779f3afa7db8eec3f2d78f7737c11ee535
+at: '2026-09-19T10:17:28Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: OPEN
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: OPEN
+  - id: D-14
+    grade: LOCKED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: ASSUMED
+  - id: D-17
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-19T10:15:37Z'
+    claim: >-
+      the ThreadForge the leg needs has no adapter: GhScm carries pr_for_branch alone,
+      so phase 3's wiring had to supply reply_thread and resolve_thread itself, and
+      adapters/vcs/git.py is outside this scope — they are a GraphQL reply and resolve
+      mutation in the composition root, over GhScm's own gh api call
+    evidence: >-
+      src/torve/adapters/vcs/git.py:683-728 — pr_for_branch and unresolved_threads
+      are all GhScm holds; `rg -n 'def reply_thread|def resolve_thread' src/torve/adapters`
+      returns nothing
+    action: decided
+    proposal: >-
+      a row placing the thread reply and resolve on GhScm beside unresolved_threads,
+      and the composition root back to wiring GhScm directly; the shim in src/torve/cli/manager.py
+      is where it lives only because phase 1's scope closed before the writes were
+      needed
