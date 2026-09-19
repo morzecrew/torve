@@ -159,6 +159,47 @@ def test_workspace_resume_cuts_from_the_branch_tip_not_base(vcs_repo):
     assert not (restarted / "wip.txt").exists()
 
 
+def test_workspace_recut_keeps_the_branch_s_checkpoint_under_a_ref(vcs_repo):
+    """A recut resets the task's branch to base; a checkpoint the branch held
+    and no landing carried is kept under `refs/torve/checkpoints/<task>/<sha>`
+    first (bloomery T-0020: the engine's own S-0086/D-2 commit was orphaned by
+    the rerun). A branch the base already holds leaves no ref."""
+    task_id = "T-8198"
+    ws = GitWorkspace(vcs_repo)
+
+    path = ws.create(task_id, "main")
+    (path / "wip.txt").write_text("checkpoint\n", encoding="utf-8")
+    git(path, "add", "-A")
+    git(
+        path,
+        "-c",
+        "user.name=Torve",
+        "-c",
+        "user.email=torve@local",
+        "commit",
+        "-q",
+        "--no-gpg-sign",
+        "-m",
+        "torve(T-8198): attempt 1 escalated from review",
+    )
+    checkpoint_sha = git(path, "rev-parse", "HEAD").strip()
+    ws.remove(task_id)
+
+    recut = ws.create(task_id, "main")
+
+    assert git(recut, "rev-parse", "HEAD").strip() == git(vcs_repo, "rev-parse", "main").strip()
+    ref = f"refs/torve/checkpoints/{task_id}/{checkpoint_sha[:12]}"
+    assert git(vcs_repo, "rev-parse", ref).strip() == checkpoint_sha
+    ws.remove(task_id)
+
+    # Nothing to keep: the branch sits exactly on base.
+    ws.create(task_id, "main")
+    ws.remove(task_id)
+    ws.create(task_id, "main")
+    refs = git(vcs_repo, "for-each-ref", f"refs/torve/checkpoints/{task_id}/")
+    assert refs.strip().count("\n") == 0 and checkpoint_sha[:12] in refs
+
+
 def test_workspace_resume_with_no_prior_branch_falls_back_to_base(vcs_repo):
     # A budget-exhausted first attempt that never wrote anything leaves the
     # branch never created (S-0001/D-36 base HEAD); resume then has nothing to

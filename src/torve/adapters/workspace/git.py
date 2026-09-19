@@ -80,6 +80,15 @@ class GitWorkspace:
             if fetch:
                 self._git("fetch", "--quiet", "origin")
 
+            # A recut resets the branch to base, and the branch may hold a
+            # checkpoint no landing carried — a budget checkpoint (S-0026/D-9),
+            # a convicted tree (S-0069/D-4), a tree an escalation left behind
+            # (S-0086/D-2). Resetting over it orphaned the engine's own
+            # commit (bloomery T-0020, 2026-09-19); it is kept under a ref
+            # first, never pushed, so the work stays reachable by name.
+            if self._ref_exists(branch):
+                self._keep_checkpoint(task_id, branch, base)
+
             if branch == current:
                 # The task's branch is checked out here (dogfooding the
                 # engine on its own repository); a worktree cannot share
@@ -89,6 +98,33 @@ class GitWorkspace:
                 self._git("worktree", "add", "-B", branch, str(path), base)
 
             return path
+
+    # ....................... #
+
+    def _keep_checkpoint(self, task_id: str, branch: str, base: str) -> str | None:
+        """The branch's tip under `refs/torve/checkpoints/<task>/<sha>` when the
+        base does not already hold it; None when it does, or when git cannot
+        say — a recut must not fail on its own bookkeeping."""
+
+        tip = self._git("rev-parse", branch).strip()
+        held = subprocess.run(
+            ["git", "-C", str(self.root), "merge-base", "--is-ancestor", tip, base],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if held.returncode == 0:
+            return None
+
+        ref = f"refs/torve/checkpoints/{task_id}/{tip[:12]}"
+
+        try:
+            self._git("update-ref", ref, tip)
+        except WorkspaceError:
+            return None
+
+        return ref
 
     # ....................... #
 
