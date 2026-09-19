@@ -961,7 +961,7 @@ def test_an_empty_implement_diff_is_refused_before_the_battery(repo):
 
     assert exit_code == 1
     assert summary == "empty diff against base — no changes produced"
-    assert results == []
+    assert [r.name for r in results] == ["empty-diff"]  # the refusal names itself
     assert patch == ""
 
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
@@ -969,7 +969,7 @@ def test_an_empty_implement_diff_is_refused_before_the_battery(repo):
     assert len(records) == 1
     assert records[0]["task_id"] == TASK_ID
     assert records[0]["exit_code"] == 1
-    assert records[0]["results"] == []
+    assert [r["name"] for r in records[0]["results"]] == ["empty-diff"]
 
 
 def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_base(repo):
@@ -991,14 +991,14 @@ def test_an_empty_implement_diff_is_refused_when_the_contract_was_minted_after_b
 
     assert exit_code == 1
     assert summary == "empty diff against base — no changes produced"
-    assert results == []
+    assert [r.name for r in results] == ["empty-diff"]  # the refusal names itself
 
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
     records = [json.loads(line) for line in telemetry.read_text().splitlines()]
     assert len(records) == 1
     assert records[0]["task_id"] == TASK_ID
     assert records[0]["exit_code"] == 1
-    assert records[0]["results"] == []
+    assert [r["name"] for r in records[0]["results"]] == ["empty-diff"]
 
 
 def test_an_integration_tasks_empty_diff_stays_legal(repo):
@@ -1038,7 +1038,7 @@ def test_an_integration_tasks_empty_diff_stays_legal(repo):
 
     assert exit_code == 0
     assert summary == ""
-    assert results == []
+    assert [r.name for r in results] == ["empty-diff"]  # the refusal names itself
 
 
 def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
@@ -1052,7 +1052,7 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
     exit_code, _summary, _digest, results, _patch = _gate_pass(repo, worktree)
 
     assert exit_code == 0
-    assert results == []
+    assert [r.name for r in results] == ["empty-diff"]  # the refusal names itself
 
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
     records = [json.loads(line) for line in telemetry.read_text().splitlines()]
@@ -1193,7 +1193,8 @@ def test_each_attempt_ending_appends_exactly_one_row_with_its_verdict(repo):
     # append rather than duplicating it).
     assert rows[0]["gates_run"] is False and rows[0]["timed_out"] is True
     assert rows[0]["exit_code"] is None and rows[1]["exit_code"] == 137
-    assert "gates_run" not in rows[2] and rows[2]["results"] == []
+    assert "gates_run" not in rows[2]
+    assert [r["name"] for r in rows[2]["results"]] == ["empty-diff"]
     assert rows[2]["verdict"] == "gates_red" and rows[3]["exit_code"] == 0
 
 
