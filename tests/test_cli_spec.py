@@ -237,3 +237,39 @@ def test_cites_lists_code_landings_amendments_and_documents(tmp_path: Path) -> N
     empty = runner.invoke(app, ["spec", "cites", "S-0002/D-1", "--root", str(tmp_path)])
 
     assert empty.exit_code == 0 and "nothing cites it yet" in empty.output
+
+
+# ----------------------- #
+# A managed block rendered for another directory is another tree's
+# projection: an adopter's copy of a sandbox definition carries torve's rows,
+# and the scan must not read them as citations into the adopter's corpus.
+
+
+def test_the_scan_leaves_a_foreign_projection_unread(tmp_path: Path) -> None:
+    import subprocess
+
+    from torve.config.spec import tree_citations
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    own = tmp_path / "AGENTS.md"
+    own.write_text(
+        "<!-- torve:managed root — rendered from the corpus; do not edit by hand -->\n"
+        "### S-0001/D-1 — `LOCKED`\n"
+        "<!-- /torve:managed -->\n"
+        "prose citing S-0002/D-2\n",
+        encoding="utf-8",
+    )
+    copied = tmp_path / ".torve" / "sandbox" / "claude" / "AGENTS.md"
+    copied.parent.mkdir(parents=True)
+    copied.write_text(
+        "<!-- torve:managed sandboxes/claude — rendered from the corpus; do not edit by hand -->\n"
+        "### S-0063/D-18 — `LOCKED`\n"
+        "<!-- /torve:managed -->\n"
+        "a note citing S-0003/D-3\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    cited = {ident for _name, _line, ident, _legacy in tree_citations(tmp_path)}
+
+    assert cited == {"S-0001/D-1", "S-0002/D-2", "S-0003/D-3"}

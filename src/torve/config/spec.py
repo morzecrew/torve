@@ -91,6 +91,13 @@ SCAN_NAMES = ("AGENTS.md", "CLAUDE.md", "README.md")
 # Test data that invents identifiers by design, as the user-facing-text
 # gate already exempts it.
 SCAN_EXCLUDE = ("src/torve/gates/sabotage.py",)
+# A managed block the projection rendered (`torve.application.colocation`
+# writes the marker; this layer may only read it, S-0055/D-23). One rendered
+# for a directory other than the file's own is another tree's projection —
+# an adopter's copy of a sandbox definition carries torve's rows this way —
+# and its citations are that corpus's, not this one's.
+MANAGED_OPEN = re.compile(r"<!-- torve:managed (.+?) — rendered from the corpus")
+MANAGED_CLOSE = "<!-- /torve:managed -->"
 MAPPING_FILE = "identifiers.yaml"
 
 # What a section may not carry (S-0057/D-2): a typed list restated as the fence
@@ -1163,7 +1170,24 @@ def tree_citations(root: Path) -> list[tuple[str, int, str, bool]]:
         except (OSError, UnicodeDecodeError):
             continue
 
+        own = Path(name).parent.as_posix()
+        foreign = False
+
         for number, line in enumerate(text.splitlines(), start=1):
+            opened = MANAGED_OPEN.search(line)
+
+            if opened is not None:
+                where = opened.group(1)
+                foreign = where != own and not (own == "." and where.startswith("root"))
+                continue
+
+            if MANAGED_CLOSE in line:
+                foreign = False
+                continue
+
+            if foreign:
+                continue
+
             found += [(name, number, m.group(1), False) for m in GLOBAL_CITE.finditer(line)]
             found += [(name, number, m.group(1), True) for m in LEGACY_CITE.finditer(line)]
             found += [(name, number, m.group(1), True) for m in TREE_LEGACY_CITE.finditer(line)]
