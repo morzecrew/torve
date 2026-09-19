@@ -44,6 +44,12 @@ current_state: |
   "what to do with the existing tasks is a human decision". `--reconcile` marks
   non-terminal tasks minted on the record; nothing rewrites a contract.
 
+  Under a partition the served manager already re-mints a contract whose file changed
+  (S-0049/D-3, S-0049/D-4): each pass compares the repository's contract with the board's
+  and records the new one when the task is not in flight. So a hand edit of the file
+  does reach the record, and the gap is the file: nothing rewrites it from the document,
+  so the hand edit is still the act, with no record of what the document said.
+
   A task's run state lives beside its worktree (`.wt/<id>.state.json`) while a host run
   is in flight or finished; the record holds the task's state under a served manager. A
   landing writes a landing file under the document's `execution/`. Between them the engine
