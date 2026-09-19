@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/review-contracts-are-claimable-rows-on-import
+kind: operator
+ref: 'bloomery board, 2026-09-19 20:20Z: T-0016..T-0019, T-0022..T-0024 (role review, minted
+  by the host tier for landed targets) queued beside T-0021 after serve --no-dispatch --passes
+  1'
+title: The tier's review contracts become claimable rows when the record imports the tasks
+  directory
+at: '2026-09-19T20:00:08Z'
+summary: |
+  The review tier mints one contract per review (`mint_review_task`, role
+  `review`) under `.torve/tasks/`, beside the implement contracts. The served
+  manager's importer scans that directory and mints every contract it finds
+  as a task on the record, so nine review contracts whose targets had already
+  landed sat on bloomery's board as `queued`, claimable by any free worker —
+  which would dispatch them, be refused for the role, and escalate one per
+  pass. The night was run with `--task T-0021` to keep the worker off them.
+
+  Either the importer skips contracts whose role the dispatch path does not
+  implement, or a review contract is not a file in the tasks directory at
+  all — it is the tier's own record, and the stream already holds it.
