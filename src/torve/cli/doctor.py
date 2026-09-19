@@ -875,6 +875,24 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
     else:
         checks.append(("ignore", True, ".torve/.gitignore: every minted pattern present"))
 
+    from torve.cli.init import worktrees_ignored
+
+    ignored = worktrees_ignored(root)
+
+    if ignored is False:
+        checks.append(
+            (
+                "worktrees",
+                False,
+                (
+                    ".wt/: not ignored — the lane refuses a dirty checkout, and the engine's "
+                    "worktrees make one; `torve init` writes it to .git/info/exclude"
+                ),
+            )
+        )
+    elif ignored:
+        checks.append(("worktrees", True, ".wt/: ignored"))
+
     # S-0059/D-7: a standing contract without its schema line is an editor
     # validating nothing; `init` adds the line, and a file added later lags.
     from torve.cli.init import schema_line

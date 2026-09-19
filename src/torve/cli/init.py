@@ -111,6 +111,65 @@ def ignore_file(root: Path) -> Path:
     return root / layout.TORVE_DIR / ".gitignore"
 
 
+def worktrees_ignored(root: Path) -> bool | None:
+    """Whether git ignores the engine's worktree directory here; None where
+    there is no repository to ask."""
+
+    import subprocess
+
+    from torve.base import naming
+
+    # A path *under* the directory: a `.wt/` pattern matches directories,
+    # and a directory git has not seen is not one it can match by name.
+    proc = subprocess.run(
+        ["git", "check-ignore", "-q", f"{naming.WORKTREE_DIR}/probe"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=root,
+    )
+
+    if proc.returncode == 128:
+        return None
+
+    return proc.returncode == 0
+
+
+def exclude_worktrees(root: Path) -> bool:
+    """Ignore `.wt/` through `.git/info/exclude` — git's own host-local list,
+    so an adopter's tracked ignore file is left alone. The lane refuses a
+    dirty checkout, and a worktree directory git does not ignore is one
+    (bloomery, 2026-09-18: `torve merge` refused until the operator wrote
+    it there by hand). True when the line was written."""
+
+    import subprocess
+
+    from torve.base import naming
+
+    if worktrees_ignored(root) is not False:
+        return False
+
+    proc = subprocess.run(
+        ["git", "rev-parse", "--git-path", "info/exclude"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=root,
+    )
+
+    if proc.returncode != 0:
+        return False
+
+    exclude = Path(proc.stdout.strip())
+    exclude = exclude if exclude.is_absolute() else root / exclude
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    current = exclude.read_text(encoding="utf-8") if exclude.is_file() else ""
+    joiner = "" if not current or current.endswith("\n") else "\n"
+    exclude.write_text(current + joiner + f"{naming.WORKTREE_DIR}/\n", encoding="utf-8")
+
+    return True
+
+
 def missing_patterns(path: Path) -> list[str]:
     """The minted patterns the ignore file does not carry as a line of its
     own; every line when there is no file."""
@@ -198,6 +257,10 @@ def init_cmd(
         written.append(ignore.name)
     else:
         console.print(f"  {ignore.name}", style=STYLE_DIM)
+
+    if exclude_worktrees(root):
+        console.print("  .git/info/exclude  .wt/ added", style=STYLE_PASS)
+        written.append("info/exclude")
 
     where = schemas_dir(corpus)
 

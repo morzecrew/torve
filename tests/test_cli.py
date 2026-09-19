@@ -1278,3 +1278,20 @@ def test_night_show_help_carries_no_corpus_coordinates():
     assert result.exit_code == 0
     assert "S-0079" not in result.output
     assert "RFC" not in result.output.upper()
+
+
+def test_init_ignores_the_worktree_directory_through_the_hosts_exclude(tmp_path):
+    """An adopter's checkout with the engine's `.wt/` unignored is a dirty
+    checkout to the lane (bloomery, 2026-09-18). `torve init` writes the
+    line to `.git/info/exclude` — git's host-local list — once, and doctor
+    reads it back through git."""
+    import subprocess
+
+    from torve.cli.init import exclude_worktrees, worktrees_ignored
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    assert worktrees_ignored(tmp_path) is False
+    assert exclude_worktrees(tmp_path) is True
+    assert worktrees_ignored(tmp_path) is True
+    assert exclude_worktrees(tmp_path) is False  # once
+    assert (tmp_path / ".git" / "info" / "exclude").read_text().count(".wt/") == 1
