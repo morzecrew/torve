@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/halted-attempt-loses-its-tree
+kind: operator
+ref: 'bloomery T-0008 attempt 1, 2026-09-19: 31 minutes of work, halted on a scope gap, the
+  tree uncommitted; the operator checkpointed it by hand and found no verb to continue from
+  it'
+title: 'A halted attempt''s work is lost: nothing checkpoints it and nothing resumes it'
+at: '2026-09-19T02:30:05Z'
+summary: |
+  bloomery T-0008 did its phase's work in 31 minutes and then halted, as
+  the discipline asks, on a scope gap: the new docs page needs a nav entry
+  in `pages/zensical.toml`, which the scope did not name. The run escalated
+  `locked_conflict` with the tree uncommitted on the worktree. A red gate
+  checkpoints the convicted tree on the branch (S-0069) and a later attempt
+  continues from it; a halt checkpoints nothing. And once the operator
+  widened the scope and reaped the escalated state, `torve run` had no way
+  to continue: the runner's `resume` path is internal, `torve run` has no
+  flag for it, and a fresh run recuts the branch from base. The operator
+  committed the tree by hand, found the checkpoint unreachable by any verb,
+  tagged it and reran the phase from nothing.
+
+  Two small pieces close it: a halt checkpoints its tree the way a red gate
+  does, and `torve run --resume` cuts from the branch's tip when one exists
+  (S-0026/D-9 already says what that means). A halted attempt that says why
+  it halted has usually done most of the work.
