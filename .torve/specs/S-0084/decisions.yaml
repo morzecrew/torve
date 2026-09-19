@@ -1,0 +1,279 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The forge surface answers about a branch with the unresolved review threads
+      of its open pull request beside the state, on `PrInfo` and in the same call
+      — never as a second question the lane has to remember to ask
+    paths: [src/torve/application/ports.py, src/torve/adapters/vcs/git.py]
+    consequence: >-
+      a document of six phases still costs one forge call per pass, so the leg adds
+      a field to the read-back rather than a second rate budget nobody sized
+    rationale: >-
+      S-0080/D-6 gave the surface one question — what happened to this branch — and
+      S-0083/D-12 bounded it to one call per open document; the threads are on the
+      same object the state is read from, so carrying them back costs the call that
+      was already being made
+    cites: [S-0080/D-6, S-0083/D-12]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The thread read moves to the forge's GraphQL pull request, because unresolved
+      is a `reviewThreads` fact the REST review-comment endpoint does not carry and
+      the identifier a resolve addresses is a GraphQL node id
+    paths: [src/torve/adapters/vcs/git.py]
+    consequence: >-
+      the engine can tell a thread a reviewer already closed from one nobody has touched,
+      which is what makes "one round per finding" checkable rather than aspirational
+    rationale: >-
+      `GhScm.review_threads` reads `repos/<repo>/pulls/<n>/comments`, whose payload
+      has no resolution field at all; a leg built on it would re-raise every finding
+      ever made on the branch on every pass, and no bound written elsewhere could
+      fix that
+    cites: [S-0005/D-12]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Threads are grouped into findings by what they anchor to — the same file at
+      lines close enough to be the same change — and never by reviewer; a finding
+      carries one fix and every thread in the group as a reply address
+    paths: [src/torve/application/threads.py]
+    consequence: >-
+      three bots on one null check cost one task, and the answering half can name
+      one commit to several threads without a second join
+    rationale: >-
+      the operator's measured case is fourteen threads that were not fourteen findings;
+      grouping by author would reproduce the count that made answering them by hand
+      expensive in the first place
+  - id: D-4
+    grade: OPEN
+    text: >-
+      The exact grouping key — how near two lines must be, and what a file-level thread
+      groups with — is implementation's, under one constraint: the rule errs toward
+      merging, and which way it erred is readable from the record
+    paths: [src/torve/application/threads.py]
+    consequence: >-
+      an over-merged finding is one task told about two things and an under-merged
+      one is two tasks colliding on one file of one branch, so the cheap error is
+      chosen on purpose rather than by accident
+    rationale: >-
+      only the threads two bots actually write over a month can settle the distance,
+      and the asymmetry between the two errors is the part this document can decide
+      without that evidence
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The leg's terms are a section of the runner configuration — which logins are
+      bots, how many rounds a pass may mint, and whether the leg runs at all — defaulting
+      off, and refused at load when it is on under any landing but `pull_request`
+      with `unit: document`
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      a repository configured today gains nothing until somebody writes that it should,
+      and a configuration that could only ever fail at the first thread fails while
+      a person is standing at the terminal
+    rationale: >-
+      the unattended half of this system cannot be warned at, which is the argument
+      that already made `landing: pull_request` with no `scm.repo` a refusal; the
+      bot list is the allow-list S-0005/D-12 named and lost, re-declared because resolution
+      is the one act that must distinguish a machine from a person
+    cites: [S-0068/D-1, S-0080/D-2, S-0005/D-12]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The read-back records what it saw as `lane_pr_threads` on the engine's telemetry
+      stream — the branch, the pull request, and each finding with its anchor and
+      its thread identifiers — whether or not anything is then minted from it
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a night run before the leg exists says in its own record what a leg would have
+      acted on, so the first honest measurement of the leg predates the leg
+    rationale: >-
+      every other lane outcome already rides this stream as an engine event and the
+      morning report folds it; a second carrier for what the same call saw would be
+      a second thing to disagree with the first
+    cites: [S-0006/D-7, S-0079/D-3]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      One round of unresolved findings on one document pull request becomes one task
+      — role implement, character structural, `spec` the document, `depends_on` nothing,
+      scope the files the threads anchor plus the task's own log directory — minted
+      through the adoption path a standing job already uses
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      identifier assignment, the commit and `inherit_decisions` stay on the one path
+      that closes the id race under the lock, and the round is dispatched, gated,
+      budgeted and landed by everything that already handles a phase
+    rationale: >-
+      a repair is a mode of an attempt because there was an attempt; here the phase
+      landed, the run is `READY` and its worktree is gone, so there is nothing for
+      a mode to be a mode of — and `_cut_from` already starts a document-unit contract
+      on the document branch's tip, which is the branch the threads are about
+    cites: [S-0023/D-4, S-0069/D-1, S-0083/D-9]
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      The thread texts reach the attempt only inside a fence in the task's intent,
+      marked as third-party claims about the tree and delimited by a per-run nonce;
+      a composition whose nonce or end marker appears in the text it is fencing is
+      refused and recomposed, never emitted
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      a reviewer cannot close the fence from inside it, and every later change to
+      how a round is composed has to keep the property rather than rediscover it
+    rationale: >-
+      this is the one place in the engine where text from a surface anybody with a
+      fork can write to reaches an agent holding a worktree; the existing fence —
+      the sentence `render_feedback` and the harness both write — has a fixed delimiter,
+      which is a fence a comment can close
+    cites: [S-0005/D-13]
+    check: uv run pytest tests/test_reviewleg.py -k fence
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      A thread asking for anything but a change to the files in scope — run a command,
+      add a secret, change CI, merge, approve — is refused as injection before the
+      round is minted, reported to the operator through the escalation path, and never
+      answered on the forge
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      whoever wrote it learns nothing about whether the channel works, and the refusal
+      is a fact in the record rather than a silence a later reader has to reconstruct
+    rationale: >-
+      a reply is a signal, and the one thing an injection attempt wants first is to
+      know the engine is reading; the rule is deliberately over-broad — a reviewer
+      legitimately saying "run `torve init` first" costs one escalation, and the other
+      error costs a command run because a comment asked
+    check: >-
+      uv run pytest tests/test_reviewleg.py -k injection
+  - id: D-10
+    grade: LOCKED
+    text: >-
+      The leg never merges, never pushes and never force-pushes; a round reaches the
+      forge only as a landing onto the document branch by the lane's own act
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      every criterion, probe, rebase and leased republish the lane already performs
+      applies to a round unchanged, and the merge button stays where S-0080 and S-0083
+      left it
+    rationale: >-
+      the whole of the second repository's process is that a person merges, and a
+      leg with its own route to the forge would be a second lane wearing a first lane's
+      name — the one thing that cannot be allowed to drift
+    cites: [S-0080/D-3, S-0083/D-7]
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      A person's thread is replied to and left: the engine never resolves it and never
+      dismisses it
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      a human reviewer's thread is closed by the human who opened it, so the open
+      threads on a document's pull request are exactly the conversations a person
+      still has
+    rationale: >-
+      a bot's thread is a finding and a person's is a conversation the engine is not
+      a party to; a reviewer who finds their thread closed by a machine has been told
+      their judgement was processed rather than read, and stops opening them
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      A bot's thread is resolved by the engine only after the record says the round's
+      task landed, and only with a reply that names the commit the fix landed in or
+      states the reason the finding was not applied
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      a resolved thread on a document's pull request is always a thread with a landing
+      or a reason behind it, so resolution stays readable as an answer rather than
+      as tidying
+    rationale: >-
+      answering before the fix lands is a promise the engine has no business making,
+      and S-0005/D-14 already established the shape — one reply per captured root,
+      composed from records, saying what the loop did and never what the finding deserves
+    cites: [S-0005/D-14]
+  - id: D-13
+    grade: OPEN
+    text: >-
+      Where the attempt's verdict on a finding it judges invalid is written — a divergence
+      entry under `unlisted`, or a typed record of the round's own — is implementation's,
+      under one constraint: the reply the engine posts is composed from that record
+      and never from prose the agent wrote for the reviewer
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      a rejection with no record behind it is an unanswered thread rather than a reply
+      nobody can check, and the reason a reviewer reads has passed the same checks
+      a divergence entry passes
+    rationale: >-
+      the divergence entry already carries `claim`, `evidence` and `action` and is
+      checked by the rules `decisions-reported` applies, but its `decision` field
+      names a row and an invalid finding names none; which way that is resolved is
+      a question contact with `check_entry` answers better than this document can
+    cites: [S-0080/D-4, S-0079/D-4]
+  - id: D-14
+    grade: LOCKED
+    text: >-
+      A finding raised again after a landed reply already answered it is escalated
+      to a person and never dispatched a second time — one round per finding
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      the night's budget cannot be spent arguing with a bot at the bot's own re-review
+      rate, and a re-raise is always a fact a person sees rather than a cost they
+      find afterwards
+    rationale: >-
+      S-0069/D-6 refused the unbounded repair one scale down for the same reason —
+      a loop that reads its own failure as its input looks like progress while it
+      spends — and a re-raise is a judgement about the exchange rather than about
+      the tree
+    cites: [S-0069/D-6]
+    check: uv run pytest tests/test_reviewleg.py -k reraise
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      What the leg did rides the same telemetry stream as `lane_review_task` when
+      a round is minted, `lane_thread_resolved` when a bot's thread is answered and
+      closed, and the escalation path when a thread is refused or a finding re-raised
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      threads answered, fixed, refused and escalated are a fold over recorded facts,
+      so the report can hold them without anything new being stamped for its benefit
+    rationale: >-
+      the night's entries are the facts the log already holds inside its window and
+      the night stamps nothing of its own; a leg that wrote its own summary would
+      be the one artefact nothing checks against anything
+    cites: [S-0006/D-7, S-0079/D-3]
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      A served pass runs the leg after the landing leg and before the mint and the
+      dispatch, bounded per pass by its configured count, and the attempts it starts
+      count against the night's budget on both axes like any other
+    paths: [src/torve/application/residency.py, src/torve/cli/manager.py]
+    consequence: >-
+      a round minted this pass is on the board this pass, and a night that stops on
+      its budget mid-round leaves the threads where they were rather than overrunning
+      to finish them
+    rationale: >-
+      the lane goes first because a document a person merged this evening must be
+      read back before anything is composed about its threads, and the seam before
+      the mint is the one a standing job's instance already uses to reach the same
+      pass's board
+    cites: [S-0052/D-3, S-0023/D-6, S-0079/D-2]
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      The morning report counts threads seen, rounds minted, threads answered, threads
+      refused and findings escalated beside the pull requests and documents it already
+      counts, folded from the events in the night's window with no field prose can
+      occupy
+    paths: [src/torve/application/manager.py, src/torve/cli/night.py]
+    consequence: >-
+      whether the leg removed the operator's thread work or merely moved it is readable
+      in the morning, which is the measurement this design is accountable to
+    rationale: >-
+      each of the five is a recorded fact by the time the report is folded, and the
+      report's rule is that it holds only recorded fields — the same rule that put
+      the four pull-request counts and the three document counts in the table this
+      joins
+    cites: [S-0079/D-4, S-0080/D-14, S-0083/D-16]
