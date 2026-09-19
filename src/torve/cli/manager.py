@@ -219,6 +219,7 @@ async def _serve(
     only: str | None,
     dispatch: bool,
     night: bool = False,
+    slot: int | None = None,
 ) -> tuple[int, str]:
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
@@ -232,6 +233,9 @@ async def _serve(
     from torve.domain.events import SubjectType
 
     config = load_config(root, config_path)
+
+    if slot is not None:
+        config = config.model_copy(update={"worker_slot": slot})
 
     # The repository's own answer (S-0019/A-3): a contract the tree already landed
     # is minted onto the board as landed, so a pass over a repository with
@@ -501,6 +505,15 @@ def serve_cmd(
             "started, and stopped by a budget, the wall-clock end or a named escalation.",
         ),
     ] = False,
+    slot: Annotated[
+        int | None,
+        typer.Option(
+            "--slot",
+            help="This worker's slot — its own auth and cache volumes (S-0004/D-2). Overrides "
+            "the configuration's `worker_slot`, so a second worker of a width-2 night is one "
+            "flag rather than a second configuration file.",
+        ),
+    ] = None,
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -540,6 +553,7 @@ def serve_cmd(
                 root=root,
                 config_path=config_path,
                 worker=worker,
+                slot=slot,
                 passes=passes or None,
                 interval=interval,
                 only=task or None,
