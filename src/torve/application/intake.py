@@ -191,6 +191,16 @@ def _glob_errors(
             continue
 
         if not planning and not any(_matched(p, [pattern]) for p in tree_paths):
+            # A `dir/**` over a directory the tree does not hold is the phase's
+            # to create (bloomery S-0008 phase 1 builds `fuzz/` from nothing),
+            # not a wildcard that can never match: it matches everything the
+            # phase puts there. A wildcard inside an existing directory that
+            # matches nothing stays a refusal.
+            if pattern.endswith("/**") and not any(
+                str(p).startswith(pattern[:-3] + "/") for p in tree_paths
+            ):
+                continue
+
             errors.append(
                 f"{ref}: {kind} glob {pattern!r} matches nothing in the tree "
                 "— a wildcard that can never match checks nothing"

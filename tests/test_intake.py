@@ -1506,3 +1506,17 @@ def test_run_intake_runs_the_configuration_lint_for_a_config_scoped_batch(seeded
 
     assert not outcome.drafts
     assert any("not present in this runtime" in e for e in outcome.lint_errors)
+
+
+def test_a_glob_over_a_directory_the_phase_creates_is_not_a_wildcard_that_never_matches():
+    """`fuzz/**` on a tree with no `fuzz/` is the phase's to create (bloomery
+    S-0008 phase 1), and matches everything it puts there; a wildcard inside a
+    directory the tree holds that matches nothing is still refused."""
+    from pathlib import Path
+
+    from torve.application.intake import _glob_errors
+
+    tree = [Path("src/app.py"), Path("tests/test_app.py")]
+    assert _glob_errors("T-1", tree, ["fuzz/**"], "allow") == []
+    refused = _glob_errors("T-1", tree, ["src/*.md"], "allow")
+    assert len(refused) == 1 and "matches nothing" in refused[0]
