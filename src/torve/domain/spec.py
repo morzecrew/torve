@@ -534,6 +534,10 @@ class Document(Item):
     """The options that were closed, and why."""
     questions: list[Question] = Field(default_factory=list)
     """What is left open, for the owner."""
+    after: list[str] = Field(default_factory=list)
+    """The documents whose landed tree this one's work builds on, as document ids
+    — never phases (S-0085/D-1, S-0085/D-5); `depends_on` keeps its one meaning,
+    decision inheritance, and says nothing about trees."""
     phasing: list[Phase] = Field(default_factory=list)
     """The mintable units `torve plan` derives contracts from."""
     contract_example: Task | None = None
@@ -683,7 +687,7 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
         "questions",
     ),
     DECISIONS_FILE: ("decisions", "invariants", "retired"),
-    PHASING_FILE: ("phasing", "contract_example"),
+    PHASING_FILE: ("after", "phasing", "contract_example"),
     AMENDMENTS_FILE: ("amendments", "editorial"),
 }
 

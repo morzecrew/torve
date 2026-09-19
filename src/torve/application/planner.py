@@ -273,12 +273,15 @@ def document_of(reference: str) -> str:
 
 
 def _already_minted(
-    root: Path, document: str, phases: set[int], board: Board | None = None
+    root: Path, document: str, phases: set[int] | None, board: Board | None = None
 ) -> list[str]:
     """Task ids whose contracts already cite this document and one of these
     phases — minting twice mints duplicate work, and what to do with the
     first batch is a human decision. The board's contracts count when a
-    store holds the tasks (S-0056/D-9); the files count either way."""
+    store holds the tasks (S-0056/D-9); the files count either way.
+
+    *phases* None is every phase: what `after` names is a whole document, so
+    the edge names every task minted from it (S-0085/D-2, S-0085/D-5)."""
 
     clashes: list[str] = []
     wanted = document_of(document)
@@ -286,7 +289,10 @@ def _already_minted(
     for view in board.tasks.values() if board is not None else []:
         contract = view.contract
 
-        if contract is None or not contract.spec or contract.phase not in phases:
+        if contract is None or not contract.spec:
+            continue
+
+        if phases is not None and contract.phase not in phases:
             continue
 
         if document_of(contract.spec) == wanted:
@@ -311,7 +317,7 @@ def _already_minted(
 
         minted = document_of(str(record.get("spec") or ""))
 
-        if minted == wanted and record.get("phase") in phases:
+        if minted == wanted and (phases is None or record.get("phase") in phases):
             clashes.append(str(record.get("id", path.parent.name)))
 
     return sorted(set(clashes))
@@ -472,6 +478,32 @@ def plan_document(
             "what to do with the existing tasks is a human decision"
         )
 
+    # S-0085/D-2: `after` is one list of document ids and becomes contract
+    # `depends_on`, so nothing downstream learns a new word. A named document
+    # whose implementation is complete has already landed and adds no edge;
+    # one with no minted tasks names nothing an edge could point at.
+    after_tasks: list[str] = []
+
+    for reference in doc.after:
+        target = corpus.document(reference)
+
+        if target is None:
+            raise PlanError(f"{document}: after names {reference!r}, no such document")
+
+        if target.implementation == "complete":
+            continue
+
+        minted = _already_minted(root, target.id, None, board)
+
+        if not minted:
+            raise PlanError(
+                f"{document}: after names {target.id}, which has no minted tasks — "
+                "plan it first, or an edge to it names nothing"
+            )
+
+        after_tasks += minted
+
+    after_tasks = sorted(set(after_tasks))
     ordered = sorted(entries, key=lambda e: e.phase)  # stable: document order within a phase
     next_number = next_task_number(root, board.tasks if board is not None else ())
     ids_by_phase: dict[int, list[str]] = {}
@@ -482,13 +514,16 @@ def plan_document(
         ids_by_phase.setdefault(entry.phase, []).append(task_id)
 
     for offset, entry in enumerate(ordered):
+        # A task with an in-document predecessor waits through it; one with
+        # none is where the other document's landing has to be waited on.
+        within = [tid for p in entry.depends_on for tid in ids_by_phase.get(p, [])]
         task = Task(
             id=f"T-{next_number + offset:04d}",
             spec=document,
             phase=entry.phase,
             role="implement",  # review tasks are minted by the runner at `gated` (§3)
             intent=entry.intent.strip(),
-            depends_on=[tid for p in entry.depends_on for tid in ids_by_phase.get(p, [])],
+            depends_on=within or list(after_tasks),
             scope=Scope(allow=list(entry.scope)),
             acceptance=list(entry.acceptance),
             decisions=decisions,

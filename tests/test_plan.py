@@ -287,6 +287,71 @@ def test_rfc_check_reddens_on_a_phasing_entry_the_model_refuses(plan_repo):
     assert "phasing.0" in result.output
 
 
+# ....................... #
+# `after`: another document's landed tree (S-0085/D-1, S-0085/D-2)
+
+
+def after(root: Path, number: str, *ids: str) -> None:
+    """A top-level `after` on one document's phasing file, below its schema line."""
+
+    path = root / ".torve" / "specs" / f"S-{number}" / "phasing.yaml"
+    head, _, rest = path.read_text(encoding="utf-8").partition("\n")
+    path.write_text(f"{head}\nafter: {list(ids)}\n{rest}", encoding="utf-8")
+
+
+def test_after_makes_the_unpreceded_phases_wait_on_the_named_documents_tasks(plan_repo):
+    root, write_doc, git = plan_repo
+    spec_dir = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, spec_dir, "0090"))
+    write_doc("0092", "Leaning")
+    after(root, "0092", "S-0090")
+    git("add", "-A")
+    git("commit", "-qm", "after")
+
+    tasks = {p.task.id: p.task for p in plan_document(root, spec_dir, "0092").tasks}
+
+    # Phase 1 has no in-document predecessor, so it waits on all of S-0090;
+    # phase 2 waits through phase 1 and gains no edge of its own.
+    assert tasks["T-0004"].depends_on == ["T-0001", "T-0002", "T-0003"]
+    assert tasks["T-0005"].depends_on == ["T-0001", "T-0002", "T-0003"]
+    assert set(tasks["T-0006"].depends_on) == {"T-0004", "T-0005"}
+
+
+def test_after_naming_a_document_with_no_minted_tasks_is_refused_by_name(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc("0092", "Leaning")
+    after(root, "0092", "S-0090")
+    git("add", "-A")
+    git("commit", "-qm", "after")
+
+    with pytest.raises(PlanError, match="after names S-0090, which has no minted tasks"):
+        plan_document(root, root / ".torve" / "specs", "0092")
+
+
+def test_after_naming_a_complete_document_adds_no_edge(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc("0090", "Widgets", implementation="complete")
+    write_doc("0092", "Leaning")
+    after(root, "0092", "S-0090")
+    git("add", "-A")
+    git("commit", "-qm", "after")
+
+    report = plan_document(root, root / ".torve" / "specs", "0092")
+
+    assert [p.task.depends_on for p in report.tasks] == [[], [], ["T-0001", "T-0002"]]
+
+
+def test_after_naming_no_document_is_refused_by_name(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc("0092", "Leaning")
+    after(root, "0092", "S-0099")
+    git("add", "-A")
+    git("commit", "-qm", "after")
+
+    with pytest.raises(PlanError, match="after names 'S-0099', no such document"):
+        plan_document(root, root / ".torve" / "specs", "0092")
+
+
 def test_globs_intersect_is_conservative():
     assert globs_intersect(["src/widget/**"], ["src/widget/core.py"])
     assert globs_intersect(["src/a/**"], ["src/a/**"])

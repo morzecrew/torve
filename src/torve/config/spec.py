@@ -1426,7 +1426,7 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
 
             seen[ident] = where
 
-        for fname in ("depends_on", "informed_by", "supersedes"):
+        for fname in ("depends_on", "informed_by", "supersedes", "after"):
             for ref in getattr(doc, fname):
                 if ref in documents:
                     continue
@@ -1438,6 +1438,17 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
                     )
                 else:
                     report.problems.append(f"{where}: {fname} names {ref!r}, no such document")
+
+        # S-0085/D-1: `after` names the documents whose landed tree this one's
+        # work builds on, and only an accepted document has work to land.
+        for ref in doc.after:
+            target = documents.get(ref)
+
+            if target is not None and target.status != "accepted":
+                report.problems.append(
+                    f"{where}: after names {ref}, which is {target.status} — "
+                    "only an accepted document has a tree to build on"
+                )
 
         report.problems += prose_citations(doc, resolvable, mapping)
 

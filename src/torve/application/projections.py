@@ -43,7 +43,7 @@ from torve.domain.task import DISPATCHABLE_ROLES, Task
 from torve.domain.vocabulary import GATE_AXES
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Collection, Iterable, Sequence
 
     from torve.domain.events import EventRecord
 
@@ -138,6 +138,52 @@ def shipped_ids(root: Path, spec_dir: Path | None = None) -> set[str]:
     from torve.application.decisions import landed_task_ids
 
     return landed_task_ids(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
+
+
+# ....................... #
+
+
+def cross_document_waits(
+    root: Path, landed: Collection[str] = ()
+) -> dict[str, dict[str, list[str]]]:
+    """Task id to the tasks of *another* document it is still waiting on,
+    keyed by that document's id (S-0085/D-6). A person reading the board sees
+    which document's landing the wait is on, and so which pull request to look
+    at, rather than task ids to resolve by hand.
+
+    *landed* is what has landed already; a dependency in it is no wait."""
+
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+    spec_of: dict[str, str] = {}
+    depends_on: dict[str, list[str]] = {}
+
+    for contract in sorted(tasks_dir.glob("T-*/contract.yaml")) if tasks_dir.is_dir() else []:
+        record = _load_yaml_dict(contract)
+
+        if record is None:
+            continue
+
+        task_id = str(record.get("id", contract.parent.name))
+        spec_of[task_id] = str(record.get("spec") or "")
+        depends_on[task_id] = [str(one) for one in record.get("depends_on") or []]
+
+    waits: dict[str, dict[str, list[str]]] = {}
+
+    for task_id, dependencies in depends_on.items():
+        by_document: dict[str, list[str]] = {}
+
+        for dependency in dependencies:
+            document = spec_of.get(dependency, "")
+
+            if dependency in landed or not document or document == spec_of[task_id]:
+                continue
+
+            by_document.setdefault(document, []).append(dependency)
+
+        if by_document:
+            waits[task_id] = {d: sorted(ids) for d, ids in sorted(by_document.items())}
+
+    return waits
 
 
 # ....................... #

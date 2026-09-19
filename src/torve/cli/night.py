@@ -82,7 +82,12 @@ def night_show(
     """
 
     from torve.application.manager import documents, night_report, pull_requests
-    from torve.application.projections import stream_rows
+    from torve.application.projections import (
+        cross_document_waits,
+        lane_landings,
+        shipped_ids,
+        stream_rows,
+    )
 
     report = night_report(
         read_log(dsn_for(root, dsn), lambda log: log.since(partition=partition)), night_id=night
@@ -101,6 +106,9 @@ def night_show(
     rows = stream_rows(root)
     prs = pull_requests(rows, since=report.opened_at, until=report.closed_at)
     docs = documents(rows, since=report.opened_at, until=report.closed_at)
+    # S-0085/D-6: a task waiting on another document's landing names the
+    # document, so the reader knows which pull request to look at.
+    waits = cross_document_waits(root, set(lane_landings(root)) | shipped_ids(root))
 
     if fmt is Format.JSON:
         emit_json(
@@ -136,6 +144,7 @@ def night_show(
                     {"task": one.task_id, "reason": one.reason, "at": one.at.isoformat()}
                     for one in report.waiting
                 ],
+                "waiting_on_documents": waits,
             }
         )
         raise typer.Exit(EXIT_OK)
@@ -156,6 +165,16 @@ def night_show(
                 str(prs.closed),
             ),
             ("documents", str(docs.opened), str(docs.merged), "—", str(docs.closed)),
+        ],
+    )
+    _table(
+        console,
+        "waiting on a document's landing",
+        ("task", "document", "tasks"),
+        [
+            (task_id, document, ", ".join(ids))
+            for task_id, by_document in sorted(waits.items())
+            for document, ids in by_document.items()
         ],
     )
     close = report.close

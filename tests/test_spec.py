@@ -257,6 +257,49 @@ def test_a_log_entry_reads_and_writes_the_logs_class_key():
 # ....................... #
 
 
+def test_after_is_the_phasing_files_own_list_of_document_ids() -> None:
+    """S-0085/D-1: the phasing file carries `after`, and the header's
+    `depends_on` keeps its one meaning — a document may name another in both."""
+
+    import json
+
+    from torve.config.spec import schema_text
+    from torve.domain.spec import PHASING_FILE, file_of
+
+    assert file_of("after") == PHASING_FILE
+    assert "after" in json.loads(schema_text(PHASING_FILE))["properties"]
+
+    doc = _doc("0090", after=["S-0008"], depends_on=["S-0008"])
+    assert doc.after == ["S-0008"] and doc.depends_on == ["S-0008"]
+    assert _doc("0091").after == []
+
+
+def test_check_refuses_an_after_naming_an_absent_or_unaccepted_document(tmp_path) -> None:
+    """S-0085/D-1: `after` names a landed tree, and only an accepted document
+    has one to build on."""
+
+    from test_decisions import document, place
+
+    from torve.config.spec import check_corpus
+
+    spec_dir = tmp_path / ".torve" / "specs"
+    rows = [("S-0090/D-1", "ASSUMED", "Widgets are lazy", "—")]
+
+    for number, status in (("0090", "accepted"), ("0091", "draft")):
+        directory = place(spec_dir, number, document(number, rows=[], status=status, phasing=None))
+        (directory / "phasing.yaml").write_text("phasing: []\n", encoding="utf-8")
+
+    place(spec_dir, "0092", document("0092", rows=rows))
+    (spec_dir / "S-0092" / "phasing.yaml").write_text(
+        "after: [S-0090, S-0091, S-0099]\nphasing: []\n", encoding="utf-8"
+    )
+    problems = check_corpus(spec_dir, tmp_path).problems
+
+    assert any("after names 'S-0099', no such document" in one for one in problems)
+    assert any("after names S-0091, which is draft" in one for one in problems)
+    assert not any("S-0090" in one and "after" in one for one in problems)
+
+
 def test_schema_descriptions_cover_every_property(tmp_path) -> None:
     """S-0059/D-6, I-3: every property of every schema `torve init` writes
     carries a description — the field's own docstring, carried by

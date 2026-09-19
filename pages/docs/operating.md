@@ -550,7 +550,7 @@ files split by who writes each: `document.yaml` (the author: the header
 facts, the prose as typed keys — summary, motivation, current state,
 goals, non-goals, a keyed design list, tests, docs, out of scope, risks —
 plus at most eight extra sections, then alternatives and questions),
-`phasing.yaml` (the author, read by the planner: the phasing and the
+`phasing.yaml` (the author, read by the planner: `after`, the phasing and the
 contract example), `decisions.yaml` (the author, stamped by the tool: the rows,
 the invariants, the retired identifiers), `amendments.yaml` (written by
 `torve spec amend` and `spec fix`, never by hand) and `execution/` (one
@@ -570,6 +570,19 @@ repository ignores the right files without copying a block. That line is the onl
 comment a file may carry; any other is a check problem — a row that needs
 a note needs a `rationale`. So is a section restating a typed list as a
 fence or a table: the list exists once.
+
+<!-- the corpus coordinates belong in the corpus, not in a page a reader
+     of the tree opens: S-0085/D-1, S-0085/D-2 and S-0085/D-5 govern this. -->
+`after` in `phasing.yaml` is the other list of document ids, and it means a
+different thing from the header's `depends_on`: `depends_on` is decision
+inheritance, `after` is the landed tree this document's work builds on. A
+document may name another in both, in either, or in neither. `torve plan`
+turns `after` into contract `depends_on`: every task of a phase with no
+predecessor inside the document waits on every task minted from each named
+document. A named document that is not accepted, or that has no minted tasks
+yet, refuses the plan by name; one whose implementation is already complete
+has landed and adds no edge. `after` names documents, never phases — a
+dependent waits for the whole of the one it names.
 
 Every item has one identifier: the document is `S-NNNN`, and each of its
 rows, invariants, questions, amendments, phases and prose sections is
