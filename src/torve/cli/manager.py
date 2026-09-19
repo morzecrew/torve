@@ -283,6 +283,23 @@ async def _serve(
     # same pass it was before the landing leg existed.
     lane_leg = _lane_leg(root, config, only=only)
 
+    def lane_owes() -> bool:
+        """Whether a ready candidate is still off the base it lands onto — a
+        night with one of those is not drained, whatever the board says."""
+
+        if lane_leg is None:
+            return False
+
+        from torve.adapters.vcs.git import GitLane
+        from torve.application.lane import awaiting_landing
+        from torve.gates.context import resolve_base
+
+        return bool(
+            awaiting_landing(
+                root, GitLane(), resolve_base(root, config.base), unit=config.promotion.unit
+            )
+        )
+
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
 
@@ -297,7 +314,9 @@ async def _serve(
         )
 
         async def stop() -> str | None:
-            return await reached(log, partition, terms) if terms is not None else None
+            return (
+                await reached(log, partition, terms, owed=lane_owes) if terms is not None else None
+            )
 
         handled = await serve(
             log,
@@ -339,7 +358,7 @@ async def _serve(
             log,
             partition,
             terms,
-            reason=await reached(log, partition, terms) or "passes",
+            reason=await reached(log, partition, terms, owed=lane_owes) or "passes",
             handled=handled,
             actor_id=worker,
         )

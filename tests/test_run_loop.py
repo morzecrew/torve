@@ -953,3 +953,33 @@ def test_a_green_attempt_with_nothing_new_to_commit_is_still_a_candidate(rig):
     assert state.state is TaskState.READY
     assert state.landed_sha == "abcdef123456"
     assert "committed abcdef1234" in state.history[-1]["fact"]
+
+
+def test_a_phase_decided_away_in_its_log_is_not_an_empty_diff(repo):
+    """A no-op that says why is not silent. An attempt whose log carries a
+    `decided` entry for one of the contract's own rows has done the phase's
+    work, and the execution record the landing writes is its diff — bloomery
+    T-0006 (2026-09-19) was refused twice for dropping a phase its document
+    said may be dropped."""
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.gates.sabotage import base_task, entry, log_document
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    locked = {"id": "S-0001/D-1", "grade": "LOCKED", "text": "a row", "paths": ["src/**"]}
+    repo.task(
+        base_task(allow=["src/**"], decisions=[locked]),
+        log_document(entry(decision="S-0001/D-1", grade="LOCKED", action="decided")),
+    )
+    repo.commit("task minted with its decision logged")
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),  # exits 0, writes nothing
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+    state = run_task(repo.root, task_for(repo), RunnerConfig(poison_ceiling=2), deps)
+    assert state.state is TaskState.READY, [event["fact"] for event in state.history]
+    assert state.attempts == 1

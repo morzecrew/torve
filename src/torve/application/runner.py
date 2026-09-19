@@ -507,10 +507,43 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
         return False
 
     bookkeeping = _task_bookkeeping(task.id)
-
-    return all(
+    only_bookkeeping = all(
         entry.path in bookkeeping and (entry.old_path is None or entry.old_path in bookkeeping)
         for entry in ctx.diff
+    )
+
+    # A no-op that says why is not silent: an attempt whose log decides one
+    # of the contract's own rows — "this phase is not needed, and here is the
+    # evidence" — has done the phase's work, and the execution record the
+    # landing writes is its diff (bloomery T-0006, 2026-09-19: a phase its
+    # document said may be dropped was refused twice for dropping it).
+    return only_bookkeeping and not _decides_a_row(ctx)
+
+
+def _decides_a_row(ctx: GateContext) -> bool:
+    """Whether the attempt's log carries a `decided` entry for a row the
+    contract inherited, by either spelling of the row's id."""
+
+    from torve.gates.decisions_reported import parse_log
+
+    if ctx.task is None or not ctx.log_text:
+        return False
+
+    document, _ = parse_log(ctx.log_text)
+    entries = document.get("entries") if isinstance(document, dict) else None
+
+    if not isinstance(entries, list):
+        return False
+
+    rows = {row.id for row in ctx.task.decisions} | {
+        row.id.rsplit("/", 1)[-1] for row in ctx.task.decisions
+    }
+
+    return any(
+        isinstance(entry, dict)
+        and entry.get("action") == "decided"
+        and str(entry.get("decision", "")) in rows
+        for entry in entries
     )
 
 

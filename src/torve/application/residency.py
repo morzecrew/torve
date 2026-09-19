@@ -777,7 +777,12 @@ async def close_night(
 
 
 async def reached(
-    log: EventLog, partition: str, night: Night, *, now: datetime | None = None
+    log: EventLog,
+    partition: str,
+    night: Night,
+    *,
+    now: datetime | None = None,
+    owed: Callable[[], bool] | None = None,
 ) -> str | None:
     """Which of the night's terms has been reached, or None.
 
@@ -815,7 +820,13 @@ async def reached(
 
     if not dispatchable(board, partition) and not board.in_flight():
         # S-0079/D-6's other half: a queue that drains closes the night. It is
-        # not an error and it is not the refusal — the work is done.
+        # not an error and it is not the refusal — the work is done. Unless
+        # the lane still owes a landing: a candidate green on the last pass
+        # is on its branch and not yet on the base, and a night that closes
+        # here leaves it for a person (bloomery T-0006, 2026-09-19).
+        if owed is not None and owed():
+            return None
+
         return "drained"
 
     return None

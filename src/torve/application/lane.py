@@ -93,6 +93,35 @@ def ready_candidates(root: Path) -> list[RunState]:
 # ....................... #
 
 
+def awaiting_landing(root: Path, vcs: LaneVcs, base: str | None, unit: str = "task") -> list[str]:
+    """The ready candidates whose branch tip is not yet on what they land onto
+    — the document branch under `unit: document` where it exists, the base
+    otherwise. What a night still owes before it may call its queue drained
+    (bloomery, 2026-09-19: the night closed one pass before the lane landed
+    its last green candidate). A candidate with no branch is nothing to land."""
+
+    owed: list[str] = []
+
+    for state in ready_candidates(root):
+        branch = naming.branch(state.task_id)
+        tip = vcs.tip(root, branch)
+
+        if tip is None:
+            continue
+
+        target = (
+            _document_branch(root, vcs, state.task_id, dry_run=True) if unit == "document" else None
+        ) or base
+
+        if target is None or vcs.tip(root, target) is None:
+            continue
+
+        if not vcs.is_ancestor(root, tip, target):
+            owed.append(state.task_id)
+
+    return owed
+
+
 def _awaits_adoption(root: Path, task_id: str) -> bool:
     """A READY draft run is intake's output, not the lane's input
     (S-0020, S-0020/D-1): it has no branch and nothing to land — adoption

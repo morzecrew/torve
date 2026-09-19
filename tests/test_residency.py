@@ -1706,3 +1706,41 @@ def test_an_escalation_stop_is_recorded_as_the_bound_and_its_class(tmp_path):
         assert closes[-1].payload["detail"] == "locked_conflict"
 
     run(scenario)
+
+
+def test_a_night_is_not_drained_while_the_lane_owes_a_landing(tmp_path):
+    """A candidate green on the last pass is on its branch and not yet on the
+    base; the drain term defers to the lane's debt (bloomery T-0006, 2026-09-19:
+    the night closed one pass before the lane landed it)."""
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log, PARTITION, config=NightConfig(minutes=30), actor_id="manager-1"
+        )
+        # T-0001 claimed, run and landed by its attempt: nothing dispatchable,
+        # nothing in flight — drained, unless the lane still owes.
+        await log.record(
+            EventKind.TASK_CLAIMED,
+            partition=PARTITION,
+            subject_type=SubjectType.TASK,
+            subject_id="T-0001",
+            actor_kind=ActorKind.MANAGER,
+            actor_id="w-1",
+            payload={"worker": "w-1", "lease_seconds": 900},
+        )
+        await log.record(
+            EventKind.LANDING_RECORDED,
+            partition=PARTITION,
+            subject_type=SubjectType.TASK,
+            subject_id="T-0001",
+            actor_kind=ActorKind.MANAGER,
+            actor_id="w-1",
+            payload={"sha": "a" * 40, "attempt": 1},
+        )
+        assert await reached(log, PARTITION, night, owed=lambda: True) is None
+        assert await reached(log, PARTITION, night, owed=lambda: False) == "drained"
+        assert await reached(log, PARTITION, night) == "drained"
+
+    run(scenario)
