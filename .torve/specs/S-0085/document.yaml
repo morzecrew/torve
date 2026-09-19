@@ -3,7 +3,7 @@ id: S-0085
 title: A document builds on another document's tree
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0083]
 informed_by: [S-0059, S-0084]
 supersedes: []
