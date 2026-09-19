@@ -20,10 +20,11 @@ decisions:
   - id: D-2
     grade: ASSUMED
     text: >-
-      Before any escalation from the review stage the attempt's tree is committed
-      on the task's branch under the checkpoint trailer, kin to the budget checkpoint
-      and the convicted-tree commit — no landing is written, and a commit that fails
-      leaves the escalation as it was
+      Before any escalation from the review stage, and before the escalation a halted
+      divergence entry raises, the attempt's tree is committed on the task's branch
+      under the checkpoint trailer, kin to the budget checkpoint and the convicted-tree
+      commit — no landing is written, and a commit that fails leaves the escalation
+      as it was
     paths: [src/torve/application/runner.py, tests/test_runner.py]
     consequence: >-
       nothing that passed the gates is lost to an escalation the attempt did not cause;
@@ -33,6 +34,7 @@ decisions:
       from the review stage left the tree only in the worktree; S-0026/D-9 and S-0069/D-4
       already commit the tree at the other two places a run stops short
     cites: [S-0026/D-9, S-0069/D-4, S-0059/D-12]
+    fingerprint: be8de1f86eaeadc4/0cf0692367ab5d7f
   - id: D-3
     grade: ASSUMED
     text: >-

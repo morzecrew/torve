@@ -1128,7 +1128,9 @@ class _EndingsAgent:
         return self.results[min(ctx.attempt - 1, len(self.results) - 1)]
 
 
-def _drive_endings(repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6):
+def _drive_endings(
+    repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6, vcs=None
+):
     """Cut a worktree on a seeded repository (an empty battery: these
     verdicts are about how attempts end, not what any particular gate
     says) and drive `drive_attempts` over the real hooks. Returns
@@ -1150,7 +1152,7 @@ def _drive_endings(repo, results, *, write_on=None, halted_on=None, broker=None,
         workspace=None,  # type: ignore[arg-type]
         runtime=MockRuntime(),
         agent=_EndingsAgent(results, write_on=write_on, halted_on=halted_on),
-        vcs=MockVcs(),  # a continuable escalation checkpoints through it
+        vcs=vcs if vcs is not None else MockVcs(),  # an escalation checkpoints through it
         scm=MockScm(),
         store=None,  # type: ignore[arg-type]
         broker=RefusingBroker() if broker else None,
@@ -2818,6 +2820,29 @@ def test_an_escalation_from_review_commits_the_gate_green_tree(
     # write (S-0059/D-12).
     assert not [m for m in vcs.commits if "landing of attempt" in m]
     assert state.landed_sha is None
+
+
+def test_a_halted_attempt_s_tree_is_committed_before_the_escalation(repo):
+    """S-0086/A-1: a halted divergence entry stops a task on working code, and
+    that code went to the floor with the worktree (bloomery T-0020). It is on
+    the task's branch under the checkpoint trailer; the escalation is the
+    same, and no landing rides the checkpoint."""
+    from test_run_loop import MockVcs
+
+    from torve.application.ports import AgentResult
+    from torve.domain.states import TaskState
+
+    vcs = MockVcs()
+    final, _ = _drive_endings(repo, [AgentResult(exit_code=0, output="")], halted_on=1, vcs=vcs)
+
+    assert final.state is TaskState.ESCALATED
+    assert final.escalation is not None and final.escalation.reason == "locked_conflict"
+
+    checkpoints = [m for m in vcs.commits if "halted on a locked row" in m]
+    assert len(checkpoints) == 1
+    assert "Torve-Checkpoint: " in checkpoints[0]
+    assert not [m for m in vcs.commits if "landing of attempt" in m]
+    assert final.landed_sha is None
 
 
 def test_a_failed_checkpoint_commit_leaves_the_review_escalation_as_it_was(repo, monkeypatch):

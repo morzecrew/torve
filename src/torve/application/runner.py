@@ -114,10 +114,10 @@ class AttemptHooks:
     # next dispatch has a candidate tip to continue from. Never called on a
     # convicted escalation — that restarts from base unchanged.
     checkpoint: Callable[[RunState], None] | None = None
-    # Called once, only when the review stage escalates the target (S-0086/D-2):
-    # commits the gate-green tree on the task's branch under the checkpoint
-    # trailer, so work the attempt did right is not lost to an escalation the
-    # attempt did not cause.
+    # Called once, when the review stage escalates the target or the attempt
+    # halts on a locked row (S-0086/D-2, S-0086/A-1): commits the tree on the
+    # task's branch under the checkpoint trailer, so work the attempt did
+    # right is not lost to an escalation that is not a conviction.
     reviewed_tree: Callable[[RunState], None] | None = None
 
 
@@ -243,6 +243,12 @@ async def _attempt_loop(
                 EscalationReason.LOCKED_CONFLICT,
                 f"halted divergence entry in the {task.id} execution log",
             )
+
+            # S-0086/A-1: working code that stopped on a row is the tree a
+            # person amends the row for; it goes on the branch, not the floor
+            # (bloomery T-0020, 2026-09-19).
+            if hooks.reviewed_tree is not None:
+                hooks.reviewed_tree(state)
 
             return state
 
@@ -868,8 +874,15 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
     A failed commit leaves the escalation as it was: the reason the run stops
     is the review's, and an infrastructure failure here must not replace it."""
 
+    why = "from review"
+
+    if state.escalation is not None and state.escalation.reason == str(
+        EscalationReason.LOCKED_CONFLICT
+    ):
+        why = "halted on a locked row"
+
     message = (
-        f"torve({run.task.id}): attempt {state.attempts} escalated from review\n\n"
+        f"torve({run.task.id}): attempt {state.attempts} escalated {why}\n\n"
         f"Torve-Checkpoint: {run.task.id} attempt {state.attempts}"
     )
     author = f"{_agent_identity(run.meta)} <agents@torve.local>"

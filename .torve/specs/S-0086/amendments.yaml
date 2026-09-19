@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-19T19:20:47Z'
+    title: A halted attempt keeps its tree too
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          Before any escalation from the review stage the attempt's tree is committed
+          on the task's branch under the checkpoint trailer, kin to the budget checkpoint
+          and the convicted-tree commit — no landing is written, and a commit that
+          fails leaves the escalation as it was
+        after: >-
+          Before any escalation from the review stage, and before the escalation a
+          halted divergence entry raises, the attempt's tree is committed on the task's
+          branch under the checkpoint trailer, kin to the budget checkpoint and the
+          convicted-tree commit — no landing is written, and a commit that fails leaves
+          the escalation as it was
+      - subject: D-2
+        field: fingerprint
+        after: be8de1f86eaeadc4/0cf0692367ab5d7f
+    md: |-
+      D-2 named the review stage, where T-0014 lost its tree. The same
+      afternoon T-0020 halted on a locked row's count with its second
+      attempt's work uncommitted — a halt is the one escalation that stops a
+      task on working code by design, and that code is exactly what a person
+      amends the row for. The halt now commits the tree through the same
+      hook, under the same trailer, before the escalation leaves the loop.

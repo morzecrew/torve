@@ -1401,7 +1401,7 @@ An unreadable review verdict — unparseable or refused — is asked once more o
 
 ### S-0086/D-2 — `ASSUMED` (The review tier's word reaches the work)
 
-Before any escalation from the review stage the attempt's tree is committed on the task's branch under the checkpoint trailer, kin to the budget checkpoint and the convicted-tree commit — no landing is written, and a commit that fails leaves the escalation as it was
+Before any escalation from the review stage, and before the escalation a halted divergence entry raises, the attempt's tree is committed on the task's branch under the checkpoint trailer, kin to the budget checkpoint and the convicted-tree commit — no landing is written, and a commit that fails leaves the escalation as it was
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py`
 - Consequence: nothing that passed the gates is lost to an escalation the attempt did not cause; the operator's hand checkpoint of 2026-09-19 is the engine's own act
