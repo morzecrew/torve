@@ -600,7 +600,7 @@ A phasing file names the documents whose landed tree its work builds on under a 
 - Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/phasing.json`
 - Consequence: S-0009 declares `after: [S-0008]` and `depends_on: []` and both are true; a document may name one document in both lists or in either
 
-### S-0086/D-6 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
+### S-0086/D-6 — `ASSUMED` (The review tier's word reaches the work)
 
 The leg's section gains `sources`, a list of `forge` and `record` defaulting to `[forge]`; `record` is refused at load under any landing but `pull_request` with `unit: document`; the second ask has no term
 

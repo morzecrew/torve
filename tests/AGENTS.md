@@ -84,28 +84,28 @@ A document's landing on the base is its tasks' landing: `lane_landings` reads `l
 - Paths: `src/torve/application/projections.py` `tests/test_projections.py`
 - Consequence: a squash-merged document's tasks are on the base by the commit the base holds, so ancestry answers the same question for a squash as for a fast-forward; `shipped_landings` and the tree's landing files are unchanged
 
-### S-0086/D-1 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
+### S-0086/D-1 — `ASSUMED` (The review tier's word reaches the work)
 
 An unreadable review verdict — unparseable or refused — is asked once more of the same reviewer in the same staged copy before it is escalated; a second unreadable answer escalates as S-0043/D-4 says, with both trace refs on the record, and the record names a review that needed the second ask
 
 - Paths: `src/torve/application/review.py` `tests/test_review_run.py`
 - Consequence: a reviewer's stray subprocess costs one more review and not a phase; the ledger can count how often a harness fails to produce a findings document
 
-### S-0086/D-2 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
+### S-0086/D-2 — `ASSUMED` (The review tier's word reaches the work)
 
 Before any escalation from the review stage the attempt's tree is committed on the task's branch under the checkpoint trailer, kin to the budget checkpoint and the convicted-tree commit — no landing is written, and a commit that fails leaves the escalation as it was
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py`
 - Consequence: nothing that passed the gates is lost to an escalation the attempt did not cause; the operator's hand checkpoint of 2026-09-19 is the engine's own act
 
-### S-0086/D-3 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
+### S-0086/D-3 — `ASSUMED` (The review tier's word reaches the work)
 
 The review-thread leg reads a second source: the stream's `task_gated` review records for tasks an open document branch carries, whose findings are not yet answered; each finding becomes the leg's shape — anchor from its evidence's leading citation, its claim and evidence as the one thread under it, the review task as author — and is grouped with the forge's threads by the same anchor rule
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/threads.py` `tests/test_reviewleg.py`
 - Consequence: a bot and the tier flagging one line are one finding and one round; a non-blocking finding is worked on the branch before the pull request is ready instead of read off the record by a person
 
-### S-0086/D-6 — `ASSUMED` (The review tier's word reaches the work) — implementation: none
+### S-0086/D-6 — `ASSUMED` (The review tier's word reaches the work)
 
 The leg's section gains `sources`, a list of `forge` and `record` defaulting to `[forge]`; `record` is refused at load under any landing but `pull_request` with `unit: document`; the second ask has no term
 
