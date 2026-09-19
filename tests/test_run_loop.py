@@ -435,7 +435,10 @@ def test_locked_conflict_is_terminal_by_design(rig):
     state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
     assert state.state is TaskState.ESCALATED
     assert state.escalation.reason == "locked_conflict"
-    assert not vcs.commits  # stopped on working code, nothing landed
+    # Stopped on working code: nothing landed, and the code is on the branch
+    # under the checkpoint trailer (S-0086/A-1), not on the floor.
+    assert not [m for m in vcs.commits if "landing of attempt" in m]
+    assert [m for m in vcs.commits if "Torve-Checkpoint" in m and "halted on a locked row" in m]
     # S-0038 S-0038/D-1: the halt used to end the attempt with no row at
     # all — the spend vanished. It now lands the red-agent shape, with the
     # `halted` verdict and the escalation reason beside it.
@@ -953,6 +956,44 @@ def test_a_green_attempt_with_nothing_new_to_commit_is_still_a_candidate(rig):
     assert state.state is TaskState.READY
     assert state.landed_sha == "abcdef123456"
     assert "committed abcdef1234" in state.history[-1]["fact"]
+
+
+def test_a_round_that_rejects_its_claim_with_an_entry_is_not_an_empty_diff(repo):
+    """S-0084/D-13: a review round whose claim does not hold changes nothing
+    and records why under `unlisted` as `contradicted`; that entry is the
+    round's work and the reply the engine posts. bloomery's first live round
+    (T-0028) was refused as an empty diff three times for exactly this."""
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.gates.sabotage import base_task, entry, log_document
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    repo.task(
+        base_task(allow=["src/**"], decisions=[]),
+        log_document(
+            entry(
+                decision="unlisted",
+                grade="UNLISTED",
+                kind="contradicted",
+                action="decided",
+                claim="the claim does not hold: the row is there and the test is green",
+                proposal="no row is owed: the reviewed tree already satisfies it",
+                **{"class": "discovery"},
+            )
+        ),
+    )
+    repo.commit("round minted with its rejection logged")
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),  # exits 0, writes nothing
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+    state = run_task(repo.root, task_for(repo), RunnerConfig(poison_ceiling=2), deps)
+    assert state.state is TaskState.READY, [event["fact"] for event in state.history]
+    assert state.attempts == 1
 
 
 def test_a_phase_decided_away_in_its_log_is_not_an_empty_diff(repo):

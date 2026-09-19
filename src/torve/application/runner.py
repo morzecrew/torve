@@ -573,12 +573,21 @@ def _decides_a_row(ctx: GateContext) -> bool:
         row.id.rsplit("/", 1)[-1] for row in ctx.task.decisions
     }
 
-    return any(
-        isinstance(entry, dict)
-        and entry.get("action") == "decided"
-        and str(entry.get("decision", "")) in rows
-        for entry in entries
-    )
+    def answers(entry: Any) -> bool:
+        if not isinstance(entry, dict):
+            return False
+
+        if entry.get("action") == "decided" and str(entry.get("decision", "")) in rows:
+            return True
+
+        # A review round whose every claim is rejected with an entry has done
+        # its work (S-0084/D-13): the contradiction is the reply the engine
+        # posts, and the tree is right to be unchanged. bloomery's first live
+        # round (T-0028) rejected a claim already fixed on the branch three
+        # times and was refused as an empty diff each time.
+        return entry.get("decision") == "unlisted" and entry.get("kind") == "contradicted"
+
+    return any(answers(entry) for entry in entries)
 
 
 # ....................... #
