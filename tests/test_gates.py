@@ -765,3 +765,19 @@ def test_red_on_base_runs_both_trees_through_the_passs_own_executor(repo, red_on
     assert "mktemp -d" in seen[0] and 'rm -rf "$work"' in seen[0]  # nothing outlives the call
     assert all(command.rstrip().endswith("tests/test_app.py") for command in seen)
     assert "tests/test_other.py" not in seen[0]  # only the qualifying files run
+
+
+def test_decisions_a_bare_local_id_names_the_tasks_own_row(repo):
+    """A log entry may cite the row as the contract spells it (`S-0012/D-2`)
+    or as the document's prose does (`D-2`). bloomery T-0007 wrote the bare
+    form for three rows and was convicted for having written nothing."""
+    locked = {"id": "S-0012/D-2", "grade": "LOCKED", "text": "a rung", "paths": ["src/**"]}
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=[locked]),
+        log_document(entry(decision="D-2", grade="LOCKED", action="decided")),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("touches the governed file")
+    result = check_decisions_reported(GATE, context_for(repo))
+    assert result.outcome == "pass", result.output

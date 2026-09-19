@@ -821,6 +821,8 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
     # S-0010/D-8. What this attempt found goes beside the rows it cites
     # (S-0057/D-7), or under `.torve/execution/` when the contract names no
     # document (S-0059/D-11).
+    landing_sha: str | None = None
+
     try:
         execution = decisions.land(
             worktree,
@@ -832,7 +834,7 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
         )
         landed = f"execution {execution.relative_to(worktree)}"
 
-        await asyncio.to_thread(
+        landing_sha = await asyncio.to_thread(
             deps.vcs.commit_all,
             worktree,
             f"torve({task.id}): landing of attempt {state.attempts}",
@@ -841,6 +843,14 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
         )
     except ValueError as exc:
         landed = f"no execution file — {exc}"
+
+    # A later attempt whose work was already committed — the convicted tree
+    # of the attempt before it is checkpointed on the branch (S-0069) — has
+    # nothing new to commit and is still a candidate: the tip the landing
+    # commit leaves. Without this the worker read "no landing" and released
+    # the task, and the next claim recut the branch over a green candidate
+    # (bloomery T-0007, 2026-09-19).
+    sha = sha or landing_sha
 
     # The credential is resolved by NAME here, at the runner boundary
     # (S-0001/D-13): the value lives only in this process and the subprocess

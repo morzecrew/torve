@@ -931,3 +931,25 @@ def test_a_seat_with_no_prepare_runs_nothing_extra(rig, monkeypatch):
     run_task(repo.root, task_for(repo), RunnerConfig(), deps)
 
     assert ran == []
+
+
+def test_a_green_attempt_with_nothing_new_to_commit_is_still_a_candidate(rig):
+    """S-0069's checkpoint commits the convicted tree, so a later attempt that
+    fixes only its log has nothing new for the work commit — and the tip the
+    landing commit leaves is the candidate. bloomery T-0007 (2026-09-19): the
+    worker read no landed sha, released the task, and the next claim recut
+    the branch over a green candidate."""
+    repo, deps, _runtime, vcs, _ = rig
+    original = vcs.commit_all
+
+    def only_the_landing_commits(worktree, message, author=None, sign_key=None):
+        if "landing of attempt" in message:
+            return original(worktree, message, author, sign_key)
+        vcs.commits.append(message)
+        return None  # nothing to commit
+
+    vcs.commit_all = only_the_landing_commits
+    state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+    assert state.state is TaskState.READY
+    assert state.landed_sha == "abcdef123456"
+    assert "committed abcdef1234" in state.history[-1]["fact"]

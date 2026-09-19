@@ -356,8 +356,13 @@ def owed(
 
         area = spec(decision.paths)
         hits = [path for path in touched if area.match_file(path)]
+        # An entry may name the row as the contract spells it (`S-0012/D-2`)
+        # or as the document's own prose does (`D-2`): the log is the task's,
+        # so a bare id in it is local to the task's document (bloomery
+        # T-0007, convicted for entries it had written).
+        local = decision.id.rsplit("/", 1)[-1]
 
-        if hits and decision.id not in cited:
+        if hits and decision.id not in cited and local not in cited:
             shown = ", ".join(sorted(hits)[:3]) + ("…" if len(hits) > 3 else "")
 
             problems.append(
