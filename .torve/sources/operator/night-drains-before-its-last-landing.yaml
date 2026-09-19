@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/night-drains-before-its-last-landing
+kind: operator
+ref: 'bloomery night 20260919T011157Z: T-0006 went green, the quiet window held it, the next
+  pass found nothing claimable and closed'
+title: A night closes on a drained queue while a green candidate still waits for the lane
+at: '2026-09-19T01:18:01Z'
+summary: |
+  `reached` closes a night as `drained` when nothing is dispatchable and
+  nothing is in flight. A candidate that went green on the previous pass is
+  neither: its landing is the lane's on a later pass, and under a quiet window
+  it is exactly one pass later. The first served night on bloomery closed at
+  01:12 with T-0006 green on its branch and not on the document's; the
+  operator landed it with `torve merge` by hand. The drain check should count
+  a READY candidate the lane has not landed as work still owed — or the close
+  should run the landing leg once more before it records itself.

@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/deciding-a-phase-away-is-an-empty-diff
+kind: operator
+ref: 'bloomery T-0006 attempt 1, 2026-09-19: ''same_as: not built; only the divergence log'',
+  gates_red with no gate named'
+title: An attempt that decides a phase is not needed is refused as an empty diff
+at: '2026-09-19T01:18:02Z'
+summary: |
+  S-0007's third phase says of itself that it "runs only if D-8 resolves that
+  the relation is needed" and that dropping it "is an outcome rather than a
+  failure". The attempt read the tree, decided the relation has no consumer,
+  wrote four divergence entries and changed nothing else. The T-0172 rule
+  refuses an implement attempt whose diff is only its own bookkeeping —
+  right for a silent no-op, wrong for a decided one: the entries are the
+  work, the execution record the landing commit writes is the diff, and the
+  document's pull request shows both. The attempt was red with no gate
+  named (`gates_red`, empty results), which is the worse half: a red the
+  agent cannot read is a red it repeats. Attempt 2 satisfied the rule by
+  touching a file.
+
+  The rule could admit an empty diff whose log carries a `decided` entry
+  for one of the contract's rows — a no-op that says why is not silent —
+  and the refusal should name itself in the results so the next attempt
+  reads it.
