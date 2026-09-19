@@ -911,6 +911,55 @@ def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> 
     assert config.threads.rounds_per_pass == 2
 
 
+def test_the_thread_sources_default_to_the_forge_and_load_from_yaml(tmp_path: Path) -> None:
+    """S-0086/D-6: a configuration written before the records were a source
+    reads the forge alone, as it always did."""
+
+    assert load(tmp_path, "schema_version: 1\n").threads.sources == ["forge"]
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "scm:\n  repo: acme/widgets\n  open_pr: true\n"
+        'threads:\n  enabled: true\n  sources: ["forge", "record"]\n',
+    )
+
+    assert config.threads.sources == ["forge", "record"]
+
+
+def test_a_source_the_leg_has_no_reader_for_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="sources"):
+        load(
+            tmp_path,
+            "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+            "scm:\n  repo: acme/widgets\n  open_pr: true\n"
+            'threads:\n  enabled: true\n  sources: ["mailbox"]\n',
+        )
+
+
+@pytest.mark.parametrize(
+    "promotion",
+    [
+        "",
+        "promotion:\n  landing: pull_request\n",
+        "promotion:\n  unit: document\n",
+    ],
+)
+def test_the_record_source_is_refused_under_any_other_landing(
+    tmp_path: Path, promotion: str
+) -> None:
+    """S-0086/D-6: `record` reads the tasks an open document branch carries,
+    so it is refused under any other landing — the leg's own switch off or
+    on."""
+
+    with pytest.raises(ValueError, match=r"promotion\.unit: document"):
+        load(
+            tmp_path,
+            f"schema_version: 1\n{promotion}scm:\n  repo: acme/widgets\n  open_pr: true\n"
+            'threads:\n  sources: ["record"]\n',
+        )
+
+
 @pytest.mark.parametrize(
     "promotion",
     [

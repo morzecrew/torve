@@ -858,6 +858,7 @@ threads:
   enabled: true              # off by default
   bots: [coderabbitai, codeant-ai]   # whose threads the engine may resolve
   rounds_per_pass: 1         # how many revision rounds one pass may mint
+  sources: [forge, record]   # where findings come from; [forge] by default
 ```
 
 It refuses to load with `enabled: true` under any landing but `pull_request`
@@ -894,6 +895,25 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
   already answered it escalates to you instead of being dispatched a second
   time (S-0084/D-14), so a night cannot spend itself arguing with a bot at the
   bot's own re-review rate.
+
+**The tier's own findings can be a source too.** `sources` names where the leg
+reads from, and defaults to `[forge]` — so a configuration written before this
+existed changes nothing. Adding `record` reads the task-gated review records of
+the tasks an open document branch carries, and turns each finding nobody has
+answered yet into the same shape a thread produces (S-0086/D-3): anchored by
+its evidence's leading citation, or — when its evidence is a command rather
+than a line — by the files its target task's diff touched, as one finding for
+that target (S-0086/D-4). Record and forge findings group together, so a bot
+and the tier flagging one line are one finding and one round. `record` is
+refused at load under any landing but a document's pull request, the leg's
+switch off or on.
+
+A finding whose citation lies outside the document's phasing scope mints
+nothing and reaches you by name, as an injecting thread does (S-0086/D-4). And
+because a recorded finding was never a thread on the forge, its answer is
+written to the stream as `review_finding_answered` — the commit the round
+landed in, or the recorded reason it was not applied — and said once as a
+comment on the document's pull request, never again (S-0086/D-5).
 
 **The morning report counts what the night left on the forge.** `torve night
 show` prints the night's landings, convictions, endings and waits, and then the

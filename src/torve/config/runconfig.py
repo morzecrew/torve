@@ -1252,6 +1252,14 @@ class ThreadsConfig(BaseModel):
     rounds_per_pass: int = 1
     """How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per
     pass; the night's own budget bounds it across the night."""
+    sources: list[Literal["forge", "record"]] = Field(
+        default_factory=lambda: cast("list[Literal['forge', 'record']]", ["forge"])
+    )
+    """Where the leg's findings come from (S-0086/D-6): the pull request's own threads,
+    the stream's task-gated review records, or both. Defaults to the forge alone, so a
+    configuration that turned the leg on before the records were a source changes
+    nothing. `record` is refused at load under any landing but a document's pull
+    request (see the refusal on `RunnerConfig`)."""
 
 
 # ....................... #
@@ -1726,12 +1734,17 @@ class RunnerConfig(BaseModel):
         ever fail at the first thread — at 04:00, with nobody there. It fails
         here instead, naming the two keys to set."""
 
-        if not self.threads.enabled:
+        # S-0086/D-6: `record` reads the tasks an open document branch carries
+        # and answers on that document's pull request, so it is refused under
+        # any other landing whether or not the leg itself is on.
+        if not self.threads.enabled and "record" not in self.threads.sources:
             return self
 
         if self.promotion.landing != "pull_request" or self.promotion.unit != "document":
+            named = "threads.enabled" if self.threads.enabled else "threads.sources: record"
+
             raise ValueError(
-                "threads.enabled needs promotion.landing: pull_request with "
+                f"{named} needs promotion.landing: pull_request with "
                 "promotion.unit: document — the leg answers the threads on a "
                 f"document's pull request, and this configuration lands "
                 f"{self.promotion.landing!r} at the {self.promotion.unit!r} unit"

@@ -30,15 +30,16 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import yaml
 
-from torve.application.ports import PrInfo, ReviewThread
+from torve.application.ports import PrInfo, ReviewThread, ThreadComment
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.application.threads import WINDOW, Finding, group_findings
@@ -138,6 +139,16 @@ class ThreadForge(Protocol):
     def resolve_thread(self, thread_id: str) -> None: ...
 
 
+@runtime_checkable
+class CommentingForge(ThreadForge, Protocol):
+    """A forge that can also post one keyed comment on the pull request — what
+    a record-sourced finding is answered through (S-0086/D-5), since no thread
+    on the forge ever carried it. Checked at runtime rather than required: a
+    forge without the surface answers on the stream and posts nothing."""
+
+    def comment(self, number: int, body: str, key: str) -> str: ...
+
+
 # ....................... #
 
 
@@ -209,6 +220,14 @@ def injection_reason(thread: ReviewThread) -> str:
     if any(thread.path.startswith(prefix) for prefix in FORBIDDEN_ANCHORS):
         return f"anchored to {thread.path}"
 
+    if thread.id.startswith(RECORD):
+        # A recorded finding did not come from a surface anybody with a fork
+        # can write to: it is the engine's own reviewer, and its evidence is a
+        # citation or a backticked command by design (S-0086/D-4), which the
+        # word-level scan below would refuse outright. The anchor check above
+        # still holds, and so does the fence.
+        return ""
+
     body = "\n".join(comment.body for comment in thread.comments)
 
     for what, pattern in INJECTION:
@@ -242,17 +261,27 @@ def _acceptance(root: Path) -> list[str]:
 # ....................... #
 
 
-def _allow(root: Path, finding: Finding) -> list[str]:
+def _allow(root: Path, finding: Finding, files: Sequence[str] = ()) -> list[str]:
     """The files the threads anchor to, and the tests those files bring with
     them — a scope naming a module names that module's test file, so a round
     that has to touch one is not refused by its own scope gate. The task's own
-    log directory is added at minting, when the identifier exists."""
+    log directory is added at minting, when the identifier exists.
 
-    allow = [finding.path]
-    test = f"tests/test_{Path(finding.path).stem}.py"
+    *files* is what a recorded finding with no line of its own is about: the
+    files its target's diff touched (S-0086/D-4), which are the round's
+    subject as much as the path it anchors to.
+    """
 
-    if (root / test).is_file() and test not in allow:
-        allow.append(test)
+    allow: list[str] = []
+
+    for path in [finding.path, *files]:
+        test = f"tests/test_{Path(path).stem}.py"
+
+        if path not in allow:
+            allow.append(path)
+
+        if (root / test).is_file() and test not in allow:
+            allow.append(test)
 
     return allow
 
@@ -266,6 +295,7 @@ def compose_round(
     info: PrInfo,
     finding: Finding,
     *,
+    files: Sequence[str] = (),
     nonce_source: Callable[[], str] = _mint_nonce,
 ) -> Round:
     """One finding composed into a round (S-0084/D-7, S-0084/D-8, S-0084/D-9).
@@ -290,7 +320,7 @@ def compose_round(
         finding=finding,
         nonce=nonce,
         intent="\n\n".join([INSTRUCTIONS, fenced]),
-        allow=_allow(root, finding),
+        allow=_allow(root, finding, files),
         acceptance=_acceptance(root),
     )
 
@@ -428,11 +458,165 @@ def _rounds(rows: Sequence[dict[str, Any]], branch: str) -> list[dict[str, Any]]
 
 
 def _answered(rows: Sequence[dict[str, Any]], branch: str) -> list[dict[str, Any]]:
+    """Every finding this branch has already been answered about — a thread
+    resolved on the forge, or a recorded finding answered on the stream
+    (S-0086/D-5). One list: both say a round of that anchor is done with."""
+
     return [
         row
         for row in rows
-        if row.get("event") == "lane_thread_resolved" and row.get("branch") == branch
+        if row.get("event") in ("lane_thread_resolved", "review_finding_answered")
+        and row.get("branch") == branch
     ]
+
+
+# ....................... #
+
+# The identifier a recorded finding's synthetic thread carries: its review
+# task and the finding's place in that record. The prefix is what the
+# answering half reads to know the finding was never on the forge
+# (S-0086/D-5).
+RECORD = "record:"
+
+
+def _citation(evidence: str) -> tuple[str, int] | None:
+    """(path, line) for evidence whose leading token is a citation, None for
+    evidence that is a backticked command — the divergence log's own rule,
+    read by the same expression the gates read it with."""
+
+    from torve.gates.evidence import CITATION
+
+    found = CITATION.match(evidence.split(" — ", 1)[0].strip())
+
+    return (found["path"], int(found["start"])) if found else None
+
+
+# ....................... #
+
+
+def _touched(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[str]:
+    """The files the target task's landing commit touched (S-0086/D-4) — what
+    a finding whose evidence is a command anchors to, since it names no line.
+
+    Read through git directly, as `lane.py` and `ledger.py` already read
+    history: no port method names a commit's files, and the ports are not
+    this task's to widen.
+    """
+
+    sha = _landing_sha(rows, task_id)
+
+    if not sha:
+        return []
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "show", "--pretty=format:", "--name-only", sha],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+# ....................... #
+
+
+def record_threads(
+    root: Path, branch: str, rows: Sequence[dict[str, Any]]
+) -> tuple[list[ReviewThread], dict[str, list[str]]]:
+    """The leg's second source (S-0086/D-3): the stream's task-gated review
+    findings for the tasks this open document branch carries, each in the
+    shape the forge's own threads arrive in, so the grouping rule and
+    everything after it are the one path.
+
+    A finding is anchored by its evidence's leading citation; one whose
+    evidence is a command anchors to the files its target's diff touched, at
+    no line, which folds every such finding of one target into one
+    (S-0086/D-4). Returned beside those files, keyed by thread, because a
+    round about them needs them in its scope.
+
+    A finding the stream already says was answered is not returned: one
+    finding, one round, and never a round again (S-0086/D-5).
+    """
+
+    from torve.application.lane import document_tasks
+
+    tasks = set(document_tasks(root, branch))
+    answered = {
+        str(row.get("finding") or "")
+        for row in rows
+        if row.get("event") == "review_finding_answered"
+    }
+    threads: list[ReviewThread] = []
+    files: dict[str, list[str]] = {}
+
+    for row in rows:
+        target = str(row.get("target") or "")
+
+        if row.get("kind") != "review" or row.get("trigger") != "task_gated":
+            continue
+
+        if target not in tasks:
+            continue
+
+        review = str(row.get("task_id") or "")
+
+        for index, finding in enumerate(row.get("findings") or []):
+            ident = f"{RECORD}{review}:{index}"
+
+            if ident in answered:
+                continue
+
+            evidence = str(finding.get("evidence") or "")
+            comment = ThreadComment(
+                author=review,
+                body=f"{finding.get('claim', '')}\n\nEvidence: {evidence}",
+            )
+            cited = _citation(evidence)
+
+            if cited is not None:
+                threads.append(
+                    ReviewThread(id=ident, path=cited[0], line=cited[1], comments=(comment,))
+                )
+                continue
+
+            touched = _touched(root, rows, target)
+
+            if not touched:
+                continue
+
+            threads.append(ReviewThread(id=ident, path=touched[0], line=None, comments=(comment,)))
+            files[ident] = touched
+
+    return threads, files
+
+
+# ....................... #
+
+
+def phased(root: Path, document: str, path: str) -> bool:
+    """Whether the document's phasing scope reaches *path* (S-0086/D-4). A
+    document with no readable phasing judges nothing: everything is inside a
+    scope nobody declared."""
+
+    from torve.application.decisions import _governs
+    from torve.config.spec import SpecError, document_dir, load_document
+
+    directory = document_dir(root / layout.SPECS_DIR, document)
+
+    if directory is None:
+        return True
+
+    try:
+        doc = load_document(directory)
+
+    except SpecError:
+        return True
+
+    globs = [glob for phase in doc.phasing for glob in phase.scope]
+
+    return _governs(globs, path) if globs else True
 
 
 # ....................... #
@@ -534,6 +718,30 @@ def answer_round(
     answered = 0
 
     for thread_id in row.get("threads", []):
+        # A recorded finding was never on the forge, so it is answered on the
+        # stream and said once as a comment on the pull request (S-0086/D-5).
+        if str(thread_id).startswith(RECORD):
+            engine_event(
+                root,
+                "review_finding_answered",
+                {
+                    "branch": branch,
+                    "task": task_id,
+                    "finding": str(thread_id),
+                    "path": row.get("path"),
+                    "line": row.get("line"),
+                    "end_line": row.get("end_line"),
+                    "sha": _landing_sha(rows, task_id),
+                    "body": body,
+                },
+            )
+
+            if isinstance(forge, CommentingForge):
+                forge.comment(int(row.get("pr") or 0), body, str(thread_id))
+
+            answered += 1
+            continue
+
         thread = open_threads.get(str(thread_id))
 
         if thread is None:
@@ -582,6 +790,11 @@ def review_thread_leg(
     is pushed: a round reaches the forge as a landing by the lane's own act
     (S-0084/D-10), and a finding already answered by a landed reply is
     escalated rather than dispatched again (S-0084/D-14).
+
+    The findings come from whichever sources `threads.sources` names: the
+    pull request's own threads, the stream's task-gated review records, or
+    both (S-0086/D-3). They are one list from the grouping on, so a bot and
+    the tier flagging one line are one finding and one round.
     """
 
     if not config.threads.enabled:
@@ -602,6 +815,9 @@ def review_thread_leg(
             continue
 
         open_threads = {thread.id: thread for thread in info.threads}
+        sources = config.threads.sources
+        recorded, touched = record_threads(root, branch, rows) if "record" in sources else ([], {})
+        raised = [*(info.threads if "forge" in sources else ()), *recorded]
         prior = _rounds(rows, branch)
         replies = _answered(rows, branch)
         spoken = {str(row.get("task") or "") for row in replies}
@@ -612,9 +828,31 @@ def review_thread_leg(
 
             answered += answer_round(root, config, forge, branch, row, open_threads, rows)
 
-        for finding in group_findings(info.threads):
+        for finding in group_findings(raised):
             if len(minted) >= config.threads.rounds_per_pass:
                 break
+
+            from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
+
+            # A recorded finding pointing outside the document's phasing scope
+            # mints nothing and reaches a person by name, as an injecting
+            # thread does (S-0086/D-4).
+            if from_record and not phased(root, branch.rsplit("/", 1)[-1], finding.path):
+                reason = f"{finding.path} lies outside the document's phasing scope"
+                engine_event(
+                    root,
+                    "lane_thread_refused",
+                    {
+                        "branch": branch,
+                        "pr": info.number,
+                        "path": finding.path,
+                        "threads": list(finding.ids),
+                        "reason": reason,
+                    },
+                )
+                _escalate(root, branch, f"a recorded review finding was not composable: {reason}")
+                refused.append(reason)
+                continue
 
             if any(_same_anchor(finding, row) for row in replies):
                 detail = f"{finding.path} was raised again after a landed reply answered it"
@@ -639,7 +877,8 @@ def review_thread_leg(
                 continue
 
             try:
-                round_ = compose_round(root, branch, info, finding)
+                files = sorted({f for ident in from_record for f in touched.get(ident, [])})
+                round_ = compose_round(root, branch, info, finding, files=files)
 
             except InjectionRefused as exc:
                 engine_event(
