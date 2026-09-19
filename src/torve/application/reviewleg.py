@@ -431,7 +431,10 @@ def _escalate(root: Path, branch: str, detail: str) -> None:
 
         state = RunState.load(path)
 
-        if state.state is TaskState.READY:
+        # A task the lane already landed is finished; escalating its host
+        # state paused the whole served manager (bloomery, 2026-09-19) for a
+        # refusal the stream already carries by name.
+        if state.state is TaskState.READY and not state.landed_sha:
             state.escalate(EscalationReason.BLOCKER_FINDING, detail)
 
 
@@ -521,7 +524,15 @@ def _touched(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[s
         check=False,
     )
 
-    return [line for line in proc.stdout.splitlines() if line.strip()]
+    # The landing commit carries the execution record and the task's own log
+    # beside the work; neither is a file a round may write, and the first
+    # name in the list was the record (bloomery #160: every command-evidence
+    # finding was refused as outside the phasing scope).
+    return [
+        line
+        for line in proc.stdout.splitlines()
+        if line.strip() and not line.startswith(FORBIDDEN_ANCHORS)
+    ]
 
 
 # ....................... #
