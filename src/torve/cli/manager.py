@@ -48,7 +48,9 @@ if TYPE_CHECKING:
 
     from forze.application.execution import ExecutionRuntime
 
-    from torve.application.residency import Lane
+    from torve.adapters.vcs.git import GhScm
+    from torve.application.ports import PrInfo
+    from torve.application.residency import Lane, Threads
     from torve.config.runconfig import RunnerConfig
     from torve.domain.task import Task
 
@@ -157,6 +159,88 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
         return [result.task for result in results if result.landed]
 
     return lane
+
+
+# ....................... #
+
+
+class _ThreadForge:
+    """The forge the review-thread leg is handed: the read-back that already
+    carries a pull request's unresolved threads, plus the two writes a round
+    needs. A reply and a resolve are GraphQL mutations against the node id
+    the read-back returns, which is the identifier that read exists to carry.
+
+    Neither write is a merge, a push or a force-push: the leg reaches the
+    forge as a comment and a resolution and no other way.
+    """
+
+    REPLY = (
+        "mutation($thread: ID!, $body: String!) {"
+        " addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $thread, body: $body})"
+        " { clientMutationId } }"
+    )
+    RESOLVE = (
+        "mutation($thread: ID!) {"
+        " resolveReviewThread(input: {threadId: $thread}) { clientMutationId } }"
+    )
+
+    def __init__(self, scm: GhScm) -> None:
+        self.scm = scm
+
+    def pr_for_branch(self, branch: str) -> PrInfo | None:
+        return self.scm.pr_for_branch(branch)
+
+    def reply_thread(self, thread_id: str, body: str) -> None:
+        self.scm._api(
+            "graphql",
+            "-f",
+            f"query={self.REPLY}",
+            "-f",
+            f"thread={thread_id}",
+            "-f",
+            f"body={body}",
+        )
+
+    def resolve_thread(self, thread_id: str) -> None:
+        self.scm._api("graphql", "-f", f"query={self.RESOLVE}", "-f", f"thread={thread_id}")
+
+
+# ....................... #
+
+
+def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
+    """The pass's review-thread leg, or None when the switch is off.
+
+    Off by default, and the configuration refuses to load with it on under
+    any landing but a document's pull request — so the leg is built here from
+    the same `scm` terms the lane's own read-back is built from, and needs no
+    second refusal of its own. The leg spends its own per-pass bound; this
+    only decides that it runs.
+    """
+
+    if not config.threads.enabled:
+        return None
+
+    def threads() -> tuple[str, bool]:
+        # Built inside the leg for S-0044/A-11's reason, as the lane's is: `_leg`
+        # protects the call, so anything raised while building one would
+        # otherwise take the whole pass down. The landings are read per pass
+        # rather than once per process — a round's task lands during the
+        # night, and the answering half is what that landing unblocks.
+        from torve.adapters.vcs.git import GhScm
+        from torve.application.projections import lane_landings, shipped_landings
+        from torve.application.reviewleg import review_thread_leg
+
+        landed = {**lane_landings(root), **shipped_landings(root)}
+
+        return review_thread_leg(
+            root,
+            config,
+            _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
+            landed.__contains__,
+        )
+
+    return threads
 
 
 # ....................... #
@@ -292,6 +376,8 @@ async def _serve(
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
     lane_leg = _lane_leg(root, config, only=only)
+    # None unless the review-thread switch is on, for the same reason.
+    thread_leg = _thread_leg(root, config)
 
     def lane_owes() -> bool:
         """Whether a ready candidate is still off the base it lands onto — a
@@ -355,6 +441,7 @@ async def _serve(
             paused=paused,
             relay=relay,
             lane=lane_leg,
+            threads=thread_leg,
             stop=stop if terms is not None else None,
         )
 

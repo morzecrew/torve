@@ -827,9 +827,57 @@ marks it ready: a person who merges a draft merges knowingly, since the phases
 that land afterwards land on a branch behind `main`. Nothing turns a ready pull
 request back into a draft.
 
+**A reviewer's threads can be answered by the night too.** Off by default, and
+a separate switch from `auto_merge`:
+
+```yaml
+threads:
+  enabled: true              # off by default
+  bots: [coderabbitai, codeant-ai]   # whose threads the engine may resolve
+  rounds_per_pass: 1         # how many revision rounds one pass may mint
+```
+
+It refuses to load with `enabled: true` under any landing but `pull_request`
+with `unit: document` (S-0084/D-5): the leg reads a document's pull request, so
+a configuration that could only ever fail at the first thread fails while you
+are standing at the terminal instead.
+
+A served pass runs it after the landing leg and before the mint, so a round it
+mints is on the board the same pass, and a pause stops it exactly as a pause
+stops landing (S-0084/D-16). What it does on its turn, per open document:
+
+- **Unresolved threads become findings**, grouped by what they anchor to rather
+  than by who wrote them (S-0084/D-3) — three bots on one null check are one
+  finding, one task, and one commit replied to all three.
+- **One finding becomes one implement task**, cut from the document branch and
+  landed back onto it by the same lane that lands every other phase
+  (S-0084/D-7). The leg never merges, never pushes and never force-pushes
+  (S-0084/D-10); its attempts spend the night's budget like any other, and
+  `rounds_per_pass` bounds how many it may start a pass.
+- **The thread text reaches the attempt as evidence, never as instruction**:
+  fenced inside the contract's intent, marked as a third-party claim about the
+  tree and delimited by a per-run nonce (S-0084/D-8). A thread asking for
+  anything but a change to the files in scope — run this, add this secret,
+  change CI, merge, approve — is refused as injection before anything is
+  minted, escalated to you, and never answered on the forge (S-0084/D-9).
+- **A thread is answered only after its round landed**, with a reply naming the
+  commit the fix landed in or the recorded reason it was not applied
+  (S-0084/D-12) — composed from the attempt's divergence entry, never from
+  prose an agent wrote for the reviewer (S-0084/D-13).
+- **A person's thread is replied to and left** (S-0084/D-11): the engine
+  resolves a bot's thread and never yours, so the open threads on a document's
+  pull request stay exactly the conversations a person is still having.
+- **One round per finding.** A finding raised again after a landed reply
+  already answered it escalates to you instead of being dispatched a second
+  time (S-0084/D-14), so a night cannot spend itself arguing with a bot at the
+  bot's own re-review rate.
+
 **The morning report counts what the night left on the forge.** `torve night
 show` prints the night's landings, convictions, endings and waits, and then the
 pull requests opened, merged, conflicted and closed inside the window
 (S-0080/D-14) beside the documents opened, merged and closed (S-0083/D-16) —
 folded from this host's own stream, where the lane records its landings and
-read-backs.
+read-backs. Beside those, the review threads the window saw, the rounds minted
+from them, and the threads answered, refused and escalated (S-0084/D-17):
+whether the leg removed your thread work or merely moved it is readable in the
+morning, which is the measurement it is accountable to.

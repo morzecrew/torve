@@ -541,6 +541,75 @@ def documents(
     return Documents(**{name: len(branches) for name, branches in seen.items()})
 
 
+# ....................... #
+
+
+@dataclass(frozen=True)
+class ReviewThreads:
+    """What the review-thread leg did with a night's review threads
+    (S-0084/D-17): five counts folded from the leg's own events, beside the
+    forge's counts rather than instead of them, and no field prose can occupy.
+
+    Whether the leg removed the operator's thread work or merely moved it is
+    the measurement the design is accountable to, so `answered` and `refused`
+    stand beside `minted` rather than being summed into it.
+    """
+
+    seen: int = 0
+    minted: int = 0
+    answered: int = 0
+    refused: int = 0
+    escalated: int = 0
+
+
+def review_threads(
+    rows: Iterable[Mapping[str, Any]], *, since: datetime, until: datetime | None = None
+) -> ReviewThreads:
+    """Fold the window's recorded facts into the five counts.
+
+    Counted per thread rather than per event wherever a thread outlives a
+    pass: the read-back records what it saw every pass a document's pull
+    request is open, so a night of twenty passes over two unresolved threads
+    saw two threads and not forty. A round is minted once per finding, so
+    those are rows.
+    """
+
+    seen: set[str] = set()
+    answered: set[str] = set()
+    refused: set[str] = set()
+    escalated: set[tuple[str, ...]] = set()
+    minted = 0
+
+    for row in windowed(rows, since=since, until=until):
+        event = str(row.get("event") or "")
+
+        if event == "lane_pr_threads":
+            for finding in row.get("findings") or []:
+                seen.update(str(one) for one in finding.get("threads") or [])
+
+        elif event == "lane_review_task":
+            minted += 1
+
+        elif event == "lane_thread_resolved":
+            answered.add(str(row.get("thread") or ""))
+
+        elif event == "lane_thread_refused":
+            refused.update(str(one) for one in row.get("threads") or [])
+
+        elif event == "lane_finding_reraised":
+            # A re-raise is recorded every pass the finding stands, and it is
+            # one finding a person has to look at however many passes saw it.
+            escalated.add(tuple(str(one) for one in row.get("threads") or []))
+
+    return ReviewThreads(
+        seen=len(seen),
+        minted=minted,
+        answered=len(answered),
+        refused=len(refused),
+        escalated=len(escalated),
+    )
+
+
 # ----------------------- #
 
 # The morning report (S-0079/D-3, S-0079/D-4). Four lists folded out of the

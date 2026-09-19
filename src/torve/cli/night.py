@@ -81,7 +81,12 @@ def night_show(
     close is an unfinished night and says so, rather than being lost.
     """
 
-    from torve.application.manager import documents, night_report, pull_requests
+    from torve.application.manager import (
+        documents,
+        night_report,
+        pull_requests,
+        review_threads,
+    )
     from torve.application.projections import (
         cross_document_waits,
         lane_landings,
@@ -106,6 +111,10 @@ def night_show(
     rows = stream_rows(root)
     prs = pull_requests(rows, since=report.opened_at, until=report.closed_at)
     docs = documents(rows, since=report.opened_at, until=report.closed_at)
+    # What the review-thread leg did inside the same window (S-0084/D-17),
+    # folded from its own events: the operator reads whether it removed their
+    # thread work or moved it.
+    reviews = review_threads(rows, since=report.opened_at, until=report.closed_at)
     # S-0085/D-6: a task waiting on another document's landing names the
     # document, so the reader knows which pull request to look at.
     waits = cross_document_waits(root, set(lane_landings(root)) | shipped_ids(root))
@@ -117,6 +126,7 @@ def night_show(
                 "night": report.night_id,
                 "pull_requests": prs.__dict__,
                 "documents": docs.__dict__,
+                "review_threads": reviews.__dict__,
                 "opened_at": report.opened_at.isoformat(),
                 "closed_at": report.closed_at.isoformat() if report.closed_at else None,
                 "unfinished": report.unfinished,
@@ -165,6 +175,20 @@ def night_show(
                 str(prs.closed),
             ),
             ("documents", str(docs.opened), str(docs.merged), "—", str(docs.closed)),
+        ],
+    )
+    _table(
+        console,
+        "review threads",
+        ("seen", "rounds minted", "answered", "refused", "escalated"),
+        [
+            (
+                str(reviews.seen),
+                str(reviews.minted),
+                str(reviews.answered),
+                str(reviews.refused),
+                str(reviews.escalated),
+            )
         ],
     )
     _table(

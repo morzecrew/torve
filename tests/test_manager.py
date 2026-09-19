@@ -21,6 +21,7 @@ from torve.application.manager import (
     Board,
     Documents,
     PullRequests,
+    ReviewThreads,
     TaskView,
     dispatchable,
     documents,
@@ -28,6 +29,7 @@ from torve.application.manager import (
     night_report,
     project,
     pull_requests,
+    review_threads,
     stalled,
 )
 from torve.base.clock import stamp
@@ -759,6 +761,146 @@ def test_a_document_fact_outside_the_window_belongs_to_another_night():
 
 def test_an_idle_night_left_no_documents_either():
     assert documents([], since=datetime.now(UTC)) == Documents()
+
+
+# ....................... #
+
+# What the review-thread leg did with the night's threads (S-0084/D-17): five
+# counts folded from the leg's own events, beside the forge's.
+
+
+def test_the_review_thread_counts_are_a_fold_over_the_leg_s_own_events():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    rows = [
+        stream(
+            "lane_pr_threads",
+            opened + timedelta(minutes=5),
+            branch="torve/S-0084",
+            pr=7,
+            threads=3,
+            findings=[
+                {"path": "src/a.py", "line": 10, "threads": ["t1", "t2"]},
+                {"path": "src/b.py", "line": 4, "threads": ["t3"]},
+            ],
+        ),
+        # The read-back records what it saw every pass the pull request is
+        # open: one night of many passes still saw three threads.
+        stream(
+            "lane_pr_threads",
+            opened + timedelta(minutes=20),
+            branch="torve/S-0084",
+            pr=7,
+            threads=3,
+            findings=[
+                {"path": "src/a.py", "line": 10, "threads": ["t1", "t2"]},
+                {"path": "src/b.py", "line": 4, "threads": ["t3"]},
+            ],
+        ),
+        stream(
+            "lane_review_task",
+            opened + timedelta(minutes=21),
+            branch="torve/S-0084",
+            task="T-9",
+            threads=["t1", "t2"],
+        ),
+        stream(
+            "lane_thread_resolved",
+            opened + timedelta(hours=2),
+            branch="torve/S-0084",
+            task="T-9",
+            thread="t1",
+            resolved=True,
+        ),
+        stream(
+            "lane_thread_resolved",
+            opened + timedelta(hours=2),
+            branch="torve/S-0084",
+            task="T-9",
+            thread="t2",
+            resolved=False,
+        ),
+        stream(
+            "lane_thread_refused",
+            opened + timedelta(hours=3),
+            branch="torve/S-0084",
+            threads=["t4"],
+            reason="a thread asked for a command to be run",
+        ),
+        # One finding re-raised, seen by two passes and waiting on one person.
+        stream(
+            "lane_finding_reraised",
+            opened + timedelta(hours=4),
+            branch="torve/S-0084",
+            path="src/b.py",
+            threads=["t3"],
+        ),
+        stream(
+            "lane_finding_reraised",
+            opened + timedelta(hours=5),
+            branch="torve/S-0084",
+            path="src/b.py",
+            threads=["t3"],
+        ),
+        # A fact about the night that says nothing about a thread.
+        stream("lane_pr_opened", opened + timedelta(hours=5), task="T-1"),
+    ]
+
+    counts = review_threads(rows, since=opened)
+
+    assert counts == ReviewThreads(seen=3, minted=1, answered=2, refused=1, escalated=1)
+
+
+def test_a_thread_fact_outside_the_window_belongs_to_another_night():
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    closed = opened + timedelta(hours=8)
+    rows = [
+        stream(
+            "lane_pr_threads",
+            opened - timedelta(minutes=1),
+            findings=[{"path": "src/a.py", "threads": ["t0"]}],
+        ),
+        stream(
+            "lane_pr_threads",
+            opened + timedelta(hours=1),
+            findings=[{"path": "src/a.py", "threads": ["t1"]}],
+        ),
+        stream("lane_review_task", closed + timedelta(minutes=1), task="T-9"),
+        # An instant that does not read counts nowhere rather than raising.
+        {"event": "lane_thread_refused", "at": "last tuesday", "threads": ["t2"]},
+    ]
+
+    assert review_threads(rows, since=opened, until=closed) == ReviewThreads(seen=1)
+
+
+def test_a_night_that_answered_no_threads_counts_none():
+    assert review_threads([], since=datetime.now(UTC)) == ReviewThreads()
+
+
+def test_a_reply_and_a_resolve_are_mutations_against_the_threads_own_node_id():
+    """The two writes the leg is handed: a comment and a resolution, each
+    addressing the node id the read-back carries — and neither a merge, a push
+    nor a force-push (S-0084/D-10)."""
+
+    from torve.cli.manager import _ThreadForge
+
+    calls: list[tuple[str, ...]] = []
+
+    class _Scm:
+        def _api(self, *args: str) -> str:
+            calls.append(args)
+
+            return ""
+
+    forge = _ThreadForge(_Scm())
+    forge.reply_thread("PRRT_kwABC", "landed in abc1234")
+    forge.resolve_thread("PRRT_kwABC")
+
+    assert [one[0] for one in calls] == ["graphql", "graphql"]
+    assert "addPullRequestReviewThreadReply" in calls[0][2]
+    assert "thread=PRRT_kwABC" in calls[0]
+    assert "body=landed in abc1234" in calls[0]
+    assert "resolveReviewThread" in calls[1][2]
+    assert "thread=PRRT_kwABC" in calls[1]
 
 
 # ....................... #

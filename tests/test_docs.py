@@ -53,6 +53,23 @@ def test_every_page_the_nav_names_exists():
     assert not missing, f"the nav names pages that are not there: {missing}"
 
 
+def test_the_operating_guide_documents_the_review_thread_leg_as_the_code_runs_it():
+    # The one thing prose can get wrong here without anybody noticing is the
+    # default: a guide that reads as though the leg is on is a guide that
+    # sends somebody looking for threads nothing was ever going to answer.
+    from torve.config.runconfig import ThreadsConfig
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+
+    assert ThreadsConfig().enabled is False
+    assert "threads:" in guide, "the operating guide names no review-thread configuration"
+    assert "off by default" in guide
+
+    for key in ("enabled", "bots", "rounds_per_pass"):
+        assert key in ThreadsConfig.model_fields
+        assert key in guide, f"the operating guide does not name threads.{key}"
+
+
 def test_no_page_claims_the_retired_truth_boundary():
     # The site taught "git holds what SHOULD be, the store holds what
     # HAPPENED" as the organising rule until S-0044/D-1 inverted it. The pages

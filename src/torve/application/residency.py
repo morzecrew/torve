@@ -80,6 +80,13 @@ Lane = Callable[[], Awaitable[list[str]]]
 # *when* it may run.
 Standing = Callable[[], tuple[str, bool]]
 
+# One pass of the review-thread leg (S-0084/D-16), returning what it did and
+# whether it minted anything. Wired by the composition root because reading
+# and answering threads is the forge, and this module decides only *when*.
+# Bounded per pass by its own configured term, and stopped by a pause for the
+# lane's reason: a round it mints is work somebody has to triage.
+Threads = Callable[[], tuple[str, bool]]
+
 # Whether a term of the night has been reached, asked once at the top of a
 # pass and never inside one. Returns the reason to stop, or None to go round
 # again. A callable because every term it reads — the spend, the queue, the
@@ -429,6 +436,7 @@ async def once(
     standing: Standing | None = None,
     relay: Relay | None = None,
     lane: Lane | None = None,
+    threads: Threads | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -481,6 +489,15 @@ async def once(
         # advancing the repository, not delivering what is already owed.
         await _leg(root, "lane", lane)
 
+    if threads is not None and not paused:
+        # S-0084/D-16: after the landing leg and before the mint. A round
+        # minted this pass is on the board this pass, and the answering half
+        # runs after the landing that earned the answer — a thread is resolved
+        # only once the record says the round's task landed. The pause stops it
+        # where the relay's does not, for the lane's reason one leg on: a round
+        # is new work, and a pause says nobody can triage it.
+        await _leg(root, "threads", threads)
+
     if standing is not None and not paused:
         # S-0023/bounds-because-this-is-the-leg-that-can-grow: standing before the scan, so a contract this pass
         # mints is on the board this pass. S-0023/D-6's first bound is the
@@ -525,6 +542,7 @@ async def serve(
     standing: Standing | None = None,
     relay: Relay | None = None,
     lane: Lane | None = None,
+    threads: Threads | None = None,
     stop: Stop | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
@@ -568,6 +586,7 @@ async def serve(
             standing=standing,
             relay=relay,
             lane=lane,
+            threads=threads,
         )
 
         if task_id is not None:
