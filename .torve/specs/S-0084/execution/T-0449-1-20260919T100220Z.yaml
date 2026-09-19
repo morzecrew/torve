@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0449
+phase: 2
+base: 705c44cfc39375b616016a414b461eb57bfa7b5f
+commit: 9405b0373ce5d61605dc9f103ba09c072864eb29
+at: '2026-09-19T10:02:20Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: OPEN
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: LOCKED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: LOCKED
+  - id: D-11
+    grade: LOCKED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: OPEN
+  - id: D-14
+    grade: LOCKED
+  - id: D-15
+    grade: ASSUMED
+  - id: D-16
+    grade: ASSUMED
+  - id: D-17
+    grade: ASSUMED
+entries:
+  - decision: D-10
+    grade: LOCKED
+    at: '2026-09-19T10:00:23Z'
+    claim: >-
+      the leg holds no merge, push or force-push: its forge surface carries only a
+      read, a reply and a resolve, so a round reaches the forge as a landing by the
+      lane's own act
+    evidence: >-
+      src/torve/application/reviewleg.py:129-138 — the ThreadForge protocol the leg
+      is written against; the leg's own module imports no vcs surface
+    action: decided
+  - decision: D-11
+    grade: LOCKED
+    at: '2026-09-19T10:00:23Z'
+    claim: >-
+      a person's thread is replied to and left: only a login named in the configuration's
+      bot list is resolved, and nothing else in the module calls resolve
+    evidence: >-
+      src/torve/application/reviewleg.py:542-549 — the reply is unconditional, the
+      resolve is gated on the bot list
+    action: decided
