@@ -1995,7 +1995,22 @@ def adopt(
             check=False,
         )
 
-        if proc.returncode == 0:
+        # A repository that keeps its contracts on the record ignores the
+        # tasks directory (S-0056/D-9): the file is the importer's to mint on
+        # the next pass, and there is nothing for the tree to commit. The
+        # first live review round on bloomery (#160) died here.
+        if proc.returncode != 0 and "ignored by one of your .gitignore" in proc.stderr:
+            engine_event(
+                root,
+                "intake_uncommitted",
+                {
+                    "task": task_id,
+                    "adopted": list(ids.values()),
+                    "reason": "the tasks directory is ignored: the record holds the contract",
+                },
+            )
+            proc = subprocess.run(["true"], capture_output=True, text=True, check=False)
+        elif proc.returncode == 0:
             proc = subprocess.run(
                 [
                     "git",

@@ -1017,6 +1017,34 @@ def test_a_document_is_a_source_a_run_may_name(seeded):
     assert task.source == "S-0099"
 
 
+def test_adopt_in_a_repository_that_ignores_its_tasks_directory_commits_nothing(seeded):
+    """S-0056/D-9: a repository keeping its contracts on the record ignores
+    `.torve/tasks/`; adoption writes the file for the importer and commits
+    nothing, instead of dying on git refusing an ignored path (the first live
+    review round on bloomery)."""
+    from torve.application.projections import stream_rows
+
+    source = adopted_ready_run(seeded)
+    ignore = seeded.root / ".torve" / ".gitignore"
+    ignore.write_text((ignore.read_text(encoding="utf-8") if ignore.exists() else "") + "tasks/\n")
+    before = subprocess.run(
+        ["git", "-C", str(seeded.root), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout
+
+    adopted = adopt(seeded.root, source, RunnerConfig())
+
+    assert len(adopted) == 2
+    for task_id in adopted:
+        assert (seeded.root / ".torve" / "tasks" / task_id / "contract.yaml").is_file()
+    after = subprocess.run(
+        ["git", "-C", str(seeded.root), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout
+    assert after == before
+    (row,) = [r for r in stream_rows(seeded.root) if r.get("event") == "intake_uncommitted"]
+    assert row["adopted"] == adopted
+    assert not (seeded.root / ".torve" / "tick.lock").exists()
+
+
 def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
     source = adopted_ready_run(seeded)
     adopted = adopt(seeded.root, source, RunnerConfig())
