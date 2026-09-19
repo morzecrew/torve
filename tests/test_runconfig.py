@@ -885,3 +885,53 @@ def test_a_stop_class_nothing_escalates_is_refused_naming_what_does(tmp_path):
     assert load(tmp_path, "schema_version: 1\nnight:\n  stop_on: [killed]\n").night.stop_on == [
         "killed"
     ]
+
+
+# ....................... #
+# The review-thread leg's terms (S-0084/D-5). Off by default, and refused at
+# load when it is on without the pull request it reads — a configuration that
+# could only ever fail at the first thread fails while a person is there.
+
+
+def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> None:
+    defaults = load(tmp_path, "schema_version: 1\n").threads
+
+    assert defaults.enabled is False
+    assert defaults.bots == [] and defaults.rounds_per_pass == 1
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "scm:\n  repo: acme/widgets\n  open_pr: true\n"
+        'threads:\n  enabled: true\n  bots: ["coderabbitai[bot]"]\n  rounds_per_pass: 2\n',
+    )
+
+    assert config.threads.enabled is True
+    assert config.threads.bots == ["coderabbitai[bot]"]
+    assert config.threads.rounds_per_pass == 2
+
+
+@pytest.mark.parametrize(
+    "promotion",
+    [
+        "",
+        "promotion:\n  landing: pull_request\n",
+        "promotion:\n  unit: document\n",
+    ],
+)
+def test_the_thread_leg_is_refused_under_any_other_landing(tmp_path: Path, promotion: str) -> None:
+    with pytest.raises(ValueError, match=r"promotion\.unit: document"):
+        load(
+            tmp_path,
+            f"schema_version: 1\n{promotion}scm:\n  repo: acme/widgets\n  open_pr: true\n"
+            "threads:\n  enabled: true\n",
+        )
+
+    # Off, the same configuration loads: configuring nothing decides nothing.
+    assert (
+        load(
+            tmp_path,
+            f"schema_version: 1\n{promotion}scm:\n  repo: acme/widgets\n  open_pr: true\n",
+        ).threads.enabled
+        is False
+    )

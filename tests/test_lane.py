@@ -1655,3 +1655,67 @@ def test_the_served_leg_publishes_and_reads_back_as_the_manual_verb_does(lane_re
     # checkout's base was never moved by either.
     assert asked == [document]
     assert git(lane_repo, "rev-parse", "main") == base_before
+
+
+# ....................... #
+# The read-back records what it saw (S-0084/D-6): a night run before the leg
+# exists says in its own record what a leg would have acted on.
+
+
+def _threaded(*anchors: tuple[str, str, int | None]):
+    from torve.application.ports import ReviewThread, ThreadComment
+
+    return tuple(
+        ReviewThread(
+            id=thread_id,
+            path=path,
+            line=line,
+            comments=(ThreadComment(author="coderabbitai[bot]", body="fix this"),),
+        )
+        for thread_id, path, line in anchors
+    )
+
+
+def test_the_document_read_back_records_the_findings_it_saw(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0920", {"T-7310": "ten.py"}, published)
+    asked: list[str] = []
+    info = _pr(number=30, state="open")
+    info.threads = _threaded(
+        ("PRRT_a", "ten.py", 4), ("PRRT_b", "ten.py", 6), ("PRRT_c", "other.py", 40)
+    )
+
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(info, asked),
+        unit="document",
+    )
+
+    seen = [e for e in _events(lane_repo) if e.get("event") == "lane_pr_threads"]
+    assert len(seen) == 1
+    assert seen[0]["branch"] == document and seen[0]["pr"] == 30
+    assert seen[0]["threads"] == 3
+    # Grouped by what they anchor to, so the two near lines are one finding
+    # (S-0084/D-3) — and nothing was minted from any of it.
+    assert seen[0]["findings"] == [
+        {"path": "other.py", "line": 40, "end_line": 40, "threads": ["PRRT_c"]},
+        {"path": "ten.py", "line": 4, "end_line": 6, "threads": ["PRRT_a", "PRRT_b"]},
+    ]
+
+
+def test_a_document_pull_request_with_no_unresolved_thread_records_nothing(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    _landed_document(lane_repo, tmp_path, "S-0921", {"T-7311": "eleven.py"}, published)
+    asked: list[str] = []
+
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published),
+        forge=_forge(_pr(number=31, state="open"), asked),
+        unit="document",
+    )
+
+    assert [e for e in _events(lane_repo) if e.get("event") == "lane_pr_threads"] == []

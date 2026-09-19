@@ -550,3 +550,107 @@ def test_retire_pr_sees_a_flip_inside_the_grace(monkeypatch):
     assert scm.retire_pr("torve/T-0100", "landed") == "merged"
     assert naps == [2.0]
     assert not any("pr close" in c for c in calls)
+
+
+# ....................... #
+# The unresolved threads of an open pull request, over the forge's GraphQL
+# pull request (S-0084/D-1, S-0084/D-2): resolution is a `reviewThreads` fact
+# the REST review-comment endpoint does not carry.
+
+
+def _graphql_threads(nodes: list[dict]) -> str:
+    return json.dumps(
+        {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": nodes}}}}}
+    )
+
+
+def test_unresolved_threads_reads_graphql_and_drops_the_resolved(monkeypatch):
+    answered = _graphql_threads(
+        [
+            {
+                "id": "PRRT_open",
+                "isResolved": False,
+                "path": "a.py",
+                "line": 3,
+                "comments": {
+                    "nodes": [
+                        {"author": {"login": "coderabbitai[bot]"}, "body": "null check"},
+                        {"author": {"login": "a-person"}, "body": "agreed"},
+                    ]
+                },
+            },
+            {
+                "id": "PRRT_closed",
+                "isResolved": True,
+                "path": "a.py",
+                "line": 9,
+                "comments": {"nodes": [{"author": {"login": "coderabbitai[bot]"}, "body": "was"}]},
+            },
+            {
+                "id": "PRRT_file",
+                "isResolved": False,
+                "path": "b.py",
+                "line": None,
+                "comments": {"nodes": [{"author": {"login": "sonarcloud[bot]"}, "body": "file"}]},
+            },
+        ]
+    )
+    calls = scripted_gh(monkeypatch, {"graphql": answered})
+
+    threads = GhScm("example/lab", token_env=None).unresolved_threads(12)
+
+    assert [t.id for t in threads] == ["PRRT_open", "PRRT_file"]
+    assert (threads[0].path, threads[0].line) == ("a.py", 3)
+    # The node id is what a reply or a resolve addresses, so it rides along.
+    assert threads[0].author == "coderabbitai[bot]"
+    assert [c.body for c in threads[0].comments] == ["null check", "agreed"]
+    # A file-level thread anchors to no line rather than to line 0.
+    assert threads[1].line is None
+
+    graphql = [c for c in calls if "graphql" in c]
+    assert len(graphql) == 1
+    assert (
+        "reviewThreads" in graphql[0] and "owner=example" in graphql[0] and "name=lab" in graphql[0]
+    )
+
+    # No repository configured is no call and no threads.
+    bare = scripted_gh(monkeypatch, {"graphql": answered})
+    assert GhScm(None, token_env=None).unresolved_threads(12) == ()
+    assert bare == []
+
+
+def test_pr_for_branch_answers_with_the_threads_beside_the_state(monkeypatch):
+    # S-0084/D-1: beside the state and in the same call — never a second
+    # question the lane has to remember to ask.
+    listed = json.dumps([{"number": 12, "state": "OPEN", "headRefOid": "a" * 40}])
+    answered = _graphql_threads(
+        [
+            {
+                "id": "PRRT_open",
+                "isResolved": False,
+                "path": "a.py",
+                "line": 3,
+                "comments": {"nodes": [{"author": {"login": "coderabbitai[bot]"}, "body": "b"}]},
+            }
+        ]
+    )
+    scripted_gh(monkeypatch, {"pr list": listed, "graphql": answered})
+
+    info = GhScm("example/lab", token_env=None).pr_for_branch("torve/S-0084")
+
+    assert info is not None and info.state == "open"
+    assert [t.id for t in info.threads] == ["PRRT_open"]
+
+    # A settled pull request has no conversation left to answer, so the
+    # verdict costs no thread call.
+    merged = json.dumps([{"number": 12, "state": "MERGED", "mergeCommit": {"oid": "b" * 40}}])
+    calls = scripted_gh(monkeypatch, {"pr list": merged, "graphql": answered})
+    settled = GhScm("example/lab", token_env=None).pr_for_branch("torve/S-0084")
+
+    assert settled is not None and settled.threads == ()
+    assert not any("graphql" in c for c in calls)
+
+    # No pull request for the branch stays None, and asks nothing further.
+    none = scripted_gh(monkeypatch, {"pr list": "[]"})
+    assert GhScm("example/lab", token_env=None).pr_for_branch("torve/S-0084") is None
+    assert not any("graphql" in c for c in none)

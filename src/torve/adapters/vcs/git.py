@@ -19,7 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
-from torve.application.ports import PrInfo
+from torve.application.ports import PrInfo, ReviewThread, ThreadComment
 from torve.domain.spec import LANDING_FILE
 
 # ----------------------- #
@@ -683,7 +683,8 @@ class GhScm:
     def pr_for_branch(self, branch: str) -> PrInfo | None:
         """What happened to this branch (S-0080/D-6): the branch's pull request
         in whatever state the forge holds it, with the merge commit when it
-        was merged — the sha a squash lands in. None when the forge knows no
+        was merged — the sha a squash lands in, and the unresolved review
+        threads when it is still open (S-0084/D-1). None when the forge knows no
         pull request for the branch."""
 
         listed = cast(
@@ -694,7 +695,105 @@ class GhScm:
             ),
         )
 
-        return self._pr_info(listed[0]) if listed else None
+        if not listed:
+            return None
+
+        info = self._pr_info(listed[0])
+
+        if info.state == "open":
+            info.threads = self.unresolved_threads(info.number)
+
+        return info
+
+    # ....................... #
+
+    THREADS_QUERY = """
+      query($owner: String!, $name: String!, $number: Int!) {
+        repository(owner: $owner, name: $name) {
+          pullRequest(number: $number) {
+            reviewThreads(first: 100) {
+              nodes {
+                id
+                isResolved
+                path
+                line
+                comments(first: 50) { nodes { author { login } body } }
+              }
+            }
+          }
+        }
+      }
+    """
+
+    def unresolved_threads(self, number: int) -> tuple[ReviewThread, ...]:
+        """The pull request's unresolved review threads, over the forge's
+        GraphQL pull request (S-0084/D-2).
+
+        `isResolved` is a `reviewThreads` fact the REST review-comment
+        endpoint does not carry, and `id` here is the GraphQL node id a reply
+        or a resolve addresses — which is why the thread read lives on this
+        endpoint and not beside `review_threads`. Every thread comes back
+        whoever wrote it; who counts as a bot is the caller's term, not the
+        adapter's.
+        """
+
+        if not self.repo:
+            return ()
+
+        owner, _, name = self.repo.partition("/")
+        answered = json.loads(
+            self._api(
+                "graphql",
+                "-f",
+                f"query={self.THREADS_QUERY}",
+                "-f",
+                f"owner={owner}",
+                "-f",
+                f"name={name}",
+                "-F",
+                f"number={number}",
+            )
+            or "{}"
+        )
+        repository = cast("dict[str, Any]", answered.get("data") or {}).get("repository") or {}
+        pull_request = cast("dict[str, Any]", repository).get("pullRequest") or {}
+        nodes = cast(
+            "list[dict[str, Any]]",
+            (cast("dict[str, Any]", pull_request).get("reviewThreads") or {}).get("nodes") or [],
+        )
+
+        threads: list[ReviewThread] = []
+
+        for node in nodes:
+            if node.get("isResolved"):
+                continue
+
+            comments = cast(
+                "list[dict[str, Any]]",
+                (cast("dict[str, Any]", node.get("comments") or {})).get("nodes") or [],
+            )
+            line = node.get("line")
+
+            threads.append(
+                ReviewThread(
+                    id=str(node.get("id", "")),
+                    path=str(node.get("path", "")),
+                    line=int(line) if line is not None else None,
+                    comments=tuple(
+                        ThreadComment(
+                            author=str(
+                                (cast("dict[str, Any]", comment.get("author") or {})).get(
+                                    "login", ""
+                                )
+                            ),
+                            body=str(comment.get("body", "")),
+                        )
+                        for comment in comments
+                    ),
+                )
+            )
+
+        return tuple(threads)
 
     # ....................... #
 

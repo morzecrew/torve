@@ -1229,6 +1229,34 @@ class ReviewConfig(BaseModel):
 # ....................... #
 
 
+class ThreadsConfig(BaseModel):
+    """The review-thread leg's terms (S-0084/D-5): which logins are bots, how
+    many rounds one pass may mint, and whether the leg runs at all.
+
+    Off by default — a repository configured today gains nothing until
+    somebody writes that it should. On, it is refused at load under any
+    landing but `pull_request` with `unit: document` (see the refusal on
+    `RunnerConfig`): the leg reads a document's pull request, so a
+    configuration that could only ever fail at the first thread fails while a
+    person is standing at the terminal instead.
+    """
+
+    model_config = STRICT
+
+    enabled: bool = False
+    """Whether the leg runs at all; off by default. Spelled `enabled` rather than `on`
+    because YAML 1.1 resolves an unquoted `on` key to a boolean."""
+    bots: list[str] = Field(default_factory=list)
+    """The forge logins whose threads the engine may answer and resolve. Every other
+    thread is a person's: replied to and left (S-0084/D-11). Empty answers nobody."""
+    rounds_per_pass: int = 1
+    """How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per
+    pass; the night's own budget bounds it across the night."""
+
+
+# ....................... #
+
+
 class PromotionConfig(BaseModel):
     """Landing policy (S-0006/promotion). The operator's `torve merge` is always
     the recorded approval; `auto_merge` is the opt-in that lets a manager
@@ -1539,6 +1567,8 @@ class RunnerConfig(BaseModel):
     promotion: PromotionConfig = Field(default_factory=PromotionConfig)
     """Landing policy: what a candidate must satisfy before the lane lands it
     (S-0006/promotion)."""
+    threads: ThreadsConfig = Field(default_factory=ThreadsConfig)
+    """The review-thread leg's terms, off by default (S-0084/D-5)."""
     store: StoreConfig = Field(default_factory=StoreConfig)
     """The durable run store (S-0001/D-14, S-0001/D-15)."""
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
@@ -1684,6 +1714,28 @@ class RunnerConfig(BaseModel):
             )
 
             raise ValueError(f"character_routing names no configured tier: {named}")
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _the_thread_leg_has_a_pull_request_to_read(self) -> RunnerConfig:
+        """The leg reads the unresolved threads of a document's pull request
+        (S-0084/D-5), so a configuration turning it on without one could only
+        ever fail at the first thread — at 04:00, with nobody there. It fails
+        here instead, naming the two keys to set."""
+
+        if not self.threads.enabled:
+            return self
+
+        if self.promotion.landing != "pull_request" or self.promotion.unit != "document":
+            raise ValueError(
+                "threads.enabled needs promotion.landing: pull_request with "
+                "promotion.unit: document — the leg answers the threads on a "
+                f"document's pull request, and this configuration lands "
+                f"{self.promotion.landing!r} at the {self.promotion.unit!r} unit"
+            )
 
         return self
 

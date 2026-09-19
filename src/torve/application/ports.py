@@ -489,6 +489,44 @@ class Scm(Protocol):
 
 
 @dataclass
+class ThreadComment:
+    """One comment inside a review thread: who said it and what it says."""
+
+    author: str
+    body: str
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class ReviewThread:
+    """One UNRESOLVED review thread on a pull request (S-0084/D-1, S-0084/D-2).
+
+    Resolution is a `reviewThreads` fact the REST review-comment endpoint does
+    not carry, and the identifier a reply or a resolve addresses is a GraphQL
+    node id, so a thread in this shape only ever comes from the forge's
+    GraphQL pull request. `line` is None for a file-level thread — one the
+    forge holds against the file rather than a line of it, outdated or
+    whole-file.
+    """
+
+    id: str
+    path: str
+    line: int | None
+    comments: tuple[ThreadComment, ...] = ()
+
+    @property
+    def author(self) -> str:
+        """Who opened the thread — the root comment's author."""
+
+        return self.comments[0].author if self.comments else ""
+
+
+# ....................... #
+
+
+@dataclass
 class PrInfo:
     """One pull request as the forge reports it (S-0005/triggers): enough to
     apply the skip rules and locate the head, nothing more."""
@@ -502,6 +540,11 @@ class PrInfo:
     changed_files: int
     state: str  # open | closed | merged, forge-cased
     merge_commit: str = ""  # the sha a merge landed in, "" unless merged (S-0080/D-6)
+    # S-0084/D-1: the unresolved threads of the open pull request, beside the
+    # state and in the same call — never a second question the lane has to
+    # remember to ask. Empty for a pull request nobody has reviewed, and for
+    # every state but open.
+    threads: tuple[ReviewThread, ...] = ()
 
 
 # ....................... #

@@ -28,6 +28,7 @@ from torve.application.feedback import capture_feedback
 from torve.application.ports import CiStatus, LaneVcs, PrInfo
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
+from torve.application.threads import group_findings
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
@@ -974,6 +975,42 @@ def document_tasks(root: Path, branch: str) -> list[str]:
 # ....................... #
 
 
+def _record_threads(root: Path, branch: str, info: PrInfo) -> None:
+    """What the read-back saw on an open document pull request (S-0084/D-6):
+    the branch, the pull request, and each finding with its anchor and its
+    thread identifiers — whether or not anything is then minted from it.
+
+    So a night run before the leg exists says in its own record what a leg
+    would have acted on, which makes the first honest measurement of the leg
+    predate the leg. Nothing is recorded for a pull request carrying no
+    unresolved thread: there is nothing a leg would have done."""
+
+    if not info.threads:
+        return
+
+    engine_event(
+        root,
+        "lane_pr_threads",
+        {
+            "branch": branch,
+            "pr": info.number,
+            "threads": len(info.threads),
+            "findings": [
+                {
+                    "path": finding.path,
+                    "line": finding.line,
+                    "end_line": finding.end_line,
+                    "threads": list(finding.ids),
+                }
+                for finding in group_findings(info.threads)
+            ],
+        },
+    )
+
+
+# ....................... #
+
+
 def _escalate_document(root: Path, branch: str, tasks: list[str], detail: str) -> None:
     """A document branch a person has to unstick escalates the work it
     carries (S-0083/D-13): the branch has no run state of its own, and an
@@ -1220,6 +1257,7 @@ def _document_verdicts(
             )
 
         else:
+            _record_threads(root, branch, info)
             _rebase_document(root, vcs, publish, document, branch, entry, info.number, results)
 
         if info is not None and info.state == "closed":
