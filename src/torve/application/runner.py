@@ -441,11 +441,25 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             digest = config_hash(
                 manifest_path, run.worktree, run.config, image_digest=run.image_digest
             )
-            record = build_record(ctx, RunReport(exit_code=1), digest, agent=run.meta)
-            _write_attempt_record(run, record, state.attempts)
             summary = "empty diff against base — no changes produced"
+            # Named in the results, so the record and the next attempt's
+            # feedback carry the refusal rather than a red with no gate
+            # (bloomery T-0006 repeated the same no-op against a verdict it
+            # could not read).
+            refusal = GateResult(
+                name="empty-diff",
+                outcome="fail",
+                state="blocking",
+                exit_code=1,
+                sha=ctx.head_sha,
+                output=summary,
+            )
+            record = build_record(
+                ctx, RunReport(results=[refusal], exit_code=1), digest, agent=run.meta
+            )
+            _write_attempt_record(run, record, state.attempts)
 
-            return 1, summary, digest, [], ctx.patch
+            return 1, summary, digest, [refusal], ctx.patch
 
         report = run_gates(ctx)
 
