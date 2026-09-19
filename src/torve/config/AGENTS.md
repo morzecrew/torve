@@ -600,6 +600,13 @@ A phasing file names the documents whose landed tree its work builds on under a 
 - Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/phasing.json`
 - Consequence: S-0009 declares `after: [S-0008]` and `depends_on: []` and both are true; a document may name one document in both lists or in either
 
+### S-0086/D-6 — `ASSUMED` (The review tier's word reaches the work)
+
+The leg's section gains `sources`, a list of `forge` and `record` defaulting to `[forge]`; `record` is refused at load under any landing but `pull_request` with `unit: document`; the second ask has no term
+
+- Paths: `src/torve/config/runconfig.py` `tests/test_runconfig.py`
+- Consequence: a configuration that turned the leg on before this document changes nothing; the second ask is what an unreadable verdict costs wherever the tier runs
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
