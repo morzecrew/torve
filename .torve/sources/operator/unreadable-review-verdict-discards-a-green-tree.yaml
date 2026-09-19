@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/unreadable-review-verdict-discards-a-green-tree
+kind: operator
+ref: 'bloomery T-0014 attempt 1, 2026-09-19: reviewer T-0017 left a background task, envelope
+  without a findings document; run escalated gate_infrastructure_failure; tree checkpointed
+  by hand, phase rerun from base'
+title: An unreadable review verdict escalates a run whose gates were green, with its tree
+  uncommitted
+at: '2026-09-19T12:42:16Z'
+summary: |
+  T-0014 passed every gate in eight minutes. The reviewer's session left a
+  background task running and its final envelope carried no findings
+  document, so `run_review` recorded `unparseable` and the runner escalated
+  `gate_infrastructure_failure` at once, as S-0043/D-4 says. The candidate
+  is committed only at `reviewed → ready`, after the review, so the tree was
+  in the worktree and nowhere else; no verb resumes an escalated host run
+  and S-0026/D-8 keeps continuation to budget exhaustion. The operator
+  committed the tree by hand, reaped the run and reran the phase from base:
+  seventeen minutes and a sandbox for a reviewer's stray subprocess.
+
+  Beside it, the six findings the tier recorded on S-0009's three phases —
+  four `major`, all real — reached the pull request unfixed under
+  `blocks_at: blocker`, and a person swept the record by hand. Both halves
+  are S-0086's.

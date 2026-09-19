@@ -1,0 +1,250 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0086
+title: The review tier's word reaches the work
+kind: design
+status: draft
+implementation: none
+depends_on: [S-0043, S-0084]
+informed_by: [S-0026, S-0069]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Two ways the review tier's word is lost today, and the small mechanism that keeps each.
+
+  An unreadable verdict escalates the run at once (S-0043/D-4) with the attempt's tree
+  uncommitted: the gates were green, the reviewer's envelope carried no findings document,
+  and the candidate that earned the review is gone with the worktree. The tier is asked
+  once more in the same copy before that escalation, and whatever the second answer, the
+  tree the gates judged is checkpointed on the task's branch first.
+
+  A readable verdict below the blocking grade is recorded and reaches nobody: under
+  `blocks_at: blocker` a major finding is a row on the stream, and the pull request it
+  concerns goes to a person carrying the defect. The findings a task-gated review records
+  on a document branch become a second source of rounds for the review-thread leg
+  (S-0084): grouped with the forge's threads by the same anchor rule, fenced the same way,
+  answered by the record when the round lands, never raised twice.
+motivation: |
+  bloomery, 2026-09-19, S-0009's three phases under the review tier turned on for the
+  first time (`blocks_at: blocker`).
+
+  T-0014's first attempt did its work in eight minutes and passed every gate. The reviewer
+  (T-0017) left a background task running in its own session and its final envelope
+  carried no findings document; the runner read that as `review output unparseable` and
+  escalated `gate_infrastructure_failure`, which S-0043/D-4 says it should. The worktree
+  held the candidate, uncommitted. There is no verb that resumes an escalated host run,
+  and S-0026/D-8 limits continuation to budget exhaustion, so the operator committed the
+  tree by hand as a checkpoint, reaped the run and reran the phase from base — seventeen
+  minutes and one sandbox to recover from a reviewer's stray subprocess.
+
+  Across the same three phases the tier recorded six findings, four of them `major`: a
+  replay that printed success over a comparison it never made, a cache key that defeated
+  the shared corpus the design row described, an interpreter pin the job never used, a
+  pull-request leg red from its first run. Every one was real. Every one reached the pull
+  request unfixed, because `blocks_at: blocker` is the setting that lets a first tier run
+  without stopping the night, and a non-blocking finding's whole life is one row on the
+  stream. A person read the record, fixed the six by hand on the branch, and then broke the
+  phase's own tests doing it. The engine had the findings before the branch was ready and
+  had, since S-0084 landed that morning, a leg that turns a reviewer's claim into a round
+  on exactly that branch — for claims that arrive as forge threads only.
+current_state: |
+  The tier (S-0043, `review.py`): after the gates pass, `run_review` stages a copy, asks the
+  reviewer, and parses its output into a findings document. `parse_findings` returning None
+  is `unparseable`; a schema refusal is `refusal`. Either is written to the record as such
+  and the runner escalates `GATE_INFRASTRUCTURE_FAILURE` at once — S-0043/D-4: infrastructure
+  is not a revisable defect, so the blocker-revision budget does not apply. Findings that
+  parse are filtered to those whose evidence locates in the tree under judgment, then
+  split by `review.blocks_at`: blockers spend `blocker_revisions` in-run and then escalate
+  `blocker_finding`; the rest are recorded as non-blocking and the run proceeds to `ready`.
+  The candidate is committed at `reviewed → ready`, after the review, so an escalation from
+  the review stage leaves the tree only in the worktree.
+
+  The checkpoints that exist: the budget checkpoint (S-0026/D-9) commits the tree when the
+  attempt runs out of wallclock or tokens, and the convicted-tree commit (S-0069/D-4) does
+  the same when a gate convicts, so a repair starts from it. Neither fires on the review
+  stage's escalations.
+
+  The leg (S-0084, `reviewleg.py`): once per served pass, for each open document branch,
+  the forge's unresolved threads are grouped into findings by anchor (`threads.py`), one
+  finding per round, composed with the thread texts fenced as third-party claims, minted
+  through the adoption path and landed by the lane. A round's reply and resolve are gated
+  on the record saying it landed. The leg reads one source: `PrInfo.threads`.
+
+  The tier's `Finding` is `severity`, `claim`, `evidence`, where the evidence is a leading
+  `path:line` citation or a backticked command with its output. The leg's `Finding` is
+  `path`, `line`, `end_line` and the threads under it. The two meet at the anchor: a
+  citation is a path and a line.
+goals: |
+  - A reviewer's stray subprocess costs a second ask, not a phase.
+  - Nothing that passed the gates is lost to an escalation the attempt did not cause.
+  - A recorded finding on a document branch is worked before the pull request is ready,
+    by the same round the forge's threads get, and a person never sweeps the record by hand.
+  - One finding, one round, whatever surface raised it; a finding a landed round already
+    answered is escalated, not repeated.
+non_goals: |
+  - Re-asking a reviewer whose verdict parsed. A readable clean verdict stands, and a
+    readable red one is S-0043's revision loop.
+  - Resuming an escalated run. The tree survives on a ref; what continues from it is
+    S-0026/D-8's question and stays it.
+  - Blocking. `blocks_at` keeps its meaning; a non-blocking finding still stops nothing.
+    What changes is that it is worked, on the branch, before a person reads the pull request.
+  - Rounds for task-unit landings. A round lands onto a document branch by the lane's act
+    (S-0084/D-10); under `unit: task` there is no branch a round can be a phase of.
+design:
+  - key: a-second-ask-before-the-escalation
+    md: |
+      An unreadable verdict is asked once more before it is called infrastructure. The
+      review copy is still staged and the prompt is unchanged; `run_review` asks the same
+      reviewer a second time and parses again. A second unreadable answer is recorded with
+      both trace refs and escalates exactly as today — the bound is one, because a reviewer
+      that cannot produce a document twice is broken, and a third ask is a night spent
+      finding that out at the tier's price.
+
+      This amends S-0043/D-4's consequence and not its premise: an unparseable verdict is
+      still not a revisable defect and still never spends `blocker_revisions`. It is asked
+      again the way a flaky acceptance command is run again — once, immediately, and named
+      in the record as having needed it (`review.reasked: true`), so the ledger can count how
+      often the tier's envelope fails and against which harness.
+  - key: the-tree-the-gates-judged-is-on-a-ref-before-the-run-leaves
+    md: |
+      Before any escalation from the review stage — a second unreadable verdict, a schema
+      refusal, a broker budget refusal — the attempt's tree is committed on the task's branch
+      with the checkpoint trailer, kin to the budget checkpoint (S-0026/D-9) and the
+      convicted-tree commit (S-0069/D-4): no landing, the same trailer, so nothing reads it as
+      a landed candidate (S-0059/D-12). A commit that fails does not change the escalation;
+      it is the tree's record, not its owner.
+
+      What a person then does with the ref is unchanged by this document. The state machine
+      has no verb that resumes an escalated run and S-0026/D-8 keeps continuation to budget
+      exhaustion; the operator's hand checkpoint on 2026-09-19 is now the engine's own act,
+      and the follow-up that lets a re-dispatch start from it is Q-1.
+  - key: the-record-is-a-second-source-of-rounds
+    md: |
+      The leg gains a source. Beside the forge's unresolved threads for an open document
+      branch, it reads the stream for `review` records whose target is a task the branch
+      carries, whose trigger is `task_gated`, and whose findings are not yet answered. Each
+      such finding is turned into the leg's shape — path and line from its evidence's
+      leading citation, the claim and evidence as the one "thread" under it, the review
+      task's id as the author — and grouped with the forge's threads by the same anchor
+      rule (S-0084/D-3): a bot and the tier flagging one null check are one finding.
+
+      From there nothing is new. The round is composed as S-0084/D-7 and D-8 say, the
+      finding's text fenced as a third-party claim; the injection refusal (D-9) applies to a
+      recorded claim as to a thread; the rails (D-10, D-11) hold. The leg's per-pass bound
+      counts a record-sourced round like any other.
+
+      A finding whose evidence is a command rather than a citation has no line to anchor.
+      It anchors to the target task's own diff: the files that task touched, as one finding
+      per target, with the claim as its text. A finding whose citation is outside the
+      document's phasing scope is not a round — the branch may not write there — and is
+      escalated to a person with the finding named, as the leg escalates an injecting thread.
+  - key: answered-by-the-record-never-twice
+    md: |
+      A forge thread is answered by a reply and a resolve. A recorded finding has no thread
+      to resolve; it is answered on the stream. When the record says a record-sourced round
+      landed, the leg writes `review_finding_answered` naming the review task, the finding's
+      anchor, the landing sha or the contradicted entry's claim and evidence (S-0084/D-13),
+      and the same words are posted as one comment on the pull request — not a review
+      thread, since none exists — so a person reading the pull request sees what the tier
+      found and what became of it.
+
+      An answered finding is never a round again. The same anchor re-raised by a later
+      review of a later phase reads as a new finding, which is the generous reading
+      S-0084/D-14 already takes for threads; the same anchor re-raised by the same review
+      record is the record the leg already answered and is skipped. A finding the tier
+      raised and the round's attempt contradicted is answered with the contradiction, and
+      the tier is not asked to agree.
+  - key: terms
+    md: |
+      One term on the leg's section: `threads.sources`, a list of `forge` and `record`,
+      defaulting to `[forge]` so a configuration that turned the leg on before this document
+      changes nothing. `record` is refused under any landing but `pull_request` with
+      `unit: document`, as the leg itself is (S-0084/D-5). No term for the second ask: it is
+      what an unreadable verdict costs, everywhere the tier runs.
+tests: |
+  - The tier: a reviewer whose first answer is unparseable and whose second parses records
+    `reasked: true` and proceeds as the second answer says; two unreadable answers escalate
+    `gate_infrastructure_failure` with both trace refs on the record; a refusal is asked
+    again once as well; a readable answer is never re-asked.
+  - The checkpoint: an escalation from the review stage leaves the worktree's tree on the
+    task's branch under the checkpoint trailer and writes no landing; a commit that fails
+    leaves the escalation as it was.
+  - The source: a stream holding a `task_gated` review record with two findings for a task a
+    document branch carries yields two rounds with `record` in `threads.sources` and none
+    without; a citation-anchored finding and a forge thread within the window are one
+    finding; a command-evidence finding anchors to the target's touched files; a finding
+    outside the phasing scope escalates and mints nothing.
+  - The answer: a landed record-sourced round writes `review_finding_answered` and one
+    pull-request comment; the same record on the next pass yields no round; a contradicted
+    finding's answer carries the entry's claim and evidence.
+  - `threads.sources: [record]` under `landing: local` is refused at load.
+docs: |
+  `pages/docs/operating.md`: the review-thread paragraph gains the record as a source and
+  the one term; the tier's paragraph says an unreadable verdict is asked again once and that
+  the tree survives an escalation on a ref. `src/torve/application/AGENTS.md` follows the
+  rows.
+out_of_scope: |
+  - Continuing an escalated run from the checkpoint (Q-1, S-0026/D-8).
+  - Rounds for pull-request-triggered reviews (`trigger: pull_request`): those are already
+    forge threads, and reach the leg as such.
+  - Grading. What the tier calls `major` is the tier's word; this document moves the word,
+    it does not weigh it.
+risks: |
+  - A second ask doubles the tier's cost exactly when the harness is misbehaving. Bounded
+    by one, recorded, and measured by the ledger; if `reasked` is common the harness is the
+    finding.
+  - The record as a source can mint a round for a finding a person disagrees with, on a
+    branch a person is about to merge. The round is one attempt bounded by the night's
+    budget, it lands only through the lane's gates, and its reply names the contradiction
+    when the attempt rejects the claim — the same exposure S-0084 accepted for bot threads.
+  - A checkpoint commit on the task's branch reaches the forge only if something pushes the
+    branch; under the document unit the lane pushes document branches, not task branches, so
+    the ref is local, which is where the tree was anyway.
+alternatives:
+  - option: >-
+      Raise `blocks_at` to `major` so the tier's findings stop the run and S-0043's
+      revision loop works them in-run
+    rejected_because: >-
+      That is the other setting, and it is a night that stops. S-0043's own history
+      is why the default sits at `major` and why bloomery turned the tier on at `blocker`:
+      a first tier on a new repository grades generously, and a blocker revision is
+      an attempt spent inside the run with no landing behind it. A round is an attempt
+      spent on the branch, after the phase landed, bounded per pass — the same work
+      at a place where the night keeps moving.
+    cites: [S-0043/D-1]
+  - option: >-
+      Post the tier's findings as review threads on the pull request and let the existing
+      leg read them back from the forge
+    rejected_because: >-
+      It puts the engine's own record on a third party's surface to read it back:
+      a round trip through the forge's rate budget (S-0083/D-12) for facts the stream
+      already holds, threads a person then sees as the engine reviewing itself, and
+      a fence around text the engine wrote. The pull-request review the tier already
+      posts stays; the leg reads the record it came from.
+    cites: [S-0083/D-12]
+  - option: >-
+      Treat an unreadable verdict as clean, since the gates were green
+    rejected_because: >-
+      S-0005's rule and S-0043/D-4's premise: an unreadable verdict is no verdict,
+      and a review nobody read is not a review. The second ask keeps that; it only
+      refuses to let one stray subprocess decide a phase.
+questions:
+  - id: Q-1
+    text: >-
+      The checkpoint puts the tree on a ref; nothing dispatches from it. S-0026/D-8
+      (LOCKED) limits continuation to budget exhaustion. Should an escalation the
+      attempt did not cause — review infrastructure, broker refusal — be a third continuation
+      trigger, or is the ref for a person's `torve run` to take by hand, and how?
+  - id: Q-2
+    text: >-
+      A record-sourced round's answer is a pull-request comment, since no thread exists.
+      A person reading the pull request then sees the tier's finding twice — once
+      in the tier's own review post, once in the answer. Should the answer instead
+      reply under the tier's review post, which the forge holds as a review and not
+      a thread?
+  - id: Q-3
+    text: >-
+      The command-evidence anchor — one round per target task, over the files it touched
+      — may be wider than the finding. Is a narrower rule worth its cost, or is the
+      round's attempt the right judge of where the claim lands?

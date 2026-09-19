@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      An unreadable review verdict — unparseable or refused — is asked once more of
+      the same reviewer in the same staged copy before it is escalated; a second unreadable
+      answer escalates as S-0043/D-4 says, with both trace refs on the record, and
+      the record names a review that needed the second ask
+    paths: [src/torve/application/review.py, tests/test_review_run.py]
+    consequence: >-
+      a reviewer's stray subprocess costs one more review and not a phase; the ledger
+      can count how often a harness fails to produce a findings document
+    rationale: >-
+      T-0014 on bloomery passed every gate and was escalated with its tree uncommitted
+      because the reviewer's envelope carried no document; the bound is one because
+      a reviewer that cannot answer twice is broken, and a readable verdict is never
+      re-asked
+    cites: [S-0043/D-4]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Before any escalation from the review stage the attempt's tree is committed
+      on the task's branch under the checkpoint trailer, kin to the budget checkpoint
+      and the convicted-tree commit — no landing is written, and a commit that fails
+      leaves the escalation as it was
+    paths: [src/torve/application/runner.py, tests/test_runner.py]
+    consequence: >-
+      nothing that passed the gates is lost to an escalation the attempt did not cause;
+      the operator's hand checkpoint of 2026-09-19 is the engine's own act
+    rationale: >-
+      the candidate is committed at `reviewed → ready`, after the review, so an escalation
+      from the review stage left the tree only in the worktree; S-0026/D-9 and S-0069/D-4
+      already commit the tree at the other two places a run stops short
+    cites: [S-0026/D-9, S-0069/D-4, S-0059/D-12]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The review-thread leg reads a second source: the stream's `task_gated` review
+      records for tasks an open document branch carries, whose findings are not yet
+      answered; each finding becomes the leg's shape — anchor from its evidence's
+      leading citation, its claim and evidence as the one thread under it, the review
+      task as author — and is grouped with the forge's threads by the same anchor
+      rule
+    paths:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/threads.py
+      - tests/test_reviewleg.py
+    consequence: >-
+      a bot and the tier flagging one line are one finding and one round; a non-blocking
+      finding is worked on the branch before the pull request is ready instead of
+      read off the record by a person
+    rationale: >-
+      six real findings on S-0009's three phases reached the pull request unfixed
+      under `blocks_at: blocker`, and the engine had both the findings and, since
+      S-0084, the round that works a reviewer's claim on exactly that branch
+    cites: [S-0084/D-3, S-0084/D-7, S-0084/D-8]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A finding whose evidence is a command rather than a citation anchors to the
+      files its target task's diff touched, as one finding per target; a finding whose
+      citation lies outside the document's phasing scope mints no round and is escalated
+      with the finding named, as an injecting thread is
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      every recorded finding either becomes a round the branch may write or reaches
+      a person by name; none is dropped for having no line
+    rationale: >-
+      a round's scope is the files it anchors, and a claim with no anchor still has
+      a diff it was made about
+    cites: [S-0084/D-9]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A recorded finding is answered on the stream, not the forge: when the record
+      says its round landed, the leg writes `review_finding_answered` with the landing
+      sha or the contradicted entry's claim and evidence, posts the same words once
+      as a pull-request comment, and never mints a round for that finding again
+    paths: [src/torve/application/reviewleg.py, src/torve/application/ports.py]
+    consequence: >-
+      one finding, one round, whatever surface raised it; a person reading the pull
+      request sees what the tier found and what became of it
+    rationale: >-
+      no thread exists to resolve, and S-0084/D-12 and D-14 already fix that an answer
+      follows a landing and that a finding is never worked twice
+    cites: [S-0084/D-12, S-0084/D-13, S-0084/D-14]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The leg's section gains `sources`, a list of `forge` and `record` defaulting
+      to `[forge]`; `record` is refused at load under any landing but `pull_request`
+      with `unit: document`; the second ask has no term
+    paths: [src/torve/config/runconfig.py, tests/test_runconfig.py]
+    consequence: >-
+      a configuration that turned the leg on before this document changes nothing;
+      the second ask is what an unreadable verdict costs wherever the tier runs
+    rationale: >-
+      S-0084/D-5 made the leg's terms a section that defaults off and refuses under
+      the wrong landing, and a source is a term of that section
+    cites: [S-0084/D-5]

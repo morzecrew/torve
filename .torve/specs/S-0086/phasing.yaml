@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: a second ask, and the tree on a ref
+    intent: >-
+      The tier asks once more when a verdict is unreadable — the same reviewer, the
+      same staged copy, the same prompt — and records that it did; a second unreadable
+      answer escalates as before with both trace refs on the record. Before any escalation
+      from the review stage the runner commits the attempt's tree on the task's branch
+      under the checkpoint trailer, writing no landing, and a failed commit changes
+      nothing about the escalation. Settles D-1 and D-2.
+    scope:
+      - src/torve/application/review.py
+      - src/torve/application/runner.py
+      - tests/test_review_run.py
+      - tests/test_runner.py
+      - pages/docs/operating.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_review_run.py tests/test_runner.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: the record is a source of rounds
+    intent: >-
+      The review-thread leg reads the stream's task-gated review records for tasks
+      an open document branch carries and turns each unanswered finding into the leg's
+      finding shape, anchored by its evidence's citation or, for command evidence,
+      by the target's touched files; a finding outside the phasing scope escalates
+      and mints nothing. Record-sourced findings group with the forge's threads by
+      the existing anchor rule and compose into the same round. A landed round answers
+      its finding on the stream and once as a pull-request comment, and the finding
+      is never a round again. The leg's section gains `sources`, defaulting to the
+      forge alone and refusing `record` under any landing but the document unit. Settles
+      D-3, D-4, D-5 and D-6.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/threads.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/config/runconfig.py
+      - tests/test_reviewleg.py
+      - tests/test_threads.py
+      - tests/test_runconfig.py
+      - pages/docs/operating.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_reviewleg.py tests/test_threads.py tests/test_runconfig.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
