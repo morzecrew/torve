@@ -675,17 +675,69 @@ def _landing_sha(rows: Sequence[dict[str, Any]], task_id: str) -> str:
 # ....................... #
 
 
-def _rejections(root: Path, task_id: str) -> list[str]:
+def _landed_entries(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[Any]:
+    """The round's log entries as its landing carried them: the execution
+    record the landing commit wrote under the document's `execution/`. A
+    repository that keeps its contracts on the record has no root log for a
+    round at all (bloomery ignores `.torve/tasks/`), and the worktree is gone
+    by the time the answer is composed — the landing is where the entries
+    survive."""
+
+    sha = _landing_sha(rows, task_id)
+
+    if not sha:
+        return []
+
+    listing = subprocess.run(
+        ["git", "-C", str(root), "show", "--pretty=format:", "--name-only", sha],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    marker = f"/execution/{task_id}-"
+
+    for line in listing.stdout.splitlines():
+        if marker not in line:
+            continue
+
+        shown = subprocess.run(
+            ["git", "-C", str(root), "show", f"{sha}:{line.strip()}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        try:
+            record = yaml.safe_load(shown.stdout)
+        except yaml.YAMLError:
+            return []
+
+        entries = record.get("entries") if isinstance(record, dict) else None
+
+        return list(entries) if isinstance(entries, list) else []
+
+    return []
+
+
+def _rejections(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[str]:
     """What the round's attempt said about the claims it did not apply
     (S-0084/D-13): the divergence entries under `unlisted` it recorded as
     contradicted, as their own checked `claim` and `evidence`. Prose an agent
-    wrote for a reviewer never appears here, because no such field exists."""
+    wrote for a reviewer never appears here, because no such field exists.
+    Read from the root log, and from the landing's execution record when the
+    root holds none."""
 
     from torve.application.divergence import open_log
 
     reasons: list[str] = []
+    entries = open_log(root, task_id).get("entries", []) or _landed_entries(root, rows, task_id)
 
-    for entry in open_log(root, task_id).get("entries", []):
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
         if entry.get("decision") != "unlisted" or entry.get("kind") != "contradicted":
             continue
 
@@ -706,7 +758,7 @@ def reply_body(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> str:
 
     parts: list[str] = []
     sha = _landing_sha(rows, task_id)
-    reasons = _rejections(root, task_id)
+    reasons = _rejections(root, rows, task_id)
 
     if sha and not reasons:
         parts.append(f"Fixed in {sha}.")

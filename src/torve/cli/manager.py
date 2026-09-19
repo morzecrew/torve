@@ -204,6 +204,12 @@ class _ThreadForge:
     def resolve_thread(self, thread_id: str) -> None:
         self.scm._api("graphql", "-f", f"query={self.RESOLVE}", "-f", f"thread={thread_id}")
 
+    def comment(self, number: int, body: str, key: str) -> str:
+        # A record-sourced finding is answered once as a keyed comment on the
+        # pull request (S-0086/D-5); without this surface the served leg
+        # answered on the stream and posted nothing (bloomery #160).
+        return self.scm.comment(number, body, key)
+
 
 # ....................... #
 

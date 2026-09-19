@@ -715,6 +715,49 @@ def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge
     assert len(forge.commented) == 1
 
 
+def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(seeded):
+    """S-0084/D-13 on a repository that keeps its contracts on the record:
+    the round's rejection lives in the landing's execution record on the
+    branch, and the answer must say "not applied", never "fixed in" (bloomery
+    #160's first round was answered as fixed for a claim it contradicted)."""
+
+    open_document(seeded.root)
+    reviewed(seeded.root, ("the value is never checked", "src/app.py:12 — the caller passes None"))
+    forge = StubForge(pr())
+    terms = config(sources=["record"])
+
+    review_thread_leg(seeded.root, terms, forge, lambda _t: False)
+    (row,) = events(seeded.root, "lane_review_task")
+    task_id = row["task"]
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        "task: " + task_id + "\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    class: discovery\n"
+        "    at: '2026-09-19T00:00:00Z'\n"
+        "    attempt: 1\n"
+        "    claim: the claim does not hold, the caller checks it\n"
+        "    evidence: src/app.py:12 — the guard is on line 11\n"
+        "    action: decided\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+    engine_event(
+        seeded.root, "lane_landed", {"task": task_id, "sha": head(seeded.root), "unit": "task"}
+    )
+
+    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__)
+
+    (answer,) = events(seeded.root, "review_finding_answered")
+
+    assert "Not applied — the claim does not hold, the caller checks it" in answer["body"]
+    assert "Fixed in" not in answer["body"]
+    assert forge.commented[0][1] == answer["body"]
+
+
 def test_a_reraise_at_a_moved_anchor_is_a_new_finding(seeded):
     open_document(seeded.root)
     forge = StubForge(pr(thread("t1")))
