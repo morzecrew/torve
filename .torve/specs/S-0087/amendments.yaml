@@ -2,7 +2,6 @@
 amendments:
   - id: A-1
     at: '2026-09-20T16:28:21Z'
-    title: >-
     md: |-
       Phase 1's acceptance runs `torve init`, and the verb rewrites every
       generated schema beside the corpus, not the one the phase adds a field
