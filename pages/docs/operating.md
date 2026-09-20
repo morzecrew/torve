@@ -873,6 +873,13 @@ lane composes it from the records of every task the branch carries — each
 contract's rows with their grades, the gate verdicts, the divergence entries —
 and names the phases still to come from the document's own phasing rather than
 an estimate (S-0083/D-8, S-0083/D-17); its title counts them ("· 2/3 phases").
+A document whose header carries `change` is titled from it instead (S-0087/D-2)
+— `👷 ci(fuzz): continuous fuzzing in CI · 1/3 phases` while phases are still to
+come, `👷 ci(fuzz): continuous fuzzing in CI` at the last landing, so the subject
+the squash merge takes is one line in the repository's own commit format with
+nothing to edit. A task-unit pull request wears the same name with the phase's
+title as the description (S-0087/D-3), and a document without the field is
+titled as today, in every byte.
 While phases are still to come it is a draft, and the landing of the last phase
 marks it ready: a person who merges a draft merges knowingly, since the phases
 that land afterwards land on a branch behind `main`. Nothing turns a ready pull

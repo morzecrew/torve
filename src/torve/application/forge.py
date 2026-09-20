@@ -16,6 +16,7 @@ import yaml
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
+from torve.domain.spec import Commit
 from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
@@ -23,6 +24,23 @@ from torve.domain.task import InheritedDecision, Task
 # The log kinds a reviewer must see before the diff: work that diverged
 # from its contract, not work that went to plan.
 DIVERGENT_KINDS = ("contradicted", "departed", "blocked")
+
+# S-0087/D-2: one gitmoji per Conventional Commits type, as the operator's
+# mapping reads it; a breaking change wears 💥 in place of its type's own.
+GITMOJI = {
+    "feat": "✨",
+    "fix": "🐛",
+    "refactor": "♻️",
+    "perf": "⚡️",
+    "docs": "📝",
+    "test": "✅",
+    "build": "📦️",
+    "ci": "👷",
+    "chore": "🔧",
+}
+
+# A pull request title is a commit subject: one line, bounded.
+TITLE_LIMIT = 72
 
 
 # ....................... #
@@ -68,6 +86,36 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
 # ....................... #
 
 
+def _description(title: str) -> str:
+    """A title as a conventional description (S-0087/D-2): the tail of a
+    sentence, so its first letter is lowered — unless it opens on an
+    identifier or a backticked name, which carries its own case."""
+
+    head = title.split(" ", 1)[0]
+
+    if not title or not title[0].isalpha() or not head.isalpha() or head.upper() == head:
+        return title
+
+    return title[0].lower() + title[1:]
+
+
+def _typed_title(change: Commit, description: str, suffix: str = "") -> str:
+    """`<gitmoji> <type>(<scope>)[!]: <description>` with the suffix the
+    caller owns (S-0087/D-2). An overflowing title is cut at the
+    description: the type a release reads is never the part that goes."""
+
+    scope = f"({change.scope})" if change.scope else ""
+    gitmoji = "💥" if change.breaking else GITMOJI[change.type]
+    lead = f"{gitmoji} {change.type}{scope}{'!' if change.breaking else ''}: "
+    text = _description(description)
+    room = TITLE_LIMIT - len(lead) - len(suffix)
+
+    if len(text) > room:
+        text = text[: max(room - 1, 0)].rstrip() + "…"
+
+    return f"{lead}{text}{suffix}"
+
+
 def _decision_table(decisions: list[InheritedDecision]) -> list[str]:
     """The rows a contract carried, as a table: a reviewer scans a grade
     column; a bullet per row hides it inside the prose."""
@@ -106,7 +154,16 @@ def compose_pr(
     if len(summary) > 72:  # a folded intent is one long line; titles are not
         summary = summary[:71].rstrip() + "…"
 
-    title = f"{task.id}: {summary}"
+    # S-0087/D-3: one rule for both units — the task wears its document's
+    # change with the phase's title as the description; a task naming no
+    # document, or one the corpus cannot answer for, is titled as today.
+    change = _phasing(worktree, task.spec)[2] if task.spec else None
+
+    title = (
+        _typed_title(change, task.title.strip() or summary)
+        if change is not None
+        else f"{task.id}: {summary}"
+    )
 
     document = f" · {task.spec}" if task.spec else ""
 
@@ -216,24 +273,25 @@ class DocumentLanding:
     results: list[GateResult] = field(default_factory=list)
 
 
-def _phasing(root: Path, document: str) -> tuple[str, list[tuple[int, str]]]:
-    """The document's title and its phasing as (phase, title), read from the
-    corpus (S-0083/D-17): the phases still to come are named from the record
-    the document itself carries, never counted from an estimate. A document
-    that is absent or does not load names none."""
+def _phasing(root: Path, document: str) -> tuple[str, list[tuple[int, str]], Commit | None]:
+    """The document's title, its phasing as (phase, title) and what its
+    landing is to a release, read from the corpus in one load (S-0083/D-17,
+    S-0087/D-4): the phases still to come are named from the record the
+    document itself carries, never counted from an estimate. A document that
+    is absent or does not load names none and is typed as today."""
 
     directory = document_dir(root / layout.SPECS_DIR, document)
 
     if directory is None:
-        return "", []
+        return "", [], None
 
     try:
         doc = load_document(directory)
 
     except SpecError:
-        return "", []
+        return "", [], None
 
-    return doc.title, [(phase.phase, phase.title) for phase in doc.phasing]
+    return doc.title, [(phase.phase, phase.title) for phase in doc.phasing], doc.change
 
 
 def _gates_line(results: list[GateResult]) -> str:
@@ -250,7 +308,7 @@ def document_complete(document: str, landings: list[DocumentLanding], root: Path
     branch — the pull request's draft flag is this, read from the same
     records the body is composed from. A document with no readable phasing
     is complete when anything landed: nothing says otherwise."""
-    _, phasing = _phasing(root, document)
+    _, phasing, _ = _phasing(root, document)
     numbers = {number for number, _ in phasing}
     landed = {landing.task.phase for landing in landings if landing.task.phase}
     return not (numbers - landed)
@@ -268,7 +326,7 @@ def compose_document_pr(
     (S-0083/D-8). The contract's intent is the author's paragraph and is in
     the open; nothing an agent wrote as prose reaches it."""
 
-    doc_title, phasing = _phasing(root, document)
+    doc_title, phasing, change = _phasing(root, document)
     landed = {landing.task.phase for landing in landings if landing.task.phase}
     # A phase may hold several entries, so the count is over phase numbers —
     # what a reviewer counts merges of, not contracts.
@@ -276,15 +334,18 @@ def compose_document_pr(
     to_come = sorted(numbers - landed)
     remaining = [(number, title) for number, title in phasing if number in set(to_come)]
 
-    subject = doc_title or f"{len(landings)} landed"
+    count = f" · {len(numbers) - len(to_come)}/{len(numbers)} phases" if numbers else ""
 
-    if numbers:
-        subject = f"{subject} · {len(numbers) - len(to_come)}/{len(numbers)} phases"
+    if change is not None:
+        # S-0087/D-2: the count rides only while phases are still to come, so
+        # the title the last landing leaves is the subject the squash merge
+        # takes, in the repository's own format and with nothing to edit.
+        title = _typed_title(change, doc_title, count if to_come else "")
+    else:
+        title = f"{document}: {doc_title or f'{len(landings)} landed'}{count}"
 
-    title = f"{document}: {subject}"
-
-    if len(title) > 72:
-        title = title[:71].rstrip() + "…"
+        if len(title) > TITLE_LIMIT:
+            title = title[: TITLE_LIMIT - 1].rstrip() + "…"
 
     lines = [
         f"**{document} · {len(landings)} landing(s) on this branch**",

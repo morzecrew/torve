@@ -339,20 +339,23 @@ def phase_task(task_id: str, phase: int, title: str) -> Task:
     )
 
 
-def corpus_with_phasing(tmp_path: Path) -> Path:
+def corpus_with_phasing(
+    tmp_path: Path, change: dict[str, object] | None = None, title: str = "Landing by document"
+) -> Path:
     from test_decisions import document, place
 
     root = tmp_path / "repo"
     spec_dir = root / ".torve" / "specs"
-    spec_dir.mkdir(parents=True)
+    spec_dir.mkdir(parents=True, exist_ok=True)
     place(
         spec_dir,
         "0090",
         document(
             "0090",
             rows=[("S-0090/D-1", "ASSUMED", "the unit is a term", "—", "cheap to revisit")],
-            title="Landing by document",
+            title=title,
             phasing=PHASES,
+            extra={"change": change} if change else None,
         ),
     )
     return root
@@ -461,6 +464,64 @@ def test_the_publisher_composes_a_document_branch_from_every_task_it_carries(tmp
     # (bloomery #147 and #155 showed the last section without one).
     assert "## T-8403 · phase 2 · `cccccccccccc`" in body
     assert "Every phase of this document is on this branch (2)." in body
+
+
+def test_the_document_title_wears_the_change_and_drops_the_count_at_the_last_landing(
+    tmp_path: Path,
+):
+    # S-0087/D-2: the subject the squash merge takes at the last landing is one
+    # line in the repository's own format, with nothing to edit.
+    root = corpus_with_phasing(tmp_path, {"type": "ci", "scope": "fuzz"})
+    first = [DocumentLanding(task=phase_task("T-8401", 1, "one"))]
+    both = [*first, DocumentLanding(task=phase_task("T-8403", 2, "two"))]
+
+    draft, _ = compose_document_pr("S-0090", first, root)
+    last, _ = compose_document_pr("S-0090", both, root)
+
+    assert draft == "👷 ci(fuzz): landing by document · 1/2 phases"
+    assert last == "👷 ci(fuzz): landing by document"
+
+    # A breaking change wears 💥 in place of its type's gitmoji, and `!`.
+    breaking = corpus_with_phasing(tmp_path, {"type": "feat", "breaking": True})
+    title, _ = compose_document_pr("S-0090", both, breaking)
+    assert title == "💥 feat!: landing by document"
+
+    # The cut falls on the description: the type a release reads survives it.
+    long = corpus_with_phasing(tmp_path, {"type": "feat", "scope": "lane"}, title="Landing " * 12)
+    title, _ = compose_document_pr("S-0090", first, long)
+    assert title.startswith("✨ feat(lane): landing") and title.endswith("… · 1/2 phases")
+    assert len(title) <= 72
+
+
+def test_a_document_without_a_change_is_titled_byte_for_byte_as_today(tmp_path: Path):
+    # S-0087/D-2, S-0087/D-4: nothing accepted before the field changes title,
+    # and a corpus the composer cannot read costs the title its type only.
+    root = corpus_with_phasing(tmp_path)
+    landings = [DocumentLanding(task=phase_task("T-8401", 1, "one"))]
+
+    title, _ = compose_document_pr("S-0090", landings, root)
+    assert title == "S-0090: Landing by document · 1/2 phases"
+
+    bare, _ = compose_document_pr("S-0091", landings, tmp_path / "nowhere")
+    assert bare == "S-0091: 1 landed"
+
+
+def test_the_task_unit_wears_its_documents_change_with_the_phases_title(tmp_path: Path):
+    # S-0087/D-3: one rule for both units — a repository landing by task gets
+    # typed history too, with the phase's title as the description.
+    root = corpus_with_phasing(tmp_path, {"type": "fix", "scope": "lane"})
+    task = phase_task("T-8401", 1, "The unit is a term").model_copy(update={"spec": "S-0090"})
+    meta = {"adapter": "harness"}
+
+    title, body = compose_pr(task, 1, "d", meta, [], root)
+    assert title == "🐛 fix(lane): the unit is a term"
+    assert "T-8401" in body  # the identifier the title drops is still the body's first word
+
+    # A task naming no document, or one the corpus cannot answer for, is today's.
+    orphan = task.model_copy(update={"spec": ""})
+    today = "T-8401: Some contract prose the body never repeats."
+    assert compose_pr(orphan, 1, "d", meta, [], root)[0] == today
+    assert compose_pr(task, 1, "d", meta, [], tmp_path / "nowhere")[0].startswith("T-8401: ")
 
 
 def test_a_document_with_phases_still_to_come_is_a_draft(tmp_path: Path):
