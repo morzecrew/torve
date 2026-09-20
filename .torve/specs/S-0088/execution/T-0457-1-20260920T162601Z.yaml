@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0457
+phase: 1
+base: eadfb50488fc376a57a4b552c1a1b6ccdb5baa51
+commit: 3ca138eb807522e0ba2fb7c2caa5e0ed05295ac5
+at: '2026-09-20T16:26:01Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-20T16:24:11Z'
+    claim: >-
+      the rewrite reaches the record through residency.mint unchanged, so residency.py
+      needed no edit despite the row naming it
+    evidence: >-
+      src/torve/application/planner.py:883 — refresh_into_record delegates to residency.mint,
+      which already re-mints a changed contract and refuses one in flight (S-0049/D-3,
+      S-0049/D-4)
+    action: decided
+    proposal: none — the row stands as written
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-20T16:24:11Z'
+    claim: >-
+      the document pairs contracts to phasing entries per phase but a phase may carry
+      several entries; paired in task-id order, which is mint order
+    evidence: >-
+      src/torve/application/planner.py:795-805 — the phase's contracts sorted by id
+      against its entries in document order
+    action: decided
+    proposal: >-
+      a row settling how a phase's several entries pair with its several contracts
+      on a refresh: id order is mint order, and a phasing whose entries were reordered
+      is out of scope
