@@ -410,12 +410,17 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
 
 
 def plan_document(
-    root: Path, rfc_dir: Path, identifier: str, *, board: Board | None = None
+    root: Path, rfc_dir: Path, identifier: str, *, board: Board | None = None, refresh: bool = False
 ) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry. With
     a *board* (S-0056/D-9), task numbers and prior mints are read from the
-    record as well as from the task directories."""
+    record as well as from the task directories.
+
+    *refresh* derives for `--refresh` (S-0088/D-1): the same admission and the
+    same derivation, without the two refusals that are about minting — a
+    phase already minted is what a refresh is *for*, and the `after` edges
+    are the minted contracts' own, which a refresh keeps."""
 
     files = spec.document_dirs(rfc_dir)
 
@@ -470,7 +475,7 @@ def plan_document(
     decisions = inherit_decisions(doc)
 
     document = doc.id
-    clashes = _already_minted(root, document, {e.phase for e in entries}, board)
+    clashes = [] if refresh else _already_minted(root, document, {e.phase for e in entries}, board)
 
     if clashes:
         raise PlanError(
@@ -484,7 +489,7 @@ def plan_document(
     # one with no minted tasks names nothing an edge could point at.
     after_tasks: list[str] = []
 
-    for reference in doc.after:
+    for reference in [] if refresh else doc.after:
         target = corpus.document(reference)
 
         if target is None:
@@ -618,6 +623,271 @@ async def mint_contracts(
     return await mint(
         log,
         {planned.task.id: planned.task for planned in report.tasks},
+        partition=partition,
+        actor_id=actor_id,
+    )
+
+
+# ----------------------- #
+# The refresh (S-0088/torve-plan-refresh): an amendment reaching the contracts
+# its document already minted, through the one path that knows how a
+# document becomes a contract.
+
+# What the document owns, and therefore what a refresh rewrites (S-0088/D-1):
+# the derived `Task`'s fields minus identity (`id`, `spec`, `phase`, `role`,
+# `title`) and edges (`depends_on`), which the mint decided and a refresh
+# keeps.
+REFRESHED_FIELDS = ("intent", "scope", "acceptance", "decisions", "tier_variant", "character")
+
+
+@dataclass(frozen=True)
+class RefreshedTask:
+    """One already-minted phase as the refresh leaves it: the fields that
+    differ from the derivation, the reason it was left alone if it was, and
+    the rewritten contract when there is one to write."""
+
+    task_id: str
+    phase: int
+    title: str
+    changed: list[str]
+    held: str = ""  # why it was left alone; empty means it may be rewritten
+    task: Task | None = None  # the rewritten contract — None when held or unchanged
+
+
+@dataclass(frozen=True)
+class RefreshReport:
+    document: str
+    tasks: list[RefreshedTask]
+
+    @property
+    def rewritten(self) -> list[tuple[RefreshedTask, Task]]:
+        """Each entry with a contract to write, paired with it."""
+
+        return [(one, one.task) for one in self.tasks if one.task is not None]
+
+
+# ....................... #
+
+
+def minted_contracts(root: Path, document: str, board: Board | None = None) -> dict[str, Task]:
+    """The contracts already minted from *document*, by task id — the board's
+    when a store holds the tasks (S-0056/D-9), the files otherwise. An
+    unreadable contract is skipped, as it is everywhere else: one malformed
+    file is not a reason to refuse the rest."""
+
+    from torve.gates.context import load_task
+
+    wanted = document_of(document)
+    found: dict[str, Task] = {}
+
+    for view in board.tasks.values() if board is not None else []:
+        contract = view.contract
+
+        if contract is not None and document_of(contract.spec or "") == wanted:
+            found[view.task_id] = contract
+
+    for path in sorted((root / layout.TORVE_DIR / "tasks").glob("T-*/contract.yaml")):
+        try:
+            task = load_task(path)
+
+        except ValueError:
+            continue
+
+        if document_of(task.spec or "") == wanted:
+            found.setdefault(task.id, task)
+
+    return found
+
+
+# ....................... #
+
+
+def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
+    """Task id -> why a refresh leaves it alone, for everything a landing
+    proves (S-0088/D-2): a landing file under the document's `execution/` or the
+    document-less one, a lane landing on the stream, or a document branch
+    carrying the task's landing commit. A landed phase's terms are the ones
+    its landing was judged by."""
+
+    from torve.application.projections import stream_rows
+    from torve.domain.spec import LANDING_FILE
+
+    directory = spec.document_dir(rfc_dir, document)
+    files = spec.landing_files_in(layout.execution_dir(root))
+    files += spec.landing_files(directory) if directory is not None else []
+    held = {found.group(1): "landed" for path in files if (found := LANDING_FILE.match(path.name))}
+
+    for row in stream_rows(root):
+        task_id = str(row.get("task") or "")
+
+        if row.get("event") != "lane_landed" or not task_id:
+            continue
+
+        held[task_id] = (
+            f"carried by the branch {row.get('branch')}"
+            if row.get("unit") == "document"
+            else "landed"
+        )
+
+    return held
+
+
+def _in_flight(root: Path, task_id: str, board: Board | None) -> str:
+    """Why a refresh leaves a task alone for its state, or the empty string:
+    an attempt in flight reads the contract it was dispatched under
+    (S-0088/D-2), while an escalated or reaped task starts its next attempt from
+    base and reads the contract afresh."""
+
+    from torve.application.manager import IN_FLIGHT
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import TaskState
+
+    view = board.tasks.get(task_id) if board is not None else None
+
+    if view is not None:
+        if view.state in IN_FLIGHT:
+            return f"running ({view.state})"
+
+        if view.state is TaskState.READY or view.landed_sha:
+            return "landed"
+
+    path = naming.state_file(root, task_id)
+
+    if not path.exists():
+        return ""
+
+    state = RunState.load(path).state
+
+    if state in IN_FLIGHT:
+        return f"running ({state})"
+
+    return "landed" if state is TaskState.READY else ""
+
+
+# ....................... #
+
+
+def refresh_document(
+    root: Path, rfc_dir: Path, identifier: str, *, board: Board | None = None
+) -> RefreshReport:
+    """The document derived as for a mint, and each already-minted phase's
+    contract compared with the derivation field by field (S-0088/D-1). Dry:
+    nothing is written and nothing is recorded.
+
+    A phase's contracts are paired with its phasing entries in id order,
+    which is mint order — the planner numbers the entries of a phase in
+    document order, so the nth contract of a phase is the nth entry's. A
+    contract whose entry the phasing no longer carries is left alone and
+    named; a phase never minted is not minted here (that is `plan`'s job,
+    refused while any phase is minted, unchanged)."""
+
+    report = plan_document(root, rfc_dir, identifier, board=board, refresh=True)
+    landed = _beyond_refresh(root, rfc_dir, report.document)
+    existing: dict[int, list[Task]] = {}
+
+    for task in sorted(minted_contracts(root, report.document, board).values(), key=lambda t: t.id):
+        existing.setdefault(task.phase, []).append(task)
+
+    found: list[RefreshedTask] = []
+
+    for phase, contracts in sorted(existing.items()):
+        entries = [planned for planned in report.tasks if planned.task.phase == phase]
+
+        for offset, current in enumerate(contracts):
+            if offset >= len(entries):
+                found.append(
+                    RefreshedTask(current.id, phase, current.title, [], "no phasing entry")
+                )
+
+                continue
+
+            derived = entries[offset].task
+            changed = [
+                field
+                for field in REFRESHED_FIELDS
+                if getattr(current, field) != getattr(derived, field)
+            ]
+
+            held = landed.get(current.id) or _in_flight(root, current.id, board)
+
+            rewritten = (
+                current.model_copy(update={field: getattr(derived, field) for field in changed})
+                if changed and not held
+                else None
+            )
+
+            found.append(
+                RefreshedTask(current.id, phase, entries[offset].title, changed, held, rewritten)
+            )
+
+    return RefreshReport(document=report.document, tasks=found)
+
+
+# ....................... #
+
+
+def record_refresh(root: Path, document: str, one: RefreshedTask) -> None:
+    """One rewrite on the engine's stream (S-0088/D-3): a contract edited with no
+    record is what the refresh exists to end."""
+
+    from torve.application.telemetry import engine_event
+
+    engine_event(
+        root,
+        "contract_refreshed",
+        {"task": one.task_id, "spec": document, "phase": one.phase, "fields": one.changed},
+    )
+
+
+def refresh_contracts(root: Path, report: RefreshReport) -> list[Path]:
+    """The file mode: each rewritten contract written back over its own file,
+    keeping the header that names what minted it and stamping the refresh
+    beside it (S-0088/D-3)."""
+
+    from torve.base.clock import stamp
+
+    written: list[Path] = []
+    at = stamp()
+
+    for one, task in report.rewritten:
+        path = layout.task_file(root, task.id)
+        header: list[str] = []
+
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("#"):
+                break
+
+            if not line.startswith("# Refreshed by"):
+                header.append(line)
+
+        header.append(f"# Refreshed by `torve plan {report.document} --refresh` at {at}")
+        path.write_text(
+            "\n".join(header) + "\n" + _dump_contract(task.model_dump()), encoding="utf-8"
+        )
+
+        record_refresh(root, report.document, one)
+        written.append(path)
+
+    return written
+
+
+async def refresh_into_record(
+    root: Path, log: EventLog, report: RefreshReport, *, partition: str, actor_id: str = "plan"
+) -> list[str]:
+    """The partition mode (S-0088/D-3): the rewritten contracts through the
+    residency path the mint uses, so the board's row is the rewritten one on
+    the next pass — a re-mint transitions nothing and never happens under an
+    attempt in flight (S-0049/D-3, S-0049/D-4)."""
+
+    from torve.application.residency import mint
+
+    for one, _task in report.rewritten:
+        record_refresh(root, report.document, one)
+
+    return await mint(
+        log,
+        {task.id: task for _one, task in report.rewritten},
         partition=partition,
         actor_id=actor_id,
     )

@@ -660,3 +660,216 @@ def test_plan_with_a_partition_mints_into_the_record_and_writes_nothing(plan_rep
     assert result.exit_code == 0, result.output
     assert "no file written" in result.output
     assert not (root / ".torve" / "tasks").exists()
+
+
+# ....................... #
+# S-0088 phase 1 (S-0088/D-1 .. S-0088/D-4): `--refresh` carries an amendment to
+# the contracts the document already minted, and never to one in flight.
+
+AMENDED_TABLE = [
+    (
+        "S-0090/D-1",
+        "LOCKED",
+        "Widgets are idempotent and counted",
+        "`src/widget/**`",
+        "Retries double-charge",
+    ),
+    ("S-0090/D-2", "ASSUMED", "Frobnication is lazy", "—", "Cheap to revisit"),
+]
+
+
+def amend(root, write_doc, git, **overrides) -> None:
+    """The document as it now stands: the table amended, and whatever the
+    case changes about its first phasing entry."""
+
+    write_doc("0090", "Widgets", rows=AMENDED_TABLE, phasing=phasing(**overrides))
+    git("add", "-A")
+    git("commit", "-qm", "amend")
+
+
+def contract_of(root: Path, task_id: str):
+    return load_task(root / ".torve" / "tasks" / task_id / "contract.yaml")
+
+
+def minted(root: Path) -> None:
+    write_contracts(root, plan_document(root, root / ".torve" / "specs", "0090"))
+
+
+def test_refresh_rewrites_the_amended_phases_and_keeps_id_edges_and_minted_by(plan_repo):
+    from test_residency import engine_events
+
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, write_doc, git = plan_repo
+    spec_dir = root / ".torve" / "specs"
+    minted(root)
+    amend(
+        root,
+        write_doc,
+        git,
+        intent="Build the widget core, counted.",
+        acceptance=["make test", "make count"],
+    )
+
+    report = refresh_document(root, spec_dir, "0090")
+    core, frob, wire = report.tasks
+
+    assert (core.task_id, core.phase) == ("T-0001", 1)
+    assert core.changed == ["intent", "acceptance", "decisions"]
+    # the table is inherited by every phase, so every contract differs
+    assert frob.changed == ["decisions"] and wire.changed == ["decisions"]
+    assert [one.held for one in report.tasks] == ["", "", ""]
+
+    written = refresh_contracts(root, report)
+
+    assert [p.parent.name for p in written] == ["T-0001", "T-0002", "T-0003"]
+
+    task = contract_of(root, "T-0001")
+
+    assert task.id == "T-0001" and task.spec == "S-0090" and task.phase == 1
+    assert task.intent == "Build the widget core, counted."
+    assert task.acceptance == ["make test", "make count"]
+    assert task.decisions[0].text == "Widgets are idempotent and counted"
+    # id, edges and minted-by are the mint's and stay it
+    assert contract_of(root, "T-0003").depends_on == ["T-0001", "T-0002"]
+    head = written[0].read_text(encoding="utf-8").splitlines()[:3]
+    assert head[1].startswith("# Minted by `torve plan S-0090`")
+    assert head[2].startswith("# Refreshed by `torve plan S-0090 --refresh` at ")
+
+    rows = engine_events(root, "contract_refreshed")
+
+    assert [r["task"] for r in rows] == ["T-0001", "T-0002", "T-0003"]
+    assert rows[0]["spec"] == "S-0090" and rows[0]["fields"] == core.changed
+
+
+def test_refresh_leaves_a_running_landed_or_branch_carried_task_alone_and_names_it(plan_repo):
+    from test_decisions import landed
+    from test_residency import engine_events
+
+    from torve.application.planner import refresh_contracts, refresh_document
+    from torve.application.runstate import RunState
+    from torve.application.telemetry import engine_event
+    from torve.base import naming
+    from torve.domain.states import TaskState
+
+    root, write_doc, git = plan_repo
+    minted(root)
+    amend(root, write_doc, git, intent="Build the widget core, counted.")
+
+    running = RunState(task_id="T-0001", path=naming.state_file(root, "T-0001"))
+    running.state = TaskState.RUNNING
+    running.save()
+    landed(root, "T-0002", spec="0090")
+    git("add", "-A")
+    git("commit", "-qm", "landing")  # a landing lives in the document's directory
+    engine_event(root, "lane_landed", {"task": "T-0003", "unit": "document", "branch": "S-0090"})
+
+    report = refresh_document(root, root / ".torve" / "specs", "0090")
+
+    assert [one.held for one in report.tasks] == [
+        "running (running)",
+        "landed",
+        "carried by the branch S-0090",
+    ]
+    assert report.rewritten == []
+    assert refresh_contracts(root, report) == []
+    assert engine_events(root, "contract_refreshed") == []
+    assert contract_of(root, "T-0001").intent == "Build the widget core."
+
+
+def test_refresh_rewrites_an_escalated_task_with_no_landing(plan_repo):
+    from torve.application.planner import refresh_contracts, refresh_document
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import EscalationReason, TaskState
+
+    root, write_doc, git = plan_repo
+    minted(root)
+    amend(root, write_doc, git, intent="Build the widget core, counted.")
+
+    state = RunState(task_id="T-0001", path=naming.state_file(root, "T-0001"))
+    state.transition(TaskState.CLAIMED, "test")
+    state.escalate(EscalationReason.POISON_CEILING, "three reds")
+
+    report = refresh_document(root, root / ".torve" / "specs", "0090")
+
+    assert report.tasks[0].held == ""
+
+    refresh_contracts(root, report)
+
+    assert contract_of(root, "T-0001").intent == "Build the widget core, counted."
+
+
+def test_refresh_is_a_dry_run_by_default_and_writes_nothing(plan_repo):
+    root, write_doc, git = plan_repo
+    minted(root)
+    amend(root, write_doc, git, intent="Build the widget core, counted.")
+
+    result = CliRunner().invoke(app, ["plan", "0090", "--refresh", "--root", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output
+    assert contract_of(root, "T-0001").intent == "Build the widget core."
+
+
+def test_a_refresh_with_nothing_to_change_writes_nothing_and_says_so(plan_repo):
+    root, _write_doc, _git = plan_repo
+    minted(root)
+    before = contract_of(root, "T-0001").model_dump()
+
+    result = CliRunner().invoke(
+        app, ["plan", "0090", "--refresh", "--no-dry-run", "--root", str(root)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "nothing to refresh" in result.output
+    assert contract_of(root, "T-0001").model_dump() == before
+    assert not (root / ".torve" / "telemetry.jsonl").exists()
+
+
+def test_refresh_refuses_an_unaccepted_document_as_plan_refuses_it(plan_repo):
+    from torve.domain.states import EXIT_CONFIG
+
+    root, write_doc, git = plan_repo
+    write_doc("0091", "Sketch", status="draft")
+    git("add", "-A")
+    git("commit", "-qm", "draft")
+
+    result = CliRunner().invoke(app, ["plan", "0091", "--refresh", "--root", str(root)])
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "S-0091 is draft" in result.output
+
+
+def test_refresh_under_a_partition_rewrites_the_records_contract(plan_repo):
+    from test_residency import PARTITION, run
+
+    from torve.application.manager import project
+    from torve.application.planner import (
+        mint_contracts,
+        refresh_document,
+        refresh_into_record,
+    )
+
+    root, write_doc, git = plan_repo
+    spec_dir = root / ".torve" / "specs"
+
+    async def scenario(log):
+        await mint_contracts(log, plan_document(root, spec_dir, "0090"), partition=PARTITION)
+        amend(root, write_doc, git, intent="Build the widget core, counted.")
+        board = project(await log.since(partition=PARTITION))
+        report = refresh_document(root, spec_dir, "0090", board=board)
+
+        assert report.tasks[0].changed == ["intent", "decisions"]
+
+        refreshed = await refresh_into_record(root, log, report, partition=PARTITION)
+
+        assert refreshed == ["T-0001", "T-0002", "T-0003"]
+
+        board = project(await log.since(partition=PARTITION))
+
+        assert board.tasks["T-0001"].contract.intent == "Build the widget core, counted."
+        assert board.tasks["T-0001"].contract.depends_on == []
+        assert not (root / ".torve" / "tasks").exists()
+
+    run(scenario)

@@ -54,6 +54,14 @@ def plan_cmd(
             "stale_inheritance; takes no document.",
         ),
     ] = False,
+    refresh: Annotated[
+        bool,
+        typer.Option(
+            "--refresh",
+            help="Rewrite the contracts this document already minted from the document "
+            "as it now stands; mints no phase.",
+        ),
+    ] = False,
     dry_run: Annotated[
         bool,
         typer.Option(
@@ -99,6 +107,11 @@ def plan_cmd(
         from torve.application.manager import project
 
         board = read_log(dsn_for(root, dsn), lambda log: _board(log, partition, project))
+
+    if refresh:
+        _refresh(root, rfc_dir, identifier, board, dry_run, fmt, partition, dsn)
+
+        return
 
     try:
         report = plan_document(root, rfc_dir, identifier, board=board)
@@ -195,6 +208,129 @@ def plan_cmd(
                 console.print(Text(f"  minted {path}", ""))
 
             closing(console, f"minted {len(written)} contract(s)", STYLE_PASS)
+
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+def _refresh(
+    root: Path,
+    rfc_dir: Path,
+    identifier: str,
+    board: Any,
+    dry_run: bool,
+    fmt: Format,
+    partition: str,
+    dsn: str,
+) -> None:
+    """S-0088/D-4: the table before a contract changes, as the operator reads one
+    before a contract is minted; --no-dry-run rewrites, and a refresh with
+    nothing to change writes nothing."""
+
+    from torve.application.intake import lint_task
+    from torve.application.planner import (
+        PlanError,
+        refresh_contracts,
+        refresh_document,
+        refresh_into_record,
+    )
+
+    try:
+        report = refresh_document(root, rfc_dir, identifier, board=board)
+
+    except PlanError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    # As the mint lints what it would write (S-0052/A-3): a rewrite that cannot be
+    # satisfied is a contract nobody can execute, whoever derived it.
+    refusals = [
+        error for _one, task in report.rewritten for error in lint_task(root, task, planning=True)
+    ]
+
+    if refusals:
+        raise fail(
+            "configuration error: the contracts this refresh would write do not lint:\n  "
+            + "\n  ".join(refusals),
+            EXIT_CONFIG,
+        )
+
+    written: list[Path] = []
+    minted: list[str] = []
+
+    if not dry_run and report.rewritten:
+        if partition:
+            minted = read_log(
+                dsn_for(root, dsn),
+                lambda log: refresh_into_record(root, log, report, partition=partition),
+            )
+        else:
+            written = refresh_contracts(root, report)
+
+    held = [one for one in report.tasks if one.held]
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "schema_version": 1,
+                "document": report.document,
+                "dry_run": dry_run,
+                "tasks": [
+                    {
+                        "task": one.task_id,
+                        "phase": one.phase,
+                        "title": one.title,
+                        "changed": one.changed,
+                        "held": one.held or None,
+                    }
+                    for one in report.tasks
+                ],
+                "written": [str(path) for path in written],
+                "minted": minted,
+                "partition": partition or None,
+            }
+        )
+    else:
+        console = out(fmt)
+        header(
+            console, "plan --refresh", f"{report.document} · {len(report.tasks)} minted phase(s)"
+        )
+        table = make_table("task", "phase", "title", "refreshed", "why")
+
+        for one in report.tasks:
+            table.add_row(
+                Text(one.task_id, STYLE_ID),
+                str(one.phase),
+                one.title,
+                ", ".join(one.changed) or "—",
+                Text(
+                    one.held or ("unchanged" if not one.changed else "differs from the document"),
+                    STYLE_WARN if one.held else STYLE_DIM,
+                ),
+            )
+
+        console.print(table)
+
+        left = f"left alone: {', '.join(one.task_id for one in held) if held else 'none'}"
+
+        if not report.rewritten:
+            closing(console, f"nothing to refresh — every contract matches the document; {left}")
+        elif dry_run:
+            closing(
+                console,
+                f"dry run — nothing written; pass --no-dry-run to rewrite {len(report.rewritten)} "
+                f"contract(s); {left}",
+                STYLE_DIM,
+            )
+        else:
+            for path in written:
+                console.print(Text(f"  refreshed {path}", ""))
+
+            for task_id in minted:
+                console.print(Text(f"  refreshed {task_id} into {partition}", ""))
+
+            closing(console, f"refreshed {len(report.rewritten)} contract(s); {left}", STYLE_PASS)
 
     raise typer.Exit(EXIT_OK)
 

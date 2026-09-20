@@ -653,6 +653,26 @@ differs from the serializer's form and writes nothing. `torve spec check`
 also names rows whose declared paths match nothing in the tree; `--fix-
 rot` retires them.
 
+An amendment reaches the contracts the document already minted through
+`torve plan S-NNNN --refresh`, never through a hand edit of a contract:
+
+```bash
+torve plan S-0079 --refresh                 # the table: what would be rewritten, and what is left alone
+torve plan S-0079 --refresh --no-dry-run    # rewrite them
+```
+
+The document is admitted and derived as a mint derives it, and each phase
+already minted has its contract rewritten from the derivation — intent,
+scope, acceptance, decisions, character, tier variant — keeping its id, its
+edges and the header that names what minted it. No phase is minted: a phase
+the document gained is `torve plan`'s, which still refuses a document any of
+whose phases is minted. A task that is running, that has landed, or that a
+document branch carries is left alone and named with the reason; an
+escalated or reaped task with no landing is refreshed, because its next
+attempt starts from base. Each rewrite is recorded as `contract_refreshed`
+and stamped on the contract; under `--partition` the rewrite goes onto the
+board through the same path a mint does.
+
 ## Running a pass without spending
 
 ```bash
