@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0456
+phase: 2
+base: 8fa208498c9befe97a283c8c91098c2419d5eed2
+commit: ed31541e3e0b0bb6c8985bb565b69acfe38cf910
+at: '2026-09-20T16:56:58Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
