@@ -4,7 +4,7 @@ title: >-
   A document names its change, and its pull request wears the name
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0083]
 informed_by: [S-0080, S-0084]
 supersedes: []

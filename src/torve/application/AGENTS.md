@@ -1427,21 +1427,21 @@ A recorded finding is answered on the stream, not the forge: when the record say
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py`
 - Consequence: one finding, one round, whatever surface raised it; a person reading the pull request sees what the tier found and what became of it
 
-### S-0087/D-2 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+### S-0087/D-2 — `ASSUMED` (A document names its change, and its pull request wears the name)
 
 With `change` present the composer titles the document's pull request `<gitmoji> <type>(<scope>)[!]: <title lowered>`, appends ` · n/m phases` only while phases are still to come, and cuts an overflowing title at the description; without the field the title is today's, byte for byte
 
 - Paths: `src/torve/application/forge.py` `tests/test_forge.py`
 - Consequence: the subject the squash merge takes at the last landing is one line in the repository's own format with nothing to edit, and no document accepted before this changes title
 
-### S-0087/D-3 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+### S-0087/D-3 — `ASSUMED` (A document names its change, and its pull request wears the name)
 
 Under the task unit `compose_pr` wears the task's document's `change` with the phase's title as the description; a task naming no document, or a document without the field, is titled as today
 
 - Paths: `src/torve/application/forge.py` `tests/test_forge.py`
 - Consequence: one rule for both units; a repository landing by task gets typed history too
 
-### S-0087/D-4 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+### S-0087/D-4 — `ASSUMED` (A document names its change, and its pull request wears the name)
 
 The composer reads `change` through the same corpus read that fetches the document's title and phasing, and a field it cannot read titles as today — the composition never fails on it
 

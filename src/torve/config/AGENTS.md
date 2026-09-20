@@ -607,7 +607,7 @@ The leg's section gains `sources`, a list of `forge` and `record` defaulting to 
 - Paths: `src/torve/config/runconfig.py` `tests/test_runconfig.py`
 - Consequence: a configuration that turned the leg on before this document changes nothing; the second ask is what an unreadable verdict costs wherever the tier runs
 
-### S-0087/D-1 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+### S-0087/D-1 — `ASSUMED` (A document names its change, and its pull request wears the name)
 
 A document's header may carry `change` — a Conventional Commits type from the operator's mapping, an optional scope, and `breaking`, default false; the field is optional on the model, and `torve spec check` warns when an accepted design document has none
 

@@ -112,14 +112,14 @@ The leg's section gains `sources`, a list of `forge` and `record` defaulting to 
 - Paths: `src/torve/config/runconfig.py` `tests/test_runconfig.py`
 - Consequence: a configuration that turned the leg on before this document changes nothing; the second ask is what an unreadable verdict costs wherever the tier runs
 
-### S-0087/D-2 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+### S-0087/D-2 — `ASSUMED` (A document names its change, and its pull request wears the name)
 
 With `change` present the composer titles the document's pull request `<gitmoji> <type>(<scope>)[!]: <title lowered>`, appends ` · n/m phases` only while phases are still to come, and cuts an overflowing title at the description; without the field the title is today's, byte for byte
 
 - Paths: `src/torve/application/forge.py` `tests/test_forge.py`
 - Consequence: the subject the squash merge takes at the last landing is one line in the repository's own format with nothing to edit, and no document accepted before this changes title
 
-### S-0087/D-3 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+### S-0087/D-3 — `ASSUMED` (A document names its change, and its pull request wears the name)
 
 Under the task unit `compose_pr` wears the task's document's `change` with the phase's title as the description; a task naming no document, or a document without the field, is titled as today
 
