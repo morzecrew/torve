@@ -629,7 +629,7 @@ async def mint_contracts(
 
 
 # ----------------------- #
-# The refresh (S-0088/torve-plan-refresh): an amendment reaching the contracts
+# The refresh (S-0088/the-verb): an amendment reaching the contracts
 # its document already minted, through the one path that knows how a
 # document becomes a contract.
 

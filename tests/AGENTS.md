@@ -126,14 +126,14 @@ Under the task unit `compose_pr` wears the task's document's `change` with the p
 - Paths: `src/torve/application/forge.py` `tests/test_forge.py`
 - Consequence: one rule for both units; a repository landing by task gets typed history too
 
-### S-0088/D-1 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+### S-0088/D-1 — `ASSUMED` (A minted contract follows its amended document)
 
 `torve plan <document> --refresh` admits and derives the document as `plan` does and rewrites each already-minted phase whose contract differs from the derivation in intent, scope, acceptance, decisions, character or tier variant — keeping its id, edges and minted-by — and mints no phase
 
 - Paths: `src/torve/application/planner.py` `src/torve/cli/plan.py` `tests/test_plan.py`
 - Consequence: an amendment reaches its phases through the one code path that knows how a document becomes a contract, and the hand edit of a contract has no reason left
 
-### S-0088/D-2 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+### S-0088/D-2 — `ASSUMED` (A minted contract follows its amended document)
 
 A task that is running, landed, or carried by a document branch is left alone and named with the reason; an escalated or reaped task with no landing is refreshed; no worktree is touched
 
