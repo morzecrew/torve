@@ -112,6 +112,34 @@ The leg's section gains `sources`, a list of `forge` and `record` defaulting to 
 - Paths: `src/torve/config/runconfig.py` `tests/test_runconfig.py`
 - Consequence: a configuration that turned the leg on before this document changes nothing; the second ask is what an unreadable verdict costs wherever the tier runs
 
+### S-0087/D-2 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+
+With `change` present the composer titles the document's pull request `<gitmoji> <type>(<scope>)[!]: <title lowered>`, appends ` · n/m phases` only while phases are still to come, and cuts an overflowing title at the description; without the field the title is today's, byte for byte
+
+- Paths: `src/torve/application/forge.py` `tests/test_forge.py`
+- Consequence: the subject the squash merge takes at the last landing is one line in the repository's own format with nothing to edit, and no document accepted before this changes title
+
+### S-0087/D-3 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+
+Under the task unit `compose_pr` wears the task's document's `change` with the phase's title as the description; a task naming no document, or a document without the field, is titled as today
+
+- Paths: `src/torve/application/forge.py` `tests/test_forge.py`
+- Consequence: one rule for both units; a repository landing by task gets typed history too
+
+### S-0088/D-1 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+`torve plan <document> --refresh` admits and derives the document as `plan` does and rewrites each already-minted phase whose contract differs from the derivation in intent, scope, acceptance, decisions, character or tier variant — keeping its id, edges and minted-by — and mints no phase
+
+- Paths: `src/torve/application/planner.py` `src/torve/cli/plan.py` `tests/test_plan.py`
+- Consequence: an amendment reaches its phases through the one code path that knows how a document becomes a contract, and the hand edit of a contract has no reason left
+
+### S-0088/D-2 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+A task that is running, landed, or carried by a document branch is left alone and named with the reason; an escalated or reaped task with no landing is refreshed; no worktree is touched
+
+- Paths: `src/torve/application/planner.py` `tests/test_plan.py`
+- Consequence: an attempt in flight reads the contract it was dispatched under, and a landed phase's terms are the ones its landing was judged by
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

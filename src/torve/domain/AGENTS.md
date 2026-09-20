@@ -294,6 +294,13 @@ A phasing file names the documents whose landed tree its work builds on under a 
 - Paths: `src/torve/domain/spec.py`
 - Consequence: the grammar is one list of ids and the planner's lookup is one call per id; a dependent waits for the whole named document, which under S-0083/D-5 is when its tree reaches the base anyway
 
+### S-0087/D-1 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+
+A document's header may carry `change` — a Conventional Commits type from the operator's mapping, an optional scope, and `breaking`, default false; the field is optional on the model, and `torve spec check` warns when an accepted design document has none
+
+- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/document.json`
+- Consequence: every document in the corpus loads as it is, and the one whose landing would be untyped is named at check, not discovered in `main`'s history
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

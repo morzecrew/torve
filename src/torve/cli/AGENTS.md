@@ -477,6 +477,20 @@ A task waiting on another document's landing shows the document beside the task 
 - Paths: `src/torve/cli/night.py` `src/torve/application/projections.py`
 - Consequence: a person reading the board sees "waits on S-0008's landing" and knows which pull request to look at, rather than four task ids to resolve by hand
 
+### S-0088/D-1 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+`torve plan <document> --refresh` admits and derives the document as `plan` does and rewrites each already-minted phase whose contract differs from the derivation in intent, scope, acceptance, decisions, character or tier variant — keeping its id, edges and minted-by — and mints no phase
+
+- Paths: `src/torve/application/planner.py` `src/torve/cli/plan.py` `tests/test_plan.py`
+- Consequence: an amendment reaches its phases through the one code path that knows how a document becomes a contract, and the hand edit of a contract has no reason left
+
+### S-0088/D-4 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+`--refresh` defaults to a dry run and writes under `--no-dry-run`, as `plan` does; a refresh that would change nothing writes nothing
+
+- Paths: `src/torve/cli/plan.py`
+- Consequence: the operator reads the table before a contract changes, as they do before one is minted
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

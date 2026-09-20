@@ -1427,6 +1427,48 @@ A recorded finding is answered on the stream, not the forge: when the record say
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py`
 - Consequence: one finding, one round, whatever surface raised it; a person reading the pull request sees what the tier found and what became of it
 
+### S-0087/D-2 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+
+With `change` present the composer titles the document's pull request `<gitmoji> <type>(<scope>)[!]: <title lowered>`, appends ` · n/m phases` only while phases are still to come, and cuts an overflowing title at the description; without the field the title is today's, byte for byte
+
+- Paths: `src/torve/application/forge.py` `tests/test_forge.py`
+- Consequence: the subject the squash merge takes at the last landing is one line in the repository's own format with nothing to edit, and no document accepted before this changes title
+
+### S-0087/D-3 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+
+Under the task unit `compose_pr` wears the task's document's `change` with the phase's title as the description; a task naming no document, or a document without the field, is titled as today
+
+- Paths: `src/torve/application/forge.py` `tests/test_forge.py`
+- Consequence: one rule for both units; a repository landing by task gets typed history too
+
+### S-0087/D-4 — `ASSUMED` (A document names its change, and its pull request wears the name) — implementation: none
+
+The composer reads `change` through the same corpus read that fetches the document's title and phasing, and a field it cannot read titles as today — the composition never fails on it
+
+- Paths: `src/torve/application/forge.py`
+- Consequence: one load per composition, and a corpus the publisher cannot read costs the title its type, not the landing its pull request
+
+### S-0088/D-1 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+`torve plan <document> --refresh` admits and derives the document as `plan` does and rewrites each already-minted phase whose contract differs from the derivation in intent, scope, acceptance, decisions, character or tier variant — keeping its id, edges and minted-by — and mints no phase
+
+- Paths: `src/torve/application/planner.py` `src/torve/cli/plan.py` `tests/test_plan.py`
+- Consequence: an amendment reaches its phases through the one code path that knows how a document becomes a contract, and the hand edit of a contract has no reason left
+
+### S-0088/D-2 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+A task that is running, landed, or carried by a document branch is left alone and named with the reason; an escalated or reaped task with no landing is refreshed; no worktree is touched
+
+- Paths: `src/torve/application/planner.py` `tests/test_plan.py`
+- Consequence: an attempt in flight reads the contract it was dispatched under, and a landed phase's terms are the ones its landing was judged by
+
+### S-0088/D-3 — `ASSUMED` (A minted contract follows its amended document) — implementation: none
+
+Each rewrite is recorded as `contract_refreshed` on the engine's stream and as `refreshed_at` on the contract's minted-by, and under a partition through the residency path the mint uses
+
+- Paths: `src/torve/application/planner.py` `src/torve/application/residency.py`
+- Consequence: a contract's provenance is readable, and the board's row is the rewritten one on the next pass
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
