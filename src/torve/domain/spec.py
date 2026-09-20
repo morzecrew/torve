@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -463,6 +463,26 @@ class Phase(Item):
 
 # ....................... #
 
+# S-0087/D-1: the Conventional Commits types as the operator's mapping reads
+# them — one word a single field uses, so it stays with its field (S-0059/D-5).
+ChangeType = Literal["feat", "fix", "refactor", "perf", "docs", "test", "build", "ci", "chore"]
+
+
+class Commit(Item):
+    """What a document's landing means to a release (S-0087/D-1): the
+    Conventional Commits type, an optional scope, and whether it breaks. No
+    diff says this, so the header declares it."""
+
+    type: ChangeType
+    """The Conventional Commits type the landing's pull request is titled with."""
+    scope: str = ""
+    """The scope the title carries, a noun; empty for a change with none."""
+    breaking: bool = False
+    """Whether the landing breaks what stood before."""
+
+
+# ....................... #
+
 
 class Document(Item):
     """One specification document, joined from its directory's files
@@ -478,6 +498,9 @@ class Document(Item):
     """The document's title."""
     kind: Kind = "design"
     """A design, or a convention that owes its summary alone (S-0055/A-2)."""
+    change: Commit | None = None
+    """What the landing means to a release (S-0087/D-1); optional, and a document
+    without one lands untyped."""
     status: Status
     """draft, accepted or superseded; only an accepted document mints or inherits."""
     implementation: Implementation = "none"
@@ -671,6 +694,7 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
         "id",
         "title",
         "kind",
+        "change",
         "status",
         "implementation",
         "depends_on",

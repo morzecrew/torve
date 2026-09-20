@@ -10,15 +10,20 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from torve.config.spec import check_anatomy
 from torve.domain.spec import (
+    DOCUMENT_FILE,
     Alternative,
     Amendment,
     Change,
+    Commit,
     Corpus,
     Decision,
+    DesignSection,
     Document,
     Invariant,
     Question,
+    file_of,
     fingerprint,
     is_citation,
     rule_fingerprint,
@@ -146,6 +151,40 @@ def test_a_document_defines_its_number_rows_invariants_questions_amendments_and_
     }
     assert doc.decision("S-0001/D-1") is not None
     assert doc.decision("S-0001/D-2") is None
+
+
+def test_a_documents_change_is_a_typed_conventional_commit() -> None:
+    """S-0087/D-1: the header may carry the type its landing takes, with an
+    optional scope and `breaking` default false; a document without it loads
+    and dumps as it always did."""
+
+    doc = _doc("0001", change={"type": "ci", "scope": "fuzz"})
+
+    assert doc.change == Commit(type="ci", scope="fuzz", breaking=False)
+    assert file_of("change") == DOCUMENT_FILE
+    assert _doc("0002").change is None
+    assert "change" not in _doc("0002").model_dump(exclude_none=True)
+
+    with pytest.raises(ValidationError):
+        _doc("0003", change={"type": "chores"})
+
+    with pytest.raises(ValidationError):
+        _doc("0004", change={"type": "ci", "emoji": ":construction_worker:"})
+
+
+def test_an_accepted_design_without_a_change_warns_and_a_convention_is_silent() -> None:
+    """S-0087/D-1: the untyped landing is named at check; a convention lands
+    nothing, so it owes no type."""
+
+    def warned(doc: Document) -> bool:
+        return any("no change" in one for one in check_anatomy(doc)[1])
+
+    design = _doc("0001", design=[DesignSection(key="design", md="x")])
+
+    assert warned(design)
+    assert not warned(design.model_copy(update={"change": Commit(type="docs")}))
+    assert not warned(_doc("0002", kind="convention"))
+    assert not warned(_doc("0003", status="draft"))
 
 
 def test_the_corpus_joins_a_decision_to_its_document_and_knows_what_stands() -> None:

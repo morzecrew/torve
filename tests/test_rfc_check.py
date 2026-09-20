@@ -1015,4 +1015,7 @@ def test_implementation_and_the_landings_disagreeing_is_a_warning(tmp_path: Path
     assert result.exit_code == 0, result.output
     assert "S-0001: implementation complete, but phase(s) 1 have no landing" in result.output
     assert "S-0002: every phase has landed and implementation is 'partial'" in result.output
-    assert "S-0003" not in result.output
+    # S-0087/D-1's untyped-landing warning names every accepted design, this one
+    # included; what S-0003 must draw is no disagreement.
+    assert "S-0003: implementation" not in result.output
+    assert "S-0003: every phase" not in result.output

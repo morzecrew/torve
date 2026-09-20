@@ -989,6 +989,13 @@ def check_anatomy(doc: Document) -> tuple[list[str], list[str]]:
         if doc.kind == "design" and not doc.design:
             problems.append(f"{where}: design is empty — an accepted design designs something")
 
+        # S-0087/D-1: a convention lands nothing, so it owes no type.
+        if doc.kind == "design" and doc.change is None:
+            warnings.append(
+                f"{where}: no change — its landing will be untyped; the header says the "
+                "Conventional Commits type, an optional scope and whether it breaks"
+            )
+
     if len(doc.sections) > EXTRAS_CAP:
         problems.append(
             f"{where}: {len(doc.sections)} extra sections — the anatomy stops at {EXTRAS_CAP}; "
