@@ -15,12 +15,14 @@ phasing:
       - .torve/schemas/**
       - tests/test_spec.py
       - tests/test_cli_spec.py
+      - tests/test_rfc_check.py
       - src/torve/config/AGENTS.md
     acceptance:
       - >-
         uv run pytest tests/test_spec.py tests/test_cli_spec.py
       - >-
         uv run torve init --root . && uv run torve spec check
+      - uv run pytest tests/test_rfc_check.py
       - uv run mypy src
     character: structural
   - phase: 2
