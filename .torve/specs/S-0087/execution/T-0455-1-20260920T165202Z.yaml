@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0455
+phase: 1
+base: 76f3ef4d68f91723dca19fa1b38de309b73166a5
+commit: e8fa879b2d8abb301ed49aa36a0a7dc6020aac41
+at: '2026-09-20T16:52:02Z'
+agent: subscription/claude-opus-5@claude-opus-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0059/D-5
+    grade: LOCKED
+    at: '2026-09-20T16:49:41Z'
+    attempt: 3
+    claim: >-
+      the change type is a closed word a single field uses, so it stays with its field
+      in domain/spec.py rather than in the vocabulary module — which the contract's
+      scope does not name in any case
+    evidence: >-
+      src/torve/domain/vocabulary.py:1-6 — 'A word one field alone uses stays with
+      that field; what stands here is shared by two models, or by a file and the record';
+      src/torve/domain/spec.py:466 defines ChangeType beside Commit
+    action: decided
+    proposal: >-
+      S-0059/D-5 stands as written — no amendment owed; the entry is the close-out
+      over a touched governed path
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-20T16:49:41Z'
+    attempt: 3
+    claim: >-
+      a document that carries change cannot be written back: the emitter returns a
+      model-valued field whole and yaml refuses it, so torve spec fmt, amend and fix
+      would raise on the first document given the field; the contract's scope does
+      not name the emitter, so the field is added and the emitter is left as it is
+    evidence: >-
+      src/torve/config/spec_emit.py:114-134 — _value dumps a list's entries and contract_example
+      and returns any other model whole; write_document on a document carrying change
+      raises yaml.representer.RepresenterError ('cannot represent an object', Commit(type='ci',
+      scope='fuzz', breaking=False))
+    action: decided
+    proposal: >-
+      D-1's paths gain src/torve/config/spec_emit.py — _value dumps a model-valued
+      field as it dumps a list's entries, or change joins HEADER_FIELDS
