@@ -12,6 +12,7 @@ phasing:
       - src/torve/domain/spec.py
       - src/torve/config/spec.py
       - .torve/schemas/document.json
+      - .torve/schemas/**
       - tests/test_spec.py
       - tests/test_cli_spec.py
       - src/torve/config/AGENTS.md

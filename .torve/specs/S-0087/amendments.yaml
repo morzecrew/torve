@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-20T16:28:21Z'
+    title: >-
+    md: |-
+      Phase 1's acceptance runs `torve init`, and the verb rewrites every
+      generated schema beside the corpus, not the one the phase adds a field
+      to: T-0455's first attempt was convicted at the scope gate for the
+      other five. The scope reaches `.torve/schemas/**`; nothing else in the
+      phase changes.
+      torve init rewrites every schema, so phase 1 reaches them all
