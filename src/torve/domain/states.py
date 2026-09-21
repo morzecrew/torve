@@ -31,6 +31,14 @@ class TaskState(StrEnum):
 # ....................... #
 
 
+class BlockedDispatch(RuntimeError):
+    """Dispatch refused: another active run's scope intersects this task's
+    (S-0006/prevention-beats-ordering — prevention beats ordering). Never a silent wait: the
+    cause is in the message and counted in telemetry (S-0006/D-6). Raised by
+    the runner, caught by the worker — which holds the claim rather than
+    escalating it, because the other run ends and the overlap with it."""
+
+
 class EscalationReason(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     POISON_CEILING = "poison_ceiling"

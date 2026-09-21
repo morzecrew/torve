@@ -85,7 +85,7 @@ from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
-from torve.domain.states import EscalationReason, TaskState
+from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import GateContext, GitError, build_context, resolve_base
 from torve.gates.runner import RunReport, run_gates
@@ -1239,12 +1239,6 @@ async def _run_task_async(
 
 
 # ....................... #
-
-
-class BlockedDispatch(RuntimeError):
-    """Dispatch refused: another active run's scope intersects this task's
-    (S-0006/prevention-beats-ordering — prevention beats ordering). Never a silent wait: the
-    cause is in the message and counted in telemetry (S-0006/D-6)."""
 
 
 # ....................... #

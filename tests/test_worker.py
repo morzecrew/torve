@@ -21,7 +21,7 @@ from torve.application.manager import project
 from torve.application.runstate import Escalation, RunState
 from torve.application.worker import Outcome, Worker
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.domain.states import EscalationReason, TaskState
+from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Scope, Task
 
 PARTITION = "morzecrew/torve"
@@ -235,6 +235,40 @@ def test_an_escalated_run_state_carries_its_reason_through_the_enum():
     assert outcome.escalation is EscalationReason.POISON_CEILING
     assert outcome.landed_sha is None
     assert "3 attempts" in outcome.detail
+
+
+def test_an_overlap_with_a_run_off_the_board_holds_the_claim():
+    """Two review rounds on one page were escalated as infrastructure
+    failures because a hand `torve run` held their path on the host
+    (bloomery T-0050, T-0052). An overlap ends when the other run does, so
+    the claim goes back queued, and the same pass does not take it again."""
+
+    async def held(task):
+        raise BlockedDispatch("blocked_by_overlap: T-0040 on pages/docs/how-to/**")
+
+    async def scenario(log):
+        await mint(log, "T-0001")
+        worker = Worker(log=log, name="w-1", execute=held)
+
+        assert await worker.once(PARTITION) == "T-0001"
+
+        board = project(await log.since(partition=PARTITION))
+        view = board.tasks["T-0001"]
+        assert view.state is TaskState.QUEUED
+        assert view.claimed_by is None
+        assert view.escalation is None
+
+        released = [
+            e
+            for e in await log.history("T-0001", partition=PARTITION)
+            if e.kind is EventKind.TASK_RELEASED
+        ]
+        assert released[0].payload["reason"].startswith("held: blocked_by_overlap")
+
+        # Held for a lease: the next pass leaves it to the other run.
+        assert await worker.once(PARTITION) is None
+
+    run(scenario)
 
 
 def test_a_refused_dispatch_escalates_rather_than_stranding_the_claim():

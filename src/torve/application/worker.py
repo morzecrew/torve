@@ -15,6 +15,7 @@ testable without a container.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -23,7 +24,7 @@ import attrs
 
 from torve.application.manager import LEASE_SECONDS, Board, dispatchable, project
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.domain.states import EXIT_INFRASTRUCTURE, EscalationReason
+from torve.domain.states import EXIT_INFRASTRUCTURE, BlockedDispatch, EscalationReason
 
 if TYPE_CHECKING:
     from torve.application.eventlog import EventLog
@@ -70,6 +71,13 @@ class Worker:
     name: str
     execute: Execute
     on_base: OnBase | None = None
+    # Claims the runner refused for an overlap with a run the board cannot
+    # see (a hand `torve run` on the same host), by the moment they were
+    # held. Skipped for one lease so a pass does not claim, hold and release
+    # the same task forever while the other run finishes.
+    # ponytail: fixed cooldown; re-probe the host overlap at claim time if a
+    # lease's lag after the other run ends matters.
+    held: dict[str, float] = attrs.field(factory=dict)
 
     # ....................... #
 
@@ -89,7 +97,12 @@ class Worker:
         board = project(await self.log.since(partition=partition))
         task: Task | None = None
 
+        now = time.monotonic()
+
         for one in dispatchable(board, partition):
+            if now - self.held.get(one, float("-inf")) < LEASE_SECONDS:
+                continue
+
             contract = board.tasks[one].contract
 
             if (
@@ -188,6 +201,19 @@ class Worker:
 
         try:
             outcome = await self.run(task, partition)
+
+        except BlockedDispatch as exc:
+            # An overlap with a run the board does not list — a hand
+            # dispatch on this host — is a wait, not a refusal: the other
+            # run ends, and the claim goes back to the board queued rather
+            # than to a person as an infrastructure failure (bloomery
+            # T-0050, T-0052, 2026-09-21).
+            self.held[task.id] = time.monotonic()
+            outcome = Outcome(
+                attempt=0,
+                exit_code=EXIT_INFRASTRUCTURE,
+                detail=f"held: {exc}"[:300],
+            )
 
         except (ValueError, RuntimeError) as exc:
             # A dispatch the engine refuses — an unmeasured image regime, a
