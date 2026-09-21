@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-rounds-review-mints-the-next-round
+kind: operator
+ref: 'bloomery night 2026-09-21: T-0070 → T-0071 → T-0072 → T-0074 → T-0076'
+title: A round's own review mints the next round
+at: '2026-09-21T22:13:47Z'
+summary: |
+  On bloomery's night of 2026-09-21 the review-thread leg (S-0084, S-0086,
+  `sources: [forge, record]`) drained the review tier's non-blocking findings
+  on S-0002's phases into eleven rounds, which is what it is for. But every
+  round is itself reviewed by the tier (S-0043), the tier's review of a round
+  records its own non-blocking findings — a docstring that now says
+  "project-wide" about two projects, a comment that lost a word — and the leg
+  read those as findings on the branch and minted the next round for them:
+  T-0070 was reviewed by T-0071, whose finding became T-0072, and T-0074 and
+  T-0076 were queued the same way. Each costs an attempt and a review
+  (~$0.7 and ~15 minutes) and the tail has no end in the rules: a round of a
+  round of a round is admissible as long as the reviewer finds a nit, and the
+  reviewer always finds a nit. The night was stopped by hand with three such
+  rounds queued.
+
+  The leg's `record` source should not read the review of a round as a source
+  of rounds — a round answers findings, its own review is a check on that
+  answer, and what it finds is for the stream and the pull request comment,
+  not for a further contract. Or a floor: a document's rounds stop once every
+  finding on a *phase* task is answered, with the rounds' own reviews
+  answered on the stream only. Either is a row on S-0086 for the owner to
+  settle; the leg's tally on this document — eleven rounds, three of them
+  rounds of rounds — is the evidence.
