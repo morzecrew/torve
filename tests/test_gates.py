@@ -67,6 +67,20 @@ def test_scope_untracked_file_is_visible(repo):
     assert "stray.txt" in result.output
 
 
+def test_the_patch_carries_an_untracked_file(repo):
+    """The reviewer reads the gate pass's patch, so a file the attempt created
+    and never staged has to appear there as an added file — `git diff` alone
+    leaves it out, and a review then judges the module absent."""
+    repo.seed()
+    repo.task(base_task(allow=["src/**"]), log_document())
+    repo.commit("task branch")
+    (repo.root / "src" / "fresh.py").write_text("VALUE = 1\n", encoding="utf-8")
+    patch = context_for(repo).patch
+    assert "diff --git a/src/fresh.py b/src/fresh.py" in patch
+    assert "new file mode" in patch
+    assert "+VALUE = 1" in patch
+
+
 def test_secrets_reports_file_and_line(repo):
     repo.seed()
     repo.write("src/config.py", "# comment\nkey = '" + "AKIA" + "IOSFODNN7EXAMPLE" + "'\n")

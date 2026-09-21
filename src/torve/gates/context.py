@@ -157,6 +157,18 @@ def _untracked(root: Path) -> list[str]:
     return [line for line in out.splitlines() if line.strip()]
 
 
+def _untracked_patch(root: Path, path: str) -> str:
+    """An untracked file as the added-file section of a unified diff. `--no-index`
+    exits 1 whenever the sides differ, which here is always."""
+    proc = subprocess.run(
+        ["git", "-C", str(root), "diff", "--no-index", "--", "/dev/null", path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.stdout
+
+
 # ....................... #
 
 
@@ -259,6 +271,13 @@ def build_context(
 
     untracked = _untracked(root)
     diff = diff + [DiffEntry(status="A", path=p) for p in untracked]
+
+    # The patch reaches the reviewer as `review.diff` (S-0005/A-5), and `git
+    # diff` against the merge base never lists a file the attempt created
+    # and did not stage — so a review read a new module as absent from the
+    # change and blocked a candidate whose landing would have carried it.
+    if resolved is not None:
+        patch += "".join(_untracked_patch(root, p) for p in untracked)
 
     found = _discover_task(root, task_path)
     task = load_task(found) if found is not None else None
