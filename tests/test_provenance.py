@@ -100,9 +100,14 @@ def test_a_signed_commit_with_the_key_outside_the_worktree(vcs_repo, tmp_path):
         sign_key=str(keydir / "signing"),
     )
     assert sha
+    # Committed under the host's identity when a key signs: the forge checks
+    # the signature against the account holding the key through the
+    # committer's email, so `torve@local` would verify nowhere but here.
+    assert git(vcs_repo, "log", "-1", "--format=%cn|%ce") == "A Human|human@example.invalid"
+    assert git(vcs_repo, "log", "-1", "--format=%an") == "fake"
     signers = tmp_path / "allowed_signers"
     pubkey = (keydir / "signing.pub").read_text(encoding="utf-8").strip()
-    signers.write_text(f"torve@local {pubkey}\n", encoding="utf-8")
+    signers.write_text(f"human@example.invalid {pubkey}\n", encoding="utf-8")
     subprocess.run(
         [
             "git",

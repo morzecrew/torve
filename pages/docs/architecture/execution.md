@@ -85,7 +85,11 @@ The runner composes the commit, not the agent: the author is the agent
 identity, the trailers carry task, attempt, agent, config hash and the
 decisions inherited, and the signing key never enters a sandbox. That
 trailer is what makes a landing findable years later by anything that can
-read git.
+read git. The committer is `Torve <torve@local>` on an unsigned commit and
+the key owner's identity, as the host's git config states it, on a signed
+one: a forge verifies an SSH signature against the account that holds the
+key through the committer's email, so who wrote the change and who attests
+it are two facts on every landing.
 
 A landing is not a push. The commit lands on the task branch and the
 candidate waits at `ready` for the serialized lane, which is `torve merge`

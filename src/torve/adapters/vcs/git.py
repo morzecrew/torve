@@ -53,6 +53,33 @@ def repository_name(root: Path) -> str:
 # ....................... #
 
 
+def _committer(worktree: Path, sign_key: str | None) -> list[str]:
+    """The identity an engine commit is committed under.
+
+    Unsigned, it is `Torve <torve@local>`: the engine applied it, and no
+    person is claimed. Signed, it is the key owner's identity as the host's
+    git config states it — a forge verifies an SSH signature against the
+    account that holds the key, through the *committer's* email, so a commit
+    committed by `torve@local` and signed by a person's key reads as
+    unverified however good the signature (bloomery #172: every engine
+    commit signed, the fast-forwarded ones "Unverified", the rebased ones
+    — re-committed under the host identity — "Verified"). The author stays
+    the agent (S-0010): who wrote it and who attests it are two facts.
+    """
+
+    if sign_key:
+        name = _git(worktree, "config", "user.name").stdout.strip()
+        email = _git(worktree, "config", "user.email").stdout.strip()
+
+        if name and email:
+            return ["-c", f"user.name={name}", "-c", f"user.email={email}"]
+
+    return ["-c", "user.name=Torve", "-c", "user.email=torve@local"]
+
+
+# ....................... #
+
+
 class GitVcs:
     def commit_all(
         self, worktree: Path, message: str, author: str | None = None, sign_key: str | None = None
@@ -63,7 +90,7 @@ class GitVcs:
         if not status.stdout.strip():
             return None
 
-        config = ["-c", "user.name=Torve", "-c", "user.email=torve@local"]
+        config = _committer(worktree, sign_key)
         commit = ["commit", "-m", message]
 
         if sign_key:
