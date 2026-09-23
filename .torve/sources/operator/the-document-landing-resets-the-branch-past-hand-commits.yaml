@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/the-document-landing-resets-the-branch-past-hand-commits
+kind: operator
+ref: 'bloomery torve/S-0002, 2026-09-22/23: becf2910, 78eb537c, a7b73b21, f2fa76be, c5b20423
+  lost under T-0066/T-0076/T-0081 landings'
+title: The document landing resets the branch past commits pushed since the task was cut
+at: '2026-09-23T17:16:38Z'
+summary: |
+  Under `promotion.unit: document` the lane lands a phase by resetting the
+  document branch to the candidate's tip and pushing it (S-0083/D-5), after
+  the same base probe and rebase the task unit applies. The probe asks
+  whether the *base* — `origin/main` — moved, and rebases onto it; it never
+  asks whether the document branch itself moved since the task was cut from
+  it. On bloomery's `torve/S-0002` five hand commits were pushed to the
+  branch between two of the leg's rounds being cut and landed: an amendment
+  widening a phase's scope with the facade export it asked for, a golden pin
+  re-blessed after `main` merged another document, and two drafted decision
+  rows with their projections. Each landing that followed put the branch at
+  the candidate's tip, which descended from the tip before those commits,
+  and the push went through — `--force-with-lease` leases against the local
+  ref, which the lane had just moved itself. The pull request's CI went red
+  again on the pin that had been re-blessed, and the rows the owner was asked
+  to grade were not on the branch they were said to be on. Nothing in the
+  record said so: the landing was recorded as a fast-forward.
+
+  What the lane should do is what it does for the base: treat the document
+  branch as a base that may have moved, rebase the candidate onto its current
+  tip (from a fetch, not the local ref), re-run the gates on the rebased tree,
+  and refuse a landing that is not a fast-forward of the branch's remote tip.
+  A hand commit on a document branch is the owner's act and the lane may not
+  undo it; if a hand commit and a candidate conflict, that is a conflict for
+  a person, as it is on the task unit. Recovered by cherry-pick from the
+  local work branches that still held the commits.
