@@ -661,6 +661,12 @@ torve plan S-0079 --refresh                 # the table: what would be rewritten
 torve plan S-0079 --refresh --no-dry-run    # rewrite them
 ```
 
+A phase an amendment *adds* to a document whose earlier phases are minted is
+minted alone with `--phase`: `torve plan S-0002 --phase 6 --no-dry-run`. Its
+`depends_on` edges point at the tasks the phases it names already have; the
+document is otherwise refused as already minted, because what to do with the
+existing tasks is a person's call.
+
 The document is admitted and derived as a mint derives it, and each phase
 already minted has its contract rewritten from the derivation — intent,
 scope, acceptance, decisions, character, tier variant — keeping its id, its

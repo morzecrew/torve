@@ -410,7 +410,13 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
 
 
 def plan_document(
-    root: Path, rfc_dir: Path, identifier: str, *, board: Board | None = None, refresh: bool = False
+    root: Path,
+    rfc_dir: Path,
+    identifier: str,
+    *,
+    board: Board | None = None,
+    refresh: bool = False,
+    phases: set[int] | None = None,
 ) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry. With
@@ -475,6 +481,22 @@ def plan_document(
     decisions = inherit_decisions(doc)
 
     document = doc.id
+
+    # `--phase`: a phase an amendment added to a document whose earlier
+    # phases are minted and landed (bloomery S-0002/A-4). Only the named
+    # phases are minted; the others are what their `depends_on` edges point
+    # at, through the contracts those phases already have.
+    if phases is not None:
+        known = {e.phase for e in entries}
+        missing = sorted(phases - known)
+
+        if missing:
+            raise PlanError(
+                f"{document}: phase(s) {', '.join(map(str, missing))} not in its phasing"
+            )
+
+        entries = [e for e in entries if e.phase in phases]
+
     clashes = [] if refresh else _already_minted(root, document, {e.phase for e in entries}, board)
 
     if clashes:
@@ -517,6 +539,14 @@ def plan_document(
     for offset, entry in enumerate(ordered):
         task_id = f"T-{next_number + offset:04d}"
         ids_by_phase.setdefault(entry.phase, []).append(task_id)
+
+    if phases is not None:
+        for entry in ordered:
+            for predecessor in entry.depends_on:
+                if predecessor not in ids_by_phase:
+                    ids_by_phase[predecessor] = _already_minted(
+                        root, document, {predecessor}, board
+                    )
 
     for offset, entry in enumerate(ordered):
         # A task with an in-document predecessor waits through it; one with

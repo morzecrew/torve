@@ -138,6 +138,38 @@ def test_replanning_a_minted_phase_is_refused(plan_repo):
         plan_document(root, root / ".torve" / "specs", "0090")
 
 
+def test_a_phase_an_amendment_added_is_minted_alone(plan_repo):
+    """bloomery S-0002/A-4: phases 3-5 minted and landed, a phase 6 added by
+    amendment, and `torve plan` refused the document as already minted. With
+    `--phase` only the named phase is minted, and its edge points at the
+    task the phase it depends on already has."""
+    root, write_doc, git = plan_repo
+    specs = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, specs, "0090"))  # T-0001..T-0003
+    later = {
+        "phase": 3,
+        "title": "polish",
+        "intent": "Polish the wired thing.",
+        "scope": ["src/polish.py"],
+        "depends_on": [2],
+    }
+    write_doc("0090", "Widgets", phasing=[*PHASING, later])
+    git("add", "-A")
+    git("commit", "-qm", "phase 3 by amendment")
+
+    (planned,) = plan_document(root, specs, "0090", phases={3}).tasks
+
+    assert planned.task.id == "T-0004"
+    assert planned.task.phase == 3
+    assert planned.task.depends_on == ["T-0003"]
+
+    with pytest.raises(PlanError, match="already minted"):
+        plan_document(root, specs, "0090", phases={1})
+
+    with pytest.raises(PlanError, match="not in its phasing"):
+        plan_document(root, specs, "0090", phases={9})
+
+
 def test_draft_documents_are_refused(plan_repo):
     root, write_doc, git = plan_repo
     write_doc("0091", "Sketch", status="draft")

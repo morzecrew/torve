@@ -62,6 +62,14 @@ def plan_cmd(
             "as it now stands; mints no phase.",
         ),
     ] = False,
+    phase: Annotated[
+        list[int] | None,
+        typer.Option(
+            "--phase",
+            help="Mint only this phase (repeatable): for a phase an amendment added to a "
+            "document whose earlier phases are minted; its edges point at their tasks.",
+        ),
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option(
@@ -114,7 +122,9 @@ def plan_cmd(
         return
 
     try:
-        report = plan_document(root, rfc_dir, identifier, board=board)
+        report = plan_document(
+            root, rfc_dir, identifier, board=board, phases=set(phase) if phase else None
+        )
 
     except PlanError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
