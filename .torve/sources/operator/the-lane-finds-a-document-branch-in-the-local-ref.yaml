@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/the-lane-finds-a-document-branch-in-the-local-ref
+kind: operator
+ref: 'bloomery 2026-09-24: torve/S-0002 merged (#172, squash) and deleted on origin, still
+  present locally at its pre-merge tip when phase 6 was about to land'
+title: The lane finds a merged document branch in a stale local ref
+at: '2026-09-24T03:11:29Z'
+summary: |
+  `_document_branch` asks `vcs.tip(root, branch)` whether the document branch
+  exists and cuts one from the remote's `main` only when the local ref is
+  absent (S-0083/D-18). After bloomery squash-merged #172 and GitHub deleted
+  `torve/S-0002` on the remote, the local ref was still there at its
+  pre-merge tip — twenty-odd commits that are not ancestors of `main`
+  because the merge was a squash. A phase 6 added by amendment (S-0002/A-4)
+  would have landed onto that stale tip and the lane would have pushed it,
+  recreating the remote branch with the merged history and opening a pull
+  request that shows every landed commit again, against a base it cannot
+  fast-forward onto. Caught by reading the code before the night; the four
+  stale local refs were deleted by hand.
+
+  The existence check belongs to the remote: a document branch the remote
+  no longer has is a branch that was merged (or abandoned), and the next
+  phase of that document starts a new one from `main`. A fetch with prune
+  before the check, and the tip read from `origin/<branch>` rather than the
+  local ref, is the whole of it — the same reading the workspace already
+  gives the base (S-0080/D-10, "cut from the remote's tip rather than a
+  local copy"). The local ref then becomes what it was meant to be, a
+  mirror the lane moves, and never the authority.
