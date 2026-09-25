@@ -62,7 +62,11 @@ def truncate(text: str) -> str:
         return text
 
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
-    final_line = text[text.rfind("\n") + 1 :]
+    # A harness stream ends with a newline, so the final line is the last
+    # non-empty one — read after it, the rescue below saw an empty line and
+    # clipped through every verdict longer than the tail (T-0103).
+    body = text.rstrip("\n")
+    final_line = body[body.rfind("\n") + 1 :]
 
     if len(tail) < len(final_line) and (
         len(final_line) <= FINAL_LINE_LIMIT or _document(final_line)

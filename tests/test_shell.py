@@ -57,3 +57,16 @@ def test_oversize_non_json_final_line_stays_bounded() -> None:
     clipped = truncate("head\n" + monster)
 
     assert len(clipped) <= OUTPUT_LIMIT + 100
+
+
+def test_the_final_line_rescue_survives_the_streams_trailing_newline() -> None:
+    """T-0103: a harness stream ends with a newline. Read after it, the final
+    line was empty, and a verdict longer than the tail was clipped through —
+    two paid, readable reviews recorded as unparseable in one night."""
+
+    verdict = '{"chatter": "%s", "findings": []}' % ("z" * OUTPUT_LIMIT)
+    clipped = truncate("noise\n" * 2_000 + verdict + "\n")
+
+    assert (
+        json.loads(clipped[clipped.index("{", clipped.index("… truncated …")) :])["findings"] == []
+    )
