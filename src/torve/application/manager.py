@@ -226,11 +226,26 @@ def project(events: Iterable[EventRecord]) -> Board:
             )
         elif event.kind is EventKind.ESCALATION_RESOLVED:
             resolution = str(payload.get("resolution") or "")
-            view = replace(
-                view,
-                state=(TaskState.ABANDONED if resolution == "abandoned" else TaskState.QUEUED),
-                escalation=None,
-            )
+
+            if resolution == "landed":
+                # Finished by hand (bloomery T-0087): the row reads as a
+                # landing reads — READY with the sha the person named — so
+                # the worker never re-dispatches it and a dependent's cut
+                # can find the landing on its base. Projected as QUEUED,
+                # the hand finish was redone from the base an hour later.
+                view = replace(
+                    view,
+                    state=TaskState.READY,
+                    landed_sha=str(payload.get("sha") or "") or view.landed_sha,
+                    escalation=None,
+                    claimed_by=None,
+                )
+            else:
+                view = replace(
+                    view,
+                    state=(TaskState.ABANDONED if resolution == "abandoned" else TaskState.QUEUED),
+                    escalation=None,
+                )
 
         tasks[event.subject_id] = view
 

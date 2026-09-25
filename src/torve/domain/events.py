@@ -441,6 +441,10 @@ class EscalationResolved(BaseModel):
 
     resolution: Literal["requeued", "abandoned", "landed"]
     note: str = ""
+    # `landed`: the commit the hand finish landed as, which is what a
+    # dependent's cut is checked against (S-0085/D-4) — a landing with no
+    # sha satisfies no dependency.
+    sha: str = ""
 
 
 # ....................... #

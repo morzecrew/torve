@@ -717,7 +717,7 @@ async def _note(dsn: str | None, partition: str, task_id: str, topic: str, body:
 
 
 async def _resolve(
-    dsn: str | None, partition: str, task_id: str, resolution: str, note: str
+    dsn: str | None, partition: str, task_id: str, resolution: str, note: str, sha: str = ""
 ) -> None:
     from torve.application.eventlog import event_log
     from torve.domain.events import ActorKind, EventKind, SubjectType
@@ -730,7 +730,7 @@ async def _resolve(
             subject_id=task_id,
             actor_kind=ActorKind.OPERATOR,
             actor_id="operator",
-            payload={"resolution": resolution, "note": note},
+            payload={"resolution": resolution, "note": note, **({"sha": sha} if sha else {})},
         )
 
 
@@ -829,6 +829,14 @@ def resolve_cmd(
         typer.Option("--resolution", help="requeued, abandoned or landed."),
     ] = "requeued",
     note: Annotated[str, typer.Option("--note", help="Why, for whoever reads this later.")] = "",
+    sha: Annotated[
+        str,
+        typer.Option(
+            "--sha",
+            help="`landed` only: the commit the hand finish landed as, on the branch the "
+            "task's document lands onto — what a dependent's cut is checked against.",
+        ),
+    ] = "",
     dsn: Annotated[
         str,
         typer.Option(
@@ -855,7 +863,17 @@ def resolve_cmd(
             EXIT_CONFIG,
         )
 
-    asyncio.run(_resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note))
+    if resolution == "landed" and not sha:
+        raise fail(
+            "configuration error: --resolution landed needs --sha, the commit the hand "
+            "finish landed as — without it the row reads as landed and no dependent "
+            "can find the landing on its base",
+            EXIT_CONFIG,
+        )
+
+    asyncio.run(
+        _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
+    )
 
     if fmt is Format.JSON:
         emit_json({"partition": partition, "task": task_id, "resolution": resolution})

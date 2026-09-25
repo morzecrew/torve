@@ -624,6 +624,26 @@ def test_resolving_an_escalation_returns_the_task_or_takes_it_off_the_board():
     assert board_after("abandoned").state is TaskState.ABANDONED
 
 
+def test_a_landed_resolution_reads_as_a_landing():
+    """`landed` is a hand finish: the row must read as a landing reads — off
+    the queue, with the sha the person named — or the worker re-dispatches
+    the task from its base and the hand finish is redone (bloomery T-0087:
+    resolved landed at 16:40, claimed at 16:41)."""
+    board = project(
+        [
+            event(EventKind.TASK_MINTED, "T-1"),
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
+            event(EventKind.ESCALATION_RAISED, "T-1", {"reason": "blocker_finding"}),
+            event(EventKind.ESCALATION_RESOLVED, "T-1", {"resolution": "landed", "sha": "abc123"}),
+        ]
+    )
+    landed = board.tasks["T-1"]
+    assert landed.state is TaskState.READY
+    assert landed.landed_sha == "abc123"
+    assert landed.escalation is None
+    assert landed.claimed_by is None
+
+
 def test_an_agent_may_not_close_its_own_escalation():
     from torve.domain.events import AUTHORITY, UnauthorizedWrite, check_authority
 
