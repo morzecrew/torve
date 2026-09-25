@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-long-review-verdict-is-clipped-through-by-the-exec-cap
+kind: operator
+ref: 'bloomery 2026-09-25: T-0103 reviewed a green T-0087 twice, both asks readable in the
+  trace, both recorded unparseable; fixed 80140ec9'
+title: A long review verdict is clipped through by the exec cap
+at: '2026-09-25T10:27:12Z'
+summary: |
+  The runtimes clip an exec's output to 8000 characters — two thousand of
+  head, the rest tail — and `truncate` rescues the final line whole when it
+  is a JSON document, because a harness envelope is one long final line
+  (T-0283). The rescue located that line after the stream's trailing newline,
+  so it read an empty string, never fired, and the tail cut into the envelope
+  whenever the envelope was longer than the tail. `parse_findings` reads the
+  clipped exec output, not the raw capture (that feeds only the trace and the
+  burn profile), so a verdict over roughly six thousand characters had no
+  decodable document at all and was recorded `unparseable`; the second ask
+  (S-0086/D-1) produced a verdict of the same length and died the same way.
+
+  Bloomery night 10, T-0103 on a green T-0087 (S-0013 phase 1): both traces
+  end in `… truncated …` followed by the second half of a result envelope
+  whose `result` string holds four findings with evidence — a Snowflake date
+  spine rendered through `ARRAY_GENERATE_RANGE`, `CURRENT_TIMESTAMP()`
+  landing a TIMESTAMP_LTZ in TIMESTAMP_NTZ columns, a syntax rung parsing only
+  the first statement. The target escalated `gate_infrastructure_failure`,
+  the findings reached no record, and the night dispatched the next phase.
+  T-0014/T-0017 and T-0038/T-0045 were the same defect on earlier nights,
+  read then as an intermittent reviewer fault: short verdicts fit inside the
+  tail and parsed, long ones — the careful reviews — did not.
+
+  Fixed at 80140ec9: the final line is read after `rstrip("\n")`. Two
+  questions stay open. The verdict is still read from a clipped string when
+  the raw capture holds the verbatim bytes beside it; reading the raw file
+  first, where it exists, would make the clip irrelevant to the parse. And an
+  unparseable verdict discards a paid review outright — the trace kept every
+  finding — where a parse of the trace's own envelope line would recover it.
