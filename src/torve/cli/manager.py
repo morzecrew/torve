@@ -289,15 +289,30 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
         if base is None:
             return False
 
-        # The board's landing is the attempt's sha. When the lane rebased the
-        # candidate onto a branch that had moved, the commit the branch holds
-        # is the lane's, in its own row — and only there (bloomery night 10:
-        # every phase 2+ waited on a sha no branch held while rounds ran).
+        # A landing is on the base under whichever sha the base carries it.
+        # The board's is the attempt's; the lane's row is the rebased one; and
+        # a rebase of the document branch onto a moved base — every landing
+        # after a merge to main — renames both. The landing file survives all
+        # of that (S-0065/D-7: the tree's landing files are the carrier), so
+        # the base tree carrying `.torve/specs/*/execution/<dep>-*.yaml` is
+        # the answer that outlives a rebase; the shas stay for a base that
+        # carries no file — a hand finish, a task minted before the carrier.
+        # (bloomery night 10: every phase 2+ waited on shas no branch held
+        # while rounds ran, twice, once per reading of "landed".)
         from torve.application.projections import lane_landings
+        from torve.config import layout
 
         by_lane = lane_landings(root)
+        carried = {
+            name.split("/")[-1].rsplit("-", 2)[0]
+            for name in vcs.tree_paths(root, base, layout.TORVE_DIR + "/specs")
+            if "/execution/" in name and name.endswith(".yaml")
+        }
 
         for dependency in task.depends_on:
+            if dependency in carried:
+                continue
+
             view = board.tasks.get(dependency)
             landed = [
                 sha

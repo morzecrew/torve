@@ -278,6 +278,19 @@ def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_
     telemetry.write_text("", encoding="utf-8")
     assert not on_base(dependent, board)
 
+    # The base moved and the lane rebased the document branch onto it: every
+    # sha is renamed, the board's and the lane's alike. The landing file the
+    # tree carries is what still says T-1 landed here.
+    repo.write(".torve/specs/S-0013/execution/T-1-1-20260926T000000Z.yaml", "task: T-1\n")
+    repo.commit("torve(T-1): landing of attempt 1")
+    repo.git("checkout", "-q", "main")
+    repo.write("README.md", "moved\n")
+    repo.commit("a merge to main")
+    repo.git("checkout", "-q", "torve/S-0013")
+    repo.git("rebase", "-q", "main")
+    assert not GitLane().is_ancestor(repo.root, rebased_sha, "torve/S-0013")
+    assert on_base(dependent, board)
+
 
 def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
     async def scenario(log):

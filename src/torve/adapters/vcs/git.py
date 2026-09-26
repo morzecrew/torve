@@ -386,6 +386,13 @@ class GitLane:
 
     # ....................... #
 
+    def tree_paths(self, root: Path, ref: str, path: str) -> list[str]:
+        """The files under *path* in *ref*'s tree, root-relative — what the
+        commit carries, whatever sha it carries it under."""
+        return _git(root, "ls-tree", "-r", "--name-only", ref, "--", path).stdout.split()
+
+    # ....................... #
+
     def current_branch(self, root: Path) -> str:
         return _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
 
