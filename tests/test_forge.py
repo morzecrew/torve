@@ -361,6 +361,29 @@ def corpus_with_phasing(
     return root
 
 
+def test_a_document_body_past_the_forges_limit_is_cut_and_says_where_the_record_is(
+    tmp_path: Path,
+):
+    """GitHub refuses a body past 65536 characters, and a document that has
+    carried a dozen landings composes past it — bloomery S-0002's last phase
+    was pushed and its pull request refused three passes running."""
+    from torve.application.forge import BODY_LIMIT
+
+    root = corpus_with_phasing(tmp_path)
+    landings = [
+        DocumentLanding(
+            task=phase_task(f"T-{8500 + n}", 1, "a landing with a long intent " + "x" * 4000),
+            sha=f"{n:040x}",
+            results=[GateResult(name="scope", outcome="pass", state="blocking", duration_s=0.2)],
+        )
+        for n in range(30)
+    ]
+    _, body = compose_document_pr("S-0090", landings, root)
+    assert len(body) <= BODY_LIMIT
+    assert body.endswith("under `.torve/specs/S-0090/execution/`.")
+    assert "T-8500" in body
+
+
 def test_the_document_body_carries_the_landings_and_the_phases_still_to_come(tmp_path: Path):
     root = corpus_with_phasing(tmp_path)
     log_dir = root / ".torve" / "tasks" / "T-8402"

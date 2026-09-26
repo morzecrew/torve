@@ -42,6 +42,13 @@ GITMOJI = {
 # A pull request title is a commit subject: one line, bounded.
 TITLE_LIMIT = 72
 
+#: GitHub refuses a pull request body past this ("Body is too long (maximum
+#: is 65536 characters)"), and a document that has carried a dozen landings
+#: composes past it (bloomery S-0002: eleven tasks' records, refused three
+#: passes running). The body is bounded here with a pointer to the records it
+#: was composed from, which the branch carries in full.
+BODY_LIMIT = 65536
+
 
 # ....................... #
 
@@ -406,4 +413,19 @@ def compose_document_pr(
 
     lines.append("Composed from the landing records; no agent's prose reaches this body.")
 
-    return title, "\n".join(lines)
+    return title, _bounded(document, "\n".join(lines))
+
+
+def _bounded(document: str, body: str) -> str:
+    """The body under :data:`BODY_LIMIT`, cut on a line and saying so."""
+
+    if len(body) <= BODY_LIMIT:
+        return body
+
+    note = (
+        f"\n\n… cut here: the composed body passed the forge's {BODY_LIMIT}-character "
+        f"limit. The whole record is on the branch, under "
+        f"`.torve/specs/{document}/execution/`."
+    )
+    kept = body[: BODY_LIMIT - len(note)]
+    return kept[: kept.rfind("\n")] + note
