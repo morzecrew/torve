@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-hand-landing-leaves-no-landing-file
+kind: operator
+ref: 'bloomery 2026-09-26: T-0087 resolved landed --sha 0f605b70; #184 read "3/4 phases"
+  with all four landed'
+title: A hand landing leaves no landing file
+at: '2026-09-26T19:40:00Z'
+summary: |
+  `torve manager resolve --resolution landed --sha` (c78da756) projects the
+  task as landed and carries the sha, but writes nothing to
+  `.torve/specs/<document>/execution/`. The lane's own landing mints that
+  file, and two readers count on it: `compose_document_pr` counts a
+  document's phases from the landing files on the branch, and
+  `_dependencies_on_base` (c73cd58c) reads them first, before the sha
+  fallback. So a phase finished by hand is complete on the board and invisible
+  to the record on the branch.
+
+  Bloomery night 10: S-0013 phase 1 was hand-finished after the served attempt
+  landed red under the fallback battery, pushed as the document branch and
+  resolved landed with its sha. Phases 2–4 landed through the lane on top of
+  it. The pull request the forge opened said "1 of this document's 4 phases
+  are still to come" and listed phase 1 under "Still to come", stayed a draft
+  on that count, and the merge round corrected the title and body by hand.
+  The dependency check did not stall only because the sha fallback held.
+
+  A landed resolution should mint the landing file the lane would have
+  written — the task, the sha, the time — on the branch the sha sits on, or
+  refuse when it cannot; the forge and the dependency check then read one
+  record.
