@@ -289,11 +289,23 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
         if base is None:
             return False
 
+        # The board's landing is the attempt's sha. When the lane rebased the
+        # candidate onto a branch that had moved, the commit the branch holds
+        # is the lane's, in its own row — and only there (bloomery night 10:
+        # every phase 2+ waited on a sha no branch held while rounds ran).
+        from torve.application.projections import lane_landings
+
+        by_lane = lane_landings(root)
+
         for dependency in task.depends_on:
             view = board.tasks.get(dependency)
-            sha = view.landed_sha if view is not None else None
+            landed = [
+                sha
+                for sha in (view.landed_sha if view is not None else None, by_lane.get(dependency))
+                if sha
+            ]
 
-            if not sha or not vcs.is_ancestor(root, sha, base):
+            if not any(vcs.is_ancestor(root, sha, base) for sha in landed):
                 return False
 
         return True

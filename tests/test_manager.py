@@ -218,6 +218,67 @@ def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
     assert on_base(dependent, board_with(merge_sha))
 
 
+def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_path):
+    """The board holds the attempt's sha; the lane, landing onto a branch that
+    had moved, rebased the candidate and the branch holds a different commit.
+    That commit is in the lane's `lane_landed` row and nowhere else — read
+    there, or every phase after the first waits forever while the branch
+    fills with rounds (bloomery night 10, 2026-09-25)."""
+    import json
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.manager import _dependencies_on_base
+    from torve.config.runconfig import RunnerConfig
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Rebasing Lane")
+    repo.git("config", "user.email", "lane@example.invalid")
+    repo.write("src/a/app.py", "print('hello')\n")
+    repo.commit("init")
+    repo.git("checkout", "-q", "-b", "torve/T-1")
+    repo.write("src/a/app.py", "print('landed')\n")
+    repo.commit("the phase")
+    attempt_sha = GitLane().tip(repo.root, "HEAD")
+    # The document branch moved (a round landed) before the lane got to T-1,
+    # so the lane rebased: the branch holds a different commit.
+    repo.git("checkout", "-q", "-b", "torve/S-0013", "main")
+    repo.write("docs/round.md", "a round\n")
+    repo.commit("a round")
+    repo.git("cherry-pick", attempt_sha)
+    rebased_sha = GitLane().tip(repo.root, "HEAD")
+    assert rebased_sha != attempt_sha
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+    telemetry.write_text(
+        json.dumps({"kind": "engine", "event": "lane_landed", "task": "T-1", "sha": rebased_sha})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    config = RunnerConfig.model_validate(
+        {"promotion": {"landing": "pull_request", "unit": "document", "auto_merge": True}}
+    )
+    on_base = _dependencies_on_base(repo.root, config)
+    dependent = Task(
+        id="T-2",
+        spec="S-0013",
+        decisions=[],
+        depends_on=["T-1"],
+        scope=Scope(allow=["src/b/**"], deny=[]),
+    )
+    board = Board(
+        tasks={"T-1": TaskView(task_id="T-1", state=TaskState.READY, landed_sha=attempt_sha)}
+    )
+    assert on_base(dependent, board)
+    # Without the lane's row the attempt's sha is on no branch, as before.
+    telemetry.write_text("", encoding="utf-8")
+    assert not on_base(dependent, board)
+
+
 def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
     async def scenario(log):
         await mint(log, "T-1", allow=["src/**"])
