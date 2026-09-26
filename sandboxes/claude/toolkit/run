@@ -56,7 +56,12 @@ export ANTHROPIC_AUTH_TOKEN
 # with `--output-format stream-json` and no `--verbose` refuses to start with
 # "When using --print, --output-format=stream-json requires --verbose". The two
 # are one switch here.
-set -- claude -p "$(cat "$TORVE_PROMPT")" \
+# The prompt goes in on stdin, not as an argument: a contract with a dozen
+# rows and its context pack composes past the kernel's single-argument
+# limit (128 KiB on Linux), and `claude` then dies with "Argument list too
+# long" before it starts — measured, bloomery S-0011 phase 1, 140 KB, three
+# attempts in five seconds. `-p` with no text reads the prompt from stdin.
+set -- claude -p \
     --model "$TORVE_MODEL" \
     --output-format stream-json --verbose \
     --permission-mode "${CLAUDE_PERMISSION_MODE:-bypassPermissions}"
@@ -148,7 +153,7 @@ rc=/tmp/torve-run.rc
 echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
 
 {
-    if "$@"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+    if "$@" < "$TORVE_PROMPT"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
 } | tee "$TORVE_OUTPUT"
 
 exit "$(cat "$rc")"

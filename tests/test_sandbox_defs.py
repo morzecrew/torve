@@ -386,6 +386,17 @@ def test_bake_names_a_target_for_every_definition() -> None:
         assert f"{name}-sandbox" in baked
 
 
+def test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument() -> None:
+    """A contract with a dozen rows and its context pack composes past the
+    kernel's single-argument limit (128 KiB on Linux), and a prompt handed to
+    `claude -p` as one argument then dies with "Argument list too long" before
+    the harness starts — bloomery S-0011 phase 1, 140 KB, three attempts in
+    five seconds, escalated on the poison ceiling. Stdin has no such limit."""
+    run = (DEFINITIONS / "claude" / "toolkit" / "run").read_text(encoding="utf-8")
+    assert '-p "$(cat "$TORVE_PROMPT")"' not in run
+    assert '< "$TORVE_PROMPT"' in run
+
+
 def test_the_base_is_not_a_sandbox_anyone_can_run() -> None:
     """It carries no harness, so no seat may name it and nothing resolves
     its digest at dispatch. It is a definition directory all the same, which
