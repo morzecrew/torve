@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-requeue-after-a-review-failure-recuts-from-main
+kind: operator
+ref: 'bloomery night 10, 2026-09-25/26: a task requeued after its review failed came back
+  as a fresh attempt cut from main, its checkpoint unread'
+title: A requeue after a review failure recuts from main
+at: '2026-09-27T06:13:05Z'
+summary: |
+  A task whose attempt went green and then failed review is requeued, and the
+  next attempt is cut from the base as attempt one was: the tree the review
+  judged is gone from the worker's view, the phase is redone from nothing, and
+  the review's findings reach the new attempt only through the prompt. The
+  checkpoint ref the recut keeps (9d8cb5dc) is not what the requeue reads.
+
+  Bloomery night 10 paid a phase twice this way — the second attempt spent the
+  same hours reaching the tree the first had already reached before it could
+  answer the findings — and a review that asked for one file's change cost a
+  whole phase. A requeue after a review failure should start from the reviewed
+  tree, the way a checkpoint continuation starts from the checkpoint, with the
+  findings as the delta to close.

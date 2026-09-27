@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-dead-workers-lease-keeps-the-night-from-opening
+kind: operator
+ref: 'bloomery night 10, 2026-09-25: T-0095 claimed by a worker killed a second later;
+  serve --night refused "no task can be started" for the 900 s lease'
+title: A dead worker's lease keeps the night from opening
+at: '2026-09-27T06:13:05Z'
+summary: |
+  A worker claimed a task and was killed within the second. The claim held its
+  lease (`LEASE_SECONDS = 900`), the task was the only claimable one, and
+  `serve --night` refused to open with "no task can be started" until the
+  lease ran out. The operator waited it out with `--no-dispatch --passes 1`
+  passes, fifteen minutes of a night with nothing running.
+
+  Two things would each be enough. The refusal should name the lease it is
+  waiting on and when it ends, so the wait is a decision rather than a
+  mystery. And a night opening should be able to reap a lease whose worker
+  is gone — the worker's identity is on the claim, and a worker that is not
+  running cannot be holding it — the way `reap --escalated` already clears
+  what a person resolved.

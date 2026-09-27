@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-docker-bound-acceptance-skips-green-in-the-sandbox
+kind: operator
+ref: 'bloomery S-0014 phase 2 (T-0092) and S-0015 phase 2 (T-0096) landed green; main went red
+  at their merges (#186, #183) with 3 and 11 surrogate failures, fixed in #191 and #192'
+title: A Docker-bound acceptance skips green in the sandbox
+at: '2026-09-27T06:13:05Z'
+summary: |
+  Two phases whose whole deliverable was a test lane over a container — the
+  BigQuery emulator, a PostgreSQL surrogate for Redshift — landed green with
+  that lane never run. The sandbox has no Docker; the lane skips with its
+  stated reason when none is reachable, as the phase told it to; pytest reads
+  a skip as not a failure; the acceptance command exited zero; the gates went
+  green; the document merged. The first run of either lane was main's, after
+  the merge, and both were red: 14 failures across the two, one of them a
+  harness defect (psycopg's automatic prepare) no offline rung could see, the
+  rest divergences the emulator has from its engine.
+
+  The engine let a phase pass on an acceptance that did not execute. A skip
+  in the acceptance's own test module is not the same as green, and the
+  landing record should carry it: a gate that runs a test command could count
+  the skipped tests of the files the phase owns and refuse, or at least
+  escalate, when every test the phase added skipped. Where the acceptance
+  names a runtime the sandbox lacks, the honest outcome is a halt saying so,
+  not a landing.

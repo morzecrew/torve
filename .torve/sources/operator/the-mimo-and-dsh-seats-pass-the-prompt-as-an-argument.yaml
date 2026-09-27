@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/the-mimo-and-dsh-seats-pass-the-prompt-as-an-argument
+kind: operator
+ref: 'torve 4869a4d6 moved the claude seat to stdin after bloomery night 10 hit
+  "claude: Argument list too long" (exit 126); the mimo and dsh seats were left as they were'
+title: The mimo and dsh seats pass the prompt as an argument
+at: '2026-09-27T06:13:05Z'
+summary: |
+  A served prompt grew past the kernel's single-argument limit and the claude
+  seat failed before the agent started: `claude: Argument list too long`, exit
+  126, read by the runner as a poisoned ceiling. 4869a4d6 feeds that seat its
+  prompt on stdin. The mimo and dsh seats in `sandboxes/*/toolkit/run` still
+  hand the prompt over as an argument, so the same prompt, routed to either,
+  fails the same way — and the runner's ceiling reading would blame the model.
+
+  The handoff should be one shape across the seats, with the test that pins
+  the claude seat (`test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument`)
+  widened to every seat that takes a prompt.
