@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0461
+phase: 4
+base: b66582a9808f9cabbb790d9a6701391f2521f73c
+commit: 2eee1b3f20f75a02804110349f6dc066d965a72e
+at: '2026-09-28T21:12:34Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-28T21:11:05Z'
+    claim: >-
+      an empty suite ('no tests ran') exiting zero now fails too, as a summary in
+      which no test ran; the existing test asserting pass over it was updated to the
+      new verdict
+    evidence: >-
+      src/torve/gates/acceptance.py:125 — exit zero with ran == 0 fails, headlined
+      'suite: no test ran — N skipped'; quarantined commands still do not block
+    action: decided
