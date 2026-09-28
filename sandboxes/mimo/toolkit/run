@@ -54,7 +54,10 @@ rc=/tmp/torve-run.rc
 echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
 
 {
-    if "$@" "$(cat "$TORVE_PROMPT")"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+    # The prompt on stdin, as the claude seat takes it: one argument is capped
+    # at 128 KiB and a served prompt passes that ("Argument list too long",
+    # bloomery night 10). `mimo run` reads a piped stdin as the message.
+    if "$@" < "$TORVE_PROMPT"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
 } | tee "$TORVE_OUTPUT"
 
 exit "$(cat "$rc")"

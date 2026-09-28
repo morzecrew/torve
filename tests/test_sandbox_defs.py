@@ -397,6 +397,37 @@ def test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument() -> None:
     assert '< "$TORVE_PROMPT"' in run
 
 
+def test_no_seat_hands_the_prompt_over_as_one_argument() -> None:
+    """The claude seat's limit is every seat's: the mimo and dsh seats handed
+    the prompt over as one argument after the claude seat stopped, and the same
+    prompt routed to either would have failed the same way. mimo reads stdin;
+    dsh reads argv alone, so it takes the prompt in pieces."""
+    for run in DEFINITIONS.glob("*/toolkit/run"):
+        assert '"$(cat "$TORVE_PROMPT")"' not in run.read_text(encoding="utf-8"), run
+
+    assert '< "$TORVE_PROMPT"' in (DEFINITIONS / "mimo" / "toolkit" / "run").read_text("utf-8")
+    assert "prompt_pieces.py" in (DEFINITIONS / "dsh" / "toolkit" / "run").read_text("utf-8")
+
+
+def test_the_dsh_prompt_pieces_join_back_to_the_prompt(tmp_path: Path) -> None:
+    """dsh joins its task's words with one space, so pieces cut at a space
+    and joined with one are the prompt again — newlines, a multibyte
+    character at a cut, a trailing newline — and none passes the kernel's
+    128 KiB argument cap."""
+    script = DEFINITIONS / "dsh" / "toolkit" / "prompt_pieces.py"
+    prompt = tmp_path / "prompt.md"
+    text = ("row é\n" + "word " * 30_000 + "\n end\n") * 3
+    prompt.write_text(text, encoding="utf-8")
+    out = tmp_path / "pieces"
+
+    subprocess.run([sys.executable, str(script), str(prompt), str(out)], check=True)
+
+    parts = [piece.read_bytes() for piece in sorted(out.iterdir())]
+    assert len(parts) > 1
+    assert all(len(part) <= 100_000 for part in parts)
+    assert b" ".join(parts).decode("utf-8") == text
+
+
 def test_the_base_is_not_a_sandbox_anyone_can_run() -> None:
     """It carries no harness, so no seat may name it and nothing resolves
     its digest at dispatch. It is a definition directory all the same, which

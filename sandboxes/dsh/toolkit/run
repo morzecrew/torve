@@ -91,6 +91,18 @@ if [ -s /tmp/torve-equip.args ]; then
     eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
 fi
 
+# The prompt last, as pieces: dsh takes its task from argv alone and joins the
+# words with one space, and one argument is capped at 128 KiB — a served
+# prompt passes that. Each piece ends at a space the join puts back. The `x`
+# keeps a piece's trailing newlines, which `$(...)` would strip.
+pieces=/tmp/torve-prompt.d
+rm -rf "$pieces"
+python3 /opt/torve/prompt_pieces.py "$TORVE_PROMPT" "$pieces"
+for piece in "$pieces"/*; do
+    text=$(cat "$piece"; printf x)
+    set -- "$@" "${text%x}"
+done
+
 mkdir -p "$(dirname "$TORVE_OUTPUT")"
 
 # The harness's own exit code, not `tee`'s: a pipeline reports its last
@@ -103,7 +115,7 @@ rc=/tmp/torve-run.rc
 echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
 
 {
-    if "$@" "$(cat "$TORVE_PROMPT")"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
+    if "$@"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
 
     # Last, because the last JSON line wins and this one carries the usage.
     /opt/torve/report-usage || true
