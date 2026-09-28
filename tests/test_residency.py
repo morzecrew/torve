@@ -1504,6 +1504,60 @@ def test_a_night_with_nothing_to_start_is_refused_at_the_open(tmp_path):
 # ....................... #
 
 
+def test_the_open_releases_the_workers_own_claims_and_says_why(tmp_path):
+    """S-0089/D-3. A worker restarted after a crash finds its own earlier
+    claim on the board; nothing else answers to its name, so the open
+    releases it at once rather than waiting out the lease."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        crashed = Worker(log=log, name="worker-1", execute=worker_over(log, []).execute)
+        assert await crashed.claim(PARTITION) is not None
+
+        night = await open_night(log, PARTITION, config=NightConfig(), actor_id="worker-1")
+
+        assert night.queue == ("T-0001",)
+        recorded = [
+            one for one in await log.history("T-0001") if one.kind is EventKind.TASK_RELEASED
+        ]
+        assert "worker-1" in recorded[0].payload["reason"]
+
+    run(scenario)
+
+
+def test_the_open_leaves_another_workers_claim_and_names_it_in_the_refusal(tmp_path):
+    """S-0089/D-3. A claim under another name is that worker's; the refusal
+    names it with its age and lease expiry, and counts what waits behind it."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002")
+    contract(tmp_path, "T-0003", allow="docs/**")
+    path = tmp_path / ".torve" / "tasks" / "T-0003" / "contract.yaml"
+    path.write_text(path.read_text() + "depends_on: [T-0001]\n", encoding="utf-8")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        other = Worker(log=log, name="w-other", execute=worker_over(log, []).execute)
+        assert await other.claim(PARTITION) is not None
+
+        with pytest.raises(NightRefused) as refused:
+            await open_night(log, PARTITION, config=NightConfig(), actor_id="worker-1")
+
+        message = str(refused.value)
+        assert "T-0001 held by w-other" in message
+        assert "lease expires" in message
+        assert "1 waiting on dependencies, 1 waiting on overlap" in message
+        recorded = await log.history("T-0001")
+        assert not [one for one in recorded if one.kind is EventKind.TASK_RELEASED]
+
+    run(scenario)
+
+
+# ....................... #
+
+
 def test_the_open_reads_the_nights_terms_once_and_runs_at_width_one(tmp_path):
     """S-0079/D-2 and S-0079/D-11: the queue as it stood, the width, both
     budget axes, the stop conditions, the lease and the wall-clock end."""

@@ -27,8 +27,10 @@ from torve.application.manager import (
     LEASE_SECONDS,
     Board,
     TaskView,
+    blocked_by,
     dispatchable,
     expired,
+    overlaps,
     project,
 )
 from torve.base import naming
@@ -688,6 +690,49 @@ def _spend(board: Board) -> tuple[float, int]:
 # ....................... #
 
 
+def _refusal(board: Board, partition: str, *, moment: datetime, window: timedelta) -> str:
+    """Why the queue is empty, in the words an operator can act on: each
+    claim still held and when its lease runs out, and how many queued tasks
+    wait on a dependency or on an overlapping scope (S-0089/D-3)."""
+
+    lines = [
+        (
+            "no task on this board can be started right now — a night would sleep "
+            "through to morning having claimed nothing"
+        )
+    ]
+
+    for view in sorted(board.in_flight(), key=lambda one: one.task_id):
+        if view.claimed_at is None:
+            continue
+
+        age = int((moment - view.claimed_at).total_seconds())
+        expires = (view.last_event_at or view.claimed_at) + window
+        lines.append(
+            f"  {view.task_id} held by {view.claimed_by or 'nobody'} for {age}s, "
+            f"lease expires {expires.isoformat()}"
+        )
+
+    waiting = [
+        view.contract
+        for view in board.tasks.values()
+        if view.contract is not None
+        and view.partition == partition
+        and view.contract.role in DISPATCHABLE_ROLES
+        and view.state is TaskState.QUEUED
+    ]
+    on_dependencies = sum(1 for task in waiting if blocked_by(task, board))
+    on_overlap = sum(1 for task in waiting if overlaps(task, board))
+    lines.append(
+        f"  queued: {on_dependencies} waiting on dependencies, {on_overlap} waiting on overlap"
+    )
+
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
 async def open_night(
     log: EventLog,
     partition: str,
@@ -708,17 +753,34 @@ async def open_night(
     """
 
     opened_at = now or datetime.now(UTC)
+    window = lease if lease is not None else timedelta(seconds=LEASE_SECONDS)
     board = project(await log.since(partition=partition))
+
+    # S-0089/D-3: a claim held under this worker's own name was taken by an
+    # earlier process of the same worker, which is gone — nothing else answers
+    # to the name. Waiting out its lease would only delay a restarted worker.
+    mine = [view for view in board.in_flight() if view.claimed_by == actor_id]
+
+    for view in sorted(mine, key=lambda one: one.task_id):
+        await log.record(
+            EventKind.TASK_RELEASED,
+            partition=partition,
+            subject_type=SubjectType.TASK,
+            subject_id=view.task_id,
+            actor_kind=ActorKind.MANAGER,
+            actor_id=actor_id,
+            payload={"reason": f"night opened by {actor_id}; released its own earlier claim"},
+        )
+
+    if mine:
+        board = project(await log.since(partition=partition))
+
     queue = dispatchable(board, partition)
 
     if not queue:
-        raise NightRefused(
-            "no task on this board can be started right now — a night would sleep "
-            "through to morning having claimed nothing"
-        )
+        raise NightRefused(_refusal(board, partition, moment=opened_at, window=window))
 
     spent_usd, attempts = _spend(board)
-    window = lease if lease is not None else timedelta(seconds=LEASE_SECONDS)
     night = Night(
         night_id=opened_at.strftime("%Y%m%dT%H%M%SZ"),
         opened_at=opened_at,
