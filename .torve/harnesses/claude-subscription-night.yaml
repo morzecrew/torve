@@ -39,7 +39,7 @@
 # lands first because the declaration is what the digest carries, and an image
 # that maps none of them ignores all three rather than failing.
 adapter: subscription
-image: claude-sandbox:2.1.252
+image: claude-sandbox:2.1.283
 equip_root: ~/.claude/skills
 kinds: [skill, plugin, mcp, hook, agent]
 env:
