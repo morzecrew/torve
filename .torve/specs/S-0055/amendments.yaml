@@ -36,3 +36,29 @@ amendments:
     title: the standing baseline is a convention
     md: |
       The baseline is its rows and always was: sixty standing decisions, a summary and the departure it declared, with no design to describe. `kind` says so now — `convention` — so the anatomy phase 2 of S-0058 requires of a design is not asked of it; a convention owes its summary. No row changes.
+  - id: A-3
+    at: '2026-09-28T20:56:39Z'
+    title: >-
+      Decomposition is asked for, not routed to (S-0089)
+    changes:
+      - subject: D-47
+        field: text
+        before: >-
+          A contract the size estimate calls `too_large` routes to a decomposition
+          run rather than an attempt; children stay inside the parent's scope, decomposition
+          depth is at most two, and the parent survives as the integration task
+        after: >-
+          A contract the operator sends to decomposition runs a decomposition rather
+          than an attempt; children stay inside the parent's scope, decomposition
+          depth is at most two, and the parent survives as the integration task. The
+          size estimate advises and routes nothing to decomposition (S-0089/D-1)
+      - subject: D-47
+        field: fingerprint
+        after: e170a74335b3f653/5a90b439632b2515
+    md: >-
+      S-0089 takes the size estimate out of dispatch: across both repositories the
+      contracts it called `too_large` landed at the first attempt more often than
+      the ones it called `ok`, so routing them away from a worker moved work off the
+      record and predicted nothing. Decomposition itself is unchanged and is now the
+      operator's to ask for with `torve decompose`. The estimate still judges drafts
+      (S-0089/D-5).

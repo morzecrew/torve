@@ -491,6 +491,13 @@ A task waiting on another document's landing shows the document beside the task 
 - Paths: `src/torve/cli/plan.py`
 - Consequence: the operator reads the table before a contract changes, as they do before one is minted
 
+### S-0089/D-1 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+
+Dispatch does not consult the size estimate: a queued implement or revert contract whose dependencies have landed and whose scope overlaps nothing in flight is dispatchable whatever its size, and `torve run` dispatches it with the verdict's reasons printed as a note; `--oversize` is accepted and ignored until the next minor release removes it
+
+- Paths: `src/torve/application/manager.py` `src/torve/cli/run.py` `tests/test_manager.py` `tests/test_cli.py`
+- Consequence: a served night takes the phases it used to leave for hand runs, so their landings reach the record; decomposition happens when an operator runs `torve decompose`
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

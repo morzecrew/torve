@@ -301,6 +301,13 @@ A document's header may carry `change` — a Conventional Commits type from the 
 - Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/document.json`
 - Consequence: every document in the corpus loads as it is, and the one whose landing would be untyped is named at check, not discovered in `main`'s history
 
+### S-0089/D-2 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+
+A seat whose failure no retry can change escalates at once as `seat_refused` with the seat's own words — the harness could not be executed (exit 126 or 127), or its envelope reports an API error with a 4xx status other than 429 and zero tokens in, cached and out; no attempt is counted, nothing is convicted or checkpointed, and the reason maps to exit code 4
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py` `src/torve/domain/states.py` `tests/test_run_loop.py` `tests/test_agents.py` `tests/test_domain.py`
+- Consequence: a broken image, an over-long prompt or an unsupported model is named as what it is in one dispatch, and the poison ceiling counts only attempts a model made
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

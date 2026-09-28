@@ -6,7 +6,8 @@ decisions:
       Dispatch does not consult the size estimate: a queued implement or revert contract
       whose dependencies have landed and whose scope overlaps nothing in flight is
       dispatchable whatever its size, and `torve run` dispatches it with the verdict's
-      reasons printed as a note
+      reasons printed as a note; `--oversize` is accepted and ignored until the next
+      minor release removes it
     paths:
       - src/torve/application/manager.py
       - src/torve/cli/run.py
@@ -23,11 +24,11 @@ decisions:
   - id: D-2
     grade: ASSUMED
     text: >-
-      A seat that exits non-zero before any model turn — its envelope reports zero
-      input tokens and zero turns, or the harness could not be executed (exit 126
-      or 127) — escalates at once as `seat_refused` with the seat's own last error
-      line; no attempt is counted, nothing is convicted or checkpointed, and the reason
-      maps to exit code 4
+      A seat whose failure no retry can change escalates at once as `seat_refused`
+      with the seat's own words — the harness could not be executed (exit 126 or 127),
+      or its envelope reports an API error with a 4xx status other than 429 and zero
+      tokens in, cached and out; no attempt is counted, nothing is convicted or checkpointed,
+      and the reason maps to exit code 4
     paths:
       - src/torve/application/ports.py
       - src/torve/adapters/agent/harness.py
@@ -76,3 +77,18 @@ decisions:
       two bloomery phases landed green on test lanes that skipped in the sandbox,
       and main went red with 14 failures at their merges
     cites: [S-0070/D-6]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The intake threshold and the decomposition lint keep the static size estimate:
+      a request whose draft is `too_large` needs a document, and a decomposition child
+      may not be `too_large`
+    paths: [src/torve/application/intake.py, src/torve/application/sizing.py]
+    consequence: >-
+      the estimate stops deciding what runs and keeps deciding what a draft must look
+      like, until a size model measured on the record replaces it
+    rationale: >-
+      both judge drafts before any attempt exists, and the record measures attempts;
+      nothing yet says whether the estimate is wrong about drafts, and a decomposition
+      that yields a child as large as its parent has not split it
+    cites: [S-0055/D-47, S-0002/D-9]

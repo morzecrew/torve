@@ -5,10 +5,10 @@ phasing:
     intent: >-
       `manager.dispatchable` no longer skips a `too_large` contract, and `torve run`
       no longer refuses one: it prints the verdict's reasons as a note and dispatches.
-      `--oversize` stays as an accepted no-op flag and `oversize_dispatch` is no longer
-      emitted. `torve decompose` and the integration-task rule for a decomposed parent
-      are unchanged; the size estimate itself, and its use by intake and by the decomposition
-      lint, are unchanged. Settles D-1.
+      `--oversize` is accepted and ignored, and its help says so, and `oversize_dispatch`
+      is no longer emitted. `torve decompose` and the integration-task rule for a
+      decomposed parent are unchanged; the size estimate itself, and its use by intake
+      and by the decomposition lint, are unchanged. Settles D-1.
     scope:
       - src/torve/application/manager.py
       - src/torve/cli/run.py
@@ -24,11 +24,12 @@ phasing:
       A seat that refuses before any model turn escalates as seat_refused
     intent: >-
       `AgentResult` gains `refused`; the harness adapter sets it, with the seat's
-      last error line, when the seat exited non-zero and either its envelope reports
-      zero input tokens and zero turns or the exit code is 126 or 127. The attempt
-      loop escalates `seat_refused` at once when it is set, without counting the attempt,
-      convicting or checkpointing. `EscalationReason.SEAT_REFUSED` maps to exit code
-      4. Settles D-2.
+      own words, when the seat exited non-zero and either the harness could not be
+      executed (exit 126 or 127) or its envelope reports an API error with a 4xx status
+      other than 429 and zero tokens in, cached and out. The attempt loop escalates
+      `seat_refused` at once when it is set, without counting the attempt, convicting
+      or checkpointing. `EscalationReason.SEAT_REFUSED` maps to exit code 4. Settles
+      D-2.
     scope:
       - src/torve/application/ports.py
       - src/torve/adapters/agent/harness.py

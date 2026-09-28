@@ -471,13 +471,15 @@ decisions:
   - id: D-47
     grade: ASSUMED
     text: >-
-      A contract the size estimate calls `too_large` routes to a decomposition run
-      rather than an attempt; children stay inside the parent's scope, decomposition
-      depth is at most two, and the parent survives as the integration task
+      A contract the operator sends to decomposition runs a decomposition rather than
+      an attempt; children stay inside the parent's scope, decomposition depth is
+      at most two, and the parent survives as the integration task. The size estimate
+      advises and routes nothing to decomposition (S-0089/D-1)
     paths: [src/torve/application/sizing.py, src/torve/application/intake.py]
     consequence: >-
       Oversized work is split at drafting time, where the tree is in view
     cites: [S-0026]
+    fingerprint: e170a74335b3f653/5a90b439632b2515
   - id: D-48
     grade: ASSUMED
     text: >-

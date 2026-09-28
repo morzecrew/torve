@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: night
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0055]
 informed_by: [S-0062, S-0070, S-0079]
@@ -109,9 +109,9 @@ design:
       `manager.dispatchable` stops consulting the size estimate: a queued implement or
       revert contract with its dependencies landed and no overlapping work in flight is
       dispatchable, whatever its size. `torve run` stops refusing; it prints the verdict's
-      reasons as a note and dispatches. `--oversize` is kept as a no-op flag for one
-      release, so existing lanes keep working, and `oversize_dispatch` is no longer
-      emitted. `torve size`, `torve brief` and the board still show the verdict and its
+      reasons as a note and dispatches. `--oversize` is accepted and ignored, and its help says
+      so, until the next minor release removes it; existing lanes keep working, and
+      `oversize_dispatch` is no longer emitted. `torve size`, `torve brief` and the board still show the verdict and its
       reasons.
 
       Decomposition stays, but only when asked for: `torve decompose` against a contract
@@ -123,22 +123,28 @@ design:
       estimate calls `too_large` routes …". Its rules about children, depth and the
       integration task stay as they are.
   - key: seat-refused
-    md: |
-      `AgentResult` gains `refused: str | None`. The harness adapter sets it when the seat
-      exited non-zero and one of these holds:
-      - The seat's result envelope reports zero input tokens and zero turns.
-      - The exit code is 126 or 127, meaning the harness binary could not be executed.
+    md: |-
+      `AgentResult` gains `refused: str | None`. The harness adapter sets it only when the
+      seat exited non-zero and the failure is one no retry can change:
+      - The harness binary could not be executed (exit 126 or 127), so there is no envelope.
+      - The envelope reports an API error whose status is a 4xx other than 429, and every
+        token count is zero: input, cache read, cache creation and output.
 
-      It carries the seat's last error line: the envelope's `result` text, or the shell's
-      message. An adapter that reports no usage never sets it, so its failures stay ordinary
-      attempts.
+      Claude Code's envelope for the too-old CLI (bloomery T-0173, 2026-09-28) reads
+      `is_error: true`, `terminal_reason: api_error`, `api_error_status: 400`,
+      `duration_api_ms: 0`, all usage zero, and `num_turns: 1`, so a turn count cannot be the
+      test. The status is: a 400 is the request itself being refused, and the identical request
+      is refused again. A 429 or 5xx (an overload, an outage) with zero usage stays an ordinary
+      failed attempt, because waiting can change it. An adapter whose envelope carries no API
+      status never sets `refused` from the envelope.
 
-      The attempt loop checks `refused` before counting the attempt. When set, the run
-      escalates at once with a new `EscalationReason.SEAT_REFUSED`. It maps to exit code 4,
+      `refused` carries the seat's own words: the envelope's `result` text, or the shell's
+      message. The attempt loop checks it before counting the attempt. When it is set, the run
+      escalates at once with a new `EscalationReason.SEAT_REFUSED`, which maps to exit code 4
       with the other infrastructure reasons, and the detail is the seat's text. The attempt
-      counter does not move, and nothing is convicted or checkpointed. A retry of the same
-      first message to the same image cannot change the answer, the same argument
-      S-0062/D-7 made for `prepare_failed`.
+      counter does not move, and nothing is convicted or checkpointed. A retry of the same first
+      message to the same image cannot change the answer, the same argument S-0062/D-7 made for
+      `prepare_failed`.
   - key: a-night-reclaims-its-own-worker
     md: |
       `open_night` takes the opening worker's name, which is already passed in as
@@ -169,9 +175,10 @@ tests: |
     `dispatchable`, and `torve run` dispatches it without `--oversize`, printing its reasons.
   - A decomposed parent is still the integration task, and `torve decompose` still works
     against any contract.
-  - An envelope with zero input tokens and a non-zero exit escalates `seat_refused` after
+  - An envelope with `api_error_status: 400` and zero usage escalates `seat_refused` after
     one dispatch, with the seat's text as detail and `attempts` unchanged. Exit 126
-    escalates the same way. A non-zero exit with usage recorded stays an ordinary attempt.
+    escalates the same way. A 529 with zero usage, and a non-zero exit with usage
+    recorded, stay ordinary attempts.
   - `EXIT_BY_REASON` maps `seat_refused` to 4, and the completeness test covers it.
   - `open_night` under worker `w` releases a claim held by `w`, keeps a claim held by `v`,
     and records the release reason. A refused night names the lease, its holder and
@@ -194,9 +201,10 @@ risks: |
   - A contract that really is too large now dispatches, and costs its attempts before it
     escalates. The measured rate says this is rarer than the refusals it removes. The
     budget and the poison ceiling still bound it.
-  - A harness that reports zero usage on a genuine model failure would read as
-    `seat_refused` and skip its retries. The rule requires zero turns as well as zero
-    input tokens, and an adapter reporting no usage never sets `refused`.
+  - A transient API failure could read as `seat_refused` and skip the retry that would
+    have worked. The rule takes only a 4xx other than 429, which the identical request
+    gets again, and an adapter that reports no API status never sets `refused` from its
+    envelope.
   - An acceptance command that deliberately skips everything in the sandbox, and was
     always meant as documentation, turns red. That is the intent: such a command judged
     nothing.
@@ -227,7 +235,11 @@ questions:
     text: >-
       Should the intake threshold and the decomposition lint stop using the static
       estimate too, or wait until a measured size model exists?
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       Should `--oversize` be removed at the next minor release, or kept as a flag
       that records that the operator saw the estimate?
+    status: settled
+    settled_by: D-1

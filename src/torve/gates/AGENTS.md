@@ -250,6 +250,13 @@ In `unit: document` a task's worktree is cut from the document branch's tip when
 - Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
 - Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
 
+### S-0089/D-4 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+
+An acceptance command that exits zero with a test summary in which no test ran — every test skipped or deselected — fails, with "suite: no test ran" at the top of its verdict; a command that prints no test summary, or ran at least one test, is judged as before
+
+- Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
+- Consequence: a phase cannot land green on a lane that never executed; one whose tests need what the sandbox lacks has to say how they run there
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail
