@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0458
+phase: 1
+base: ae3c1eb1750ebae1f88a6b260b9f75e701df330f
+commit: f838c6b8cb379919fcdec7695dd455478bb54145
+at: '2026-09-28T21:03:10Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-28T21:01:34Z'
+    claim: >-
+      built as decided; manager.decomposed had no caller left once dispatch stopped
+      consulting size, so it was removed — the integration-task rule lives in runner
+      via sizing.has_children and is unchanged
+    evidence: >-
+      src/torve/cli/run.py:172-180 — the verdict prints as a note and dispatch continues
+    action: decided
