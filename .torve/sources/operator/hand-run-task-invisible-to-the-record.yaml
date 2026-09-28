@@ -19,3 +19,7 @@ summary: |
   configuration names one, or the served manager's minting reads the
   document branches' trailers as it reads the base's. The first keeps one
   record; the second keeps `run` offline.
+
+  Partly fixed at f8d7d9ec: the served manager reads the host's own
+  `lane_landed` stream. A `torve run` on another host, or with no lane, still
+  writes nothing to the partition.

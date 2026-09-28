@@ -31,3 +31,7 @@ summary: |
   gap, once the person widens the scope, is a clock that ran out or a
   judgement on the work. Checkpointing the halted tree costs nothing either
   way, and would at least leave the work reachable by name.
+
+  Partly fixed at 3b370214 (S-0086/A-1): a halt commits its tree, and 9d8cb5dc
+  keeps it under a ref across a recut. No verb continues from it: `torve run`
+  has no resume, and S-0026/D-8 limits continuation to budget exhaustion.

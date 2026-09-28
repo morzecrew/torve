@@ -23,3 +23,6 @@ summary: |
   files `init` copies, or the scan should skip `.torve/` in an adopter the
   way it skips its own fixtures. And the doctor's equality check should
   name which bytes it compares, so a note is not mistaken for the toolkit.
+
+  Fixed at 4d37bdbe (the scan leaves another tree's projection unread) and
+  ed736eb3 (doctor holds the image to the toolkit without the projection).

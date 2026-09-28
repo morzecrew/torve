@@ -5,6 +5,8 @@ ref: 'bloomery S-0009, 2026-09-19: three phases scope fuzz/ from S-0008 (#147 op
   declares depends_on: [] — correctly — and the operator holds it back by hand'
 title: A document that builds on another document's tree has no way to say so
 at: '2026-09-19T04:40:15Z'
+settled_by:
+  - S-0085
 summary: |
   The corpus has one cross-document edge, `depends_on`, and it is decision
   inheritance: `torve plan` refuses unless the targets are accepted and copies

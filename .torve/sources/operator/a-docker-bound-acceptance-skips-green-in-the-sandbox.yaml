@@ -23,3 +23,6 @@ summary: |
   escalate, when every test the phase added skipped. Where the acceptance
   names a runtime the sandbox lacks, the honest outcome is a halt saying so,
   not a landing.
+
+  Partly answered by d0daa800: the verdict's headline counts skips. The
+  outcome is still `pass`.

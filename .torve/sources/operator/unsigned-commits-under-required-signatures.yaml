@@ -28,3 +28,7 @@ summary: |
   adopter merges every document by bypass, and `torve doctor` says nothing
   about it — reading the base branch's rules at `init` and naming the
   conflict is the smaller first step.
+
+  Fixed at 9e570fe4 where `vcs.signing_key` is set: the host signs the work
+  and landing commits under the key owner's identity. Doctor does not yet read
+  the ruleset.

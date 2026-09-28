@@ -25,3 +25,6 @@ summary: |
   its own name — `pack_over_window`, with the size and the globs that made
   it — never a poison ceiling, which reads to the operator as a model fault
   and counts an unrelated prior halt toward it.
+
+  Partly fixed at 14cc7a04: the outline is bounded. A seat that refuses the
+  first message is still read as a failed attempt.

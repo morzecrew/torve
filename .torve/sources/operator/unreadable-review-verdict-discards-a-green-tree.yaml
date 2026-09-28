@@ -7,6 +7,8 @@ ref: 'bloomery T-0014 attempt 1, 2026-09-19: reviewer T-0017 left a background t
 title: An unreadable review verdict escalates a run whose gates were green, with its tree
   uncommitted
 at: '2026-09-19T12:42:16Z'
+settled_by:
+  - S-0086
 summary: |
   T-0014 passed every gate in eight minutes. The reviewer's session left a
   background task running and its final envelope carried no findings

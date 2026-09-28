@@ -14,3 +14,6 @@ summary: |
   operator landed it with `torve merge` by hand. The drain check should count
   a READY candidate the lane has not landed as work still owed — or the close
   should run the landing leg once more before it records itself.
+
+  Fixed at 018cbeb0: a drained queue defers to the lane's debt (`owed()` in
+  `application/residency.py`).

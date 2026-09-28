@@ -22,3 +22,6 @@ summary: |
   for one of the contract's rows — a no-op that says why is not silent —
   and the refusal should name itself in the results so the next attempt
   reads it.
+
+  Fixed at 018cbeb0 (a `decided` entry admits the empty diff) and 254ef999
+  (the refusal names itself in the results).

@@ -24,3 +24,6 @@ summary: |
   check` passes, `torve doctor` is green, and the drift surfaces only inside
   a sandbox at the end of a paid attempt. Repaired for bloomery by projecting
   on main (PR #134); the engine still owes the check at acceptance time.
+
+  Partly fixed at a4bd6fe6: the finish check owes drift inside the scope only.
+  Nothing says a projection went stale at acceptance.

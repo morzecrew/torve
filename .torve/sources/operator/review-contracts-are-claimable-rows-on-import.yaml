@@ -19,3 +19,7 @@ summary: |
   Either the importer skips contracts whose role the dispatch path does not
   implement, or a review contract is not a file in the tasks directory at
   all — it is the tier's own record, and the stream already holds it.
+
+  Already answered by S-0049/A-1's role guard: `dispatchable` offers only
+  implement and revert contracts, so the rows are recorded and claimed by
+  nobody. They still read `queued` on the board.

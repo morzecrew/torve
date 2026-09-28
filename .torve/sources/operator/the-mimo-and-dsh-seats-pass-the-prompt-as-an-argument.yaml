@@ -16,3 +16,6 @@ summary: |
   The handoff should be one shape across the seats, with the test that pins
   the claude seat (`test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument`)
   widened to every seat that takes a prompt.
+
+  Fixed at 8c7d5571: mimo reads the prompt on stdin; dsh, which reads argv
+  alone, takes it in pieces cut at spaces its join restores.
