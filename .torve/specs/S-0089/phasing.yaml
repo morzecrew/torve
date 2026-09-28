@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Dispatch stops consulting the size estimate
+    intent: >-
+      `manager.dispatchable` no longer skips a `too_large` contract, and `torve run`
+      no longer refuses one: it prints the verdict's reasons as a note and dispatches.
+      `--oversize` stays as an accepted no-op flag and `oversize_dispatch` is no longer
+      emitted. `torve decompose` and the integration-task rule for a decomposed parent
+      are unchanged; the size estimate itself, and its use by intake and by the decomposition
+      lint, are unchanged. Settles D-1.
+    scope:
+      - src/torve/application/manager.py
+      - src/torve/cli/run.py
+      - tests/test_manager.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_cli.py tests/test_sizing.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      A seat that refuses before any model turn escalates as seat_refused
+    intent: >-
+      `AgentResult` gains `refused`; the harness adapter sets it, with the seat's
+      last error line, when the seat exited non-zero and either its envelope reports
+      zero input tokens and zero turns or the exit code is 126 or 127. The attempt
+      loop escalates `seat_refused` at once when it is set, without counting the attempt,
+      convicting or checkpointing. `EscalationReason.SEAT_REFUSED` maps to exit code
+      4. Settles D-2.
+    scope:
+      - src/torve/application/ports.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/runner.py
+      - src/torve/domain/states.py
+      - tests/test_run_loop.py
+      - tests/test_agents.py
+      - tests/test_domain.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_run_loop.py tests/test_agents.py tests/test_domain.py
+      - uv run mypy src
+    character: structural
+  - phase: 3
+    title: >-
+      A night releases its own worker's stale claims and says what holds the queue
+    intent: >-
+      `open_night` releases every in-flight claim whose `claimed_by` is the opening
+      worker's name before it reads the queue, recording `TASK_RELEASED` with the
+      reason. When the queue is still empty, the refusal names each held claim (task,
+      holder, age, lease expiry) and counts the queued tasks blocked by dependencies
+      and by overlap. Settles D-3.
+    scope: [src/torve/application/residency.py, tests/test_residency.py]
+    acceptance:
+      - uv run pytest tests/test_residency.py
+      - uv run mypy src
+    character: structural
+  - phase: 4
+    title: >-
+      An acceptance command in which no test ran is red
+    intent: >-
+      `acceptance` fails a command that exits zero when its test summary shows no
+      test ran, with "suite: no test ran — N skipped" at the top of the verdict. A
+      command with no test summary, or with at least one test run, is judged as before.
+      Settles D-4.
+    scope: [src/torve/gates/acceptance.py, tests/test_gates.py]
+    acceptance:
+      - uv run pytest tests/test_gates.py
+      - uv run mypy src
+    character: structural
+  - phase: 5
+    title: >-
+      The operating guide says what the night now serves
+    intent: >-
+      `pages/docs/operating.md` says the size estimate is advice, that `torve decompose`
+      is how an operator splits a contract, and that `--oversize` is no longer needed.
+      It adds `seat_refused` to the escalation table beside `prepare_failed`, and
+      says that a night opened under a worker's name releases that name's stale claims.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec check
+    depends_on:
+      - 1
+      - 2
+      - 3
+      - 4
+    character: routine

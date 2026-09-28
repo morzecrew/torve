@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Dispatch does not consult the size estimate: a queued implement or revert contract
+      whose dependencies have landed and whose scope overlaps nothing in flight is
+      dispatchable whatever its size, and `torve run` dispatches it with the verdict's
+      reasons printed as a note
+    paths:
+      - src/torve/application/manager.py
+      - src/torve/cli/run.py
+      - tests/test_manager.py
+      - tests/test_cli.py
+    consequence: >-
+      a served night takes the phases it used to leave for hand runs, so their landings
+      reach the record; decomposition happens when an operator runs `torve decompose`
+    rationale: >-
+      across both repositories' 261 implement contracts, the 68 sized `too_large`
+      landed at the first attempt 87% of the time against 79% for those sized `ok`;
+      a refusal that predicts nothing only moves work off the record
+    cites: [S-0002/D-9, S-0026/D-7, S-0055/D-47]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A seat that exits non-zero before any model turn — its envelope reports zero
+      input tokens and zero turns, or the harness could not be executed (exit 126
+      or 127) — escalates at once as `seat_refused` with the seat's own last error
+      line; no attempt is counted, nothing is convicted or checkpointed, and the reason
+      maps to exit code 4
+    paths:
+      - src/torve/application/ports.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/runner.py
+      - src/torve/domain/states.py
+      - tests/test_run_loop.py
+      - tests/test_agents.py
+      - tests/test_domain.py
+    consequence: >-
+      a broken image, an over-long prompt or an unsupported model is named as what
+      it is in one dispatch, and the poison ceiling counts only attempts a model made
+    rationale: >-
+      three such failures in eight days (argument too long, a CLI too old for the
+      model, a prompt past the window) each escalated `poison_ceiling` in seconds;
+      retrying an identical first message to the same image cannot change the answer,
+      the ground S-0062/D-7 gave for `prepare_failed`
+    cites: [S-0062/D-7]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A night opened under a worker's name first releases every in-flight claim held
+      under that same name, recording why; a night that still finds nothing dispatchable
+      names each held claim with its holder, age and lease expiry, and counts the
+      queued tasks waiting on dependencies and on overlap
+    paths: [src/torve/application/residency.py, tests/test_residency.py]
+    consequence: >-
+      a worker restarted after a crash opens its night at once, and a refusal says
+      what the operator is waiting on and until when
+    rationale: >-
+      a claim held under the opener's own name belongs to a previous life of that
+      worker, because two live processes under one name already collide on their claims
+      and their slot's cache; any other holder's claim waits for its lease as before
+    cites: [S-0079/D-6, S-0044/D-6]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      An acceptance command that exits zero with a test summary in which no test ran
+      — every test skipped or deselected — fails, with "suite: no test ran" at the
+      top of its verdict; a command that prints no test summary, or ran at least one
+      test, is judged as before
+    paths: [src/torve/gates/acceptance.py, tests/test_gates.py]
+    consequence: >-
+      a phase cannot land green on a lane that never executed; one whose tests need
+      what the sandbox lacks has to say how they run there
+    rationale: >-
+      two bloomery phases landed green on test lanes that skipped in the sandbox,
+      and main went red with 14 failures at their merges
+    cites: [S-0070/D-6]

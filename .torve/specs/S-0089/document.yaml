@@ -1,0 +1,233 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0089
+title: A night serves what a worker can finish
+kind: design
+change:
+  type: fix
+  scope: night
+status: draft
+implementation: none
+depends_on: [S-0055]
+informed_by: [S-0062, S-0070, S-0079]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Four things stop a served night on work a worker could have finished, or let one pass on
+  work nobody checked. The size estimate refuses to dispatch a contract on counts that
+  predict nothing. A seat that refuses the first message before the model reads it is
+  retried to the poison ceiling as if the model had tried. A worker that died holding a
+  claim keeps the night from opening for the lease's fifteen minutes. And an acceptance
+  command whose tests all skipped counts as a pass.
+
+  The size estimate becomes advice: its reasons are still printed, and dispatch no longer
+  consults them. A seat that ends before any model turn escalates at once as
+  `seat_refused`, with the seat's own words, and spends no attempt. A night opened under a
+  worker's name releases the claims held under that same name, since they belong to a
+  previous run of that worker. An acceptance command whose summary says no test ran is red.
+motivation: |
+  On bloomery, phases that touch both `pages/` and `src/` are sized `too_large` ("touches 2
+  top-level modules: pages, src") because a feature and its documentation page are two
+  top-level directories. A served night dispatches none of them, so the operator runs
+  them by hand with `torve run --oversize`, one detached lane per worker slot. Hand runs
+  write nothing to the record (operator/hand-run-task-invisible-to-the-record,
+  operator/a-hand-landing-leaves-no-landing-file). Night 11 (2026-09-28) was run that way
+  end to end: every one of its five phases was `too_large`.
+
+  The estimate has never been calibrated (S-0002/D-9 promised "static thresholds first;
+  telemetry-driven later"), and the record now holds the outcomes to check it against.
+  Measured over the implement contracts of both repositories on 2026-09-28, with a landing
+  file's attempt number as the outcome:
+
+  | | contracts | landed at attempt 1 | landed later | no landing file |
+  |---|---|---|---|---|
+  | sized `too_large` | 68 (torve 50, bloomery 18) | 59 (87%) | 4 | 5 |
+  | sized `ok` | 193 (torve 119, bloomery 74) | 152 (79%) | 15 | 26 |
+
+  The contracts the estimate would split do at least as well as the ones it would let run.
+
+  Three seat failures in eight days were each read as three failed attempts and escalated
+  `poison_ceiling` within seconds, with nothing about the model measured:
+  - "Argument list too long" (exit 126): a 140 KB prompt passed as one argument, bloomery
+    night 10, fixed per seat at 4869a4d6 and 8c7d5571.
+  - "API Error: 400 … version 2.1.280 or newer is required": the image's Claude Code
+    predated Opus 5.5, 2026-09-28.
+  - "Prompt is too long" with zero input tokens: T-0173's 562 KB scope outline, 2026-09-28.
+    Bounded at 14cc7a04 (operator/a-context-pack-past-the-window-poisons-the-ceiling).
+
+  On bloomery night 10, a worker killed within a second of its claim held T-0095 for the
+  full 900-second lease. `serve --night` refused to open ("no task can be started") until
+  the lease ran out (operator/a-dead-workers-lease-keeps-the-night-from-opening).
+
+  bloomery S-0014 phase 2 and S-0015 phase 2 landed green on acceptance commands whose
+  tests all skipped, because the sandbox has no Docker. main went red at their merges with
+  14 failures between them (operator/a-docker-bound-acceptance-skips-green-in-the-sandbox).
+current_state: |
+  `application/sizing.py` returns `too_large` on more than ten allow globs, more than six
+  acceptance commands, or more than one top-level directory in `scope.allow` once `tests`
+  and `.torve` are set aside. `manager.dispatchable` skips a `too_large` contract that no
+  decomposition has claimed as parent (S-0026/D-7, S-0055/D-47). `torve run` refuses it
+  without `--oversize`, and records `oversize_dispatch` when the flag is given.
+  `intake` uses the same estimate to require a document for a request and to refuse an
+  oversized decomposition child.
+
+  `application/runner.py` counts every agent exit other than zero as an attempt ("agent
+  exited N; gates not run") and loops. The poison ceiling (3 by default) is checked before
+  each dispatch. `AgentResult` carries the exit code, the output, cost, model version and
+  trace reference; the harness adapter parses the seat's usage but does not return it.
+  A failed seat `prepare` already escalates at once as `prepare_failed` (S-0062/D-7), on
+  the ground that nothing about the model was measured.
+
+  `residency.open_night` refuses an empty dispatchable queue (S-0079/D-6) with no word on
+  what holds the queue. A claim is released only when `manager.expired` finds no recorded
+  fact about the task for `LEASE_SECONDS` (900). A worker's name is the operator's
+  `--worker` (default `worker-1`), and each claim records it as `claimed_by`.
+
+  `gates/acceptance.py` reads each command's test summary. It reports how many tests ran
+  and how many were skipped or deselected, and puts the count at the top of the verdict
+  when any are missing (d0daa800, S-0070/D-6). The outcome is still `pass` whenever the
+  command exits zero, including when no test ran.
+goals: |
+  - A served night dispatches every contract a worker could finish. Dispatch no longer
+    turns away work on counts the record shows predict nothing.
+  - A seat failure that happens before the model reads anything is named as the seat's
+    failure, costs no attempts, and does not read as a judgement of the model.
+  - A night opened by a worker is not blocked by that same worker's previous, dead run.
+  - A green acceptance means at least one test ran.
+non_goals: |
+  - A better size model. The static estimate stays, as advice, until a measured one
+    exists; this document only stops dispatch from obeying it.
+  - Calling the seat's window before dispatch. The outline bound (14cc7a04) removed the one
+    measured overflow. A seat that still overflows is caught by `seat_refused` in one
+    attempt instead of three.
+  - Running Docker-bound tests in the sandbox. This document refuses the false green; how
+    such a lane gets run is a separate question.
+design:
+  - key: the-estimate-advises
+    md: |
+      `manager.dispatchable` stops consulting the size estimate: a queued implement or
+      revert contract with its dependencies landed and no overlapping work in flight is
+      dispatchable, whatever its size. `torve run` stops refusing; it prints the verdict's
+      reasons as a note and dispatches. `--oversize` is kept as a no-op flag for one
+      release, so existing lanes keep working, and `oversize_dispatch` is no longer
+      emitted. `torve size`, `torve brief` and the board still show the verdict and its
+      reasons.
+
+      Decomposition stays, but only when asked for: `torve decompose` against a contract
+      works as before, and a decomposed parent is the integration task as before. Nothing
+      routes a contract to decomposition on its own.
+
+      At acceptance, S-0055/D-47 is amended to match: "A contract the operator sends to
+      decomposition routes to a decomposition run …" in place of "A contract the size
+      estimate calls `too_large` routes …". Its rules about children, depth and the
+      integration task stay as they are.
+  - key: seat-refused
+    md: |
+      `AgentResult` gains `refused: str | None`. The harness adapter sets it when the seat
+      exited non-zero and one of these holds:
+      - The seat's result envelope reports zero input tokens and zero turns.
+      - The exit code is 126 or 127, meaning the harness binary could not be executed.
+
+      It carries the seat's last error line: the envelope's `result` text, or the shell's
+      message. An adapter that reports no usage never sets it, so its failures stay ordinary
+      attempts.
+
+      The attempt loop checks `refused` before counting the attempt. When set, the run
+      escalates at once with a new `EscalationReason.SEAT_REFUSED`. It maps to exit code 4,
+      with the other infrastructure reasons, and the detail is the seat's text. The attempt
+      counter does not move, and nothing is convicted or checkpointed. A retry of the same
+      first message to the same image cannot change the answer, the same argument
+      S-0062/D-7 made for `prepare_failed`.
+  - key: a-night-reclaims-its-own-worker
+    md: |
+      `open_night` takes the opening worker's name, which is already passed in as
+      `actor_id`. Before it computes the queue, it releases every in-flight claim whose
+      `claimed_by` is that name. It records `TASK_RELEASED` with the reason "claimed by an
+      earlier run of <name>; a night opened under the same name". This is safe because two
+      live processes under one worker name are already a misconfiguration: their claims
+      and their slot's cache volume would collide.
+
+      When the queue is still empty, the refusal names what holds it. For each in-flight
+      claim it gives the task, the holder, the claim's age and when the lease runs out;
+      then it says how many queued tasks are blocked by dependencies and how many by
+      overlap.
+  - key: nothing-ran-is-red
+    md: |
+      When a command exits zero and its summary reports tests but none ran (every one
+      skipped or deselected), `acceptance` returns `fail`. The verdict's top line is
+      "suite: no test ran — N skipped". A command that prints no test summary is unchanged,
+      because not every acceptance command runs tests. A command with at least one test run
+      is unchanged too, and still reports its skips at the top as it does today.
+
+      The runner reads that red as it reads any other red gate: the next attempt sees it in
+      `attempts.json`. A phase whose whole deliverable is a lane that needs something the
+      sandbox lacks now has to say how the lane runs, for example with an acceptance
+      command that runs it in the sandbox, or with a stub. It can no longer land on a skip.
+tests: |
+  - A contract the estimate calls `too_large`, with its dependencies landed, is in
+    `dispatchable`, and `torve run` dispatches it without `--oversize`, printing its reasons.
+  - A decomposed parent is still the integration task, and `torve decompose` still works
+    against any contract.
+  - An envelope with zero input tokens and a non-zero exit escalates `seat_refused` after
+    one dispatch, with the seat's text as detail and `attempts` unchanged. Exit 126
+    escalates the same way. A non-zero exit with usage recorded stays an ordinary attempt.
+  - `EXIT_BY_REASON` maps `seat_refused` to 4, and the completeness test covers it.
+  - `open_night` under worker `w` releases a claim held by `w`, keeps a claim held by `v`,
+    and records the release reason. A refused night names the lease, its holder and
+    expiry, and the counts of queued tasks blocked by dependency and by overlap.
+  - An acceptance command whose summary reads "3 skipped" fails with the headline. One
+    that reads "2 passed, 3 skipped" passes with its skips at the top. One that prints no
+    summary passes.
+docs: |
+  `pages/docs/operating.md`: the size estimate is advice, `torve decompose` is how an
+  operator splits a contract, and `--oversize` is no longer needed. `seat_refused` goes in
+  the escalation table beside `prepare_failed`. A night opened under a worker's name
+  releases that name's stale claims.
+out_of_scope: |
+  - The intake threshold and the decomposition lint still use the estimate: a request
+    whose draft is `too_large` needs a document, and a decomposition child may not be
+    `too_large`. Both judge drafts, not dispatch, and the record does not measure them.
+  - A size model fitted to the record (S-0002/D-9's "telemetry-driven later").
+  - Releasing claims held by other workers' names before their lease runs out.
+risks: |
+  - A contract that really is too large now dispatches, and costs its attempts before it
+    escalates. The measured rate says this is rarer than the refusals it removes. The
+    budget and the poison ceiling still bound it.
+  - A harness that reports zero usage on a genuine model failure would read as
+    `seat_refused` and skip its retries. The rule requires zero turns as well as zero
+    input tokens, and an adapter reporting no usage never sets `refused`.
+  - An acceptance command that deliberately skips everything in the sandbox, and was
+    always meant as documentation, turns red. That is the intent: such a command judged
+    nothing.
+alternatives:
+  - option: >-
+      Add `pages` to the carried directories, next to `tests` and `.torve`, or make
+      the carried set configurable per repository
+    rejected_because: >-
+      That fixes bloomery's most common reason and leaves the glob and acceptance
+      counts, which the same measurement shows predict nothing either. It also treats
+      a threshold nobody has calibrated as a policy to tune per repository.
+    cites: [S-0002/D-9]
+  - option: >-
+      Count a seat's refusal as an attempt but stop the loop after the first identical
+      refusal
+    rejected_because: >-
+      An attempt is the unit that budgets, ceilings and the board count as work. A
+      refusal before any model turn is not work, and counting it gives the ceiling
+      a number that measures the image, not the model.
+  - option: >-
+      Release any claim whose worker process is not running on this host
+    rejected_because: >-
+      The record does not know which host a claim was made on, and a manager on another
+      host would release a live claim. The worker's own name is the one identity a
+      night's opener can speak for.
+questions:
+  - id: Q-1
+    text: >-
+      Should the intake threshold and the decomposition lint stop using the static
+      estimate too, or wait until a measured size model exists?
+  - id: Q-2
+    text: >-
+      Should `--oversize` be removed at the next minor release, or kept as a flag
+      that records that the operator saw the estimate?
