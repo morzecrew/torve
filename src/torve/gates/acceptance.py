@@ -56,7 +56,14 @@ def _suite_note(output: str) -> tuple[int, int | None, str]:
         key = "error" if word.startswith("error") else word
         counts[key] = counts.get(key, 0) + int(number)
 
+    # A line with a duration and no test counts is a suite only when it says so
+    # in pytest's words. uv's "Resolved 150 packages in 1.02s" can end a command
+    # that ran mypy, and reading it as a suite in which nothing ran would fail
+    # every such command.
     if not counts:
+        if "no tests ran" not in tail:
+            return 0, None, ""
+
         return 0, 0, "suite: the command reported no tests ran"
 
     absent = sum(counts.get(word, 0) for word in _ABSENT)
@@ -73,9 +80,14 @@ def _suite_note(output: str) -> tuple[int, int | None, str]:
     if reasons:
         return absent, ran, note + "".join(f"\n  skipped: [{n}] {why}" for n, why in reasons)
 
-    return absent, ran, note + (
-        "\n  skipped: no reason reported — the command has to be asked for one "
-        "(pytest names each skip under -rs)"
+    return (
+        absent,
+        ran,
+        note
+        + (
+            "\n  skipped: no reason reported — the command has to be asked for one "
+            "(pytest names each skip under -rs)"
+        ),
     )
 
 

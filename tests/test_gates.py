@@ -655,6 +655,18 @@ def test_acceptance_over_a_command_with_no_summary_says_nothing_about_a_suite(tm
     assert outcome.outcome == "pass"
 
 
+def test_acceptance_does_not_read_a_timed_line_as_an_empty_suite(tmp_path):
+    # S-0089/D-4 fails a suite in which no test ran, and a suite is a pytest
+    # summary: uv's install line carries a duration too, and a command that
+    # ran mypy after it must not be failed as an empty suite.
+    outcome = _acceptance_over(
+        tmp_path,
+        "Success: no issues found in 137 source files\nInstalled 1 package in 1.02s\n",
+    )
+    assert outcome.outcome == "pass"
+    assert "suite:" not in outcome.output
+
+
 def test_acceptance_reports_the_suite_on_a_red_verdict_too(tmp_path):
     outcome = _acceptance_over(tmp_path, "1 failed, 119 passed, 33 skipped in 4.53s\n", exit_code=1)
     assert outcome.outcome == "fail"
