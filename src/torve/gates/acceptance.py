@@ -36,9 +36,10 @@ _ABSENT = ("skipped", "deselected")
 # ....................... #
 
 
-def _suite_note(output: str) -> tuple[int, str]:
-    """How many tests a command left unrun, and the line naming the suite it
-    judged — `(0, "")` when the command printed no summary to read.
+def _suite_note(output: str) -> tuple[int, int | None, str]:
+    """How many tests a command left unrun, how many it ran, and the line
+    naming the suite it judged — `(0, None, "")` when the command printed no
+    summary to read.
 
     Skip reasons only appear when the command asked for them, so a suite with
     absences and no reasons says that rather than inventing them (S-0070/D-3).
@@ -47,7 +48,7 @@ def _suite_note(output: str) -> tuple[int, str]:
     tail = next((line for line in reversed(output.splitlines()) if _TAIL.search(line)), None)
 
     if tail is None:
-        return 0, ""
+        return 0, None, ""
 
     counts: dict[str, int] = {}
 
@@ -56,7 +57,7 @@ def _suite_note(output: str) -> tuple[int, str]:
         counts[key] = counts.get(key, 0) + int(number)
 
     if not counts:
-        return 0, "suite: the command reported no tests ran"
+        return 0, 0, "suite: the command reported no tests ran"
 
     absent = sum(counts.get(word, 0) for word in _ABSENT)
     ran = sum(count for word, count in counts.items() if word not in _ABSENT)
@@ -64,15 +65,15 @@ def _suite_note(output: str) -> tuple[int, str]:
     note = f"suite: {ran} of {ran + absent} tests ran"
 
     if not absent:
-        return 0, note + ", none skipped"
+        return 0, ran, note + ", none skipped"
 
     note += f", {' and '.join(parts)}"
     reasons = _REASON.findall(output)
 
     if reasons:
-        return absent, note + "".join(f"\n  skipped: [{n}] {why}" for n, why in reasons)
+        return absent, ran, note + "".join(f"\n  skipped: [{n}] {why}" for n, why in reasons)
 
-    return absent, note + (
+    return absent, ran, note + (
         "\n  skipped: no reason reported — the command has to be asked for one "
         "(pytest names each skip under -rs)"
     )
@@ -102,6 +103,7 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     failed = False
     last_code: int | None = 0
     absent = 0
+    empty: list[str] = []
 
     for command in commands:
         result = run_command(command, ctx.root, timeout, execute=ctx.execute)
@@ -120,8 +122,21 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             else:
                 failed = True
 
-        missing, note = _suite_note(result.output)
+        missing, ran, note = _suite_note(result.output)
         absent += missing
+
+        if result.exit_code == 0 and ran == 0:
+            # A green over a suite that never executed is not evidence
+            # (S-0089/D-4); a command with no summary is judged as before.
+            status += " — no test ran"
+            empty.append(f"suite: no test ran — {missing} skipped ({command})")
+
+            if command in quarantine:
+                status += ", quarantined, not blocking"
+                quarantined_failures.append(command)
+            else:
+                failed = True
+
         header = f"$ {command}  [{status}, {result.duration_s:.1f}s]"
         sections.append(
             f"{header}\n{note}\n{result.output}" if note else f"{header}\n{result.output}"
@@ -139,6 +154,9 @@ def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             f"suite: {absent} tests in the tree did not run in this battery — "
             "this verdict judged a smaller suite than the tree holds\n\n" + output
         )
+
+    if empty:
+        output = "\n".join(empty) + "\n\n" + output
 
     if failed:
         return BuiltinOutcome(

@@ -624,9 +624,22 @@ def test_acceptance_names_a_whole_suite_and_flags_nothing(tmp_path):
 
 
 def test_acceptance_reports_an_empty_suite_rather_than_a_silent_green(tmp_path):
+    # S-0089/D-4: an empty suite that exits zero is a fail, not a green.
     outcome = _acceptance_over(tmp_path, "no tests ran in 0.01s\n")
-    assert outcome.outcome == "pass"
+    assert outcome.outcome == "fail"
+    assert outcome.output.startswith("suite: no test ran — 0 skipped")
     assert "no tests ran" in outcome.output
+
+
+def test_acceptance_fails_a_green_command_whose_every_test_was_skipped(tmp_path):
+    # S-0089/D-4: a lane that never executed cannot land green.
+    outcome = _acceptance_over(tmp_path, "33 skipped in 0.20s\n")
+    assert outcome.outcome == "fail"
+    assert outcome.output.startswith("suite: no test ran — 33 skipped")
+
+    deselected = _acceptance_over(tmp_path, "4 deselected in 0.10s\n")
+    assert deselected.outcome == "fail"
+    assert deselected.output.startswith("suite: no test ran")
 
 
 def test_acceptance_counts_deselected_tests_as_absent_too(tmp_path):
@@ -639,6 +652,7 @@ def test_acceptance_over_a_command_with_no_summary_says_nothing_about_a_suite(tm
     # A build or a linter is not a test suite; the gate does not invent counts.
     outcome = _acceptance_over(tmp_path, "Success: no issues found in 42 source files\n")
     assert "suite:" not in outcome.output
+    assert outcome.outcome == "pass"
 
 
 def test_acceptance_reports_the_suite_on_a_red_verdict_too(tmp_path):
