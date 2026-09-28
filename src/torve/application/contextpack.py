@@ -567,6 +567,14 @@ def _defines(node: ast.AST, prefix: str) -> Iterator[tuple[int, str]]:
 # and the model is outside this scope; the divergence log carries the reason.
 SCOPE_BUDGET = 60_000
 
+# The same bound on the outline itself (S-0076/A-1 carries `scope.md` in the
+# first message on the promise that it is bounded either way). An outline has
+# no size of its own: bloomery T-0173's scope named 1,107 files and outlined to
+# 562 KB, past the seat's window, and the seat refused the first message before
+# the model read a token. Past this, the remaining files are named one line
+# each while they fit, and then counted.
+OUTLINE_BUDGET = 60_000
+
 # The fence hint per suffix, for the ones this repository's scopes name. An
 # unlisted suffix gets a bare fence, which renders the same minus colour.
 LANGS = {
@@ -580,7 +588,13 @@ LANGS = {
 }
 
 
-def scope_file(root: Path, task: Task, tests: dict[str, Any], budget: int = SCOPE_BUDGET) -> str:
+def scope_file(
+    root: Path,
+    task: Task,
+    tests: dict[str, Any],
+    budget: int = SCOPE_BUDGET,
+    outline_budget: int = OUTLINE_BUDGET,
+) -> str:
     """The files `scope.allow` names and the tests `tests.json` names, as one
     document (S-0076/D-2): their contents when they fit under *budget*, an
     outline of the same files when they do not. Either way the sixteen reads a
@@ -616,17 +630,48 @@ def scope_file(root: Path, task: Task, tests: dict[str, Any], budget: int = SCOP
         "",
     ]
 
-    for rel, text in bodies:
-        lines += [f"## `{rel}` — {len(text.splitlines())} lines", ""]
-
-        if whole:
+    if whole:
+        for rel, text in bodies:
             fence = _fence(text)
+            lines += [f"## `{rel}` — {len(text.splitlines())} lines", ""]
             lines += [fence + LANGS.get(Path(rel).suffix, ""), text.rstrip("\n"), fence, ""]
-        else:
-            lines += [f"- `{rel}:{line} {what}`" for line, what in _outline(rel, text)] or [
-                "No definitions to outline."
-            ]
-            lines += [""]
+
+        return "\n".join(lines)
+
+    # Room kept for the cut's own heading and its closing count.
+    reserve = 160
+    size = sum(len(line) + 1 for line in lines)
+    rest = iter(bodies)
+
+    for rel, text in rest:
+        block = [f"## `{rel}` — {len(text.splitlines())} lines", ""]
+        block += [f"- `{rel}:{line} {what}`" for line, what in _outline(rel, text)] or [
+            "No definitions to outline."
+        ]
+        block += [""]
+        cost = sum(len(line) + 1 for line in block)
+
+        if size + cost > outline_budget - reserve:
+            unlisted = [(rel, text), *rest]
+            break
+
+        lines += block
+        size += cost
+    else:
+        return "\n".join(lines)
+
+    lines += [f"## {len(unlisted)} more files, past the outline's {outline_budget} characters", ""]
+    size += len(lines[-2]) + 2
+
+    for count, (rel, text) in enumerate(unlisted):
+        entry = f"- `{rel}` — {len(text.splitlines())} lines"
+
+        if size + len(entry) + 1 > outline_budget - reserve // 2:
+            lines += [f"- and {len(unlisted) - count} more, not named here"]
+            break
+
+        lines += [entry]
+        size += len(entry) + 1
 
     return "\n".join(lines)
 

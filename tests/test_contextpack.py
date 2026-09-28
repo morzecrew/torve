@@ -496,6 +496,30 @@ def test_a_small_scope_arrives_whole_and_a_large_one_as_an_outline(tmp_path: Pat
     assert "- `tests/test_thing.py:1 def test_spin`" in outline
 
 
+def test_an_outline_is_bounded_too(tmp_path: Path) -> None:
+    """S-0076/A-1 carries `scope.md` in the first message because it is bounded
+    either way. An outline of enough files is not, unless it is cut: bloomery
+    T-0173's scope outlined to 562 KB and the seat refused the first message.
+    Past the outline's budget the rest are named, then counted."""
+
+    from torve.application.contextpack import scope_file
+
+    _seed(tmp_path)
+
+    for n in range(40):
+        (tmp_path / "src" / "a" / f"m{n:02}.py").write_text(
+            "".join(f"def f{i}():\n    pass\n" for i in range(20)), encoding="utf-8"
+        )
+
+    outline = scope_file(tmp_path, _task(), {"named_tests": []}, budget=10, outline_budget=4_000)
+
+    assert len(outline) <= 4_000
+    assert "- `src/a/m00.py:1 def f0`" in outline
+    assert "more files, past the outline's 4000 characters" in outline
+    assert "- `src/a/m39.py` — 40 lines" not in outline
+    assert outline.rstrip().endswith("more, not named here")
+
+
 def test_a_scope_carrying_markdown_cannot_close_its_own_fence(tmp_path: Path) -> None:
     """A body that is itself markdown gets a fence longer than any run it
     holds, so the document stays one document."""
