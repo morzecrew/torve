@@ -250,7 +250,7 @@ In `unit: document` a task's worktree is cut from the document branch's tip when
 - Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
 - Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
 
-### S-0089/D-4 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+### S-0089/D-4 — `ASSUMED` (A night serves what a worker can finish)
 
 An acceptance command that exits zero with a test summary in which no test ran — every test skipped or deselected — fails, with "suite: no test ran" at the top of its verdict; a command that prints no test summary, or ran at least one test, is judged as before
 

@@ -491,7 +491,7 @@ A task waiting on another document's landing shows the document beside the task 
 - Paths: `src/torve/cli/plan.py`
 - Consequence: the operator reads the table before a contract changes, as they do before one is minted
 
-### S-0089/D-1 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+### S-0089/D-1 — `ASSUMED` (A night serves what a worker can finish)
 
 Dispatch does not consult the size estimate: a queued implement or revert contract whose dependencies have landed and whose scope overlaps nothing in flight is dispatchable whatever its size, and `torve run` dispatches it with the verdict's reasons printed as a note; `--oversize` is accepted and ignored until the next minor release removes it
 

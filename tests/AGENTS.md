@@ -140,28 +140,28 @@ A task that is running, landed, or carried by a document branch is left alone an
 - Paths: `src/torve/application/planner.py` `tests/test_plan.py`
 - Consequence: an attempt in flight reads the contract it was dispatched under, and a landed phase's terms are the ones its landing was judged by
 
-### S-0089/D-1 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+### S-0089/D-1 — `ASSUMED` (A night serves what a worker can finish)
 
 Dispatch does not consult the size estimate: a queued implement or revert contract whose dependencies have landed and whose scope overlaps nothing in flight is dispatchable whatever its size, and `torve run` dispatches it with the verdict's reasons printed as a note; `--oversize` is accepted and ignored until the next minor release removes it
 
 - Paths: `src/torve/application/manager.py` `src/torve/cli/run.py` `tests/test_manager.py` `tests/test_cli.py`
 - Consequence: a served night takes the phases it used to leave for hand runs, so their landings reach the record; decomposition happens when an operator runs `torve decompose`
 
-### S-0089/D-2 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+### S-0089/D-2 — `ASSUMED` (A night serves what a worker can finish)
 
 A seat whose failure no retry can change escalates at once as `seat_refused` with the seat's own words — the harness could not be executed (exit 126 or 127), or its envelope reports an API error with a 4xx status other than 429 and zero tokens in, cached and out; no attempt is counted, nothing is convicted or checkpointed, and the reason maps to exit code 4
 
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py` `src/torve/domain/states.py` `tests/test_run_loop.py` `tests/test_agents.py` `tests/test_domain.py`
 - Consequence: a broken image, an over-long prompt or an unsupported model is named as what it is in one dispatch, and the poison ceiling counts only attempts a model made
 
-### S-0089/D-3 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+### S-0089/D-3 — `ASSUMED` (A night serves what a worker can finish)
 
 A night opened under a worker's name first releases every in-flight claim held under that same name, recording why; a night that still finds nothing dispatchable names each held claim with its holder, age and lease expiry, and counts the queued tasks waiting on dependencies and on overlap
 
 - Paths: `src/torve/application/residency.py` `tests/test_residency.py`
 - Consequence: a worker restarted after a crash opens its night at once, and a refusal says what the operator is waiting on and until when
 
-### S-0089/D-4 — `ASSUMED` (A night serves what a worker can finish) — implementation: none
+### S-0089/D-4 — `ASSUMED` (A night serves what a worker can finish)
 
 An acceptance command that exits zero with a test summary in which no test ran — every test skipped or deselected — fails, with "suite: no test ran" at the top of its verdict; a command that prints no test summary, or ran at least one test, is judged as before
 
