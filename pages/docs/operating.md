@@ -24,6 +24,7 @@ shell has not set is filled in.
 | `torve source list [--check]` | every filed source; `--check` also resolves the source each contract names |
 | `torve intake "…" --source <id>` | draft against a request and record what asked — an audit, an incident, an ask |
 | `torve intake "<request>"` | draft contracts from prose in a read-only sandbox; a human adopts or refuses |
+| `torve decompose <task>` | split a contract the size estimate calls `too_large`: the drafter runs against the standing contract in a read-only sandbox, and its drafts await `torve adopt`, which mints the children and grows the parent into the integration task |
 | `torve adopt <task>` | the human signature: ids are minted here, under the engine lock |
 | `torve brief <contract>` | print what dispatch settles before an attempt starts — the lint, the size, the rows, the pack, the battery. Refuses nothing; see below |
 | `torve run <task>` | one task, synchronously, sandboxed — the exit code carries the outcome |
@@ -56,14 +57,24 @@ torve brief T-0387                 # a task id, resolved the way `torve run` res
 torve brief contracts/draft.yaml   # a path, for a draft that has no id yet
 ```
 
-The print is five things, in the order dispatch consults them:
+The print is five things, in the order dispatch works through them:
 
 - **the contract lint** — advisory here. The person reading the output has
   already signed the contract, so a red lint prints and the exit stays zero.
   Dispatch itself refuses a red lint, and `--lint-red` bypasses that refusal
   with the act recorded on the run.
-- **the size estimate** — `ok`, `too_small` or `too_large`, with its reasons:
-  the same verdict that routes a `too_large` contract to decomposition.
+- **the size estimate** — `ok`, `too_small` or `too_large`, with its
+  reasons, and it is advice. Dispatch does not consult it (S-0089/D-1): a
+  queued implement or revert contract whose dependencies have landed and
+  whose scope overlaps nothing in flight is dispatchable whatever its
+  size, and `torve run` dispatches it with the verdict's reasons printed
+  beside the run as a note. `--oversize` is accepted and ignored, and the
+  next minor release removes it. What the estimate still decides is what a
+  draft may look like, not what may run: a request whose draft comes back
+  `too_large` needs a document, and a decomposition child may not be
+  `too_large` (S-0089/D-5) — until a size model measured on the record
+  replaces the static one. Splitting a contract when it is the right split
+  is an operator's act: `torve decompose <task>`.
 - **the rows your scope crosses that the contract has not inherited**
   (S-0067/D-2) — standing rows whose declared paths intersect the scope,
   which is what `decisions-reported` convicts on when the log stays silent
@@ -712,6 +723,39 @@ knows what to do with one.
 Batch-class escalations never page. Paging on everything is how a pager
 stops being read.
 
+## What an escalation names
+
+Every ending that is not a landing carries a reason from a closed
+vocabulary. The reason rides on the board row and in the record, and it is
+what `torve run`'s exit code reports: a task handed to a person exits 2,
+infrastructure that measured nothing exits 4, and a spent budget exits 5.
+A red battery (1) and a refused configuration (3) are not escalations and
+exit accordingly.
+
+| Reason | What it says | Exit |
+| --- | --- | --- |
+| `locked_conflict` | an attempt halted on a `LOCKED` row: the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
+| `merge_conflict` | the landing lane's rebase conflicted; the branch is untouched and waits for a human — the lane never resolves one | 2 |
+| `blocker_finding` | review ended with a blocker surviving | 2 |
+| `killed` | an operator interrupted the run | 2 |
+| `underspecified` | the contract needs three or more load-bearing decisions invented — a specification defect: amend and re-mint, never retry | 2 |
+| `stale_inheritance` | the document it was minted from was superseded after the mint: re-mint from the superseding one, or abandon | 2 |
+| `gate_infrastructure_failure` | the battery broke rather than the work being wrong | 4 |
+| `lease_expired` | a claim's lease ran out while its worker was gone; the process that died cannot release itself | 4 |
+| `prepare_failed` | the seat's `prepare` command failed before the agent ran — an index that would not build, a cache that would not warm. Nothing about the model was measured, so nothing is convicted and no rung is selected (S-0062/D-7) | 4 |
+| `seat_refused` | a seat failed in a way no retry can change, named in the seat's own words: the harness could not be executed (exit 126 or 127), or its envelope reported an API error with a 4xx status other than 429 and zero tokens in, cached and out. No attempt is counted, nothing is convicted or checkpointed (S-0089/D-2) | 4 |
+| `budget_exhausted` | the task spent the budget its contract declares | 5 |
+| `poison_ceiling` | attempts have reached the configured ceiling — and only attempts a model actually made count toward it (S-0089/D-2) | 5 |
+| `cost_anomaly` | the broker refused requests past the run's budget | 5 |
+
+The two rows above the budget ones are the pair that reads alike and is
+not alike: `prepare_failed` is a seat that could not get ready, and
+`seat_refused` is a seat that ran and was refused before any model turn.
+A broken image, an over-long prompt or an unsupported model is named as
+what it is in one dispatch, rather than spending the poison ceiling to
+discover it; a 429 or a non-zero exit that carried usage is an ordinary
+attempt and retries as one.
+
 ## The escalation queue is a pause
 
 A pass mints nothing while this root's escalation queue is at
@@ -866,6 +910,18 @@ is handed (S-0083/D-15), so none of this waits for somebody to type the verb.
 and a second `--worker w2 --slot 1` on the same partition: each claims one task
 a pass, a task whose scope clashes with one in flight waits, and the slot names
 the second worker's own auth and cache volumes.
+
+**A night opens by clearing its own name.** A worker restarted after a crash
+would otherwise find its own stale claims standing in the way, so a night
+opened under worker `w1` first releases every in-flight claim held under
+that name, recording each release with the reason (S-0089/D-3). That is
+safe because two live processes under one worker name are already a
+misconfiguration: their claims and their slot's cache volumes would
+collide. And a night that still finds nothing dispatchable no longer says
+only that the queue is empty — the refusal names each claim still held,
+with its holder, its age and when its lease expires, and counts the queued
+tasks waiting on dependencies and the ones waiting on scope overlap: what
+the operator is waiting on, and until when.
 
 **Phase after phase, unattended.** Under `pull_request` with `unit: document` a
 task's worktree is cut from the document branch's tip when that branch exists,
