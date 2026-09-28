@@ -80,6 +80,21 @@ def test_dump_then_load_is_identity_and_the_dump_is_its_own_canonical_form(
     assert on_disk(directory) == texts
 
 
+def test_a_document_that_names_its_change_dumps_and_loads(tmp_path: Path) -> None:
+    """S-0087/D-1's `change` is an object in the header; the serializer wrote
+    it as the model itself, which YAML cannot represent, so `spec fmt` refused
+    every document that named its change."""
+    from torve.domain.spec import Commit
+
+    doc = widget(tmp_path).model_copy(update={"change": Commit(type="fix", scope="night")})
+    texts = dump_document(doc)
+    directory = tmp_path / "scratch" / "S-0001"
+    write_document(directory, doc)
+
+    assert "change:\n  type: fix\n  scope: night\n" in texts["document.yaml"]
+    assert load_document(directory).change == doc.change
+
+
 LIVE = sorted({**document_dirs(SPECS), **archive_dirs(SPECS)}.items()) if SPECS.is_dir() else []
 
 

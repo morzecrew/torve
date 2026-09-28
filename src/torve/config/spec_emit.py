@@ -124,6 +124,11 @@ def _value(doc: Document, name: str) -> Any:
     if name == "contract_example":
         return value.model_dump(mode="json", exclude_none=True)
 
+    # A header object such as `change` (S-0087/D-1): only what its author set,
+    # the way a row carries only what differs from the model's default.
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
+
     if isinstance(value, list):
         return [
             item.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
