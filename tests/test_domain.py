@@ -120,3 +120,9 @@ def test_an_inherited_row_carries_its_consequence_and_check_with_shadow_defaults
         None,
     )
     assert new.check_state == "blocking" and new.check_twin == "tests/test_x.py"
+
+
+def test_a_refused_seat_exits_as_infrastructure():
+    from torve.domain.states import EXIT_BY_REASON, EXIT_INFRASTRUCTURE, EscalationReason
+
+    assert EXIT_BY_REASON[EscalationReason.SEAT_REFUSED] == EXIT_INFRASTRUCTURE == 4

@@ -52,6 +52,10 @@ class EscalationReason(StrEnum):
     # not a verdict — nothing about the model was measured, so nothing is
     # convicted and no rung is selected.
     PREPARE_FAILED = "prepare_failed"
+    # A seat whose failure no retry can change (S-0089/D-2): the harness could
+    # not be executed, or the provider refused the request itself. Like
+    # prepare_failed, nothing about the model was measured.
+    SEAT_REFUSED = "seat_refused"
     COST_ANOMALY = "cost_anomaly"
     KILLED = "killed"
     # A contract needing three or more load-bearing decisions invented is a
@@ -90,6 +94,7 @@ EXIT_BY_REASON: dict[EscalationReason, int] = {
     EscalationReason.GATE_INFRASTRUCTURE_FAILURE: EXIT_INFRASTRUCTURE,
     EscalationReason.LEASE_EXPIRED: EXIT_INFRASTRUCTURE,
     EscalationReason.PREPARE_FAILED: EXIT_INFRASTRUCTURE,
+    EscalationReason.SEAT_REFUSED: EXIT_INFRASTRUCTURE,
 }
 
 

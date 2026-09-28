@@ -1024,3 +1024,20 @@ def test_a_phase_decided_away_in_its_log_is_not_an_empty_diff(repo):
     state = run_task(repo.root, task_for(repo), RunnerConfig(poison_ceiling=2), deps)
     assert state.state is TaskState.READY, [event["fact"] for event in state.history]
     assert state.attempts == 1
+
+
+def test_a_refused_seat_escalates_at_once_and_counts_no_attempt(rig):
+    from torve.domain.states import EscalationReason
+
+    repo, deps, _, vcs, _ = rig
+    agent = ScriptedAgent([AgentResult(exit_code=1, output="", refused="API Error: 400 bad")])
+    deps.agent = agent
+
+    state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == EscalationReason.SEAT_REFUSED
+    assert state.escalation.detail == "API Error: 400 bad"
+    assert state.attempts == 0
+    assert vcs.commits == []

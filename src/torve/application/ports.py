@@ -189,6 +189,10 @@ class AgentResult:
     cost_usd: float | None = None
     model_version: str | None = None
     trace_ref: str | None = None
+    # A failure no retry can change, in the seat's own words (S-0089/D-2): the
+    # harness could not be executed, or the provider refused the request itself.
+    # Set only by an adapter; the loop escalates on it without counting the attempt.
+    refused: str | None = None
 
     # ....................... #
 

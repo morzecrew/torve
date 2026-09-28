@@ -674,3 +674,49 @@ def test_the_engine_interprets_no_night_knob():
 
         for knob in NIGHT_KNOBS:
             assert knob not in text, f"{path} reads {knob}, which is the harness's to mean"
+
+
+# ....................... #
+
+
+def _envelope(status: int | None, *, tokens: int = 0) -> str:
+    import json
+
+    body: dict[str, object] = {
+        "type": "result",
+        "is_error": True,
+        "terminal_reason": "api_error",
+        "result": "API Error: model not supported",
+        "num_turns": 1,
+        "usage": {
+            "input_tokens": tokens,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "output_tokens": 0,
+        },
+    }
+
+    if status is not None:
+        body["api_error_status"] = status
+
+    return json.dumps(body)
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "output", "refused"),
+    [
+        (1, _envelope(400), "API Error: model not supported"),
+        (127, "sh: claude: not found\n", "sh: claude: not found"),
+        (126, "", "harness exited 126"),
+        (1, _envelope(429), None),
+        (1, _envelope(529), None),
+        (1, _envelope(400, tokens=12), None),
+        (1, _envelope(None), None),
+        (0, _envelope(400), None),
+        (None, _envelope(400), None),
+    ],
+)
+def test_only_a_failure_no_retry_can_change_is_a_refusal(exit_code, output, refused):
+    from torve.adapters.agent.harness import parse_metadata, refusal
+
+    assert refusal(exit_code, output, parse_metadata(output)) == refused

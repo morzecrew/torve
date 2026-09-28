@@ -236,6 +236,14 @@ async def _attempt_loop(
         if state.escalation is not None:
             return state
 
+        if result.refused is not None:
+            # S-0089/D-2: the identical dispatch is refused again, so this was
+            # no attempt a model made — uncounted, unjudged, not checkpointed.
+            state.attempts -= 1
+            state.escalate(EscalationReason.SEAT_REFUSED, result.refused)
+
+            return state
+
         if hooks.halted():
             # Terminal by design, not an error: the one case where a task
             # stops on working code (S-0001/state-machine).

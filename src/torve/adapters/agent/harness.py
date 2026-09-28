@@ -525,6 +525,10 @@ class AgentMetadata:
     num_turns: int | None = None
     permission_denials: list[Any] | None = None
     subagent_stats: dict[str, Any] | None = None
+    # The envelope's API failure, when it names one (S-0089/D-2): the status the
+    # provider answered with and the envelope's own `result` text.
+    api_error_status: int | None = None
+    result: str | None = None
 
 
 # The claude CLI's usage block spells these in snake_case; the dsh reporter's
@@ -693,9 +697,42 @@ def parse_metadata(output: str) -> AgentMetadata:
             num_turns=_reported(sources, "num_turns", int),
             permission_denials=_reported(sources, "permission_denials", list),
             subagent_stats=_reported(sources, "subagent_stats", dict),
+            api_error_status=_reported(sources, "api_error_status", int),
+            result=_reported(sources, "result", str),
         )
 
     return AgentMetadata()
+
+
+# ....................... #
+
+
+def refusal(exit_code: int | None, output: str, meta: AgentMetadata) -> str | None:
+    """The seat's own words when its failure is one no retry can change
+    (S-0089/D-2), else None. Exit 126 or 127 is a harness that could not be
+    executed; an envelope naming a 4xx other than 429 with every token count
+    zero is a request the provider refuses identically every time. A 429 or
+    5xx is waiting's to change, and an envelope naming no status is never read
+    as a refusal."""
+
+    if exit_code is None or exit_code == 0:
+        return None
+
+    if exit_code in (126, 127):
+        return output.strip() or f"harness exited {exit_code}"
+
+    status = meta.api_error_status
+    tokens = (
+        meta.input_tokens,
+        meta.cache_read_tokens,
+        meta.cache_creation_tokens,
+        meta.output_tokens,
+    )
+
+    if status is not None and 400 <= status < 500 and status != 429 and tokens == (0, 0, 0, 0):
+        return meta.result or f"API error {status}"
+
+    return None
 
 
 # ....................... #
@@ -1930,4 +1967,5 @@ class HarnessAgent:
             burn=burn,
             context=curve,
             trace_ref=naming.trace_ref(ctx.workspace, ctx.attempt),
+            refused=refusal(result.exit_code, result.output, meta),
         )
