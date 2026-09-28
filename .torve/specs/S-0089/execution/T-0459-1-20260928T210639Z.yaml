@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0459
+phase: 2
+base: ae3c1eb1750ebae1f88a6b260b9f75e701df330f
+commit: 264441916a3e5722f018d38ff0f5c409ef4fe591
+at: '2026-09-28T21:06:39Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-28T21:05:14Z'
+    claim: >-
+      built as written; the counter increments on entry to running, before the seat's
+      result exists, so the loop undoes that increment when refused is set rather
+      than checking before counting. The attempt hook in session.py (out of scope)
+      still appends its agent_error row for the refused dispatch
+    evidence: >-
+      src/torve/application/runner.py:239-245 — the refused branch decrements attempts
+      and escalates seat_refused; src/torve/application/runstate.py:92-95 is the increment
+      on entry to running
+    action: decided
