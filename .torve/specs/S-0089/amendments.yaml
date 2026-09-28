@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-28T20:58:22Z'
+    title: >-
+      Phase 2's scope carries the runner's own test file
+    md: >-
+      `torve plan` refused the mint: phase 2 allows `src/torve/application/runner.py`
+      without its existing test file `tests/test_runner.py` (the T-0113 lint). The
+      scope gains that file; no row changes.
