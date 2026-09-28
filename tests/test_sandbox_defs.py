@@ -789,3 +789,68 @@ def test_every_seated_harness_declares_where_equipment_lands(name: str) -> None:
     manifest = {"claude": "claude-subscription"}.get(name, name)
 
     assert load_harness(Path("."), manifest).equip_root, f"{name} declares no equip_root"
+
+
+def _render_mimo_provider(**env: str) -> Any:
+    """The provider document the shipped renderer prints for this environment."""
+
+    script = DEFINITIONS / "mimo" / "toolkit" / "provider_config.py"
+    base = {k: v for k, v in os.environ.items() if not k.startswith("TORVE_")}
+    done = subprocess.run(
+        [sys.executable, str(script)],
+        env={**base, **env},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    return json.loads(done.stdout)
+
+
+def test_the_mimo_seat_declares_its_provider_and_model() -> None:
+    """mimo's built-in `openai` provider takes only its own catalog, so a base
+    URL and a key alone answered "Model not found". The seat declares a
+    provider that names the one model it runs, its key by variable name, and
+    its limits only as the pair mimo's schema requires."""
+
+    wire = {
+        "TORVE_PROVIDER": "modelstudio",
+        "TORVE_MODEL": "qwen3.8-flash",
+        "TORVE_BASE_URL": "https://example.test/v1",
+        "TORVE_API_KEY_ENV": "MODELSTUDIO_CODING_API_KEY",
+    }
+    provider = _render_mimo_provider(**wire, TORVE_REQUEST_TIMEOUT_S="600")["provider"][
+        "modelstudio"
+    ]
+
+    assert provider["npm"] == "@ai-sdk/openai-compatible"
+    assert provider["options"] == {
+        "baseURL": "https://example.test/v1",
+        "apiKey": "{env:MODELSTUDIO_CODING_API_KEY}",
+        "timeout": 600000,
+    }
+    assert provider["models"] == {"qwen3.8-flash": {"name": "qwen3.8-flash"}}
+
+    halves = _render_mimo_provider(**wire, TORVE_CONTEXT_WINDOW="262144")
+    both = _render_mimo_provider(**wire, TORVE_CONTEXT_WINDOW="262144", TORVE_MAX_TOKENS="32768")
+
+    assert "limit" not in halves["provider"]["modelstudio"]["models"]["qwen3.8-flash"]
+    assert both["provider"]["modelstudio"]["models"]["qwen3.8-flash"]["limit"] == {
+        "context": 262144,
+        "output": 32768,
+    }
+
+    run = (DEFINITIONS / "mimo" / "toolkit" / "run").read_text(encoding="utf-8")
+
+    assert "MIMOCODE_CONFIG_CONTENT=$(python3 /opt/torve/provider_config.py)" in run
+    assert '--model "${TORVE_PROVIDER:-torve-provider}/$TORVE_MODEL"' in run
+    assert "OPENAI_BASE_URL" not in run
+
+
+def test_a_mimo_session_that_reported_an_error_is_a_failed_run() -> None:
+    """mimo exits zero when the session fails ("Model not found" arrived as an
+    `error` event with status 0), and the engine reads zero as work to gate."""
+
+    run = (DEFINITIONS / "mimo" / "toolkit" / "run").read_text(encoding="utf-8")
+
+    assert 'grep -q \'"type":"error"\' "$TORVE_OUTPUT"' in run

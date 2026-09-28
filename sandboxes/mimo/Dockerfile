@@ -4,7 +4,9 @@ ARG BASE=sandbox-base
 FROM ${BASE}
 # The harness version rides a pinned-default ARG (S-0033/D-3): a bump is a
 # one-line reviewed diff, never a rebuild side effect.
-ARG MIMO_VERSION=0.1.13
+# 0.1.13 is no longer on the registry (only 0.1.15 is), so the build failed at
+# this line until the pin moved.
+ARG MIMO_VERSION=0.1.15
 RUN npm install -g @mimo-ai/cli@${MIMO_VERSION} && mimo --version
 # What this definition puts inside the image (S-0063/D-14): `toolkit/` is
 # `/opt/torve`, named for where its contents land, and one COPY installs the

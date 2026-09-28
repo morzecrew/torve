@@ -11,36 +11,29 @@ set -eu
 # prevent. There is nothing left to map (S-0064/D-8). One base URL and one named
 # variable arrive whether a broker is in force or not, so the refusal became a
 # deletion rather than an implementation.
-OPENAI_BASE_URL="$TORVE_BASE_URL"
-export OPENAI_BASE_URL
+#
+# They reach mimo as a provider of its own, declared in configuration: mimo's
+# built-in `openai` provider takes only the models in its catalog, so the base
+# URL and key alone reached nothing ("Model not found"). `provider_config.py`
+# says why and how.
+MIMOCODE_CONFIG_CONTENT=$(python3 /opt/torve/provider_config.py)
+export MIMOCODE_CONFIG_CONTENT
 
-eval "OPENAI_API_KEY=\${$TORVE_API_KEY_ENV:-}"
-export OPENAI_API_KEY
-
-set -- mimo run --format json --dangerously-skip-permissions
-
-if [ -n "${TORVE_MODEL:-}" ]; then
-    set -- "$@" --model "$TORVE_MODEL"
-fi
+set -- mimo run --format json --dangerously-skip-permissions \
+    --model "${TORVE_PROVIDER:-torve-provider}/$TORVE_MODEL"
 
 if [ -n "${MIMO_AGENT:-}" ]; then
     set -- "$@" --agent "$MIMO_AGENT"
 fi
 
-# The door (S-0066/D-1). mimo reads skills out of four roots it did not put
-# there — `.claude`, `.agents`, `.codex` and `.opencode` — and agents and
-# commands out of `.claude` as well. This repository's worktree carries five
-# skills under the first and six under the second, one of which any seat
-# declared; none is pinned, none is hashed, so the regime digest claims more
-# than it knows.
-#
-# One disable per root rather than one switch for all of them, because the root
-# the engine named is a root too: equipment is copied into `.mimocode/skill`
-# (S-0063/D-19) and shutting that would shut the door on what the profile
-# declared. Each image closes its own door with the switch it has (S-0063/D-3).
-for root in .claude .agents .codex .opencode; do
-    set -- "$@" --disable-root "$root"
-done
+# The door (S-0066/D-1), in `door.env` so the build's probe reads the same
+# bytes the seat does. mimo has no flag for it: `--disable-root`, which this
+# script passed from T-0381 on, is taken by neither 0.1.13 nor 0.1.15 — yargs
+# printed the usage and exited, and the probe that should have caught it ran
+# `--help`, which exits zero whatever else is on the line.
+set -a
+. /opt/torve/door.env
+set +a
 
 mkdir -p "$(dirname "$TORVE_OUTPUT")"
 
@@ -59,5 +52,12 @@ echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
     # bloomery night 10). `mimo run` reads a piped stdin as the message.
     if "$@" < "$TORVE_PROMPT"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
 } | tee "$TORVE_OUTPUT"
+
+# mimo exits zero when the session itself fails — "Model not found" arrived as
+# an `error` event and status 0 — and the engine reads zero as work to gate. A
+# session that reported an error is a failed run whatever it exited with.
+if [ "$(cat "$rc")" = 0 ] && grep -q '"type":"error"' "$TORVE_OUTPUT"; then
+    echo 1 > "$rc"
+fi
 
 exit "$(cat "$rc")"

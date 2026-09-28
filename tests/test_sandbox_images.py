@@ -356,7 +356,7 @@ DOOR = {
         "--strict-mcp-config",
     ],
     "dsh": ["candidates: []", '--patch "$DOOR"'],
-    "mimo": ["--disable-root"],
+    "mimo": [". /opt/torve/door.env", "MIMOCODE_DISABLE_AGENTS_SKILLS=1"],
 }
 
 
@@ -368,10 +368,9 @@ def _door_bytes(name: str) -> str:
 
     toolkit = REPO_ROOT / "sandboxes" / name / "toolkit"
     parts = [(toolkit / "run").read_text(encoding="utf-8")]
-    door = toolkit / "door.yml"
-
-    if door.is_file():
-        parts.append(door.read_text(encoding="utf-8"))
+    for door in (toolkit / "door.yml", toolkit / "door.env"):
+        if door.is_file():
+            parts.append(door.read_text(encoding="utf-8"))
 
     return "\n".join(parts)
 
@@ -414,7 +413,27 @@ DOOR_PROBE = {
         "--strict-mcp-config",
         "--help",
     ],
-    "mimo": ["mimo", "run", "--disable-root", ".claude", "--help"],
+    # mimo's door is environment, which no harness refuses, so the probe asks
+    # the built harness what it loads: a skill under every root, the door's
+    # values from the same file `run` sources, and `mimo debug skill` must list
+    # the equipment root's skill and none of the others. The `--disable-root`
+    # flag this replaced passed a `--help` probe and did nothing.
+    "mimo": [
+        "sh",
+        "-c",
+        (
+            'cd "$(mktemp -d)" && git init -q . && '
+            "for root in .mimocode/skill .agents/skills .claude/skills .codex/skills "
+            ".opencode/skills; do "
+            'name="probe$(echo "$root" | tr -dc a-z)"; mkdir -p "$root/$name"; '
+            "printf -- '---\\nname: %s\\ndescription: probe\\n---\\n' \"$name\" "
+            '> "$root/$name/SKILL.md"; done && '
+            "set -a && . /opt/torve/door.env && set +a && "
+            "mimo debug skill > /tmp/skills.json 2>&1; "
+            "grep -q '\"probemimocodeskill\"' /tmp/skills.json && "
+            "! grep -qE '\"probe(agents|claude|codex|opencode)skills\"' /tmp/skills.json"
+        ),
+    ],
 }
 
 
