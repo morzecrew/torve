@@ -1,0 +1,18 @@
+{
+  "name": "torve-dsh-harness",
+  "private": true,
+  "description": "dsh and every package under it, pinned by package-lock.json so a rebuild cannot change the harness",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.1-rc.2"
+  },
+  "overrides": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/cordis-plugin-group": "1.0.2",
+    "@deepseek-ai/cordis-plugin-hmr": "1.0.17",
+    "@deepseek-ai/cordis-plugin-include": "1.0.7",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.3",
+    "@deepseek-ai/cordis-plugin-timer": "1.1.4",
+    "@deepseek-ai/cosmokit": "1.8.3",
+    "@deepseek-ai/schemastery": "3.18.2"
+  }
+}

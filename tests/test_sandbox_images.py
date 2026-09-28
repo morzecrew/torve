@@ -14,6 +14,7 @@ can answer (S-0041/D-3)."""
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import re
 import shutil
@@ -269,9 +270,38 @@ def test_harness_installs_ride_pinned_default_args():
         assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+-]*", default), (
             f"{name}: {arg} default {default!r} is not a literal version pin"
         )
+        if (_definition_dockerfile(name).parent / "harness" / "package-lock.json").is_file():
+            # A locked tree (dsh): `npm ci` installs what the lock holds, and
+            # the build refuses a lock whose harness is not the ARG.
+            assert "npm ci" in text, f"{name}: a locked harness installs with npm ci"
+            assert re.search(rf'= "\${{{arg}}}"', text), (
+                f"{name}: the build does not check the lock against ${{{arg}}}"
+            )
+            continue
         assert re.search(rf"npm install -g {re.escape(package)}@\${{{arg}}}", text), (
             f"{name}: the install does not consume ${{{arg}}}"
         )
+
+
+def test_a_locked_harness_lock_holds_the_arg_s_version():
+    """dsh's carets let a rebuild of the same version pull a newer cordis that
+    stopped the profile booting (2026-09-28), so its tree is a lockfile. The
+    lock, the manifest and the ARG name one version, or a bump moved one of
+    three and the build's check is all that stands between it and a silent
+    harness change."""
+
+    harness = REPO_ROOT / "sandboxes" / "dsh" / "harness"
+    arg = re.search(
+        r"^ARG\s+DSH_VERSION=(\S+)\s*$",
+        _definition_dockerfile("dsh").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    manifest = json.loads((harness / "package.json").read_text(encoding="utf-8"))
+    lock = json.loads((harness / "package-lock.json").read_text(encoding="utf-8"))
+
+    assert arg is not None
+    assert manifest["dependencies"]["@deepseek-ai/dsh"] == arg.group(1)
+    assert lock["packages"]["node_modules/@deepseek-ai/dsh"]["version"] == arg.group(1)
 
 
 # The toolkit contract per image (S-0033/tests): what a profile's command
@@ -287,15 +317,10 @@ TOOLKIT = {
     },
     "dsh": {
         "answer": "/opt/torve/report-usage --help >/dev/null 2>&1",
-        "symlinks": {
-            "/opt/dsh/report-usage.js": "/opt/torve/report-usage",
-            "/opt/dsh/deepseek-chat.yml": "/opt/torve/overlays/deepseek-chat.yml",
-            "/opt/dsh/qwen3.8-flash.yml": "/opt/torve/overlays/qwen3.8-flash.yml",
-            "/opt/dsh/brokered-deepseek.yml": "/opt/torve/overlays/brokered-deepseek.yml",
-            "/opt/dsh/brokered-deepseek-v4-flash.yml": (
-                "/opt/torve/overlays/brokered-deepseek-v4-flash.yml"
-            ),
-        },
+        # The `/opt/dsh` transition symlinks and the overlays they pointed at
+        # went at 484e22f3, when the image stopped baking models (S-0063/D-15);
+        # this entry kept asking for them in the opt-in battery nobody ran.
+        "symlinks": {},
     },
     # mimo carries no toolkit utility, so nothing a profile depends on to
     # protect — an empty contract here would be a vacuous pass.

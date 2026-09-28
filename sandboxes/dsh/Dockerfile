@@ -4,9 +4,20 @@
 ARG BASE=sandbox-base
 FROM ${BASE}
 # The harness version rides a pinned-default ARG (S-0033/D-3): a bump is a
-# one-line reviewed diff, never a rebuild side effect.
+# reviewed diff, never a rebuild side effect. The ARG alone did not make that
+# true. dsh pins its own packages with carets, and on 2026-09-28 a rebuild of
+# the same 0.1.1-rc.2 pulled `@deepseek-ai/cordis` 4.0.4 in place of 4.0.2,
+# and the profile stopped booting ("user patch-layer watching requires the
+# Cordis HMR service"). So the whole tree is installed from `harness/`'s lock
+# with `npm ci`, and the build refuses a lock whose dsh is not this ARG.
+# A bump: set the ARG and the dependency in `harness/package.json`, regenerate
+# the lock with `npm install` in the base image, and rebuild.
 ARG DSH_VERSION=0.1.1-rc.2
-RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION} && dsh --version
+COPY harness/ /opt/harness/
+RUN cd /opt/harness && npm ci --no-audit --no-fund \
+ && test "$(node -p 'require("@deepseek-ai/dsh/package.json").version')" = "${DSH_VERSION}" \
+ && ln -s /opt/harness/node_modules/.bin/dsh /usr/local/bin/dsh \
+ && dsh --version
 # `dsh plugin add` shells out to pnpm and exits 127 without it, which is how
 # every `routine` attempt died once the hook branch stopped dying first
 # (S-0072/D-3). Pinned like the harness above it, for the same reason.
@@ -25,8 +36,7 @@ RUN chmod -R a+rX /opt/torve \
 # node's upward walk never reaches those nested modules and the plugin fails to
 # load with ERR_MODULE_NOT_FOUND — taking the whole profile down with it. The
 # link is what a peer dependency assumes: the host provides it.
-RUN ln -s /usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules \
-          /opt/torve/scope-guard-policy/node_modules
+RUN ln -s /opt/harness/node_modules /opt/torve/scope-guard-policy/node_modules
 # Boot the profile this image ships, with the patches the seat really applies,
 # and fail the build if the plugin tree does not load. Every one of them is a
 # patch, and a patch that drops a key an entry requires fails at boot — which
