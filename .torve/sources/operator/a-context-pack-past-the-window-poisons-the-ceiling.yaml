@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-context-pack-past-the-window-poisons-the-ceiling
+kind: operator
+ref: 'bloomery T-0173 (S-0007 phase 4), 2026-09-28: two attempts refused in a second each with
+  "Prompt is too long", zero input tokens; escalated poison_ceiling after 3.5 s of wall time'
+title: A context pack past the window poisons the ceiling in three seconds
+at: '2026-09-28T14:56:25Z'
+summary: |
+  A contract whose scope named 1,107 files — `pages/docs/**` with its
+  800-line SVGs, `tests/unit/**`, three package globs — produced a context
+  pack whose `scope.md` outline ran to 562 KB. The pack's threshold for
+  carrying files whole (60,000 characters) fell back to an outline, and the
+  outline itself had no bound, so the first message exceeded the model's
+  window and the seat returned "Prompt is too long" with no input tokens
+  counted. The runner read that as an attempt that failed, dispatched again,
+  read it again, and escalated `poison_ceiling` — three attempts, one of
+  them the earlier halt on a different contract text — 3.5 seconds after the
+  hand run began. The phase beside it, with a scope of 64 KB in outline,
+  ran to green.
+
+  Two things. The outline should be bounded the way the whole-file carrier
+  is: past a budget, a scope is listed and not outlined, and `index.md`
+  says so. And a first message can be measured against the window before a
+  seat is paid: a pack that cannot fit is a contract defect to escalate on
+  its own name — `pack_over_window`, with the size and the globs that made
+  it — never a poison ceiling, which reads to the operator as a model fault
+  and counts an unrelated prior halt toward it.
