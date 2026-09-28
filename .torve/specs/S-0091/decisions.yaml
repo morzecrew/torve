@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The lane fetches with prune before it lands onto a document branch and works
+      from the remote's copy: a branch the remote no longer has, or whose pull request
+      merged, is moved aside under `refs/torve/documents/` and cut again from the
+      remote's `main`; a branch the remote has sets the local ref to the remote tip;
+      the task cut and the dependency check read the same remote ref
+    paths:
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/application/lane.py
+      - src/torve/application/runner.py
+      - src/torve/cli/manager.py
+      - tests/test_lane.py
+      - tests/test_runner.py
+      - tests/test_manager.py
+    consequence: >-
+      a merged or deleted document branch is never landed onto again, a merged document's
+      next pull request carries only what `main` lacks, and the old commits stay reachable
+    rationale: >-
+      the local ref outlived a squash-merged branch on bloomery and would have pushed
+      the merged history back; a rebase of a squashed branch replays what `main` already
+      holds
+    cites: [S-0083/D-5, S-0083/D-14, S-0083/D-18, S-0080/D-10, S-0080/D-17]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Commits on the remote document branch that the lane did not make are the branch
+      having moved: the candidate is rebased onto them and the battery re-run, a conflict
+      escalates for a person, and the branch is published with a lease on the exact
+      commit the lane fetched
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/adapters/vcs/git.py
+      - tests/test_lane.py
+    consequence: >-
+      a hand commit on an open document branch survives the next landing or stops
+      it, and a push never drops a commit it did not see
+    rationale: >-
+      five hand commits on bloomery's `torve/S-0002` were reset away under three landings;
+      the bare lease checked a tracking ref the pass had just fetched
+    cites: [S-0083/D-5, S-0083/D-13]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A document's pull request counts a phase as landed when the branch tip's tree
+      holds its landing file, as well as when the lane recorded landing it; `manager
+      resolve --resolution landed` refuses a sha whose tree holds no landing file
+      for the task and names `torve log land`
+    paths:
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_manager.py
+      - tests/test_forge.py
+    consequence: >-
+      a phase finished by hand reads as landed in the pull request's title and body,
+      and a hand resolution cannot claim a landing the tree does not carry
+    rationale: >-
+      bloomery #184 read "3/4 phases" with all four landed because the count read
+      only the lane's own rows; the landing file is the tree's record of a landing
+      (S-0059)
+    cites: [S-0083/D-8, S-0083/D-17, S-0085/D-4]

@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      The lane reads the document branch from the remote
+    intent: >-
+      `LaneVcs` gains `fetch(root, prune=True)` and `remote_tip(root, branch)`, and
+      the git adapter implements both. `_document_branch` fetches with prune and reads
+      `origin/<branch>`: absent on the remote, or recorded merged by the ledger, moves
+      the local ref under `refs/torve/documents/<branch>/<tip>`, records `lane_document_recut`
+      and cuts a new branch from `origin/main`; present, it sets the local ref to
+      the remote tip. The ledger starts a new task list at the first landing after
+      a terminal verdict. `runner._cut_from` and `cli/manager._dependencies_on_base`
+      read the remote ref. Settles D-1.
+    scope:
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/application/lane.py
+      - src/torve/application/runner.py
+      - src/torve/cli/manager.py
+      - tests/test_lane.py
+      - tests/test_runner.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_runner.py tests/test_manager.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      Hand commits on the branch are a moved branch, and the push leases what it fetched
+    intent: >-
+      With the local ref at the remote tip, a landing onto a branch that carries commits
+      the lane did not make takes the existing moved-base path: rebase in a disposable
+      worktree, battery re-run, conflict escalates. `republish_branch` pushes with
+      `--force-with-lease=<branch>:<fetched sha>`, and a refused push puts the local
+      ref back. Settles D-2.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/adapters/vcs/git.py
+      - tests/test_lane.py
+      - tests/test_pr_review.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_pr_review.py
+      - uv run mypy src
+    character: structural
+  - phase: 3
+    title: >-
+      A landing file on the branch counts, and a hand resolution needs one
+    intent: >-
+      `_document_pr_text` takes the document's tasks from the landing files in the
+      branch tip's tree joined with `document_tasks`. `manager resolve --resolution
+      landed` refuses a sha whose tree holds no landing file for the task, naming
+      the task, the sha and `torve log land`. Settles D-3.
+    scope:
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_manager.py
+      - tests/test_forge.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_forge.py
+      - uv run mypy src
+    character: structural
+  - phase: 4
+    title: >-
+      The operating guide says the document branch is the remote's
+    intent: >-
+      `pages/docs/operating.md` says, in its document-branch section, that the branch
+      is the remote's; that hand commits on it are kept or stop the landing; that
+      a merged document's next phase opens a new pull request; and that a phase finished
+      by hand counts once its landing file is committed.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec check
+    depends_on:
+      - 1
+      - 2
+      - 3
+    character: routine

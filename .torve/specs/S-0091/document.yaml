@@ -1,0 +1,179 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0091
+title: >-
+  A document branch is the remote's, and a hand landing counts
+kind: design
+change:
+  type: fix
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0083]
+informed_by: [S-0080, S-0085]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  The lane lands a document's phases onto a branch it knows only by its local ref. When
+  the remote's copy of that branch moves or disappears, the lane does not notice, and each
+  of the following was hit on bloomery:
+  - A branch squash-merged and deleted on the forge was still there locally, and the next
+    phase would have landed onto it and pushed the merged history back.
+  - Hand commits pushed to an open document branch were reset away by the next landing.
+    The push "under lease" leased against a tracking ref the lane had just fetched.
+  - After a document merged with phases still to come, the next pull request carried the
+    earlier phases' files a second time.
+  - A phase finished by hand counted as still to come, because the pull request counts
+    only the phases the lane itself recorded landing.
+
+  The document branch becomes the remote's. The lane fetches with prune and works from
+  `origin/<branch>`: a branch the remote no longer has, or one whose pull request merged,
+  is set aside and cut again from `main`. Commits the remote has that the lane did not
+  make are a moved branch, which the lane already rebases onto and regates. The push
+  leases against the exact commit the lane fetched. The pull request counts a phase from
+  the landing file on the branch, whoever put it there, and a hand resolution of a landing
+  refuses a commit that carries no landing file.
+motivation: |
+  Four operator findings from bloomery, each worked around by hand:
+  - 2026-09-24 (operator/the-lane-finds-a-document-branch-in-the-local-ref): `torve/S-0002`
+    was squash-merged (#172) and deleted on GitHub, but still present locally at its
+    pre-merge tip. A phase added by amendment would have landed onto twenty-odd commits
+    that are not ancestors of `main`. It was caught by reading the code, and four stale
+    refs were deleted by hand.
+  - 2026-09-22/23 (operator/the-document-landing-resets-the-branch-past-hand-commits):
+    five hand commits on `torve/S-0002` (an amendment, a re-blessed golden pin, two drafted
+    rows) were lost under three landings, and the pull request's CI went red again on the
+    pin.
+  - 2026-09-18 (operator/document-merged-before-its-last-phase): #133 merged carrying one
+    phase of three. The next phase's pull request showed the first phase's files again,
+    and the ledger turned the merged document back to open with its old task list.
+  - 2026-09-26 (operator/a-hand-landing-leaves-no-landing-file): S-0013 phase 1 was
+    finished by hand and resolved landed with its sha. The pull request read "3/4 phases"
+    and listed phase 1 under "Still to come" until its title and body were fixed by hand.
+current_state: |
+  `lane._document_branch` cuts a branch only when `vcs.tip(root, branch)`, a local
+  `rev-parse`, finds none (S-0083/D-18). The task cut (`runner._cut_from`) and the
+  dependency check (`cli/manager._dependencies_on_base`) read the same local ref. The only
+  fetch is `resolve_base(fetch=True)`, a plain `git fetch origin` with no `--prune`, called
+  when a branch is cut and in `_rebase_document`. No VCS port has a fetch, a prune or a
+  remote-tip read.
+
+  `_land_candidate` probes the local document ref as its base. It fast-forwards when that
+  ref is unmoved and rebases and regates in a worktree when it moved (S-0083/D-5).
+  `_land_document` resets the ref to the candidate tip, and `republish_branch` pushes with
+  a bare `--force-with-lease`. That lease checks against `refs/remotes/origin/<branch>`,
+  which the pass's own fetch has just updated, so it protects nothing.
+
+  `_document_verdicts` records `lane_document_landed` when the forge reports the pull
+  request merged, and keeps the branch (S-0083/D-14). The next phase finds the local ref
+  and lands onto it. `_document_ledger` turns the verdict back to `open` and keeps the
+  task list, so `document_tasks` carries the merged tasks into the new pull request.
+
+  The pull request's phases come from `document_tasks`, which holds the tasks recorded in
+  `lane_landed` rows, not from the landing files on the branch (`cli/merge._document_pr_text`
+  → `forge.compose_document_pr`). `manager resolve --resolution landed --sha` records the
+  resolution on the partition and writes nothing to the tree. `torve log land` writes and
+  stages a landing file but does not commit it.
+goals: |
+  - The lane never lands onto a document branch the remote no longer has, or one whose
+    pull request merged.
+  - A commit on the remote document branch that the lane did not make survives the next
+    landing, or stops it for a person.
+  - After a document merges early, its next pull request carries only what `main` lacks.
+  - A phase that is on the branch counts as landed, whoever landed it.
+non_goals: |
+  - Resolving a rebase conflict with hand commits. A conflict escalates for a person, as
+    S-0083/D-13 already says.
+  - Writing a landing file for the operator on `resolve`. The verb refuses and names the
+    verb that writes one. A manager with no worktree does not commit to a document
+    branch.
+design:
+  - key: the-branch-is-the-remote-s
+    md: |
+      `LaneVcs` gains `fetch(root, prune=True)` and `remote_tip(root, branch)`.
+      `_document_branch` fetches with prune and reads `origin/<branch>`:
+      - Absent on the remote: the local ref, if any, is moved to
+        `refs/torve/documents/<branch>/<its tip>`, so S-0083/D-14's join from task to
+        commits survives. A new branch is then cut from `origin/main`.
+      - Present on the remote: the local ref is set to the remote tip before the landing
+        probe. The lane never leaves its local ref ahead of the remote, because it puts
+        the ref back when a publish fails, so this discards nothing of the lane's own.
+
+      `runner._cut_from` and `cli/manager._dependencies_on_base` read the same remote ref.
+  - key: hand-commits-are-a-moved-branch
+    md: |
+      With the local ref set to the remote tip, commits someone pushed to the branch are
+      the branch having moved. `_land_candidate` already handles that: it rebases the
+      candidate in a disposable worktree, re-runs the battery and lands the rebased tip,
+      and a conflict escalates (S-0083/D-5, S-0083/D-13). `republish_branch` pushes with
+      `--force-with-lease=<branch>:<fetched sha>`. A commit pushed between the fetch and
+      the push refuses the publish, and the lane puts its ref back as it does for any
+      refused publish.
+  - key: a-merged-document-starts-again
+    md: |
+      When the ledger's verdict for a branch is `landed` (the forge reported the pull
+      request merged), the next landing for that document treats the branch as absent on
+      the remote. The old ref is moved aside, as above, a new branch is cut from
+      `origin/main`, and the ledger starts a new task list at the first `lane_landed`
+      after the terminal verdict. The new pull request carries only the phases still to
+      land, and names the merged pull request in its body.
+
+      At acceptance, S-0083/D-18 (OPEN) is settled: the branch is cut once per pull
+      request rather than once per document. S-0080/D-17 (OPEN) is settled the same way:
+      a branch the forge no longer resolves is set aside under a ref, with the fact
+      recorded (`lane_document_recut`), and never reopened.
+  - key: a-landing-is-what-the-branch-carries
+    md: |
+      `_document_pr_text` takes the document's tasks from the landing files in the branch
+      tip's tree (`.torve/specs/<document>/execution/`), read the way
+      `_dependencies_on_base` already reads them, joined with `document_tasks` for a
+      landing whose file is not yet on the tip. A phase finished by hand, whose landing
+      file an operator committed with `torve log land`, counts. `manager resolve
+      --resolution landed --sha` refuses a sha whose tree holds no landing file for the
+      task. It names the task, the sha and `torve log land` as the way to write one.
+tests: |
+  - The remote branch is deleted and the local ref kept: the next landing moves the local
+    ref under `refs/torve/documents/`, cuts a new branch from `origin/main`, and the old
+    commits stay reachable.
+  - A hand commit pushed to the remote document branch: the next landing rebases onto it
+    and regates, and the hand commit is in the landed tip. A conflicting hand commit
+    escalates and leaves the remote branch as it was.
+  - A push racing a commit made after the fetch is refused by the explicit lease, and the
+    local ref is put back.
+  - A merged document's next phase opens a new pull request whose tasks are only the new
+    phase's.
+  - A branch whose tip carries a landing file with no `lane_landed` row counts that phase
+    as landed. `resolve --resolution landed` with a sha that has no landing file is refused
+    and names `torve log land`.
+docs: |
+  `pages/docs/operating.md`: the document-branch section says the branch is the remote's,
+  that hand commits on it are kept, that a merged document's next phase opens a new pull
+  request, and that a phase finished by hand counts once its landing file is committed.
+out_of_scope: |
+  - A second host's `torve run` recording its landing on the partition. With S-0089/D-1 a
+    served night dispatches what hand runs used to carry, and the landing file on the tree
+    is what the readers here count.
+  - Fetching on every read. The lane fetches once per landing pass, before it reads the
+    branch; readers inside the pass use that fetch.
+risks: |
+  - A network failure on fetch stops the landing where it used to proceed on a stale ref.
+    That is the intent: a landing onto a ref the lane cannot check is how the merged
+    history came back. The fetch failure is recorded, and the next pass retries.
+  - Moving a ref aside leaves `refs/torve/documents/` growing by one entry per recut. The
+    entries are what S-0083/D-14 promised to keep, and there is one per merged or deleted
+    document branch.
+alternatives:
+  - option: >-
+      Rebase the old branch onto `main` after an early merge instead of recutting
+      it
+    rejected_because: >-
+      A squash merge leaves the branch's commits without ancestors in `main`, so the
+      rebase replays phases `main` already holds in squashed form and conflicts on
+      every file they touched. A recut carries only what `main` lacks by construction.
+  - option: >-
+      Have `resolve --resolution landed` commit the landing file itself
+    rejected_because: >-
+      The manager holds no worktree of the document branch and would have to push
+      to it from the host outside the lane. The operator who finished the phase by
+      hand has the branch checked out, and `torve log land` writes the file there.
