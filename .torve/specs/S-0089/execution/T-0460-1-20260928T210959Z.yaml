@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0460
+phase: 3
+base: b66582a9808f9cabbb790d9a6701391f2521f73c
+commit: c6c933e5edc5e4f636b00095054e8a704dd20340
+at: '2026-09-28T21:09:59Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-28T21:08:03Z'
+    claim: >-
+      built as written: open_night releases in-flight claims whose claimed_by equals
+      the opening actor_id (the CLI passes the worker name there), then the refusal
+      lists each held claim with holder, age and lease expiry and counts queued tasks
+      blocked by dependencies and by overlap
+    evidence: >-
+      src/torve/application/residency.py:693-735 — _refusal; the release loop is in
+      open_night below it
+    action: decided
