@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from torve.application.planner import scopes_clash
-from torve.application.sizing import estimate
 from torve.base.clock import parse
 from torve.domain.events import EventKind, NightClosed, NightOpened, SubjectType
 from torve.domain.spec import document_id
@@ -296,33 +295,13 @@ def overlaps(task: Task, board: Board) -> list[str]:
 # ....................... #
 
 
-def decomposed(task: Task, board: Board) -> bool:
-    """Whether some other contract on this board carries this task as its
-    parent (S-0026 S-0026/D-6) — true once a decomposition of it has been
-    adopted, at which point it is the integration task and its own
-    `too_large` verdict has already routed once and does not route again.
-
-    The repository answered this by globbing the task directory. The board
-    carries every contract since S-0049/A-1, so the same question is a fold, and
-    a rule that reads the record cannot disagree with the board it gates.
-    """
-
-    return any(
-        view.contract is not None and view.contract.parent == task.id
-        for view in board.tasks.values()
-    )
-
-
-# ....................... #
-
-
 def dispatchable(board: Board, partition: str) -> list[str]:
     """What this partition could start right now, in id order.
 
     A task qualifies when this partition's board carries it as queued with a
-    contract a worker may take, its size is one a worker may finish, its
-    dependencies have landed, and nothing sharing its scope is in flight. Everything else is somebody's turn: an
-    escalated task waits on a human, a claimed one on its worker, a landed
+    contract a worker may take, its dependencies have landed, and nothing
+    sharing its scope is in flight — whatever its size (S-0089/D-1).
+    Everything else is somebody's turn: an escalated task waits on a human, a claimed one on its worker, a landed
     one on nobody.
 
     The role guard is what lets the scan mint every contract (S-0049/A-1). A
@@ -351,12 +330,6 @@ def dispatchable(board: Board, partition: str) -> list[str]:
             continue
 
         if view.state is not TaskState.QUEUED:
-            continue
-
-        # S-0026/D-7: a contract this large that nobody has decomposed awaits a
-        # decomposition, not a worker. The scan refused it too; refusing it
-        # here is what lets the scan go.
-        if estimate(task).size == "too_large" and not decomposed(task, board):
             continue
 
         if blocked_by(task, board) or overlaps(task, board):

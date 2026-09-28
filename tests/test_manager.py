@@ -646,20 +646,11 @@ def test_two_unconstrained_tasks_never_run_together():
     assert dispatchable(board, PARTITION) == []
 
 
-def test_an_oversize_contract_awaits_a_decomposition_and_not_a_worker(tmp_path):
-    """S-0026/D-7, ported off the scan (A-105): a contract too large to finish
-    is not offered until something carries it as a parent, and the board is
-    where that answer now lives — one fold, not a directory walk."""
+def test_an_oversize_contract_is_dispatchable_whatever_its_size(tmp_path):
+    """S-0089/D-1: dispatch does not consult the size estimate — a queued
+    too_large contract is offered like any other."""
 
     from torve.domain.task import Task
-
-    def board_with(*contracts: Task) -> Board:
-        return project(
-            [
-                event(EventKind.TASK_MINTED, one.id, {"contract": one.model_dump(mode="json")})
-                for one in contracts
-            ]
-        )
 
     huge = Task(
         id="T-1",
@@ -668,12 +659,11 @@ def test_an_oversize_contract_awaits_a_decomposition_and_not_a_worker(tmp_path):
         scope=Scope(allow=["src/**"]),
         acceptance=["a"] * 12,
     )
-    child = Task(id="T-2", decisions=[], parent="T-1", scope=Scope(allow=["docs/**"]))
+    board = project(
+        [event(EventKind.TASK_MINTED, huge.id, {"contract": huge.model_dump(mode="json")})]
+    )
 
-    assert dispatchable(board_with(huge), PARTITION) == []
-    # Decomposed: the integration task has routed once and does not route
-    # again, so it is offerable — and its child with it.
-    assert dispatchable(board_with(huge, child), PARTITION) == ["T-1", "T-2"]
+    assert dispatchable(board, PARTITION) == ["T-1"]
 
 
 def test_resolving_an_escalation_returns_the_task_or_takes_it_off_the_board():

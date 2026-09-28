@@ -405,31 +405,24 @@ def test_size_estimate():
     assert verdict.size == "ok"
 
 
-def test_run_blocked_awaiting_decomposition_without_override(repo):
-    # S-0026 S-0026/D-7: a too_large contract awaits decomposition — dispatch
-    # refuses it by name unless the operator overrides explicitly.
+def test_run_dispatches_a_too_large_contract_with_its_reasons_as_a_note(repo):
+    # S-0089/D-1: dispatch does not consult the size estimate — the verdict's
+    # reasons print as a note, and nothing is refused or recorded as an override.
     repo.seed()
     repo.task(base_task(allow=["src/a/**", "docs/a/**"]), None)
     result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root)])
-    assert result.exit_code == 3
-    assert "awaiting decomposition" in result.stderr
-    assert "--oversize" in result.stderr
+    assert "awaiting decomposition" not in result.stderr
+    assert "note: size estimate is too_large" in result.stderr
 
 
-def test_run_oversize_override_dispatches_and_is_recorded(repo):
-    # The override bypasses the block and is recorded on the run (S-0026/D-7) —
-    # asserted from telemetry alone, independent of whatever the dispatched
-    # attempt itself goes on to do.
+def test_run_accepts_and_ignores_oversize(repo):
     repo.seed()
     repo.task(base_task(allow=["src/a/**", "docs/a/**"]), None)
-    CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root), "--oversize"])
-    events = [
-        json.loads(line)
-        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
-    recorded = [e for e in events if e.get("event") == "oversize_dispatch"]
-    assert recorded and recorded[0]["task"] == TASK_ID
+    result = CliRunner().invoke(app, ["run", TASK_ID, "--root", str(repo.root), "--oversize"])
+    assert "No such option" not in result.stderr
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    lines = telemetry.read_text().splitlines() if telemetry.exists() else []
+    assert not [line for line in lines if '"oversize_dispatch"' in line]
 
 
 def test_run_refuses_a_contract_the_lint_refuses(repo):

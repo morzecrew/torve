@@ -21,7 +21,7 @@ from torve.cli.assembly import (
 from torve.cli.assembly import (
     build_tier_agent as build_tier_agent,
 )
-from torve.cli.console import Format, emit_json, fail, out
+from torve.cli.console import Format, emit_json, err, fail, out
 from torve.cli.options import (
     ConfigOption,
     FormatOption,
@@ -107,8 +107,8 @@ def run_cmd(
         bool,
         typer.Option(
             "--oversize",
-            help="Dispatch a too_large contract anyway, bypassing the "
-            "await-decomposition route. Recorded on the run.",
+            help="Ignored: a too_large contract dispatches without it. "
+            "Accepted until the next minor release removes it.",
         ),
     ] = False,
     lint_red: Annotated[
@@ -169,24 +169,16 @@ def run_cmd(
     except RoleNotDispatchable as exc:
         raise fail(str(exc), EXIT_CONFIG) from exc
 
-    # S-0026 S-0026/D-7: a too_large verdict routes to decomposition; a
-    # manual dispatch needs the explicit, recorded override to bypass it.
+    # S-0089/D-1: dispatch does not consult the size estimate. A too_large
+    # verdict is printed as a note and the contract dispatches; decomposition
+    # happens when an operator runs `torve decompose`.
     from torve.application import sizing
     from torve.application.telemetry import engine_event
 
     verdict = sizing.estimate(task)
-    blocked = verdict.size == "too_large" and not sizing.has_children(root, task.id)
 
-    if blocked and not oversize:
-        raise fail(
-            "awaiting decomposition: " + "; ".join(verdict.reasons) + " — "
-            "run `torve decompose` against this contract, or pass "
-            "--oversize to dispatch it as-is",
-            EXIT_CONFIG,
-        )
-
-    if blocked and oversize:
-        engine_event(root, "oversize_dispatch", {"task": task.id, "reasons": verdict.reasons})
+    if verdict.size == "too_large" and not sizing.has_children(root, task.id):
+        err().print("note: size estimate is too_large: " + "; ".join(verdict.reasons))
 
     # The `--agent fake` override and the `--scenario` file are this verb's
     # front door; the composition root applies them to every tier rule.
