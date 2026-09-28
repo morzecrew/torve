@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0462
+phase: 5
+base: b66582a9808f9cabbb790d9a6701391f2521f73c
+commit: d8fd1612f37e0c6feb35363fece7e8f01d87ca26
+at: '2026-09-28T21:24:10Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-28T21:19:33Z'
+    claim: >-
+      the docs section places seat_refused in the escalation table beside prepare_failed,
+      but pages/docs/operating.md carries no escalation table — the closed reason
+      vocabulary exists only as an enum in the domain and as prose on the architecture
+      page
+    evidence: >-
+      pages/docs/operating.md:19-45 — the verbs table is the only table near the escalation
+      discussion, and grep for prepare_failed over this page prints nothing; pages/docs/architecture/execution.md:110-117
+      holds the vocabulary as prose
+    action: departed
+    proposal: >-
+      phase 5's intent should read: operating.md gains an escalation-reason table
+      over the closed vocabulary in src/torve/domain/states.py, with seat_refused
+      beside prepare_failed — the table the row points at did not exist
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-28T21:19:33Z'
+    claim: >-
+      the only LOCKED row governing the touched path is the identifier grammar; the
+      new table and prose use the current grammar and cite only live rows
+    evidence: >-
+      pages/docs/operating.md:65 — the size-estimate bullet this attempt rewrites
+      is one of the citations
+    action: decided
+    proposal: >-
+      none owed — this line attests compliance rather than proposing an amendment
