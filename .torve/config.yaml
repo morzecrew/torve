@@ -123,7 +123,7 @@ scm:
 #   executor:
 #     harness: claude-code
 #     profile: careful
-#     model: claude-opus-5
+#     model: claude-opus-5-5
 #     provider: anthropic
 tiers:
   planner: {harness: fake}
@@ -134,7 +134,7 @@ tiers:
   executor:
     harness: claude-subscription
     profile: claude-equipped
-    model: claude-opus-5
+    model: claude-opus-5-5
     provider: anthropic
     # S-0034/D-3: a phase declared `routine` — docs, a changelog, a rename that
     # carries no design — is one competence, so it runs on the cheap seat rather
@@ -238,7 +238,7 @@ tiers:
   executor.lean:
     harness: claude-subscription
     profile: claude-lean
-    model: claude-opus-5
+    model: claude-opus-5-5
     provider: anthropic
   executor.deepseek:
     harness: claude-subscription
