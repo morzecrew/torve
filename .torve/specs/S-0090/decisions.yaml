@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      The review-thread leg's record source reads no finding from a review whose target
+      is a round the leg minted; such a review still blocks its round's landing on
+      a blocker, and what it finds below that grade stays on the stream
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: >-
+      a document's rounds are bounded by the findings on its phases, and a round's
+      check opens no further round
+    rationale: >-
+      bloomery's night of 2026-09-21 minted three rounds of rounds out of eleven,
+      each an attempt and a review spent on a nit, and the reviewer always finds a
+      nit
+    cites: [S-0086/D-3, S-0086/D-5, S-0043/D-1]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The next dispatch of a task whose last attempt escalated `blocker_finding` or
+      `locked_conflict`, and which has not landed, continues from the tree that attempt
+      checkpointed, whether it was requeued on the board or its run state was reaped;
+      a gate conviction still restarts from the base
+    paths:
+      - src/torve/application/runner.py
+      - tests/test_runner.py
+      - tests/test_run_loop.py
+    consequence: >-
+      a review that asks for one file's change costs that change, and a halt answered
+      by an amendment resumes where it stopped
+    rationale: >-
+      both trees are already committed on the task's branch (S-0086/D-2, S-0086/A-1)
+      and a run already revises a blocker in the same worktree (S-0043/D-1); only
+      a requeue threw the tree away, and bloomery paid a whole phase twice for it
+    cites: [S-0026/D-8, S-0026/D-9, S-0086/D-2, S-0043/D-1]

@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0090
+title: >-
+  Review rounds converge, and judged work continues from its tree
+kind: design
+change:
+  type: fix
+  scope: review
+status: draft
+implementation: none
+depends_on: [S-0086]
+informed_by: [S-0084]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |
+  Two ways the engine pays twice for review. The review-thread leg reads the review tier's
+  findings on a document's tasks and mints a round for them (S-0084, S-0086). Every round
+  is reviewed too, and that review's findings are read as findings on the branch, so a
+  round mints the next round. Nothing in the rules ends the chain, because the reviewer
+  always finds a nit. Second, a task whose attempt a reviewer blocked, or that halted on a
+  row, is committed at its checkpoint (S-0086/D-2). Its next dispatch still cuts from the
+  base, so the attempt redoes the whole phase to reach the tree it already had.
+
+  A review of a round feeds no round. What it finds below the blocking grade stays on the
+  stream, and a blocker still stops that round's landing as it stops any task's. The next
+  dispatch of a task whose last attempt ended in a review blocker or a halt continues from
+  the tree that attempt checkpointed, with the review's findings or the halt's entry as
+  the difference still to close.
+motivation: |
+  bloomery, night of 2026-09-21. The leg drained the tier's non-blocking findings on
+  S-0002's phases into eleven rounds, which is its job. Three of those eleven were rounds
+  of rounds: T-0070 was reviewed by T-0071, whose finding became T-0072, and T-0074 and
+  T-0076 were queued the same way. Each cost an attempt and a review (about $0.70 and 15
+  minutes) for a docstring word or a comment's grammar. The night was stopped by hand with
+  three more queued (operator/a-rounds-review-mints-the-next-round).
+
+  bloomery, night 10 (2026-09-25/26). A task that went green and then failed review was
+  requeued, and its next attempt was cut from `main`. It spent the same hours reaching the
+  tree the first attempt had, before it could answer a finding that asked for one file's
+  change (operator/a-requeue-after-a-review-failure-recuts-from-main). bloomery T-0008,
+  2026-09-19, did 31 minutes of work and halted on a scope gap. Once the operator had
+  widened the scope, no verb continued from the tree; the phase was rerun from nothing
+  (operator/halted-attempt-loses-its-tree). Since S-0086/A-1 both trees are committed on
+  the task's branch. Nothing dispatches from them.
+current_state: |
+  `reviewleg.record_threads` takes every task-gated review row whose target is one of
+  `lane.document_tasks(branch)`, the tasks on the document branch. The rounds the leg mints
+  are on that branch, so a round's own review qualifies. Rounds are recorded as
+  `lane_review_task` events that name the task, so the leg can already tell a round from a
+  phase. A finding answered on the stream (`review_finding_answered`) is never read again
+  (S-0086/D-5).
+
+  `runner._continuable` admits only budget exhaustion (wallclock or tokens) and a
+  cost anomaly (S-0026/D-8, LOCKED). `run_task` resumes, cutting the worktree from the
+  task branch's tip rather than the base, only when the previous run state went
+  QUEUED straight from an escalation `_continuable` admits (`_should_resume`, S-0026/D-9).
+  A review-stage escalation and a halt commit their tree on the branch before escalating
+  (S-0086/D-2, S-0086/A-1), and a recut keeps it under `refs/torve/checkpoints/<task>/<sha>`.
+  Inside one run, a surviving blocker already revises in the same worktree
+  (`blocker_revisions`, S-0043/D-1). Once the run has escalated, the work goes back to the
+  base.
+goals: |
+  - A document's rounds end: a round answers findings on phases, and the check on that
+    answer does not open another round.
+  - A requeued task that was judged, but not convicted by its gates, starts from the tree
+    that was judged. It pays for the difference, not for the phase again.
+non_goals: |
+  - Changing what the review tier finds or how it grades. The leg's reading of the
+    findings changes, not the reviewer.
+  - Continuing a task convicted by its gates. Repeated red gates judge the work, and
+    such a task still restarts from the base, as S-0026/D-8 says.
+design:
+  - key: a-round-s-review-feeds-no-round
+    md: |
+      `record_threads` collects the task ids the stream records as rounds on this branch
+      (`lane_review_task` events) and skips any review row whose target is one of them.
+      A review of a round still runs, and still blocks that round's landing on a blocker
+      (S-0043). Its findings below the blocking grade remain the review row they already
+      are on the stream. They are never threads, so they are never rounds. The forge
+      source is unchanged: a person's thread on the pull request is a round whoever
+      caused it.
+  - key: judged-work-continues
+    md: |
+      `_continuable` also admits `blocker_finding` and `locked_conflict`. Those are the
+      two escalations whose tree S-0086/D-2 commits on the branch, and in both the work
+      stopped for a judgement about it, not a gate conviction. `_should_resume` then holds
+      for a task requeued straight off either one. `run_task` cuts from the branch tip
+      (S-0026/D-9), and the attempt reads the review's findings or the halt's entry in
+      `attempts.json`, as every later attempt reads its predecessor's.
+
+      A requeue that goes through `torve reap --escalated` clears the run state, and
+      with it `_should_resume`'s evidence. So `run_task` also resumes when there is no
+      previous state, the task has no landing, and the task branch's tip is a
+      checkpoint commit for one of those two reasons (the commit's trailer names it).
+      The operator's route and the board's route then reach the same tree.
+
+      At acceptance S-0026/D-8 is amended to say that continuation fires on budget
+      exhaustion, and on a review blocker or a halt whose tree was checkpointed; never
+      on a gate conviction. S-0026/D-8 is LOCKED, so the amendment is the owner's.
+  - key: attempts-and-ceilings
+    md: |
+      A continued attempt is an attempt: it counts toward the poison ceiling and the
+      budgets, its diff and gates are measured against the original base (S-0026/D-9),
+      and the review judges the whole diff again. What changes is only where the
+      worktree is cut from.
+tests: |
+  - A round's review with a non-blocking finding yields no thread from `record_threads`.
+    The same finding on a phase's review yields one. A person's forge thread on a
+    round's file is still a round.
+  - A task requeued straight off `blocker_finding` or `locked_conflict` resumes from the
+    branch tip. One requeued off a red-gate `poison_ceiling` starts from the base.
+  - After `reap --escalated`, a task whose branch tip is a review-stage or halt
+    checkpoint and which has no landing resumes from it. A branch whose tip is a budget
+    checkpoint resumes as today. A landed task never resumes.
+docs: |
+  `pages/docs/operating.md`: where the guide describes the review-thread leg, one
+  sentence saying a round's own review opens no round. In the escalation section, a
+  sentence saying a requeued review blocker or halt continues from its tree.
+out_of_scope: |
+  - A cap on rounds per document. With a round's review no longer a source, the rounds
+    are bounded by the phases' findings; a cap would be a second rule for the same bound.
+  - Posting a round's review findings to the pull request. They stay on the stream,
+    where `torve why` reads them.
+risks: |
+  - A real defect found in a round's review below the blocking grade reaches no round.
+    It stays on the stream and in the review's record. A reviewer who thinks it matters
+    grades it a blocker, and a blocker stops the round.
+  - A continued attempt could keep a wrong approach the reviewer objected to. The
+    findings are in the attempt's first read, the review judges the whole diff again,
+    and the ceiling still bounds it. The same worktree revision already happens inside
+    a run under S-0043/D-1.
+alternatives:
+  - option: Cap the rounds a document may mint
+    rejected_because: >-
+      A cap stops a chain at an arbitrary depth and also stops legitimate rounds on
+      a document with many phases. The chain has one cause, a round's review read
+      as a source, and removing the cause bounds the rounds by the phases' findings.
+  - option: A `torve run --resume` flag the operator passes
+    rejected_because: >-
+      The engine already knows the tree is there, and the reason it stopped is on
+      the checkpoint's trailer. A flag makes the operator restate what the record
+      says, and a board requeue has no one to pass it.
+questions:
+  - id: Q-1
+    text: >-
+      Should a continued attempt after a halt read the amended contract (S-0088's
+      refresh) or the one the halted attempt was cut under? The refresh is what made
+      the halt answerable, which argues for the refreshed contract.

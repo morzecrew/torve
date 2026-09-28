@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: A round's review opens no round
+    intent: >-
+      `record_threads` collects the rounds the stream records on the branch (`lane_review_task`)
+      and skips every review row whose target is one of them. The forge source and
+      a round's own blocker are unchanged. Settles D-1.
+    scope: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    acceptance:
+      - uv run pytest tests/test_reviewleg.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      A review blocker or a halt continues from its checkpointed tree
+    intent: >-
+      `_continuable` also admits `blocker_finding` and `locked_conflict`. `run_task`
+      resumes, cutting from the task branch's tip, when the task has no landing and
+      either its previous run went QUEUED straight off one of those escalations or
+      it has no run state and the branch tip is that kind of checkpoint commit. A
+      red-gate `poison_ceiling` still starts from the base. Settles D-2.
+    scope:
+      - src/torve/application/runner.py
+      - tests/test_runner.py
+      - tests/test_run_loop.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_run_loop.py
+      - uv run mypy src
+    character: structural
+  - phase: 3
+    title: >-
+      The operating guide says rounds end and judged work continues
+    intent: >-
+      `pages/docs/operating.md` says, where it describes the review-thread leg, that
+      a round's own review opens no round, and in the escalation section that a requeued
+      review blocker or halt continues from its tree.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec check
+    depends_on:
+      - 1
+      - 2
+    character: routine
