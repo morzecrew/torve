@@ -245,7 +245,7 @@ def run_cmd(
         runtime_name=runtime_name,
     )
 
-    from torve.application.runner import BlockedDispatch
+    from torve.domain.states import BlockedDispatch
 
     try:
         state = run_task(root, task, config, deps)
