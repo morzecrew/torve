@@ -580,7 +580,7 @@ def record_threads(
         if target not in tasks or target in rounds:
             continue
 
-        review =str(row.get("task_id") or "")
+        review = str(row.get("task_id") or "")
 
         for index, finding in enumerate(row.get("findings") or []):
             ident = f"{RECORD}{review}:{index}"
