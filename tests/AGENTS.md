@@ -168,42 +168,42 @@ An acceptance command that exits zero with a test summary in which no test ran �
 - Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
 - Consequence: a phase cannot land green on a lane that never executed; one whose tests need what the sandbox lacks has to say how they run there
 
-### S-0090/D-1 — `ASSUMED` (Review rounds converge, and judged work continues from its tree) — implementation: none
+### S-0090/D-1 — `ASSUMED` (Review rounds converge, and judged work continues from its tree)
 
 The review-thread leg's record source reads no finding from a review whose target is a round the leg minted; such a review still blocks its round's landing on a blocker, and what it finds below that grade stays on the stream
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a document's rounds are bounded by the findings on its phases, and a round's check opens no further round
 
-### S-0090/D-2 — `ASSUMED` (Review rounds converge, and judged work continues from its tree) — implementation: none
+### S-0090/D-2 — `ASSUMED` (Review rounds converge, and judged work continues from its tree)
 
 The next dispatch of a task whose last attempt escalated `blocker_finding` or `locked_conflict`, and which has not landed, continues from the tree that attempt checkpointed, whether it was requeued on the board or its run state was reaped; a gate conviction still restarts from the base
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py` `tests/test_run_loop.py`
 - Consequence: a review that asks for one file's change costs that change, and a halt answered by an amendment resumes where it stopped
 
-### S-0090/D-3 — `ASSUMED` (Review rounds converge, and judged work continues from its tree) — implementation: none
+### S-0090/D-3 — `ASSUMED` (Review rounds converge, and judged work continues from its tree)
 
 A continued attempt reads the task's contract as it stands at that dispatch, as every attempt does: after `plan --refresh` it is the refreshed contract. The tree carries over from the checkpoint; the terms do not
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py`
 - Consequence: an amendment that answered a halt reaches the attempt that resumes from it, and the resumed tree is judged by the terms that now stand
 
-### S-0091/D-1 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+### S-0091/D-1 — `ASSUMED` (A document branch is the remote's, and a hand landing counts)
 
 The lane fetches with prune before it lands onto a document branch and works from the remote's copy: a branch the remote no longer has, or whose pull request merged, is moved aside under `refs/torve/documents/` and cut again from the remote's `main`; a branch the remote has sets the local ref to the remote tip; the task cut and the dependency check read the same remote ref
 
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/application/lane.py` `src/torve/application/runner.py` `src/torve/cli/manager.py` `tests/test_lane.py` `tests/test_runner.py` `tests/test_manager.py`
 - Consequence: a merged or deleted document branch is never landed onto again, a merged document's next pull request carries only what `main` lacks, and the old commits stay reachable
 
-### S-0091/D-2 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+### S-0091/D-2 — `ASSUMED` (A document branch is the remote's, and a hand landing counts)
 
 Commits on the remote document branch that the lane did not make are the branch having moved: the candidate is rebased onto them and the battery re-run, a conflict escalates for a person, and the branch is published with a lease on the exact commit the lane fetched
 
 - Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` `tests/test_lane.py`
 - Consequence: a hand commit on an open document branch survives the next landing or stops it, and a push never drops a commit it did not see
 
-### S-0091/D-3 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+### S-0091/D-3 — `ASSUMED` (A document branch is the remote's, and a hand landing counts)
 
 A document's pull request counts a phase as landed when the branch tip's tree holds its landing file, as well as when the lane recorded landing it; `manager resolve --resolution landed` refuses a sha whose tree holds no landing file for the task and names `torve log land`
 

@@ -45,14 +45,14 @@ The thread read moves to the forge's GraphQL pull request, because unresolved is
 - Paths: `src/torve/adapters/vcs/git.py`
 - Consequence: the engine can tell a thread a reviewer already closed from one nobody has touched, which is what makes "one round per finding" checkable rather than aspirational
 
-### S-0091/D-1 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+### S-0091/D-1 — `ASSUMED` (A document branch is the remote's, and a hand landing counts)
 
 The lane fetches with prune before it lands onto a document branch and works from the remote's copy: a branch the remote no longer has, or whose pull request merged, is moved aside under `refs/torve/documents/` and cut again from the remote's `main`; a branch the remote has sets the local ref to the remote tip; the task cut and the dependency check read the same remote ref
 
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/application/lane.py` `src/torve/application/runner.py` `src/torve/cli/manager.py` `tests/test_lane.py` `tests/test_runner.py` `tests/test_manager.py`
 - Consequence: a merged or deleted document branch is never landed onto again, a merged document's next pull request carries only what `main` lacks, and the old commits stay reachable
 
-### S-0091/D-2 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+### S-0091/D-2 — `ASSUMED` (A document branch is the remote's, and a hand landing counts)
 
 Commits on the remote document branch that the lane did not make are the branch having moved: the candidate is rebased onto them and the battery re-run, a conflict escalates for a person, and the branch is published with a lease on the exact commit the lane fetched
 
