@@ -1302,3 +1302,37 @@ def test_the_board_names_the_document_a_task_waits_on(tmp_path, monkeypatch):
 
     assert text.exit_code == 0, text.output
     assert "waits on document" in text.output and "S-0090" in text.output
+
+
+def test_a_landed_resolution_is_refused_for_a_sha_whose_tree_holds_no_landing_file(tmp_path):
+    """S-0091/D-3: a hand resolution cannot claim a landing the tree does not
+    carry — refused before anything is recorded, naming the task, the sha and
+    the verb that writes the landing file."""
+    from typer.testing import CliRunner
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Hand Finisher")
+    repo.git("config", "user.email", "hand@example.invalid")
+    repo.write("src/a/app.py", "print('by hand')\n")
+    repo.commit("the hand finish")
+    sha = GitLane().tip(repo.root, "HEAD")
+    assert sha is not None
+
+    result = CliRunner().invoke(
+        app,
+        [
+            *("manager", "resolve", PARTITION, "T-0001", "--resolution", "landed"),
+            *("--sha", sha, "--root", str(repo.root)),
+        ],
+    )
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "T-0001" in result.output
+    assert sha in result.output
+    assert "torve log land" in result.output

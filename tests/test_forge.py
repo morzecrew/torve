@@ -561,3 +561,42 @@ def test_a_document_with_phases_still_to_come_is_a_draft(tmp_path: Path):
     assert not document_complete("S-0090", first, root)
     assert document_complete("S-0090", both, root)
     assert document_complete("S-0091", first, tmp_path / "nowhere")  # no phasing to wait on
+
+
+def test_a_phase_whose_landing_file_rides_in_the_branch_counts_as_landed(tmp_path: Path):
+    # S-0091/D-3: a phase finished by hand has no lane record, but its landing
+    # file is in the branch tip's tree — the pull request counts it.
+    import yaml
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.merge import _document_pr_text
+    from torve.gates.sabotage import Repo
+
+    root = corpus_with_phasing(tmp_path)
+    branch = "torve/S-0090"
+
+    for task in (
+        phase_task("T-8401", 1, "the unit is a term"),
+        phase_task("T-8403", 2, "the lane lands onto it"),
+    ):
+        contract = root / ".torve" / "tasks" / task.id / "contract.yaml"
+        contract.parent.mkdir(parents=True)
+        contract.write_text(yaml.safe_dump(task.model_dump(mode="json")), encoding="utf-8")
+
+    repo = Repo(root)
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Hand Finisher")
+    repo.git("config", "user.email", "hand@example.invalid")
+    repo.git("checkout", "-q", "-b", branch)
+    repo.write(".torve/specs/S-0090/execution/T-8401-1-20260929T120000Z.yaml", "task: T-8401\n")
+    repo.commit("the hand finish lands")
+    # Only the branch's tree carries it: the worktree's corpus stays as it was.
+    (root / ".torve/specs/S-0090/execution/T-8401-1-20260929T120000Z.yaml").unlink()
+    tip = GitLane().tip(root, branch)
+    assert tip is not None
+
+    title, body, complete = _document_pr_text(root, "T-8403", branch, tip=tip)
+
+    assert complete
+    assert title == "S-0090: Landing by document · 2/2 phases"
+    assert "## T-8401 · phase 1" in body

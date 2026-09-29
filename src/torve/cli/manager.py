@@ -930,6 +930,25 @@ def resolve_cmd(
             EXIT_CONFIG,
         )
 
+    if resolution == "landed":
+        from torve.adapters.vcs.git import GitLane
+        from torve.config import layout
+
+        # S-0091/D-3: a hand resolution claims only a landing the tree carries.
+        in_tree = [
+            name
+            for name in GitLane().tree_paths(root.resolve(), sha, layout.TORVE_DIR + "/specs")
+            if "/execution/" in name and name.rsplit("/", 1)[-1].startswith(f"{task_id}-")
+        ]
+
+        if not in_tree:
+            raise fail(
+                f"configuration error: {sha}'s tree holds no landing file for {task_id} — "
+                f"write one with `torve log land {task_id} --commit <work commit>`, commit it, "
+                "and name that commit",
+                EXIT_CONFIG,
+            )
+
     asyncio.run(
         _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
     )
