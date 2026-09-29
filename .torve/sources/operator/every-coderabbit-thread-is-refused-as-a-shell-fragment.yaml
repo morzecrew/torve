@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/every-coderabbit-thread-is-refused-as-a-shell-fragment
+kind: operator
+ref: 'bloomery #225 thread PRRT_kwDOTwfI386nD5Kh, 2026-09-29: lane_thread_refused "asks for a
+  shell fragment"; answered by hand at bloomery b06f1bd7'
+title: Every CodeRabbit thread is refused as a shell fragment
+at: '2026-09-29T11:00:00Z'
+summary: |
+  CodeRabbit writes each review comment as a verdict (two or three
+  sentences) followed by collapsed `<details>` blocks holding the analysis
+  chain it ran: fenced bash scripts, `rg` and `sed -n` commands, their
+  output lengths. The leg's injection check reads the whole body, finds
+  those fences, and refuses the thread as asking for a shell fragment. The
+  #225 thread was a correct minor finding (a derived input naming no metric
+  was dropped rather than raised) and had to be fixed by hand.
+
+  The check is doing its job on the body it is given; the body is the wrong
+  unit. CodeRabbit's analysis chain is the reviewer's own work log, not a
+  request: the claim is the text outside `<details>`. Reading only that part
+  for CodeRabbit (or for any author whose comments mark their evidence the
+  same way) would let its findings become rounds without weakening the
+  check for text a round is actually asked to act on. Whether that is safe
+  enough is a design question for the review-leg document (S-0084/D-8's
+  injection rule), not an operator workaround.
+
+  Operator workaround: read the verdict outside `<details>`, fix by hand on
+  the document branch, answer and resolve the thread.
