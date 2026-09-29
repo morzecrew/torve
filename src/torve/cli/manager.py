@@ -513,6 +513,26 @@ def _burn(view: TaskView) -> str:
 # ....................... #
 
 
+def _document_waits(root: Path, board: Board) -> dict[str, dict[str, list[str]]]:
+    """S-0085/D-6 on the board, as `torve night show` already has it: a task
+    of this board waiting on another document's landing names that document,
+    so the reader knows which pull request to look at. A landing the board,
+    the lane or the base already holds is no wait."""
+
+    from torve.application.projections import cross_document_waits, lane_landings, shipped_ids
+
+    landed = {view.task_id for view in board.tasks.values() if view.landed_sha}
+    landed |= set(lane_landings(root)) | shipped_ids(root)
+    waits = cross_document_waits(root, landed)
+
+    return {
+        task_id: by_document for task_id, by_document in waits.items() if task_id in board.tasks
+    }
+
+
+# ....................... #
+
+
 @manager_app.command("board")
 def board_cmd(
     partition: Annotated[str, typer.Argument(help="The repository this board is for.")],
@@ -534,11 +554,13 @@ def board_cmd(
     """
 
     result = asyncio.run(_board(dsn_for(root, dsn) or None, partition))
+    waits = _document_waits(root, result)
 
     if fmt is Format.JSON:
         emit_json(
             {
                 "partition": partition,
+                "waiting_on_documents": waits,
                 "tasks": [
                     {
                         "task": view.task_id,
@@ -581,6 +603,14 @@ def board_cmd(
         ],
     )
     console.print(table)
+
+    if waits:
+        waiting = make_table("task", "waits on document", "its tasks")
+        for task_id, by_document in sorted(waits.items()):
+            for document, ids in by_document.items():
+                waiting.add_row(task_id, document, ", ".join(ids))
+        console.print(waiting)
+
     footer(
         console,
         f"{len(result.tasks)} task(s) the log has mentioned"

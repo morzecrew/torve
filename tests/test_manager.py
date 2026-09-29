@@ -1208,3 +1208,57 @@ def test_a_named_night_is_the_one_folded_and_the_default_is_the_latest():
     assert night_report(events).night_id == "second"
     assert night_report(events, night_id="first").night_id == "first"
     assert night_report(events, night_id="third") is None
+
+
+def test_the_board_names_the_document_a_task_waits_on(tmp_path, monkeypatch):
+    """S-0085/D-6 promised it on `torve manager board` as well as on `torve
+    night show`, and only the night had it: a task waiting on another
+    document's landing names that document, and a dependency the board
+    already holds as landed is no wait."""
+    import json
+
+    import yaml
+    from typer.testing import CliRunner
+
+    from torve.application.manager import Board, TaskView
+    from torve.cli import manager as manager_cli
+    from torve.cli.main import app
+
+    for task_id, spec, depends_on in (
+        ("T-0001", "S-0090", ()),
+        ("T-0002", "S-0090", ()),
+        ("T-0003", "S-0092", ("T-0001", "T-0002")),
+    ):
+        directory = tmp_path / ".torve" / "tasks" / task_id
+        directory.mkdir(parents=True)
+        (directory / "contract.yaml").write_text(
+            yaml.safe_dump({"id": task_id, "spec": spec, "depends_on": list(depends_on)}),
+            encoding="utf-8",
+        )
+
+    board = Board(
+        tasks={
+            "T-0001": TaskView(task_id="T-0001", state=TaskState.READY, landed_sha="a" * 40),
+            "T-0002": TaskView(task_id="T-0002"),
+            "T-0003": TaskView(task_id="T-0003"),
+        }
+    )
+
+    async def fake_board(dsn, partition):
+        return board
+
+    monkeypatch.setattr(manager_cli, "_board", fake_board)
+    monkeypatch.setattr(manager_cli, "dsn_for", lambda root, dsn: None)
+    runner = CliRunner()
+
+    shown = runner.invoke(
+        app, ["manager", "board", "repo", "--root", str(tmp_path), "--format", "json"]
+    )
+
+    assert shown.exit_code == 0, shown.output
+    assert json.loads(shown.output)["waiting_on_documents"] == {"T-0003": {"S-0090": ["T-0002"]}}
+
+    text = runner.invoke(app, ["manager", "board", "repo", "--root", str(tmp_path)])
+
+    assert text.exit_code == 0, text.output
+    assert "waits on document" in text.output and "S-0090" in text.output
