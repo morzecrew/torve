@@ -478,6 +478,52 @@ def test_republish_branch_moves_the_candidate_to_its_landed_tip(tmp_path: Path) 
     assert GitVcs().republish_branch(lonely, "torve/T-0042") is False
 
 
+def test_republish_branch_leases_on_the_fetched_commit(tmp_path: Path) -> None:
+    # S-0091/D-2: a commit pushed to the remote branch after the lane's fetch
+    # refuses the republish rather than being dropped.
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "clone", "-q", str(origin), str(repo)], check=True)
+    git(repo, "config", "user.name", "T")
+    git(repo, "config", "user.email", "t@example.invalid")
+    (repo / "a.py").write_text("a = 1\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-gpg-sign", "-m", "init")
+    git(repo, "push", "-q", "origin", "HEAD:refs/heads/torve/S-0001")
+    git(repo, "fetch", "-q", "origin")
+    git(repo, "branch", "-q", "torve/S-0001", "HEAD")
+
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", "-q", "-b", "torve/S-0001", str(origin), str(other)], check=True
+    )
+    git(other, "config", "user.name", "H")
+    git(other, "config", "user.email", "h@example.invalid")
+    (other / "hand.py").write_text("hand = 1\n", encoding="utf-8")
+    git(other, "add", "-A")
+    git(other, "commit", "-q", "--no-gpg-sign", "-m", "by hand")
+    git(other, "push", "-q", "origin", "torve/S-0001")
+    hand = git(other, "rev-parse", "HEAD")
+
+    git(repo, "checkout", "-q", "torve/S-0001")
+    git(repo, "commit", "-q", "--no-gpg-sign", "--amend", "-m", "lane rewrite")
+
+    with pytest.raises(RuntimeError):
+        GitVcs().republish_branch(repo, "torve/S-0001")
+    assert git(origin, "rev-parse", "refs/heads/torve/S-0001") == hand
+
+    # A branch never fetched must not exist on the remote either.
+    git(repo, "update-ref", "-d", "refs/remotes/origin/torve/S-0001")
+    with pytest.raises(RuntimeError):
+        GitVcs().republish_branch(repo, "torve/S-0001")
+
+    # Once the lane has fetched the hand commit, the lease is on it.
+    git(repo, "fetch", "-q", "origin")
+    git(repo, "rebase", "-q", "origin/torve/S-0001")
+    assert GitVcs().republish_branch(repo, "torve/S-0001") is True
+
+
 def test_push_supersedes_only_when_asked(tmp_path: Path) -> None:
     # S-0010/D-10 (A-37): a new attempt supersedes the task's persistent
     # branch under lease; without supersede the push stays additive —

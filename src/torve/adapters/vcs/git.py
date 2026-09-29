@@ -246,7 +246,12 @@ class GitVcs:
         Engine-owned namespace, at landing time only — after the sha-bound
         approvals concluded the review S-0010/D-5 protects — and with lease, so
         a ref the engine does not expect refuses rather than clobbers.
-        False when there is no origin; raises on a refused push."""
+        False when there is no origin; raises on a refused push.
+
+        The lease names the exact commit last fetched for the branch, and
+        a branch never fetched must not exist on the remote: a commit pushed
+        there since the fetch refuses the push rather than being dropped
+        (S-0091/D-2)."""
 
         remotes = _git(root, "remote")
 
@@ -261,6 +266,9 @@ class GitVcs:
             config = ["-c", "credential.helper=", "-c", f"credential.helper={helper}"]
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
 
+        fetched = _git(root, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}")
+        expect = fetched.stdout.strip() if fetched.returncode == 0 else ""
+
         proc = subprocess.run(
             [
                 "git",
@@ -268,7 +276,7 @@ class GitVcs:
                 str(root),
                 *config,
                 "push",
-                "--force-with-lease",
+                f"--force-with-lease=refs/heads/{branch}:{expect}",
                 "origin",
                 f"{branch}:refs/heads/{branch}",
             ],

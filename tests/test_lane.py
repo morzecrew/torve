@@ -1328,6 +1328,69 @@ def test_a_refused_publication_puts_the_document_branch_back(lane_repo, tmp_path
     assert published == [("T-7206", document)]
 
 
+def _hand_commit(root: Path, branch: str, filename: str, content: str) -> str:
+    """A person's commit on the document branch, with the local ref at the
+    remote tip — the lane's fetch has already brought it in."""
+    git(root, "checkout", "-q", branch)
+    (root / filename).write_text(content, encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "by hand")
+    git(root, "checkout", "-q", "main")
+    return git(root, "rev-parse", branch)
+
+
+def test_a_hand_commit_on_the_document_branch_is_rebased_onto_and_survives(lane_repo, tmp_path):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7207", "seven.py", "seven = 7\n")
+    _contract(lane_repo, "T-7207", "S-0903")
+    published: list[tuple[str, str]] = []
+    process_lane(lane_repo, GitLane(), publish=_recording_publisher(published), unit="document")
+
+    document = naming.document_branch("S-0903")
+    hand = _hand_commit(lane_repo, document, "hand.py", "hand = 1\n")
+    candidate(lane_repo, "T-7208", "eight.py", "eight = 8\n")
+    _contract(lane_repo, "T-7208", "S-0903")
+    _contract(lane_repo, "T-7207", "S-0903")
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+
+    # The branch moved under the phase: rebased onto the hand commit, battery
+    # re-run, and the hand commit is still in what is published.
+    assert [r.action for r in results if r.task == "T-7208"] == ["landed"]
+    assert [e["mode"] for e in _events(lane_repo) if e.get("event") == "lane_landed"][-1] == (
+        "rebased"
+    )
+    tip = git(lane_repo, "rev-parse", document)
+    git(lane_repo, "merge-base", "--is-ancestor", hand, tip)
+    assert git(lane_repo, "show", f"{document}:eight.py") == "eight = 8"
+
+
+def test_a_hand_commit_that_conflicts_escalates_and_leaves_the_branch(lane_repo, tmp_path):
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7209", "nine.py", "nine = 9\n")
+    _contract(lane_repo, "T-7209", "S-0904")
+    published: list[tuple[str, str]] = []
+    process_lane(lane_repo, GitLane(), publish=_recording_publisher(published), unit="document")
+
+    document = naming.document_branch("S-0904")
+    hand = _hand_commit(lane_repo, document, "app.py", "base = 'by hand'\n")
+    candidate(lane_repo, "T-7210", "app.py", "base = 'by lane'\n")
+    _contract(lane_repo, "T-7210", "S-0904")
+    _contract(lane_repo, "T-7209", "S-0904")
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+    )
+
+    assert [r.action for r in results if r.task == "T-7210"] == ["conflict"]
+    assert git(lane_repo, "rev-parse", document) == hand
+    assert len(published) == 1
+    state = RunState.load(naming.state_file(lane_repo, "T-7210"))
+    assert state.state is TaskState.ESCALATED
+
+
 def test_the_local_landing_ignores_the_unit(lane_repo, tmp_path):
     # S-0083/D-2: no publisher is a local landing, which has no pull request to
     # be one per — the unit is inert rather than refused.
