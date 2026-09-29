@@ -36,6 +36,13 @@ for item in items:
         shutil.copytree(path, target, dirs_exist_ok=True)
         continue
 
+    if kind == "hook":
+        # S-0072/D-3: mimo's half of the hook is the scope-guard plugin this
+        # image ships; `provider_config.py` names it in the configuration when
+        # the manifest carries a hook, and the item's own bytes are read by the
+        # plugin from the mount at runtime. Nothing to install here.
+        continue
+
     if kind != "plugin":
         # The manifest refused every other kind before the sandbox existed, so
         # one here is a bug in the refusal rather than an operator's mistake.

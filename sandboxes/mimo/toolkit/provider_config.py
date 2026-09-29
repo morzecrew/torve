@@ -11,6 +11,9 @@ whatever the equipment installed.
 It is also where torve's units become mimo's: seconds arrive and milliseconds
 are written.
 
+It also names the scope-guard plugin when the seat's manifest declares a
+hook, because mimo's plugins are configuration too.
+
     python3 provider_config.py    # prints the document
 """
 
@@ -68,5 +71,17 @@ document = {
         }
     }
 }
+
+# The hook kind (S-0072/D-3): mimo loads a plugin its configuration names, and
+# the scope guard is one this image ships (`scope-guard.js`). The manifest is
+# what says the seat's profile declared a hook; without one the guard stays out.
+manifest = os.path.join(os.environ.get("TORVE_EQUIPMENT") or "", "manifest.json")
+
+if os.path.isfile(manifest):
+    with open(manifest, encoding="utf-8") as handle:
+        items = json.load(handle).get("items", [])
+
+    if any(item.get("kind") == "hook" for item in items):
+        document["plugin"] = ["file:///opt/torve/scope-guard.js"]
 
 sys.stdout.write(json.dumps(document) + "\n")

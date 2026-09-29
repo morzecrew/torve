@@ -854,3 +854,33 @@ def test_a_mimo_session_that_reported_an_error_is_a_failed_run() -> None:
     run = (DEFINITIONS / "mimo" / "toolkit" / "run").read_text(encoding="utf-8")
 
     assert 'grep -q \'"type":"error"\' "$TORVE_OUTPUT"' in run
+
+
+def test_the_mimo_seat_names_its_scope_guard_only_when_a_hook_is_declared(
+    tmp_path: Path,
+) -> None:
+    """S-0072/D-3 for mimo: the hook is the scope-guard plugin the image ships,
+    named in the configuration when the manifest carries a hook — measured on
+    0.1.15 to refuse a write outside the contract's scope and allow one inside.
+    mimo's write tools name the path `file_path`, which the plugin reads."""
+
+    wire = {
+        "TORVE_MODEL": "qwen3.8-flash",
+        "TORVE_BASE_URL": "https://example.test/v1",
+        "TORVE_API_KEY_ENV": "KEY",
+        "TORVE_EQUIPMENT": str(tmp_path),
+    }
+    manifest = tmp_path / "manifest.json"
+
+    manifest.write_text(json.dumps({"items": [{"kind": "skill", "path": "/x"}]}), "utf-8")
+    assert "plugin" not in _render_mimo_provider(**wire)
+
+    manifest.write_text(json.dumps({"items": [{"kind": "hook", "path": "/x"}]}), "utf-8")
+    assert _render_mimo_provider(**wire)["plugin"] == ["file:///opt/torve/scope-guard.js"]
+
+    guard = (DEFINITIONS / "mimo" / "toolkit" / "scope-guard.js").read_text(encoding="utf-8")
+    assert "implement/scope_guard.py" in guard
+    assert "args.file_path" in guard
+
+    install = (DEFINITIONS / "mimo" / "toolkit" / "equip_install.py").read_text("utf-8")
+    assert 'if kind == "hook":' in install
