@@ -881,10 +881,27 @@ inert rather than wrong.
 A candidate whose contract names no document — an intake adoption, a standing
 row's mint — lands by the task unit whatever `unit` says, and nothing infers a
 document for it (S-0083/D-4). The document branch is named from the contract's
-own `spec`, and cut once per document from the remote's `main` after a fetch,
-at the first landing onto it (S-0083/D-5, S-0083/D-18): two phase-1 candidates
-of one document cannot leave two branches, and the `S-` and `T-` namespaces
-cannot collide.
+own `spec`, and cut from the remote's `main` after a fetch at the first landing
+onto it — once per pull request, not once per document, since a merged or
+deleted branch is cut again rather than landed onto (S-0083/D-5, S-0083/D-18):
+two phase-1 candidates of one document cannot leave two branches, and the `S-`
+and `T-` namespaces cannot collide.
+
+**The branch is the remote's, and the pass reads it there.** A local ref is
+not the branch: a document merged and deleted on the forge can leave one
+standing here at its pre-merge tip. Before anything lands onto a document
+branch the pass fetches with prune and works from `origin/<branch>`
+(S-0091/D-1). A branch the remote has, whose pull request the lane's records
+do not say merged, sets the local ref to the remote's tip: a phase lands onto
+what the forge holds rather than onto what this checkout remembered. A branch
+the remote no longer has, or one whose pull request those records do say
+merged, is never landed onto again — nothing deletes it, but its local tip is
+kept under `refs/torve/documents/<branch>/<tip>` (S-0083/D-14), the pass
+records `lane_document_recut` with the reason, and the branch is cut again
+from the remote's `main`. The next phase's pull request therefore carries
+only what `main` lacks, not the history a squash merge already folded into
+it, and the commits the old branch carried stay reachable from the ref set
+aside.
 
 **What you are expected to do is merge it.** That is the whole of a person's
 part, and in `unit: document` it is one merge for a design of any number of
@@ -908,7 +925,12 @@ rather than one per phase, and none at all for a pass holding none
   squash commit and every task the branch carried, and not a second landing
   per task — each phase was recorded as landed, in the shape the local lane
   writes, when it landed on the branch (S-0083/D-6), and what the merge adds
-  is which commit the document became.
+  is which commit the document became. A merge does not end the document: a
+  phase that lands after it is landed onto a branch cut again from the
+  remote's `main` and opens a **new** pull request for the same document
+  (S-0091/D-1) — the tasks the merged branch carried read as already landed,
+  and what a reviewer of the new one sees is the phase after the merge, not
+  that phase and the ones already merged beside it.
 - **Closed** abandons the carried tasks, as above.
 - **Still open** is measured against `main` (S-0083/D-13). An unmoved base
   already shows the tree the battery judged, and the pass reports that it
@@ -919,6 +941,19 @@ rather than one per phase, and none at all for a pass holding none
   loop. A red battery puts the branch back where it stood. A conflict never
   resolves itself: the rebase aborts, the branch is untouched, and every ready
   task the branch carries escalates as `merge_conflict`.
+
+**A hand commit on the branch is kept, or the landing stops.** Commits the
+remote holds on an open document branch that the lane did not make are the
+branch having moved, not a branch to overwrite (S-0091/D-2). The lane lands
+onto the remote's tip, so the candidate takes the moved-base path the lane
+already has: rebased onto those commits in a disposable worktree, its
+battery re-run over the rebased tree before anything is published, and a
+conflict escalated to a person exactly as above. What you pushed to the
+branch therefore survives the next landing or stops it — nothing resets it
+away. And the push that publishes the branch leases on the exact commit the
+lane fetched (S-0091/D-2): a commit that reached the remote since that fetch
+refuses the push rather than being dropped, the local ref goes back where it
+stood, and the landing is one the next pass makes again.
 
 An armed pass is handed the same publisher and the same read-back `torve merge`
 is handed (S-0083/D-15), so none of this waits for somebody to type the verb.
@@ -941,11 +976,14 @@ tasks waiting on dependencies and the ones waiting on scope overlap: what
 the operator is waiting on, and until when.
 
 **Phase after phase, unattended.** Under `pull_request` with `unit: document` a
-task's worktree is cut from the document branch's tip when that branch exists,
-and from the remote's `main` after a fetch when it does not (S-0083/D-9) — a
-phase starts on the tree the previous phase's landing produced, the moment it
-landed. The battery judges the attempt against that same tip, which keeps a
-phase's diff its own work rather than everything the branch already carries.
+task's worktree is cut from the remote's copy of the document branch when that
+branch is on the remote, and from the remote's `main` after a fetch when it is
+not (S-0083/D-9, S-0091/D-1) — a phase starts on the tree the previous phase's
+landing produced, the moment it landed, and never on a local ref the remote
+has moved past or deleted. The battery judges the attempt against that same
+tip, which keeps a phase's diff its own work rather than everything the branch
+already carries, and a dependency counts as landed when it is on that ref, not
+when this checkout holds a commit that says so (S-0091/D-1).
 
 **The pull request is the document's, and a draft until the last phase.** The
 lane composes it from the records of every task the branch carries — each
@@ -963,6 +1001,19 @@ While phases are still to come it is a draft, and the landing of the last phase
 marks it ready: a person who merges a draft merges knowingly, since the phases
 that land afterwards land on a branch behind `main`. Nothing turns a ready pull
 request back into a draft.
+
+**A phase counts from the tree, not from who landed it.** The carried list the
+title and the body are composed from is the lane's records of landings on the
+branch joined with the landing files the branch tip's tree holds (S-0091/D-3):
+a phase finished by hand counts the moment its landing file is committed onto
+the branch, and reads as landed in the title's count and in the body's list of
+what the branch carries, rather than sitting under "Still to come" until a
+person rewrites the pull request. The same rule closes the other direction —
+`torve manager resolve <partition> <task> --resolution landed --sha <commit>`
+refuses a commit whose tree holds no landing file for that task, naming the
+task, the sha and the verb that writes one (`torve log land <task> --commit
+<work commit>`), so a hand resolution cannot record a landing the tree does
+not carry (S-0065/D-7).
 
 **A reviewer's threads can be answered by the night too.** Off by default, and
 a separate switch from `auto_merge`:
