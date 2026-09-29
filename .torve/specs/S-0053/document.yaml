@@ -482,6 +482,8 @@ questions:
     text: >-
       Whether the baseline is one document or several by area (S-0031/D-6 left it
       to the first adoption). This repository is the first adoption.
+    status: settled
+    settled_by: D-17
   - id: Q-3
     text: >-
       When domain/spec.py is extracted into its own distribution, and under what name.

@@ -164,6 +164,7 @@ decisions:
       history
     paths: [src/torve/cli/spec.py]
     consequence: Decided by whoever executes phase 4, logged
+    superseded_by: S-0059/D-12
 invariants:
   - id: I-1
     statement: >-

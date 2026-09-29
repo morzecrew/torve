@@ -168,3 +168,43 @@ amendments:
         before: "… src/torve/application/projections.py .gitignore …; tests … tests/test_context.py"
         after: "… src/torve/application/projections.py src/torve/adapters/agent/harness.py .gitignore …; tests … tests/test_context.py tests/test_tiering.py"
       ```
+  - id: A-8
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-17
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-17
+        field: text
+        before: >-
+          A decision gate's timeout: the row's or the manifest default's (S-0054/Q-1);
+          settled when the first checkable row runs the full suite
+        after: >-
+          A decision gate runs under the manifest's shell-gate default, `SHELL_GATE_TIMEOUT`
+          (600 seconds); a row declares no timeout of its own, and `Decision` refuses
+          the key.
+      - subject: D-17
+        field: fingerprint
+        after: 1897aec2042c7aaf/202c11f3690cefb1
+      - subject: D-18
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-18
+        field: text
+        before: The window for `contended.json` (S-0054/Q-2)
+        after: >-
+          `contended.json` counts `blocked_dispatch` events over the telemetry stream's
+          last `CONTENTION_WINDOW` (500) rows, the same window the drafter's execution
+          facts read, and not the record's blocked dispatches since the task was minted.
+      - subject: D-18
+        field: fingerprint
+        after: 27b0de254a709ebb/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-17: Code answers 'the manifest default's' (commit 32240b22). The row's own settling event has not strictly happened: no decision row with a `check` runs the full suite; only the invariant S-0055/I-5 (`uv run pytest`) does, and invariants do not become decision gates. A full-suite row that outgrows 600s would reopen it. Evidence: src/torve/gates/runner.py::decision_gates; src/torve/config/manifest.py; src/torve/domain/spec.py::Decision; tests/test_gates.py::test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis.
+      - D-18: The first option of S-0054/Q-2 was implemented; no test pins the 500 itself, only the event and path counting. Evidence: src/torve/application/colocation.py::contended_paths and CONTENTION_WINDOW; src/torve/application/contextpack.py::contended_file; src/torve/application/intake.py; tests/test_contextpack.py::test_contention_and_the_index_and_the_replay_rule.

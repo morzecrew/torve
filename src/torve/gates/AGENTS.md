@@ -236,9 +236,9 @@ A diff that changes no file outside the manifest's test patterns is not judged b
 - Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/__init__.py`
 - Consequence: a contract whose whole job is adding missing tests is not convicted for it, and an attempt that splits its source change away from its tests is unjudged in both halves
 
-### S-0081/D-5 — `OPEN` (The test that proves nothing, and the conviction the record can name)
+### S-0081/D-5 — `ASSUMED` (The test that proves nothing, and the conviction the record can name)
 
-How the base tree is materialised and where the base pass runs is implementation's, under three constraints — the command goes through the pass's own executor, nothing the gate writes outlives its own call, and only the qualifying files run
+The base pass extracts `git archive <merge-base>` into a `mktemp -d` directory outside the repository, copies the qualifying test files over it and runs `TEST_COMMAND` on only those files through the pass's executor. A trap removes the directory on every exit, and no worktree is registered.
 
 - Paths: `src/torve/gates/red_on_base.py` `src/torve/gates/sabotage.py`
 - Consequence: the declared timeout is what the choice is judged by, and a materialisation that puts this gate beside `coverage-delta` in cost has failed whatever else it does

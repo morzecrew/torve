@@ -178,7 +178,9 @@ decisions:
       An edit to a consequence is free; an edit to what an executor is bound by is
       recorded
   - id: D-17
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the baseline is one document or several by area (S-0031/D-6, S-0053/Q-2);
-      settled by the grading pass in §5.8
+      The baseline is one document, S-0055, whose rows are grouped by the boundary
+      each guards and cite the archived row or document they descend from, so a later
+      split by area is a cut and not a rewrite.
+    fingerprint: 494031be134f1eb7/202c11f3690cefb1

@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-5
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-5
+        field: text
+        before: >-
+          How the base tree is materialised and where the base pass runs is implementation's,
+          under three constraints — the command goes through the pass's own executor,
+          nothing the gate writes outlives its own call, and only the qualifying files
+          run
+        after: >-
+          The base pass extracts `git archive <merge-base>` into a `mktemp -d` directory
+          outside the repository, copies the qualifying test files over it and runs
+          `TEST_COMMAND` on only those files through the pass's executor. A trap removes
+          the directory on every exit, and no worktree is registered.
+      - subject: D-5
+        field: fingerprint
+        after: 887769572a714322/8c1674a9d44c5a6d
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-5: All three constraints are implemented and tested. The cost measurement against `coverage-delta` was never taken. The comment on the `red-on-base` entry in `.torve/gates.yaml` still says 'a worktree checkout of the base', which is stale. Evidence: src/torve/gates/red_on_base.py; tests/test_gates.py::test_red_on_base_runs_both_trees_through_the_passs_own_executor; .torve/gates.yaml; .torve/specs/S-0081/execution/.

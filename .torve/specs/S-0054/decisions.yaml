@@ -180,10 +180,16 @@ decisions:
     consequence: >-
       A split is proposed against the rows it would cross, not a list of filenames
   - id: D-17
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      A decision gate's timeout: the row's or the manifest default's (S-0054/Q-1);
-      settled when the first checkable row runs the full suite
+      A decision gate runs under the manifest's shell-gate default, `SHELL_GATE_TIMEOUT`
+      (600 seconds); a row declares no timeout of its own, and `Decision` refuses
+      the key.
+    fingerprint: 1897aec2042c7aaf/202c11f3690cefb1
   - id: D-18
-    grade: OPEN
-    text: The window for `contended.json` (S-0054/Q-2)
+    grade: ASSUMED
+    text: >-
+      `contended.json` counts `blocked_dispatch` events over the telemetry stream's
+      last `CONTENTION_WINDOW` (500) rows, the same window the drafter's execution
+      facts read, and not the record's blocked dispatches since the task was minted.
+    fingerprint: 27b0de254a709ebb/202c11f3690cefb1

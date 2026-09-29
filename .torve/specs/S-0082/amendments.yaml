@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-2
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-2
+        field: text
+        before: >-
+          Whether a bare arm's worktree is also stripped of the projected contract,
+          the materialised skill set and the context pack is decided at implementation,
+          and whichever way it is decided the replay's record names which removals
+          were in force
+        after: >-
+          When an arm removes the prompt, the runner does not write the projected
+          contract, the skill set or the context pack into its worktree, and it deletes
+          nothing the tree already carried. The attempt's `agent` block records `arm`
+          and `removed` (`prompt`, `contract`, `skills`, `context-pack`, plus `battery`
+          for the bare arm).
+      - subject: D-2
+        field: fingerprint
+        after: 46d6be2661b2d7fa/3ed4b89e1bde274f
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: text
+        before: >-
+          Whether an arm run that raises partway through lands the rows it has or
+          lands nothing is decided at implementation, and the record says which it
+          did
+        after: >-
+          An arm run that raises partway through still appends its record, with the
+          rows it completed and `complete: false`, and the exception reaches the caller.
+          A run that finishes records `complete: true`. An unknown arm is refused
+          before any replay and records nothing.
+      - subject: D-7
+        field: fingerprint
+        after: 9539f357419e9e54/b021e29a53fc67f2
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-2: Decided as 'stripped', by not writing these files rather than by deleting them, and the record names the removals. Evidence: src/torve/application/session.py; tests/test_session.py::test_an_arm_whose_prompt_is_bare_is_handed_it_and_nothing_else; tests/test_session.py::test_the_configured_arm_composes_its_prompt_in_the_adapter_as_it_did.
+      - D-7: Decided as 'lands the rows it has'; the phase log says the same. Evidence: src/torve/application/evals.py::run_arm_eval; tests/test_evals.py::test_an_arm_that_raises_partway_lands_the_rows_it_has_and_says_so.

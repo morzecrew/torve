@@ -47,11 +47,12 @@ decisions:
       grouping by author would reproduce the count that made answering them by hand
       expensive in the first place
   - id: D-4
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      The exact grouping key — how near two lines must be, and what a file-level thread
-      groups with — is implementation's, under one constraint: the rule errs toward
-      merging, and which way it erred is readable from the record
+      Threads group per file. Anchored threads whose lines sit within `WINDOW` (10)
+      of the previous one chain into one finding, and a file-level thread takes every
+      thread in its file into one finding. Each finding records its `line`..`end_line`
+      span beside its threads, so the record shows which way the grouping erred.
     paths: [src/torve/application/threads.py]
     consequence: >-
       an over-merged finding is one task told about two things and an under-merged
@@ -61,6 +62,7 @@ decisions:
       only the threads two bots actually write over a month can settle the distance,
       and the asymmetry between the two errors is the part this document can decide
       without that evidence
+    fingerprint: 7ba33e907a5ba9a3/277b58ed9cd37736
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -194,12 +196,12 @@ decisions:
       composed from records, saying what the loop did and never what the finding deserves
     cites: [S-0005/D-14]
   - id: D-13
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Where the attempt's verdict on a finding it judges invalid is written — a divergence
-      entry under `unlisted`, or a typed record of the round's own — is implementation's,
-      under one constraint: the reply the engine posts is composed from that record
-      and never from prose the agent wrote for the reviewer
+      An attempt records a finding it judges invalid as a divergence entry under `unlisted`
+      with `kind: contradicted`. The engine composes its reply from that entry's `claim`
+      and `evidence`. A review round whose claims are all rejected this way is not
+      refused as an empty diff.
     paths: [src/torve/application/reviewleg.py]
     consequence: >-
       a rejection with no record behind it is an unanswered thread rather than a reply
@@ -211,6 +213,7 @@ decisions:
       names a row and an invalid finding names none; which way that is resolved is
       a question contact with `check_entry` answers better than this document can
     cites: [S-0080/D-4, S-0079/D-4]
+    fingerprint: c0d175ef57a3bfa1/b150db9f7d998894
   - id: D-14
     grade: LOCKED
     text: >-

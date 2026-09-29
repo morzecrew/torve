@@ -69,3 +69,15 @@ amendments:
       phase 4 reaches the scope gate for the landing file
     md: |
       Every landing writes the execution file of the document the contract names (S-0057/D-7), and the scope gate judged that file as any other — the first task landed by hand under phase 3 reddened on its own landing. The gate exempts the task's contract and log already; it exempts that document's `execution.yaml` the same way, and `src/torve/gates/scope.py` with its test join phase 4, as does the corpus, which every phase's landing now touches. Scope only; no row changes.
+  - id: A-7
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-13
+        field: superseded_by
+        after: S-0059/D-12
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Answered by a later row, which the row now names:
+      - D-13 is answered by S-0059/D-12: The runner no longer writes the trailer (S-0059/D-10), and S-0059/D-12 fixes `spec cites` to read landings through the tree; the question has no subject left.
