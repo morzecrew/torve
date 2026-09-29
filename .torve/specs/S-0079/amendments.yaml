@@ -4,6 +4,25 @@ amendments:
     at: '2026-09-29T02:44:28Z'
     title: OPEN rows the implementation settled
     changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: text
+        before: >-
+          Which variable name each of the three night knobs takes, and what the image's
+          own `run` maps it to, is implementation's — under one constraint: torve
+          sets them and interprets none of them
+        after: >-
+          The night seat `claude-subscription-night` names the three knobs `CLAUDE_FALLBACK_MODEL`,
+          `CLAUDE_CAPACITY_RETRY_SECONDS` and `CLAUDE_DENY_TOOLS`. The claude image's
+          `run` maps them to `--fallback-model`, a retry of a capacity error that
+          spent no tokens bounded by those seconds (`capacity.py`), and `--disallowed-tools`.
+          No module under `src/` reads any of them.
+      - subject: D-9
+        field: fingerprint
+        after: 4ed4b571a9244765/44ee03959419beba
       - subject: D-12
         field: grade
         before: OPEN
@@ -27,4 +46,5 @@ amendments:
       These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
 
       Settled by the implementation:
+      - D-9: The names and the engine-interprets-none constraint were settled and tested; the image half landed at 04007068, where `sandboxes/claude/toolkit/run` maps the three to `--fallback-model`, `--disallowed-tools` and a bounded capacity retry. Evidence: .torve/harnesses/claude-subscription-night.yaml; sandboxes/claude/toolkit/run; sandboxes/claude/toolkit/capacity.py; tests/test_sandbox_defs.py::test_the_claude_seat_maps_the_night_knobs; tests/test_agents.py::test_the_engine_interprets_no_night_knob.
       - D-12: Both halves of the question are answered in code and tests, and the phase-2 log (T-0430) records the same choice. Evidence: src/torve/application/residency.py; src/torve/domain/events.py::NightOpened; src/torve/config/runconfig.py::NightConfig.minutes; tests/test_residency.py::test_the_wall_clock_end_is_soft_and_the_attempt_in_flight_is_never_interrupted.
