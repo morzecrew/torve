@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-12
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-12
+        field: text
+        before: >-
+          Where the wall-clock end is measured from and what a pass in flight does
+          when it arrives is implementation's, under two constraints — an attempt
+          in flight is not interrupted by the end, and the close is written even when
+          the end falls inside a pass
+        after: >-
+          The wall-clock end is the night's `opened_at` plus `night.minutes`. The
+          serve loop reads its stop terms only at the top of a pass, so an attempt
+          in flight at the end finishes, and `night.closed` records `wall_clock` with
+          `overran_seconds` past the end.
+      - subject: D-12
+        field: fingerprint
+        after: 7b0d65f85067bbd0/a5c8e537da609e08
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-12: Both halves of the question are answered in code and tests, and the phase-2 log (T-0430) records the same choice. Evidence: src/torve/application/residency.py; src/torve/domain/events.py::NightOpened; src/torve/config/runconfig.py::NightConfig.minutes; tests/test_residency.py::test_the_wall_clock_end_is_soft_and_the_attempt_in_flight_is_never_interrupted.

@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-16
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-16
+        field: text
+        before: >-
+          When the lane asks the forge, and whether it asks once per pass or once
+          per candidate, is implementation's — under one constraint: a pass holding
+          no open pull request asks nothing
+        after: >-
+          Under the task unit, the lane reads its own stream once per pass into a
+          ledger of pull-request verdicts. It asks the forge once per candidate whose
+          last record is `lane_pr_opened`. A candidate recorded landed, closed or
+          unresolved asks nothing, and so does a pass with no open pull request or
+          a dry run.
+      - subject: D-16
+        field: fingerprint
+        after: 1b450354dcf3ab9d/c6da993128d86481
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-16: The task-unit cadence is implemented as above. S-0083/D-12 states the document-unit cadence separately, so it does not replace this row. The phase log's claim ('once per candidate that passed every criterion') predates the ledger; the code is what the text follows. Evidence: src/torve/application/lane.py::_pr_ledger, ::_forge_verdict and the pass loop; tests/test_lane.py::test_a_pass_with_nothing_open_asks_the_forge_nothing; tests/test_lane.py::test_a_merged_pull_request_is_recorded_as_the_landing_with_the_merge_commit; .torve/specs/S-0083/decisions.yaml.

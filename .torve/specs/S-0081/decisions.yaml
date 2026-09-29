@@ -61,12 +61,12 @@ decisions:
       so every added test passes on base by construction and the conviction would
       say nothing about the attempt
   - id: D-5
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      How the base tree is materialised and where the base pass runs is implementation's,
-      under three constraints — the command goes through the pass's own executor,
-      nothing the gate writes outlives its own call, and only the qualifying files
-      run
+      The base pass extracts `git archive <merge-base>` into a `mktemp -d` directory
+      outside the repository, copies the qualifying test files over it and runs `TEST_COMMAND`
+      on only those files through the pass's executor. A trap removes the directory
+      on every exit, and no worktree is registered.
     paths: [src/torve/gates/red_on_base.py, src/torve/gates/sabotage.py]
     consequence: >-
       the declared timeout is what the choice is judged by, and a materialisation
@@ -79,6 +79,7 @@ decisions:
       the answer; which of the several trees that satisfy them is cheapest is a measurement,
       and this document has not taken it
     cites: [S-0055/D-2, S-0071/D-3]
+    fingerprint: 887769572a714322/8c1674a9d44c5a6d
   - id: D-6
     grade: ASSUMED
     text: >-

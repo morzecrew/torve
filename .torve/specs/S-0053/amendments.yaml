@@ -66,3 +66,28 @@ amendments:
         before: "src/torve/config/rfc_parse.py pyproject.toml skills/rfc-writer/** tests/test_spec_load.py tests/test_layering.py"
         after: "src/torve/** pyproject.toml skills/rfc-writer/** tests/**"
       ```
+  - id: A-3
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-17
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-17
+        field: text
+        before: >-
+          Whether the baseline is one document or several by area (S-0031/D-6, S-0053/Q-2);
+          settled by the grading pass in §5.8
+        after: >-
+          The baseline is one document, S-0055, whose rows are grouped by the boundary
+          each guards and cite the archived row or document they descend from, so
+          a later split by area is a cut and not a rewrite.
+      - subject: D-17
+        field: fingerprint
+        after: 494031be134f1eb7/202c11f3690cefb1
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-17: The grading pass of §5.8 happened and produced S-0055 as a single accepted document; the answer lives in the corpus (S-0055's prose, not a row), not in code. S-0053/Q-2 should be marked settled alongside. Evidence: .torve/specs/S-0055/document.yaml; .torve/specs/S-0055/decisions.yaml; .torve/specs/S-0053/document.yaml.

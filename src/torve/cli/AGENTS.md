@@ -159,13 +159,6 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 - Paths: `src/torve/cli/spec.py`
 - Consequence: The row's side of the link is a query, not a grep
 
-### S-0057/D-13 — `OPEN` (The specification is a directory)
-
-Whether `spec cites` also reads the `Torve-Decisions` trailers of the commit history
-
-- Paths: `src/torve/cli/spec.py`
-- Consequence: Decided by whoever executes phase 4, logged
-
 ### S-0058/D-3 — `LOCKED` (One grammar and the anatomy)
 
 `check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; a legacy identifier in the corpus or the tree is a problem naming its replacement, `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it

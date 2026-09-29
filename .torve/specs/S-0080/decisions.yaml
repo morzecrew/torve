@@ -218,11 +218,12 @@ decisions:
       now reports as zero on both sides; a workaround whose reason has expired is
       worse than no workaround, because it is believed
   - id: D-16
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      When the lane asks the forge, and whether it asks once per pass or once per
-      candidate, is implementation's — under one constraint: a pass holding no open
-      pull request asks nothing
+      Under the task unit, the lane reads its own stream once per pass into a ledger
+      of pull-request verdicts. It asks the forge once per candidate whose last record
+      is `lane_pr_opened`. A candidate recorded landed, closed or unresolved asks
+      nothing, and so does a pass with no open pull request or a dry run.
     paths: [src/torve/application/lane.py]
     consequence: >-
       the credential is used in proportion to what is actually open, and an idle night
@@ -230,6 +231,7 @@ decisions:
     rationale: >-
       the answer is the same whenever it is asked, so the cadence is a cost question
       rather than a correctness one, and the cost is a rate limit somebody else sets
+    fingerprint: 1b450354dcf3ab9d/c6da993128d86481
   - id: D-17
     grade: OPEN
     text: >-

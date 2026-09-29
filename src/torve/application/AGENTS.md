@@ -1002,9 +1002,9 @@ The width is recorded as a term of the night and is one; this document does not 
 - Paths: `src/torve/application/residency.py`
 - Consequence: a later night at width three is comparable against tonight's, because tonight's record says what it ran at rather than leaving it to be inferred from the manager's source as of that date
 
-### S-0079/D-12 — `OPEN` (The night as a typed record)
+### S-0079/D-12 — `ASSUMED` (The night as a typed record)
 
-Where the wall-clock end is measured from and what a pass in flight does when it arrives is implementation's, under two constraints — an attempt in flight is not interrupted by the end, and the close is written even when the end falls inside a pass
+The wall-clock end is the night's `opened_at` plus `night.minutes`. The serve loop reads its stop terms only at the top of a pass, so an attempt in flight at the end finishes, and `night.closed` records `wall_clock` with `overran_seconds` past the end.
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: the end is a soft bound and the record has to say so, or a night that closed eleven minutes late reads as a night that ignored its terms
@@ -1079,9 +1079,9 @@ The morning report holds pull requests opened, merged, conflicted and closed as 
 - Paths: `src/torve/application/manager.py`
 - Consequence: a person reading the report knows what is waiting on them on the forge, which in this mode is the whole of what is waiting on them
 
-### S-0080/D-16 — `OPEN` (The lane opens a pull request, and a person lands it)
+### S-0080/D-16 — `ASSUMED` (The lane opens a pull request, and a person lands it)
 
-When the lane asks the forge, and whether it asks once per pass or once per candidate, is implementation's — under one constraint: a pass holding no open pull request asks nothing
+Under the task unit, the lane reads its own stream once per pass into a ledger of pull-request verdicts. It asks the forge once per candidate whose last record is `lane_pr_opened`. A candidate recorded landed, closed or unresolved asks nothing, and so does a pass with no open pull request or a dry run.
 
 - Paths: `src/torve/application/lane.py`
 - Consequence: the credential is used in proportion to what is actually open, and an idle night costs no forge calls at all
@@ -1114,9 +1114,9 @@ The arm reaches the attempt as a composed prompt — the dispatch carries which 
 - Paths: `src/torve/application/dispatch.py` `src/torve/application/runner.py` `src/torve/application/session.py`
 - Consequence: the gated arm — the bare prompt with the battery judging what comes back — is a combination of two flags rather than a third mechanism, and the arm that runs today under the name `bare` stops being the configured prompt with the gates off
 
-### S-0082/D-2 — `OPEN` (The arms can be launched)
+### S-0082/D-2 — `ASSUMED` (The arms can be launched)
 
-Whether a bare arm's worktree is also stripped of the projected contract, the materialised skill set and the context pack is decided at implementation, and whichever way it is decided the replay's record names which removals were in force
+When an arm removes the prompt, the runner does not write the projected contract, the skill set or the context pack into its worktree, and it deletes nothing the tree already carried. The attempt's `agent` block records `arm` and `removed` (`prompt`, `contract`, `skills`, `context-pack`, plus `battery` for the bare arm).
 
 - Paths: `src/torve/application/session.py`
 - Consequence: a reader of a bare arm's numbers can tell what the agent could still open, so the arm's limit is a recorded fact rather than something rediscovered by whoever doubts the result
@@ -1149,9 +1149,9 @@ An arm record carries no verdict field — no `matched` beside the rows — beca
 - Paths: `src/torve/application/evals.py`
 - Consequence: nothing downstream can act on an arm run without reading it per task, which is the only way it can honestly be read
 
-### S-0082/D-7 — `OPEN` (The arms can be launched)
+### S-0082/D-7 — `ASSUMED` (The arms can be launched)
 
-Whether an arm run that raises partway through lands the rows it has or lands nothing is decided at implementation, and the record says which it did
+An arm run that raises partway through still appends its record, with the rows it completed and `complete: false`, and the exception reaches the caller. A run that finishes records `complete: true`. An unknown arm is refused before any replay and records nothing.
 
 - Paths: `src/torve/application/evals.py`
 - Consequence: a three-replay invocation that dies on the third does not silently become a two-arm record that reads like a complete one
@@ -1268,9 +1268,9 @@ Threads are grouped into findings by what they anchor to — the same file at li
 - Paths: `src/torve/application/threads.py`
 - Consequence: three bots on one null check cost one task, and the answering half can name one commit to several threads without a second join
 
-### S-0084/D-4 — `OPEN` (The review leg: a pull request's threads become work on its branch)
+### S-0084/D-4 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
 
-The exact grouping key — how near two lines must be, and what a file-level thread groups with — is implementation's, under one constraint: the rule errs toward merging, and which way it erred is readable from the record
+Threads group per file. Anchored threads whose lines sit within `WINDOW` (10) of the previous one chain into one finding, and a file-level thread takes every thread in its file into one finding. Each finding records its `line`..`end_line` span beside its threads, so the record shows which way the grouping erred.
 
 - Paths: `src/torve/application/threads.py`
 - Consequence: an over-merged finding is one task told about two things and an under-merged one is two tasks colliding on one file of one branch, so the cheap error is chosen on purpose rather than by accident
@@ -1328,9 +1328,9 @@ A bot's thread is resolved by the engine only after the record says the round's 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: a resolved thread on a document's pull request is always a thread with a landing or a reason behind it, so resolution stays readable as an answer rather than as tidying
 
-### S-0084/D-13 — `OPEN` (The review leg: a pull request's threads become work on its branch)
+### S-0084/D-13 — `ASSUMED` (The review leg: a pull request's threads become work on its branch)
 
-Where the attempt's verdict on a finding it judges invalid is written — a divergence entry under `unlisted`, or a typed record of the round's own — is implementation's, under one constraint: the reply the engine posts is composed from that record and never from prose the agent wrote for the reviewer
+An attempt records a finding it judges invalid as a divergence entry under `unlisted` with `kind: contradicted`. The engine composes its reply from that entry's `claim` and `evidence`. A review round whose claims are all rejected this way is not refused as an empty diff.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: a rejection with no record behind it is an unanswered thread rather than a reply nobody can check, and the reason a reviewer reads has passed the same checks a divergence entry passes

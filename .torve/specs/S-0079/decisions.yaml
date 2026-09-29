@@ -173,12 +173,12 @@ decisions:
       to exist first
     cites: [S-0044/D-7]
   - id: D-12
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Where the wall-clock end is measured from and what a pass in flight does when
-      it arrives is implementation's, under two constraints — an attempt in flight
-      is not interrupted by the end, and the close is written even when the end falls
-      inside a pass
+      The wall-clock end is the night's `opened_at` plus `night.minutes`. The serve
+      loop reads its stop terms only at the top of a pass, so an attempt in flight
+      at the end finishes, and `night.closed` records `wall_clock` with `overran_seconds`
+      past the end.
     paths: [src/torve/application/residency.py]
     consequence: >-
       the end is a soft bound and the record has to say so, or a night that closed
@@ -188,3 +188,4 @@ decisions:
       the safety of what is running, and an end that killed an attempt mid-write would
       cost more than the minutes it saved
     cites: [S-0048/D-4]
+    fingerprint: 7b0d65f85067bbd0/a5c8e537da609e08

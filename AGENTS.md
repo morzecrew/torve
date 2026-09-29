@@ -143,7 +143,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/workspace/` — 3 decision(s)
 - `src/torve/application/` — 205 decision(s)
 - `src/torve/base/` — 3 decision(s)
-- `src/torve/cli/` — 67 decision(s)
+- `src/torve/cli/` — 66 decision(s)
 - `src/torve/config/` — 81 decision(s)
 - `src/torve/domain/` — 40 decision(s)
 - `src/torve/gates/` — 34 decision(s)

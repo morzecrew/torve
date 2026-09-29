@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T02:44:28Z'
+    title: OPEN rows the implementation settled
+    changes:
+      - subject: D-4
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-4
+        field: text
+        before: >-
+          The exact grouping key — how near two lines must be, and what a file-level
+          thread groups with — is implementation's, under one constraint: the rule
+          errs toward merging, and which way it erred is readable from the record
+        after: >-
+          Threads group per file. Anchored threads whose lines sit within `WINDOW`
+          (10) of the previous one chain into one finding, and a file-level thread
+          takes every thread in its file into one finding. Each finding records its
+          `line`..`end_line` span beside its threads, so the record shows which way
+          the grouping erred.
+      - subject: D-4
+        field: fingerprint
+        after: 7ba33e907a5ba9a3/277b58ed9cd37736
+      - subject: D-13
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-13
+        field: text
+        before: >-
+          Where the attempt's verdict on a finding it judges invalid is written —
+          a divergence entry under `unlisted`, or a typed record of the round's own
+          — is implementation's, under one constraint: the reply the engine posts
+          is composed from that record and never from prose the agent wrote for the
+          reviewer
+        after: >-
+          An attempt records a finding it judges invalid as a divergence entry under
+          `unlisted` with `kind: contradicted`. The engine composes its reply from
+          that entry's `claim` and `evidence`. A review round whose claims are all
+          rejected this way is not refused as an empty diff.
+      - subject: D-13
+        field: fingerprint
+        after: c0d175ef57a3bfa1/b150db9f7d998894
+    md: |-
+      These rows were graded OPEN and the implementation has since answered them. Each settled row now states what the code does and is graded ASSUMED; the owner's merge of this amendment is the acceptance, and LOCKED stays the owner's act.
+
+      Settled by the implementation:
+      - D-4: The key is fixed in code. The rationale's month of real bot threads has not been gathered, so the 10 is a chosen value and has not been measured. Evidence: src/torve/application/threads.py::group_findings and WINDOW; tests/test_threads.py::test_lines_inside_the_window_merge_and_the_span_says_so; tests/test_threads.py::test_the_same_file_far_apart_is_two_findings; tests/test_threads.py::test_a_file_level_thread_takes_its_whole_file.
+      - D-13: Decided as the divergence entry and not as a typed record of the round. S-0086/D-5 reuses it for record-sourced findings but does not restate the choice. Evidence: src/torve/application/reviewleg.py; src/torve/application/runner.py; tests/test_reviewleg.py::test_a_rejected_finding_is_answered_from_its_divergence_entry; tests/test_reviewleg.py::test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log.

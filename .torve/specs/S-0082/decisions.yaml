@@ -23,12 +23,13 @@ decisions:
       the one the engine uses
     cites: [S-0074/D-2, S-0074/D-3]
   - id: D-2
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether a bare arm's worktree is also stripped of the projected contract, the
-      materialised skill set and the context pack is decided at implementation, and
-      whichever way it is decided the replay's record names which removals were in
-      force
+      When an arm removes the prompt, the runner does not write the projected contract,
+      the skill set or the context pack into its worktree, and it deletes nothing
+      the tree already carried. The attempt's `agent` block records `arm` and `removed`
+      (`prompt`, `contract`, `skills`, `context-pack`, plus `battery` for the bare
+      arm).
     paths: [src/torve/application/session.py]
     consequence: >-
       a reader of a bare arm's numbers can tell what the agent could still open, so
@@ -41,6 +42,7 @@ decisions:
       tree the agent stands in, and stripping them is a second mechanism with its
       own failures
     cites: [S-0074/D-2]
+    fingerprint: 46d6be2661b2d7fa/3ed4b89e1bde274f
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -106,10 +108,12 @@ decisions:
       is a distribution, and `_distribution` already implements it
     cites: [S-0074/D-4]
   - id: D-7
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether an arm run that raises partway through lands the rows it has or lands
-      nothing is decided at implementation, and the record says which it did
+      An arm run that raises partway through still appends its record, with the rows
+      it completed and `complete: false`, and the exception reaches the caller. A
+      run that finishes records `complete: true`. An unknown arm is refused before
+      any replay and records nothing.
     paths: [src/torve/application/evals.py]
     consequence: >-
       a three-replay invocation that dies on the third does not silently become a
@@ -119,6 +123,7 @@ decisions:
       run, so an infrastructure failure loses the whole invocation; an arm run costs
       enough that throwing away two completed replays deserves to be a decision rather
       than an inheritance
+    fingerprint: 9539f357419e9e54/b021e29a53fc67f2
   - id: D-8
     grade: ASSUMED
     text: >-
