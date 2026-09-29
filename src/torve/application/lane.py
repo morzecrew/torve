@@ -102,8 +102,17 @@ def awaiting_landing(root: Path, vcs: LaneVcs, base: str | None, unit: str = "ta
     its last green candidate). A candidate with no branch is nothing to land."""
 
     owed: list[str] = []
+    # The record, not the ancestry (S-0083/D-10): a task the lane landed onto a
+    # document branch is off its hands, whether a rebase of that branch onto a
+    # moved base renamed its commit or a squash merge left none of them on it.
+    on_documents = {
+        task for entry in _document_ledger(root).values() for task in (*entry.tasks, *entry.earlier)
+    }
 
     for state in ready_candidates(root):
+        if state.task_id in on_documents:
+            continue
+
         branch = naming.branch(state.task_id)
         tip = vcs.tip(root, branch)
 

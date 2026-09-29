@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 from torve.adapters.vcs.git import GitLane
 from torve.application.feedback import feedback_file, threads_file
-from torve.application.lane import conflict_disposal, process_lane
+from torve.application.lane import awaiting_landing, conflict_disposal, process_lane
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
@@ -1547,6 +1547,25 @@ def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_re
     assert asked == [document]
     assert [r.action for r in again] == ["already landed", "already landed"]
     assert len(published) == 2
+
+
+def test_a_task_landed_on_a_document_is_owed_nothing_whatever_its_ancestry(lane_repo, tmp_path):
+    # Night 12 on bloomery never drained: main moved mid-night, the lane rebased
+    # the document branch onto it, and every landed candidate stopped being an
+    # ancestor of the branch that carries its work. The lane's own landing
+    # record still says each one landed.
+    published: list[tuple[str, str]] = []
+    document = _landed_document(
+        lane_repo, tmp_path, "S-0911", {"T-7311": "one.py", "T-7312": "two.py"}, published
+    )
+    git(lane_repo, "checkout", "-q", "main")
+    (lane_repo / "moved.txt").write_text("main moved\n")
+    git(lane_repo, "add", "moved.txt")
+    git(lane_repo, "commit", "-q", "-m", "main moves")
+    git(lane_repo, "rebase", "-q", "main", document)
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == []
 
 
 def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch(
