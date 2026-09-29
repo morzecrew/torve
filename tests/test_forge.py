@@ -232,6 +232,37 @@ def test_pr_for_branch_answers_with_the_merge_commit(monkeypatch):
     assert GhScm(repo="example/lab", token_env=None).pr_for_branch("torve/T-8302") is None
 
 
+def test_a_closed_branch_is_read_again_before_it_is_believed(monkeypatch):
+    # A merge read in its own second came back CLOSED, and the lane abandoned a
+    # whole merged document. A second read after a pause answers merged.
+    pr = {
+        "number": 223,
+        "title": "S-0006",
+        "author": {"login": "torve"},
+        "isDraft": False,
+        "headRefOid": "head" * 10,
+        "baseRefName": "main",
+        "changedFiles": 9,
+        "state": "CLOSED",
+        "mergeCommit": None,
+    }
+    merged = {**pr, "state": "MERGED", "mergeCommit": {"oid": "squash" * 6}}
+    answers = iter([json.dumps([pr]), json.dumps(merged)])
+    slept: list[float] = []
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, stdout=next(answers), stderr="")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+    info = GhScm(repo="example/lab", token_env=None, sleeper=slept.append).pr_for_branch(
+        "torve/S-0006"
+    )
+
+    assert info is not None
+    assert (info.state, info.merge_commit) == ("merged", "squash" * 6)
+    assert slept == [5.0]
+
+
 # ....................... #
 # GhCi (S-0006/promotion): the lightweight runs endpoint, polled with backoff,
 # settling to one word — the rate budget is shared with the agents.

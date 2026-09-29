@@ -762,6 +762,14 @@ class GhScm:
 
         info = self._pr_info(listed[0])
 
+        # A merge can read as closed for a moment before it reads as merged
+        # (bloomery #223: the lane asked in the merge's own second). Closed
+        # abandons every task the branch carries (S-0083/D-11), so it is read
+        # twice before it is believed.
+        if info.state == "closed":
+            self.sleeper(5.0)
+            info = self.pr_info(info.number)
+
         if info.state == "open":
             info.threads = self.unresolved_threads(info.number)
 
