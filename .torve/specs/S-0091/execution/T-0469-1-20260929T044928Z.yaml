@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0469
+phase: 4
+base: 522aee2e3c0f70ecd4fc20ab16ff8c4c8701dfe0
+commit: 0085259d30967c4ad7f37ad2e3a8d0bb93360895
+at: '2026-09-29T04:49:28Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-29T04:46:39Z'
+    claim: >-
+      The rewritten document-branch section adds only identifiers in the corpus grammar,
+      and every coordinate it cites names a row the corpus carries: no legacy shape
+      entered the page.
+    evidence: >-
+      pages/docs/operating.md:894 — the (S-0091/D-1) coordinate in the new paragraph;
+      (S-0083/D-14), (S-0083/D-18) and (S-0065/D-7) cited beside it are accepted rows
+    action: decided
+    proposal: >-
+      Nothing to propose: the page follows the row as it stands, and the grammar check
+      is green over it.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T04:46:39Z'
+    claim: >-
+      The contract named four things the section must say and said nothing about the
+      sentence beside them that still claimed the document branch is cut once per
+      document, which is not what the amended S-0083/D-18 says; leaving it would have
+      made the page contradict an accepted row (S-0055/D-52).
+    evidence: >-
+      pages/docs/operating.md:884-888 — the cut sentence, rewritten to the amended
+      row rather than left as once per document
+    action: decided
+    proposal: >-
+      The operating-page phase owes one row: the page states the branch cut as the
+      amended S-0083/D-18 has it - one branch per document pull request, recut from
+      the remote main when the branch merged or is gone - not once per document.
