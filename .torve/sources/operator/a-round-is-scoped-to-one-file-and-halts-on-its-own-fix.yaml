@@ -29,5 +29,12 @@ summary: |
   locked conflict. And the round's test companion should come from the
   repository's own layout, not one convention.
 
-  Operator workaround: widen the contract's `scope.allow` in the root copy
-  and the worktree copy, then `manager resolve <task> --resolution requeued`.
+  The operator workaround is unreliable. Widening `scope.allow` in the root
+  and worktree copies of the contract reached T-0205's next attempt but not
+  T-0208's: two more attempts reported the contract unchanged and halted on
+  the same proposal. A round's contract is adopted into the record (the
+  tasks directory is ignored), so which copy an attempt reads after a
+  requeue is not something an operator can rely on. T-0208 was abandoned and
+  its fix made by hand (bloomery ce7ac4a5). A requeue also fails as
+  `gate_infrastructure_failure` the moment it is claimed if the escalated
+  worktree is still there: `reap --escalated` has to come first.
