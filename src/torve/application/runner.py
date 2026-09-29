@@ -87,7 +87,7 @@ from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
-from torve.gates.context import GateContext, GitError, build_context, resolve_base
+from torve.gates.context import GateContext, GitError, build_context, git, resolve_base
 from torve.gates.runner import RunReport, run_gates
 
 # ----------------------- #
@@ -126,17 +126,22 @@ class AttemptHooks:
 
 # Continuation eligibility's shared marker (S-0026 S-0026/D-8): every detail
 # string this module writes for a wallclock-caused budget_exhausted
-# escalation starts with it, and `_continuable` is the only reader — so
+# escalation starts with it, and `_exhausted` is the only reader — so
 # generation and detection can never drift apart.
 _WALLCLOCK_MARKER = "wallclock budget exhausted"
 
+# The subjects `_commit_reviewed_tree` writes for the two escalations a
+# continuation resumes from (S-0090/D-2), and the only thing
+# `_checkpointed_for_resume` reads off a branch tip.
+_BLOCKER_MARKER = "escalated from review on a blocker"
+_HALTED_MARKER = "escalated halted on a locked row"
 
-def _continuable(escalation: Escalation) -> bool:
-    """S-0026/D-8 (LOCKED): continuation fires only on budget exhaustion —
-    wallclock or tokens — never on a gate conviction, review blocker or any
-    judged escalation. `iterations` exhaustion (like `poison_ceiling`) is
-    excluded on purpose: repeated red gates is a judgement on the work, not
-    a clock running out, so it restarts from base like any conviction."""
+
+def _exhausted(escalation: Escalation) -> bool:
+    """S-0026/D-8: budget exhaustion — wallclock or tokens. `iterations`
+    exhaustion (like `poison_ceiling`) is excluded on purpose: repeated red
+    gates is a judgement on the work, not a clock running out. These are the
+    escalations the budget checkpoint commits for (S-0026/D-9)."""
 
     if escalation.reason == str(EscalationReason.COST_ANOMALY):
         return True
@@ -144,6 +149,19 @@ def _continuable(escalation: Escalation) -> bool:
     return escalation.reason == str(
         EscalationReason.BUDGET_EXHAUSTED
     ) and escalation.detail.startswith(_WALLCLOCK_MARKER)
+
+
+def _continuable(escalation: Escalation) -> bool:
+    """The escalations the next dispatch resumes from: budget exhaustion
+    (S-0026/D-8), and a review blocker or a halt on a locked row (S-0090/D-2) —
+    a review that asks for one file's change costs that change, and a halt
+    answered by an amendment resumes where it stopped. A gate conviction
+    still restarts from base."""
+
+    return _exhausted(escalation) or escalation.reason in (
+        str(EscalationReason.BLOCKER_FINDING),
+        str(EscalationReason.LOCKED_CONFLICT),
+    )
 
 
 # ....................... #
@@ -174,7 +192,7 @@ async def drive_attempts(
         if (
             hooks.checkpoint is not None
             and result.escalation is not None
-            and _continuable(result.escalation)
+            and _exhausted(result.escalation)
         ):
             hooks.checkpoint(result)
 
@@ -891,15 +909,17 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
     A failed commit leaves the escalation as it was: the reason the run stops
     is the review's, and an infrastructure failure here must not replace it."""
 
-    why = "from review"
+    why = "escalated from review"
+    reason = state.escalation.reason if state.escalation is not None else None
 
-    if state.escalation is not None and state.escalation.reason == str(
-        EscalationReason.LOCKED_CONFLICT
-    ):
-        why = "halted on a locked row"
+    if reason == str(EscalationReason.LOCKED_CONFLICT):
+        why = _HALTED_MARKER
+
+    elif reason == str(EscalationReason.BLOCKER_FINDING):
+        why = _BLOCKER_MARKER
 
     message = (
-        f"torve({run.task.id}): attempt {state.attempts} escalated {why}\n\n"
+        f"torve({run.task.id}): attempt {state.attempts} {why}\n\n"
         f"Torve-Checkpoint: {run.task.id} attempt {state.attempts}"
     )
     author = f"{_agent_identity(run.meta)} <agents@torve.local>"
@@ -1188,6 +1208,10 @@ async def _run_task_async(
     )
     state.worktree = str(worktree)
     state.save()
+
+    if resume:
+        _refresh_contract(root, task, worktree)
+
     hooks = real_hooks(root, task, config, deps, worktree, resume=resume, gates_base=gates_base)
 
     async def body(_fctx: ExecutionContext, _input_json: JsonDict | None) -> JsonDict:
@@ -1331,6 +1355,44 @@ def _should_resume(previous: RunState) -> bool:
     return _continuable(previous.escalation)
 
 
+def _checkpointed_for_resume(root: Path, task: Task) -> bool:
+    """S-0090/D-2: a task whose run state was reaped still resumes when its
+    branch tip is the checkpoint a review blocker or a halt left — the tree is
+    on the branch either way, and the reaper removing the state file is not an
+    answer to the escalation."""
+
+    try:
+        message = git(root, "log", "-1", "--format=%B", naming.branch(task.id))
+
+    except GitError:
+        return False
+
+    subject = message.splitlines()[0] if message else ""
+
+    return f"Torve-Checkpoint: {task.id} " in message and subject.endswith(
+        (_BLOCKER_MARKER, _HALTED_MARKER)
+    )
+
+
+# ....................... #
+
+
+def _refresh_contract(root: Path, task: Task, worktree: Path) -> None:
+    """S-0090/D-3: the tree carries over from the checkpoint, the terms do not.
+    The checkpoint committed the contract the stopped attempt read; the copy is
+    dropped so the contract as it stands at this dispatch — the refreshed one
+    after `plan --refresh` — is the one the gates and the log verbs read. With
+    no contract file at the root, the board's projection writes it later."""
+
+    copy = layout.task_file(worktree, task.id)
+    source = layout.task_file(root, task.id)
+    copy.unlink(missing_ok=True)
+
+    if source.is_file():
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(source, copy)
+
+
 # ....................... #
 
 
@@ -1396,6 +1458,13 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
             )
 
         resume = _should_resume(previous)
+
+    else:
+        resume = _checkpointed_for_resume(root, task)
+
+    # S-0090/D-2: a landed task has nothing left to continue.
+    if resume and task.id in decisions.landed_task_ids(root, root / config.specs.path):
+        resume = False
 
     blocked = _blocking_overlap(root, task)
 

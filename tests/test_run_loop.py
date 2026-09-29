@@ -332,7 +332,17 @@ def test_should_resume_true_straight_off_a_continuable_escalation():
 
     assert run_module._should_resume(state)
 
+    # S-0090/D-2: a halt and a review blocker resume from their checkpoint;
+    # a gate conviction still restarts from base.
     state.escalation = Escalation(reason="locked_conflict", detail="halted divergence entry")
+
+    assert run_module._should_resume(state)
+
+    state.escalation = Escalation(reason="blocker_finding", detail="R-1: the change is wrong")
+
+    assert run_module._should_resume(state)
+
+    state.escalation = Escalation(reason="poison_ceiling", detail="3 attempts red")
 
     assert not run_module._should_resume(state)
 
@@ -375,12 +385,12 @@ def test_continuation_resumes_the_worktree_and_tells_the_agent(rig, monkeypatch)
 
 
 def test_a_convicted_retry_does_not_resume(rig):
-    repo, deps, _runtime, _vcs, _ = rig
+    repo, deps, _runtime, _vcs, gate_outcomes = rig
     task = task_for(repo)
-    deps.agent = ScriptedAgent([OK], halted_on_attempt=1)
+    gate_outcomes.extend([1])
 
-    first = run_task(repo.root, task, RunnerConfig(), deps)
-    assert first.escalation.reason == "locked_conflict"
+    first = run_task(repo.root, task, RunnerConfig(poison_ceiling=1), deps)
+    assert first.escalation.reason == "poison_ceiling"
 
     from torve.application.runstate import RunState
 
@@ -388,11 +398,6 @@ def test_a_convicted_retry_does_not_resume(rig):
     requeued = RunState.load(state_path)
     requeued.transition(TaskState.QUEUED, "requeued by an operator")
     requeued.save()
-    # A real worktree recreation would clear the halted entry the first
-    # attempt wrote; the mock never wipes the directory, so clear it by
-    # hand — this test's only concern is whether `resume` was computed
-    # false and threaded through, not the halted-detection path.
-    (repo.root / ".wt" / task.id / ".torve" / "tasks" / task.id / "log.yaml").unlink()
 
     seen = {}
 
@@ -409,6 +414,120 @@ def test_a_convicted_retry_does_not_resume(rig):
 
     assert seen["resume"] is False
     assert task.id not in deps.workspace.resumed
+
+
+def _requeue(repo, task_id):
+    state_path = repo.root / ".wt" / f"{task_id}.state.json"
+    requeued = RunState.load(state_path)
+    requeued.transition(TaskState.QUEUED, "requeued by an operator")
+    requeued.save()
+
+
+class _ResumePeeker:
+    """Records whether the attempt resumed and the contract copy it found."""
+
+    kind = "fake"
+
+    def __init__(self):
+        self.seen = {}
+
+    def run(self, ctx):
+        self.seen["resume"] = ctx.resume
+        copy = ctx.workspace / ".torve" / "tasks" / ctx.task.id / "contract.yaml"
+        self.seen["contract"] = copy.read_text(encoding="utf-8") if copy.is_file() else None
+        return OK
+
+
+def _halt_then_requeue(rig):
+    repo, deps, _runtime, _vcs, _ = rig
+    task = task_for(repo)
+    deps.agent = ScriptedAgent([OK], halted_on_attempt=1)
+
+    first = run_task(repo.root, task, RunnerConfig(), deps)
+    assert first.escalation.reason == "locked_conflict"
+
+    # The halt was answered: clear the entry, as the amended contract would.
+    (repo.root / ".wt" / task.id / ".torve" / "tasks" / task.id / "log.yaml").unlink()
+    _requeue(repo, task.id)
+    return repo, deps, task
+
+
+def test_a_halted_retry_resumes_from_its_checkpoint(rig):
+    # S-0090/D-2: a halt answered by an amendment resumes where it stopped.
+    repo, deps, task = _halt_then_requeue(rig)
+    deps.agent = peeker = _ResumePeeker()
+
+    second = run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert second.state is TaskState.READY
+    assert peeker.seen["resume"] is True
+    assert task.id in deps.workspace.resumed
+
+
+def test_a_continued_attempt_reads_the_contract_as_it_stands_now(rig):
+    # S-0090/D-3: the tree carries over from the checkpoint; the terms do not.
+    repo, deps, task = _halt_then_requeue(rig)
+    stale = repo.root / ".wt" / task.id / ".torve" / "tasks" / task.id / "contract.yaml"
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_text("acceptance: [the terms the halt stopped on]\n", encoding="utf-8")
+    refreshed = "acceptance: [the terms plan --refresh wrote]\n"
+    source = repo.root / ".torve" / "tasks" / task.id / "contract.yaml"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(refreshed, encoding="utf-8")
+    deps.agent = peeker = _ResumePeeker()
+
+    run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert peeker.seen["resume"] is True
+    assert peeker.seen["contract"] == refreshed
+
+
+def _checkpoint_tip(repo, task_id, subject):
+    repo.git(
+        "commit",
+        "-q",
+        "--allow-empty",
+        "--no-gpg-sign",
+        "-m",
+        f"torve({task_id}): attempt 1 {subject}\n\nTorve-Checkpoint: {task_id} attempt 1",
+    )
+
+
+@pytest.mark.parametrize(
+    "subject", ["escalated from review on a blocker", "escalated halted on a locked row"]
+)
+def test_a_reaped_run_resumes_off_its_escalation_checkpoint(rig, subject):
+    # S-0090/D-2: the state file was reaped, the branch tip is the checkpoint.
+    repo, deps, _runtime, _vcs, _ = rig
+    task = task_for(repo)
+    _checkpoint_tip(repo, task.id, subject)
+    deps.agent = peeker = _ResumePeeker()
+
+    run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert peeker.seen["resume"] is True
+
+
+@pytest.mark.parametrize("subject", ["convicted by scope", "escalated from review"])
+def test_a_reaped_run_off_any_other_checkpoint_starts_from_base(rig, subject):
+    repo, deps, _runtime, _vcs, _ = rig
+    task = task_for(repo)
+    _checkpoint_tip(repo, task.id, subject)
+    deps.agent = peeker = _ResumePeeker()
+
+    run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert peeker.seen["resume"] is False
+
+
+def test_a_landed_task_never_resumes(rig, monkeypatch):
+    repo, deps, task = _halt_then_requeue(rig)
+    monkeypatch.setattr(run_module.decisions, "landed_task_ids", lambda _root, _specs: {task.id})
+    deps.agent = peeker = _ResumePeeker()
+
+    run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert peeker.seen["resume"] is False
 
 
 def test_agent_timeout_is_a_failed_attempt_not_a_crash(rig):
