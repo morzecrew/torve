@@ -251,11 +251,11 @@ decisions:
       report's rule is that it holds only recorded fields
     cites: [S-0079/D-3, S-0080/D-14]
   - id: D-17
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Where the composer reads the phases still to come from — the document's `phasing`
-      list or the contracts already minted from it — is implementation's, under one
-      constraint: it names them from a record and never from an estimate
+      The composer names the phases still to come from the document's phasing, and
+      the phases landed from the landing files on the branch tip joined with the lane's
+      own `lane_landed` records (S-0091/D-3); it never names one from an estimate
     paths: [src/torve/application/forge.py]
     consequence: >-
       a body that says three phases remain is saying something checkable against the
@@ -264,13 +264,14 @@ decisions:
       both sources are records and both are readable from the runner; which is cheaper
       and which stays true when a document is amended is a question the code answers
       better than this document can
+    fingerprint: 243e04715617ff15/fb7d7e5be0f10b09
   - id: D-18
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the document branch is cut at the first landing or at the first worktree
-      of the document is implementation's, under one constraint: it is cut once per
-      document, from the remote's `main` after a fetch, and every later landing targets
-      the same ref
+      The document branch is cut from the remote's `main` after a fetch, once per
+      pull request: at the document's first landing, and again when its pull request
+      merged or the remote no longer has the branch, with the old ref kept under `refs/torve/documents/`
+      (S-0091/D-1); every landing in between targets the same ref
     paths: [src/torve/application/lane.py]
     consequence: >-
       a document has exactly one branch whatever order its first phases run in, so
@@ -280,3 +281,4 @@ decisions:
       for work that may never land; cutting at the first landing keeps the forge clean
       and makes the first task's base the remote's `main` — the trade is real and
       contact with the code decides it
+    fingerprint: c0a0531fcf42a9da/c6da993128d86481

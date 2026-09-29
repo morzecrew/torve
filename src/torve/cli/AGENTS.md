@@ -491,6 +491,20 @@ Dispatch does not consult the size estimate: a queued implement or revert contra
 - Paths: `src/torve/application/manager.py` `src/torve/cli/run.py` `tests/test_manager.py` `tests/test_cli.py`
 - Consequence: a served night takes the phases it used to leave for hand runs, so their landings reach the record; decomposition happens when an operator runs `torve decompose`
 
+### S-0091/D-1 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+
+The lane fetches with prune before it lands onto a document branch and works from the remote's copy: a branch the remote no longer has, or whose pull request merged, is moved aside under `refs/torve/documents/` and cut again from the remote's `main`; a branch the remote has sets the local ref to the remote tip; the task cut and the dependency check read the same remote ref
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/application/lane.py` `src/torve/application/runner.py` `src/torve/cli/manager.py` `tests/test_lane.py` `tests/test_runner.py` `tests/test_manager.py`
+- Consequence: a merged or deleted document branch is never landed onto again, a merged document's next pull request carries only what `main` lacks, and the old commits stay reachable
+
+### S-0091/D-3 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+
+A document's pull request counts a phase as landed when the branch tip's tree holds its landing file, as well as when the lane recorded landing it; `manager resolve --resolution landed` refuses a sha whose tree holds no landing file for the task and names `torve log land`
+
+- Paths: `src/torve/cli/merge.py` `src/torve/cli/manager.py` `tests/test_manager.py` `tests/test_forge.py`
+- Consequence: a phase finished by hand reads as landed in the pull request's title and body, and a hand resolution cannot claim a landing the tree does not carry
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-09-29T03:58:07Z'
+    title: Settled by S-0091
+    changes:
+      - subject: D-17
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-17
+        field: text
+        before: >-
+          Where the composer reads the phases still to come from — the document's
+          `phasing` list or the contracts already minted from it — is implementation's,
+          under one constraint: it names them from a record and never from an estimate
+        after: >-
+          The composer names the phases still to come from the document's phasing,
+          and the phases landed from the landing files on the branch tip joined with
+          the lane's own `lane_landed` records (S-0091/D-3); it never names one from
+          an estimate
+      - subject: D-17
+        field: fingerprint
+        after: 243e04715617ff15/fb7d7e5be0f10b09
+      - subject: D-18
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-18
+        field: text
+        before: >-
+          Whether the document branch is cut at the first landing or at the first
+          worktree of the document is implementation's, under one constraint: it is
+          cut once per document, from the remote's `main` after a fetch, and every
+          later landing targets the same ref
+        after: >-
+          The document branch is cut from the remote's `main` after a fetch, once
+          per pull request: at the document's first landing, and again when its pull
+          request merged or the remote no longer has the branch, with the old ref
+          kept under `refs/torve/documents/` (S-0091/D-1); every landing in between
+          targets the same ref
+      - subject: D-18
+        field: fingerprint
+        after: c0a0531fcf42a9da/c6da993128d86481
+    md: >-
+      S-0091, accepted on 2026-09-29, answers these OPEN rows: the lane reads the
+      document branch from the remote, cuts it again once per pull request, sets a
+      branch the remote lost aside under a ref, and counts a phase from the landing
+      files the branch carries. The rows now say so; the code lands with S-0091's
+      phases.

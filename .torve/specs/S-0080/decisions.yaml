@@ -233,11 +233,11 @@ decisions:
       rather than a correctness one, and the cost is a rate limit somebody else sets
     fingerprint: 1b450354dcf3ab9d/c6da993128d86481
   - id: D-17
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      What the engine does with a candidate whose branch the forge can no longer resolve
-      — deleted on merge, or renamed — is implementation's, under one constraint:
-      it is recorded and never silently re-opened
+      A candidate whose branch the forge no longer resolves — deleted on merge, or
+      renamed — has its local ref set aside under `refs/torve/documents/` and the
+      fact recorded as `lane_document_recut`; the branch is never reopened (S-0091/D-1)
     paths: [src/torve/application/lane.py]
     consequence: >-
       a repository configured to delete head branches on merge produces a stated gap
@@ -246,3 +246,4 @@ decisions:
       the setting is the forge's and torve cannot change it; what torve can do is
       notice that the branch it pushed is gone and say so, which is the input to whether
       this becomes a refusal later
+    fingerprint: 59c10319c94f3797/c6da993128d86481

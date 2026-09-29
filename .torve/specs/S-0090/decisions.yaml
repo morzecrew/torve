@@ -34,3 +34,17 @@ decisions:
       and a run already revises a blocker in the same worktree (S-0043/D-1); only
       a requeue threw the tree away, and bloomery paid a whole phase twice for it
     cites: [S-0026/D-8, S-0026/D-9, S-0086/D-2, S-0043/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A continued attempt reads the task's contract as it stands at that dispatch,
+      as every attempt does: after `plan --refresh` it is the refreshed contract.
+      The tree carries over from the checkpoint; the terms do not
+    paths: [src/torve/application/runner.py, tests/test_runner.py]
+    consequence: >-
+      an amendment that answered a halt reaches the attempt that resumes from it,
+      and the resumed tree is judged by the terms that now stand
+    rationale: >-
+      the refresh is what made the halt answerable, and a contract is a copy at write
+      time per attempt (S-0007/D-7), not per task
+    cites: [S-0088/D-1, S-0007/D-7]

@@ -1086,9 +1086,9 @@ Under the task unit, the lane reads its own stream once per pass into a ledger o
 - Paths: `src/torve/application/lane.py`
 - Consequence: the credential is used in proportion to what is actually open, and an idle night costs no forge calls at all
 
-### S-0080/D-17 — `OPEN` (The lane opens a pull request, and a person lands it)
+### S-0080/D-17 — `ASSUMED` (The lane opens a pull request, and a person lands it)
 
-What the engine does with a candidate whose branch the forge can no longer resolve — deleted on merge, or renamed — is implementation's, under one constraint: it is recorded and never silently re-opened
+A candidate whose branch the forge no longer resolves — deleted on merge, or renamed — has its local ref set aside under `refs/torve/documents/` and the fact recorded as `lane_document_recut`; the branch is never reopened (S-0091/D-1)
 
 - Paths: `src/torve/application/lane.py`
 - Consequence: a repository configured to delete head branches on merge produces a stated gap in the record rather than a task that quietly pushes itself back to the forge
@@ -1240,16 +1240,16 @@ The morning report counts documents opened, merged and closed beside the pull re
 - Paths: `src/torve/application/manager.py`
 - Consequence: a person reading the report knows how many merges are waiting on them, which in this unit is a much smaller and more actionable number than the pull-request counts beside it
 
-### S-0083/D-17 — `OPEN` (The pull request is one per document, not one per task)
+### S-0083/D-17 — `ASSUMED` (The pull request is one per document, not one per task)
 
-Where the composer reads the phases still to come from — the document's `phasing` list or the contracts already minted from it — is implementation's, under one constraint: it names them from a record and never from an estimate
+The composer names the phases still to come from the document's phasing, and the phases landed from the landing files on the branch tip joined with the lane's own `lane_landed` records (S-0091/D-3); it never names one from an estimate
 
 - Paths: `src/torve/application/forge.py`
 - Consequence: a body that says three phases remain is saying something checkable against the corpus or the board, rather than a count somebody derived
 
-### S-0083/D-18 — `OPEN` (The pull request is one per document, not one per task)
+### S-0083/D-18 — `ASSUMED` (The pull request is one per document, not one per task)
 
-Whether the document branch is cut at the first landing or at the first worktree of the document is implementation's, under one constraint: it is cut once per document, from the remote's `main` after a fetch, and every later landing targets the same ref
+The document branch is cut from the remote's `main` after a fetch, once per pull request: at the document's first landing, and again when its pull request merged or the remote no longer has the branch, with the old ref kept under `refs/torve/documents/` (S-0091/D-1); every landing in between targets the same ref
 
 - Paths: `src/torve/application/lane.py`
 - Consequence: a document has exactly one branch whatever order its first phases run in, so two parallel phase-1 tasks cannot leave two of them
@@ -1496,6 +1496,41 @@ The intake threshold and the decomposition lint keep the static size estimate: a
 
 - Paths: `src/torve/application/intake.py` `src/torve/application/sizing.py`
 - Consequence: the estimate stops deciding what runs and keeps deciding what a draft must look like, until a size model measured on the record replaces it
+
+### S-0090/D-1 — `ASSUMED` (Review rounds converge, and judged work continues from its tree) — implementation: none
+
+The review-thread leg's record source reads no finding from a review whose target is a round the leg minted; such a review still blocks its round's landing on a blocker, and what it finds below that grade stays on the stream
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a document's rounds are bounded by the findings on its phases, and a round's check opens no further round
+
+### S-0090/D-2 — `ASSUMED` (Review rounds converge, and judged work continues from its tree) — implementation: none
+
+The next dispatch of a task whose last attempt escalated `blocker_finding` or `locked_conflict`, and which has not landed, continues from the tree that attempt checkpointed, whether it was requeued on the board or its run state was reaped; a gate conviction still restarts from the base
+
+- Paths: `src/torve/application/runner.py` `tests/test_runner.py` `tests/test_run_loop.py`
+- Consequence: a review that asks for one file's change costs that change, and a halt answered by an amendment resumes where it stopped
+
+### S-0090/D-3 — `ASSUMED` (Review rounds converge, and judged work continues from its tree) — implementation: none
+
+A continued attempt reads the task's contract as it stands at that dispatch, as every attempt does: after `plan --refresh` it is the refreshed contract. The tree carries over from the checkpoint; the terms do not
+
+- Paths: `src/torve/application/runner.py` `tests/test_runner.py`
+- Consequence: an amendment that answered a halt reaches the attempt that resumes from it, and the resumed tree is judged by the terms that now stand
+
+### S-0091/D-1 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+
+The lane fetches with prune before it lands onto a document branch and works from the remote's copy: a branch the remote no longer has, or whose pull request merged, is moved aside under `refs/torve/documents/` and cut again from the remote's `main`; a branch the remote has sets the local ref to the remote tip; the task cut and the dependency check read the same remote ref
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/application/lane.py` `src/torve/application/runner.py` `src/torve/cli/manager.py` `tests/test_lane.py` `tests/test_runner.py` `tests/test_manager.py`
+- Consequence: a merged or deleted document branch is never landed onto again, a merged document's next pull request carries only what `main` lacks, and the old commits stay reachable
+
+### S-0091/D-2 — `ASSUMED` (A document branch is the remote's, and a hand landing counts) — implementation: none
+
+Commits on the remote document branch that the lane did not make are the branch having moved: the candidate is rebased onto them and the battery re-run, a conflict escalates for a person, and the branch is published with a lease on the exact commit the lane fetched
+
+- Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` `tests/test_lane.py`
+- Consequence: a hand commit on an open document branch survives the next landing or stops it, and a push never drops a commit it did not see
 
 ## Invariants holding over `src/torve/application/`
 

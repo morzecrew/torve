@@ -19,7 +19,9 @@ phasing:
       resumes, cutting from the task branch's tip, when the task has no landing and
       either its previous run went QUEUED straight off one of those escalations or
       it has no run state and the branch tip is that kind of checkpoint commit. A
-      red-gate `poison_ceiling` still starts from the base. Settles D-2.
+      red-gate `poison_ceiling` still starts from the base. A test pins that a continued
+      attempt reads the contract as it stands at that dispatch, the refreshed one
+      after `plan --refresh`. Settles D-2 and D-3.
     scope:
       - src/torve/application/runner.py
       - tests/test_runner.py

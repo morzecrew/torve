@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0083]
 informed_by: [S-0080, S-0085]

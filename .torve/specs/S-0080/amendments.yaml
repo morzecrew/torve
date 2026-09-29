@@ -28,3 +28,31 @@ amendments:
 
       Settled by the implementation:
       - D-16: The task-unit cadence is implemented as above. S-0083/D-12 states the document-unit cadence separately, so it does not replace this row. The phase log's claim ('once per candidate that passed every criterion') predates the ledger; the code is what the text follows. Evidence: src/torve/application/lane.py::_pr_ledger, ::_forge_verdict and the pass loop; tests/test_lane.py::test_a_pass_with_nothing_open_asks_the_forge_nothing; tests/test_lane.py::test_a_merged_pull_request_is_recorded_as_the_landing_with_the_merge_commit; .torve/specs/S-0083/decisions.yaml.
+  - id: A-2
+    at: '2026-09-29T03:58:07Z'
+    title: Settled by S-0091
+    changes:
+      - subject: D-17
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-17
+        field: text
+        before: >-
+          What the engine does with a candidate whose branch the forge can no longer
+          resolve — deleted on merge, or renamed — is implementation's, under one
+          constraint: it is recorded and never silently re-opened
+        after: >-
+          A candidate whose branch the forge no longer resolves — deleted on merge,
+          or renamed — has its local ref set aside under `refs/torve/documents/` and
+          the fact recorded as `lane_document_recut`; the branch is never reopened
+          (S-0091/D-1)
+      - subject: D-17
+        field: fingerprint
+        after: 59c10319c94f3797/c6da993128d86481
+    md: >-
+      S-0091, accepted on 2026-09-29, answers these OPEN rows: the lane reads the
+      document branch from the remote, cuts it again once per pull request, sets a
+      branch the remote lost aside under a ref, and counts a phase from the landing
+      files the branch carries. The rows now say so; the code lands with S-0091's
+      phases.

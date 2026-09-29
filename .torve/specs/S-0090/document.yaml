@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
   scope: review
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0086]
 informed_by: [S-0084]
@@ -96,9 +96,11 @@ design:
       checkpoint commit for one of those two reasons (the commit's trailer names it).
       The operator's route and the board's route then reach the same tree.
 
-      At acceptance S-0026/D-8 is amended to say that continuation fires on budget
-      exhaustion, and on a review blocker or a halt whose tree was checkpointed; never
-      on a gate conviction. S-0026/D-8 is LOCKED, so the amendment is the owner's.
+      S-0026 is archived and its row S-0026/D-8 was carried into no live document, so
+      this document's S-0090/D-2 is the continuation rule now: continuation fires on
+      budget exhaustion, and on a review blocker or a halt whose tree was checkpointed;
+      never on a gate conviction. The owner accepted the change to what S-0026/D-8
+      locked.
   - key: attempts-and-ceilings
     md: |
       A continued attempt is an attempt: it counts toward the poison ceiling and the
@@ -148,3 +150,5 @@ questions:
       Should a continued attempt after a halt read the amended contract (S-0088's
       refresh) or the one the halted attempt was cut under? The refresh is what made
       the halt answerable, which argues for the refreshed contract.
+    status: settled
+    settled_by: D-3
