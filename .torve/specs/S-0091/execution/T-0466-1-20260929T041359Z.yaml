@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0466
+phase: 1
+base: c77751cb75be8d9eca7fbb448edc6fcee05f6430
+commit: 4990c8835d49c70fdc1dfbb42ca78bb572966d53
+at: '2026-09-29T04:13:59Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T04:12:27Z'
+    claim: >-
+      the move aside under refs/torve/documents/ writes an arbitrary ref, which no
+      LaneVcs method does; the contract widens the port by fetch and remote_tip only,
+      so the lane writes it through subprocess as _superseded_diff already reads git
+    evidence: >-
+      src/torve/application/lane.py:724-740 — _keep_ref, update-ref of the kept ref
+    action: decided
+  - decision: D-1
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-09-29T04:12:27Z'
+    claim: >-
+      a dry run (awaiting_landing, merge --dry-run) neither fetches nor moves a ref;
+      it only names the document branch, as it cut nothing before
+    evidence: >-
+      src/torve/application/lane.py:680-681 — dry run returns before the fetch
+    action: decided
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T04:12:27Z'
+    claim: >-
+      existing tests assumed a local document branch was the truth and a publisher
+      that never pushes; the fake publisher now pushes to origin when given a root,
+      and the runner and manager fixtures set the remote-tracking ref the new behaviour
+      reads
+    evidence: >-
+      tests/test_lane.py:853-866 — _recording_publisher pushes when given root; tests/test_runner.py:2696
+      and tests/test_manager.py:254 set refs/remotes/origin
+    action: decided
