@@ -850,9 +850,18 @@ def test_approving_a_task_with_no_run_state_is_a_configuration_error(lane_repo):
 # `pull_request` mode: the landing act is a publication (S-0080/D-3, S-0080/D-11).
 
 
-def _recording_publisher(published: list[tuple[str, str]], url: str = "https://forge/pr/7"):
+def _recording_publisher(
+    published: list[tuple[str, str]], url: str = "https://forge/pr/7", root: Path | None = None
+):
+    """Records each publication; given *root*, it also pushes the branch to
+    `origin` as the real publisher does, so the lane's fetch finds it."""
+
     def publish(task_id: str, branch: str) -> str:
         published.append((task_id, branch))
+
+        if root is not None:
+            git(root, "push", "-q", "--force", "origin", f"{branch}:refs/heads/{branch}")
+
         return url
 
     return publish
@@ -1198,7 +1207,10 @@ def test_the_first_phase_cuts_the_document_branch_and_lands_onto_it(lane_repo, t
     published: list[tuple[str, str]] = []
 
     results = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
     )
 
     document = naming.document_branch("S-0900")
@@ -1220,7 +1232,10 @@ def test_the_first_phase_cuts_the_document_branch_and_lands_onto_it(lane_repo, t
     # The branch is cut once: a later pass finds the phase already landed on
     # it and spends no second publication.
     again = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
     )
     assert [r.action for r in again] == ["already landed"]
     assert len(published) == 1
@@ -1237,7 +1252,10 @@ def test_a_second_phase_rebases_onto_the_document_branch_and_lands_onto_the_same
     published: list[tuple[str, str]] = []
 
     results = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
     )
 
     document = naming.document_branch("S-0901")
@@ -1268,7 +1286,10 @@ def test_a_contract_naming_no_document_lands_by_the_task_unit(lane_repo, tmp_pat
     published: list[tuple[str, str]] = []
 
     results = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
     )
 
     assert [r.action for r in results] == ["pull request", "pull request"]
@@ -1298,7 +1319,10 @@ def test_a_refused_publication_puts_the_document_branch_back(lane_repo, tmp_path
 
     published: list[tuple[str, str]] = []
     again = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
     )
     assert [r.action for r in again] == ["landed"]
     assert published == [("T-7206", document)]
@@ -1331,7 +1355,7 @@ def test_a_dry_run_cuts_no_document_branch(lane_repo, tmp_path):
         lane_repo,
         GitLane(),
         dry_run=True,
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         unit="document",
     )
 
@@ -1359,7 +1383,7 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
     import torve.cli.merge as merge_module
 
     original = merge_module._publisher
-    merge_module._publisher = lambda root, config: _recording_publisher(seen)
+    merge_module._publisher = lambda root, config: _recording_publisher(seen, root=root)
 
     try:
         result = invoke_merge(lane_repo)
@@ -1389,7 +1413,9 @@ def _landed_document(
     for task_id in phases:
         _contract(root, task_id, spec)
 
-    process_lane(root, GitLane(), publish=_recording_publisher(published), unit="document")
+    process_lane(
+        root, GitLane(), publish=_recording_publisher(published, root=root), unit="document"
+    )
 
     return naming.document_branch(spec)
 
@@ -1404,7 +1430,7 @@ def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_re
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=21, state="merged", merge_commit="d" * 40), asked),
         unit="document",
     )
@@ -1433,7 +1459,7 @@ def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_re
     again = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=21, state="merged", merge_commit="d" * 40), asked),
         unit="document",
     )
@@ -1456,7 +1482,7 @@ def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=22, state="closed"), asked),
         unit="document",
     )
@@ -1481,7 +1507,7 @@ def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch
     again = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=22, state="closed"), asked),
         unit="document",
     )
@@ -1504,7 +1530,7 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=23, state="open"), asked),
         unit="document",
     )
@@ -1523,7 +1549,7 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
     again = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=23, state="open"), asked),
         unit="document",
     )
@@ -1539,7 +1565,7 @@ def test_an_open_document_on_an_unmoved_base_spends_no_push(lane_repo, tmp_path)
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=24, state="open"), asked),
         unit="document",
     )
@@ -1567,7 +1593,7 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=25, state="open"), asked),
         unit="document",
     )
@@ -1587,7 +1613,7 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
     again = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=25, state="open"), asked),
         unit="document",
     )
@@ -1612,7 +1638,7 @@ def test_a_pass_holding_no_document_asks_the_forge_nothing(lane_repo, tmp_path):
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(state="merged", merge_commit="e" * 40), asked),
         unit="document",
     )
@@ -1638,7 +1664,7 @@ def test_the_served_leg_publishes_and_reads_back_as_the_manual_verb_does(lane_re
     published: list[tuple[str, str]] = []
     asked: list[str] = []
     original = (merge_module._publisher, merge_module._forge)
-    merge_module._publisher = lambda root, config: _recording_publisher(published)
+    merge_module._publisher = lambda root, config: _recording_publisher(published, root=root)
     merge_module._forge = lambda config: _forge(_pr(number=26, state="open"), asked)
 
     try:
@@ -1688,7 +1714,7 @@ def test_the_document_read_back_records_the_findings_it_saw(lane_repo, tmp_path)
     process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(info, asked),
         unit="document",
     )
@@ -1713,9 +1739,95 @@ def test_a_document_pull_request_with_no_unresolved_thread_records_nothing(lane_
     process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=31, state="open"), asked),
         unit="document",
     )
 
     assert [e for e in _events(lane_repo) if e.get("event") == "lane_pr_threads"] == []
+
+
+# The lane works from the remote's copy of a document branch (S-0091/D-1).
+
+
+def _kept(root: Path, document: str) -> list[str]:
+    return git(root, "for-each-ref", "--format=%(refname)", f"refs/torve/documents/{document}/")
+
+
+def test_a_merged_document_is_cut_again_and_its_next_pull_request_is_new_work(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0920", {"T-7401": "one.py"}, published)
+    old = git(lane_repo, "rev-parse", document)
+    merged = _forge(_pr(number=31, state="merged", merge_commit="e" * 40), [])
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=merged,
+        unit="document",
+    )
+
+    candidate(lane_repo, "T-7402", "two.py", "# T-7402\n")
+    _contract(lane_repo, "T-7402", "S-0920")
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=merged,
+        unit="document",
+    )
+
+    by_task = {r.task: r.action for r in results}
+    assert by_task == {"T-7401": "already landed", "T-7402": "landed"}
+    # The old commits stay reachable; the new branch carries only new work.
+    assert _kept(lane_repo, document) == f"refs/torve/documents/{document}/{old}"
+    assert git(lane_repo, "rev-parse", f"{document}~1") == git(lane_repo, "rev-parse", "main")
+    recut = [e for e in _events(lane_repo) if e.get("event") == "lane_document_recut"]
+    assert [(e["kept"], e["reason"]) for e in recut] == [(old, "merged")]
+
+    from torve.application.lane import document_tasks
+
+    assert document_tasks(lane_repo, document) == ["T-7402"]
+
+
+def test_a_document_branch_the_remote_deleted_is_cut_again(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0921", {"T-7403": "three.py"}, published)
+    old = git(lane_repo, "rev-parse", document)
+    git(lane_repo, "push", "-q", "origin", "--delete", document)
+
+    candidate(lane_repo, "T-7404", "four.py", "# T-7404\n")
+    _contract(lane_repo, "T-7404", "S-0921")
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        only="T-7404",
+    )
+
+    assert _kept(lane_repo, document) == f"refs/torve/documents/{document}/{old}"
+    assert git(lane_repo, "rev-parse", f"{document}~1") == git(lane_repo, "rev-parse", "main")
+    recut = [e for e in _events(lane_repo) if e.get("event") == "lane_document_recut"]
+    assert [e["reason"] for e in recut] == ["absent on the remote"]
+
+
+def test_a_document_branch_the_remote_has_is_worked_from_the_remote_tip(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0922", {"T-7405": "five.py"}, published)
+    # Someone else moved the remote branch; the local ref is stale.
+    remote_tip = git(lane_repo, "rev-parse", "main")
+    git(lane_repo, "push", "-q", "--force", "origin", f"{remote_tip}:refs/heads/{document}")
+
+    candidate(lane_repo, "T-7406", "six.py", "# T-7406\n")
+    _contract(lane_repo, "T-7406", "S-0922")
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        only="T-7406",
+    )
+
+    assert git(lane_repo, "rev-parse", f"{document}~1") == remote_tip
+    assert not _kept(lane_repo, document)

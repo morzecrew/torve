@@ -250,6 +250,8 @@ def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_
     repo.git("cherry-pick", attempt_sha)
     rebased_sha = GitLane().tip(repo.root, "HEAD")
     assert rebased_sha != attempt_sha
+    # The dependency check reads the remote's copy (S-0091/D-1).
+    repo.git("update-ref", "refs/remotes/origin/torve/S-0013", "HEAD")
 
     telemetry = repo.root / ".torve" / "telemetry.jsonl"
     telemetry.parent.mkdir(parents=True, exist_ok=True)
@@ -288,7 +290,45 @@ def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_
     repo.commit("a merge to main")
     repo.git("checkout", "-q", "torve/S-0013")
     repo.git("rebase", "-q", "main")
+    repo.git("update-ref", "refs/remotes/origin/torve/S-0013", "HEAD")
     assert not GitLane().is_ancestor(repo.root, rebased_sha, "torve/S-0013")
+    assert on_base(dependent, board)
+
+
+def test_a_local_document_branch_the_remote_lacks_is_no_base(tmp_path):
+    """The branch the remote deleted after its merge is not the base a
+    dependent is cut from, so a landing only it holds satisfies nothing."""
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.manager import _dependencies_on_base
+    from torve.config.runconfig import RunnerConfig
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Lane")
+    repo.git("config", "user.email", "lane@example.invalid")
+    repo.write("src/a/app.py", "print('hello')\n")
+    repo.commit("init")
+    repo.git("checkout", "-q", "-b", "torve/S-0014")
+    repo.write("src/a/app.py", "print('landed')\n")
+    repo.commit("the phase")
+    landed = GitLane().tip(repo.root, "HEAD")
+    repo.git("checkout", "-q", "main")
+
+    config = RunnerConfig.model_validate(
+        {"promotion": {"landing": "pull_request", "unit": "document", "auto_merge": True}}
+    )
+    on_base = _dependencies_on_base(repo.root, config)
+    dependent = Task(
+        id="T-2", spec="S-0014", decisions=[], depends_on=["T-1"], scope=Scope(allow=[], deny=[])
+    )
+    board = Board(tasks={"T-1": TaskView(task_id="T-1", state=TaskState.READY, landed_sha=landed)})
+
+    assert not on_base(dependent, board)
+
+    repo.git("update-ref", "refs/remotes/origin/torve/S-0014", landed)
+
     assert on_base(dependent, board)
 
 

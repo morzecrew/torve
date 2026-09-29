@@ -381,6 +381,26 @@ class GitLane:
 
     # ....................... #
 
+    def fetch(self, root: Path, prune: bool = True) -> None:
+        """Update the remote's refs; with *prune*, a branch the remote deleted
+        stops existing here too. A failed fetch raises — working from a stale
+        copy is what it prevents."""
+
+        proc = _git(root, "fetch", "--quiet", *(["--prune"] if prune else []), "origin")
+
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or "git fetch failed")
+
+    # ....................... #
+
+    def remote_tip(self, root: Path, branch: str) -> str | None:
+        """The remote's copy of *branch* as of the last fetch, or None when
+        the remote has no such branch."""
+
+        return self.tip(root, f"refs/remotes/origin/{branch}")
+
+    # ....................... #
+
     def is_ancestor(self, root: Path, ancestor: str, descendant: str) -> bool:
         return _git(root, "merge-base", "--is-ancestor", ancestor, descendant).returncode == 0
 

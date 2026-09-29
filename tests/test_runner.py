@@ -2691,12 +2691,27 @@ def test_a_phase_is_cut_from_its_documents_branch_once_it_exists(repo):
     from torve.application.runner import _cut_from
 
     repo.seed()
+    # The remote's copy is the one read (S-0091/D-1): a local branch alone is
+    # a branch the remote may have deleted.
+    repo.git("update-ref", f"refs/remotes/origin/{naming.document_branch('S-0083')}", "main")
+
+    assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
+        "origin/torve/S-0083",
+        False,
+        "origin/torve/S-0083",
+    )
+
+
+def test_a_local_document_branch_the_remote_lacks_is_not_cut_from(repo):
+    from torve.application.runner import _cut_from
+
+    repo.seed()
     repo.git("branch", naming.document_branch("S-0083"), "main")
 
     assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
-        "torve/S-0083",
-        False,
-        "torve/S-0083",
+        "main",
+        True,
+        None,
     )
 
 

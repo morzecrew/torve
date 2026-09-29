@@ -648,7 +648,15 @@ def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> s
     after a fetch (S-0083/D-5), the first time a candidate of that document
     reaches the landing criteria — every later landing finds it and targets
     the same ref, so two phases of one document cannot leave two branches. A
-    dry run cuts nothing, as it publishes nothing.
+    dry run cuts nothing and fetches nothing, as it publishes nothing.
+
+    The remote's copy is the one worked from (S-0091/D-1): the fetch prunes,
+    and a branch the remote no longer has, or whose pull request the ledger
+    recorded merged, is never landed onto again — the local ref is kept under
+    `refs/torve/documents/<branch>/<tip>` so its commits stay reachable, and
+    the branch is cut again from the remote's `main`, so the next pull request
+    carries only what `main` lacks. A branch the remote has sets the local ref
+    to the remote tip.
     """
 
     from torve.gates.context import load_task, resolve_base
@@ -669,17 +677,64 @@ def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> s
 
     branch = naming.document_branch(spec)
 
-    if vcs.tip(root, branch) is None and not dry_run:
-        base = resolve_base(root, None, fetch=True)
-        tip = vcs.tip(root, base) if base else None
+    if dry_run:
+        return branch
 
-        if tip is None:
-            raise RuntimeError(f"no base to cut {branch!r} from — the remote has no main")
+    vcs.fetch(root, prune=True)
+    remote = vcs.remote_tip(root, branch)
+    entry = _document_ledger(root).get(branch)
 
+    if remote is not None and not (entry is not None and entry.verdict == "landed"):
+        vcs.reset_branch(root, branch, remote)
+        return branch
+
+    local = vcs.tip(root, branch)
+    base = resolve_base(root, None)
+    tip = vcs.tip(root, base) if base else None
+
+    if tip is None:
+        raise RuntimeError(f"no base to cut {branch!r} from — the remote has no main")
+
+    if local is not None and local != tip:
+        _keep_ref(root, f"refs/torve/documents/{branch}/{local}", local)
+        engine_event(
+            root,
+            "lane_document_recut",
+            {
+                "task": task_id,
+                "branch": branch,
+                "kept": local,
+                "sha": tip,
+                "reason": "absent on the remote" if remote is None else "merged",
+            },
+        )
+
+    if local != tip:
         vcs.reset_branch(root, branch, tip)
+
+    if local is None:
         engine_event(root, "lane_document_branch", {"task": task_id, "branch": branch, "sha": tip})
 
     return branch
+
+
+# ....................... #
+
+
+def _keep_ref(root: Path, ref: str, sha: str) -> None:
+    """Write *ref* at *sha* — a retired document branch kept reachable. The
+    ports are not this task's to widen beyond the fetch and the remote tip;
+    `_superseded_diff` reads git through subprocess for the same reason."""
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "update-ref", ref, sha],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or f"could not keep {ref}")
 
 
 # ....................... #
@@ -911,11 +966,14 @@ _DOCUMENT_VERDICTS = {
 class _Document:
     """What the lane's own records say about one document branch: the verdict
     its pull request carries, every task its landings named, and the base tip
-    a rebase of it last conflicted against."""
+    a rebase of it last conflicted against. `earlier` holds the tasks of the
+    branch's previous pull requests with the verdict each ended under — a
+    branch cut again after a merge starts a new list (S-0091/D-1)."""
 
     verdict: str = ""
     tasks: list[str] = field(default_factory=list)
     conflict_base: str = ""
+    earlier: dict[str, str] = field(default_factory=dict)
 
 
 def _document_ledger(root: Path) -> dict[str, _Document]:
@@ -941,6 +999,12 @@ def _document_ledger(root: Path) -> dict[str, _Document]:
 
         if event == "lane_landed" and row.get("unit") == "document":
             entry = ledger.setdefault(branch, _Document())
+
+            if entry.verdict not in ("", "open"):
+                entry.earlier.update(dict.fromkeys(entry.tasks, entry.verdict))
+                entry.tasks = []
+                entry.conflict_base = ""
+
             entry.verdict = "open"
             task = str(row.get("task") or "")
 
@@ -1191,6 +1255,9 @@ def _document_verdicts(
     carried: dict[str, tuple[str, str]] = {}
 
     for branch, entry in sorted(_document_ledger(root).items()):
+        for task_id, verdict in entry.earlier.items():
+            carried[task_id] = ("abandoned" if verdict == "closed" else "already landed", branch)
+
         for task_id in entry.tasks:
             carried[task_id] = (
                 "abandoned" if entry.verdict == "closed" else "already landed",

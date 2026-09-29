@@ -1170,7 +1170,10 @@ def _cut_from(root: Path, task: Task, config: RunnerConfig) -> tuple[str | None,
     everything the branch carries. Before the branch is cut, the base is the
     remote's main after a fetch rather than a local copy stale from the first
     merge onward. Every other unit, a contract naming no document (S-0083/D-4)
-    and a local landing (S-0083/D-2) cut exactly as they cut today."""
+    and a local landing (S-0083/D-2) cut exactly as they cut today.
+
+    The document branch is read as the remote holds it (S-0091/D-1), the copy
+    the lane works from — never a local ref the remote may have deleted."""
 
     promotion = config.promotion
 
@@ -1178,7 +1181,7 @@ def _cut_from(root: Path, task: Task, config: RunnerConfig) -> tuple[str | None,
         return resolve_base(root, config.base), False, None
 
     try:
-        document = resolve_base(root, naming.document_branch(task.spec))
+        document = resolve_base(root, f"origin/{naming.document_branch(task.spec)}")
 
     except GitError:
         return resolve_base(root, config.base), True, None
