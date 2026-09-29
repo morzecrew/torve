@@ -884,3 +884,45 @@ def test_the_mimo_seat_names_its_scope_guard_only_when_a_hook_is_declared(
 
     install = (DEFINITIONS / "mimo" / "toolkit" / "equip_install.py").read_text("utf-8")
     assert 'if kind == "hook":' in install
+
+
+def test_the_claude_seat_maps_the_night_knobs() -> None:
+    """S-0079/D-9: the night seat declares three knobs torve reads none of, and
+    the image is where they mean something. Unmapped, a night seat ran exactly
+    as a day seat: no fallback model, `AskUserQuestion` waited on, and a
+    capacity error ended the attempt."""
+
+    run = (DEFINITIONS / "claude" / "toolkit" / "run").read_text(encoding="utf-8")
+
+    assert '--fallback-model "$CLAUDE_FALLBACK_MODEL"' in run
+    assert '--disallowed-tools "$CLAUDE_DENY_TOOLS"' in run
+    assert "${CLAUDE_CAPACITY_RETRY_SECONDS:-0}" in run
+    assert "python3 /opt/torve/capacity.py" in run
+
+
+@pytest.mark.parametrize(
+    ("envelope", "retry"),
+    [
+        ({"is_error": True, "api_error_status": 529, "usage": {"input_tokens": 0}}, True),
+        ({"is_error": True, "api_error_status": 429, "usage": {}}, True),
+        ({"is_error": True, "api_error_status": 529, "usage": {"input_tokens": 1200}}, False),
+        ({"is_error": True, "api_error_status": 400, "usage": {"input_tokens": 0}}, False),
+        ({"is_error": False, "usage": {"input_tokens": 0}}, False),
+    ],
+)
+def test_only_a_capacity_error_before_any_turn_is_retried(
+    tmp_path: Path, envelope: dict[str, Any], retry: bool
+) -> None:
+    """A rerun is safe only when the run did nothing: a 429 or 5xx with every
+    token count zero. A 400 is the request refused (S-0089/D-2), and a run that
+    spent tokens may have touched files."""
+
+    output = tmp_path / "result.json"
+    output.write_text(
+        '{"type":"system","subtype":"init"}\n' + json.dumps({"type": "result", **envelope}) + "\n",
+        encoding="utf-8",
+    )
+    script = DEFINITIONS / "claude" / "toolkit" / "capacity.py"
+    done = subprocess.run([sys.executable, str(script), str(output)], check=False)
+
+    assert (done.returncode == 0) is retry

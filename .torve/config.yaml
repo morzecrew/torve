@@ -176,6 +176,15 @@ tiers:
     # which it reaches (S-0064/D-4). pi-ai's overlay is openai-completions
     # today; the anthropic route is the same credential and a different seat.
     dialect: openai
+  # The night twin of `executor` (S-0079/D-8): the same profile, model and
+  # provider on the night harness, whose three knobs the claude image maps to a
+  # fallback model, denied tools and a bounded capacity retry. A seat a served
+  # night can name; nothing routes to it by default.
+  executor.night:
+    harness: claude-subscription-night
+    profile: claude-equipped
+    model: claude-opus-5-5
+    provider: anthropic
   # A replay arm for the mimo harness: the same model, provider and dialect as
   # `executor.dsh`, so a pair of replays differs in the harness alone. mimo
   # reaches the model through a provider its image declares from these scalars
