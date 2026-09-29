@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0467
+phase: 2
+base: c77751cb75be8d9eca7fbb448edc6fcee05f6430
+commit: fa608e222c2530cfe86db056b8ee0d5d50e83b17
+at: '2026-09-29T04:17:51Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T04:16:14Z'
+    claim: >-
+      republish_branch leases on refs/remotes/origin/<branch> (empty expect when never
+      fetched); hand commits on the document branch take the existing moved-base rebase
+      path, conflicts escalate, a refused push puts the local ref back via _land_document
+    evidence: >-
+      src/torve/adapters/vcs/git.py:268-281 — explicit --force-with-lease=refs/heads/<branch>:<fetched
+      sha>; src/torve/application/lane.py:720-727 restores the ref on refusal
+    action: decided
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T04:16:14Z'
+    claim: >-
+      this task relies on D-1's fetch setting the local ref to the remote tip; no
+      fetch-with-prune exists in lane.py yet, so tests simulate the hand commit already
+      fetched onto the local ref
+    evidence: >-
+      src/torve/application/lane.py:639-685 — _document_branch fetches only when cutting
+      a new branch
+    action: decided
