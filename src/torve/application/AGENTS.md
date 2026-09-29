@@ -960,49 +960,49 @@ The pack carries a map of where things are, and it arrives in the first message 
 - Paths: `src/torve/application/contextpack.py` `src/torve/adapters/agent/harness.py`
 - Consequence: the median eight calls an attempt spends finding its way around this repository become zero, and every attempt starts from the same account of the tree instead of from whichever corner it happened to list first
 
-### S-0079/D-3 — `ASSUMED` (The night as a typed record)
+### S-0079/D-3 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The night's entries are the facts the log already holds inside the window — landings, gate verdicts, engine-ended attempts, escalations — and the night stamps no event of its own
 
 - Paths: `src/torve/application/manager.py`
 - Consequence: the report cannot disagree with the board beside it, and the price is that membership is a time comparison: a fact recorded between two nights belongs to whichever window holds its instant
 
-### S-0079/D-4 — `ASSUMED` (The night as a typed record)
+### S-0079/D-4 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The morning report is a projection of the window computed on every call and stored nowhere, and it holds no field that prose can occupy
 
 - Paths: `src/torve/application/manager.py`
 - Consequence: no line of the report can be a model's account of its own night, because there is nowhere to put one — the rule is enforced by the shape rather than by a reviewer
 
-### S-0079/D-6 — `ASSUMED` (The night as a typed record)
+### S-0079/D-6 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 An empty ready queue refuses the night at the open, before the first pass; a queue that drains later closes the night rather than failing it
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: a night that would have slept eight hours costs nothing and says so at the last moment the operator is present, and draining is never mistaken for an error
 
-### S-0079/D-7 — `ASSUMED` (The night as a typed record)
+### S-0079/D-7 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The night stops on the first escalation whose class the operator named and continues on every other; `loop.pause_escalations` is untouched and still counts a queue
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: an operator can say "wake me for a locked conflict, keep going on a merge conflict" without changing what escalates, and the count-based pause keeps governing the thing it already governs
 
-### S-0079/D-10 — `ASSUMED` (The night as a typed record)
+### S-0079/D-10 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The lane leg a served night runs is handed `conflict_disposal`, so a candidate whose rebase conflicts against a moved base is re-queued by the engine instead of escalating `merge_conflict`
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py`
 - Consequence: one class of overnight escalation stops waiting for a person, and a candidate disposed of this way cannot be re-queued twice against the same tip because `conflict_base` bounds it
 
-### S-0079/D-11 — `ASSUMED` (The night as a typed record)
+### S-0079/D-11 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The width is recorded as a term of the night and is one; this document does not claim more than one task per pass
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: a later night at width three is comparable against tonight's, because tonight's record says what it ran at rather than leaving it to be inferred from the manager's source as of that date
 
-### S-0079/D-12 — `ASSUMED` (The night as a typed record)
+### S-0079/D-12 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The wall-clock end is the night's `opened_at` plus `night.minutes`. The serve loop reads its stop terms only at the top of a pass, so an attempt in flight at the end finishes, and `night.closed` records `wall_clock` with `overran_seconds` past the end.
 

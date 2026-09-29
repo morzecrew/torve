@@ -48,3 +48,27 @@ amendments:
       Settled by the implementation:
       - D-9: The names and the engine-interprets-none constraint were settled and tested; the image half landed at 04007068, where `sandboxes/claude/toolkit/run` maps the three to `--fallback-model`, `--disallowed-tools` and a bounded capacity retry. Evidence: .torve/harnesses/claude-subscription-night.yaml; sandboxes/claude/toolkit/run; sandboxes/claude/toolkit/capacity.py; tests/test_sandbox_defs.py::test_the_claude_seat_maps_the_night_knobs; tests/test_agents.py::test_the_engine_interprets_no_night_knob.
       - D-12: Both halves of the question are answered in code and tests, and the phase-2 log (T-0430) records the same choice. Evidence: src/torve/application/residency.py; src/torve/domain/events.py::NightOpened; src/torve/config/runconfig.py::NightConfig.minutes; tests/test_residency.py::test_the_wall_clock_end_is_soft_and_the_attempt_in_flight_is_never_interrupted.
+  - id: A-2
+    at: '2026-09-29T05:32:51Z'
+    title: the night records every reachable seat's knobs
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          `night.opened` carries the night's terms whole — the ready queue as it stood,
+          the width, the budget in dollars and in attempts, the stop conditions, the
+          lease, and the resolved value of each night knob — read once at the open
+          and never re-read
+        after: >-
+          `night.opened` carries the night's terms whole — the ready queue as it stood,
+          the width, the budget in dollars and in attempts, the stop conditions, the
+          lease, and as `knobs` the resolved `env` of every seat the queue can reach,
+          keyed by seat: the seat each queued task resolves to, the rungs its retries
+          can climb, and the review seat — read once at the open and never re-read
+      - subject: D-2
+        field: fingerprint
+        after: 58af1d89b6717c08/627d7a12b3f43ec4
+    md: |-
+      D-2 promised the resolved value of each night knob, and nothing ever said which knobs those were: `NightOpened.knobs` has been written empty by every night so far. The owner chose the reading that needs no list: the open records the resolved `env` of every seat the queue can reach, keyed by seat. The three knobs D-9 names are recorded because the night seat carries them, and a day seat's knobs are recorded for the same reason, which is what makes two nights comparable when one ran on a different seat.
+
+      Phase 5 lands it, so the document reads `implementation: partial` until it does.

@@ -266,16 +266,16 @@ A document's `kind` stays `design` or `convention`: it answers what prose an acc
 - Consequence: One axis per field; the corpus never grows a second way to say provenance
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-1 — `ASSUMED` (The night as a typed record)
+### S-0079/D-1 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 A night is a subject in the event log — `night.opened` and `night.closed`, both the manager's authority — and never a file, a summary or a counter anybody maintains
 
 - Paths: `src/torve/domain/events.py`
 - Consequence: a manager killed at 04:00 has already written everything the morning report needs, and a night with an open and no close reads as unfinished rather than as lost
 
-### S-0079/D-2 — `ASSUMED` (The night as a typed record)
+### S-0079/D-2 — `ASSUMED` (The night as a typed record) — implementation: partial
 
-`night.opened` carries the night's terms whole — the ready queue as it stood, the width, the budget in dollars and in attempts, the stop conditions, the lease, and the resolved value of each night knob — read once at the open and never re-read
+`night.opened` carries the night's terms whole — the ready queue as it stood, the width, the budget in dollars and in attempts, the stop conditions, the lease, and as `knobs` the resolved `env` of every seat the queue can reach, keyed by seat: the seat each queued task resolves to, the rungs its retries can climb, and the review seat — read once at the open and never re-read
 
 - Paths: `src/torve/domain/events.py`
 - Consequence: a night's report says what the night was started with even after the configuration was edited while it ran, and two nights are comparable because their terms are recorded rather than reconstructed from whatever the file says afterwards

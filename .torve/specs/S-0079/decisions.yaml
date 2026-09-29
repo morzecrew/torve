@@ -20,8 +20,9 @@ decisions:
     text: >-
       `night.opened` carries the night's terms whole — the ready queue as it stood,
       the width, the budget in dollars and in attempts, the stop conditions, the lease,
-      and the resolved value of each night knob — read once at the open and never
-      re-read
+      and as `knobs` the resolved `env` of every seat the queue can reach, keyed by
+      seat: the seat each queued task resolves to, the rungs its retries can climb,
+      and the review seat — read once at the open and never re-read
     paths: [src/torve/domain/events.py]
     consequence: >-
       a night's report says what the night was started with even after the configuration
@@ -33,6 +34,7 @@ decisions:
       it had; the knobs are recorded as resolved values rather than as the operator's
       intention for the same reason the regime hash is
     cites: [S-0044/D-5, S-0063/D-10]
+    fingerprint: 58af1d89b6717c08/627d7a12b3f43ec4
   - id: D-3
     grade: ASSUMED
     text: >-

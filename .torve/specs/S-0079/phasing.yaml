@@ -102,3 +102,24 @@ phasing:
     depends_on:
       - 3
     character: routine
+  - phase: 5
+    title: >-
+      the open records what every reachable seat was set to
+    intent: >-
+      `night.opened` fills `knobs` from the configuration as it stood at the open:
+      for every seat a queued task can reach — its own, its retry rungs, the review
+      seat — that seat's merged `env`, keyed by seat name. Nothing names which knobs
+      are the night's, so a harness that adds a knob is recorded without an engine
+      change, and a night on a day seat is told apart by the seat it ran on. The payload's
+      `knobs` becomes a mapping of mappings; every night recorded so far carries it
+      empty, so the old records still fold. Settles D-2's knob clause.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/residency.py
+      - tests/test_events.py
+      - tests/test_residency.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_events.py tests/test_residency.py
+      - uv run mypy src
+    character: structural

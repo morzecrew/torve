@@ -393,7 +393,7 @@ The burn profile is derived from the attempt's retained trace when it is read, n
 - Consequence: every attempt whose trace is still on disk has a profile, so a change is judged against a population rather than against the attempts that happened after the classifier shipped, and a correction to a class reclassifies the history instead of leaving it wrong
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-10 — `ASSUMED` (The night as a typed record)
+### S-0079/D-10 — `ASSUMED` (The night as a typed record) — implementation: partial
 
 The lane leg a served night runs is handed `conflict_disposal`, so a candidate whose rebase conflicts against a moved base is re-queued by the engine instead of escalating `merge_conflict`
 
