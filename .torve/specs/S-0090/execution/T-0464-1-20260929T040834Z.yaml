@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0464
+phase: 2
+base: c77751cb75be8d9eca7fbb448edc6fcee05f6430
+commit: 818feaf6abd4cc66a7e188f5353780954257333a
+at: '2026-09-29T04:08:34Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T04:07:05Z'
+    claim: >-
+      _continuable admits blocker_finding and locked_conflict; run_task resumes off
+      the QUEUED escalation or, with no run state, off a branch tip that is a blocker/halt
+      checkpoint, and never for a landed task; poison_ceiling still starts from base
+    evidence: >-
+      src/torve/application/runner.py:154-165 — the widened rule; runner.py:1358 reads
+      the branch tip, runner.py:1466 excludes a landed task
+    action: decided
+    notes: >-
+      The budget checkpoint now keys on _exhausted (the old S-0026/D-8 rule) so a
+      halt or blocker, already committed by _commit_reviewed_tree, is not committed
+      twice. tests/test_run_loop.py:317 and :387 pinned the old rule (locked_conflict
+      never resumes) and were rewritten to the new one; the convicted case now uses
+      a real poison_ceiling.
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-29T04:07:05Z'
+    claim: >-
+      a resumed worktree carries the checkpointed contract copy, which the gate pass
+      and the projection both keep; on resume it is replaced by the root's current
+      contract
+    evidence: >-
+      src/torve/application/runner.py:1380 — _refresh_contract; tests/test_run_loop.py:467
+      pins the refreshed terms reaching the attempt
+    action: decided
+    notes: >-
+      Without the refresh the pinned test fails: the attempt reads the stale copy.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-29T04:07:06Z'
+    claim: >-
+      a reaped run cannot tell a blocker checkpoint from an unreadable-verdict one,
+      since both said 'escalated from review'; the blocker checkpoint's subject now
+      says 'escalated from review on a blocker'
+    evidence: >-
+      src/torve/application/runner.py:136 — the subject marker _checkpointed_for_resume
+      matches
+    action: decided
+    proposal: >-
+      ASSUMED — a review-blocker checkpoint's subject names the blocker, so the kind
+      of checkpoint is readable off the branch tip alone
