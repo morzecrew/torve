@@ -151,11 +151,13 @@ anyway, and an infrastructure failure must not replace the conviction.
 
 **A checkpoint survives a recut.** The same trailer marks the tree an
 escalation leaves behind — from the review stage, or when the attempt halts
-on a locked row (S-0086/D-2, S-0086/A-1) — and a rerun cuts the task's branch
-back to base over it. Before it does, the branch's tip is kept under
-`refs/torve/checkpoints/<task>/<sha>` when the base does not already hold it,
-never pushed: `git log refs/torve/checkpoints/T-0020/4d9dfec9` is the work the
-second attempt did, however many reruns later.
+on a locked row (S-0086/D-2, S-0086/A-1). A rerun cuts the task's branch
+back to base over it, except for exactly those two escalations, whose next
+dispatch continues from the tree they checkpointed (S-0090/D-2). Before the
+recut, the branch's tip is kept under `refs/torve/checkpoints/<task>/<sha>`
+when the base does not already hold it, never pushed: `git log
+refs/torve/checkpoints/T-0020/4d9dfec9` is the work the second attempt did,
+however many reruns later.
 
 **Once.** One gate earns one repair per dispatch (S-0069/D-6). A second
 conviction on the same gate restores the contract's own acceptance and
@@ -685,8 +687,10 @@ edges and the header that names what minted it. No phase is minted: a phase
 the document gained is `torve plan`'s, which still refuses a document any of
 whose phases is minted. A task that is running, that has landed, or that a
 document branch carries is left alone and named with the reason; an
-escalated or reaped task with no landing is refreshed, because its next
-attempt starts from base. Each rewrite is recorded as `contract_refreshed`
+escalated or reaped task with no landing is refreshed: a continued attempt
+reads the contract as it stands at that dispatch, so the terms never carry
+over from a checkpointed tree even when the tree does (S-0090/D-3). Each
+rewrite is recorded as `contract_refreshed`
 and stamped on the contract; under `--partition` the rewrite goes onto the
 board through the same path a mint does.
 
@@ -755,6 +759,19 @@ A broken image, an over-long prompt or an unsupported model is named as
 what it is in one dispatch, rather than spending the poison ceiling to
 discover it; a 429 or a non-zero exit that carried usage is an ordinary
 attempt and retries as one.
+
+**A judged escalation continues from its tree.** A requeued
+`blocker_finding` or `locked_conflict` starts from the checkpoint the
+attempt left on the task's branch, not from base (S-0090/D-2): a review
+that asked for one file's change costs that change, and a halt answered by
+an amendment resumes where it stopped. Both routes reach the same tree —
+the requeue on the board, and the route through `torve reap --escalated`,
+where the run state is gone and the checkpoint commit's own message names
+the reason the task stopped. A landed task has nothing left to continue,
+and a gate conviction still restarts from base. A continued attempt is an
+ordinary attempt: it counts toward the ceiling and the budgets, its diff
+and gates are measured against the original base, and it reads the contract
+as it stands at that dispatch (S-0090/D-3).
 
 ## The escalation queue is a pause
 
@@ -1021,6 +1038,17 @@ because a recorded finding was never a thread on the forge, its answer is
 written to the stream as `review_finding_answered` — the commit the round
 landed in, or the recorded reason it was not applied — and said once as a
 comment on the document's pull request, never again (S-0086/D-5).
+
+**A round's own review opens no round.** `record` reads no finding from a
+review whose target is itself a round the leg minted on this branch —
+anything the stream records as a `lane_review_task` event (S-0090/D-1). The
+round is still reviewed, and its review still blocks that round's landing
+on a blocker as any task's does; what it finds below the blocking grade
+stays on the stream as the review row it already is — never a thread, so
+never a round. The rounds a document gets are thereby bounded by the
+findings on its phases, because a round's check ends the chain rather than
+feeding it. The forge source is unchanged: a person's thread on a round's
+file is still a round.
 
 **The morning report counts what the night left on the forge.** `torve night
 show` prints the night's landings, convictions, endings and waits, and then the
