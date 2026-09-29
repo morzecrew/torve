@@ -1329,12 +1329,13 @@ def test_a_refused_publication_puts_the_document_branch_back(lane_repo, tmp_path
 
 
 def _hand_commit(root: Path, branch: str, filename: str, content: str) -> str:
-    """A person's commit on the document branch, with the local ref at the
-    remote tip — the lane's fetch has already brought it in."""
+    """A person's commit on the document branch, pushed to the remote the way
+    a person pushes it — the lane reads the branch from there (S-0091/D-1)."""
     git(root, "checkout", "-q", branch)
     (root / filename).write_text(content, encoding="utf-8")
     git(root, "add", "-A")
     git(root, "commit", "-q", "--no-gpg-sign", "-m", "by hand")
+    git(root, "push", "-q", "origin", f"{branch}:refs/heads/{branch}")
     git(root, "checkout", "-q", "main")
     return git(root, "rev-parse", branch)
 
@@ -1344,7 +1345,7 @@ def test_a_hand_commit_on_the_document_branch_is_rebased_onto_and_survives(lane_
     candidate(lane_repo, "T-7207", "seven.py", "seven = 7\n")
     _contract(lane_repo, "T-7207", "S-0903")
     published: list[tuple[str, str]] = []
-    process_lane(lane_repo, GitLane(), publish=_recording_publisher(published), unit="document")
+    process_lane(lane_repo, GitLane(), publish=_recording_publisher(published, root=lane_repo), unit="document")
 
     document = naming.document_branch("S-0903")
     hand = _hand_commit(lane_repo, document, "hand.py", "hand = 1\n")
@@ -1353,7 +1354,7 @@ def test_a_hand_commit_on_the_document_branch_is_rebased_onto_and_survives(lane_
     _contract(lane_repo, "T-7207", "S-0903")
 
     results = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo, GitLane(), publish=_recording_publisher(published, root=lane_repo), unit="document"
     )
 
     # The branch moved under the phase: rebased onto the hand commit, battery
@@ -1372,7 +1373,7 @@ def test_a_hand_commit_that_conflicts_escalates_and_leaves_the_branch(lane_repo,
     candidate(lane_repo, "T-7209", "nine.py", "nine = 9\n")
     _contract(lane_repo, "T-7209", "S-0904")
     published: list[tuple[str, str]] = []
-    process_lane(lane_repo, GitLane(), publish=_recording_publisher(published), unit="document")
+    process_lane(lane_repo, GitLane(), publish=_recording_publisher(published, root=lane_repo), unit="document")
 
     document = naming.document_branch("S-0904")
     hand = _hand_commit(lane_repo, document, "app.py", "base = 'by hand'\n")
@@ -1381,7 +1382,7 @@ def test_a_hand_commit_that_conflicts_escalates_and_leaves_the_branch(lane_repo,
     _contract(lane_repo, "T-7209", "S-0904")
 
     results = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), unit="document"
+        lane_repo, GitLane(), publish=_recording_publisher(published, root=lane_repo), unit="document"
     )
 
     assert [r.action for r in results if r.task == "T-7210"] == ["conflict"]
