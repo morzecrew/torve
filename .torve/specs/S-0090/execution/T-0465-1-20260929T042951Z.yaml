@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0465
+phase: 3
+base: c217b4f702327de22d844d529888089b42eec68e
+commit: 1aa79c041926c4c151a1776b1384f5199485b4cf
+at: '2026-09-29T04:29:51Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T04:29:06Z'
+    claim: >-
+      the record-source paragraph of the review-thread leg now states the row: record
+      reads no finding from a review whose target is a round the leg minted, such
+      a review still blocks its round's landing on a blocker, what it finds below
+      that grade stays on the stream, and the forge source is unchanged
+    evidence: >-
+      pages/docs/operating.md:1042-1051 — the paragraph 'A round's own review opens
+      no round' in the review-thread-leg section
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-29T04:29:06Z'
+    claim: >-
+      the escalation section now states the row: a requeued blocker_finding or locked_conflict
+      continues from the checkpointed tree on both routes, board requeue and reap,
+      while a gate conviction still restarts from base and a landed task never continues
+    evidence: >-
+      pages/docs/operating.md:763-774 — the paragraph 'A judged escalation continues
+      from its tree' in 'What an escalation names'
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-29T04:29:06Z'
+    claim: >-
+      the guide now states the row where terms and tree meet: the continued attempt
+      reads the contract as it stands at that dispatch, the refreshed one after plan
+      --refresh — the tree carries over from the checkpoint, the terms do not
+    evidence: >-
+      pages/docs/operating.md:690-692 — the plan --refresh rationale restated to the
+      new rule; the same terms appear in the new escalation paragraph at pages/docs/operating.md:774
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-29T04:29:16Z'
+    claim: >-
+      the phase asked for two sentences, but the same file asserted elsewhere that
+      a rerun cuts the branch back to base over an escalation tree and that a refreshed
+      task's next attempt starts from base — sentences the landing of D-2 and D-3
+      makes stale; the contract settled none of them, and the no-contradiction rule
+      for pages/ forced the amendment
+    evidence: >-
+      pages/docs/operating.md:155-157 — the 'A checkpoint survives a recut' sentence,
+      qualified to except the two judged escalations; the refresh rationale amended
+      at pages/docs/operating.md:690-692
+    action: decided
+    proposal: >-
+      a docs phase of a row should read 'and amend every sentence the row makes stale',
+      not 'add a sentence' — otherwise the added sentence contradicts an untouched
+      one in the same file
+    notes: >-
+      the two required sentences stand at pages/docs/operating.md:1042-1051 and 763-774;
+      this entry records only the uncontracted staleness amendments
