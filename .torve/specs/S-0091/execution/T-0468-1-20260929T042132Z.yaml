@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0468
+phase: 3
+base: b87a3797adc9ba946a250e912e1dacafa3d13ee2
+commit: adf651a9bb71e9453f846f43b7e6240a39818213
+at: '2026-09-29T04:21:32Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-29T04:19:43Z'
+    claim: >-
+      PR text counts tasks whose landing file rides in the branch tip's tree beside
+      document_tasks; tree-only tasks take the tip as sha and are skipped when no
+      local contract exists; resolve --resolution landed refuses a sha with no landing
+      file for the task, naming torve log land
+    evidence: >-
+      src/torve/cli/merge.py:158-172 — tree landing files joined with document_tasks;
+      src/torve/cli/manager.py:932-948 is the resolve refusal
+    action: decided
