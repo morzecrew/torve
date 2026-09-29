@@ -559,6 +559,10 @@ def record_threads(
     from torve.application.lane import document_tasks
 
     tasks = set(document_tasks(root, branch))
+    # A review of a round the leg minted is the round's own check: its
+    # blocker still holds the round's landing, but nothing it finds opens a
+    # further round (S-0090/D-1).
+    rounds = {str(row.get("task") or "") for row in _rounds(rows, branch)}
     answered = {
         str(row.get("finding") or "")
         for row in rows
@@ -573,10 +577,10 @@ def record_threads(
         if row.get("kind") != "review" or row.get("trigger") != "task_gated":
             continue
 
-        if target not in tasks:
+        if target not in tasks or target in rounds:
             continue
 
-        review = str(row.get("task_id") or "")
+        review =str(row.get("task_id") or "")
 
         for index, finding in enumerate(row.get("findings") or []):
             ident = f"{RECORD}{review}:{index}"

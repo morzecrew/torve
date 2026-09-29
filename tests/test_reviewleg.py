@@ -20,6 +20,7 @@ from torve.application.reviewleg import (
     compose_round,
     fence,
     mint_round,
+    record_threads,
     review_thread_leg,
 )
 from torve.application.runstate import RunState
@@ -799,3 +800,26 @@ def test_a_reraise_at_a_moved_anchor_is_a_new_finding(seeded):
 
     assert len(events(seeded.root, "lane_review_task")) == 2
     assert events(seeded.root, "lane_finding_reraised") == []
+
+
+def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
+    """S-0090/D-1: a round's own review blocks its landing on a blocker, but
+    what it finds opens no further round; the same review of any other task of
+    the document still does."""
+
+    open_document(seeded.root)
+    reviewed(seeded.root, ("the value is never checked", "src/app.py:12 — the caller passes None"))
+
+    assert [t.id for t in record_threads(seeded.root, BRANCH, events_all(seeded.root))[0]] == [
+        RECORDED
+    ]
+
+    engine_event(seeded.root, "lane_review_task", {"branch": BRANCH, "task": "T-0900"})
+
+    assert record_threads(seeded.root, BRANCH, events_all(seeded.root)) == ([], {})
+
+
+def events_all(root: Path) -> list[dict[str, Any]]:
+    from torve.application.projections import stream_rows
+
+    return list(stream_rows(root))
