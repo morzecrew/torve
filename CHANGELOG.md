@@ -19,6 +19,234 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `promotion.landing: pull_request` ends the lane in a pull request instead of
+  a fast-forward. The battery and every promotion criterion run as before, then
+  the candidate is pushed, its pull request is opened or refreshed, and a
+  person merges it on the forge. Title and body are composed from the landing
+  record, never from what the agent wrote. `local` stays the default, and
+  `pull_request` is refused at load without `scm.repo` or with `scm.open_pr`
+  off.
+
+- A later pass reads back every pull request the lane opened. Merged is
+  recorded as the landing, with the merge commit as its sha. Closed unmerged is
+  recorded as abandoned by a person, never re-queued. Still open against a
+  moved base, it is rebased, re-gated and republished once per base tip.
+
+- `promotion.unit: document` lands every phase of a document onto one branch,
+  `torve/S-NNNN`, behind one pull request, so a design of three phases costs a
+  person one merge instead of three. Each phase is cut from the branch's tip,
+  so a served night runs a whole document with nobody in the middle. The pull
+  request stays a draft until the last phase lands. Merged, it is one landing
+  naming the squash commit and every task it carried.
+
+- A document's pull request body is composed from every landing its branch
+  carries: the contract, the inherited decisions as one table graded by
+  column, each landing's sha and the phases still to come. A body past
+  GitHub's 65536-character limit is cut on a line boundary, with a note
+  pointing at the landing files on the branch.
+
+- A document may declare `change`, a Conventional Commits type with an
+  optional scope and a `breaking` flag. Its pull request is then titled like a
+  hand commit, gitmoji and type first, with the phase count only while phases
+  remain, so the squash commit takes the last title unedited. A document
+  without the field is titled as before; `torve spec check` warns on a design
+  document that has none.
+
+- A `threads` section turns on the review-thread leg. It has `enabled` (off by
+  default), `bots` (the logins whose threads the engine may resolve) and
+  `rounds_per_pass`. It is refused at load unless `promotion.landing` is
+  `pull_request` with `promotion.unit: document`, since the leg only reads a
+  document's pull request.
+
+- A served pass turns a round of unresolved threads on a document's pull
+  request into one task on the document's branch, landed back by the lane like
+  any phase. Threads are grouped by what they anchor to, not by reviewer. They
+  reach the attempt fenced as third-party claims. A thread asking for anything
+  but a change in scope is refused as injection and escalated.
+
+- The review-thread leg never merges or pushes. A person's thread gets a reply
+  and is left open. A bot's thread is resolved only after its round has landed,
+  with a reply naming the commit or the recorded reason the claim was rejected.
+  A finding raised again after that answer goes to a person, not to another
+  round.
+
+- `threads.sources` may add `record` to `forge`. Then findings a task-gated
+  review recorded on an open document branch without blocking become rounds
+  too. Each is answered on the stream as `review_finding_answered` and once as
+  a pull-request comment.
+
+- `torve manager serve --night` runs the served loop as a night, under a new
+  `night:` section: `budget_usd`, `budget_attempts`, `minutes`, `stop_on`. The
+  terms are recorded whole as `night.opened`, with the ready queue as it stood,
+  and the night is closed by `night.closed`. It ends on either budget, at its
+  wall-clock end, on the first escalation of a class `stop_on` names, or when
+  nothing is left to do, and every bound lets an attempt in flight finish. A
+  night budgeted zero on both axes, or naming a stop class nothing escalates,
+  is refused at load.
+
+- `torve night show <partition>` is the morning report. It lists what landed,
+  what a gate convicted, what the engine ended and what still waits on a
+  person, then the pull requests, documents and review threads the night
+  handled. It is recomputed from the log on every call, holds no field a model
+  wrote, and prints a night with no close as unfinished.
+
+- A night opened under a worker's name first releases the claims an earlier
+  run of the same worker left, instead of waiting out their lease. A night that
+  still finds nothing to start names each held claim with its holder, age and
+  expiry.
+
+- `torve manager serve --slot N` overrides the configured `worker_slot`, so
+  the second worker of a width-2 night is one flag rather than a second
+  configuration file that drifts from the first.
+
+- A `claude-subscription-night` harness is the claude seat for a run nobody is
+  awake for. `CLAUDE_FALLBACK_MODEL` becomes `--fallback-model`, and
+  `CLAUDE_DENY_TOOLS` becomes `--disallowed-tools`, which denies
+  `AskUserQuestion`. A capacity error before any turn is retried until
+  `CLAUDE_CAPACITY_RETRY_SECONDS` runs out. They are seat `env`, so the regime
+  digest tells a night attempt from a day one.
+
+- A seat that fails before any model turn escalates at once as
+  `seat_refused` (exit 4), in the seat's own words, and spends no attempt. That
+  covers a harness that could not be executed and a provider that refused
+  every request with no token counted. Such a seat used to be retried up to
+  the poison ceiling as if the model had tried.
+
+- `torve plan --phase N`, repeatable, mints only the named phases of a
+  document whose other phases are already minted, such as a phase an amendment
+  added later.
+
+- `torve plan <document> --refresh` rewrites the contracts of phases already
+  minted from the document as it now stands, keeping their ids and edges, so
+  an amendment no longer means editing a contract by hand. A task that is
+  running, landed or carried by a document branch is left alone and named. It
+  previews by default, and `--no-dry-run` writes it and records each rewrite as
+  `contract_refreshed`.
+
+- A phasing file may name, under `after`, the documents whose landed tree its
+  work builds on. `torve plan` makes the document's first phases depend on
+  every task minted from each named document, and `torve spec check` flags a
+  named document that is not accepted. `torve night show` names the document a
+  waiting task is held on.
+
+- `torve init` adds the engine's worktree directory, `.wt/`, to
+  `.git/info/exclude`, and `torve doctor` says when it is not ignored. An
+  unignored `.wt/` makes the checkout dirty, and the lane refuses every
+  landing from a dirty checkout.
+
+- A `red-on-base` gate runs the tests an attempt added or changed against the
+  base tree's source. It convicts when every one of them passes there, because
+  a test that is green before the change proves nothing about it. A diff that
+  touches only tests is not judged. It enters at `shadow`, and once blocking
+  its conviction routes a repair attempt.
+
+- A blocking conviction by `layering`, `scope`, `user-facing-text` or
+  `decisions-reported` routes the next attempt as a repair. The repair starts
+  from the convicted tree, and its prompt carries the gate, its output tail
+  and the rows governing the touched paths. The gate's own command joins its
+  acceptance. A gate earns one repair per dispatch.
+
+- A repair attempt's row names the attempt it repairs, as `repair_of_attempt`,
+  so whether repairing beat retrying from base is a join over the record.
+
+- A gate entry may declare `paths`, the globs it judges. An attempt whose diff
+  touches none of them reports the gate `skipped`, never passed. An entry that
+  declares none runs on every attempt, as before.
+
+- The contract lint refuses an acceptance command that reads the host rather
+  than the tree: `docker`, `podman`, or a `torve` verb other than the few that
+  read only the worktree. A sandbox has no Docker daemon, database or
+  credentials, so such a contract could never go green.
+
+- `torve brief` prints what dispatch settles before an agent starts: the
+  contract lint, the size estimate, the standing rows the scope crosses and
+  the battery with its blocking axes. It also writes the context pack where an
+  attempt would find it. It refuses nothing, so a person or a harness working
+  by hand gets the briefing a sandbox attempt gets.
+
+- `torve mcp` serves the per-task context pack as a read-only `pack` tool,
+  built by the same function dispatch calls. A session on any harness reads
+  what a sandbox attempt is handed.
+
+- The wheel ships a `working-rules` skill, declarable as
+  `torve:working-rules`, holding the working rules in full. A sandbox attempt
+  and an interactive session read one text instead of a string inside the
+  engine.
+
+- A `hook` item keeps its scripts at its root, beside one directory per
+  harness named for the sandbox definition. For claude that is `claude/`,
+  whose `settings.json` claude takes as `--settings`. A `local:` hook item
+  with no directory for the seat's harness is refused at load instead of
+  failing inside the sandbox. The dsh and mimo images each ship a plugin that
+  runs the same scope guard, and mimo now accepts `hook` equipment.
+
+- This repository's `implement` role carries a hook. On every seat, a write
+  outside the contract's scope is refused before it lands, reading scope the
+  way the scope gate does. On claude, a whole-file read of a large
+  out-of-scope file gets the outline the pack already built. The finish runs
+  the contract's acceptance for the attempt and names governed rows the diff
+  touched with no divergence entry.
+
+- `torve eval --arm` replays completed tasks under three arms: `bare`, the
+  harness given only the task's intent; `gated`, the same prompt under the
+  battery; and `configured`, torve as configured. `--arm` is repeatable and
+  defaults to all three, and tasks are named with `--task`. A task with no
+  landing commit is refused before any spend. Nothing a replay produces is
+  merged.
+
+- `torve eval --report` reads the recorded arms back from the eval ledger
+  alone, with one table per task and one row per arm, and runs nothing. It
+  never averages across tasks, because the three arms are not exposed to the
+  same failures.
+
+- An attempt row records its per-request context curve on every seat: the
+  first, median, maximum and sum of what each request carried. It is counted
+  per message rather than per stream event, and checked against the receipt's
+  own total.
+
+- An attempt row carries a burn profile: each tool call classed as a pack
+  read, orientation, an in-scope read, an edit, a test run, a lint run,
+  bookkeeping or other, with calls before the first edit, reruns and
+  compaction events. `torve ledger` reclassifies it from the attempt's retained
+  trace when one is on disk.
+
+- The burn profile carries `inventory` when the harness reports what it
+  loaded: declared equipment it did not load, and what it loaded that no
+  profile declared. It is a fact on the record, never a conviction. The claude
+  and dsh images now stream their sessions, so both seats feed the profile.
+
+- `torve ledger` reports, per seat, what a changed line cost in cache-read
+  tokens, wall time, tool calls and dollars, and the same rates per file in
+  scope. The figures come from the diff each landing already commits. A rate
+  that never resolved prints as a dash.
+
+- An attempt row carries `num_turns`, `permission_denials` and
+  `subagent_stats` when the harness receipt returns them. Each is left absent,
+  never invented, when the receipt does not.
+
+- `torve log divergence` records several rows in one call: repeat
+  `--decision`, with its other options given for every row or for none.
+
+- `torve doctor` runs each built sandbox image and compares its `/opt/torve`
+  with the toolkit its definition holds in the tree. It names the files that
+  differ and the `just image` that rebuilds it. An image built from older
+  bytes used to fail inside the sandbox while every check stayed green.
+
+- The claude image takes `CLAUDE_TOOLS`, the built-in tools a seat declares,
+  as `--tools`, and the dsh image declares its tool set in a patch. Every
+  declared tool rides on every request. With six tools declared instead of
+  twenty-three, the `claude-subscription` manifest's prompt prefix fell from
+  32,501 to 9,803 tokens.
+
+- The ModelStudio provider record lists `deepseek-v4-flash-0731` and
+  `deepseek-v4.1-flash`, each with the reasoning levels its endpoint accepts.
+  The second has no `none`, so it cannot be asked to stop reasoning. Neither
+  declares a window, an output cap or a price, because none could be measured
+  against the endpoint.
+
+- The Anthropic provider record lists `claude-opus-5-5`. Its window and output
+  cap are carried over from `claude-opus-5`, not yet read from the vendor.
+
 - `torve ledger` folds the record into rates instead of listing rows: per seat,
   what a landed task cost, how many attempts a landing took, how many blocking
   convictions came before one, and what share of elapsed time the seat spent
@@ -253,7 +481,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a seat carries `DSH_MODEL` in its `env` and `equip` renders the overlay, so
   adding a model is an edit to reviewed configuration rather than a rebuild.
 
+### Deprecated
+
+- `torve run --oversize` is accepted and ignored, since a `too_large` contract
+  now dispatches without it. It will be removed in the next minor release.
+
 ### Fixed
+
+- A served worker claims a task only once every dependency's landing is on
+  the base the task would be cut from: the document branch's tip under
+  `promotion.unit: document`, and the configured base otherwise. A rebased or
+  squash-merged landing still counts. Tasks used to be cut from a base that
+  lacked the phase before them.
+
+- A worker whose dispatch overlaps a hand `torve run` puts the claim back on
+  the board and skips it for one lease. It used to hand the task to a person
+  as an infrastructure failure, over a path that freed itself minutes later.
+
+- Recutting a task's branch keeps the tip it discards under
+  `refs/torve/checkpoints/<task>/<sha>`, so a budget or escalation checkpoint
+  is no longer orphaned by a rerun. The ref is never pushed.
+
+- **Breaking:** `torve manager resolve --resolution landed` now reads as a
+  landing on the board. It used to project as queued, so a worker claimed the
+  finished task again and redid it from base. The new `--sha` names the commit
+  the task landed as, and `landed` without it is refused.
+
+- A signed engine commit is made under the host's git identity, so the forge
+  can verify the signature. GitHub used to show signed commits as
+  "Unverified", because they carried an email no account owns.
+
+- The empty-diff refusal is now a blocking `empty-diff` result, and the next
+  attempt is handed it. A red with no gate named gave the agent nothing to
+  read, so it repeated the same no-op. An attempt whose divergence log decides
+  one of its own contract's rows is no longer refused at all, because the
+  record its landing writes is its diff.
+
+- The lane puts a candidate's branch back when the battery goes red after a
+  rebase. The next pass used to see an unmoved base and fast-forward the
+  candidate past the battery that had just failed.
+
+- `torve adopt` no longer fails in a repository that keeps its contracts on
+  the record, where it used to try to commit the ignored tasks directory. It
+  records `intake_uncommitted`, and the importer mints the file on the next
+  pass.
+
+- A decision row projected into an `AGENTS.md` names its document's
+  implementation state in its heading unless that is complete. An accepted
+  design nobody has built no longer reads as a fact about the code.
+
+- A review verdict longer than the kept output tail is read whole again.
+  Readable, paid-for reviews used to be recorded as unparseable, and they
+  escalated a green target as a review infrastructure failure.
+
+- The patch a gate pass builds, and the `review.diff` the reviewer reads, now
+  include files the attempt created but did not stage. A reviewer used to see a
+  new module's imports without the module, and blocked green work.
+
+- The scope gate admits the lock files a manifest change rewrites wherever it
+  admits the manifest: `uv.lock` with `pyproject.toml`, `package-lock.json`
+  with `package.json`, and the rest. Refusing the lock refused the dependency
+  change the scope allowed.
+
+- The `decisions-reported` gate accepts a task log entry that names a row by
+  its local id (`D-2`) as well as by its global form (`S-0012/D-2`). It used to
+  convict an attempt for entries the attempt had written itself.
+
+- The draft lint reads a scope glob over a directory as written. A bare
+  directory name is refused, naming the `dir/**` spelling, because it matched
+  no file and allowed nothing. `dir/**` over a directory the phase is there to
+  create is accepted.
+
+- A failing gate's console detail keeps its last lines. The 40-line cap showed
+  only the head, so a red suite printed progress dots and hid the test that
+  failed.
+
+- A gate manifest whose entries declare no sabotage twin warns once per file
+  per process. Every verb used to repeat the warning three or four times.
+
+- A provider that drops the connection mid-request becomes a broker 502 with
+  cause `upstream`, which the sandbox can read and retry. It used to escape as
+  a traceback on the operator's console.
+
+- `torve spec check` no longer reads a managed block rendered for another tree
+  as citations into this corpus. Such a block is found in a sandbox definition
+  a repository copied, so that copy may now be reworded or deleted.
+
+- The schemas `torve init` writes refuse a blank gate `sabotage` twin and a
+  route `base_url` that is not http or https. Until now an editor accepted a
+  file the loader rejects.
+
+- An edited skill or hook from a `torve:` or `local:` source reaches the next
+  attempt. The cache used to keep the first copy while `torve equip --check`
+  reported a match.
+
+- An `mcp` equipment item reaches claude. `--mcp-config` is handed the item's
+  `mcp.json` rather than its directory, and an item without that file is
+  refused by name.
+
+- A prompt past the kernel's 128 KiB single-argument limit reaches every
+  harness. Each harness died with "Argument list too long" before it started,
+  and the poison ceiling booked that as the agent's fault. claude and mimo now
+  read the prompt from stdin, and dsh takes it in pieces.
+
+- The mimo seat builds and reaches its model again. The image pins mimo 0.1.15,
+  and the seat's provider and model are declared to mimo, whose built-in
+  provider answered "Model not found". A session that emitted an error event
+  now fails its attempt instead of exiting zero.
+
+- The dsh image installs dsh and its dependencies from a lockfile, and its
+  build refuses a lock whose dsh is not the pinned version. A rebuild of the
+  same version used to pull newer dependencies, and the profile stopped
+  booting.
+
+- The dsh image carries the pnpm that `dsh plugin add` needs. A dsh seat given
+  plugin equipment used to exit 127 before the agent started.
+
+- A seat's `reasoning` level reaches claude and dsh as named. Any level
+  outside off, low, medium and high used to pass the engine's check and then be
+  silently dropped.
+
+- The claude image refuses two skill items whose directories share a name,
+  naming both paths. The second used to merge silently into the first.
 
 - Path rot no longer fires on a row whose declared files the repository
   deliberately does not commit. The check reads the ignore file `torve init`
@@ -297,6 +646,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carried across by hand.
 
 ### Changed
+
+- **Breaking:** `torve run` refuses a contract the lint refuses. It names the
+  reasons and exits 3 before an attempt is paid for. `--lint-red` dispatches
+  it anyway and records a `lint_red_dispatch` event.
+
+- `torve brief`, `torve size` and `torve lint-contract` take a task id,
+  resolved the way `torve run` resolves one. They still accept a path for a
+  draft that has no id yet.
+
+- Dispatch no longer consults the size estimate. `torve run` prints a
+  `too_large` verdict's reasons as a note and dispatches, and a served manager
+  no longer skips the contract. Intake and the decomposition lint still read
+  the estimate.
+
+- An acceptance command that exits zero when no test ran, because every test
+  was skipped or deselected, now fails. Its verdict leads with "suite: no test
+  ran". A command that prints no test summary, or ran at least one test, is
+  judged as before.
+
+- The `acceptance` gate's output names the suite it judged: per command, how
+  many tests ran and how many were skipped or deselected. A battery that ran
+  fewer tests than the tree holds says so first, so a green in a sandbox and a
+  green on the host no longer read alike.
+
+- An unreadable review verdict is asked once more of the same reviewer before
+  the task escalates. The review record says `second_ask` and carries both
+  asks' traces.
+
+- When the review stage escalates a task, or an attempt halts on a locked row,
+  the tree it left is first committed on the task's branch under the
+  `Torve-Checkpoint` trailer. That tree had passed the gates and used to be
+  lost with the worktree.
+
+- A served pass re-queues a candidate whose rebase conflicts on a moved base,
+  once per base tip, instead of escalating `merge_conflict` and waiting for a
+  person. `torve merge` still escalates, because the operator at the terminal
+  is who should see the conflict.
+
+- The working rules and the role's skills reach the agent in system position.
+  The engine stages them for the image as `TORVE_SYSTEM_PROMPT`: claude
+  appends them with `--append-system-prompt`, and dsh makes them its persona.
+  The task prompt no longer restates them or asks the agent to read skills.
+
+- An attempt's first message carries what the engine already knows: the
+  battery, the coverage and tests over its scope, prior attempts and what
+  convicted them, contended paths, and the in-scope files. Files are given
+  whole under 60,000 characters and as an outline above that. Most of a small
+  attempt's round trips before its first edit had gone to re-deriving these.
+
+- The context pack writes `symbols.txt`, with every class, function, method
+  and module constant in the tree as `path:line name`. An attempt can grep it
+  instead of searching the tree.
+
+- The `claude-subscription` manifest caps one tool result below claude's own
+  defaults: `BASH_MAX_OUTPUT_LENGTH` at 20,000 characters and
+  `MAX_MCP_OUTPUT_TOKENS` at 5,000. This stops one command's dump from
+  inflating the context.
+
+- Each sandbox image shuts out the agent files a worktree carries for other
+  readers: `.mcp.json`, `.claude/`, `CLAUDE.md`, `AGENTS.md` and
+  `.agents/skills`. An attempt reads only the equipment its profile declared.
+  Two attempts under one regime digest could otherwise have seen different
+  skills.
+
+- The rendered `AGENTS.md` sections no longer list contended paths.
+  Contention is live, machine-local state, so the committed projection
+  rendered differently on every host. An attempt reads it from the pack's
+  `contended.json` instead.
+
+- The claude image carries Claude Code 2.1.283 and is tagged
+  `claude-sandbox:2.1.283`. Claude Code before 2.1.280 refuses
+  `claude-opus-5-5`.
 
 - **Breaking:** the engine names an attempt in flat scalars — the provider, the
   dialect, the base URL, the credential's variable name, the model id, and the
