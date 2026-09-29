@@ -11,3 +11,4 @@
 {"schema_version": 1, "kind": "arm-eval", "at": "2026-09-29T02:13:23Z", "tasks": ["T-0461"], "arms": {"configured": [{"arm": "configured", "task": "T-0461", "state": "escalated", "attempts": 3, "cost_usd": null}]}, "complete": true}
 {"schema_version": 1, "kind": "arm-eval", "at": "2026-09-29T02:27:22Z", "tasks": ["T-0461"], "arms": {"configured": [{"arm": "configured", "task": "T-0461", "state": "ready", "attempts": 1, "cost_usd": 0.0}]}, "complete": true}
 {"schema_version": 1, "kind": "arm-eval", "at": "2026-09-29T02:39:08Z", "tasks": ["T-0461"], "arms": {"configured": [{"arm": "configured", "task": "T-0461", "state": "ready", "attempts": 1, "cost_usd": null}]}, "complete": true}
+{"schema_version": 1, "kind": "arm-eval", "at": "2026-09-29T03:04:35Z", "tasks": ["T-0461"], "arms": {"configured": [{"arm": "configured", "task": "T-0461", "state": "ready", "attempts": 2, "cost_usd": 0.6857218}]}, "complete": true}
