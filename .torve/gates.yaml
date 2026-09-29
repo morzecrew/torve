@@ -188,8 +188,8 @@ gates:
     run: "@red-on-base"
     state: shadow
     origin: S-0081
-    # Two runs of the changed test files only, plus a worktree checkout of the
-    # base. The whole suite is 25s; the qualifying slice is a fraction of that,
+    # Two runs of the changed test files only, plus the base extracted with
+    # `git archive` into a temporary directory (S-0081/D-5). The whole suite is 25s; the qualifying slice is a fraction of that,
     # and 300 is the headroom a contract that rewrites every test file wants.
     timeout: 300
     sabotage: tests/test_gates.py
