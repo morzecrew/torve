@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0463
+phase: 1
+base: c77751cb75be8d9eca7fbb448edc6fcee05f6430
+commit: cdd6ad0f510b6f926278483edc761740b69f9a9c
+at: '2026-09-29T04:03:34Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-29T04:02:13Z'
+    claim: >-
+      record_threads skips review rows whose target is a round lane_review_task records
+      on the branch; the forge source and the round's blocker path are untouched
+    evidence: >-
+      src/torve/application/reviewleg.py:562-580 — rounds collected from _rounds and
+      skipped beside the document-task filter
+    action: decided
