@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-round-is-scoped-to-one-file-and-halts-on-its-own-fix
+kind: operator
+ref: 'bloomery night 13, 2026-09-29: rounds T-0205 (S-0082) and T-0208 (S-0081) halted twice each and
+  escalated locked_conflict; the S-0080 round for T-0191''s review was refused outright'
+title: A round is scoped to the file its thread points at and halts on its own fix
+at: '2026-09-29T10:50:00Z'
+summary: |
+  A review round's scope is the file the finding anchors to plus
+  `tests/test_<stem>.py`, a path bloomery's `tests/unit/<package>/` layout
+  never has. Two nit findings last night needed a second file to fix: making
+  `explain._human_predicate` public (the thread sat on `planner/coverage.py`),
+  and re-exporting `ISO_ZONED_TEXT_MARKER` from `transforms/__init__.py` (the
+  thread sat on `dialects/base.py`). Each round read the claim, agreed with it,
+  halted with a proposal naming the one file it lacked, halted again on the
+  same proposal, and escalated. The escalation reads `locked_conflict`,
+  which names a LOCKED row nobody touched; the halt was about scope.
+
+  A third finding never became a round: T-0191's review named
+  `resolve/facets.py` and three pinned tests that an IR version bump always
+  moves, none of them in S-0080's phasing scope, so the leg refused it and
+  the document branch sat red on its full suite until an operator fixed it
+  by hand and widened the phase.
+
+  Three things. A halted round whose proposal only widens its scope to files
+  inside the document's phasing scope is already authorized by the accepted
+  document, and could be widened and re-dispatched by the engine rather than
+  escalated. The escalation class for a scope halt should say scope, not
+  locked conflict. And the round's test companion should come from the
+  repository's own layout, not one convention.
+
+  Operator workaround: widen the contract's `scope.allow` in the root copy
+  and the worktree copy, then `manager resolve <task> --resolution requeued`.
