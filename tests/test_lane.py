@@ -2076,5 +2076,110 @@ def test_a_red_battery_at_completion_withholds_the_ready_publication(
         publish=_recording_publisher(published, root=lane_repo),
         unit="document",
     )
-    assert [r.action for r in again] == ["already landed", "gates red"]
+    assert [r.action for r in again] == ["already landed", "awaiting round"]
     assert len(published) == 1
+
+
+# The red battery's one round (S-0093/D-3, S-0093/D-4).
+
+
+def _red_completion(lane_repo, tmp_path, monkeypatch, verdicts: list[int]) -> list[str | None]:
+    """Phase 1 landed, phase 2 red at completion: the battery answers from
+    *verdicts* in turn, and every call is counted."""
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7306", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7307", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7306", 1)
+    _phase_contract(lane_repo, "T-7307", 2)
+    real = lane._regate
+    calls: list[str | None] = []
+
+    def regate(w: Path, b: str, t: str | None):
+        if t is not None:
+            return real(w, b, t)
+
+        calls.append(t)
+        code = verdicts.pop(0)
+        return code, "lint=pass, tests=fail" if code else "lint=pass, tests=pass"
+
+    monkeypatch.setattr(lane, "_regate", regate)
+    return calls
+
+
+def _battery_findings(root: Path) -> list[dict]:
+    from torve.application.projections import stream_rows
+
+    return [r for r in stream_rows(root) if r.get("kind") == "review" and r.get("battery")]
+
+
+def _answer(root: Path, review: str) -> None:
+    from torve.application.telemetry import engine_event
+
+    engine_event(
+        root,
+        "review_finding_answered",
+        {"branch": naming.document_branch("S-0930"), "finding": f"record:{review}:0"},
+    )
+
+
+def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp_path, monkeypatch):
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1])
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    (record,) = _battery_findings(lane_repo)
+    (finding,) = record["findings"]
+    assert record["target"] == "T-7306"
+    assert record["trigger"] == "task_gated"
+    assert finding["severity"] == "major"
+    assert "tests=fail" in finding["claim"] and "lint=pass" not in finding["claim"]
+    assert finding["evidence"].startswith("`torve gates run`")
+
+    # While the round is outstanding the battery does not run again.
+    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    assert [r.action for r in again] == ["already landed", "awaiting round"]
+    assert calls == [None]
+    assert len(_battery_findings(lane_repo)) == 1
+
+
+def test_an_answered_round_reruns_the_battery_and_a_green_rerun_publishes(
+    lane_repo, tmp_path, monkeypatch
+):
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 0])
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
+
+    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    assert calls == [None, None]
+    assert [r.action for r in again] == ["already landed", "landed"]
+    assert published[-1] == ("T-7307", naming.document_branch("S-0930"))
+
+
+def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp_path, monkeypatch):
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 1])
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
+
+    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    assert calls == [None, None]
+    assert [r.action for r in again] == ["already landed", "gates red"]
+    assert again[-1].detail.startswith("escalated")
+    assert len(_battery_findings(lane_repo)) == 1
+    state = RunState.load(naming.state_file(lane_repo, "T-7307"))
+    assert state.state is TaskState.ESCALATED
+    assert len(published) == 1
+
+    # Escalated, the candidate leaves the lane: no third battery.
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    assert calls == [None, None]

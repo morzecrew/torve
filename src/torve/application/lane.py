@@ -67,7 +67,8 @@ class LaneResult:
     task: str
     branch: str
     # landed | pull request | pull request open | pr refused | pr unresolved |
-    # abandoned | conflict | gates red | already landed | no branch | would *
+    # abandoned | conflict | gates red | awaiting round | already landed |
+    # no branch | would *
     action: str
     detail: str = ""
     sha: str = ""
@@ -749,16 +750,11 @@ def _keep_ref(root: Path, ref: str, sha: str) -> None:
 # ....................... #
 
 
-def _completion_battery(root: Path, vcs: LaneVcs, task_id: str, document: str) -> str | None:
-    """The fallback battery over the document branch tip when this landing
-    leaves the document complete (S-0093/D-1, S-0093/D-5): the red summary,
-    or None when the battery is green or phases are still to come.
-
-    Judged under no one task's contract, as the rebase regate judges a
-    document, so the manifest's fallback runs under its own cap."""
+def _completes(root: Path, task_id: str, document: str) -> bool:
+    """Whether this landing leaves the document complete (S-0093/D-1)."""
 
     from torve.application.forge import DocumentLanding, document_complete
-    from torve.gates.context import load_task, resolve_base
+    from torve.gates.context import load_task
 
     landings = []
 
@@ -771,8 +767,17 @@ def _completion_battery(root: Path, vcs: LaneVcs, task_id: str, document: str) -
         except (OSError, ValueError):
             continue
 
-    if not document_complete(document.rsplit("/", 1)[-1], landings, root):
-        return None
+    return document_complete(document.rsplit("/", 1)[-1], landings, root)
+
+
+def _completion_battery(root: Path, vcs: LaneVcs, document: str) -> str | None:
+    """The fallback battery over the document branch tip (S-0093/D-1,
+    S-0093/D-5): the red summary, or None when the battery is green.
+
+    Judged under no one task's contract, as the rebase regate judges a
+    document, so the manifest's fallback runs under its own cap."""
+
+    from torve.gates.context import resolve_base
 
     workdir = root / naming.WORKTREE_DIR / f"lane-{document.rsplit('/', 1)[-1]}"
     tip = vcs.tip(root, document) or document
@@ -788,6 +793,89 @@ def _completion_battery(root: Path, vcs: LaneVcs, task_id: str, document: str) -
         vcs.remove_worktree(root, workdir)
 
     return summary if exit_code != 0 else None
+
+
+# ....................... #
+
+
+def record_battery_red(root: Path, document: str, target: str, tip: str, summary: str) -> None:
+    """A red battery at completion as a review finding on *target*
+    (S-0093/D-3): the shape the review leg's record source already turns into
+    a round, with a command for evidence, so the round anchors to what the
+    target touched and takes its phase's scope."""
+
+    from torve.application.specquality import telemetry_file
+    from torve.application.telemetry import RECORD_SCHEMA_VERSION, append_record
+    from torve.domain.attempt import Finding
+
+    failing = [part for part in summary.split(", ") if not part.endswith(("=pass", "=skipped"))]
+    finding = Finding(
+        severity="major",
+        claim=f"the whole-suite battery is red over the complete document: {', '.join(failing)}",
+        evidence=f"`torve gates run` on {document} at {tip[:12]} — {summary}",
+    )
+
+    append_record(
+        telemetry_file(root),
+        {
+            "schema_version": RECORD_SCHEMA_VERSION,
+            "kind": "review",
+            "at": stamp(),
+            "task_id": f"{target}-battery-{tip[:12]}",
+            "target": target,
+            "trigger": "task_gated",
+            "battery": True,
+            "branch": document,
+            "findings": [finding.model_dump()],
+        },
+    )
+
+
+def _battery_round(root: Path, document: str) -> str:
+    """Where this document's one round for a red completion battery stands
+    (S-0093/D-4): "" before any, "pending" until the review leg answers its
+    finding, "answered" once the round landed or answered it without a
+    change — the rerun that a second red escalates on."""
+
+    from torve.application.projections import stream_rows
+
+    rows = stream_rows(root)
+    tasks = set(document_tasks(root, document))
+    recorded = [
+        str(row.get("task_id") or "")
+        for row in rows
+        if row.get("kind") == "review"
+        and row.get("battery")
+        and row.get("branch") == document
+        and row.get("target") in tasks
+    ]
+
+    if not recorded:
+        return ""
+
+    answered = {
+        str(row.get("finding") or "")
+        for row in rows
+        if row.get("event") == "review_finding_answered"
+    }
+
+    return "answered" if f"record:{recorded[-1]}:0" in answered else "pending"
+
+
+def _battery_target(root: Path, document: str) -> str | None:
+    """The last task landed on the document that is not itself a round: a
+    finding on a round's work opens no further round (S-0090/D-1)."""
+
+    from torve.application.projections import stream_rows
+
+    rounds = {
+        str(row.get("task") or "")
+        for row in stream_rows(root)
+        if row.get("event") == "lane_review_task"
+    }
+    landed = [task for task in document_tasks(root, document) if task not in rounds]
+
+    return landed[-1] if landed else None
 
 
 # ....................... #
@@ -825,7 +913,22 @@ def _land_document(
 
     before = vcs.tip(root, document)
     vcs.reset_branch(root, document, tip)
-    red = _completion_battery(root, vcs, task_id, document)
+    complete = _completes(root, task_id, document)
+    round_ = _battery_round(root, document) if complete else ""
+
+    # The battery reruns once the round answers, not on every pass while it
+    # is outstanding (S-0093/D-4).
+    if round_ == "pending":
+        if before is not None:
+            vcs.reset_branch(root, document, before)
+
+        results.append(
+            LaneResult(task_id, document, "awaiting round", "the red battery's round", tip)
+        )
+
+        return
+
+    red = _completion_battery(root, vcs, document) if complete else None
 
     if red is not None:
         # The publisher sets the draft flag from completeness alone, so a
@@ -841,7 +944,28 @@ def _land_document(
             "lane_document_gates_red",
             {"task": task_id, "branch": document, "sha": tip, "gates": red},
         )
-        results.append(LaneResult(task_id, document, "gates red", red, tip))
+        target = _battery_target(root, document)
+
+        # One round per completion (S-0093/D-3, S-0093/D-4); a red rerun, or a
+        # document with no landed task a round could be about, is a person's.
+        if round_ == "" and target is not None:
+            record_battery_red(root, document, target, tip, red)
+            results.append(LaneResult(task_id, document, "gates red", red, tip))
+
+            return
+
+        path = naming.state_file(root, task_id)
+
+        if path.is_file():
+            state = RunState.load(path)
+
+            if state.state is TaskState.READY:
+                state.escalate(
+                    EscalationReason.BLOCKER_FINDING,
+                    f"the whole-suite battery is red over the complete document: {red}",
+                )
+
+        results.append(LaneResult(task_id, document, "gates red", f"escalated: {red}", tip))
 
         return
 

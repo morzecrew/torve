@@ -654,6 +654,26 @@ def test_a_command_evidence_finding_anchors_to_what_its_target_touched(seeded):
     assert "tests/test_app.py" in contract["scope"]["allow"]
 
 
+def test_a_red_completion_battery_becomes_a_round_on_its_target(seeded):
+    """S-0093/D-3: the lane's record of a red battery is a finding the record
+    source mints a round for, anchored to what the last landed task touched."""
+
+    from torve.application.lane import record_battery_red
+
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work")
+    open_document(seeded.root, sha=head(seeded.root))
+    record_battery_red(seeded.root, BRANCH, "T-0900", "0123456789abcdef", "lint=pass, tests=fail")
+    forge = StubForge(pr())
+
+    review_thread_leg(seeded.root, config(sources=["record"]), forge, lambda _t: False)
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert (row["path"], row["line"]) == ("src/app.py", None)
+    assert row["threads"] == ["record:T-0900-battery-0123456789ab:0"]
+
+
 def test_a_recorded_finding_outside_the_phasing_scope_mints_nothing(seeded):
     """S-0086/D-4: it reaches a person by name instead, as an injecting
     thread does."""
