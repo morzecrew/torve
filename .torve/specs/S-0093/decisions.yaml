@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A landing that leaves a document complete runs the fallback battery over the
+      document branch tip before the pull request is published; the pull request leaves
+      draft only on a green battery
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      no document pull request is ready on a tree the whole suite has not passed
+    rationale: >-
+      a fast-forward proves the tree is the one the gates measured, and the gates
+      measured only the phase's scoped acceptance; the document is the unit a person
+      merges, so it is where the whole suite belongs
+    cites: [S-0083/D-13]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A red battery at completion writes `lane_document_gates_red` with its summary
+      and publishes the pull request as a draft
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      a person reading the pull request sees why it is still a draft
+    rationale: >-
+      the lane already reports a red rebase regate this way (`lane_gates_red`)
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A red battery at completion is recorded as a review finding on the last landed
+      task — severity major, the failing gates and tests as the claim, the battery's
+      command as the evidence — so the review leg mints a round for it
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/reviewleg.py
+      - tests/test_reviewleg.py
+    consequence: >-
+      the engine fixes what its phases broke outside their scope, and the round's
+      landing reruns the battery
+    rationale: >-
+      `record_threads` already turns a recorded finding with command evidence into
+      a round (S-0086/D-4) and S-0092 scopes it; a new path would duplicate both
+    cites: [S-0086/D-4, S-0092/D-1]

@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0093
+title: >-
+  A document runs the whole suite before it is ready
+kind: design
+change:
+  type: fix
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0083, S-0086, S-0092]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The lane regates a candidate with the repository's fallback battery — lint, types, the whole suite — only when it rebases. When the base has not moved, the candidate lands by fast-forward, because the tree is byte-identical to the one its gates measured; but its gates measured the phase's own acceptance, which a phase scopes to its own tests. A document whose phases all land by fast-forward reaches a ready pull request without the whole suite ever running, and its CI is the first to find what the phases broke outside their scope.
+
+  When a landing leaves a document complete, the lane runs the fallback battery once over the document branch tip before the pull request leaves draft. Green, it turns ready as today. Red, it stays a draft, and the failure is recorded as a review finding on the last landed task, so the review leg mints a round for it through the path it already runs.
+motivation: >-
+  bloomery #233 (S-0083): phase 1 added a generated audit per entity, passed its scoped
+  acceptance, and both phases landed by fast-forward; the pull request turned ready
+  and CI failed six unit tests and the engine tier, fixed by hand. S-0080 on night
+  13 had the same shape and was caught only because its reviewer happened to run the
+  whole suite. Filed as operator/a-fast-forward-landing-never-runs-the-whole-suite.
+current_state: >-
+  `lane.py::_land` fast-forwards a candidate whose base has not moved and regates
+  only on the rebase path; `_regate(workdir, base, None)` already judges a document
+  branch under no one task's contract (S-0083/D-13) when a document rebases onto a
+  moved base. `forge.document_complete` computes the pull request's draft flag from
+  the landings. `reviewleg.record_threads` mints rounds from review findings recorded
+  on the stream; a finding whose evidence is a command anchors to the files its target's
+  diff touched (S-0086/D-4), and S-0092 scopes the round.
+goals: |-
+  - No document pull request leaves draft on a tree the whole suite has not passed.
+  - A red suite at completion becomes work the engine does, not a person.
+  - The battery runs once per completion, not once per landing.
+non_goals: |-
+  - Running the battery on every fast-forward landing. A phase's own acceptance is its gate; the document is what a person merges.
+  - Tiers the fallback battery does not run (an engine tier behind Docker). The repository's manifest decides what the battery is.
+design:
+  - key: the-battery-at-completion
+    md: >-
+      The landing that makes `document_complete` true — the last phase, or a round
+      landing on a document already complete — runs `_regate` over the document branch
+      tip in a lane worktree before the pull request is published. A green battery
+      publishes as today and the pull request leaves draft; a red one publishes it
+      still a draft and writes `lane_document_gates_red` with the battery's summary.
+  - key: a-red-battery-is-a-finding
+    md: >-
+      The red battery is written to the stream as a review finding on the last landed
+      task — severity major, the claim naming the failing gates and tests, the evidence
+      the battery's command — which is exactly the shape `record_threads` already
+      turns into a round (S-0086). The round is scoped by S-0092: the phases its target
+      landed first, the whole document's phasing on a retry. When the round lands,
+      the document is complete again, so the battery runs again.
+tests: |-
+  - A document whose last phase lands by fast-forward runs the fallback battery before the pull request is published; green, it is published ready.
+  - Red, it is published a draft, `lane_document_gates_red` carries the summary, and a review finding on the last task names the failing tests.
+  - The review leg mints a round for that finding; the round's landing reruns the battery.
+  - A landing that leaves the document incomplete runs no battery.
+docs: >-
+  `pages/docs/operating.md` says when a document's pull request leaves draft and what
+  a red battery at completion does.
+out_of_scope: ''
+risks: |-
+  - The whole suite is slow on a large repository, and the battery runs on the lane's pass. It runs once per completion; a repository whose suite outlasts the manifest's cap sees a red battery, which Q-2 is about.
+  - A flaky test at completion mints a round that finds nothing to fix; its landing reruns the battery, which is the retry.
+alternatives:
+  - option: >-
+      Regate every fast-forward landing with the fallback battery
+    rejected_because: >-
+      a suite run per phase costs what the phase's scoped acceptance exists to save,
+      and only the document is ever merged
+  - option: >-
+      Require each phase's acceptance to name the whole suite
+    rejected_because: >-
+      it puts a repository-wide gate into every contract, where the attempt pays for
+      it on every retry, and a phase author cannot know which tests a change reaches
+questions:
+  - id: Q-1
+    text: >-
+      Round or escalation? The draft turns a red battery into a round the engine runs.
+      An owner who wants a person to look first would have it escalate on the last
+      task instead.
+  - id: Q-2
+    text: >-
+      Does the completion battery keep the manifest's fallback cap, or take its own?
+      bloomery's whole suite runs about twelve minutes in CI; a cap it outlasts reads
+      as red.
