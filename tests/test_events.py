@@ -117,14 +117,14 @@ def test_night_opened_carries_the_terms_whole():
             "budget_attempts": 60,
             "stop_on": ["locked_conflict"],
             "lease_seconds": 3600,
-            "knobs": {"TORVE_NIGHT_FALLBACK_MODEL": "claude-sonnet-5"},
+            "knobs": {"executor": {"TORVE_NIGHT_FALLBACK_MODEL": "claude-sonnet-5"}},
         }
     )
 
     assert terms.queue == ["T-0001", "T-0002"]
     assert (terms.budget_usd, terms.budget_attempts) == (40.0, 60)
     assert [str(one) for one in terms.stop_on] == ["locked_conflict"]
-    assert terms.knobs["TORVE_NIGHT_FALLBACK_MODEL"] == "claude-sonnet-5"
+    assert terms.knobs["executor"]["TORVE_NIGHT_FALLBACK_MODEL"] == "claude-sonnet-5"
 
     # Both night kinds are the manager's alone (S-0079/D-1).
     for kind in (EventKind.NIGHT_OPENED, EventKind.NIGHT_CLOSED):

@@ -1584,10 +1584,67 @@ def test_the_open_reads_the_nights_terms_once_and_runs_at_width_one(tmp_path):
             "minutes": 30,
             "stop_on": ["killed"],
             "lease_seconds": 1200.0,
+            "knobs": {},
         }
         # S-0079/D-12: measured from the open, which is the first instant the
         # record carries — a reader with the log alone can compute it.
         assert night.ends_at == night.opened_at + timedelta(minutes=30)
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_open_fills_knobs_from_every_seat_a_queued_task_can_reach(tmp_path):
+    """S-0079/D-2's knob clause. `seats_for_task` names the seats a queued
+    task reaches — its own, a retry rung, the review seat — and `knobs`
+    holds each one's merged env, keyed by seat name and read once."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002")
+
+    envs = {
+        "executor": {"CLAUDE_FALLBACK_MODEL": "claude-sonnet-5"},
+        "executor.heavy": {"CLAUDE_FALLBACK_MODEL": "claude-opus-5-5"},
+        "reviewer": {"CLAUDE_DENY_TOOLS": "Bash"},
+    }
+
+    def seats_for_task(task):
+        return ["executor", "executor.heavy", "reviewer"]
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(),
+            actor_id="manager-1",
+            seats_for_task=seats_for_task,
+            seat_env=envs.__getitem__,
+        )
+
+        assert night.knobs == envs
+        assert night.terms()["knobs"] == envs
+
+    run(scenario)
+
+
+# ....................... #
+
+
+def test_the_open_leaves_knobs_empty_when_nothing_is_wired_to_resolve_them(tmp_path):
+    """Neither `seats_for_task` nor `seat_env` is required — a composition
+    root that wires neither gets the same empty `knobs` every night before
+    this clause carried."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(log, PARTITION, config=NightConfig(), actor_id="manager-1")
+
+        assert night.knobs == {}
 
     run(scenario)
 

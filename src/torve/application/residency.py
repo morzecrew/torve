@@ -37,7 +37,7 @@ from torve.base import naming
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
-from torve.domain.task import DISPATCHABLE_ROLES
+from torve.domain.task import DISPATCHABLE_ROLES, Task
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,7 +45,6 @@ if TYPE_CHECKING:
     from torve.application.eventlog import EventLog
     from torve.application.worker import Worker
     from torve.config.runconfig import NightConfig
-    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -58,6 +57,16 @@ Landed = Callable[[str], str | None]
 # run-state file or a telemetry row. Asked by the composition root for the
 # same reason as `Landed`: it reads files, and this module decides.
 Ran = Callable[[str], bool]
+
+# Every seat a queued task can reach at the open — its own, its retry rungs,
+# the review seat (S-0079/D-2) — named for `night.opened`'s `knobs`. Wired by
+# the composition root because resolving a task's tier against the roster is
+# configuration's job and this is not one.
+SeatsForTask = Callable[[Task], list[str]]
+
+# One seat's merged env, by name — the same knobs its image would read.
+# Wired by the composition root for the same reason as `SeatsForTask`.
+SeatEnv = Callable[[str], dict[str, str]]
 
 # Whether the operator's attention is spoken for right now, asked once a
 # pass. A callable rather than a value because the queue changes while a
@@ -646,6 +655,10 @@ class Night:
     spent_usd: float = 0.0
     attempts: int = 0
     escalated: frozenset[str] = field(default_factory=frozenset)
+    # S-0079/D-2's knob clause: every seat the queue can reach, keyed by seat
+    # name, holding that seat's merged env as it stood at the open. Empty
+    # when the composition root wires neither `SeatsForTask` nor `SeatEnv`.
+    knobs: dict[str, dict[str, str]] = field(default_factory=dict)
 
     # ....................... #
 
@@ -670,6 +683,7 @@ class Night:
             "minutes": self.minutes,
             "stop_on": list(self.stop_on),
             "lease_seconds": self.lease_seconds,
+            "knobs": self.knobs,
         }
 
 
@@ -741,6 +755,8 @@ async def open_night(
     actor_id: str,
     lease: timedelta | None = None,
     now: datetime | None = None,
+    seats_for_task: SeatsForTask | None = None,
+    seat_env: SeatEnv | None = None,
 ) -> Night:
     """Read the night's terms off the board and the configuration, refuse an
     empty ready queue, and record the open.
@@ -750,6 +766,14 @@ async def open_night(
     moment the operator is present to hear it. It is a refusal only *here* —
     the same empty queue an hour later is a night that finished its work,
     and closing is the right end for that.
+
+    `seats_for_task` and `seat_env` are S-0079/D-2's knob clause: for every
+    queued task, the seats it can reach — its own, its retry rungs, the
+    review seat — and each seat's merged env, read once here and carried in
+    `night.opened`'s `knobs` for the rest of the night. Neither is this
+    module's to resolve — a tier and its roster are configuration's — so a
+    composition root that wires neither leaves `knobs` empty, exactly as
+    every night recorded before this clause did.
     """
 
     opened_at = now or datetime.now(UTC)
@@ -781,6 +805,20 @@ async def open_night(
         raise NightRefused(_refusal(board, partition, moment=opened_at, window=window))
 
     spent_usd, attempts = _spend(board)
+
+    knobs: dict[str, dict[str, str]] = {}
+
+    if seats_for_task is not None and seat_env is not None:
+        for task_id in queue:
+            contract = board.tasks[task_id].contract
+
+            if contract is None:
+                continue
+
+            for seat in seats_for_task(contract):
+                if seat not in knobs:
+                    knobs[seat] = seat_env(seat)
+
     night = Night(
         night_id=opened_at.strftime("%Y%m%dT%H%M%SZ"),
         opened_at=opened_at,
@@ -793,6 +831,7 @@ async def open_night(
         spent_usd=spent_usd,
         attempts=attempts,
         escalated=frozenset(board.escalated()),
+        knobs=knobs,
     )
 
     if NIGHT_OPENED is not None and NIGHT_SUBJECT is not None:

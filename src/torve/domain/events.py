@@ -520,9 +520,17 @@ class NightOpened(BaseModel):
     `budget_usd` and `budget_attempts` are the two axes; at most one may be
     absent, which the configuration refuses at load rather than here
     (S-0079/D-5). `stop_on` is the escalation classes the operator named
-    (S-0079/D-7), and `knobs` is the resolved value of each night knob under
-    whatever name its harness spells it (S-0079/D-9) — torve records these
-    and interprets none of them.
+    (S-0079/D-7).
+
+    `knobs` is S-0079/D-2's knob clause, settled: for every seat a queued
+    task can reach — its own, its retry rungs, the review seat — that
+    seat's merged env, keyed by seat name, as it stood at the open and
+    never re-read. A mapping of mappings rather than one flat one, so a
+    harness that names a knob is recorded without an engine change and a
+    night on a day seat is told apart by the seat it ran on. Read and
+    interpreted by nobody here — torve records these and reads none of
+    them. Empty on every night recorded before this clause, which is still
+    a valid value of the same shape.
     """
 
     model_config = STRICT
@@ -538,7 +546,7 @@ class NightOpened(BaseModel):
     minutes: int | None = None
     stop_on: list[EscalationReason] = Field(default_factory=list)
     lease_seconds: int
-    knobs: dict[str, str] = Field(default_factory=dict)
+    knobs: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 # ....................... #
