@@ -823,3 +823,67 @@ def events_all(root: Path) -> list[dict[str, Any]]:
     from torve.application.projections import stream_rows
 
     return list(stream_rows(root))
+
+
+# ----------------------- #
+# The round's scope is its phase's (S-0092/D-1, S-0092/D-2).
+
+
+def phased_document(root: Path, *scopes: list[str]) -> None:
+    place(
+        root / ".torve" / "specs",
+        "0084",
+        document(
+            "0084",
+            [("D-1", "ASSUMED", "the leg reads threads", "src/app.py")],
+            phasing=[
+                {"phase": n, "title": "t", "intent": "i", "scope": scope}
+                for n, scope in enumerate(scopes, start=1)
+            ],
+        ),
+    )
+
+
+def test_a_round_takes_the_scope_of_the_phase_covering_its_anchor(seeded):
+    phased_document(seeded.root, ["src/app.py", "src/other.py"], ["pages/**"])
+    finding = group_findings([thread("t1")])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert round_.allow == ["src/app.py", "src/other.py"]
+
+
+def test_a_recorded_round_takes_the_scope_of_its_target_s_phase(seeded):
+    phased_document(seeded.root, ["src/app.py", "src/first.py"], ["src/app.py", "src/other.py"])
+    seeded.write(
+        f"{layout.TORVE_DIR}/tasks/T-0900/contract.yaml",
+        yaml.safe_dump({"id": "T-0900", "phase": 2}),
+    )
+    open_document(seeded.root)
+    reviewed(seeded.root, ("wrong", "src/app.py:1 — it says otherwise"))
+
+    review_thread_leg(seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False)
+
+    (row,) = events(seeded.root, "lane_review_task")
+    contract = yaml.safe_load(
+        layout.task_file(seeded.root, row["task"]).read_text(encoding="utf-8")
+    )
+
+    assert "src/other.py" in contract["scope"]["allow"]
+    assert "src/first.py" not in contract["scope"]["allow"]
+
+
+def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
+    seeded.git("checkout", "-q", "-b", BRANCH)
+    phased_document(seeded.root, ["src/**", "pages/**"])
+    seeded.commit("the phase widened by amendment")
+    seeded.git("checkout", "-q", "main")
+    phased_document(seeded.root, ["src/**"])
+    open_document(seeded.root)
+    reviewed(seeded.root, ("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))
+
+    review_thread_leg(seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False)
+
+    assert events(seeded.root, "lane_thread_refused") == []
+    (row,) = events(seeded.root, "lane_review_task")
+    assert row["path"] == "pages/docs/operating.md"

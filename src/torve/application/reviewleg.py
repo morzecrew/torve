@@ -32,7 +32,7 @@ import re
 import shutil
 import subprocess
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -261,18 +261,118 @@ def _acceptance(root: Path) -> list[str]:
 # ....................... #
 
 
-def _allow(root: Path, finding: Finding, files: Sequence[str] = ()) -> list[str]:
-    """The files the threads anchor to, and the tests those files bring with
-    them — a scope naming a module names that module's test file, so a round
-    that has to touch one is not refused by its own scope gate. The task's own
-    log directory is added at minting, when the identifier exists.
+def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
+    """The document's phasing as its branch tip holds it (S-0092/D-2): a phase
+    widened there by amendment reaches the leg before it reaches the checkout.
+    A branch with no tip here, or no phasing at it, is read from the checkout.
+    Empty when neither holds one."""
 
-    *files* is what a recorded finding with no line of its own is about: the
-    files its target's diff touched (S-0086/D-4), which are the round's
-    subject as much as the path it anchors to.
+    from torve.config.spec import document_dir
+
+    directory = document_dir(root / layout.SPECS_DIR, branch.rsplit("/", 1)[-1])
+
+    if directory is None:
+        return []
+
+    path = directory / "phasing.yaml"
+    proc = subprocess.run(
+        ["git", "-C", str(root), "show", f"{branch}:{path.relative_to(root).as_posix()}"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    if proc.returncode == 0:
+        text = proc.stdout
+    elif path.is_file():
+        text = path.read_text(encoding="utf-8")
+    else:
+        return []
+
+    try:
+        data = yaml.safe_load(text)
+
+    except yaml.YAMLError:
+        return []
+
+    phasing = data.get("phasing") if isinstance(data, dict) else None
+
+    return [phase for phase in phasing or [] if isinstance(phase, dict)]
+
+
+# ....................... #
+
+
+def _target_phases(root: Path, rows: Sequence[dict[str, Any]], targets: Sequence[str]) -> set[int]:
+    """The phases the target tasks were minted from, read from each contract
+    on disk or, when the tree no longer holds it, at the task's landing."""
+
+    phases: set[int] = set()
+
+    for task_id in targets:
+        path = layout.task_file(root, task_id)
+        text: str | None = path.read_text(encoding="utf-8") if path.is_file() else None
+        sha = _landing_sha(rows, task_id)
+
+        if text is None and sha:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "show", f"{sha}:{path.relative_to(root).as_posix()}"],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            text = proc.stdout if proc.returncode == 0 else None
+
+        try:
+            contract = yaml.safe_load(text) if text else None
+
+        except yaml.YAMLError:
+            continue
+
+        if isinstance(contract, dict) and contract.get("phase"):
+            phases.add(int(contract["phase"]))
+
+    return phases
+
+
+# ....................... #
+
+
+def _allow(
+    root: Path,
+    branch: str,
+    finding: Finding,
+    files: Sequence[str] = (),
+    phases: Collection[int] = (),
+) -> list[str]:
+    """The scope of the phases the finding's target task landed — or, for a
+    forge thread with no target, the phases whose scope covers its anchor —
+    read from the branch tip (S-0092/D-1). The task's own log directory is
+    added at minting, when the identifier exists.
+
+    Where no phase answers, the files the threads anchor to and the tests
+    those files bring with them — a scope naming a module names that module's
+    test file, so a round that has to touch one is not refused by its own
+    scope gate. *files* is what a recorded finding with no line of its own is
+    about: the files its target's diff touched (S-0086/D-4).
     """
 
+    from torve.application.decisions import _governs
+
+    phasing = _phasing(root, branch)
+    chosen = [p for p in phasing if p.get("phase") in phases] or [
+        p for p in phasing if _governs([str(g) for g in p.get("scope") or []], finding.path)
+    ]
     allow: list[str] = []
+
+    for glob in (str(g) for phase in chosen for g in phase.get("scope") or []):
+        if glob not in allow:
+            allow.append(glob)
+
+    if allow:
+        return allow
 
     for path in [finding.path, *files]:
         test = f"tests/test_{Path(path).stem}.py"
@@ -296,6 +396,7 @@ def compose_round(
     finding: Finding,
     *,
     files: Sequence[str] = (),
+    phases: Collection[int] = (),
     nonce_source: Callable[[], str] = _mint_nonce,
 ) -> Round:
     """One finding composed into a round (S-0084/D-7, S-0084/D-8, S-0084/D-9).
@@ -320,7 +421,7 @@ def compose_round(
         finding=finding,
         nonce=nonce,
         intent="\n\n".join([INSTRUCTIONS, fenced]),
-        allow=_allow(root, finding, files),
+        allow=_allow(root, branch, finding, files, phases),
         acceptance=_acceptance(root),
     )
 
@@ -623,26 +724,14 @@ def record_threads(
 # ....................... #
 
 
-def phased(root: Path, document: str, path: str) -> bool:
-    """Whether the document's phasing scope reaches *path* (S-0086/D-4). A
-    document with no readable phasing judges nothing: everything is inside a
-    scope nobody declared."""
+def phased(root: Path, branch: str, path: str) -> bool:
+    """Whether the document's phasing scope reaches *path* (S-0086/D-4), as
+    the branch tip holds it (S-0092/D-2). A document with no readable phasing
+    judges nothing: everything is inside a scope nobody declared."""
 
     from torve.application.decisions import _governs
-    from torve.config.spec import SpecError, document_dir, load_document
 
-    directory = document_dir(root / layout.SPECS_DIR, document)
-
-    if directory is None:
-        return True
-
-    try:
-        doc = load_document(directory)
-
-    except SpecError:
-        return True
-
-    globs = [glob for phase in doc.phasing for glob in phase.scope]
+    globs = [str(glob) for phase in _phasing(root, branch) for glob in phase.get("scope") or []]
 
     return _governs(globs, path) if globs else True
 
@@ -922,7 +1011,7 @@ def review_thread_leg(
             # A recorded finding pointing outside the document's phasing scope
             # mints nothing and reaches a person by name, as an injecting
             # thread does (S-0086/D-4).
-            if from_record and not phased(root, branch.rsplit("/", 1)[-1], finding.path):
+            if from_record and not phased(root, branch, finding.path):
                 reason = f"{finding.path} lies outside the document's phasing scope"
                 engine_event(
                     root,
@@ -963,7 +1052,23 @@ def review_thread_leg(
 
             try:
                 files = sorted({f for ident in from_record for f in touched.get(ident, [])})
-                round_ = compose_round(root, branch, info, finding, files=files)
+                reviews = {ident[len(RECORD) :].rsplit(":", 1)[0] for ident in from_record}
+                targets = sorted(
+                    {
+                        str(row.get("target") or "")
+                        for row in rows
+                        if row.get("kind") == "review" and row.get("task_id") in reviews
+                    }
+                    - {""}
+                )
+                round_ = compose_round(
+                    root,
+                    branch,
+                    info,
+                    finding,
+                    files=files,
+                    phases=_target_phases(root, rows, targets),
+                )
 
             except InjectionRefused as exc:
                 engine_event(
