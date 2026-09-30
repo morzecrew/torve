@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A round's scope is the union of its document's phasing scopes, read from the
+      document branch tip, plus the round's own log directory; this amends S-0084/D-7's
+      "the files the threads anchor"
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: >-
+      a finding whose fix needs a second file the document covers is fixed by the
+      round, not by a person
+    rationale: >-
+      the owner accepted the phasing as the files this work may touch; a narrower
+      scope only turns correct fixes into halts
+    cites: [S-0084/D-7, S-0086/D-4]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Whether a finding lies inside the document's phasing is judged against the phasing
+      on the document branch tip, not the checkout's
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: >-
+      a phase widened on the branch by amendment reaches the leg on its next pass
+    rationale: >-
+      the branch holds what the pull request will merge; the checkout holds main's
+      older phasing
+    cites: [S-0086/D-4]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A halted divergence entry citing a LOCKED row escalates `locked_conflict`; one
+      of class `spec-gap` escalates `underspecified`; any other halt keeps `locked_conflict`
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - tests/test_runner.py
+    consequence: >-
+      the escalation tells the operator whether to amend a phase or ask the owner
+      about a locked row
+    rationale: >-
+      `underspecified` already means "an amendment and a re-mint, never a retry";
+      a scope halt is exactly that, and naming it a locked conflict sent the operator
+      looking for a row nobody touched
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A round requeued with `manager resolve --resolution requeued` is re-scoped from
+      its document's phasing on the branch at the requeue
+    paths:
+      - src/torve/cli/manager.py
+      - src/torve/application/reviewleg.py
+      - tests/test_manager.py
+    consequence: >-
+      an operator's widening of the phase reaches the round's next attempt
+    rationale: >-
+      a round's contract lives in the record, so an edit to the ignored contract file
+      reaches an attempt only by accident; the phasing is the one place the widening
+      belongs
+    cites: [S-0090/D-3]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The collapsed `<details>` blocks of a forge thread are removed before the injection
+      check and before the fence; they never reach the attempt
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: >-
+      CodeRabbit's findings become rounds, and its analysis scripts are neither judged
+      as requests nor shown to the attempt
+    rationale: >-
+      a reviewer's work log asks nothing; the verdict is the claim, and it is still
+      judged and fenced as S-0084/D-8 and S-0084/D-9 require
+    cites: [S-0084/D-8, S-0084/D-9]

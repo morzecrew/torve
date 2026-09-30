@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A round is scoped by its document's phasing on the branch
+    intent: >-
+      `_allow` returns the union of the document's phasing scopes read from the document
+      branch tip, and `phased` judges an anchor against the same phasing. A test document
+      whose phasing covers two files lets a round change both; a phase widened only
+      on the branch admits a finding the checkout's phasing refused. Settles D-1 and
+      D-2.
+    scope: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    acceptance:
+      - uv run pytest tests/test_reviewleg.py
+      - uv run mypy src
+    character: structural
+  - phase: 1
+    title: A halt names its cause
+    intent: >-
+      The runner and the session choose the escalation from the halted entry: a cited
+      LOCKED row is `locked_conflict`, class `spec-gap` is `underspecified`, anything
+      else is `locked_conflict` as today. Settles D-3.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - tests/test_runner.py
+      - tests/test_session.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_session.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      A requeued round is re-scoped, and an analysis block is not a request
+    intent: >-
+      `manager resolve --resolution requeued` on a round re-derives its scope from
+      the document's phasing on the branch. The leg removes `<details>` blocks from
+      a forge thread before `injection_reason` and `fence`. Waits on phase 1 because
+      both read the phasing and the thread text phase 1 changes. Settles D-4 and D-5.
+    scope:
+      - src/torve/cli/manager.py
+      - src/torve/application/reviewleg.py
+      - tests/test_manager.py
+      - tests/test_reviewleg.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_reviewleg.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The operating guide says how a round is scoped
+    intent: >-
+      `operating.md` states that a round's scope is its document's phasing on the
+      branch, what `underspecified` means for a round, and the operator's path: amend
+      the phase on the branch, then requeue.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py -q
+    depends_on:
+      - 2
+    character: routine

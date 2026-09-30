@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0092
+title: A review round is scoped by its document
+kind: design
+change:
+  type: fix
+  scope: review
+status: draft
+implementation: none
+depends_on: [S-0084, S-0086, S-0090]
+informed_by: [S-0088]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Bloomery's night 13 minted six review rounds and three of them could not finish what they found. A round's scope is the file its thread points at, so a finding whose fix needs a second file — making a private helper public, re-exporting a marker from its package — halts twice on the same proposal and escalates as `locked_conflict`, though no locked row is involved. A finding whose fix lies outside the document's phasing is refused before it becomes a round, and the refusal is judged against the phasing in the checkout, so widening the phase on the document branch does not reach it. And every CodeRabbit thread is refused as injection, because CodeRabbit writes its analysis scripts under each verdict.
+
+  A round is scoped by the document it answers to: its scope is the document's phasing scope, read from the document branch, which the owner already accepted as the files this work may touch. A halt says why it halted — a scope or specification gap escalates `underspecified`, and only a halt that names a LOCKED row escalates `locked_conflict`. A round requeued after its document's phasing changed is scoped by the phasing as it now stands. And the part of a CodeRabbit comment it marks as its own analysis is set aside before the thread is judged and never reaches the attempt.
+motivation: >-
+  Night 13 on bloomery (2026-09-29): T-0205 and T-0208 each halted twice with a correct
+  claim and a one-file proposal, escalated `locked_conflict`, and held the lane under
+  `loop.pause_escalations`; T-0208 was abandoned and fixed by hand because widening
+  its contract file never reached the next attempt. The S-0080 finding on `resolve/facets.py`
+  was refused three times as outside the phasing, including after the phase was widened
+  on the document branch. A CodeRabbit thread on #225 and three on #227 were correct
+  findings the leg refused as asking for a shell fragment. Each cost an operator a
+  hand fix on a document branch, which is what the review leg exists to make unnecessary.
+  Filed as operator/a-round-is-scoped-to-one-file-and-halts-on-its-own-fix and operator/every-coderabbit-thread-is-refused-as-a-shell-fragment.
+current_state: >-
+  `reviewleg.py::_allow` scopes a round to the anchored file plus `tests/test_<stem>.py`
+  (S-0084/D-7). `reviewleg.py::phased` judges a finding against the phasing of the
+  document loaded from the working tree (S-0086/D-4). `runner.py` and `session.py`
+  escalate every halted divergence entry as `LOCKED_CONFLICT`, whatever the entry's
+  `class`. A round's contract is adopted into the record when it is minted and is
+  not re-derived on `manager resolve --resolution requeued`. `injection_reason` scans
+  the whole body of a forge thread (S-0084/D-9).
+goals: |-
+  - A round can change any file its document's accepted phasing covers.
+  - A widened phase on the document branch reaches the leg and the next round.
+  - A halt escalates under the reason that names what stopped it.
+  - A reviewer's own analysis is neither refused as a request nor shown to the attempt.
+non_goals: |-
+  - Letting a round reach outside its document's phasing. That is the owner's widening, by amendment.
+  - Auto-applying a halted attempt's proposal. The document is the authority, not the attempt.
+design:
+  - key: the-document-is-the-scope
+    md: >-
+      A round's scope is the union of its document's phasing scopes plus the round's
+      own log directory. The phasing is read from the document branch tip — the text
+      the pull request will merge — so a phase widened on the branch by amendment
+      is what the leg and the round both see. The finding's anchor must still lie
+      inside that union (S-0086/D-4); a finding outside it is refused as today, now
+      escalated `underspecified` so the operator widens the phase rather than hunting
+      for a locked row. A requeued round is re-scoped from the phasing at the requeue,
+      so the operator's path after a refusal is: amend the phase on the branch, requeue.
+  - key: a-halt-names-its-cause
+    md: >-
+      A halted divergence entry carries a `class` and, when it cites one, a decision.
+      The escalation is chosen from them: an entry citing a LOCKED row is `locked_conflict`;
+      an entry of class `spec-gap` is `underspecified` ("the fix is an amendment and
+      a re-mint, never a retry", which is exactly what a scope halt needs); anything
+      else keeps `locked_conflict` until a class says otherwise.
+  - key: a-reviewer-s-analysis-is-not-its-request
+    md: >-
+      CodeRabbit writes a verdict and then, inside collapsed `<details>` blocks, the
+      scripts it ran to reach it. The blocks are the reviewer's work log. The leg
+      removes them from the thread text before the injection check and before the
+      fence, so the attempt never sees them and the check judges the verdict, which
+      is the only part that asks for anything. What remains is fenced exactly as today
+      (S-0084/D-8).
+tests: |-
+  - A round minted from a finding on one file of a document whose phasing covers two can change both.
+  - A phase widened on the document branch, not in the checkout, admits a finding the old phase refused.
+  - A halted entry of class `spec-gap` escalates `underspecified`; one citing a LOCKED row escalates `locked_conflict`.
+  - A round requeued after its document's phasing widened is dispatched with the wider scope.
+  - A CodeRabbit-shaped thread whose `<details>` holds a shell script is admitted and its fenced text carries no script; the same script outside `<details>` is still refused.
+docs: >-
+  `pages/docs/operating.md` says how a round is scoped and what to do after an `underspecified`
+  round.
+out_of_scope: >-
+  - Round sizing and the rounds-per-pass bound (S-0090).
+risks: |-
+  - A wider round scope lets a round touch more than its finding needs. The review of the round still runs and a blocker still stops its landing; the document's own phasing is the bound the owner accepted.
+  - A reviewer other than CodeRabbit could hide a request in `<details>`. It never reaches the attempt, so it asks nothing of it; the verdict outside is judged as before.
+alternatives:
+  - option: >-
+      Parse the halted attempt's proposal and widen the round to the files it names
+    rejected_because: >-
+      the attempt would be writing its own scope; the accepted phasing is the authority
+      the owner already gave, and a proposal outside it is an amendment, not a retry
+  - option: >-
+      Keep scanning the whole body and allowlist CodeRabbit's script shapes
+    rejected_because: >-
+      an allowlist of shell shapes is the injection check arguing with itself, and
+      the scripts would still reach the attempt's intent inside the fence
+questions:
+  - id: Q-1
+    text: >-
+      Is D-5 a reading of LOCKED S-0084/D-9 (a thread's `<details>` analysis asks
+      for nothing, so the rule is unchanged) or an amendment of it? The draft reads
+      it as the former; the owner decides.
+  - id: Q-2
+    text: >-
+      Should the round's scope be the whole document's phasing, or only the phases
+      whose landings the finding's target carried? The whole phasing is simpler and
+      is the bound the owner accepted; the narrower one keeps a round closer to its
+      finding.
