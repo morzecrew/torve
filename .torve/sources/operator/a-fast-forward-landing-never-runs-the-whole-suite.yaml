@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-fast-forward-landing-never-runs-the-whole-suite
+kind: operator
+ref: 'bloomery #233 (S-0083), 2026-09-30: both phases landed fast-forward on torve/S-0083, the pull
+  request went ready, and its CI failed 6 unit tests and the engine tier; fixed by hand at bloomery 3104a411'
+title: A fast-forward landing never runs the whole suite
+at: '2026-09-30T17:30:00Z'
+summary: |
+  `lane.py` regates a candidate with the repository's fallback battery (lint,
+  types, the whole suite) only when it rebases. When the base has not moved,
+  the candidate lands by fast-forward on the reasoning that the tree is
+  byte-identical to the one the gates measured. It is, but what the gates
+  measured is the contract's acceptance, which a phase scopes to its own
+  tests. S-0083's phase 1 added a generated audit per entity; its scoped
+  acceptance passed, both phases landed by fast-forward, the document's pull
+  request turned ready, and CI found six unit tests and the engine tier red
+  on assumptions the new artifact broke. The same shape reached S-0080 on
+  night 13, where the reviewer happened to catch it first.
+
+  The lane knows when a document is complete: the landing that makes its
+  pull request ready. Running the fallback battery once there, on the
+  document branch tip, before the pull request leaves draft, costs one suite
+  run per document and turns a red CI into a round (or an escalation) the
+  engine owns. A red battery at that point should keep the pull request in
+  draft and name the failing tests, the way `lane_gates_red` does on a rebase.
+
+  Operator workaround: fix on the document branch by hand after CI reports.
