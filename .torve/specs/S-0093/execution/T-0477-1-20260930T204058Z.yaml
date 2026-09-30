@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0477
+phase: 2
+base: c23d6ba3b242ffbbf0a9b0e269bed69c337167f6
+commit: 97712f3f2259c2e5a2a238b3b83e1153d6fe4621
+at: '2026-09-30T20:40:58Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-09-30T20:39:23Z'
+    claim: >-
+      phase 1 withholds the completing landing on red, so the completing task is never
+      a landed task; the finding targets the last task the lane landed on the document
+      that is not itself a round (S-0090/D-1 would mint nothing for a round's target),
+      written by lane.record_battery_red in the review record shape record_threads
+      already reads, so reviewleg.py needed no change. A document with no such task
+      escalates the candidate instead
+    evidence: >-
+      src/torve/application/lane.py:801-878 — record_battery_red and _battery_target;
+      tests/test_reviewleg.py covers the round it mints
+    action: departed
+    proposal: >-
+      ASSUMED — a red battery at completion is a major finding on the last landed
+      task that is not a round; reviewleg.py leaves the scope
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-09-30T20:39:23Z'
+    claim: >-
+      while the finding is unanswered the completing candidate is held (action 'awaiting
+      round') and the battery does not run; once review_finding_answered names the
+      finding, whether the round landed a change or answered without one, the next
+      landing reruns it; a second red escalates the held completing candidate (blocker_finding),
+      since the last landed task is already landed and escalating only it would leave
+      the candidate READY and looping. Reported as 'gates red' with an 'escalated:'
+      detail so the merge CLI's exit code, out of scope, stays a failure
+    evidence: >-
+      src/torve/application/lane.py:917-975 — the hold, the one round and the escalation;
+      tests/test_lane.py covers pending, green rerun and second red
+    action: departed
+    proposal: >-
+      ASSUMED — a second red escalates the task whose landing would complete the document
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-30T20:39:23Z'
+    claim: >-
+      the last assertion of test_a_red_battery_at_completion_withholds_the_ready_publication
+      changed from a second 'gates red' to 'awaiting round': D-4 stops the battery
+      rerunning each pass while its round is outstanding; the file is in this task's
+      scope
+    evidence: tests/test_lane.py:2075 — the edited assertion
+    action: decided
+    proposal: no row needed; D-4 already implies it
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-09-30T20:39:30Z'
+    claim: >-
+      correction to the previous unlisted entry: after formatting, the edited assertion
+      is at line 2079, not 2075
+    evidence: tests/test_lane.py:2079 — the edited assertion
+    action: decided
+    proposal: no row needed; a citation correction
