@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0475
+phase: 5
+base: d91ec562023b21794e99eb292377e14dd91270ff
+commit: 242915e9d6abf4a1fb8c71c01e5f95215aab964f
+at: '2026-09-30T13:11:53Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5+claude-sonnet-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-09-30T13:10:25Z'
+    claim: >-
+      open_night resolves knobs through injected SeatsForTask/SeatEnv callables rather
+      than reading RunnerConfig.tiers directly, because the composition root that
+      owns tier resolution (cli/manager.py) is outside this task's scope.allow and
+      cannot be edited to wire them; production knobs stay empty until a follow-up
+      task passes the callables at the call site
+    evidence: >-
+      src/torve/application/residency.py:750-830 — open_night takes seats_for_task/seat_env,
+      defaulting to None, so the existing cli/manager.py call (config=config.night,
+      actor_id=worker) is untouched and knobs resolve to {}
+    action: departed
+    notes: >-
+      src/torve/cli/manager.py:442 is the composition root that would wire tier_name_for/resolved_retry_variants/'reviewer'
+      into SeatsForTask and TierConfig.env into SeatEnv; it is not in this task's
+      scope.allow
