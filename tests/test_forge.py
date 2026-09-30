@@ -547,6 +547,22 @@ def test_the_document_title_wears_the_change_and_drops_the_count_at_the_last_lan
     assert len(title) <= 72
 
 
+def test_a_title_opening_on_an_article_is_lowered_and_an_acronym_is_kept(tmp_path: Path):
+    # bloomery #233 read "✨ feat(emit): A declared key is checked": a one-letter
+    # word is an article, and only a longer all-capitals word is an acronym.
+    landing = [DocumentLanding(task=phase_task("T-8411", 1, "one"))]
+
+    article = corpus_with_phasing(
+        tmp_path, {"type": "feat", "scope": "emit"}, title="A declared key is checked"
+    )
+    assert compose_document_pr("S-0090", landing, article)[0].startswith(
+        "✨ feat(emit): a declared key"
+    )
+
+    acronym = corpus_with_phasing(tmp_path, {"type": "feat"}, title="IR carries the reading")
+    assert compose_document_pr("S-0090", landing, acronym)[0].startswith("✨ feat: IR carries")
+
+
 def test_a_document_without_a_change_is_titled_byte_for_byte_as_today(tmp_path: Path):
     # S-0087/D-2, S-0087/D-4: nothing accepted before the field changes title,
     # and a corpus the composer cannot read costs the title its type only.

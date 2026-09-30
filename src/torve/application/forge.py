@@ -96,11 +96,16 @@ def _divergences(worktree: Path, task_id: str) -> list[str]:
 def _description(title: str) -> str:
     """A title as a conventional description (S-0087/D-2): the tail of a
     sentence, so its first letter is lowered — unless it opens on an
-    identifier or a backticked name, which carries its own case."""
+    identifier, an acronym or a backticked name, which carries its own case.
+    A one-letter word is an article, not an acronym (bloomery #233: "A
+    declared key is checked" kept its capital)."""
 
     head = title.split(" ", 1)[0]
 
-    if not title or not title[0].isalpha() or not head.isalpha() or head.upper() == head:
+    if not title or not title[0].isalpha() or not head.isalpha():
+        return title
+
+    if len(head) > 1 and head.upper() == head:
         return title
 
     return title[0].lower() + title[1:]
