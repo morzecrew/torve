@@ -960,49 +960,49 @@ The pack carries a map of where things are, and it arrives in the first message 
 - Paths: `src/torve/application/contextpack.py` `src/torve/adapters/agent/harness.py`
 - Consequence: the median eight calls an attempt spends finding its way around this repository become zero, and every attempt starts from the same account of the tree instead of from whichever corner it happened to list first
 
-### S-0079/D-3 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-3 — `ASSUMED` (The night as a typed record)
 
 The night's entries are the facts the log already holds inside the window — landings, gate verdicts, engine-ended attempts, escalations — and the night stamps no event of its own
 
 - Paths: `src/torve/application/manager.py`
 - Consequence: the report cannot disagree with the board beside it, and the price is that membership is a time comparison: a fact recorded between two nights belongs to whichever window holds its instant
 
-### S-0079/D-4 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-4 — `ASSUMED` (The night as a typed record)
 
 The morning report is a projection of the window computed on every call and stored nowhere, and it holds no field that prose can occupy
 
 - Paths: `src/torve/application/manager.py`
 - Consequence: no line of the report can be a model's account of its own night, because there is nowhere to put one — the rule is enforced by the shape rather than by a reviewer
 
-### S-0079/D-6 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-6 — `ASSUMED` (The night as a typed record)
 
 An empty ready queue refuses the night at the open, before the first pass; a queue that drains later closes the night rather than failing it
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: a night that would have slept eight hours costs nothing and says so at the last moment the operator is present, and draining is never mistaken for an error
 
-### S-0079/D-7 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-7 — `ASSUMED` (The night as a typed record)
 
 The night stops on the first escalation whose class the operator named and continues on every other; `loop.pause_escalations` is untouched and still counts a queue
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: an operator can say "wake me for a locked conflict, keep going on a merge conflict" without changing what escalates, and the count-based pause keeps governing the thing it already governs
 
-### S-0079/D-10 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-10 — `ASSUMED` (The night as a typed record)
 
 The lane leg a served night runs is handed `conflict_disposal`, so a candidate whose rebase conflicts against a moved base is re-queued by the engine instead of escalating `merge_conflict`
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py`
 - Consequence: one class of overnight escalation stops waiting for a person, and a candidate disposed of this way cannot be re-queued twice against the same tip because `conflict_base` bounds it
 
-### S-0079/D-11 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-11 — `ASSUMED` (The night as a typed record)
 
 The width is recorded as a term of the night and is one; this document does not claim more than one task per pass
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: a later night at width three is comparable against tonight's, because tonight's record says what it ran at rather than leaving it to be inferred from the manager's source as of that date
 
-### S-0079/D-12 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-12 — `ASSUMED` (The night as a typed record)
 
 The wall-clock end is the night's `opened_at` plus `night.minutes`. The serve loop reads its stop terms only at the top of a pass, so an attempt in flight at the end finishes, and `night.closed` records `wall_clock` with `overran_seconds` past the end.
 
@@ -1532,35 +1532,35 @@ Commits on the remote document branch that the lane did not make are the branch 
 - Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` `tests/test_lane.py`
 - Consequence: a hand commit on an open document branch survives the next landing or stops it, and a push never drops a commit it did not see
 
-### S-0092/D-1 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+### S-0092/D-1 — `ASSUMED` (A review round is scoped by its document)
 
 A round's scope is the phasing scope of the phases its target task landed — for a thread on the pull request, which has no target task, the phases whose scope covers the file it anchors — read from the document branch tip, plus the round's own log directory. A round that halts on a `spec-gap` is re-dispatched once with the union of the whole document's phasing; a second such halt escalates `underspecified`. This amends S-0084/D-7's "the files the threads anchor"
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a round stays small enough to run beside the phases still in flight, and a fix that needs a file another phase owns is made on the retry, not by a person
 
-### S-0092/D-2 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+### S-0092/D-2 — `ASSUMED` (A review round is scoped by its document)
 
 Whether a finding lies inside the document's phasing is judged against the phasing on the document branch tip, not the checkout's
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a phase widened on the branch by amendment reaches the leg on its next pass
 
-### S-0092/D-3 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+### S-0092/D-3 — `ASSUMED` (A review round is scoped by its document)
 
 A halted divergence entry citing a LOCKED row escalates `locked_conflict`; one of class `spec-gap` escalates `underspecified`; any other halt keeps `locked_conflict`
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `tests/test_runner.py`
 - Consequence: the escalation tells the operator whether to amend a phase or ask the owner about a locked row
 
-### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document)
 
 A round requeued with `manager resolve --resolution requeued` is re-scoped from its document's phasing on the branch at the requeue
 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/reviewleg.py` `tests/test_manager.py`
 - Consequence: an operator's widening of the phase reaches the round's next attempt
 
-### S-0092/D-5 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+### S-0092/D-5 — `ASSUMED` (A review round is scoped by its document)
 
 The collapsed `<details>` blocks of a forge thread are removed before the injection check and before the fence; they never reach the attempt
 

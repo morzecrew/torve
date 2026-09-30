@@ -6,7 +6,7 @@ change:
   type: fix
   scope: review
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0084, S-0086, S-0090]
 informed_by: [S-0088]
 supersedes: []

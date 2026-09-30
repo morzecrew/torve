@@ -393,7 +393,7 @@ The burn profile is derived from the attempt's retained trace when it is read, n
 - Consequence: every attempt whose trace is still on disk has a profile, so a change is judged against a population rather than against the attempts that happened after the classifier shipped, and a correction to a class reclassifies the history instead of leaving it wrong
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-10 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-10 — `ASSUMED` (The night as a typed record)
 
 The lane leg a served night runs is handed `conflict_disposal`, so a candidate whose rebase conflicts against a moved base is re-queued by the engine instead of escalating `merge_conflict`
 
@@ -505,7 +505,7 @@ A document's pull request counts a phase as landed when the branch tip's tree ho
 - Paths: `src/torve/cli/merge.py` `src/torve/cli/manager.py` `tests/test_manager.py` `tests/test_forge.py`
 - Consequence: a phase finished by hand reads as landed in the pull request's title and body, and a hand resolution cannot claim a landing the tree does not carry
 
-### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document)
 
 A round requeued with `manager resolve --resolution requeued` is re-scoped from its document's phasing on the branch at the requeue
 

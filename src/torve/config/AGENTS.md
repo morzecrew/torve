@@ -551,7 +551,7 @@ An equipment item carries its payload at the root and one directory per harness 
 - Consequence: the disagreement between two harnesses' idea of one kind becomes a message before an image is pulled, instead of an exception inside a container
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0079/D-5 — `ASSUMED` (The night as a typed record) — implementation: partial
+### S-0079/D-5 — `ASSUMED` (The night as a typed record)
 
 The night's terms are a `night:` section of the runner configuration, refused at load when the budget is zero on both axes or a named stop class is not in `EscalationReason`
 
