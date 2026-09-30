@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0474
+phase: 3
+base: 3323c50b27e4c26ebc0855072e475b0cd4aa59bc
+commit: 2b0ab542068e852fb59a45a51ac90b75b722802e
+at: '2026-09-30T13:34:58Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
