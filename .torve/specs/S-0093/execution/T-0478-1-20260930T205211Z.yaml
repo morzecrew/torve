@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0478
+phase: 3
+base: c5662d2a91982cc815190a4fe0f667f318ff1234
+commit: 13baa698262cfe463fa52f18873125c5607370d8
+at: '2026-09-30T20:52:11Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-09-30T20:51:27Z'
+    claim: >-
+      the operating guide gained the completion-battery section the document's own
+      docs row asked for; every identifier written follows the one grammar the lock
+      holds over pages/
+    evidence: >-
+      pages/docs/operating.md:1000-1037 — the amended draft/ready sentence and the
+      new paragraphs cite S-0093/D-1 through S-0093/D-5 and S-0086/D-4, all current-grammar;
+      no legacy identifier introduced
+    action: decided
