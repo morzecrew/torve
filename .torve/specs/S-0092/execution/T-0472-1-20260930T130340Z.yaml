@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0472
+phase: 1
+base: 21848faffef5aef8683035e62e542d2922a189fe
+commit: 43b6155f6011f43a9e4d3fd11b89f2212e85d048
+at: '2026-09-30T13:03:40Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5+claude-sonnet-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-09-30T13:02:08Z'
+    claim: >-
+      the checkpoint subject for an underspecified halt is unsettled; chose 'escalated
+      halted on a spec gap', which is not a resume marker since the fix is an amendment
+      and re-mint
+    evidence: >-
+      src/torve/application/runner.py:924-926 — the underspecified branch of _commit_reviewed_tree
+    action: decided
+    proposal: >-
+      ASSUMED — an underspecified halt commits its tree under a subject _checkpointed_for_resume
+      does not resume from
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-09-30T13:02:08Z'
+    claim: >-
+      halted entries now pick their escalation: grade LOCKED gives locked_conflict,
+      class spec-gap gives underspecified, anything else locked_conflict; a LOCKED
+      halt wins over a spec-gap halt in the same log
+    evidence: >-
+      src/torve/application/session.py:772-812 — _halt_reason; src/torve/application/runner.py:267
+      escalates with the returned reason
+    action: decided
