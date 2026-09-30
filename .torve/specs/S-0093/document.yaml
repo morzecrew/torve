@@ -84,8 +84,12 @@ questions:
       Round or escalation? The draft turns a red battery into a round the engine runs.
       An owner who wants a person to look first would have it escalate on the last
       task instead.
+    status: settled
+    settled_by: D-4
   - id: Q-2
     text: >-
       Does the completion battery keep the manifest's fallback cap, or take its own?
       bloomery's whole suite runs about twelve minutes in CI; a cap it outlasts reads
       as red.
+    status: settled
+    settled_by: D-5

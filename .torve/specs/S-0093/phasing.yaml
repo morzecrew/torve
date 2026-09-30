@@ -7,7 +7,8 @@ phasing:
       When a landing makes `document_complete` true, the lane runs `_regate` over
       the document branch tip before publishing; green publishes ready, red publishes
       a draft and writes `lane_document_gates_red`. A test document whose last phase
-      fast-forwards is regated once; one left incomplete is not. Settles D-1 and D-2.
+      fast-forwards is regated once; one left incomplete is not. The battery is the
+      manifest's fallback under its own cap. Settles D-1, D-2 and D-5.
     scope: [src/torve/application/lane.py, tests/test_lane.py]
     acceptance:
       - uv run pytest tests/test_lane.py
@@ -18,7 +19,9 @@ phasing:
     intent: >-
       The lane records the red battery as a review finding on the last landed task,
       and the review leg's record source mints a round for it, scoped by S-0092; the
-      round's landing reruns the battery. Waits on phase 1. Settles D-3.
+      round's landing reruns the battery. Waits on phase 1. The battery reruns when
+      the round lands or answers without a change; a second red escalates on the last
+      task. Settles D-3 and D-4.
     scope:
       - src/torve/application/lane.py
       - src/torve/application/reviewleg.py

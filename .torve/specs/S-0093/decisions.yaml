@@ -41,3 +41,37 @@ decisions:
       `record_threads` already turns a recorded finding with command evidence into
       a round (S-0086/D-4) and S-0092 scopes it; a new path would duplicate both
     cites: [S-0086/D-4, S-0092/D-1]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A completion earns one round: the battery reruns when that round lands a change
+      or answers its finding without one, and a second red battery escalates on the
+      last landed task for a person
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/reviewleg.py
+      - tests/test_lane.py
+    consequence: >-
+      a flaky test clears itself on the rerun, a break the round can fix is fixed,
+      and one it cannot reaches a person instead of looping
+    rationale: >-
+      a round is not guaranteed to land: one that finds nothing to fix answers without
+      a change, which would otherwise leave the pull request a draft with no battery
+      to clear it, and an unbounded rerun would loop on a break the engine cannot
+      fix
+    cites: [D-3, S-0090/D-1]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The completion battery is the manifest's fallback battery under the manifest's
+      own cap, the one the rebase regate already runs; no separate setting
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      one cap sizes both regates, and a suite that outgrows it is fixed in one place;
+      the tiers the fallback leaves out (bloomery's engine and e2e tiers) still reach
+      CI first
+    rationale: >-
+      bloomery's acceptance cap is 600s against default tiers measured at 167.8s plus
+      a first sync; a repository whose suite outlasts its cap already has a broken
+      rebase regate, and a second knob would let the two disagree
+    cites: [D-1]
