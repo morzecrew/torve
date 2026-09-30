@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0473
+phase: 2
+base: a232559a6f99e37371592a57c96a686b0b270d38
+commit: a53891931be0960ed55fe6e2476dc1f7c22df6d8
+at: '2026-09-30T13:22:16Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-30T13:20:45Z'
+    claim: >-
+      a round escalated underspecified is requeued once by the leg with the union
+      of the document's phasing, recorded as lane_round_requeued; a second such halt
+      is left escalated
+    evidence: >-
+      src/torve/application/reviewleg.py:589 — requeue_underspecified; tests/test_reviewleg.py
+      pins both halts
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-09-30T13:20:45Z'
+    claim: >-
+      manager resolve --resolution requeued re-scopes a round from the branch's phasing:
+      the phases it was minted from (now carried on lane_review_task) or those covering
+      its anchor; a round the leg already widened keeps the whole phasing so a person's
+      requeue never narrows it
+    evidence: >-
+      src/torve/cli/manager.py:950-966 — the rescope after the recorded resolution
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-09-30T13:20:45Z'
+    claim: >-
+      collapsed details blocks, nested ones innermost first, are removed in compose_round
+      before injection_reason and fence; an unclosed block is removed to the end of
+      its comment
+    evidence: >-
+      src/torve/application/reviewleg.py:176-200 — collapsed() and its patterns
+    action: decided
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-09-30T13:20:52Z'
+    claim: >-
+      corrects the earlier D-1 entry's citation, which pointed two lines above the
+      function after formatting
+    evidence: >-
+      src/torve/application/reviewleg.py:591 — requeue_underspecified
+    action: decided
+  - decision: D-4
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-09-30T13:20:52Z'
+    claim: >-
+      corrects the earlier D-4 entry's citation range after formatting
+    evidence: >-
+      src/torve/cli/manager.py:956-970 — the rescope after the recorded resolution
+    action: decided
