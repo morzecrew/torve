@@ -245,28 +245,28 @@ The collapsed `<details>` blocks of a forge thread are removed before the inject
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: CodeRabbit's findings become rounds, and its analysis scripts are neither judged as requests nor shown to the attempt
 
-### S-0093/D-1 — `ASSUMED` (A document runs the whole suite before it is ready) — implementation: none
+### S-0093/D-1 — `ASSUMED` (A document runs the whole suite before it is ready)
 
 A landing that leaves a document complete runs the fallback battery over the document branch tip before the pull request is published; the pull request leaves draft only on a green battery
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: no document pull request is ready on a tree the whole suite has not passed
 
-### S-0093/D-2 — `ASSUMED` (A document runs the whole suite before it is ready) — implementation: none
+### S-0093/D-2 — `ASSUMED` (A document runs the whole suite before it is ready)
 
 A red battery at completion writes `lane_document_gates_red` with its summary and publishes the pull request as a draft
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: a person reading the pull request sees why it is still a draft
 
-### S-0093/D-3 — `ASSUMED` (A document runs the whole suite before it is ready) — implementation: none
+### S-0093/D-3 — `ASSUMED` (A document runs the whole suite before it is ready)
 
 A red battery at completion is recorded as a review finding on the last landed task — severity major, the failing gates and tests as the claim, the battery's command as the evidence — so the review leg mints a round for it
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: the engine fixes what its phases broke outside their scope, and the round's landing reruns the battery
 
-### S-0093/D-4 — `ASSUMED` (A document runs the whole suite before it is ready) — implementation: none
+### S-0093/D-4 — `ASSUMED` (A document runs the whole suite before it is ready)
 
 A completion earns one round: the battery reruns when that round lands a change or answers its finding without one, and a second red battery escalates on the last landed task for a person
 
