@@ -953,6 +953,22 @@ def resolve_cmd(
         _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
     )
 
+    if resolution == "requeued":
+        from torve.application.projections import stream_rows
+        from torve.application.reviewleg import rescope
+
+        rows = stream_rows(root.resolve())
+        # A review round takes its document's phasing as the branch holds it
+        # now (S-0092/D-4); one the leg already widened to the whole phasing
+        # keeps the whole of it.
+        for row in rows:
+            if row.get("event") == "lane_review_task" and row.get("task") == task_id:
+                whole = any(
+                    r.get("event") == "lane_round_requeued" and r.get("task") == task_id
+                    for r in rows
+                )
+                rescope(root.resolve(), row, whole=whole)
+
     if fmt is Format.JSON:
         emit_json({"partition": partition, "task": task_id, "resolution": resolution})
         raise typer.Exit(EXIT_OK)

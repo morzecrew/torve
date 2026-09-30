@@ -1336,3 +1336,68 @@ def test_a_landed_resolution_is_refused_for_a_sha_whose_tree_holds_no_landing_fi
     assert "T-0001" in result.output
     assert sha in result.output
     assert "torve log land" in result.output
+
+
+def test_a_requeued_round_takes_its_documents_phasing_as_the_branch_holds_it(tmp_path, monkeypatch):
+    """S-0092/D-4: a round requeued by a person is re-scoped from its
+    document's phasing on the branch at the requeue, so a phase the operator
+    widened there reaches the round's next attempt."""
+    import yaml
+    from test_decisions import document, place
+    from typer.testing import CliRunner
+
+    from torve.application.telemetry import engine_event
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.config import layout
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    def phasing(*scope: str) -> None:
+        place(
+            repo.root / ".torve" / "specs",
+            "0084",
+            document(
+                "0084",
+                [("D-1", "ASSUMED", "the leg reads threads", "src/app.py")],
+                phasing=[{"phase": 1, "title": "t", "intent": "i", "scope": list(scope)}],
+            ),
+        )
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    phasing("src/app.py")
+    repo.commit("the document")
+    repo.git("checkout", "-q", "-b", "torve/S-0084")
+    phasing("src/app.py", "src/other.py")
+    repo.commit("the phase widened by amendment")
+    repo.git("checkout", "-q", "main")
+    repo.write(
+        f"{layout.TORVE_DIR}/tasks/T-0950/contract.yaml",
+        yaml.safe_dump({"id": "T-0950", "scope": {"allow": ["src/app.py"], "deny": []}}),
+    )
+    engine_event(
+        repo.root,
+        "lane_review_task",
+        {"branch": "torve/S-0084", "task": "T-0950", "path": "src/app.py", "line": 3},
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [*("manager", "resolve", PARTITION, "T-0950"), *("--root", str(repo.root))],
+    )
+
+    assert result.exit_code == 0, result.output
+    contract = yaml.safe_load(layout.task_file(repo.root, "T-0950").read_text(encoding="utf-8"))
+    assert contract["scope"]["allow"] == [
+        "src/app.py",
+        "src/other.py",
+        f"{layout.TORVE_DIR}/tasks/T-0950/**",
+    ]

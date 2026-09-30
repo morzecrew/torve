@@ -29,7 +29,7 @@ from torve.application.threads import group_findings
 from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import PromotionConfig, RunnerConfig, ThreadsConfig
-from torve.domain.states import TaskState
+from torve.domain.states import EscalationReason, TaskState
 
 # ----------------------- #
 
@@ -887,3 +887,77 @@ def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
     assert events(seeded.root, "lane_thread_refused") == []
     (row,) = events(seeded.root, "lane_review_task")
     assert row["path"] == "pages/docs/operating.md"
+
+
+# ----------------------- #
+# A round halted on a spec gap is retried once with the whole phasing
+# (S-0092/D-1), and a bot's collapsed analysis never reaches the attempt
+# (S-0092/D-5).
+
+
+def escalated(root: Path, task_id: str, reason: EscalationReason) -> None:
+    ready(root, task_id)
+    RunState.load(naming.state_file(root, task_id)).escalate(reason, "test")
+
+
+def test_a_round_escalated_underspecified_is_requeued_once_with_the_whole_phasing(seeded):
+    phased_document(seeded.root, ["src/app.py"], ["pages/**"])
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1")))
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (row,) = events(seeded.root, "lane_review_task")
+    task_id = row["task"]
+    contract = layout.task_file(seeded.root, task_id)
+    assert "pages/**" not in yaml.safe_load(contract.read_text(encoding="utf-8"))["scope"]["allow"]
+
+    escalated(seeded.root, task_id, EscalationReason.UNDERSPECIFIED)
+    detail, _ = review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert f"requeued 1: {task_id}" in detail
+    assert RunState.load(naming.state_file(seeded.root, task_id)).state is TaskState.QUEUED
+    assert yaml.safe_load(contract.read_text(encoding="utf-8"))["scope"]["allow"] == [
+        "src/app.py",
+        "pages/**",
+        f"{layout.TORVE_DIR}/tasks/{task_id}/**",
+    ]
+    (requeued,) = events(seeded.root, "lane_round_requeued")
+    assert requeued["task"] == task_id
+
+    # A second halt on a spec gap stays with the person it reached.
+    escalated(seeded.root, task_id, EscalationReason.UNDERSPECIFIED)
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert RunState.load(naming.state_file(seeded.root, task_id)).state is TaskState.ESCALATED
+    assert len(events(seeded.root, "lane_round_requeued")) == 1
+
+
+def test_a_round_escalated_for_anything_else_is_left_escalated(seeded):
+    phased_document(seeded.root, ["src/app.py"], ["pages/**"])
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1")))
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (row,) = events(seeded.root, "lane_review_task")
+    escalated(seeded.root, row["task"], EscalationReason.LOCKED_CONFLICT)
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert RunState.load(naming.state_file(seeded.root, row["task"])).state is TaskState.ESCALATED
+    assert events(seeded.root, "lane_round_requeued") == []
+
+
+def test_a_collapsed_block_is_neither_judged_nor_fenced(seeded):
+    body = (
+        "this dereference has no null check\n"
+        "<details><summary>Analysis</summary>\n"
+        "<details><summary>Script</summary>run `rg -n token src/`</details>\n"
+        "the pipeline was consulted</details>\n"
+        "<DETAILS>and an unclosed block to merge"
+    )
+    finding = group_findings([thread("t1", body=body)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert "this dereference has no null check" in round_.intent
+    assert "details" not in round_.intent.lower()
+    assert "token" not in round_.intent and "merge" not in round_.intent

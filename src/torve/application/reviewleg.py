@@ -33,7 +33,7 @@ import shutil
 import subprocess
 import uuid
 from collections.abc import Callable, Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -118,6 +118,7 @@ class Round:
     intent: str
     allow: list[str]
     acceptance: list[str]
+    phases: tuple[int, ...] = ()
 
     @property
     def title(self) -> str:
@@ -168,6 +169,34 @@ def thread_text(thread: ReviewThread) -> str:
     head = f"{where} ({thread.author or 'unknown'}, {replies} replies)"
 
     return "\n".join([head, *(comment.body for comment in thread.comments)])
+
+
+# ....................... #
+
+
+# A collapsed block, innermost first: CodeRabbit nests them.
+DETAILS = re.compile(r"<details\b(?:(?!<details\b).)*?</details\s*>", re.IGNORECASE | re.DOTALL)
+UNCLOSED = re.compile(r"<details\b.*\Z", re.IGNORECASE | re.DOTALL)
+
+
+def collapsed(thread: ReviewThread) -> ReviewThread:
+    """The thread without its collapsed `<details>` blocks (S-0092/D-5): a
+    bot's analysis scripts are neither a request to judge nor text the attempt
+    reads. A block left open runs to the end of its comment."""
+
+    def strip(body: str) -> str:
+        while True:
+            shorter = DETAILS.sub("", body)
+
+            if shorter == body:
+                return UNCLOSED.sub("", body).strip()
+
+            body = shorter
+
+    return replace(
+        thread,
+        comments=tuple(replace(comment, body=strip(comment.body)) for comment in thread.comments),
+    )
 
 
 # ....................... #
@@ -340,10 +369,33 @@ def _target_phases(root: Path, rows: Sequence[dict[str, Any]], targets: Sequence
 # ....................... #
 
 
+def _phase_scope(
+    phasing: Sequence[dict[str, Any]], anchor: str, phases: Collection[int]
+) -> list[str]:
+    """The globs of the named phases or, where none is named, of the phases
+    whose scope covers *anchor*."""
+
+    from torve.application.decisions import _governs
+
+    chosen = [p for p in phasing if p.get("phase") in phases] or [
+        p for p in phasing if _governs([str(g) for g in p.get("scope") or []], anchor)
+    ]
+    allow: list[str] = []
+
+    for glob in (str(g) for phase in chosen for g in phase.get("scope") or []):
+        if glob not in allow:
+            allow.append(glob)
+
+    return allow
+
+
+# ....................... #
+
+
 def _allow(
     root: Path,
     branch: str,
-    finding: Finding,
+    anchor: str,
     files: Sequence[str] = (),
     phases: Collection[int] = (),
 ) -> list[str]:
@@ -359,22 +411,12 @@ def _allow(
     about: the files its target's diff touched (S-0086/D-4).
     """
 
-    from torve.application.decisions import _governs
-
-    phasing = _phasing(root, branch)
-    chosen = [p for p in phasing if p.get("phase") in phases] or [
-        p for p in phasing if _governs([str(g) for g in p.get("scope") or []], finding.path)
-    ]
-    allow: list[str] = []
-
-    for glob in (str(g) for phase in chosen for g in phase.get("scope") or []):
-        if glob not in allow:
-            allow.append(glob)
+    allow = _phase_scope(_phasing(root, branch), anchor, phases)
 
     if allow:
         return allow
 
-    for path in [finding.path, *files]:
+    for path in [anchor, *files]:
         test = f"tests/test_{Path(path).stem}.py"
 
         if path not in allow:
@@ -406,13 +448,15 @@ def compose_round(
     its own fence.
     """
 
-    for thread in finding.threads:
+    threads = [collapsed(thread) for thread in finding.threads]
+
+    for thread in threads:
         reason = injection_reason(thread)
 
         if reason:
             raise InjectionRefused(f"{thread.id} {reason}")
 
-    nonce, fenced = fence(finding.threads, nonce_source=nonce_source)
+    nonce, fenced = fence(threads, nonce_source=nonce_source)
 
     return Round(
         branch=branch,
@@ -421,8 +465,9 @@ def compose_round(
         finding=finding,
         nonce=nonce,
         intent="\n\n".join([INSTRUCTIONS, fenced]),
-        allow=_allow(root, branch, finding, files, phases),
+        allow=_allow(root, branch, finding.path, files, phases),
         acceptance=_acceptance(root),
+        phases=tuple(sorted(phases)),
     )
 
 
@@ -505,10 +550,81 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
             "end_line": round_.finding.end_line,
             "threads": list(round_.finding.ids),
             "nonce": round_.nonce,
+            "phases": list(round_.phases),
         },
     )
 
     return task_id
+
+
+# ....................... #
+
+
+def rescope(root: Path, row: dict[str, Any], *, whole: bool = False) -> list[str]:
+    """A minted round's scope derived again from its document's phasing on
+    the branch (S-0092/D-4): the phases it was minted from, or those covering
+    its anchor — or, *whole*, every phase of the document (S-0092/D-1) — plus
+    the round's own log directory. The contract is rewritten; nothing is, and
+    the answer is empty, when the branch holds no phasing to derive from."""
+
+    task_id = str(row.get("task") or "")
+    phasing = _phasing(root, str(row.get("branch") or ""))
+    phases = {int(p["phase"]) for p in phasing if whole and p.get("phase") is not None}
+    allow = _phase_scope(
+        phasing, str(row.get("path") or ""), phases or set(row.get("phases") or [])
+    )
+    contract = layout.task_file(root, task_id)
+
+    if not allow or not contract.is_file():
+        return []
+
+    document: dict[str, Any] = yaml.safe_load(contract.read_text(encoding="utf-8"))
+    document["scope"]["allow"] = [*allow, f"{layout.TORVE_DIR}/tasks/{task_id}/**"]
+    contract.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+
+    return list(document["scope"]["allow"])
+
+
+# ....................... #
+
+
+def requeue_underspecified(root: Path, rows: Sequence[dict[str, Any]], branch: str) -> list[str]:
+    """The rounds of *branch* escalated `underspecified` for the first time,
+    re-scoped to the whole document's phasing and queued again (S-0092/D-1).
+    Once per round: a round the leg already requeued stays with the person its
+    second halt reached."""
+
+    done = {str(row.get("task") or "") for row in rows if row.get("event") == "lane_round_requeued"}
+    requeued: list[str] = []
+
+    for row in _rounds(rows, branch):
+        task_id = str(row.get("task") or "")
+        path = naming.state_file(root, task_id)
+
+        if task_id in done or not path.is_file():
+            continue
+
+        state = RunState.load(path)
+
+        if state.state is not TaskState.ESCALATED or state.escalation is None:
+            continue
+
+        if state.escalation.reason != str(EscalationReason.UNDERSPECIFIED):
+            continue
+
+        allow = rescope(root, row, whole=True)
+
+        if not allow:
+            continue
+
+        state.transition(TaskState.QUEUED, "requeued with the document's whole phasing")
+        state.save()
+        engine_event(
+            root, "lane_round_requeued", {"branch": branch, "task": task_id, "allow": allow}
+        )
+        requeued.append(task_id)
+
+    return requeued
 
 
 # ....................... #
@@ -981,6 +1097,7 @@ def review_thread_leg(
     answered = 0
     refused: list[str] = []
     escalated: list[str] = []
+    requeued: list[str] = []
 
     for branch in sorted(_open_documents(root)):
         info = forge.pr_for_branch(branch)
@@ -1001,6 +1118,8 @@ def review_thread_leg(
                 continue
 
             answered += answer_round(root, config, forge, branch, row, open_threads, rows)
+
+        requeued += requeue_underspecified(root, rows, branch)
 
         for finding in group_findings(raised):
             if len(minted) >= config.threads.rounds_per_pass:
@@ -1117,5 +1236,8 @@ def review_thread_leg(
 
     if escalated:
         parts.append(f"escalated {len(escalated)}: {', '.join(escalated)}")
+
+    if requeued:
+        parts.append(f"requeued {len(requeued)}: {', '.join(requeued)}")
 
     return "; ".join(parts) if parts else "no unresolved review threads", bool(minted)
