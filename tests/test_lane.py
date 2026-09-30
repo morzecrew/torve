@@ -1930,3 +1930,151 @@ def test_a_document_branch_the_remote_has_is_worked_from_the_remote_tip(lane_rep
 
     assert git(lane_repo, "rev-parse", f"{document}~1") == remote_tip
     assert not _kept(lane_repo, document)
+
+
+# The battery at completion (S-0093/D-1, S-0093/D-2, S-0093/D-5).
+
+
+def _phased(root: Path) -> None:
+    """S-0093's two phases in the checkout's corpus, committed so the lane
+    reads a clean tree."""
+    from test_decisions import document, place
+
+    place(
+        root / ".torve" / "specs",
+        "0930",
+        document(
+            "0930",
+            rows=[("S-0930/D-1", "ASSUMED", "a term", "—", "cheap to revisit")],
+            phasing=[
+                {"phase": 1, "title": "one", "intent": "One.", "scope": ["one.py"]},
+                {"phase": 2, "title": "two", "intent": "Two.", "scope": ["two.py"]},
+            ],
+        ),
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "the document")
+
+
+def _phase_contract(root: Path, task_id: str, phase: int) -> None:
+    path = root / ".torve" / "tasks" / task_id / "contract.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"schema_version: 2\nid: {task_id}\ndecisions: []\nspec: S-0930\nphase: {phase}\n",
+        encoding="utf-8",
+    )
+
+
+def _counting_regate(monkeypatch) -> list[str | None]:
+    import torve.application.lane as lane
+
+    calls: list[str | None] = []
+    real = lane._regate
+
+    def regate(workdir: Path, base_ref: str, task_id: str | None):
+        calls.append(task_id)
+        return real(workdir, base_ref, task_id)
+
+    monkeypatch.setattr(lane, "_regate", regate)
+    return calls
+
+
+def test_a_document_left_incomplete_runs_no_battery(lane_repo, tmp_path, monkeypatch):
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7301", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7301", 1)
+    calls = _counting_regate(monkeypatch)
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    assert [r.action for r in results] == ["landed"]
+    assert calls == []
+    assert len(published) == 1
+
+
+def test_a_last_phase_that_fast_forwards_is_regated_once_and_published(
+    lane_repo, tmp_path, monkeypatch
+):
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7302", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7302", 1)
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7303"), document)
+    (lane_repo / "two.py").write_text("two = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "two.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7303)")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7303", path=naming.state_file(lane_repo, "T-7303"))
+    state.state = TaskState.READY
+    state.save()
+    _phase_contract(lane_repo, "T-7303", 2)
+    calls = _counting_regate(monkeypatch)
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document", only="T-7303")
+
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed[-1]["mode"] == "fast-forward"
+    # Once, over the document under no task's contract: the manifest's fallback.
+    assert calls == [None]
+    assert [r.action for r in results] == ["landed"]
+    assert published[-1] == ("T-7303", document)
+    assert not [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
+
+
+def test_a_red_battery_at_completion_withholds_the_ready_publication(
+    lane_repo, tmp_path, monkeypatch
+):
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7304", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7305", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7304", 1)
+    _phase_contract(lane_repo, "T-7305", 2)
+    real = lane._regate
+    # Only the completion battery is red; the phase's own rebase regate is not.
+    monkeypatch.setattr(
+        lane,
+        "_regate",
+        lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t),
+    )
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    document = naming.document_branch("S-0930")
+    phase_one = git(lane_repo, "rev-parse", document)
+    # Phase 1 opened the draft; the completing phase is not published ready.
+    assert [r.action for r in results] == ["landed", "gates red"]
+    assert published == [("T-7304", document)]
+    red = [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
+    assert [(e["task"], e["gates"]) for e in red] == [("T-7305", "tests=fail")]
+    # The branch is back where phase 1 left it, so the next pass judges again.
+    assert git(lane_repo, "rev-parse", document) == phase_one
+
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+    assert [r.action for r in again] == ["already landed", "gates red"]
+    assert len(published) == 1

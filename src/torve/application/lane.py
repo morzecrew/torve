@@ -749,6 +749,50 @@ def _keep_ref(root: Path, ref: str, sha: str) -> None:
 # ....................... #
 
 
+def _completion_battery(root: Path, vcs: LaneVcs, task_id: str, document: str) -> str | None:
+    """The fallback battery over the document branch tip when this landing
+    leaves the document complete (S-0093/D-1, S-0093/D-5): the red summary,
+    or None when the battery is green or phases are still to come.
+
+    Judged under no one task's contract, as the rebase regate judges a
+    document, so the manifest's fallback runs under its own cap."""
+
+    from torve.application.forge import DocumentLanding, document_complete
+    from torve.gates.context import load_task, resolve_base
+
+    landings = []
+
+    # ponytail: the lane's own records only; a phase finished by hand is not
+    # counted here, so its document reads incomplete until a lane landing.
+    for carried in dict.fromkeys([*document_tasks(root, document), task_id]):
+        try:
+            landings.append(DocumentLanding(task=load_task(layout.task_file(root, carried))))
+
+        except (OSError, ValueError):
+            continue
+
+    if not document_complete(document.rsplit("/", 1)[-1], landings, root):
+        return None
+
+    workdir = root / naming.WORKTREE_DIR / f"lane-{document.rsplit('/', 1)[-1]}"
+    tip = vcs.tip(root, document) or document
+
+    # A rebase onto its own tip moves nothing; it is the port's one checkout.
+    if not vcs.rebase_in_worktree(root, document, tip, workdir):
+        return "the document branch could not be checked out"
+
+    try:
+        exit_code, summary = _regate(workdir, resolve_base(root, None) or "main", None)
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    return summary if exit_code != 0 else None
+
+
+# ....................... #
+
+
 def _land_document(
     root: Path,
     vcs: LaneVcs,
@@ -781,6 +825,26 @@ def _land_document(
 
     before = vcs.tip(root, document)
     vcs.reset_branch(root, document, tip)
+    red = _completion_battery(root, vcs, task_id, document)
+
+    if red is not None:
+        # The publisher sets the draft flag from completeness alone, so a
+        # complete document published now would turn ready on a red suite.
+        # The ref goes back, as for a refused publication: the pull request
+        # stays the draft its earlier phases opened, and the next pass lands
+        # and judges the phase again.
+        if before is not None:
+            vcs.reset_branch(root, document, before)
+
+        engine_event(
+            root,
+            "lane_document_gates_red",
+            {"task": task_id, "branch": document, "sha": tip, "gates": red},
+        )
+        results.append(LaneResult(task_id, document, "gates red", red, tip))
+
+        return
+
     reference = _publish(root, publish, task_id, document, tip, results)
 
     if reference is None:
