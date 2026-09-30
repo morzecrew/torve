@@ -505,6 +505,13 @@ A document's pull request counts a phase as landed when the branch tip's tree ho
 - Paths: `src/torve/cli/merge.py` `src/torve/cli/manager.py` `tests/test_manager.py` `tests/test_forge.py`
 - Consequence: a phase finished by hand reads as landed in the pull request's title and body, and a hand resolution cannot claim a landing the tree does not carry
 
+### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A round requeued with `manager resolve --resolution requeued` is re-scoped from its document's phasing on the branch at the requeue
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/reviewleg.py` `tests/test_manager.py`
+- Consequence: an operator's widening of the phase reaches the round's next attempt
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

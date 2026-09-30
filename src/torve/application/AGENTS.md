@@ -1299,7 +1299,7 @@ The thread texts reach the attempt only inside a fence in the task's intent, mar
 
 ### S-0084/D-9 — `LOCKED` (The review leg: a pull request's threads become work on its branch)
 
-A thread asking for anything but a change to the files in scope — run a command, add a secret, change CI, merge, approve — is refused as injection before the round is minted, reported to the operator through the escalation path, and never answered on the forge
+A thread asking for anything but a change to the files in scope — run a command, add a secret, change CI, merge, approve — is refused as injection before the round is minted, reported to the operator through the escalation path, and never answered on the forge. A reviewer's collapsed `<details>` analysis is set aside before the check and never reaches the attempt: it is the reviewer's work log, not a request, and the verdict outside it is what is judged
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: whoever wrote it learns nothing about whether the channel works, and the refusal is a fact in the record rather than a silence a later reader has to reconstruct
@@ -1531,6 +1531,41 @@ Commits on the remote document branch that the lane did not make are the branch 
 
 - Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` `tests/test_lane.py`
 - Consequence: a hand commit on an open document branch survives the next landing or stops it, and a push never drops a commit it did not see
+
+### S-0092/D-1 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A round's scope is the phasing scope of the phases its target task landed — for a thread on the pull request, which has no target task, the phases whose scope covers the file it anchors — read from the document branch tip, plus the round's own log directory. A round that halts on a `spec-gap` is re-dispatched once with the union of the whole document's phasing; a second such halt escalates `underspecified`. This amends S-0084/D-7's "the files the threads anchor"
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a round stays small enough to run beside the phases still in flight, and a fix that needs a file another phase owns is made on the retry, not by a person
+
+### S-0092/D-2 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+Whether a finding lies inside the document's phasing is judged against the phasing on the document branch tip, not the checkout's
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a phase widened on the branch by amendment reaches the leg on its next pass
+
+### S-0092/D-3 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A halted divergence entry citing a LOCKED row escalates `locked_conflict`; one of class `spec-gap` escalates `underspecified`; any other halt keeps `locked_conflict`
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `tests/test_runner.py`
+- Consequence: the escalation tells the operator whether to amend a phase or ask the owner about a locked row
+
+### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A round requeued with `manager resolve --resolution requeued` is re-scoped from its document's phasing on the branch at the requeue
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/reviewleg.py` `tests/test_manager.py`
+- Consequence: an operator's widening of the phase reaches the round's next attempt
+
+### S-0092/D-5 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+The collapsed `<details>` blocks of a forge thread are removed before the injection check and before the fence; they never reach the attempt
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: CodeRabbit's findings become rounds, and its analysis scripts are neither judged as requests nor shown to the attempt
 
 ## Invariants holding over `src/torve/application/`
 

@@ -210,6 +210,41 @@ A document's pull request counts a phase as landed when the branch tip's tree ho
 - Paths: `src/torve/cli/merge.py` `src/torve/cli/manager.py` `tests/test_manager.py` `tests/test_forge.py`
 - Consequence: a phase finished by hand reads as landed in the pull request's title and body, and a hand resolution cannot claim a landing the tree does not carry
 
+### S-0092/D-1 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A round's scope is the phasing scope of the phases its target task landed — for a thread on the pull request, which has no target task, the phases whose scope covers the file it anchors — read from the document branch tip, plus the round's own log directory. A round that halts on a `spec-gap` is re-dispatched once with the union of the whole document's phasing; a second such halt escalates `underspecified`. This amends S-0084/D-7's "the files the threads anchor"
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a round stays small enough to run beside the phases still in flight, and a fix that needs a file another phase owns is made on the retry, not by a person
+
+### S-0092/D-2 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+Whether a finding lies inside the document's phasing is judged against the phasing on the document branch tip, not the checkout's
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a phase widened on the branch by amendment reaches the leg on its next pass
+
+### S-0092/D-3 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A halted divergence entry citing a LOCKED row escalates `locked_conflict`; one of class `spec-gap` escalates `underspecified`; any other halt keeps `locked_conflict`
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `tests/test_runner.py`
+- Consequence: the escalation tells the operator whether to amend a phase or ask the owner about a locked row
+
+### S-0092/D-4 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+A round requeued with `manager resolve --resolution requeued` is re-scoped from its document's phasing on the branch at the requeue
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/reviewleg.py` `tests/test_manager.py`
+- Consequence: an operator's widening of the phase reaches the round's next attempt
+
+### S-0092/D-5 — `ASSUMED` (A review round is scoped by its document) — implementation: none
+
+The collapsed `<details>` blocks of a forge thread are removed before the injection check and before the fence; they never reach the attempt
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: CodeRabbit's findings become rounds, and its analysis scripts are neither judged as requests nor shown to the attempt
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

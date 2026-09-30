@@ -3,16 +3,21 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      A round's scope is the union of its document's phasing scopes, read from the
-      document branch tip, plus the round's own log directory; this amends S-0084/D-7's
-      "the files the threads anchor"
+      A round's scope is the phasing scope of the phases its target task landed —
+      for a thread on the pull request, which has no target task, the phases whose
+      scope covers the file it anchors — read from the document branch tip, plus the
+      round's own log directory. A round that halts on a `spec-gap` is re-dispatched
+      once with the union of the whole document's phasing; a second such halt escalates
+      `underspecified`. This amends S-0084/D-7's "the files the threads anchor"
     paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
     consequence: >-
-      a finding whose fix needs a second file the document covers is fixed by the
-      round, not by a person
+      a round stays small enough to run beside the phases still in flight, and a fix
+      that needs a file another phase owns is made on the retry, not by a person
     rationale: >-
-      the owner accepted the phasing as the files this work may touch; a narrower
-      scope only turns correct fixes into halts
+      the target's phases are the work the finding is about and keep scope overlaps
+      with concurrent phases small; the whole phasing is the bound the owner accepted,
+      so widening to it once needs no one's decision, and reading the attempt's proposal
+      instead would let the attempt write its own scope
     cites: [S-0084/D-7, S-0086/D-4]
   - id: D-2
     grade: ASSUMED
@@ -70,4 +75,4 @@ decisions:
     rationale: >-
       a reviewer's work log asks nothing; the verdict is the claim, and it is still
       judged and fenced as S-0084/D-8 and S-0084/D-9 require
-    cites: [S-0084/D-8, S-0084/D-9]
+    cites: [S-0084/A-2, S-0084/D-8, S-0084/D-9]

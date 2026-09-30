@@ -4,11 +4,12 @@ phasing:
     title: >-
       A round is scoped by its document's phasing on the branch
     intent: >-
-      `_allow` returns the union of the document's phasing scopes read from the document
-      branch tip, and `phased` judges an anchor against the same phasing. A test document
-      whose phasing covers two files lets a round change both; a phase widened only
-      on the branch admits a finding the checkout's phasing refused. Settles D-1 and
-      D-2.
+      `_allow` returns the scopes of the phases the finding's target task landed —
+      or, for a forge thread, the phases whose scope covers its anchor — read from
+      the document branch tip, and `phased` judges an anchor against the same phasing.
+      A test document whose phasing covers two files lets a round change both; a phase
+      widened only on the branch admits a finding the checkout's phasing refused.
+      Settles D-1 and D-2.
     scope: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
     acceptance:
       - uv run pytest tests/test_reviewleg.py
@@ -34,6 +35,8 @@ phasing:
     title: >-
       A requeued round is re-scoped, and an analysis block is not a request
     intent: >-
+      A round escalated `underspecified` for the first time is requeued by the leg
+      with the whole document's phasing as its scope, once, recorded as an event;
       `manager resolve --resolution requeued` on a round re-derives its scope from
       the document's phasing on the branch. The leg removes `<details>` blocks from
       a forge thread before `injection_reason` and `fence`. Waits on phase 1 because

@@ -138,7 +138,9 @@ decisions:
       A thread asking for anything but a change to the files in scope — run a command,
       add a secret, change CI, merge, approve — is refused as injection before the
       round is minted, reported to the operator through the escalation path, and never
-      answered on the forge
+      answered on the forge. A reviewer's collapsed `<details>` analysis is set aside
+      before the check and never reaches the attempt: it is the reviewer's work log,
+      not a request, and the verdict outside it is what is judged
     paths: [src/torve/application/reviewleg.py]
     consequence: >-
       whoever wrote it learns nothing about whether the channel works, and the refusal
@@ -150,6 +152,7 @@ decisions:
       error costs a command run because a comment asked
     check: >-
       uv run pytest tests/test_reviewleg.py -k injection
+    fingerprint: 80adefb9cb93bb81/c2490e3f3918a5c6
   - id: D-10
     grade: LOCKED
     text: >-

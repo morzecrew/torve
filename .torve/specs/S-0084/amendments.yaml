@@ -49,3 +49,35 @@ amendments:
       Settled by the implementation:
       - D-4: The key is fixed in code. The rationale's month of real bot threads has not been gathered, so the 10 is a chosen value and has not been measured. Evidence: src/torve/application/threads.py::group_findings and WINDOW; tests/test_threads.py::test_lines_inside_the_window_merge_and_the_span_says_so; tests/test_threads.py::test_the_same_file_far_apart_is_two_findings; tests/test_threads.py::test_a_file_level_thread_takes_its_whole_file.
       - D-13: Decided as the divergence entry and not as a typed record of the round. S-0086/D-5 reuses it for record-sourced findings but does not restate the choice. Evidence: src/torve/application/reviewleg.py; src/torve/application/runner.py; tests/test_reviewleg.py::test_a_rejected_finding_is_answered_from_its_divergence_entry; tests/test_reviewleg.py::test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log.
+  - id: A-2
+    at: '2026-09-30T12:52:26Z'
+    title: >-
+      Amended by S-0092: a reviewer's analysis is not its request
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          A thread asking for anything but a change to the files in scope — run a
+          command, add a secret, change CI, merge, approve — is refused as injection
+          before the round is minted, reported to the operator through the escalation
+          path, and never answered on the forge
+        after: >-
+          A thread asking for anything but a change to the files in scope — run a
+          command, add a secret, change CI, merge, approve — is refused as injection
+          before the round is minted, reported to the operator through the escalation
+          path, and never answered on the forge. A reviewer's collapsed `<details>`
+          analysis is set aside before the check and never reaches the attempt: it
+          is the reviewer's work log, not a request, and the verdict outside it is
+          what is judged
+      - subject: D-9
+        field: fingerprint
+        after: 80adefb9cb93bb81/c2490e3f3918a5c6
+    md: >-
+      The owner approved this change to a LOCKED row on 2026-09-30 with S-0092. CodeRabbit
+      writes its verdict and then, in collapsed `<details>` blocks, the scripts it
+      ran; the check read those scripts as requests and refused every CodeRabbit thread
+      on bloomery's night 13. The rule is unchanged for the verdict. The blocks are
+      removed before the check and never reach the attempt, so nothing in them can
+      ask anything of it. Amended rather than read into D-9 so the row an agent sees
+      beside `reviewleg.py` says what the code does. The row stays LOCKED; S-0092/D-5
+      states the change and its phase 2 implements it.

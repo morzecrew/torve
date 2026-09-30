@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: review
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0084, S-0086, S-0090]
 informed_by: [S-0088]
@@ -46,9 +46,11 @@ non_goals: |-
 design:
   - key: the-document-is-the-scope
     md: >-
-      A round's scope is the union of its document's phasing scopes plus the round's
-      own log directory. The phasing is read from the document branch tip — the text
-      the pull request will merge — so a phase widened on the branch by amendment
+      A round's scope is the phasing of the phases its target task landed (for a forge
+      thread, the phases covering its anchor) plus the round's own log directory;
+      a round that halts on a scope gap gets one retry at the whole document's phasing
+      before it escalates. The phasing is read from the document branch tip — the
+      text the pull request will merge — so a phase widened on the branch by amendment
       is what the leg and the round both see. The finding's anchor must still lie
       inside that union (S-0086/D-4); a finding outside it is refused as today, now
       escalated `underspecified` so the operator widens the phase rather than hunting
@@ -100,9 +102,13 @@ questions:
       Is D-5 a reading of LOCKED S-0084/D-9 (a thread's `<details>` analysis asks
       for nothing, so the rule is unchanged) or an amendment of it? The draft reads
       it as the former; the owner decides.
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       Should the round's scope be the whole document's phasing, or only the phases
       whose landings the finding's target carried? The whole phasing is simpler and
       is the bound the owner accepted; the narrower one keeps a round closer to its
       finding.
+    status: settled
+    settled_by: D-1
