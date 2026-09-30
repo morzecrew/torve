@@ -738,11 +738,11 @@ exit accordingly.
 
 | Reason | What it says | Exit |
 | --- | --- | --- |
-| `locked_conflict` | an attempt halted on a `LOCKED` row: the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
+| `locked_conflict` | an attempt halted on a `LOCKED` row — or halted naming no class that says otherwise, which keeps this reason (S-0092/D-3): the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
 | `merge_conflict` | the landing lane's rebase conflicted; the branch is untouched and waits for a human — the lane never resolves one | 2 |
 | `blocker_finding` | review ended with a blocker surviving | 2 |
 | `killed` | an operator interrupted the run | 2 |
-| `underspecified` | the contract needs three or more load-bearing decisions invented — a specification defect: amend and re-mint, never retry | 2 |
+| `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt left a `spec-gap` entry and cited no `LOCKED` row (S-0092/D-3) — a specification defect: amend and re-mint, never retry. On a review round the amendment is to the document's phasing on its branch and the re-mint is a requeue, which re-scopes the round (S-0092/D-4); see the review-leg section below | 2 |
 | `stale_inheritance` | the document it was minted from was superseded after the mint: re-mint from the superseding one, or abandon | 2 |
 | `gate_infrastructure_failure` | the battery broke rather than the work being wrong | 4 |
 | `lease_expired` | a claim's lease ran out while its worker was gone; the process that died cannot release itself | 4 |
@@ -1043,12 +1043,29 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
   (S-0084/D-7). The leg never merges, never pushes and never force-pushes
   (S-0084/D-10); its attempts spend the night's budget like any other, and
   `rounds_per_pass` bounds how many it may start a pass.
+- **A round is scoped by its document, not by its thread.** The scope is the
+  phasing scope of the phases the finding's target task landed — or, for a
+  thread on the pull request, which has no target task, the phases whose scope
+  covers the file it anchors — plus the round's own log directory, so the
+  divergence entries the round owes have somewhere to land (S-0092/D-1; this
+  is what "the files the threads anchor" in S-0084/D-7 became). A round stays
+  small enough to run beside the phases still in flight; where no phase
+  answers the anchor, the anchored files and the tests they bring are the
+  scope. And because the phasing is read from the document's branch tip — the
+  text the pull request will merge — and not from the checkout, a phase
+  widened on the branch by amendment reaches the leg on its next pass
+  (S-0092/D-2).
 - **The thread text reaches the attempt as evidence, never as instruction**:
   fenced inside the contract's intent, marked as a third-party claim about the
   tree and delimited by a per-run nonce (S-0084/D-8). A thread asking for
   anything but a change to the files in scope — run this, add this secret,
   change CI, merge, approve — is refused as injection before anything is
-  minted, escalated to you, and never answered on the forge (S-0084/D-9).
+  minted, escalated to you, and never answered on the forge (S-0084/D-9). The
+  collapsed `<details>` blocks a reviewer leaves under its verdict —
+  CodeRabbit's analysis scripts are the standing case — are removed before
+  that check and before the fence, so the work log asks nothing of the round
+  and never reaches the attempt; the verdict outside the blocks is judged
+  exactly as before (S-0092/D-5, amending S-0084/D-9).
 - **A thread is answered only after its round landed**, with a reply naming the
   commit the fix landed in or the recorded reason it was not applied
   (S-0084/D-12) — composed from the attempt's divergence entry, never from
@@ -1084,11 +1101,32 @@ refused at load under any landing but a document's pull request, the leg's
 switch off or on.
 
 A finding whose citation lies outside the document's phasing scope mints
-nothing and reaches you by name, as an injecting thread does (S-0086/D-4). And
-because a recorded finding was never a thread on the forge, its answer is
-written to the stream as `review_finding_answered` — the commit the round
-landed in, or the recorded reason it was not applied — and said once as a
-comment on the document's pull request, never again (S-0086/D-5).
+nothing and reaches you by name, as an injecting thread does (S-0086/D-4) —
+the scope it is judged against is the phasing as the document's branch tip
+holds it, so widening a phase on the branch is what admits a finding the
+checkout's phasing refused (S-0092/D-2). And because a recorded finding was
+never a thread on the forge, its answer is written to the stream as
+`review_finding_answered` — the commit the round landed in, or the recorded
+reason it was not applied — and said once as a comment on the document's pull
+request, never again (S-0086/D-5).
+
+**A round that halts on its scope gets one widening, and then it is your
+turn.** The scope is a bound, not a guess about the fix: an attempt whose fix
+needs a file outside it halts and leaves a divergence entry of class
+`spec-gap` rather than reaching past the bound. Such a halt, when it cites no
+`LOCKED` row, escalates `underspecified` and not `locked_conflict` — the old
+name sent operators hunting for a row nobody had touched (S-0092/D-3). The
+leg then makes the one widening that needs no decision: on its next pass it
+re-derives the round's scope from the union of the whole document's phasing —
+the bound you accepted when you approved it, plus the round's log directory —
+and queues the round again, recording the act on the stream as
+`lane_round_requeued`. Once per round (S-0092/D-1). A second such halt stays
+with you, and the path is short: amend the phase on the document's branch —
+the phasing is what the round reads, and a round's contract lives in the
+record, so an edit to the contract file itself reaches an attempt only by
+accident — then `torve manager resolve <partition> <task> --resolution
+requeued`, which re-derives the round's scope from the phasing as the branch
+holds it at the requeue before the round goes back on the board (S-0092/D-4).
 
 **A round's own review opens no round.** `record` reads no finding from a
 review whose target is itself a round the leg minted on this branch —
