@@ -495,3 +495,50 @@ def test_the_configured_arm_composes_its_prompt_in_the_adapter_as_it_did(tmp_pat
     assert seen["pack"]
     assert "removed" not in seen["agent_block"]
     assert "arm" not in seen["agent_block"]
+
+
+# ----------------------- #
+
+
+def _halt_log(tmp_path, *entries):
+    from torve.config import layout
+
+    log = layout.log_file(tmp_path, TASK_ID)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        yaml.safe_dump({"schema_version": 1, "task": TASK_ID, "entries": list(entries)}),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    ("entries", "expected"),
+    [
+        ([], None),
+        ([{"grade": "ASSUMED", "class": "discovery", "action": "departed"}], None),
+        ([{"grade": "LOCKED", "class": "discovery", "action": "halted"}], "locked_conflict"),
+        ([{"grade": "UNLISTED", "class": "spec-gap", "action": "halted"}], "underspecified"),
+        ([{"grade": "ASSUMED", "class": "drift", "action": "halted"}], "locked_conflict"),
+        (
+            [
+                {"grade": "UNLISTED", "class": "spec-gap", "action": "halted"},
+                {"grade": "LOCKED", "class": "spec-gap", "action": "halted"},
+            ],
+            "locked_conflict",
+        ),
+    ],
+)
+def test_a_halted_entry_picks_its_escalation(tmp_path, entries, expected):
+    """S-0092/D-3: a cited LOCKED row escalates locked_conflict, a spec gap
+    underspecified, any other halt locked_conflict as before."""
+    from torve.application.session import _halt_reason
+
+    _halt_log(tmp_path, *entries)
+
+    assert _halt_reason(tmp_path, TASK_ID) == expected
+
+
+def test_no_log_means_no_halt(tmp_path):
+    from torve.application.session import _halt_reason
+
+    assert _halt_reason(tmp_path, TASK_ID) is None

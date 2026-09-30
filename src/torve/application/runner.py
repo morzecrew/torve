@@ -99,7 +99,9 @@ class AttemptHooks:
     loop below owns the states and facts; the hooks own the mechanism."""
 
     attempt: Callable[[RunState], Awaitable[AgentResult]]
-    halted: Callable[[], bool]  # locked-conflict detection after an attempt
+    # After an attempt: the escalation a halted divergence entry asks for
+    # (S-0092/D-3), or None when nothing halted.
+    halted: Callable[[], EscalationReason | None]
     gates: Callable[[RunState], Awaitable[tuple[int, str, str]]]  # exit, summary, config hash
     land: Callable[[RunState, str], Awaitable[str]]  # returns the recorded fact
     # After green gates, before landing (S-0005, S-0005/D-11): returns the fact
@@ -262,11 +264,12 @@ async def _attempt_loop(
 
             return state
 
-        if hooks.halted():
+        if halt := hooks.halted():
             # Terminal by design, not an error: the one case where a task
-            # stops on working code (S-0001/state-machine).
+            # stops on working code (S-0001/state-machine). The entry picks
+            # the escalation — a locked row or a spec gap (S-0092/D-3).
             state.escalate(
-                EscalationReason.LOCKED_CONFLICT,
+                halt,
                 f"halted divergence entry in the {task.id} execution log",
             )
 
@@ -917,6 +920,10 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
 
     elif reason == str(EscalationReason.BLOCKER_FINDING):
         why = _BLOCKER_MARKER
+
+    elif reason == str(EscalationReason.UNDERSPECIFIED):
+        # Not a resume marker: the fix is an amendment and a re-mint.
+        why = "escalated halted on a spec gap"
 
     message = (
         f"torve({run.task.id}): attempt {state.attempts} {why}\n\n"

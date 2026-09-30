@@ -2890,3 +2890,34 @@ def test_a_failed_checkpoint_commit_leaves_the_review_escalation_as_it_was(repo,
     assert len(uncommitted) == 1
     assert uncommitted[0]["task"] == "T-9001"
     assert "index.lock" in uncommitted[0]["error"]
+
+
+def test_a_spec_gap_halt_escalates_underspecified(repo, monkeypatch):
+    """S-0092/D-3: a halted entry of class spec-gap citing no LOCKED row
+    escalates `underspecified`, and the row carries the same reason."""
+    import sys
+
+    from torve.application.ports import AgentResult
+
+    class SpecGapAgent(_EndingsAgent):
+        def run(self, ctx):
+            if self.halted_on == ctx.attempt:
+                log_dir = ctx.workspace / ".torve" / "tasks" / ctx.task.id
+                log_dir.mkdir(parents=True, exist_ok=True)
+                (log_dir / "log.yaml").write_text(
+                    "schema_version: 1\ntask: " + ctx.task.id + "\ndrift_count: 0\n"
+                    "entries:\n  - decision: unlisted\n    grade: UNLISTED\n"
+                    "    kind: blocked\n    class: spec-gap\n    action: halted\n",
+                    encoding="utf-8",
+                )
+            return self.results[min(ctx.attempt - 1, len(self.results) - 1)]
+
+    monkeypatch.setattr(sys.modules[__name__], "_EndingsAgent", SpecGapAgent)
+
+    final, (rows, _events) = _drive_endings(
+        repo, [AgentResult(exit_code=0, output="")], halted_on=1
+    )
+
+    assert final.escalation is not None and final.escalation.reason == "underspecified"
+    assert [r["verdict"] for r in rows] == ["halted"]
+    assert rows[0]["escalation"] == "underspecified"

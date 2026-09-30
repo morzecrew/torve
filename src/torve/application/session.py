@@ -581,7 +581,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 escalation=state.escalation.reason,
             )
 
-        elif _log_has_halted_entry(worktree, task.id):
+        elif (halt := _halt_reason(worktree, task.id)) is not None:
             # The halted divergence entry (S-0001/state-machine): terminal by
             # design, and today it ends the attempt silently.
             record = attempt_row(
@@ -589,7 +589,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 "halted",
                 exit_code=result.exit_code,
                 timed_out=result.timed_out,
-                escalation=str(EscalationReason.LOCKED_CONFLICT),
+                escalation=str(halt),
             )
 
         elif result.timed_out or result.exit_code != 0:
@@ -769,41 +769,59 @@ async def _prepare(
 # ....................... #
 
 
-def _log_has_halted_entry(worktree: Path, task_id: str) -> bool:
+def _halt_reason(worktree: Path, task_id: str) -> EscalationReason | None:
+    """The escalation a halted divergence entry asks for (S-0092/D-3): one
+    citing a LOCKED row is `locked_conflict`, one of class `spec-gap` is
+    `underspecified`, any other halt keeps `locked_conflict`. A LOCKED row
+    wins over a spec gap in the same log — the owner is asked first."""
+
     log = layout.log_file(worktree, task_id)
 
     if not log.is_file():
-        return False
+        return None
 
     try:
         document = yaml.safe_load(log.read_text(encoding="utf-8"))
 
     except yaml.YAMLError:
-        return False  # an unreadable log is the decisions-reported gate's finding
+        return None  # an unreadable log is the decisions-reported gate's finding
 
     if not isinstance(document, dict):
-        return False
+        return None
 
     entries: Any = cast(dict[str, Any], document).get("entries")
 
     if not isinstance(entries, list):
-        return False
+        return None
 
-    return any(
-        isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
+    halts = [
+        cast(dict[str, Any], e)
         for e in cast(list[object], entries)
-    )
+        if isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
+    ]
+
+    if not halts:
+        return None
+
+    if any(str(e.get("grade", "")) == "LOCKED" for e in halts):
+        return EscalationReason.LOCKED_CONFLICT
+
+    if any(str(e.get("class", "")) == "spec-gap" for e in halts):
+        return EscalationReason.UNDERSPECIFIED
+
+    return EscalationReason.LOCKED_CONFLICT
 
 
 # ....................... #
 
 
-def halted(run: Dispatch) -> bool:
-    """A LOCKED conflict is written to the log as a halted entry; the loop
-    reads the fact from the file, so the agent cannot cause the transition
-    directly. The S-0001/A-1 YAML log is parsed, not pattern-matched."""
+def halted(run: Dispatch) -> EscalationReason | None:
+    """A halt is written to the log as a halted entry; the loop reads the
+    fact from the file, so the agent cannot cause the transition directly.
+    The S-0001/A-1 YAML log is parsed, not pattern-matched. Returns the
+    escalation the halt asks for, or None when nothing halted."""
 
-    return _log_has_halted_entry(run.worktree, run.task.id)
+    return _halt_reason(run.worktree, run.task.id)
 
 
 # ....................... #
