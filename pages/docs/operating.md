@@ -998,9 +998,43 @@ nothing to edit. A task-unit pull request wears the same name with the phase's
 title as the description (S-0087/D-3), and a document without the field is
 titled as today, in every byte.
 While phases are still to come it is a draft, and the landing of the last phase
-marks it ready: a person who merges a draft merges knowingly, since the phases
-that land afterwards land on a branch behind `main`. Nothing turns a ready pull
-request back into a draft.
+marks it ready once the whole suite has passed over the finished branch — the
+two paragraphs below (S-0093/D-1): a person who merges a draft merges knowingly,
+since the phases that land afterwards land on a branch behind `main`. Nothing
+turns a ready pull request back into a draft; a red suite only ever keeps one
+from turning ready.
+
+**A complete document runs the whole suite before it turns ready.** A phase's
+acceptance is scoped to the tests its own phase names, and a fast-forward
+landing proves the tree is the one those gates measured — and nothing more. So
+the landing that leaves a document complete first runs the full battery over
+the branch tip in a disposable lane worktree, before the pull request is
+published (S-0093/D-1): the same re-run a rebased branch is judged by above,
+under no one task's contract — acceptance taken from the manifest's own
+fallback commands, under the manifest's own cap, because one cap sizes both
+re-runs and a second setting would let them disagree (S-0093/D-5). It runs
+once per completion: a landing that leaves phases still to come runs no
+battery at all.
+
+Green, the pull request turns ready. Red, the landing is withheld: the branch
+goes back to where the last landed phase left it, the pull request stays the
+draft its earlier phases opened, and `lane_document_gates_red` records the
+task, the tip and the failing summary — a person reading the draft sees why it
+is one (S-0093/D-2). The red is also written to the stream as a review finding
+on the last landed task: severity major, the failing gates and tests as the
+claim, the battery's command as the evidence — exactly the shape the thread
+leg's `record` source mints a round from (S-0093/D-3, S-0086/D-4). A
+completion earns that one round, no more. While the round is outstanding the
+landing waits, reported as `awaiting round`, rather than re-running the suite
+every pass; when the round lands a change, or answers the finding without one,
+the battery runs again, and a green rerun turns the pull request ready at
+last — a flaky test clears itself there, and a break the round can fix is
+fixed (S-0093/D-4). A second red reaches a person: the withheld landing
+escalates as a blocker finding, leaves the lane, and no third battery runs. A
+document with no landed task a round could be about — a one-phase document
+whose first landing turns red — escalates on that first red instead. And the
+round runs on the leg: `threads` off, or `record` missing from its `sources`,
+mints nothing, and the draft waits for a round that will not come.
 
 **A phase counts from the tree, not from who landed it.** The carried list the
 title and the body are composed from is the lane's records of landings on the
