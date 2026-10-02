@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-document-rebase-drops-hand-commits
+kind: operator
+ref: 'bloomery night 15, 2026-10-02: telemetry lane_document_rebased torve/S-0084 at 06:18:39Z and
+  torve/S-0088 at 06:27:23Z dropped hand commits 4449f7bb and 43b9fc6f; #244 merged without the
+  S-0084/D-3 fix; restored by hand on bloomery #250 (5fc17f12, bbc117c7)'
+title: A document rebase drops the hand commits on its branch
+at: '2026-10-02T13:30:00Z'
+summary: |
+  After main moved (two document pull requests merged), the lane rebased the
+  open document branches onto it. For torve/S-0084 and torve/S-0088 the
+  rebased branch held only the tasks' own landings (T-0226 and T-0238; T-0233
+  and T-0245): the operator's review-fix commits pushed on top the night
+  before, with an explicit lease, were gone. One carried a code fix and a
+  decision amendment (S-0084/D-3), so the pull request merged without them
+  and nothing said so. The same night torve/S-0085's rebase kept its hand
+  commit, so the loss depends on how the rebase is cut (inferred: recut from
+  the record's task list rather than rebasing the branch tip).
+
+  S-0091 made a hand commit count as the branch moving for landing; a
+  rebase onto a moved base needs the same rule: carry every commit on the
+  branch that is not already on the new base, or refuse and escalate
+  `merge_conflict`. A rebase that loses commits should never be silent: the
+  lane can compare the branch's commit set before and after and refuse when
+  any non-task commit disappears.
+
+  Operator workaround: after any `lane_document_rebased`, check that the
+  branch still contains its hand commits (`git branch -r --contains`), and
+  cherry-pick what was lost.
