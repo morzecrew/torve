@@ -61,6 +61,15 @@ dev = [
     "pytest-cov>=7.1.0",
     "diff-cover>=10.5.1",
 ]
+docs = [
+    # The documentation site under `pages/` (Zensical) and its versioning
+    # (mike, Zensical's fork). Its own group, as bloomery keeps it: building the
+    # site is no concern of a consumer, and CI installs it only to deploy.
+    "mike",
+    "pygments>=2.19",
+    "pymdown-extensions>=10.14",
+    "zensical>=0.0.43",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -261,3 +270,10 @@ exclude = ["^tests/", "^scripts/", "^skills/"]
 # behind the `torve[opensandbox]` extra.
 module = ["opensandbox.*", "yoyo.*"]
 ignore_missing_imports = true
+
+[tool.uv.sources]
+# Zensical's mike fork has no PyPI release. Pinned to the commit bloomery uses:
+# an unpinned git source tracks the default branch, so a later `uv lock` would
+# re-resolve it silently. A dependency group is not package metadata, so this
+# git source never reaches a built wheel.
+mike = { git = "https://github.com/squidfunk/mike", rev = "2d4ad799442f4592db8ad53b179bfb33db8c69ac" }
