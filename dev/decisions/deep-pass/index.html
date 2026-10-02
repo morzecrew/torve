@@ -1,0 +1,1411 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Engine that turns accepted design documents into gated, reviewed work served to coding agents">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/torve/dev/decisions/deep-pass/">
+      
+      
+        <link rel="prev" href="../../architecture/distribution/">
+      
+      
+        <link rel="next" href="../tracker-outbox/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.67">
+    
+    
+      
+        <title>The deep pass - Torve — engine documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ae390e2.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.96d1a7e4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-deep-pass-meaningful-or-garbage" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Torve — engine documentation" class="md-header__button md-logo" aria-label="Torve — engine documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Torve — engine documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The deep pass
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun-moon" viewBox="0 0 24 24"><path d="M12 2v2M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715M16 12a4 4 0 0 0-4-4M19 5l-1.256 1.256M20 12h2"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/torve" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    morzecrew/torve
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Torve — engine documentation" class="md-nav__button md-logo" aria-label="Torve — engine documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Torve — engine documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/torve" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    morzecrew/torve
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Start here
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Operating the engine
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Architecture
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  System overview
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/record/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The record
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The execution model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/channel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The live channel
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/state/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  State and truth
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/distribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What does not distribute
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Records of decisions
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Records of decisions
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The deep pass
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The deep pass
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-verdict-up-front" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The verdict up front
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-owners-six-points-examined" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The owner's six points, examined
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The owner&#x27;s six points, examined">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-rfcs-are-the-wrong-seam-a-task-is-the-main-execution-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. "RFCs are the wrong seam — a task is the main execution unit"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-dependencies-are-logical-for-tasks-and-for-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. "Dependencies are logical for tasks and for sources"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-we-could-have-a-resident-process-same-for-agent-communication-same-for-the-whole-single-node-inventory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. "We could have a resident process... same for agent communication, same for the whole single-node inventory"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-derive-dont-record-is-not-efficient-and-can-drift-if-the-derivation-source-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. "Derive, don't record is not efficient and can drift if the derivation source changes"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-self-hosted-durable-stuff-vs-maintained-temporal-not-completely-sure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. "Self-hosted durable stuff vs maintained Temporal — not completely sure"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-tracker-projections-need-a-big-refactor-not-important-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. "Tracker projections need a big refactor — not important now"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-telemetry-says-survives" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the telemetry says survives
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-v2-shape-stated-plainly" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The v2 shape, stated plainly
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-path-not-a-big-bang" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recommended path — not a big bang
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#answer-to-the-question-as-asked" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Answer to the question as asked
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracker-outbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The tracker outbox
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-verdict-up-front" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The verdict up front
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-owners-six-points-examined" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The owner's six points, examined
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The owner&#x27;s six points, examined">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-rfcs-are-the-wrong-seam-a-task-is-the-main-execution-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. "RFCs are the wrong seam — a task is the main execution unit"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-dependencies-are-logical-for-tasks-and-for-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. "Dependencies are logical for tasks and for sources"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-we-could-have-a-resident-process-same-for-agent-communication-same-for-the-whole-single-node-inventory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. "We could have a resident process... same for agent communication, same for the whole single-node inventory"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-derive-dont-record-is-not-efficient-and-can-drift-if-the-derivation-source-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. "Derive, don't record is not efficient and can drift if the derivation source changes"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-self-hosted-durable-stuff-vs-maintained-temporal-not-completely-sure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. "Self-hosted durable stuff vs maintained Temporal — not completely sure"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-tracker-projections-need-a-big-refactor-not-important-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. "Tracker projections need a big refactor — not important now"
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-telemetry-says-survives" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the telemetry says survives
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-v2-shape-stated-plainly" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The v2 shape, stated plainly
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-path-not-a-big-bang" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recommended path — not a big bang
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#answer-to-the-question-as-asked" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Answer to the question as asked
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Start here
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="././" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    Records of decisions
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="the-deep-pass-meaningful-or-garbage">The deep pass — meaningful or garbage?<a class="headerlink" href="#the-deep-pass-meaningful-or-garbage" title="Permanent link">&para;</a></h1>
+<div class="admonition info">
+<p class="admonition-title">A record, not documentation — 2026-09-03</p>
+<p>This is the external review that produced S-0044. It describes the
+engine as it stood on 2026-09-03 and argues for replacing part of it;
+both the description and the argument are kept unedited, because the
+rebuild rests on them, and an argument revised after it won is not
+evidence of anything.</p>
+<p>What the engine does now is <a href="../../architecture/overview/">the architecture
+section</a>. What was decided here is
+<a href="https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md">S-0044</a>.</p>
+</div>
+<p>Written 2026-09-04, after the thirteen-contract queue closed, in response to
+the owner's challenge: <em>"persistence can hold the truth, repo can project
+it... we need yet another deep pass to see from an external point what we
+are doing and whether it is actually something meaningful or just garbage."</em></p>
+<p>This page takes the external stance seriously: no loyalty to the corpus, no
+defense of decisions because they are LOCKED. Where the owner's counters are
+right, it says so; where something survives scrutiny, it says why with
+evidence from our own execution telemetry — the one thing an outside
+reviewer would not have.</p>
+<h2 id="the-verdict-up-front">The verdict up front<a class="headerlink" href="#the-verdict-up-front" title="Permanent link">&para;</a></h2>
+<p><strong>The experiment is meaningful; the vehicle is not the product.</strong> Torve as a
+codebase is a v1 laboratory whose most important output is not the code — it
+is a set of validated findings about how autonomous execution actually fails
+and what actually contains it. Several of those findings, read honestly,
+argue <em>against</em> the current architecture. The owner's instinct to invert the
+truth boundary is supported by our own data, not just by taste.</p>
+<p>The strongest single piece of evidence: in the S-0034/D-9 measurement window,
+<strong>every poison-ceiling was a form conviction — six of them — and zero were
+functional</strong>. Unquoted YAML scalars, evidence-grammar mismatches, unstaged
+files. The work was green; the <em>machine interface</em> — hand-written repo files
+judged by grammar gates — was what failed. When the dominant failure class
+of a design is the seam itself, the seam is wrong. That is the external
+view's headline, and it comes from torve's own telemetry.</p>
+<h2 id="the-owners-six-points-examined">The owner's six points, examined<a class="headerlink" href="#the-owners-six-points-examined" title="Permanent link">&para;</a></h2>
+<h3 id="1-rfcs-are-the-wrong-seam-a-task-is-the-main-execution-unit">1. "RFCs are the wrong seam — a task is the main execution unit"<a class="headerlink" href="#1-rfcs-are-the-wrong-seam-a-task-is-the-main-execution-unit" title="Permanent link">&para;</a></h3>
+<p><strong>Right, with a precision.</strong> What the RFC construct actually carries is
+three separable things: <em>provenance</em> (where the intent came from), <em>graded
+constraints</em> (the decision table — LOCKED/ASSUMED/OPEN with paths), and a
+<em>minting shape</em> (phasing → contracts). Only the markdown document welds them
+together. Execution history already shows the weld straining: bugfixes,
+external audits, review findings, and operator asks all had to be dressed as
+RFCs or amendments to enter the system, and <code>rfc_parse</code> is a regex scraper
+over prose — a fragile machine interface pretending to be a human one.</p>
+<p>The keeper is the <strong>graded-constraint discipline</strong>, not the document form.
+In a persistence-first design: a <code>Source</code> (any provenance — RFC text,
+incident, audit, a review finding that minted a follow-up), <code>Decision</code> rows
+as first-class versioned records with a queryable graph, and <code>Task</code> as the
+execution unit inheriting constraints by path intersection. The decision
+graph then costs a query, not a repo scan — exactly the owner's point.</p>
+<h3 id="2-dependencies-are-logical-for-tasks-and-for-sources">2. "Dependencies are logical for tasks and for sources"<a class="headerlink" href="#2-dependencies-are-logical-for-tasks-and-for-sources" title="Permanent link">&para;</a></h3>
+<p>Agreed, and it is nearly free: <code>depends_on</code> already exists on both tasks and
+documents; the generalization is one DAG over typed nodes instead of two
+half-DAGs joined by convention. Nothing in the current semantics (dependency
+satisfied only by a landing) needs to change — that rule is one of the
+keepers.</p>
+<h3 id="3-we-could-have-a-resident-process-same-for-agent-communication-same-for-the-whole-single-node-inventory">3. "We could have a resident process... same for agent communication, same for the whole single-node inventory"<a class="headerlink" href="#3-we-could-have-a-resident-process-same-for-agent-communication-same-for-the-whole-single-node-inventory" title="Permanent link">&para;</a></h3>
+<p><strong>Agreed — with one invariant worth rescuing from each doctrine before it
+is dropped.</strong></p>
+<ul>
+<li><em>Tick-not-daemon</em> (S-0019/D-1) bought crash-correctness by construction and
+  trivial observability while the loop was fragile. That job is done; a
+  durable-execution substrate provides both properties in resident form.
+  The doctrine is scaffolding, not charter. Let it go.</li>
+<li><em>No agent communication</em> (D-31) has a load-bearing core that is <strong>not</strong>
+  "no communication": it is <em>no ephemeral, prompt-level entanglement</em>. The
+  owner's own formulation — "strict, type-safe and through a persistent
+  layer" — preserves exactly what mattered (auditability, replayability, no
+  context contamination) while dropping the blanket ban. Typed messages in
+  the event log are reviewable artifacts; two agents sharing a context
+  window are not. Keep the invariant, drop the prohibition.</li>
+<li>The single-node inventory (the <a href="../../architecture/distribution/">fault line</a>
+  table) dissolves almost entirely under manager/workers-over-persistence.
+  The one item that survives any architecture: landings serialize <em>per
+  repo</em>. Multi-repo scaling turns that from a wall into a partition key.</li>
+</ul>
+<h3 id="4-derive-dont-record-is-not-efficient-and-can-drift-if-the-derivation-source-changes">4. "Derive, don't record is not efficient and can drift if the derivation source changes"<a class="headerlink" href="#4-derive-dont-record-is-not-efficient-and-can-drift-if-the-derivation-source-changes" title="Permanent link">&para;</a></h3>
+<p><strong>The drift half is correct and is the sharper argument.</strong> Derivation
+re-interprets history through the <em>current</em> schema: change the state shape
+and every rebuild silently reinterprets the past. An event log inverts this
+— record at write, immutable, with derivation demoted from hot path to
+rebuild path. The efficiency half matters less (the sweeps are small), but
+the drift half is exactly the standard argument for event sourcing, and it
+lands.</p>
+<p>Honesty requires the flip side: derive-don't-record was chosen when the
+only durable thing was git and the mock store was a torn JSONL. It was the
+right call <em>for that substrate</em>. With Postgres-grade persistence as truth,
+record-at-write with idempotent handlers is simply the correct default, and
+S-0008/D-2's rebuild property is preserved as "replay the log", which is
+stronger, not weaker.</p>
+<h3 id="5-self-hosted-durable-stuff-vs-maintained-temporal-not-completely-sure">5. "Self-hosted durable stuff vs maintained Temporal — not completely sure"<a class="headerlink" href="#5-self-hosted-durable-stuff-vs-maintained-temporal-not-completely-sure" title="Permanent link">&para;</a></h3>
+<p>The right amount of unsure. External view: this is an <strong>adapter decision,
+not a domain decision</strong>, and the only architectural mistake available here
+is coupling the domain to either answer. Temporal buys maturity, visibility
+UI, signals/queries — and operational weight (a cluster) or a bill (Cloud).
+forze buys control and zero external dependency — and a maintenance
+obligation the product will feel at every scaling step. The hexagonal move:
+define the manager's workflows in domain terms, keep the durable-execution
+engine behind a port, bind forze first (it exists and is understood), and
+let the Temporal question be answered by operational pain, not upfront.
+What must be owned either way is the <strong>persistence schema</strong> — events,
+tasks, decisions, verdicts. That schema <em>is</em> the product; the runner is a
+tenant.</p>
+<h3 id="6-tracker-projections-need-a-big-refactor-not-important-now">6. "Tracker projections need a big refactor — not important now"<a class="headerlink" href="#6-tracker-projections-need-a-big-refactor-not-important-now" title="Permanent link">&para;</a></h3>
+<p>Agreed on both halves. In the v2 shape the tracker becomes an ordinary
+projection consumer of the event log and the current pain (including the
+whole <a href="../tracker-outbox/">outbox debate</a>) evaporates as a
+side effect. Park it.</p>
+<h2 id="what-the-telemetry-says-survives">What the telemetry says survives<a class="headerlink" href="#what-the-telemetry-says-survives" title="Permanent link">&para;</a></h2>
+<p>An external reviewer with our data would sort the codebase into three piles:</p>
+<p><strong>The IP — carries over nearly intact.</strong> The gate battery with sabotage
+twins (gates that prove they can fail); review-as-a-run with the
+evidence-locatability discard rule — it caught seven genuine blockers in
+one queue with zero noise, including two defects (<code>why.py</code>, the bind
+precedence) that would have shipped; the closed escalation vocabulary;
+the poison ceiling; the measurement regime (config-hash regimes, shadow
+replays, eval arms, character/axis routing) — this is the part almost no
+other agent harness has, and it is what made every claim in this document
+checkable. These are domain libraries; they do not care what substrate
+hosts them.</p>
+<p><strong>The lessons — carry over as design inputs, not code.</strong> Warm starts and
+image provisioning; the index-helps-structural / hurts-routine finding;
+the credential-broker shape; sizing calibration; the review corpus of
+escapes.</p>
+<p><strong>The vehicle — dies without regret.</strong> The mock store, the YAML-file
+machine interface, the rfc-parse scraper, the operator shell chain, the
+run-state files, the tick loop, the tracker glue. Note what else dies with
+the YAML seam: the <em>entire dominant failure class</em>. Divergence entries
+written through a typed intake (a tool call into persistence, projected
+into the landing for human review) cannot be unparseable, cannot violate
+evidence grammar, cannot be left unstaged. Six poison-ceilings and three
+unstaged-artifact escalations — the whole triage burden of the last
+week — are artifacts of hand-written files as protocol. S-0043 patches
+this class; the v2 seam deletes it.</p>
+<p><strong>One structural note on the code itself:</strong> the internal hexagonality is
+real (five import-linter contracts, application-never-imports-adapters,
+held under agent fire for months). The "pet-project CLI" feel is not in the
+layering — it is at the system boundary, where every interface is a file in
+a repo. The hexagon is good; it is drawn around the wrong center.</p>
+<h2 id="the-v2-shape-stated-plainly">The v2 shape, stated plainly<a class="headerlink" href="#the-v2-shape-stated-plainly" title="Permanent link">&para;</a></h2>
+<p>The owner's target, made concrete:</p>
+<ul>
+<li><strong>Truth</strong>: an event log + documents in Postgres. Sources, decisions,
+  tasks, attempts, verdicts, landings, seats, repos. Human authority is
+  itself an event (an acceptance, a triage signature) — the load-bearing
+  half of D-27 ("nothing enters planning without human review") survives as
+  a rule about <em>who may write which events</em>, not about which filesystem
+  holds truth.</li>
+<li><strong>Manager</strong>: resident, durable, multi-repo. Owns queues, enforces the
+  invariants that survive (scope disjointness in flight, serialized
+  landings per repo, dependency-by-landing), routes on character/axis,
+  escalates to humans.</li>
+<li><strong>Workers</strong>: stateless claim-pullers — sandbox + harness + battery +
+  review. Capability scaling = more workers, more seats/credentials.
+  Communication with the manager is typed commands/events through the
+  persistence layer — never shared context.</li>
+<li><strong>Repos</strong>: projection targets and work surfaces. The engine stages and
+  lands; agents never hold git discipline responsibilities. Contract
+  materialization in, landing commits out, optional generated
+  decision-graph docs — the repo is scanned at import/reconcile, not on
+  every question.</li>
+</ul>
+<h2 id="recommended-path-not-a-big-bang">Recommended path — not a big bang<a class="headerlink" href="#recommended-path-not-a-big-bang" title="Permanent link">&para;</a></h2>
+<p>Starting fresh is justified; discarding the evidence is not. The sequence
+that keeps the proof while replacing the vehicle:</p>
+<ol>
+<li><strong>Write the v2 domain charter</strong> as a small document set (~10 decisions:
+   the event schema, the authority rule, the typed-communication invariant,
+   the per-repo landing partition). This is where the graded-decision
+   discipline gets applied to its own successor.
+   <em>Done 2026-09-04 — S-0044 "The manager domain", 13 decisions, three
+   mintable phases (event log → divergence intake → manager and worker),
+   awaiting acceptance.</em></li>
+<li><strong>Stand up the persistence schema</strong> behind a durable-execution port;
+   bind forze. Import the v1 evidence (telemetry, verdicts, the review
+   corpus) as the first data.</li>
+<li><strong>Port the IP pile as libraries</strong> — gates, review lane, sizing,
+   measurement. Mostly pure already; this step is small.</li>
+<li><strong>Run the v2 manager against one repo</strong> (torve itself is the natural
+   dogfood target) with the typed divergence intake, while v1 stays
+   operational. The exit criterion writes itself: v2 lands its own tasks
+   with a lower escalation rate than v1's form-conviction baseline — a
+   number we already have.</li>
+<li><strong>Multi-repo second.</strong> The partition key is designed in from step 1 but
+   exercised only after one repo is boring.</li>
+</ol>
+<h2 id="answer-to-the-question-as-asked">Answer to the question as asked<a class="headerlink" href="#answer-to-the-question-as-asked" title="Permanent link">&para;</a></h2>
+<p>Not garbage — but the meaningful thing is not what it looked like. The
+meaningful thing is a <strong>validated doctrine of contained autonomous
+execution</strong> (graded constraints, gate batteries that self-test, adversarial
+review as a lane, escalation as a closed vocabulary, measurement as a
+first-class regime) plus the telemetry proving which parts earn their keep.
+The CLI, the YAML, the file seams — the parts that felt like the project —
+are the packaging of the experiment, and the experiment's own results
+recommend replacing them. Feeling fine about dropping the tasks and files
+is the correct instinct; the thing worth not dropping fits in a schema and
+four libraries.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../architecture/distribution/" class="md-footer__link md-footer__link--prev" aria-label="Previous: What does not distribute">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                What does not distribute
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../tracker-outbox/" class="md-footer__link md-footer__link--next" aria-label="Next: The tracker outbox">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                The tracker outbox
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"redirect":null,"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.67a597eb.min.js"></script>
+      
+    
+  </body>
+</html>
