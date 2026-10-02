@@ -1,10 +1,10 @@
 [project]
 site_url = "https://morzecrew.github.io/torve/"
 site_name = "Torve — engine documentation"
-# site_description = "Your project description"
-# site_author = "Your name"
+site_description = "Engine that turns accepted design documents into gated, reviewed work served to coding agents"
+site_author = "Lev Litvinov"
 
-# copyright = "Copyright &copy; 2026 Your name"
+copyright = "&copy; 2026 Lev Litvinov and contributors"
 
 repo_url = "https://github.com/morzecrew/torve"
 repo_name = "morzecrew/torve"
@@ -128,3 +128,14 @@ pymdownx.tabbed.alternate_style = true
 pymdownx.tabbed.combine_header_slug = true
 pymdownx.tasklist.custom_checkbox = true
 pymdownx.tilde = {}
+
+# ....................... #
+# Versioning
+
+[project.extra.version]
+provider = "mike"
+# The root redirects to whatever carries the `latest` alias, the newest released
+# minor; until the first `vX.Y.Z` tag it redirects to `dev`, which tracks main.
+# See .github/workflows/docs-dev.yaml and docs-release.yaml.
+default = "latest"
+alias = true

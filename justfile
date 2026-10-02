@@ -105,9 +105,14 @@ migrate *args='':
 # ----------------------- #
 # Docs
 
-# Serve the architecture docs locally with hot reload
+# Serve the docs locally with hot reload, from the locked `docs` group
 docs:
-    cd {{ _pwd }}/pages && uvx zensical serve
+    cd {{ _pwd }}/pages && uv run --group docs zensical serve
+
+# Build the docs site into pages/site. `--strict` because without it a broken
+# internal link is reported and the build still exits 0.
+docs-build:
+    cd {{ _pwd }}/pages && uv run --group docs zensical build --strict
 
 # Re-render d2 diagram sources to SVG
 docs-diagrams:

@@ -1,0 +1,82 @@
+name: Deploy dev documentation
+
+# Continuously publishes main's in-progress docs to the `dev` version on the
+# gh-pages branch. `dev` is never the default once a release exists and never
+# carries the `latest` alias, so this never disturbs the released docs. Released
+# versions are handled by docs-release.yaml (tag push / manual polish).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "pages/**"
+      - ".github/workflows/docs-dev.yaml"
+  workflow_dispatch:
+
+# Share one group with docs-release.yaml so concurrent mike deploys (which all
+# mutate gh-pages) serialize instead of racing. Never cancel a deploy mid-push.
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publish dev docs
+    # `dev` always tracks main; this also pins a manual dispatch to main, so a
+    # stray branch cannot overwrite main's docs under `dev`.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # mike pushes the built site to the gh-pages branch
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] credentials are needed by `mike deploy --push` to gh-pages
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history; mike reads/updates the gh-pages branch
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0 # zizmor: ignore[cache-poisoning] the docs build publishes no runtime artifact
+        with:
+          enable-cache: true
+          prune-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Install d2
+        run: bash .github/scripts/install-d2.sh
+
+      - name: Install dependencies
+        run: uv sync --frozen --group docs
+
+      - name: Configure git identity
+        run: bash .github/scripts/configure-git-identity.sh
+
+      # mike runs `zensical build`, never the just recipe, so the diagrams are
+      # rendered here: the committed SVGs are regenerated from their d2 sources
+      # so a source edited without a re-render still publishes current.
+      - name: Render diagrams
+        run: just docs-diagrams
+
+      - name: Deploy dev version
+        working-directory: pages
+        run: uv run mike deploy --push --branch gh-pages dev
+
+      - name: Set root redirect while unreleased
+        run: bash .github/scripts/set-docs-default-if-unset.sh
