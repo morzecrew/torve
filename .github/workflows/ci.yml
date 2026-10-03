@@ -10,13 +10,22 @@ permissions:
 
 jobs:
   gates:
+    name: gates (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    # Every interpreter `requires-python` admits: development and the sandbox
+    # image run 3.13, while an unpinned runner resolves the newest.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # gates diff against git merge-base
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: ${{ matrix.python }}
       - run: uv sync --frozen
       # The sabotage suite: a gate that cannot be shown to fail is not a check.
       - run: uv run torve gates check
