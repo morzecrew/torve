@@ -27,7 +27,8 @@ phasing:
       The reaper can clear one escalated task's run-state file, worktree and sandbox,
       keeping its checkpoint. `manager resolve --resolution requeued` does that before
       writing the requeue, so the next dispatch neither refuses nor fails as `gate_infrastructure_failure`.
-      Waits on phase 1, which owns the same command. Settles D-3.
+      Waits on phase 1, which owns the same command. `--resolution abandoned` clears
+      nothing. Settles D-3 and D-5.
     scope:
       - src/torve/cli/manager.py
       - src/torve/application/reaper.py

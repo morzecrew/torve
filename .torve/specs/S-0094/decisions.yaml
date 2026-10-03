@@ -68,3 +68,17 @@ decisions:
       that no interrupt class covered; what made it urgent was the pause, not the
       reason
     cites: [S-0051/D-8]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `manager resolve --resolution abandoned` leaves the run's host state where it
+      is; `torve reap --escalated` still clears it
+    paths: [src/torve/cli/manager.py, tests/test_manager.py]
+    consequence: >-
+      a person can still read an abandoned attempt's worktree and diff before sweeping
+      it
+    rationale: >-
+      abandoning is a person declining the work, and the attempt may hold something
+      worth salvaging; a requeue has no such reader, because its next attempt replaces
+      the run
+    cites: [D-3]

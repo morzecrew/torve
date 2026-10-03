@@ -84,3 +84,24 @@ amendments:
         after: 48739fd823f47011/05757260b6b75611
     md: |
       The owner opened T-0310's landing and found no commit on it and no base: the lander dropped the log's pin, and a landing made in the same commit as the work cannot name that commit. D-12 puts the base on the landing from the pin, always known, and makes the by-hand landing follow the work commit in a commit of its own, so `commit` is real; the runner's stays empty and the trailer join stands (S-0057/A-5). The existing landing files are backfilled once from the local logs and the trailers, which is the one rewrite a landing ever gets.
+  - id: A-8
+    at: '2026-10-03T16:23:52Z'
+    title: The identifier map stays through 0.x
+    changes:
+      - subject: D-11
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-11
+        field: text
+        before: >-
+          Whether the mapping stays readable after the first release or is deleted
+          with the release notes naming the renumbering
+        after: >-
+          The mapping stays readable through 0.x: `torve spec show` keeps answering
+          a legacy identifier through `.torve/archive/identifiers.yaml`; whether it
+          survives 1.0 is decided at 1.0, and a release that deletes it names the
+          renumbering in its notes
+      - subject: D-11
+        field: fingerprint
+        after: b80417ce02756fe1/5882c2d1f678d4ba
