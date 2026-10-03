@@ -27,8 +27,12 @@ read.
 
 from __future__ import annotations
 
+import io
 import re
+import shutil
 import subprocess
+import tarfile
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -417,6 +421,7 @@ def plan_document(
     board: Board | None = None,
     refresh: bool = False,
     phases: set[int] | None = None,
+    committed: bool = False,
 ) -> PlanReport:
     """Admission plus minting, dry: nothing is written. Raises PlanError on
     any refusal (§3.1) — each names the offending document or entry. With
@@ -426,7 +431,10 @@ def plan_document(
     *refresh* derives for `--refresh` (S-0088/D-1): the same admission and the
     same derivation, without the two refusals that are about minting — a
     phase already minted is what a refresh is *for*, and the `after` edges
-    are the minted contracts' own, which a refresh keeps."""
+    are the minted contracts' own, which a refresh keeps.
+
+    *committed* says the document was read from a commit rather than the
+    checkout, so the checkout's status says nothing about it."""
 
     files = spec.document_dirs(rfc_dir)
 
@@ -440,7 +448,9 @@ def plan_document(
 
     doc_path = files[number_of(number)]
 
-    _require_committed(root, doc_path)
+    if not committed:
+        _require_committed(root, doc_path)
+
     corpus = load_corpus(rfc_dir)
     _admit(corpus, number)
     doc = corpus.document(number)
@@ -798,8 +808,62 @@ def _in_flight(root: Path, task_id: str, board: Board | None) -> str:
 # ....................... #
 
 
+def _remote_document(root: Path, rfc_dir: Path, identifier: str, branch: str, into: Path) -> Path:
+    """A corpus under *into* that is the checkout's but for one document, read
+    from the remote's *branch* as the last fetch left it (S-0094/D-1): a phase
+    widened there reaches the refresh without a hand edit. *rfc_dir* when the
+    remote has no such branch, or the branch no such document."""
+
+    try:
+        directory = spec.document_dir(rfc_dir, identifier)
+        relative = directory.resolve().relative_to(root.resolve()) if directory else None
+    except ValueError:
+        relative = None
+
+    if directory is None or relative is None:
+        return rfc_dir
+
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "archive",
+            f"refs/remotes/origin/{branch}",
+            "--",
+            relative.as_posix(),
+        ],
+        capture_output=True,
+        check=False,
+    )
+
+    if proc.returncode != 0 or not proc.stdout:
+        return rfc_dir
+
+    corpus = into / rfc_dir.name
+    shutil.copytree(rfc_dir, corpus)
+    archive = spec.archive_dir(rfc_dir)
+
+    if archive.is_dir():
+        (into / archive.name).symlink_to(archive.resolve(), target_is_directory=True)
+
+    shutil.rmtree(corpus / directory.name)
+
+    with tarfile.open(fileobj=io.BytesIO(proc.stdout)) as tar:
+        tar.extractall(into / "tree", filter="data")
+
+    shutil.move(into / "tree" / relative, corpus / directory.name)
+
+    return corpus
+
+
 def refresh_document(
-    root: Path, rfc_dir: Path, identifier: str, *, board: Board | None = None
+    root: Path,
+    rfc_dir: Path,
+    identifier: str,
+    *,
+    board: Board | None = None,
+    remote_branch: str | None = None,
 ) -> RefreshReport:
     """The document derived as for a mint, and each already-minted phase's
     contract compared with the derivation field by field (S-0088/D-1). Dry:
@@ -810,9 +874,27 @@ def refresh_document(
     document order, so the nth contract of a phase is the nth entry's. A
     contract whose entry the phasing no longer carries is left alone and
     named; a phase never minted is not minted here (that is `plan`'s job,
-    refused while any phase is minted, unchanged)."""
+    refused while any phase is minted, unchanged).
 
-    report = plan_document(root, rfc_dir, identifier, board=board, refresh=True)
+    With *remote_branch*, the document is read from the remote's copy of that
+    branch after a fetch the caller made, and the rest of the corpus from the
+    checkout; from the checkout alone when the remote has no such branch."""
+
+    if remote_branch is None:
+        return _refresh(root, rfc_dir, identifier, board, committed=False)
+
+    with tempfile.TemporaryDirectory(prefix="torve-refresh-") as scratch:
+        corpus = _remote_document(root, rfc_dir, identifier, remote_branch, Path(scratch))
+
+        return _refresh(root, corpus, identifier, board, committed=corpus != rfc_dir)
+
+
+def _refresh(
+    root: Path, rfc_dir: Path, identifier: str, board: Board | None, *, committed: bool
+) -> RefreshReport:
+    report = plan_document(
+        root, rfc_dir, identifier, board=board, refresh=True, committed=committed
+    )
     landed = _beyond_refresh(root, rfc_dir, report.document)
     existing: dict[int, list[Task]] = {}
 

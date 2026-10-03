@@ -376,6 +376,42 @@ def recover(
 # ....................... #
 
 
+def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task_id: str) -> bool:
+    """One escalated task's host footprint — its run-state file, worktree
+    and sandbox — cleared ahead of a requeue (S-0094/D-3), so dispatch
+    neither refuses on a state file still claiming the task nor fails the
+    overlap gate on a worktree its own escalation left behind. The branch
+    and whatever checkpoint ref a fresh `GitWorkspace.create` would tag onto
+    it (S-0026/D-9) are never touched here — `remove` takes only the
+    worktree, not the branch it was cut from. A task with no escalated
+    state file is left exactly as it is: this is not a general-purpose
+    reap, only the one task a resolution names."""
+
+    from contextlib import suppress
+
+    state_path = naming.state_file(root, task_id)
+
+    if not state_path.is_file():
+        return False
+
+    state = RunState.load(state_path)
+
+    if state.state is not TaskState.ESCALATED:
+        return False
+
+    if state.sandbox_id:
+        with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
+            runtime.destroy_by_id(state.sandbox_id)
+
+    workspace.remove(task_id)
+    state.path.unlink(missing_ok=True)
+
+    return True
+
+
+# ....................... #
+
+
 async def _durable_reap(
     root: Path,
     config: RunnerConfig,

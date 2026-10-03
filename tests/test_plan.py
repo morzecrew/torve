@@ -905,3 +905,41 @@ def test_refresh_under_a_partition_rewrites_the_records_contract(plan_repo):
         assert not (root / ".torve" / "tasks").exists()
 
     run(scenario)
+
+
+def test_refresh_reads_the_document_from_the_remotes_branch_and_the_rest_from_the_checkout(
+    plan_repo,
+):
+    """S-0094/D-1: a phase widened on the remote's document branch reaches the
+    refresh, while the checkout keeps the text it had."""
+
+    from torve.application.planner import refresh_document
+
+    root, write_doc, git = plan_repo
+    spec_dir = root / ".torve" / "specs"
+    minted(root)
+    git("add", "-A")
+    git("commit", "-qm", "minted")
+    git("checkout", "-q", "-b", "torve/S-0090")
+    amend(root, write_doc, git, scope=["src/widget/**", "tests/widget/**", "pages/**"])
+    git("update-ref", "refs/remotes/origin/torve/S-0090", "HEAD")
+    git("checkout", "-q", "-")
+    git("branch", "-q", "-D", "torve/S-0090")
+
+    core = refresh_document(root, spec_dir, "0090", remote_branch="torve/S-0090").tasks[0]
+
+    assert core.changed == ["scope", "decisions"]
+    assert core.task is not None and "pages/**" in core.task.scope.allow
+    assert refresh_document(root, spec_dir, "0090").tasks[0].changed == []
+
+
+def test_refresh_reads_the_checkout_when_the_remote_has_no_branch(plan_repo):
+    from torve.application.planner import refresh_document
+
+    root, write_doc, git = plan_repo
+    minted(root)
+    amend(root, write_doc, git, intent="Build the widget core, counted.")
+
+    report = refresh_document(root, root / ".torve" / "specs", "0090", remote_branch="torve/S-0090")
+
+    assert report.tasks[0].changed == ["intent", "decisions"]

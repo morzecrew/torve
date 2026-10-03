@@ -628,6 +628,9 @@ class Notification:
     at: datetime
     event_id: str
     age_s: float
+    # Whether this task is one holding the pass's pause (S-0094/D-4): the page
+    # is urgent because the night stopped serving work, whatever the reason.
+    paused: bool = False
 
 
 # ....................... #

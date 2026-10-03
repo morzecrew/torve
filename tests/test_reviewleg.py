@@ -897,7 +897,10 @@ def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
     seeded.git("checkout", "-q", "-b", BRANCH)
     phased_document(seeded.root, ["src/**", "pages/**"])
     seeded.commit("the phase widened by amendment")
+    # The remote's copy, as the pass's fetch leaves it (S-0094/D-2).
+    seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", "HEAD")
     seeded.git("checkout", "-q", "main")
+    seeded.git("branch", "-q", "-D", BRANCH)
     phased_document(seeded.root, ["src/**"])
     open_document(seeded.root)
     reviewed(seeded.root, ("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))

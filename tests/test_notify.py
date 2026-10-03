@@ -100,6 +100,53 @@ def test_an_unclassified_reason_interrupts():
     assert len(undelivered([escalation("something-nobody-mapped")], now=NOW)) == 1
 
 
+def test_a_task_holding_the_pause_pages_its_latest_escalation_whatever_its_reason():
+    """S-0094/D-4: a night that stops serving work pages the operator, and
+    the reason that stopped it need not be an interrupt class."""
+
+    older = escalation("underspecified", at=NOW - timedelta(hours=1))
+    latest = escalation("underspecified")
+    other = escalation("underspecified", subject="T-0901")
+    facts = [older, latest, other]
+
+    assert undelivered(facts, now=NOW) == []
+
+    owed = undelivered(facts, now=NOW, held={"T-0900"})
+
+    assert [(n.event_id, n.paused) for n in owed] == [(str(latest.id), True)]
+
+
+def test_a_held_tasks_delivered_escalation_is_not_paged_again():
+    raised = escalation("underspecified")
+
+    assert undelivered([raised, sent(raised.id)], now=NOW, held={"T-0900"}) == []
+
+
+def test_a_held_tasks_older_interrupting_escalation_still_pages_unflagged():
+    older = escalation("killed", at=NOW - timedelta(hours=1))
+    latest = escalation("underspecified")
+
+    owed = undelivered([older, latest], now=NOW, held={"T-0900"})
+
+    assert [(n.reason, n.paused) for n in owed] == [("killed", False), ("underspecified", True)]
+
+
+def test_the_relay_pages_what_holds_the_pause():
+    async def scenario(log):
+        raised = escalation("underspecified")
+        notifier = Recording()
+
+        assert await relay(log, notifier, partition=PARTITION, actor_id="m", events=[raised]) == []
+        paged = await relay(
+            log, notifier, partition=PARTITION, actor_id="m", events=[raised], held={"T-0900"}
+        )
+
+        assert paged == ["T-0900"]
+        assert [(n.event_id, n.paused) for n in notifier.seen] == [(str(raised.id), True)]
+
+    run(scenario)
+
+
 def test_the_notification_carries_the_escalations_own_id_and_age():
     raised = escalation(at=NOW - timedelta(hours=2))
     one = undelivered([raised], now=NOW)[0]
@@ -335,6 +382,36 @@ def test_the_webhook_posts_the_idempotency_key_on_the_wire():
     assert seen["body"]["task"] == "T-0900"
     # Composed from records, saying what happened.
     assert seen["body"]["text"] == "T-0900 escalated: blocker_finding — three blockers"
+
+
+def test_the_webhook_says_the_night_is_paused():
+    """S-0094/D-4: the page for a task holding the pause says so, in the
+    flag and in the words."""
+
+    from http.server import BaseHTTPRequestHandler
+
+    seen: dict[str, object] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            seen["body"] = json.loads(self.rfile.read(length))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *_args):
+            return
+
+    server, url = serve_once(Handler)
+
+    try:
+        WebhookNotifier(url, timeout_s=5).deliver(notification(paused=True))
+
+    finally:
+        server.shutdown()
+
+    assert seen["body"]["paused"] is True
+    assert seen["body"]["text"].endswith("(the night is paused)")
 
 
 @pytest.mark.parametrize(

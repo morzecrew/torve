@@ -1375,10 +1375,18 @@ def test_a_requeued_round_takes_its_documents_phasing_as_the_branch_holds_it(tmp
     repo.git("config", "user.email", "operator@example.invalid")
     phasing("src/app.py")
     repo.commit("the document")
+    # The widened phase is the remote's alone (S-0094/D-2): the requeue's own
+    # fetch is what brings it.
+    remote = tmp_path / "remote.git"
+    repo.git("init", "-q", "--bare", str(remote))
+    repo.git("remote", "add", "origin", str(remote))
     repo.git("checkout", "-q", "-b", "torve/S-0084")
     phasing("src/app.py", "src/other.py")
     repo.commit("the phase widened by amendment")
+    repo.git("push", "-q", "origin", "torve/S-0084")
     repo.git("checkout", "-q", "main")
+    repo.git("branch", "-q", "-D", "torve/S-0084")
+    repo.git("update-ref", "-d", "refs/remotes/origin/torve/S-0084")
     repo.write(
         f"{layout.TORVE_DIR}/tasks/T-0950/contract.yaml",
         yaml.safe_dump({"id": "T-0950", "scope": {"allow": ["src/app.py"], "deny": []}}),
@@ -1401,3 +1409,147 @@ def test_a_requeued_round_takes_its_documents_phasing_as_the_branch_holds_it(tmp
         "src/other.py",
         f"{layout.TORVE_DIR}/tasks/T-0950/**",
     ]
+
+
+def test_a_requeued_phase_task_takes_its_contract_from_the_remotes_document_branch(
+    tmp_path, monkeypatch
+):
+    """S-0094/D-1: a requeue refreshes a phase task's contract from its document
+    as the remote's document branch holds it after the requeue's fetch."""
+    import subprocess
+
+    from test_plan import TABLE, phasing, written
+    from typer.testing import CliRunner
+
+    from torve.application.planner import plan_document, write_contracts
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.config import layout
+    from torve.gates.context import load_task
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+    root = tmp_path / "repo"
+    spec_dir = root / ".torve" / "specs"
+    spec_dir.mkdir(parents=True)
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    written(spec_dir, "0090", "Widgets", phasing=phasing())
+    (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "corpus")
+    write_contracts(root, plan_document(root, spec_dir, "0090"))
+    git("init", "-q", "--bare", str(tmp_path / "remote.git"))
+    git("remote", "add", "origin", str(tmp_path / "remote.git"))
+    git("checkout", "-q", "-b", "torve/S-0090")
+    written(
+        spec_dir,
+        "0090",
+        "Widgets",
+        rows=TABLE,
+        phasing=phasing(scope=["src/widget/**", "pages/**"]),
+    )
+    git("add", ".torve/specs")
+    git("commit", "-qm", "the phase widened by amendment")
+    git("push", "-q", "origin", "torve/S-0090")
+    git("checkout", "-q", "main")
+    git("branch", "-q", "-D", "torve/S-0090")
+
+    result = CliRunner().invoke(
+        app, [*("manager", "resolve", PARTITION, "T-0001"), *("--root", str(root))]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert load_task(layout.task_file(root, "T-0001")).scope.allow == ["src/widget/**", "pages/**"]
+    assert load_task(layout.task_file(root, "T-0002")).scope.allow == ["src/frob/**"]
+
+
+def _escalated_state(root, task_id):
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import EscalationReason, TaskState
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.transition(TaskState.CLAIMED, "t")
+    state.transition(TaskState.RUNNING, "t")
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts, ceiling 3")
+    return state
+
+
+def test_a_requeued_resolution_clears_the_tasks_escalated_host_state(tmp_path, monkeypatch):
+    """S-0094/D-3: the escalation's own run-state file and worktree are
+    cleared before the requeue is written, so the next dispatch neither
+    refuses on a state file still claiming the task nor fails the overlap
+    gate on a worktree the escalation left behind."""
+    from typer.testing import CliRunner
+
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    repo.write("a.txt", "x\n")
+    repo.commit("init")
+
+    state = _escalated_state(repo.root, "T-9810")
+
+    result = CliRunner().invoke(
+        app,
+        [*("manager", "resolve", PARTITION, "T-9810"), *("--root", str(repo.root))],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not state.path.exists()
+
+
+def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, monkeypatch):
+    """S-0094/D-5: `abandoned` clears nothing — a person can still read an
+    abandoned attempt's worktree and diff before `torve reap --escalated`
+    sweeps it."""
+    from typer.testing import CliRunner
+
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    repo.write("a.txt", "x\n")
+    repo.commit("init")
+
+    state = _escalated_state(repo.root, "T-9811")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            *("manager", "resolve", PARTITION, "T-9811"),
+            *("--resolution", "abandoned", "--root", str(repo.root)),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert state.path.exists()

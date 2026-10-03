@@ -32,7 +32,8 @@ shell has not set is filled in.
 | `torve fleet serve` | the same, over every repository the manifest names, one attention budget across all of them |
 | `torve merge` | land ready candidates, serialized. Lands and stops — it never pushes the base; under `promotion.landing: pull_request` it publishes the candidate's branch and opens its pull request instead of moving the base at all |
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
-| `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` also discards escalations you have dealt with by hand |
+| `torve manager resolve <partition> <task>` | close an escalation and say how: `--resolution requeued` returns it to the board with its contract refreshed from its document's branch; `abandoned` takes it off and leaves the host state to read; `landed --sha` records a hand finish. See the escalation loop below |
+| `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` clears what an abandoned or hand-dealt escalation leaves behind — a requeue clears its own task's footprint as it goes (S-0094/D-3, S-0094/D-5) |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
 | `torve ledger` | the record folded into rates, per seat, per changed line and per gate. See below for what each one divides |
 | `torve eval …` | replay completed tasks as shadow pairs — a skill, a configuration — and land one record; `--report` reads the three-arm table back from the ledger and runs nothing. See below for what an arm is |
@@ -689,8 +690,12 @@ whose phases is minted. A task that is running, that has landed, or that a
 document branch carries is left alone and named with the reason; an
 escalated or reaped task with no landing is refreshed: a continued attempt
 reads the contract as it stands at that dispatch, so the terms never carry
-over from a checkpointed tree even when the tree does (S-0090/D-3). Each
-rewrite is recorded as `contract_refreshed`
+over from a checkpointed tree even when the tree does (S-0090/D-3). The
+requeue in `manager resolve` is the one caller that reads the document as
+its branch holds it rather than as this checkout does — the refresh an
+escalated amendment used to need by hand is inside the resolve (S-0094/D-1;
+see the escalation loop below). Each rewrite is recorded as
+`contract_refreshed`
 and stamped on the contract; under `--partition` the rewrite goes onto the
 board through the same path a mint does.
 
@@ -717,15 +722,36 @@ notify:
   attempts: 5               # deliveries before the queue parks one
 ```
 
+An ntfy topic is the destination that needs no account and no code — the
+delivery is one JSON POST and a phone subscriber reads it. The URL is a
+bearer secret in practice, so the committed file names the variable and
+the environment carries the value (S-0001/D-13):
+
+```bash
+export TORVE_NOTIFY_URL=https://ntfy.sh/<a-topic-only-you-subscribe-to>
+```
+
 `none` is the default and is a choice, not a blank: a repository that has
 not picked a destination sends nothing on purpose. The queue is the log —
 an escalation with no settled delivery recorded against it — so a manager
 killed mid-page redelivers rather than losing it, and the escalation's own
 event id rides the wire as an `Idempotency-Key` for a destination that
-knows what to do with one.
+knows what to do with one. The body says what happened in one composed
+`text` line — the task, the reason, the detail — beside the structured
+fields a destination can key on, `task`, `reason` and `paused` among them.
 
 Batch-class escalations never page. Paging on everything is how a pager
 stops being read.
+
+**A paused night is the exception, and it pages whatever the reason.**
+While a served pass holds its pause (see the pause section below), the
+latest undelivered escalation of each task holding the pause is relayed
+whatever its interrupt class — `underspecified` among them — and the
+notification says the night is paused (S-0094/D-4). What makes such a
+halt worth reading at any hour is not its class but that work stopped,
+and the page says so in words. A task holds the pause until it is
+resolved, so a standing escalation pages once, on the first paused pass,
+not on every pass after it.
 
 ## What an escalation names
 
@@ -742,7 +768,7 @@ exit accordingly.
 | `merge_conflict` | the landing lane's rebase conflicted; the branch is untouched and waits for a human — the lane never resolves one | 2 |
 | `blocker_finding` | review ended with a blocker surviving | 2 |
 | `killed` | an operator interrupted the run | 2 |
-| `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt left a `spec-gap` entry and cited no `LOCKED` row (S-0092/D-3) — a specification defect: amend and re-mint, never retry. On a review round the amendment is to the document's phasing on its branch and the re-mint is a requeue, which re-scopes the round (S-0092/D-4); see the review-leg section below | 2 |
+| `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt left a `spec-gap` entry and cited no `LOCKED` row (S-0092/D-3) — a specification defect: amend the document, never retry. The loop is one amendment and one command: widen the phase on the document's branch, then `torve manager resolve --resolution requeued`, which refreshes the task's contract from the branch before the task goes back on the board (S-0094/D-1); a review round is re-scoped from the same branch the same way (S-0092/D-4, S-0094/D-2). See the escalation loop below | 2 |
 | `stale_inheritance` | the document it was minted from was superseded after the mint: re-mint from the superseding one, or abandon | 2 |
 | `gate_infrastructure_failure` | the battery broke rather than the work being wrong | 4 |
 | `lease_expired` | a claim's lease ran out while its worker was gone; the process that died cannot release itself | 4 |
@@ -764,10 +790,17 @@ attempt and retries as one.
 `blocker_finding` or `locked_conflict` starts from the checkpoint the
 attempt left on the task's branch, not from base (S-0090/D-2): a review
 that asked for one file's change costs that change, and a halt answered by
-an amendment resumes where it stopped. Both routes reach the same tree —
-the requeue on the board, and the route through `torve reap --escalated`,
-where the run state is gone and the checkpoint commit's own message names
-the reason the task stopped. A landed task has nothing left to continue,
+an amendment resumes where it stopped. The requeue reaches that tree by
+itself: it first clears the escalated run's host footprint for the task it
+resolves — its run-state file, its worktree, its sandbox — and keeps the
+checkpoint, so a requeue never refuses over a state file still claiming
+the task nor fails as `gate_infrastructure_failure` on what its own
+escalation left behind (S-0094/D-3). `torve reap --escalated` is no
+longer a step in this loop; it is the sweep for what a resolution
+deliberately leaves, since `--resolution abandoned` clears nothing — an
+abandoned attempt's worktree and diff stay readable, the checkpoint
+commit's own message naming the reason the task stopped, until a person
+says otherwise (S-0094/D-5). A landed task has nothing left to continue,
 and a gate conviction still restarts from base. A continued attempt is an
 ordinary attempt: it counts toward the ceiling and the budgets, its diff
 and gates are measured against the original base, and it reads the contract
@@ -784,6 +817,49 @@ So an escalation nobody triages stops new work. That is the design, and it
 is worth knowing before wondering why a board went quiet: check
 `torve status`, resolve it with `torve manager resolve`, or discard the
 footprint with `torve reap --escalated`.
+
+## The escalation loop is an amendment and a command
+
+An escalation that convicts the contract rather than the work —
+`underspecified` most often — used to be five acts: widen the phase on the
+document's branch; edit the task's contract by hand, because
+`torve plan --refresh` derived from this checkout's corpus while the
+widened phase stood only on that branch; run `torve reap --escalated`,
+because a requeue over the escalated run's leftover host state failed as
+`gate_infrastructure_failure`; run `torve manager resolve --resolution
+requeued`; restart the night. The loop is now one amendment and one
+command (S-0094):
+
+```bash
+# amend the phase so the document's branch — torve/S-NNNN — holds
+# it when pushed
+torve manager resolve <partition> T-0231 --resolution requeued
+```
+
+The requeue clears the one task's escalated footprint, fetches, and
+refreshes the contract through `refresh_document`, the same derivation a
+mint runs, reading the task's document as the remote's copy of its branch
+holds it after that fetch and as the checkout holds it when the remote has
+no such branch; the rest of the corpus stays the checkout's, as always
+(S-0094/D-1). Nobody edits a contract file by hand: a phase widened on the
+branch reaches the next attempt as the text the pull request will merge,
+which is what the branch is for — and a review round takes its re-scope
+from the phasing in the same remote copy, not the checkout's ref, so an
+amendment pushed from another checkout reaches a round served here too
+(S-0094/D-2). The clear and the requeue are one act now, scoped to the task
+the person resolves rather than sweeping every escalated run at once, and
+the checkpoint a continued attempt resumes from survives it (S-0094/D-3) —
+for the `underspecified` halt itself the tree is kept for reading, but the
+next attempt starts from base against the amended contract, because the
+fix is the amendment, not a carry-over of abandoned work (S-0090/D-2).
+
+What the loop deliberately keeps to a person is the two judgements:
+widening a phase is an amendment, because the phase is the scope its
+owner accepted (S-0092), and a paused night resumes only when its
+escalation is resolved, because the pause is the statement that the board
+needs somebody. With a destination configured it at least says so out
+loud, whatever the reason's class (S-0094/D-4); with none, the night
+waits in silence, which remains a choice, not an accident.
 
 ## Unattended landing
 
@@ -1138,7 +1214,10 @@ A finding whose citation lies outside the document's phasing scope mints
 nothing and reaches you by name, as an injecting thread does (S-0086/D-4) —
 the scope it is judged against is the phasing as the document's branch tip
 holds it, so widening a phase on the branch is what admits a finding the
-checkout's phasing refused (S-0092/D-2). And because a recorded finding was
+checkout's phasing refused (S-0092/D-2). The branch the leg reads is the
+remote's copy after the pass's fetch, not this checkout's ref: a phase
+widened and pushed from another checkout reaches the leg before it reaches
+this one (S-0094/D-2). And because a recorded finding was
 never a thread on the forge, its answer is written to the stream as
 `review_finding_answered` — the commit the round landed in, or the recorded
 reason it was not applied — and said once as a comment on the document's pull
@@ -1155,12 +1234,20 @@ re-derives the round's scope from the union of the whole document's phasing —
 the bound you accepted when you approved it, plus the round's log directory —
 and queues the round again, recording the act on the stream as
 `lane_round_requeued`. Once per round (S-0092/D-1). A second such halt stays
-with you, and the path is short: amend the phase on the document's branch —
-the phasing is what the round reads, and a round's contract lives in the
-record, so an edit to the contract file itself reaches an attempt only by
-accident — then `torve manager resolve <partition> <task> --resolution
-requeued`, which re-derives the round's scope from the phasing as the branch
-holds it at the requeue before the round goes back on the board (S-0092/D-4).
+with you, and the path is the escalation loop above, shortened: amend the
+phase on the document's branch — the phasing is what the round reads, and a
+round's contract lives in the record, so an edit to the contract file
+itself reaches an attempt only by accident — then
+`torve manager resolve <partition> <task> --resolution requeued`, which
+re-derives the round's scope from the phasing as the branch holds it at the
+requeue before the round goes back on the board (S-0092/D-4). The requeue
+reads that phasing from the remote's copy after its own fetch (S-0094/D-2)
+and clears the halted round's run-state file, worktree and sandbox first
+(S-0094/D-3). A spec-gap halt is not one of the continuations: the next
+attempt starts from base against the re-derived scope — the amendment is
+the answer, not a carry-over (S-0090/D-2) — and the checkpointed tree the
+halt left is kept for reading under `refs/torve/checkpoints/`, as any
+recut keeps it.
 
 **A round's own review opens no round.** `record` reads no finding from a
 review whose target is itself a round the leg minted on this branch —

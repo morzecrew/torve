@@ -664,3 +664,54 @@ def test_the_escalated_flag_reaches_the_durable_path(tmp_path, monkeypatch):
 
     assert report.states_removed == ["T-9701"]
     assert report.worktrees_removed == ["T-9701"]
+
+
+# S-0094/D-3: `manager resolve --resolution requeued` clears one escalated
+# task's run-state file, worktree and sandbox so the requeue it writes next
+# never refuses or fails the overlap gate on what its own escalation left
+# behind.
+
+
+def test_clear_escalated_takes_the_state_worktree_and_sandbox(tmp_path):
+    from torve.application.reaper import clear_escalated
+    from torve.domain.states import EscalationReason
+
+    state = state_at(tmp_path, "T-9801", TaskState.RUNNING)
+    state.sandbox_id = "sbx-T-9801"
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts, ceiling 3")
+
+    runtime = MockRuntime()
+    runtime.registry = [sandbox_for(state)]
+    workspace = ListingWorkspace([("T-9801", tmp_path / ".wt" / "T-9801")])
+
+    assert clear_escalated(tmp_path, runtime, workspace, "T-9801") is True
+
+    assert runtime.destroyed == ["sbx-T-9801"]
+    assert workspace.removed == ["T-9801"]
+    assert not state.path.exists()
+
+
+def test_clear_escalated_leaves_a_non_escalated_task_alone(tmp_path):
+    from torve.application.reaper import clear_escalated
+
+    state = state_at(tmp_path, "T-9802", TaskState.RUNNING)
+    runtime = MockRuntime()
+    workspace = ListingWorkspace([])
+
+    assert clear_escalated(tmp_path, runtime, workspace, "T-9802") is False
+
+    assert runtime.destroyed == []
+    assert workspace.removed == []
+    assert state.path.exists()
+
+
+def test_clear_escalated_with_no_state_file_at_all_is_a_true_noop(tmp_path):
+    from torve.application.reaper import clear_escalated
+
+    runtime = MockRuntime()
+    workspace = ListingWorkspace([])
+
+    assert clear_escalated(tmp_path, runtime, workspace, "T-9803") is False
+
+    assert runtime.destroyed == []
+    assert workspace.removed == []
