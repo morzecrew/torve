@@ -12,6 +12,7 @@ repo_name = "morzecrew/torve"
 
 nav = [
   { "Start here" = "index.md" },
+  { "Get started" = "get-started.md" },
   { "Operating the engine" = "operating.md" },
   { "Architecture" = [
     { "System overview" = "architecture/overview.md" },
@@ -20,6 +21,9 @@ nav = [
     { "The live channel" = "architecture/channel.md" },
     { "State and truth" = "architecture/state.md" },
     { "What does not distribute" = "architecture/distribution.md" },
+  ] },
+  { "Reference" = [
+    { "Stability" = "reference/stability.md" },
   ] },
   { "Records of decisions" = [
     { "The deep pass" = "decisions/deep-pass.md" },
