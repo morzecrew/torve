@@ -7,16 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-
-- The `flake-quarantine` standing job is retired. Its predicate worked, but what
-  it minted was an edit to the gate manifest's quarantine list for the command
-  that is the acceptance of nearly every task here — a job reaching, unattended,
-  for what convicts the work. A standing job may no longer name, in its scope, a
-  file that declares what convicts; `lockfile-drift` rides clean under the rule.
-  Nothing replaces the retired job: a flaky acceptance command means the suite
-  wants fixing, and `torve doctor` already puts that in front of a person.
-
 ### Added
 
 - `promotion.landing: pull_request` ends the lane in a pull request instead of
@@ -443,208 +433,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and unvalidated — visibly so, so review can tell which values the engine
   stands behind from which it only carries.
 
-### Removed
-
-- **Breaking:** `api_key_env` is gone from the harness manifest. A credential is
-  a property of the provider, which names its own `key_env`; a harness dials
-  whatever it is pointed at. `auth_volume` and `auth_mount` stay.
-
-- The broker routes what seats reach rather than what the records declare, so a
-  provider nothing is seated on gets no loopback route at all.
-
-- **Breaking:** `broker.providers` is gone from `.torve/config.yaml`. The wire
-  facts the broker routes on are projected at load from the provider records,
-  where `upstream` is named `base_url`; a configuration still writing the block
-  is refused naming where it went.
-
-- **Breaking:** the claude seat authenticates by variable name and mounts no
-  credential. `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt.
-
-- A seat's manifest decides its authentication route, not its adapter. A seat
-  naming a variable gets it forwarded and mounts nothing; one naming none falls
-  back to the per-slot volume. A `subscription` seat used to have its
-  `api_key_env` dropped whatever it declared.
-
-- The auth volume route stays for a harness with no env form. Where one is
-  used it is mounted read-write: a harness that cannot persist a refreshed
-  token hangs rather than failing.
-
-- The claude image bakes no plugin. It carried pinned clones of caveman and
-  ponytail so the retired renderer could write bookkeeping beside them; both
-  are equipment now, fetched into a cache the seat mounts read-only.
-
-- **Breaking:** the plugin renderer is gone, and so is the road that fed it —
-  `seed_files`, both adapter write-backs, the `Plugin` model and the seat field
-  it filled. A plugin is equipment like every other kind.
-
-- **Breaking:** the dsh image bakes no model. Its seven overlay files are gone;
-  a seat carries `DSH_MODEL` in its `env` and `equip` renders the overlay, so
-  adding a model is an edit to reviewed configuration rather than a rebuild.
-
-### Deprecated
-
-- `torve run --oversize` is accepted and ignored, since a `too_large` contract
-  now dispatches without it. It will be removed in the next minor release.
-
-### Fixed
-
-- A served worker claims a task only once every dependency's landing is on
-  the base the task would be cut from: the document branch's tip under
-  `promotion.unit: document`, and the configured base otherwise. A rebased or
-  squash-merged landing still counts. Tasks used to be cut from a base that
-  lacked the phase before them.
-
-- A worker whose dispatch overlaps a hand `torve run` puts the claim back on
-  the board and skips it for one lease. It used to hand the task to a person
-  as an infrastructure failure, over a path that freed itself minutes later.
-
-- Recutting a task's branch keeps the tip it discards under
-  `refs/torve/checkpoints/<task>/<sha>`, so a budget or escalation checkpoint
-  is no longer orphaned by a rerun. The ref is never pushed.
-
-- **Breaking:** `torve manager resolve --resolution landed` now reads as a
-  landing on the board. It used to project as queued, so a worker claimed the
-  finished task again and redid it from base. The new `--sha` names the commit
-  the task landed as, and `landed` without it is refused.
-
-- A signed engine commit is made under the host's git identity, so the forge
-  can verify the signature. GitHub used to show signed commits as
-  "Unverified", because they carried an email no account owns.
-
-- The empty-diff refusal is now a blocking `empty-diff` result, and the next
-  attempt is handed it. A red with no gate named gave the agent nothing to
-  read, so it repeated the same no-op. An attempt whose divergence log decides
-  one of its own contract's rows is no longer refused at all, because the
-  record its landing writes is its diff.
-
-- The lane puts a candidate's branch back when the battery goes red after a
-  rebase. The next pass used to see an unmoved base and fast-forward the
-  candidate past the battery that had just failed.
-
-- `torve adopt` no longer fails in a repository that keeps its contracts on
-  the record, where it used to try to commit the ignored tasks directory. It
-  records `intake_uncommitted`, and the importer mints the file on the next
-  pass.
-
-- A decision row projected into an `AGENTS.md` names its document's
-  implementation state in its heading unless that is complete. An accepted
-  design nobody has built no longer reads as a fact about the code.
-
-- A review verdict longer than the kept output tail is read whole again.
-  Readable, paid-for reviews used to be recorded as unparseable, and they
-  escalated a green target as a review infrastructure failure.
-
-- The patch a gate pass builds, and the `review.diff` the reviewer reads, now
-  include files the attempt created but did not stage. A reviewer used to see a
-  new module's imports without the module, and blocked green work.
-
-- The scope gate admits the lock files a manifest change rewrites wherever it
-  admits the manifest: `uv.lock` with `pyproject.toml`, `package-lock.json`
-  with `package.json`, and the rest. Refusing the lock refused the dependency
-  change the scope allowed.
-
-- The `decisions-reported` gate accepts a task log entry that names a row by
-  its local id (`D-2`) as well as by its global form (`S-0012/D-2`). It used to
-  convict an attempt for entries the attempt had written itself.
-
-- The draft lint reads a scope glob over a directory as written. A bare
-  directory name is refused, naming the `dir/**` spelling, because it matched
-  no file and allowed nothing. `dir/**` over a directory the phase is there to
-  create is accepted.
-
-- A failing gate's console detail keeps its last lines. The 40-line cap showed
-  only the head, so a red suite printed progress dots and hid the test that
-  failed.
-
-- A gate manifest whose entries declare no sabotage twin warns once per file
-  per process. Every verb used to repeat the warning three or four times.
-
-- A provider that drops the connection mid-request becomes a broker 502 with
-  cause `upstream`, which the sandbox can read and retry. It used to escape as
-  a traceback on the operator's console.
-
-- `torve spec check` no longer reads a managed block rendered for another tree
-  as citations into this corpus. Such a block is found in a sandbox definition
-  a repository copied, so that copy may now be reworded or deleted.
-
-- The schemas `torve init` writes refuse a blank gate `sabotage` twin and a
-  route `base_url` that is not http or https. Until now an editor accepted a
-  file the loader rejects.
-
-- An edited skill or hook from a `torve:` or `local:` source reaches the next
-  attempt. The cache used to keep the first copy while `torve equip --check`
-  reported a match.
-
-- An `mcp` equipment item reaches claude. `--mcp-config` is handed the item's
-  `mcp.json` rather than its directory, and an item without that file is
-  refused by name.
-
-- A prompt past the kernel's 128 KiB single-argument limit reaches every
-  harness. Each harness died with "Argument list too long" before it started,
-  and the poison ceiling booked that as the agent's fault. claude and mimo now
-  read the prompt from stdin, and dsh takes it in pieces.
-
-- The mimo seat builds and reaches its model again. The image pins mimo 0.1.15,
-  and the seat's provider and model are declared to mimo, whose built-in
-  provider answered "Model not found". A session that emitted an error event
-  now fails its attempt instead of exiting zero.
-
-- The dsh image installs dsh and its dependencies from a lockfile, and its
-  build refuses a lock whose dsh is not the pinned version. A rebuild of the
-  same version used to pull newer dependencies, and the profile stopped
-  booting.
-
-- The dsh image carries the pnpm that `dsh plugin add` needs. A dsh seat given
-  plugin equipment used to exit 127 before the agent started.
-
-- A seat's `reasoning` level reaches claude and dsh as named. Any level
-  outside off, low, medium and high used to pass the engine's check and then be
-  silently dropped.
-
-- The claude image refuses two skill items whose directories share a name,
-  naming both paths. The second used to merge silently into the first.
-
-- Path rot no longer fires on a row whose declared files the repository
-  deliberately does not commit. The check reads the ignore file `torve init`
-  writes and reads a glob reaching into what it claims as a clean tree rather
-  than as governance that governs nothing — so a row over `.torve/tasks/**`
-  reads the same in a fresh clone as on the host that happens to hold the task
-  directories, and `--fix-rot` cannot retire a live row over one. `torve spec
-  check` reads the same ignore file for the LOCKED globs it reddens on, and
-  warns naming the row and the glob it spared — the reader that produced the
-  problem and the non-zero exit, so `spec check` passes in a clean clone.
-
-- The size estimate no longer counts `.torve` as a module a task spans. A task
-  carries its own contract and the amendment its landing records, so 9 of this
-  repository's 61 contracts were called oversized on that ground alone.
-
-- A decision row its own document replaced no longer renders beside the row that
-  replaced it. The projection skipped a superseded document and never looked at a
-  row, so an `AGENTS.md` could carry two rules with nothing to say which is live.
-
-- A row's history in the context pack carries only real changes. Every amendment
-  also re-stamps a fingerprint, and those stamps reached an agent as two hashes
-  where a rule should be — 17 of this corpus's 53 change entries.
-
-- The brokered dsh seat runs its reasoning model with reasoning on again.
-  Retiring the seven baked overlays moved the model facts onto `DSH_MODEL` and
-  dropped the endpoint facts with the files, so `equip` wrote
-  `reasoningEfforts: false` whatever the seat asked for.
-
-- The same seat carries a request cap, an idle backstop and its endpoint's
-  compat flags again, and declares the context window it actually has —
-  1000000, not 128000.
-
-- dsh equipment that would add a plugin installs it before patching it.
-  `--patch` configures an entry the profile already carries and refuses an
-  unknown id, so anything but a model overlay failed at boot.
-
-
-- A sandbox harness's exit code is the attempt's verdict again. `run` pipes the
-  harness through `tee`, and a pipeline reports its last command — so a failed
-  attempt read as a clean one. POSIX `sh` has no `pipefail`, so the status is
-  carried across by hand.
-
 ### Changed
 
 - **Breaking:** `torve run` refuses a contract the lint refuses. It names the
@@ -839,8 +627,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warns when the reviewer runs the executor's own model — a model
   reviewing its own kind shares its blind spots.
 
-### Changed
-
 - The regime hash reads what torve resolved — each seat's merged harness and
   profile, and the equipment each role loads — and no longer reads
   `skills-lock.json`, which belongs to a tool torve does not run.
@@ -925,13 +711,247 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   naming it), the skill `spec-writer`. `torve init` writes the four
   schemas into `.torve/schemas/`, which every file's first line names.
 
+- Over-engineering audit (A-44 – A-54): the curated lazy front door is
+  gone — `torve.__init__` no longer re-exports, so `from torve import
+  Task` becomes `from torve.domain.task import Task`; every canonical
+  path is unchanged. Configuration and contract lookups resolve to one
+  location under `.torve/` with no fallback search, so the pre-`.torve/`
+  layouts (root `gates.yaml`, `torve.yaml`, `tasks/`, `logs/`, and flat
+  `.torve/tasks/T-nnnn.yaml`) no longer resolve. The `source-layout`
+  gate now checks only RFC 0015's module naming rule; the RFC 0014
+  separator, dash-placement and label checks return to review. The
+  `rfc-valid` gate is promoted to blocking and dropped from the
+  acceptance fallback, so the corpus is checked once, by name.
+  `SizePolicy`/`StaticThresholds` collapse to `sizing.estimate()`, and
+  the unused `DecisionSource` port, `RfcDirectory` adapter, `api_port`/
+  `db_name`/`compose_project` derivations and `store.step_relation`
+  setting are removed.
+
+- CI is now two steps: `torve gates check` then `torve gates run`. The
+  explicit `ruff`/`mypy`/`pytest`/`rfc check` steps ran the same battery
+  the acceptance gate runs, so every push type-checked and tested twice
+  (A-52). `basedpyright` is no longer a dev dependency and no longer in
+  the battery — `mypy` is the type checker of record (A-51); the
+  `[tool.pyright]` block stays for editor diagnostics.
+
+- `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).
+- `config_hash` now includes the Torve package version and the pinned forze
+  version (D-9.8, from `migrations/substrate/FORZE_VERSION`) — both upgrades
+  are regime changes telemetry must see.
+
+### Deprecated
+
+- `torve run --oversize` is accepted and ignored, since a `too_large` contract
+  now dispatches without it. It will be removed in the next minor release.
+
 ### Removed
+
+- The `flake-quarantine` standing job is retired. Its predicate worked, but what
+  it minted was an edit to the gate manifest's quarantine list for the command
+  that is the acceptance of nearly every task here — a job reaching, unattended,
+  for what convicts the work. A standing job may no longer name, in its scope, a
+  file that declares what convicts; `lockfile-drift` rides clean under the rule.
+  Nothing replaces the retired job: a flaky acceptance command means the suite
+  wants fixing, and `torve doctor` already puts that in front of a person.
+
+- **Breaking:** `api_key_env` is gone from the harness manifest. A credential is
+  a property of the provider, which names its own `key_env`; a harness dials
+  whatever it is pointed at. `auth_volume` and `auth_mount` stay.
+
+- The broker routes what seats reach rather than what the records declare, so a
+  provider nothing is seated on gets no loopback route at all.
+
+- **Breaking:** `broker.providers` is gone from `.torve/config.yaml`. The wire
+  facts the broker routes on are projected at load from the provider records,
+  where `upstream` is named `base_url`; a configuration still writing the block
+  is refused naming where it went.
+
+- **Breaking:** the claude seat authenticates by variable name and mounts no
+  credential. `CLAUDE_CODE_OAUTH_TOKEN` is one token for one attempt.
+
+- A seat's manifest decides its authentication route, not its adapter. A seat
+  naming a variable gets it forwarded and mounts nothing; one naming none falls
+  back to the per-slot volume. A `subscription` seat used to have its
+  `api_key_env` dropped whatever it declared.
+
+- The auth volume route stays for a harness with no env form. Where one is
+  used it is mounted read-write: a harness that cannot persist a refreshed
+  token hangs rather than failing.
+
+- The claude image bakes no plugin. It carried pinned clones of caveman and
+  ponytail so the retired renderer could write bookkeeping beside them; both
+  are equipment now, fetched into a cache the seat mounts read-only.
+
+- **Breaking:** the plugin renderer is gone, and so is the road that fed it —
+  `seed_files`, both adapter write-backs, the `Plugin` model and the seat field
+  it filled. A plugin is equipment like every other kind.
+
+- **Breaking:** the dsh image bakes no model. Its seven overlay files are gone;
+  a seat carries `DSH_MODEL` in its `env` and `equip` renders the overlay, so
+  adding a model is an edit to reviewed configuration rather than a rebuild.
 
 - **Breaking:** the `torve rfc` namespace, `torve rfc schema`, the `rfcs/`
   and `archive/rfcs/` directories, the `heading` of a section and the
   `amended_by` field (derived from the amendments).
 
 ### Fixed
+
+- A served worker claims a task only once every dependency's landing is on
+  the base the task would be cut from: the document branch's tip under
+  `promotion.unit: document`, and the configured base otherwise. A rebased or
+  squash-merged landing still counts. Tasks used to be cut from a base that
+  lacked the phase before them.
+
+- A worker whose dispatch overlaps a hand `torve run` puts the claim back on
+  the board and skips it for one lease. It used to hand the task to a person
+  as an infrastructure failure, over a path that freed itself minutes later.
+
+- Recutting a task's branch keeps the tip it discards under
+  `refs/torve/checkpoints/<task>/<sha>`, so a budget or escalation checkpoint
+  is no longer orphaned by a rerun. The ref is never pushed.
+
+- **Breaking:** `torve manager resolve --resolution landed` now reads as a
+  landing on the board. It used to project as queued, so a worker claimed the
+  finished task again and redid it from base. The new `--sha` names the commit
+  the task landed as, and `landed` without it is refused.
+
+- A signed engine commit is made under the host's git identity, so the forge
+  can verify the signature. GitHub used to show signed commits as
+  "Unverified", because they carried an email no account owns.
+
+- The empty-diff refusal is now a blocking `empty-diff` result, and the next
+  attempt is handed it. A red with no gate named gave the agent nothing to
+  read, so it repeated the same no-op. An attempt whose divergence log decides
+  one of its own contract's rows is no longer refused at all, because the
+  record its landing writes is its diff.
+
+- The lane puts a candidate's branch back when the battery goes red after a
+  rebase. The next pass used to see an unmoved base and fast-forward the
+  candidate past the battery that had just failed.
+
+- `torve adopt` no longer fails in a repository that keeps its contracts on
+  the record, where it used to try to commit the ignored tasks directory. It
+  records `intake_uncommitted`, and the importer mints the file on the next
+  pass.
+
+- A decision row projected into an `AGENTS.md` names its document's
+  implementation state in its heading unless that is complete. An accepted
+  design nobody has built no longer reads as a fact about the code.
+
+- A review verdict longer than the kept output tail is read whole again.
+  Readable, paid-for reviews used to be recorded as unparseable, and they
+  escalated a green target as a review infrastructure failure.
+
+- The patch a gate pass builds, and the `review.diff` the reviewer reads, now
+  include files the attempt created but did not stage. A reviewer used to see a
+  new module's imports without the module, and blocked green work.
+
+- The scope gate admits the lock files a manifest change rewrites wherever it
+  admits the manifest: `uv.lock` with `pyproject.toml`, `package-lock.json`
+  with `package.json`, and the rest. Refusing the lock refused the dependency
+  change the scope allowed.
+
+- The `decisions-reported` gate accepts a task log entry that names a row by
+  its local id (`D-2`) as well as by its global form (`S-0012/D-2`). It used to
+  convict an attempt for entries the attempt had written itself.
+
+- The draft lint reads a scope glob over a directory as written. A bare
+  directory name is refused, naming the `dir/**` spelling, because it matched
+  no file and allowed nothing. `dir/**` over a directory the phase is there to
+  create is accepted.
+
+- A failing gate's console detail keeps its last lines. The 40-line cap showed
+  only the head, so a red suite printed progress dots and hid the test that
+  failed.
+
+- A gate manifest whose entries declare no sabotage twin warns once per file
+  per process. Every verb used to repeat the warning three or four times.
+
+- A provider that drops the connection mid-request becomes a broker 502 with
+  cause `upstream`, which the sandbox can read and retry. It used to escape as
+  a traceback on the operator's console.
+
+- `torve spec check` no longer reads a managed block rendered for another tree
+  as citations into this corpus. Such a block is found in a sandbox definition
+  a repository copied, so that copy may now be reworded or deleted.
+
+- The schemas `torve init` writes refuse a blank gate `sabotage` twin and a
+  route `base_url` that is not http or https. Until now an editor accepted a
+  file the loader rejects.
+
+- An edited skill or hook from a `torve:` or `local:` source reaches the next
+  attempt. The cache used to keep the first copy while `torve equip --check`
+  reported a match.
+
+- An `mcp` equipment item reaches claude. `--mcp-config` is handed the item's
+  `mcp.json` rather than its directory, and an item without that file is
+  refused by name.
+
+- A prompt past the kernel's 128 KiB single-argument limit reaches every
+  harness. Each harness died with "Argument list too long" before it started,
+  and the poison ceiling booked that as the agent's fault. claude and mimo now
+  read the prompt from stdin, and dsh takes it in pieces.
+
+- The mimo seat builds and reaches its model again. The image pins mimo 0.1.15,
+  and the seat's provider and model are declared to mimo, whose built-in
+  provider answered "Model not found". A session that emitted an error event
+  now fails its attempt instead of exiting zero.
+
+- The dsh image installs dsh and its dependencies from a lockfile, and its
+  build refuses a lock whose dsh is not the pinned version. A rebuild of the
+  same version used to pull newer dependencies, and the profile stopped
+  booting.
+
+- The dsh image carries the pnpm that `dsh plugin add` needs. A dsh seat given
+  plugin equipment used to exit 127 before the agent started.
+
+- A seat's `reasoning` level reaches claude and dsh as named. Any level
+  outside off, low, medium and high used to pass the engine's check and then be
+  silently dropped.
+
+- The claude image refuses two skill items whose directories share a name,
+  naming both paths. The second used to merge silently into the first.
+
+- Path rot no longer fires on a row whose declared files the repository
+  deliberately does not commit. The check reads the ignore file `torve init`
+  writes and reads a glob reaching into what it claims as a clean tree rather
+  than as governance that governs nothing — so a row over `.torve/tasks/**`
+  reads the same in a fresh clone as on the host that happens to hold the task
+  directories, and `--fix-rot` cannot retire a live row over one. `torve spec
+  check` reads the same ignore file for the LOCKED globs it reddens on, and
+  warns naming the row and the glob it spared — the reader that produced the
+  problem and the non-zero exit, so `spec check` passes in a clean clone.
+
+- The size estimate no longer counts `.torve` as a module a task spans. A task
+  carries its own contract and the amendment its landing records, so 9 of this
+  repository's 61 contracts were called oversized on that ground alone.
+
+- A decision row its own document replaced no longer renders beside the row that
+  replaced it. The projection skipped a superseded document and never looked at a
+  row, so an `AGENTS.md` could carry two rules with nothing to say which is live.
+
+- A row's history in the context pack carries only real changes. Every amendment
+  also re-stamps a fingerprint, and those stamps reached an agent as two hashes
+  where a rule should be — 17 of this corpus's 53 change entries.
+
+- The brokered dsh seat runs its reasoning model with reasoning on again.
+  Retiring the seven baked overlays moved the model facts onto `DSH_MODEL` and
+  dropped the endpoint facts with the files, so `equip` wrote
+  `reasoningEfforts: false` whatever the seat asked for.
+
+- The same seat carries a request cap, an idle backstop and its endpoint's
+  compat flags again, and declares the context window it actually has —
+  1000000, not 128000.
+
+- dsh equipment that would add a plugin installs it before patching it.
+  `--patch` configures an entry the profile already carries and refuses an
+  unknown id, so anything but a model overlay failed at boot.
+
+
+- A sandbox harness's exit code is the attempt's verdict again. `run` pipes the
+  harness through `tee`, and a pipeline reports its last command — so a failed
+  attempt read as a clean one. POSIX `sh` has no `pipefail`, so the status is
+  carried across by hand.
 
 - Maintenance batch (T-0131–T-0134, drafted by intake from the operator's
   gap ledger): the reaper escalates stale shadow states, reaps a claimed
@@ -1757,33 +1777,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`--strict-markers --strict-config`, `pytest-timeout` safety net,
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
-
-### Changed
-
-- Over-engineering audit (A-44 – A-54): the curated lazy front door is
-  gone — `torve.__init__` no longer re-exports, so `from torve import
-  Task` becomes `from torve.domain.task import Task`; every canonical
-  path is unchanged. Configuration and contract lookups resolve to one
-  location under `.torve/` with no fallback search, so the pre-`.torve/`
-  layouts (root `gates.yaml`, `torve.yaml`, `tasks/`, `logs/`, and flat
-  `.torve/tasks/T-nnnn.yaml`) no longer resolve. The `source-layout`
-  gate now checks only RFC 0015's module naming rule; the RFC 0014
-  separator, dash-placement and label checks return to review. The
-  `rfc-valid` gate is promoted to blocking and dropped from the
-  acceptance fallback, so the corpus is checked once, by name.
-  `SizePolicy`/`StaticThresholds` collapse to `sizing.estimate()`, and
-  the unused `DecisionSource` port, `RfcDirectory` adapter, `api_port`/
-  `db_name`/`compose_project` derivations and `store.step_relation`
-  setting are removed.
-
-- CI is now two steps: `torve gates check` then `torve gates run`. The
-  explicit `ruff`/`mypy`/`pytest`/`rfc check` steps ran the same battery
-  the acceptance gate runs, so every push type-checked and tested twice
-  (A-52). `basedpyright` is no longer a dev dependency and no longer in
-  the battery — `mypy` is the type checker of record (A-51); the
-  `[tool.pyright]` block stays for editor diagnostics.
-
-- `requires-python` is now `>=3.13,<3.15` (the forze substrate's floor).
-- `config_hash` now includes the Torve package version and the pinned forze
-  version (D-9.8, from `migrations/substrate/FORZE_VERSION`) — both upgrades
-  are regime changes telemetry must see.
