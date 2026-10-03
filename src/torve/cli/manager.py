@@ -1007,6 +1007,21 @@ def resolve_cmd(
                 EXIT_CONFIG,
             )
 
+    if resolution == "requeued":
+        from torve.adapters.workspace.git import GitWorkspace
+        from torve.application.reaper import clear_escalated
+
+        # S-0094/D-3: the escalation's own host footprint — run-state file,
+        # worktree, sandbox — is cleared before the requeue is written, so
+        # dispatch never refuses on a state file still claiming the task
+        # nor fails the overlap gate on a worktree the escalation left
+        # behind. `abandoned` (S-0094/D-5) leaves this to `torve reap
+        # --escalated` instead — a person can still read the worktree first.
+        root = root.resolve()
+        clear_escalated(
+            root, runtime_for(load_config(root, None), None), GitWorkspace(root), task_id
+        )
+
     asyncio.run(
         _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
     )

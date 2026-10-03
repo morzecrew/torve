@@ -1469,3 +1469,87 @@ def test_a_requeued_phase_task_takes_its_contract_from_the_remotes_document_bran
     assert result.exit_code == 0, result.output
     assert load_task(layout.task_file(root, "T-0001")).scope.allow == ["src/widget/**", "pages/**"]
     assert load_task(layout.task_file(root, "T-0002")).scope.allow == ["src/frob/**"]
+
+
+def _escalated_state(root, task_id):
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import EscalationReason, TaskState
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.transition(TaskState.CLAIMED, "t")
+    state.transition(TaskState.RUNNING, "t")
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts, ceiling 3")
+    return state
+
+
+def test_a_requeued_resolution_clears_the_tasks_escalated_host_state(tmp_path, monkeypatch):
+    """S-0094/D-3: the escalation's own run-state file and worktree are
+    cleared before the requeue is written, so the next dispatch neither
+    refuses on a state file still claiming the task nor fails the overlap
+    gate on a worktree the escalation left behind."""
+    from typer.testing import CliRunner
+
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    repo.write("a.txt", "x\n")
+    repo.commit("init")
+
+    state = _escalated_state(repo.root, "T-9810")
+
+    result = CliRunner().invoke(
+        app,
+        [*("manager", "resolve", PARTITION, "T-9810"), *("--root", str(repo.root))],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not state.path.exists()
+
+
+def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, monkeypatch):
+    """S-0094/D-5: `abandoned` clears nothing — a person can still read an
+    abandoned attempt's worktree and diff before `torve reap --escalated`
+    sweeps it."""
+    from typer.testing import CliRunner
+
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    repo.write("a.txt", "x\n")
+    repo.commit("init")
+
+    state = _escalated_state(repo.root, "T-9811")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            *("manager", "resolve", PARTITION, "T-9811"),
+            *("--resolution", "abandoned", "--root", str(repo.root)),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert state.path.exists()
