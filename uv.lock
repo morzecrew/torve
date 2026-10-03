@@ -452,7 +452,7 @@ wheels = [
 
 [[package]]
 name = "forze"
-version = "0.6.0"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -467,9 +467,9 @@ dependencies = [
     { name = "rich" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/cf/0e4c35619aa94a62ef23605445f4200ccad43854b0bed9c145ecc579039a/forze-0.6.0.tar.gz", hash = "sha256:3aa4deef4b3f83fe1a3fb57793750a8a4214c2701d5d20cf3b6e63998df32a8c", size = 5002750, upload-time = "2026-08-15T16:45:19.099Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/62/f3bbb226fd6779c4c0ea9024952a7997fc26d7d3c0aff9dd4e10901f0498/forze-0.10.0.tar.gz", hash = "sha256:9614c052bafa68b6c6c64d125b5c9e1398bb3284e5781f707ba5cf7c96fde082", size = 5887807, upload-time = "2026-09-30T15:58:42.591Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/7b/dd23f6067c710bbae5aa847a48b95d7b04744853f79ae3fbe5b7c37a67aa/forze-0.6.0-py3-none-any.whl", hash = "sha256:a9c3f9faba773b36d0ab5d43c7ae0e92d50018e361f072521646d75c5f7ebc8d", size = 3414062, upload-time = "2026-08-15T16:45:17.032Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/0a/245f5ad00d6fe0131df8df39f0db87784201b4a425b8cd36b891eb5d3da8/forze-0.10.0-py3-none-any.whl", hash = "sha256:286be600064e385ef9da42faa50eba200be9133d4aa66432e48413d810484fdb", size = 3880778, upload-time = "2026-09-30T15:58:40.216Z" },
 ]
 
 [package.optional-dependencies]
@@ -1806,10 +1806,10 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "attrs", specifier = ">=25" },
-    { name = "forze", specifier = ">=0.6.0" },
-    { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = ">=0.6.0" },
+    { name = "forze", specifier = "==0.10.0" },
+    { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = "==0.10.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2" },
-    { name = "opensandbox", marker = "extra == 'opensandbox'" },
+    { name = "opensandbox", marker = "extra == 'opensandbox'", specifier = ">=0.1.15,<0.2" },
     { name = "pathspec", specifier = ">=0.12" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -1827,7 +1827,7 @@ dev = [
     { name = "basedpyright", specifier = ">=1.31" },
     { name = "deptry", specifier = ">=0.25.1" },
     { name = "diff-cover", specifier = ">=10.5.1" },
-    { name = "forze", extras = ["dst", "postgres"], specifier = ">=0.6.0" },
+    { name = "forze", extras = ["dst", "postgres"], specifier = "==0.10.0" },
     { name = "import-linter", specifier = ">=2" },
     { name = "mcp", specifier = ">=1.2" },
     { name = "mypy", extras = ["faster-cache"], specifier = ">=1.19" },

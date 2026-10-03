@@ -2,13 +2,34 @@
 name = "torve"
 version = "0.1.0"
 description = "A specification-and-gate engine for a standing agent team: graded decisions, scope as a contract, deterministic gates, sandboxed runs"
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
 requires-python = ">=3.13,<3.15"
 authors = [{ name = "morzecrew" }]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    # Linux only, and stated: the sandboxes and the sealed broker run on Docker
+    # networking, and nothing in CI runs another platform.
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
+    # One operator and one adopter so far; the formats carry schema versions
+    # but no stability page binds them yet.
+    "Development Status :: 3 - Alpha",
+]
+keywords = ["agents", "ai", "code-review", "gates", "sandbox", "specification"]
 dependencies = [
     "attrs>=25",
-    "forze>=0.6.0",
+    # Exact, as `migrations/substrate/FORZE_VERSION` is: the substrate
+    # migrations were written against this forze, and `torve doctor` refuses
+    # any other (S-0012/D-7). A range here resolves a forze the migrations
+    # never met. The pin and this line move together.
+    "forze==0.10.0",
     "pathspec>=0.12",
     "pydantic>=2.7",
     "pyyaml>=6.0",
@@ -17,8 +38,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-opensandbox = ["opensandbox"]
-postgres = ["forze[postgres]>=0.6.0"]
+# 0.x: a minor may break the SDK the adapter imports.
+opensandbox = ["opensandbox>=0.1.15,<0.2"]
+postgres = ["forze[postgres]==0.10.0"]
 # Applied in production, absent from a gates-only CI install.
 migrate = ["yoyo-migrations>=9"]
 # The planning session's read surface — never installed into an executor image.
@@ -26,6 +48,13 @@ mcp = ["mcp>=1.2"]
 # The loopback dashboard's HTTP stack (S-0032) — lazy-imported behind
 # the extra, so a gates-only install never pays for it.
 serve = ["starlette>=1.0", "uvicorn>=0.30"]
+
+[project.urls]
+Homepage = "https://github.com/morzecrew/torve"
+Documentation = "https://morzecrew.github.io/torve/"
+Repository = "https://github.com/morzecrew/torve"
+Changelog = "https://github.com/morzecrew/torve/blob/main/CHANGELOG.md"
+Issues = "https://github.com/morzecrew/torve/issues"
 
 [project.scripts]
 torve = "torve.cli:main"
@@ -35,7 +64,7 @@ dev = [
     # Backs the layering gate (S-0015, S-0015/D-8). Dev-only on purpose
     # (S-0015/D-10): a check on Torve's internals never ships to consumers.
     "import-linter>=2",
-    "forze[dst,postgres]>=0.6.0",
+    "forze[dst,postgres]==0.10.0",
     "basedpyright>=1.31",
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
@@ -74,6 +103,33 @@ docs = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# What the sdist carries is named, not whatever the tree holds: without a list
+# hatch packs everything the root `.gitignore` misses — `.torve/` state and
+# telemetry, `.claude/` and `.mcp.json` with a developer's paths, `web/` with
+# its node_modules. The list is what the wheel builds from (the package and
+# its forced includes below) plus the lockfile and the changelog. Anchored:
+# the patterns match as `.gitignore` lines do, so a bare `skills` also takes
+# `.agents/skills` and `.claude/skills`, and a bare `README.md` `web/README.md`.
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/torve",
+    "/skills",
+    "/migrations",
+    "/pyproject.toml",
+    "/uv.lock",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+# Pruned before the walk, not filtered after it. `.agents/skills` and
+# `.claude/skills` hold symlinks into `skills/`, and hatch walks each real
+# directory once, in sorted order: the dot directories came first, so
+# `skills/spec-writer`, `skills/flag-dont-flip` and `skills/working-rules`
+# were seen there, never under `skills/`, and the wheel built from the sdist
+# shipped without them.
+exclude = ["/.agents", "/.claude"]
+skip-excluded-dirs = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/torve"]
