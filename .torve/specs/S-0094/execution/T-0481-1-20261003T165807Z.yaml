@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0481
+phase: 3
+base: 0815a2dbf23df405b073c1c9483b7aea77a4004e
+commit: 0396280c34ef05daf24b46d5f4266a260f1b4f61
+at: '2026-10-03T16:58:07Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-4
+    grade: ASSUMED
+    at: '2026-10-03T16:56:36Z'
+    claim: >-
+      built as written: paused() records the tasks holding the pause and the relay
+      of the same pass pages the latest undelivered escalation of each whatever its
+      reason, flagged paused in the Notification and webhook body; older escalations
+      of held tasks and all others keep the interrupt-class rule
+    evidence: >-
+      src/torve/application/notify.py:109-130 — held tasks' latest owed escalation
+      bypasses _interrupts; src/torve/cli/manager.py:372-407 carries the held set
+      from paused() to relay
+    action: decided
