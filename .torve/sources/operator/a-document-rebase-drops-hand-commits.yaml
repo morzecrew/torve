@@ -27,3 +27,10 @@ summary: |
   Operator workaround: after any `lane_document_rebased`, check that the
   branch still contains its hand commits (`git branch -r --contains`), and
   cherry-pick what was lost.
+
+  Fixed at 656ee08f. The cause was not a recut: the open-document rebase
+  rebased this checkout's ref, which lacked a commit pushed from another
+  checkout, and its republish leased against the fetch the base resolution
+  had just made, so nothing refused. torve/S-0085 kept its hand commit
+  because a landing after it had set the local ref to the remote tip. The
+  rebase now starts from the remote tip too.
