@@ -2063,6 +2063,50 @@ def test_a_last_phase_that_fast_forwards_is_regated_once_and_published(
     assert not [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
 
 
+def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
+    lane_repo, tmp_path, monkeypatch
+):
+    # Phase 1 reached the branch with no lane record: finished by hand, or its
+    # publication refused by the forge. Its landing file rides in the tree, and
+    # the pull request counts it (S-0091/D-3), so the battery must count it too.
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", document, "main")
+    (lane_repo / "one.py").write_text("one = 1\n", encoding="utf-8")
+    landing = (
+        lane_repo / ".torve" / "specs" / "S-0930" / "execution" / "T-7311-1-20261003T000000Z.yaml"
+    )
+    landing.parent.mkdir(parents=True, exist_ok=True)
+    landing.write_text("task: T-7311\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "phase 1 by hand")
+    git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7312"), document)
+    (lane_repo / "two.py").write_text("two = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "two.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7312)")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7312", path=naming.state_file(lane_repo, "T-7312"))
+    state.state = TaskState.READY
+    state.save()
+    _phase_contract(lane_repo, "T-7311", 1)
+    _phase_contract(lane_repo, "T-7312", 2)
+    calls = _counting_regate(monkeypatch)
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        only="T-7312",
+    )
+
+    assert [r.action for r in results] == ["landed"]
+    assert calls == [None]
+
+
 def test_a_red_battery_at_completion_withholds_the_ready_publication(
     lane_repo, tmp_path, monkeypatch
 ):

@@ -146,9 +146,8 @@ def _document_pr_text(
     A phase finished by hand has no lane record, but its landing file rides
     in the branch tip's tree; it counts as carried too, under the tip."""
 
-    from torve.adapters.vcs.git import GitLane
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
-    from torve.application.lane import document_tasks
+    from torve.application.lane import carried_tasks
     from torve.application.projections import stream_rows
     from torve.config import layout
     from torve.domain.attempt import GateResult
@@ -156,19 +155,7 @@ def _document_pr_text(
 
     document = branch.rsplit("/", 1)[-1]
     # S-0091/D-3: the tree's landing files are a carrier the lane's records may lack.
-    in_tree = [
-        name.rsplit("/", 1)[-1].rsplit("-", 2)[0]
-        for name in GitLane().tree_paths(
-            root, branch, f"{layout.TORVE_DIR}/specs/{document}/execution"
-        )
-        if name.endswith(".yaml")
-    ]
-    carried = document_tasks(root, branch)
-
-    for found in in_tree:
-        if found not in carried and layout.task_file(root, found).is_file():
-            carried.append(found)
-
+    carried = carried_tasks(root, branch)
     task_ids = carried + ([task_id] if task_id not in carried else [])
     rows = stream_rows(root)
     landings = []
