@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0482
+phase: 4
+base: 8b65a5a28e501cd94136d077c8046c1c8951369e
+commit: 22d70b9dd213fd0e014d85b74a9e58cb08b1838b
+at: '2026-10-03T17:25:59Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-03T17:12:41Z'
+    claim: >-
+      the intent names the two sections to rewrite but not the verbs table, which
+      until now never named manager resolve even though the loop turns on that command
+    evidence: >-
+      pages/docs/operating.md:35 — a  row was added to the verbs table beside the
+      reworded  row
+    action: decided
+    proposal: >-
+      amend S-0094/D-1's paths note or the doc phase to say the verbs table names
+      the resolve loop, not only the prose sections
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-03T17:15:13Z'
+    claim: second probe
+    evidence: >-
+      pages/docs/operating.md:35 — the verbs table now names the resolve command
+    action: decided
+    proposal: say the verbs table names the loop
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-03T17:15:49Z'
+    claim: >-
+      the row whose claim read 'second probe' repeated the first entry after a routing
+      check found no worktree log; it is retracted — the first entry is the one record
+      of this editorial decision
+    evidence: >-
+      pages/docs/operating.md:35 — the verbs-table row both entries describe
+    action: decided
+    proposal: >-
+      amend S-0094's doc phase to say the verbs table names the resolve loop, not
+      only the prose sections
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-10-03T17:21:42Z'
+    claim: >-
+      the page was rewritten inside the grammar's area: every coordinate added cites
+      the corpus forms the check accepts, and no legacy identifier was introduced
+    evidence: >-
+      pages/docs/operating.md:817 — the new escalation-loop section's citations are
+      S-0094/D-1 through D-5, S-0092 and S-0090, all accepted ids
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-10-03T17:22:39Z'
+    claim: >-
+      correcting the previous entry's coordinate after later edits shifted the page:
+      the escalation-loop section and its citations begin at the line below, and every
+      coordinate the section adds resolves to an accepted id
+    evidence: >-
+      pages/docs/operating.md:821 — the heading 'The escalation loop is an amendment
+      and a command'
+    action: decided
