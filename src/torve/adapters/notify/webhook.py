@@ -55,8 +55,7 @@ class WebhookNotifier:
 
     def deliver(self, notification: Notification) -> str:
         text = (
-            f"{notification.task_id} escalated: {notification.reason}"
-            f" — {notification.detail}"
+            f"{notification.task_id} escalated: {notification.reason} — {notification.detail}"
             if notification.detail
             else f"{notification.task_id} escalated: {notification.reason}"
         )
