@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: manager
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0088, S-0090, S-0091, S-0092]
 informed_by: []
@@ -110,3 +110,5 @@ questions:
       Should `resolve --resolution abandoned` also clear the run's host state? The
       draft leaves an abandoned run's worktree where it is, since a person may want
       its diff. Clearing it would make abandon one command too.
+    status: settled
+    settled_by: D-5

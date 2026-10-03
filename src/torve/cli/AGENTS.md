@@ -512,6 +512,34 @@ A round requeued with `manager resolve --resolution requeued` is re-scoped from 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/reviewleg.py` `tests/test_manager.py`
 - Consequence: an operator's widening of the phase reaches the round's next attempt
 
+### S-0094/D-1 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+
+`manager resolve --resolution requeued` refreshes a phase task's contract through `refresh_document` and writes it, reading the task's document as the remote's document branch holds it after a fetch, and as the checkout holds it when the remote has no such branch
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/planner.py` `tests/test_manager.py` `tests/test_plan.py`
+- Consequence: a phase widened on the document branch reaches the next attempt without a hand edit to the contract
+
+### S-0094/D-3 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+
+`manager resolve --resolution requeued` clears the task's escalated host state (its run-state file, worktree and sandbox) before it writes the requeue, and keeps the checkpoint a continued attempt resumes from
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/reaper.py` `tests/test_manager.py` `tests/test_reaper.py`
+- Consequence: a requeue never fails as `gate_infrastructure_failure` on what its own escalation left behind
+
+### S-0094/D-4 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+
+While a pass is paused, the latest undelivered escalation of each task holding the pause is relayed whatever its reason, and the notification says the night is paused; every other escalation is judged by S-0051/D-8's interrupt classes
+
+- Paths: `src/torve/application/notify.py` `src/torve/cli/manager.py` `tests/test_notify.py`
+- Consequence: a night that stops serving work pages the operator once, if a destination is configured
+
+### S-0094/D-5 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+
+`manager resolve --resolution abandoned` leaves the run's host state where it is; `torve reap --escalated` still clears it
+
+- Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
+- Consequence: a person can still read an abandoned attempt's worktree and diff before sweeping it
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's
