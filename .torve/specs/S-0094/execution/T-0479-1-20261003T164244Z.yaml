@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0479
+phase: 1
+base: 47a88b30f735ae0e3b81dbb1da8ab488e15ea78c
+commit: cfc02d7be0fdd8feb77b58303d82117e745b5c35
+at: '2026-10-03T16:42:44Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-03T16:41:00Z'
+    claim: >-
+      requeue fetches, then refreshes a non-round phase task's contract through refresh_document
+      reading the document from refs/remotes/origin/<document branch>, checkout when
+      absent, and writes it in file mode; review rounds keep the S-0092/D-4 rescope
+    evidence: >-
+      src/torve/application/planner.py:811 — _remote_document builds a scratch corpus
+      with the remote's copy of one document; refresh_document takes remote_branch
+    action: decided
+    notes: >-
+      plan_document gained committed= so a document read from a commit skips the checkout
+      status check. Only the file-mode contract is written; a contract held only in
+      the record is not refreshed by resolve.
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-03T16:41:01Z'
+    claim: >-
+      reviewleg._phasing reads refs/remotes/origin/<branch> instead of the local ref;
+      the fetch is the lane's (each pass) or resolve's
+    evidence: >-
+      src/torve/application/reviewleg.py:293 — _phasing shows phasing.yaml at the
+      remote-tracking ref, checkout fallback
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-03T16:41:01Z'
+    claim: >-
+      a failed fetch during resolve --resolution requeued is suppressed and the last
+      fetched remote copy is read, so an offline requeue is not refused after its
+      resolution is already recorded
+    evidence: >-
+      src/torve/cli/manager.py:882 — _fetch suppresses RuntimeError from GitLane.fetch
+    action: decided
+    proposal: >-
+      ASSUMED — a requeue whose fetch fails reads the last fetched copy of the document
+      branch rather than failing
