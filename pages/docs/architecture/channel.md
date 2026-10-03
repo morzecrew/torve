@@ -2,7 +2,7 @@
 
 What the engine can see while a run is in progress, and what it deliberately
 cannot
-([S-0045](https://github.com/morzecrew/torve/blob/main/rfcs/0045-the-live-channel.md)).
+([S-0045](https://github.com/morzecrew/torve/tree/main/.torve/archive/S-0045)).
 
 Before this existed, a running attempt was opaque: the engine started a
 container, waited, and learned everything at once when the process ended.

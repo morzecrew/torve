@@ -10,7 +10,7 @@
 
     What the engine does now is [the architecture
     section](../architecture/overview.md). What was decided here is
-    [S-0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md).
+    [S-0044](https://github.com/morzecrew/torve/tree/main/.torve/archive/S-0044).
 
 Written 2026-09-04, after the thirteen-contract queue closed, in response to
 the owner's challenge: *"persistence can hold the truth, repo can project

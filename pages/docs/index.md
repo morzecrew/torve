@@ -1,7 +1,7 @@
 # Torve — how the engine works
 
 Torve runs a standing team of coding agents against a specification corpus:
-RFCs with graded decision tables are the input, sandboxed task execution
+design documents with graded decision rows are the input, sandboxed task execution
 under a gate battery is the machine, and landed commits are the only output
 that counts.
 
@@ -12,7 +12,8 @@ way they are, and which failures each separation exists to prevent.
 !!! note "What this site never does"
 
     It never restates a decision. Every graded decision lives in the corpus
-    under [`rfcs/`](https://github.com/morzecrew/torve/tree/main/rfcs), with
+    under [`.torve/specs/`](https://github.com/morzecrew/torve/tree/main/.torve/specs)
+    (retired documents under `.torve/archive/`), with
     an id, a grade and the paths it governs; this site links to them and
     stops there. A third copy of a decision is a third thing that can
     disagree with the other two, and the engine has spent a lot of its life
