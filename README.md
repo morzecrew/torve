@@ -4,10 +4,7 @@ A specification-and-gate engine for a standing agent team.
 
 Torve turns a reviewed specification into machine-checkable task contracts,
 runs coding agents against them in sandboxes under deterministic gates, and
-refuses to let anything land that cannot prove it did what it was told. It is
-not an orchestrator: dispatch, worktrees and merge trains are solved
-elsewhere. What Torve adds is the layer above — decisions with teeth, scope
-as a contract, and a closed loop from execution facts back into planning.
+refuses to let anything land that cannot prove it did what it was told.
 
 Three ideas carry the design:
 
@@ -23,80 +20,112 @@ Three ideas carry the design:
   project back into the planning session that writes the next contracts —
   as a CLI report and as a read-only MCP server.
 
+## Status
+
+0.1 is an alpha with one operator and one adopter so far. It has been run
+on Linux with Docker, with Claude Code as the agent seat. The other seats'
+images exist and have run far less. Nothing is promised across minor releases yet:
+[Stability](https://morzecrew.github.io/torve/latest/reference/stability/)
+says what each surface does and does not promise. Report security issues as
+[SECURITY.md](SECURITY.md) says.
+
 ## Install
 
 ```bash
-pip install torve                # gates and runner
-pip install 'torve[postgres]'    # durable cross-process run store
+pip install torve                # or: uv tool install torve
+pip install 'torve[postgres]'    # the durable run store and the manager's log
+pip install 'torve[migrate]'     # `torve migrate`, for that store's schema
 pip install 'torve[mcp]'         # the planning session's read surface
+pip install 'torve[serve]'       # the loopback dashboard
 pip install 'torve[opensandbox]' # the OpenSandbox runtime adapter
 ```
 
-Python 3.13+. Agents run in Docker sandboxes; the engine itself never
-executes agent code on the host.
+From a checkout instead: `uv sync`, then `uv run torve ...`.
 
-## Quickstart: gates in CI
+Python 3.13 or 3.14, git, and a Docker daemon for anything that runs an
+agent. Agents run in Docker sandboxes; the engine never executes agent code
+on the host.
 
-The smallest useful install is one CI step — no runner, no store, no agents:
+## Quickstart
+
+`torve init` writes the JSON Schemas for every file Torve reads, under
+`.torve/schemas/`, and the ignore file for what Torve alone writes. It does
+not write a configuration or a gate manifest. The smallest useful install is
+gates in CI: write `.torve/gates.yaml` and run them.
 
 ```bash
-torve gates run --base origin/main   # all gates; the exit code is the outcome
-torve gates run --format json        # machine-readable results
-torve gates check                    # sabotage suite: prove each gate can fail
+torve init
+torve gates run --base origin/main   # every gate; the exit code is the outcome
+torve gates run --format json        # the same, for a machine
+torve gates check                    # the sabotage suite: prove each gate can fail
 ```
 
-Configuration lives in `.torve/gates.yaml`. Builtin gates: `scope`,
-`acceptance`, `no-test-tampering`, `decisions-reported`, `secrets`,
-`self-audit`; anything else is a shell command in the manifest. Gates that
-need a task contract report `skipped` without one — never a silent green.
+The builtin gates are `scope`, `secrets`, `no-test-tampering`,
+`decisions-reported`, `acceptance`, `red-on-base`, `self-audit`,
+`source-layout` and `user-facing-text`. Anything else is a shell command in
+the manifest. Gates that need a task contract report `skipped` without one,
+never a silent green.
+
+[Get started](https://morzecrew.github.io/torve/latest/get-started/) walks the
+whole first loop, with a minimal `gates.yaml` and `config.yaml`: a document,
+a minted contract, a sandboxed run and a landing.
 
 ## Running work
 
 ```bash
-torve plan 0021                  # mint task contracts from an accepted spec
-torve intake "add rate limiting to the fetch path"   # or draft from prose
-torve adopt T-0140               # accept the drafts; ids are minted here
-torve run T-0142                 # one task, synchronously, sandboxed
-torve merge                      # land ready candidates, serialized
-torve manager serve morzecrew/repo --dsn "$TORVE_PG_DSN"   # the resident manager
+torve plan S-0001 --no-dry-run   # mint task contracts from an accepted, committed document
+torve run T-0001                 # one task, synchronously, sandboxed
+torve merge T-0001               # land one ready candidate; omit the id for the whole queue
+torve intake "add rate limiting to the fetch path"   # or draft contracts from prose
+torve manager serve <partition>  # the resident manager, over a Postgres store
 ```
 
-`plan` is deterministic — no model call ever happens inside the engine.
-`intake` runs a drafting agent in a read-only sandbox whose gate is a
-contract lint; a human adopts or refuses. `manager serve` is the standing
-team: import what the repository added, claim one task at a time, execute
-it, and record what happened. It holds nothing between passes, so killing
-it costs the lease on whatever was in flight and nothing else.
+`plan` is deterministic and previews by default; no model is ever called
+inside the engine. `intake` runs a drafting agent in a read-only sandbox
+whose gate is a contract lint, and `torve adopt` is the human signature that
+mints what it drafted. `manager serve` is the standing team: it imports
+what the repository added, claims one task at a time, executes it, and
+records what happened. It holds nothing between passes, so killing it costs
+the lease on whatever was in flight and nothing else.
 
 Review is a second run role: a reviewer agent, isolated from the executor,
-whose findings gate the merge lane. `torve review pr` reviews forge pull
-requests; `torve review corpus` replays a seeded-defect corpus so reviewer
+whose findings gate the merge lane. `torve review pr <number>` reviews a forge
+pull request; `torve review corpus` replays a seeded-defect corpus so reviewer
 regressions are measurable.
 
 ### The store
 
-The durable run store and the manager's event log both live in Postgres.
-The repository ships a compose file for a local one:
+The manager's event log and the durable run store live in Postgres.
+`TORVE_PG_DSN` names the database; it never belongs in a committed file.
+`torve migrate --all` applies the schema. From a checkout of this repository,
+`just pg-up` starts a local Postgres on `127.0.0.1:15433` and `just migrate`
+applies it. `store.adapter: mock` in `.torve/config.yaml` keeps the run store
+in-process instead, which is enough for one `torve run` and not for a reaper
+that must see another runner's leases.
 
 ```bash
-just pg-up                       # postgres on 127.0.0.1:15433, its own volume
-just migrate                     # apply every target's pending steps
-torve manager board <repo>       # what a partition's recorded facts add up to
-torve manager serve <repo>       # mint, claim, execute, record — until stopped
-torve manager note <repo> T-1 "the flake in test_x is known"   # say it mid-run
+torve manager board <partition>                   # what the recorded facts add up to
+torve manager note <partition> T-0001 "the flake in test_x is known"
 ```
 
-The board shows what each task has burned and how long since it last spent
-anything: liveness is read from the wire the broker already meters, never
-reported by the agent. A note is a recorded fact the agent polls for with
-`torve log notes` — nothing interrupts an attempt, and what the engine tried
-to say is auditable whether or not it was read.
+## Sandbox images
 
-`TORVE_PG_DSN` names the database; `TORVE_PG_PASSWORD` is what compose
-starts it with. Neither value belongs in a committed file. `store.adapter:
-mock` in `.torve/config.yaml` keeps the run store in-process instead, which
-is enough for a single process and not enough for a reaper that must see
-another runner's leases.
+An agent seat runs in an image built from a definition under `sandboxes/`
+in this repository (`claude`, `codex`, `dsh`, `mimo`, `opencode`, and
+`battery`, the image this repository's own gates run in). No image is
+published to a registry yet: build them
+from a checkout with Docker Buildx.
+
+```bash
+just image claude                 # tags claude-sandbox:latest
+TAG=2.1.283 just image claude     # tags claude-sandbox:2.1.283, the version a harness file names
+torve sandbox list                # the definitions and the tag each builds to
+torve sandbox digest              # what each tag resolves to on this runtime
+```
+
+The engine never builds an image. `torve doctor` checks that an image a seat
+names has a reviewed definition beside the configuration: an adopting
+repository keeps a copy under `.torve/sandbox/<name>/`.
 
 ## Observing
 
@@ -104,11 +133,10 @@ another runner's leases.
 torve status                     # run records
 torve context                    # the planning report: tasks, escalations,
                                  # proposals, gate health, cost by regime
-torve mcp                        # the same projections as a read-only MCP server
+torve ledger                     # cost and attempts per landing, per seat and gate
+torve mcp                        # the same facts as a read-only MCP server
 torve doctor                     # configuration and environment checks
-torve shadow T-0142              # replay landed work for harness comparison
-torve spec check                 # validate the specification corpus
-torve spec show S-0006/D-8            # resolve any corpus identifier
+torve shadow T-0001              # replay landed work for harness comparison
 ```
 
 Every attempt appends one telemetry record stamped with a `config_hash` of
@@ -117,116 +145,48 @@ from different regimes are never silently compared.
 
 ## Configuration
 
-Everything lives under `.torve/` in the consuming repository: `gates.yaml`
-(the gate manifest) and `config.yaml` (runtime adapter, agent tiers, store,
-budgets, promotion policy). Agent harnesses are configured per tier — the
-command line, the model, the sandbox image — and provider credentials reach
-the engine as environment variable *names*, never values. With the egress
-broker enabled, a sandbox holds no provider key at all: the broker injects
-credentials at its own boundary, enforces provider routing at the wire, and
-meters spend mid-run.
+Everything lives under `.torve/` in the repository the runner is launched
+from, and every file's first line names its schema:
 
-A tier can also name a profile instead of spelling out its adapter, model
-and command inline: `profile: <name>` resolves against a file in the
-operator's own config directory (`~/.config/torve/agents/<name>.yaml`,
-`$XDG_CONFIG_HOME` when set) — never the repository under work — and any
-fields set locally on the tier win over the profile's. For example:
+- `config.yaml`: the runtime, the store, the seats (`tiers`), the broker,
+  budgets and the landing policy.
+- `gates.yaml`: the gate manifest.
+- `harnesses/<name>.yaml`: how a model is reached. That is the adapter and
+  the image that is the harness's identity.
+- `providers/<name>.yaml`: where a provider is served, and the *name* of the
+  variable holding its credential, never the value.
+- `agents/<name>.yaml`: what an agent is given. That is its equipment and the
+  working rules it appends.
+
+A seat in `config.yaml` joins them and adds what varies per run:
 
 ```yaml
 tiers:
   executor:
-    profile: claude-sonnet
+    harness: claude-subscription
+    profile: claude-equipped
+    model: claude-opus-5-5
+    provider: anthropic
 ```
 
-with `~/.config/torve/agents/claude-sonnet.yaml` holding the adapter,
-model and command that tier runs with:
-
-```yaml
-# ~/.config/torve/agents/claude-sonnet.yaml
-adapter: harness
-provider: anthropic
-model: claude-sonnet-5
-image: torve-agent:claude
-command: >-
-  cp -r /opt/torve/seed/. "$HOME/" && claude -p --model {model}
-  "$(cat {prompt})" --output-format json
-```
-
-The command runs inside the sandbox image, so it reaches the harness and
-the small toolkit the image bakes at `/opt/torve/` — here the claude seed,
-copied into the runtime home (`$HOME` is the container's `/tmp`) before the
-harness starts. The image itself is the one `just image claude` produces from
-the in-repo definition under `sandboxes/`, or a pinned pull from the registry
-when publishing is configured.
-
-That registry pull is the other half of the zero-config story: CI publishes
-`claude`, `dsh` and `mimo` to `ghcr.io/morzecrew/<name>-sandbox` under
-immutable `<harness-version>-r<image-rev>` tags, so a profile can name one
-directly and build nothing:
-
-```yaml
-# ~/.config/torve/agents/claude-sonnet.yaml
-adapter: harness
-provider: anthropic
-model: claude-sonnet-5
-image: ghcr.io/morzecrew/claude-sandbox:2.1.252-r1
-command: >-
-  cp -r /opt/torve/seed/. "$HOME/" && claude -p --model {model}
-  "$(cat {prompt})" --output-format json
-```
-
-Always a full version tag, never `latest` — `latest` is for kicking tires,
-not for a profile a run depends on. Pulling trusts this repository's CI and
-the ghcr account; `just image claude` from the same in-repo definition is the
-one-command alternative for anyone who'd rather not. `torve sandbox list` says
-which definitions exist and `torve sandbox digest` what each resolves to; the
-engine itself never builds one.
-
-`profile` also takes a list of names, merged left to right under the same
-rule, local keys still winning last — a tier composing a wiring layer and an
-equipment layer without duplicating either:
-
-```yaml
-tiers:
-  executor.copywriter:
-    profile: [claude-sonnet, copywriter]
-```
-
-A tier entry may also carry `skills:` and `prompt_extras:` directly, which
-turns a named variant into a persona: `skills` fully overrides the
-role-scoped skill set for that tier — never additive — and `prompt_extras`
-appends working-rule lines after the charter's base rules, which stay
-unaddressable from configuration. For example:
-
-```yaml
-tiers:
-  executor.copywriter:
-    profile: claude-sonnet
-    skills: ["prose-voice", "keep-a-changelog"]
-    prompt_extras:
-      - "Docstrings and user-facing text follow the repository's house voice."
-```
-
-A phase in a spec's phasing can route its work to a persona: `tier_variant:
-copywriter` on a phase is copied by `torve plan` onto the minted contract,
-so which persona a phase runs under is a line in a reviewed document, never
-an inference the engine makes on its own.
-
-Resolution is fail-closed throughout: a `profile` naming no file and a
-`skills` name the materializer doesn't recognize both refuse rather than
-fall back to inline defaults — a profile miss refuses the configuration
-load, an unknown skill refuses dispatch before a sandbox exists. `torve
-doctor` prints which tiers resolved through a profile and which carry
-equipment that differs from their role's default.
+With `broker.adapter: local`, a sandbox holds no provider key at all: the
+broker injects credentials at its own boundary, enforces provider routing
+at the wire, and meters spend mid-run. This repository's own `.torve/` is a
+working example of every file.
 
 ## Design corpus
 
-The full design lives in `.torve/specs/` as a numbered, cross-checked
-corpus of specifications — the same documents Torve plans and builds itself
-from — with what once stood in `.torve/archive/`. Each document is a
-directory `S-NNNN/` of four YAML files; `torve spec list` routes, `torve
-spec show D-x.y` resolves any identifier, and `torve spec render NNNN`
-writes a page for a person.
+The design lives in `.torve/specs/` as a numbered, cross-checked corpus of
+documents — the same documents Torve plans and builds itself from — with
+retired ones under `.torve/archive/`. Each document is a directory `S-NNNN/`
+holding up to four YAML files (`document.yaml`, `decisions.yaml`,
+`phasing.yaml`, `amendments.yaml`) and an `execution/` directory the landing
+writes. `torve spec new` starts one, `torve spec check` validates the corpus,
+`torve spec list` routes, `torve spec show S-0006/D-8` resolves any
+identifier, and `torve spec render S-0006` writes a page for a person.
+
+The [documentation site](https://morzecrew.github.io/torve/) explains how the
+engine works and how to operate it.
 
 ## License
 
