@@ -90,7 +90,7 @@ jobs:
               exit 1
               ;;
           esac
-          version=$(grep -oP "^ARG ${arg}=\K\S+" ".torve/sandbox/${DEF_NAME}/Dockerfile")
+          version=$(grep -oP "^ARG ${arg}=\K\S+" "sandboxes/${DEF_NAME}/Dockerfile")
           echo "value=${version}-r${IMAGE_REV}" >> "$GITHUB_OUTPUT"
 
       # D-33.2: CI refuses to re-push an existing tag. gh reads GITHUB_TOKEN
