@@ -1656,6 +1656,36 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
     assert len(published) == 2
 
 
+def test_an_open_document_rebases_the_remote_copy_and_keeps_a_hand_commit(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0915", {"T-7308": "eight.py"}, published)
+
+    # A person pushed a fix to the open pull request from another checkout:
+    # the remote has it, this checkout's ref does not (S-0091/D-1).
+    landed = git(lane_repo, "rev-parse", document)
+    hand = _hand_commit(lane_repo, document, "hand.py", "hand = 1\n")
+    git(lane_repo, "branch", "-f", document, landed)
+
+    (lane_repo / "app.py").write_text("base = 8\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves")
+    git(lane_repo, "push", "-q", "origin", "main")
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=26, state="open"), []),
+        unit="document",
+    )
+
+    assert [r.action for r in results] == ["pull request", "already landed"]
+    # What is republished is the remote's branch rebased, hand commit and all.
+    assert git(lane_repo, "show", f"origin/{document}:hand.py") == "hand = 1"
+    assert git(lane_repo, "show", f"origin/{document}:eight.py")
+    assert hand != git(lane_repo, "rev-parse", f"origin/{document}")
+
+
 def test_an_open_document_on_an_unmoved_base_spends_no_push(lane_repo, tmp_path):
     published: list[tuple[str, str]] = []
     document = _landed_document(lane_repo, tmp_path, "S-0913", {"T-7306": "six.py"}, published)
