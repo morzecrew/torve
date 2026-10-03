@@ -1,7 +1,7 @@
 # The record
 
 One append-only, typed log is the system of record for intent and execution
-([S-0044](https://github.com/morzecrew/torve/blob/main/rfcs/0044-the-manager-domain.md),
+([S-0044](https://github.com/morzecrew/torve/tree/main/.torve/archive/S-0044),
 S-0044/D-1). Every other view of engine state — the board, the projections, the
 telemetry stream — is rebuildable from it. Source code stays git's; only
 intent and record moved.
