@@ -54,6 +54,16 @@ class WebhookNotifier:
     # ....................... #
 
     def deliver(self, notification: Notification) -> str:
+        text = (
+            f"{notification.task_id} escalated: {notification.reason}"
+            f" — {notification.detail}"
+            if notification.detail
+            else f"{notification.task_id} escalated: {notification.reason}"
+        )
+
+        if notification.paused:
+            text += " (the night is paused)"
+
         body = json.dumps(
             {
                 "event_id": notification.event_id,
@@ -63,14 +73,10 @@ class WebhookNotifier:
                 "detail": notification.detail,
                 "at": stamp(notification.at),
                 "age_s": round(notification.age_s, 1),
+                "paused": notification.paused,
                 # Composed from records, saying what happened and never what
                 # the finding deserves (S-0051/the-port).
-                "text": (
-                    f"{notification.task_id} escalated: {notification.reason}"
-                    f" — {notification.detail}"
-                    if notification.detail
-                    else f"{notification.task_id} escalated: {notification.reason}"
-                ),
+                "text": text,
             }
         ).encode()
 

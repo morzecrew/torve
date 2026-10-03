@@ -369,6 +369,9 @@ async def _serve(
     # branch is landed, whether or not the base holds its landing file yet.
     landings = {**lane_landings(root), **shipped_landings(root)}
     ran = ran_here(root)
+    # The tasks holding the pause, as the pass's own `paused` computed them,
+    # so the relay that follows pages exactly those (S-0094/D-4).
+    holding: set[str] = set()
 
     async def paused() -> bool:
         """This root's own pause rule, re-decided every pass (S-0048/A-1).
@@ -379,8 +382,12 @@ async def _serve(
         """
 
         board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
+        escalated = escalated_tasks(root, board)
+        held = len(escalated) >= config.loop.pause_escalations
+        holding.clear()
+        holding.update(escalated if held else ())
 
-        return len(escalated_tasks(root, board)) >= config.loop.pause_escalations
+        return held
 
     async def relay() -> list[str]:
         """Drain the undelivered queue to whatever destination is
@@ -397,6 +404,7 @@ async def _serve(
             partition=partition,
             actor_id=worker,
             max_attempts=config.notify.attempts,
+            held=frozenset(holding),
         )
 
     def standing() -> tuple[str, bool]:
