@@ -1806,10 +1806,10 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "attrs", specifier = ">=25" },
-    { name = "forze", specifier = ">=0.6.0" },
-    { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = ">=0.6.0" },
+    { name = "forze", specifier = "==0.6.0" },
+    { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = "==0.6.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2" },
-    { name = "opensandbox", marker = "extra == 'opensandbox'" },
+    { name = "opensandbox", marker = "extra == 'opensandbox'", specifier = ">=0.1.15,<0.2" },
     { name = "pathspec", specifier = ">=0.12" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -1827,7 +1827,7 @@ dev = [
     { name = "basedpyright", specifier = ">=1.31" },
     { name = "deptry", specifier = ">=0.25.1" },
     { name = "diff-cover", specifier = ">=10.5.1" },
-    { name = "forze", extras = ["dst", "postgres"], specifier = ">=0.6.0" },
+    { name = "forze", extras = ["dst", "postgres"], specifier = "==0.6.0" },
     { name = "import-linter", specifier = ">=2" },
     { name = "mcp", specifier = ">=1.2" },
     { name = "mypy", extras = ["faster-cache"], specifier = ">=1.19" },
