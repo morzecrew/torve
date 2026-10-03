@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0094
+title: The escalation loop runs without scripts
+kind: design
+change:
+  type: fix
+  scope: manager
+status: draft
+implementation: none
+depends_on: [S-0088, S-0090, S-0091, S-0092]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  On bloomery's served nights, one escalation costs the operator a script and a restart. A phase whose scope is too narrow halts `underspecified`. The operator widens the phase on the document branch, then edits the task's contract by hand, because `torve plan --refresh` derives from the checkout's corpus and the widened phase is only on the branch. They then run `torve reap --escalated`, because a requeue over the escalated run's leftover host state fails as `gate_infrastructure_failure`. Only after that do they run `manager resolve --resolution requeued` and restart the night. Meanwhile nobody is told: S-0051 pages only interrupt-class reasons, and `underspecified` is not one, so night 15 sat paused for six and a half hours behind a green task.
+
+  Three changes make the loop one amendment and one command. A requeue refreshes the task's contract from its document as the remote's document branch holds it. A requeue clears the run's escalated host state before the task returns to the board. And while a pass is paused, the escalations holding the pause page whatever their reason.
+motivation: >-
+  bloomery night 15 (2026-10-01): T-0231 (S-0087 phase 2) halted `underspecified`
+  three times on a phase scope missing `EntityIR`, `resolve/build.py` and `resolve/facets.py`;
+  each time the phase was widened on torve/S-0087 by script, the contract edited by
+  hand, the run reaped and requeued. The escalation at 16:25Z paused the night and
+  nothing landed until a hand restart at 22:59Z, while T-0244 waited green. T-0087,
+  T-0095, T-0205 and T-0208 on earlier nights ended `gate_infrastructure_failure`
+  because the requeue ran before the reap. The readiness review of 2026-10-02 ranks
+  this loop second among the operator's hand work, after review threads.
+current_state: >-
+  `planner.refresh_document` (S-0088) re-derives an escalated task's `intent`, `scope`,
+  `acceptance`, `decisions`, `tier_variant` and `character` from `plan_document` over
+  the checkout's corpus, and `torve plan --refresh` writes them; it never reads a
+  document branch. `manager resolve --resolution requeued` writes the requeue to the
+  log and, for a review round only, re-scopes it from the phasing at the branch (S-0092/D-4)
+  through `reviewleg._phasing`, which reads the local ref. `runner` refuses to dispatch
+  a task whose run state is still escalated ("triage it or `torve reap` first"), and
+  only `torve reap --escalated` clears it, for every task at once. `notify.undelivered`
+  relays only escalations whose reason is in `INTERRUPT_REASONS` (S-0051/D-8), the
+  relay leg runs while a pass is paused, and the pause itself is decided in `manager.serve`
+  from `loop.pause_escalations`.
+goals: |-
+  - After an escalation, the operator amends the document branch, runs one `manager resolve`, and nothing else.
+  - A requeued task's next attempt reads the phase the operator just amended.
+  - A night that stops serving work tells the operator, whatever the reason it stopped.
+non_goals: |-
+  - Widening a phase automatically. The phase is the owner's accepted scope, and widening it stays an amendment (S-0092 keeps the same line).
+  - Restarting a paused night by itself. A pause is a statement that the board needs a person.
+  - A notification destination for any repository. `notify.adapter` stays `none` until the operator names one (S-0051/D-4).
+  - Changing what `torve reap --escalated` sweeps when run on its own.
+design:
+  - key: a-requeue-reads-the-branch
+    md: >-
+      `manager resolve --resolution requeued` refreshes the task's contract as `torve
+      plan --refresh` would, through `refresh_document`, and writes it. The document
+      is read as the remote's document branch holds it after a fetch (S-0091/D-1):
+      the corpus is the checkout's with the document's own directory taken from the
+      branch tip. A document that has no branch on the remote is read from the checkout,
+      as today. The same remote read replaces the local ref in `reviewleg._phasing`,
+      so a round's re-scope (S-0092/D-4) sees a phase that was widened and pushed
+      from another checkout. A review round keeps its own re-scope. Only a phase task
+      is refreshed.
+  - key: a-requeue-starts-clean
+    md: >-
+      Before writing the requeue, `resolve` clears the host state the escalated run
+      left for that one task: its run-state file, its worktree and its sandbox. That
+      is what `torve reap --escalated` clears for every escalated task. The checkpoint
+      a continued attempt resumes from (S-0090/D-2) is kept, so a halt still continues
+      where it stopped.
+  - key: a-pause-pages
+    md: >-
+      The relay is told which tasks hold the pause on the pass that computed it, which
+      is `escalated_tasks` over the board when `paused()` is true. For each such task,
+      its latest undelivered escalation is relayed whatever its reason, and the notification
+      says the night is paused. Every other escalation is still judged by S-0051/D-8's
+      interrupt classes. Since a task holds the pause until it is resolved, the page
+      for a long-standing escalation is sent once, on the first paused pass.
+tests: |-
+  - A phase task escalated `underspecified`, its phase widened on the remote document branch only, and `manager resolve --resolution requeued`: the contract's scope and acceptance are the branch's, and a refresh with no branch on the remote reads the checkout.
+  - A round's re-scope reads a phase pushed to the remote's document branch from another checkout.
+  - `resolve --resolution requeued` over an escalated run removes the run-state file and worktree of that task only, keeps its checkpoint, and the next dispatch neither refuses nor fails as `gate_infrastructure_failure`.
+  - A paused pass relays an `underspecified` escalation holding the pause, once, with the paused flag. The same escalation on an unpaused pass is not relayed, and an earlier resolved escalation of the same task is not relayed.
+docs: >-
+  `pages/docs/operating.md` replaces the reap, edit, requeue sequence with the amend-then-resolve
+  loop, and says how to point `notify` at a webhook (an ntfy topic works) so a paused
+  night reaches a phone.
+out_of_scope: ''
+risks: |-
+  - Reading the document from the branch while the rest of the corpus is read from the checkout can disagree when another document's rows changed on main since the branch was cut. The refresh inherits decisions from both, and the branch's own rows win for its own document, which is the text the pull request will merge.
+  - With `loop.pause_escalations: 1`, the default, every escalation pauses, so every escalation now pages during a served pass. That is S-0051/D-8's fear of a pager nobody reads. It holds only because a pause stops all work, which is exactly when the page is worth reading.
+  - A resolve that reaps runs on the host the run escalated on. A `manager resolve` from another host clears nothing there, and the next dispatch still refuses, as today.
+alternatives:
+  - option: >-
+      Add `underspecified` to S-0051/D-8's interrupt classes
+    rejected_because: >-
+      what makes an escalation urgent is that it stops the night, not its reason;
+      with `pause_escalations` above one, an `underspecified` halt is board work like
+      any other
+  - option: >-
+      Make the operator run `torve plan --refresh` after amending the branch
+    rejected_because: >-
+      it is the same step the operator forgets today, and the refresh would still
+      read the checkout; folding it into the requeue makes the amendment the only
+      act
+  - option: Have `torve reap --escalated` take a task id
+    rejected_because: >-
+      it keeps two commands in the loop where one says what the person decided
+questions:
+  - id: Q-1
+    text: >-
+      Should `resolve --resolution abandoned` also clear the run's host state? The
+      draft leaves an abandoned run's worktree where it is, since a person may want
+      its diff. Clearing it would make abandon one command too.
