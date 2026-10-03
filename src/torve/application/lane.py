@@ -1315,9 +1315,18 @@ def _rebase_document(
 
     from torve.gates.context import resolve_base
 
-    branch_tip = vcs.tip(root, branch)
     base = resolve_base(root, None, fetch=True)
     base_tip = vcs.tip(root, base) if base else None
+    # The remote's copy is the one rebased (S-0091/D-1). A hand commit pushed
+    # to the open pull request is on it and not on this checkout's ref, and
+    # the republish leases against the fetch just made, so rebasing the local
+    # ref would drop that commit without a refusal.
+    remote = vcs.remote_tip(root, branch)
+
+    if remote is not None:
+        vcs.reset_branch(root, branch, remote)
+
+    branch_tip = vcs.tip(root, branch)
 
     if (
         branch_tip is None
