@@ -143,12 +143,17 @@ decisions:
     consequence: >-
       Nothing a harness or a person reads names an identifier the check refuses
   - id: D-11
-    grade: OPEN
+    grade: ASSUMED
     text: >-
-      Whether the mapping stays readable after the first release or is deleted with
-      the release notes naming the renumbering
+      The mapping stays readable through 0.x: `torve spec show` keeps answering a
+      legacy identifier through `.torve/archive/identifiers.yaml`; whether it survives
+      1.0 is decided at 1.0, and a release that deletes it names the renumbering in
+      its notes
     paths: [.torve/archive/**]
-    consequence: Decided at the first release, logged
+    consequence: >-
+      an old identifier in commit history or a pull request stays resolvable for the
+      whole 0.x line
+    fingerprint: b80417ce02756fe1/5882c2d1f678d4ba
   - id: D-12
     grade: LOCKED
     text: >-
