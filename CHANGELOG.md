@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-03
+
 ### Added
 
 - After an escalation, the operator amends the document branch and runs one
@@ -1863,3 +1865,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`--strict-markers --strict-config`, `pytest-timeout` safety net,
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
+
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/morzecrew/torve/releases/tag/v0.1.0
