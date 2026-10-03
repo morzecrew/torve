@@ -879,6 +879,64 @@ def return_cmd(
 # ....................... #
 
 
+def _fetch(root: Path) -> None:
+    """The remote's refs brought up to date for a requeue to read. A fetch
+    that fails leaves the last fetched copy, which is still the remote's: a
+    person requeueing offline is not refused for it."""
+
+    from contextlib import suppress
+
+    from torve.adapters.vcs.git import GitLane
+
+    with suppress(RuntimeError):
+        GitLane().fetch(root, prune=True)
+
+
+def _refresh_phase(root: Path, task_id: str, fmt: Format) -> None:
+    """A requeued phase task's contract refreshed from its document as the
+    remote's document branch holds it, and written (S-0094/D-1): a phase
+    widened there reaches the next attempt without a hand edit. A task naming
+    no document, or one the refresh cannot derive, keeps its contract."""
+
+    from torve.application.planner import (
+        PlanError,
+        RefreshReport,
+        refresh_contracts,
+        refresh_document,
+    )
+    from torve.base import naming
+    from torve.config import layout
+    from torve.gates.context import load_task
+
+    contract = layout.task_file(root, task_id)
+
+    try:
+        spec_id = load_task(contract).spec if contract.is_file() else None
+
+    except ValueError:
+        return
+
+    if spec_id is None:
+        return
+
+    try:
+        report = refresh_document(
+            root,
+            root / load_config(root, None).specs.path,
+            spec_id,
+            remote_branch=naming.document_branch(spec_id),
+        )
+
+    except PlanError as exc:
+        if fmt is not Format.JSON:
+            closing(out(fmt), f"{task_id}: contract kept — {exc}", STYLE_DIM)
+
+        return
+
+    mine = [one for one in report.tasks if one.task_id == task_id]
+    refresh_contracts(root, RefreshReport(document=report.document, tasks=mine))
+
+
 @manager_app.command("resolve")
 def resolve_cmd(
     partition: Annotated[str, typer.Argument(help="The repository the task belongs to.")],
@@ -957,17 +1015,25 @@ def resolve_cmd(
         from torve.application.projections import stream_rows
         from torve.application.reviewleg import rescope
 
-        rows = stream_rows(root.resolve())
+        root = root.resolve()
+        rows = stream_rows(root)
+        rounds = [
+            row
+            for row in rows
+            if row.get("event") == "lane_review_task" and row.get("task") == task_id
+        ]
+        _fetch(root)
         # A review round takes its document's phasing as the branch holds it
         # now (S-0092/D-4); one the leg already widened to the whole phasing
         # keeps the whole of it.
-        for row in rows:
-            if row.get("event") == "lane_review_task" and row.get("task") == task_id:
-                whole = any(
-                    r.get("event") == "lane_round_requeued" and r.get("task") == task_id
-                    for r in rows
-                )
-                rescope(root.resolve(), row, whole=whole)
+        for row in rounds:
+            whole = any(
+                r.get("event") == "lane_round_requeued" and r.get("task") == task_id for r in rows
+            )
+            rescope(root, row, whole=whole)
+
+        if not rounds:
+            _refresh_phase(root, task_id, fmt)
 
     if fmt is Format.JSON:
         emit_json({"partition": partition, "task": task_id, "resolution": resolution})

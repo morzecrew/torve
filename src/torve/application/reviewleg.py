@@ -291,10 +291,11 @@ def _acceptance(root: Path) -> list[str]:
 
 
 def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
-    """The document's phasing as its branch tip holds it (S-0092/D-2): a phase
-    widened there by amendment reaches the leg before it reaches the checkout.
-    A branch with no tip here, or no phasing at it, is read from the checkout.
-    Empty when neither holds one."""
+    """The document's phasing as the remote's copy of its branch holds it after
+    the pass's fetch (S-0092/D-2, S-0094/D-2): a phase widened there by
+    amendment, from any checkout, reaches the leg before it reaches this one.
+    A branch the remote lacks, or with no phasing at its tip, is read from the
+    checkout. Empty when neither holds one."""
 
     from torve.config.spec import document_dir
 
@@ -305,7 +306,13 @@ def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
 
     path = directory / "phasing.yaml"
     proc = subprocess.run(
-        ["git", "-C", str(root), "show", f"{branch}:{path.relative_to(root).as_posix()}"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "show",
+            f"refs/remotes/origin/{branch}:{path.relative_to(root).as_posix()}",
+        ],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
