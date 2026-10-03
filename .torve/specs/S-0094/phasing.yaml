@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A requeue refreshes the contract from the document branch
+    intent: >-
+      `refresh_document` can read one document from the remote's document branch tip
+      after a fetch, with the rest of the corpus from the checkout, and falls back
+      to the checkout when the remote has no branch. `manager resolve --resolution
+      requeued` refreshes and writes a phase task's contract that way, and `reviewleg._phasing`
+      reads the remote's copy. Settles D-1 and D-2.
+    scope:
+      - src/torve/cli/manager.py
+      - src/torve/application/planner.py
+      - src/torve/application/reviewleg.py
+      - tests/test_manager.py
+      - tests/test_plan.py
+      - tests/test_reviewleg.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_plan.py tests/test_reviewleg.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: A requeue clears what its escalation left
+    intent: >-
+      The reaper can clear one escalated task's run-state file, worktree and sandbox,
+      keeping its checkpoint. `manager resolve --resolution requeued` does that before
+      writing the requeue, so the next dispatch neither refuses nor fails as `gate_infrastructure_failure`.
+      Waits on phase 1, which owns the same command. Settles D-3.
+    scope:
+      - src/torve/cli/manager.py
+      - src/torve/application/reaper.py
+      - tests/test_manager.py
+      - tests/test_reaper.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_reaper.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: A paused night pages the operator
+    intent: >-
+      `manager.serve` hands the relay the tasks holding the pause on the pass that
+      computed it. `notify.undelivered` relays the latest undelivered escalation of
+      each held task whatever its reason, with the paused flag in the notification
+      and the webhook body. Settles D-4.
+    scope:
+      - src/torve/application/notify.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/notify/webhook.py
+      - src/torve/cli/manager.py
+      - tests/test_notify.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_notify.py tests/test_manager.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      The operating guide gives the one-command escalation loop
+    intent: >-
+      `operating.md` replaces the reap, edit, requeue sequence with "amend the document
+      branch, then `manager resolve --resolution requeued`", and shows `notify` pointed
+      at a webhook such as an ntfy topic.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py -q
+    depends_on:
+      - 3
+    character: routine
