@@ -758,9 +758,7 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
 
     landings = []
 
-    # ponytail: the lane's own records only; a phase finished by hand is not
-    # counted here, so its document reads incomplete until a lane landing.
-    for carried in dict.fromkeys([*document_tasks(root, document), task_id]):
+    for carried in dict.fromkeys([*carried_tasks(root, document), task_id]):
         try:
             landings.append(DocumentLanding(task=load_task(layout.task_file(root, carried))))
 
@@ -1231,6 +1229,46 @@ def document_tasks(root: Path, branch: str) -> list[str]:
     entry = _document_ledger(root).get(branch)
 
     return list(entry.tasks) if entry is not None else []
+
+
+def carried_tasks(root: Path, branch: str) -> list[str]:
+    """Every task a document branch carries: the lane's own records in landing
+    order, then each task whose landing file rides in the branch tip's tree
+    with no lane record — a phase finished by hand, or one whose publication
+    the forge refused (S-0091/D-3). The pull request's body and draft flag
+    and the completion battery count from this one list, so a pull request
+    never leaves draft on a completion the battery did not see."""
+
+    carried = document_tasks(root, branch)
+    document = branch.rsplit("/", 1)[-1]
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "ls-tree",
+            "-r",
+            "--name-only",
+            branch,
+            "--",
+            f"{layout.TORVE_DIR}/specs/{document}/execution",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    for name in proc.stdout.split():
+        found = name.rsplit("/", 1)[-1].rsplit("-", 2)[0]
+
+        if (
+            name.endswith(".yaml")
+            and found not in carried
+            and layout.task_file(root, found).is_file()
+        ):
+            carried.append(found)
+
+    return carried
 
 
 # ....................... #
