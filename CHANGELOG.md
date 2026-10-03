@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- After an escalation, the operator amends the document branch and runs one
+  command. `torve manager resolve --resolution requeued` refreshes a phase
+  task's contract from its document as the remote's document branch holds it,
+  so a phase widened there reaches the next attempt without a hand edit. It
+  also clears the run-state file, worktree and sandbox the escalation left,
+  keeping the checkpoint. `--resolution abandoned` leaves them for a person to
+  read.
+
+- A paused night pages. While a pass is paused, the escalations holding the
+  pause are relayed to the configured notifier whatever their reason, once
+  each, and the page and the webhook body say the night is paused. Every other
+  escalation still pages only for an interrupt-class reason.
+
+- A document runs the fallback battery (lint, types, the whole suite) once
+  over its branch when its last phase lands, before the pull request leaves
+  draft. A green battery turns it ready. A red one keeps it a draft and becomes
+  one fix round on the last landed task, and a second red escalates to a
+  person.
+
+- A review round is scoped by its document: the phasing of the phases its
+  target landed, read from the document branch, so a fix that needs a second
+  file no longer halts. A round that halts on a specification gap is retried
+  once with the whole document's phasing, then escalates `underspecified`. A
+  round requeued after its phasing changed is scoped by the phasing as it now
+  stands. CodeRabbit's collapsed analysis blocks are removed before a thread
+  is judged and never reach the attempt.
+
+- A halt escalates under the reason that stopped it: `underspecified` for a
+  scope or specification gap, and `locked_conflict` only when it names a
+  LOCKED row.
+
+- A task whose last attempt ended in a review blocker or a halt continues from
+  the tree that attempt checkpointed, with the review's findings or the halt's
+  entry as what is left to close. A review of a review round mints no further
+  round, so rounds end.
+
+- A night records the resolved knobs of every seat its queue can reach, keyed
+  by seat, in `NightOpened.knobs`, so two nights that ran on different seats
+  can be compared.
+
+- `torve manager board` lists each task waiting on another document's landing,
+  with that document and the tasks still owed, in text and JSON, as `torve
+  night show` already did.
+
 - `promotion.landing: pull_request` ends the lane in a pull request instead of
   a fast-forward. The battery and every promotion criterion run as before, then
   the candidate is pushed, its pull request is opened or refreshed, and a
@@ -435,6 +479,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- forze is pinned exactly, at 0.10.0, as
+  `migrations/substrate/FORZE_VERSION` is. A range used to resolve the newest
+  forze, which `torve doctor` then refused against the substrate pin. The
+  substrate schema is the same as at 0.6.0.
+
+- The document branch is the remote's. The lane fetches with prune and works
+  from `origin/<branch>`. A branch the remote no longer has, or whose pull
+  request merged, is set aside under `refs/torve/documents/` and cut again from
+  `main`, so the next pull request carries only what `main` lacks. Commits
+  pushed by hand are a moved branch, which the lane rebases onto and regates,
+  and every push leases against the exact commit fetched. A phase finished by
+  hand counts from its landing file on the branch, and `manager resolve
+  --resolution landed` refuses a commit that carries no landing file.
+
+- The source distribution carries only what the package builds from, and the
+  wheel ships every skill: three were silently missing before.
+
+- CI tests Python 3.13 and 3.14. A `v*` tag on `main` that names the version in
+  `pyproject.toml` publishes the package to PyPI and a GitHub release with this
+  changelog's section as its notes.
+
+- The documentation is published per version at
+  <https://morzecrew.github.io/torve/>, with a getting-started walkthrough and
+  a stability page saying what 0.x promises. `SECURITY.md` says how to report
+  a vulnerability and where the trust boundary is.
+
 - **Breaking:** `torve run` refuses a contract the lint refuses. It names the
   reasons and exits 3 before an attempt is paid for. `--lint-red` dispatches
   it anyway and records a `lint_red_dispatch` event.
@@ -795,6 +865,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `amended_by` field (derived from the amendments).
 
 ### Fixed
+
+- An open document's pull request rebased onto a moved base keeps the commits
+  a person pushed to it. The rebase started from this checkout's ref, which
+  lacked them, and the push leased against the fetch it had just made, so they
+  were dropped without a refusal.
+
+- A night drains when a task it landed onto a document branch is no longer an
+  ancestor of that branch after a rebase. The lane read landing by ancestry
+  alone, and such a night never ended.
+
+- A pull request the forge reports closed is read again before the lane
+  believes it, so a merge read in its own second is no longer recorded as
+  abandoned.
+
+- A document title starting with a one-letter word, such as "A", keeps it
+  lower-case in the pull request title instead of reading it as an acronym.
 
 - A served worker claims a task only once every dependency's landing is on
   the base the task would be cut from: the document branch's tip under
