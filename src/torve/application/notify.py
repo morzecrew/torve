@@ -24,7 +24,7 @@ from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import EscalationReason
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Collection, Sequence
 
     from torve.application.eventlog import EventLog
     from torve.application.ports import Notifier
@@ -73,7 +73,10 @@ def _interrupts(event: EventRecord) -> bool:
 
 
 def undelivered(
-    events: Sequence[EventRecord], *, now: datetime | None = None
+    events: Sequence[EventRecord],
+    *,
+    now: datetime | None = None,
+    held: Collection[str] = frozenset(),
 ) -> list[Notification]:
     """Every escalation this partition has raised and not delivered, oldest
     first (S-0051/D-2).
@@ -85,6 +88,11 @@ def undelivered(
     A resolved escalation is *not* filtered out: it
     was somebody's turn when it was raised, and a page that arrives after
     the resolution is late rather than wrong.
+
+    `held` names the tasks holding a paused pass's pause. The latest
+    undelivered escalation of each is owed whatever its reason, flagged
+    paused: what makes it urgent is the night that stopped, not the reason
+    (S-0094/D-4). Every other escalation is judged by its interrupt class.
     """
 
     moment = now or datetime.now(UTC)
@@ -98,6 +106,14 @@ def undelivered(
         and str(event.payload.get("outcome") or "delivered") in ("delivered", "failed")
     }
 
+    owed = [
+        event
+        for event in events
+        if event.kind is EventKind.ESCALATION_RAISED and str(event.id) not in settled
+    ]
+    latest = {event.subject_id: str(event.id) for event in owed if event.subject_id in held}
+    pausing = set(latest.values())
+
     return [
         Notification(
             task_id=event.subject_id,
@@ -107,11 +123,10 @@ def undelivered(
             at=event.created_at,
             event_id=str(event.id),
             age_s=(moment - event.created_at).total_seconds(),
+            paused=str(event.id) in pausing,
         )
-        for event in events
-        if event.kind is EventKind.ESCALATION_RAISED
-        and str(event.id) not in settled
-        and _interrupts(event)
+        for event in owed
+        if str(event.id) in pausing or _interrupts(event)
     ]
 
 
@@ -146,6 +161,7 @@ async def relay(
     actor_id: str,
     events: Sequence[EventRecord] | None = None,
     max_attempts: int = MAX_ATTEMPTS,
+    held: Collection[str] = frozenset(),
 ) -> list[str]:
     """Deliver what is owed, and record what was delivered. Returns the
     task ids paged.
@@ -158,12 +174,15 @@ async def relay(
     escalation owed and gives the next pass its count; once the count
     reaches the ceiling the attempt is recorded `failed` instead, and the
     queue drains (S-0051/D-7).
+
+    `held` is the tasks holding the pause on the pass that computed it, as
+    `undelivered` reads it.
     """
 
     facts = list(events) if events is not None else await log.since(partition=partition)
     paged: list[str] = []
 
-    for notification in undelivered(facts):
+    for notification in undelivered(facts, held=held):
         attempt = attempts_so_far(facts, notification.event_id) + 1
 
         try:
