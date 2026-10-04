@@ -1602,28 +1602,28 @@ The completion battery is the manifest's fallback battery under the manifest's o
 - Paths: `src/torve/application/lane.py`
 - Consequence: one cap sizes both regates, and a suite that outgrows it is fixed in one place; the tiers the fallback leaves out (bloomery's engine and e2e tiers) still reach CI first
 
-### S-0094/D-1 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+### S-0094/D-1 — `ASSUMED` (The escalation loop runs without scripts)
 
 `manager resolve --resolution requeued` refreshes a phase task's contract through `refresh_document` and writes it, reading the task's document as the remote's document branch holds it after a fetch, and as the checkout holds it when the remote has no such branch
 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/planner.py` `tests/test_manager.py` `tests/test_plan.py`
 - Consequence: a phase widened on the document branch reaches the next attempt without a hand edit to the contract
 
-### S-0094/D-2 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+### S-0094/D-2 — `ASSUMED` (The escalation loop runs without scripts)
 
 The document branch the review leg's phasing reads (S-0092/D-2) is the remote's copy after a fetch, not the checkout's ref
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a round re-scoped at a requeue sees a phase pushed from another checkout
 
-### S-0094/D-3 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+### S-0094/D-3 — `ASSUMED` (The escalation loop runs without scripts)
 
 `manager resolve --resolution requeued` clears the task's escalated host state (its run-state file, worktree and sandbox) before it writes the requeue, and keeps the checkpoint a continued attempt resumes from
 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/reaper.py` `tests/test_manager.py` `tests/test_reaper.py`
 - Consequence: a requeue never fails as `gate_infrastructure_failure` on what its own escalation left behind
 
-### S-0094/D-4 — `ASSUMED` (The escalation loop runs without scripts) — implementation: none
+### S-0094/D-4 — `ASSUMED` (The escalation loop runs without scripts)
 
 While a pass is paused, the latest undelivered escalation of each task holding the pause is relayed whatever its reason, and the notification says the night is paused; every other escalation is judged by S-0051/D-8's interrupt classes
 
