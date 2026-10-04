@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://morzecrew.github.io/torve/dev/operating/">
       
       
-        <link rel="prev" href="./..">
+        <link rel="prev" href="../get-started/">
       
       
         <link rel="next" href="../architecture/overview/">
@@ -277,6 +277,32 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../get-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get started
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -493,6 +519,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-escalation-loop-is-an-amendment-and-a-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The escalation loop is an amendment and a command
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#unattended-landing" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -556,10 +593,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -577,8 +614,8 @@
           </label>
         
         
-          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-            <label class="md-nav__title" for="__nav_3">
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
               <span class="md-nav__icon md-icon"></span>
               
   
@@ -768,6 +805,96 @@
       
         
       
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
         
       
     
@@ -783,10 +910,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -804,8 +931,8 @@
           </label>
         
         
-          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-            <label class="md-nav__title" for="__nav_4">
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6">
               <span class="md-nav__icon md-icon"></span>
               
   
@@ -1071,6 +1198,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-escalation-loop-is-an-amendment-and-a-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The escalation loop is an amendment and a command
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#unattended-landing" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1193,8 +1331,12 @@ shell has not set is filled in.</p>
 <td>approve a candidate's <strong>current tip</strong>; a push after it approves nothing</td>
 </tr>
 <tr>
+<td><code>torve manager resolve &lt;partition&gt; &lt;task&gt;</code></td>
+<td>close an escalation and say how: <code>--resolution requeued</code> returns it to the board with its contract refreshed from its document's branch; <code>abandoned</code> takes it off and leaves the host state to read; <code>landed --sha</code> records a hand finish. See the escalation loop below</td>
+</tr>
+<tr>
 <td><code>torve reap</code></td>
-<td>sweep sandboxes, worktrees and finished run state. <code>--escalated</code> also discards escalations you have dealt with by hand</td>
+<td>sweep sandboxes, worktrees and finished run state. <code>--escalated</code> clears what an abandoned or hand-dealt escalation leaves behind — a requeue clears its own task's footprint as it goes (S-0094/D-3, S-0094/D-5)</td>
 </tr>
 <tr>
 <td><code>torve status</code> / <code>why</code> / <code>context</code></td>
@@ -1857,8 +1999,12 @@ whose phases is minted. A task that is running, that has landed, or that a
 document branch carries is left alone and named with the reason; an
 escalated or reaped task with no landing is refreshed: a continued attempt
 reads the contract as it stands at that dispatch, so the terms never carry
-over from a checkpointed tree even when the tree does (S-0090/D-3). Each
-rewrite is recorded as <code>contract_refreshed</code>
+over from a checkpointed tree even when the tree does (S-0090/D-3). The
+requeue in <code>manager resolve</code> is the one caller that reads the document as
+its branch holds it rather than as this checkout does — the refresh an
+escalated amendment used to need by hand is inside the resolve (S-0094/D-1;
+see the escalation loop below). Each rewrite is recorded as
+<code>contract_refreshed</code>
 and stamped on the contract; under <code>--partition</code> the rewrite goes onto the
 board through the same path a mint does.</p>
 <h2 id="running-a-pass-without-spending">Running a pass without spending<a class="headerlink" href="#running-a-pass-without-spending" title="Permanent link">&para;</a></h2>
@@ -1876,14 +2022,31 @@ pass, to whatever destination is configured:</p>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">url_env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TORVE_NOTIFY_URL</span><span class="w"> </span><span class="c1"># the variable holding the URL, never the URL</span>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># deliveries before the queue parks one</span>
 </span></code></pre></div>
+<p>An ntfy topic is the destination that needs no account and no code — the
+delivery is one JSON POST and a phone subscriber reads it. The URL is a
+bearer secret in practice, so the committed file names the variable and
+the environment carries the value (S-0001/D-13):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TORVE_NOTIFY_URL</span><span class="o">=</span>https://ntfy.sh/&lt;a-topic-only-you-subscribe-to&gt;
+</span></code></pre></div>
 <p><code>none</code> is the default and is a choice, not a blank: a repository that has
 not picked a destination sends nothing on purpose. The queue is the log —
 an escalation with no settled delivery recorded against it — so a manager
 killed mid-page redelivers rather than losing it, and the escalation's own
 event id rides the wire as an <code>Idempotency-Key</code> for a destination that
-knows what to do with one.</p>
+knows what to do with one. The body says what happened in one composed
+<code>text</code> line — the task, the reason, the detail — beside the structured
+fields a destination can key on, <code>task</code>, <code>reason</code> and <code>paused</code> among them.</p>
 <p>Batch-class escalations never page. Paging on everything is how a pager
 stops being read.</p>
+<p><strong>A paused night is the exception, and it pages whatever the reason.</strong>
+While a served pass holds its pause (see the pause section below), the
+latest undelivered escalation of each task holding the pause is relayed
+whatever its interrupt class — <code>underspecified</code> among them — and the
+notification says the night is paused (S-0094/D-4). What makes such a
+halt worth reading at any hour is not its class but that work stopped,
+and the page says so in words. A task holds the pause until it is
+resolved, so a standing escalation pages once, on the first paused pass,
+not on every pass after it.</p>
 <h2 id="what-an-escalation-names">What an escalation names<a class="headerlink" href="#what-an-escalation-names" title="Permanent link">&para;</a></h2>
 <p>Every ending that is not a landing carries a reason from a closed
 vocabulary. The reason rides on the board row and in the record, and it is
@@ -1922,7 +2085,7 @@ exit accordingly.</p>
 </tr>
 <tr>
 <td><code>underspecified</code></td>
-<td>the contract needs three or more load-bearing decisions invented, or a halted attempt left a <code>spec-gap</code> entry and cited no <code>LOCKED</code> row (S-0092/D-3) — a specification defect: amend and re-mint, never retry. On a review round the amendment is to the document's phasing on its branch and the re-mint is a requeue, which re-scopes the round (S-0092/D-4); see the review-leg section below</td>
+<td>the contract needs three or more load-bearing decisions invented, or a halted attempt left a <code>spec-gap</code> entry and cited no <code>LOCKED</code> row (S-0092/D-3) — a specification defect: amend the document, never retry. The loop is one amendment and one command: widen the phase on the document's branch, then <code>torve manager resolve --resolution requeued</code>, which refreshes the task's contract from the branch before the task goes back on the board (S-0094/D-1); a review round is re-scoped from the same branch the same way (S-0092/D-4, S-0094/D-2). See the escalation loop below</td>
 <td>2</td>
 </tr>
 <tr>
@@ -1978,10 +2141,17 @@ attempt and retries as one.</p>
 <code>blocker_finding</code> or <code>locked_conflict</code> starts from the checkpoint the
 attempt left on the task's branch, not from base (S-0090/D-2): a review
 that asked for one file's change costs that change, and a halt answered by
-an amendment resumes where it stopped. Both routes reach the same tree —
-the requeue on the board, and the route through <code>torve reap --escalated</code>,
-where the run state is gone and the checkpoint commit's own message names
-the reason the task stopped. A landed task has nothing left to continue,
+an amendment resumes where it stopped. The requeue reaches that tree by
+itself: it first clears the escalated run's host footprint for the task it
+resolves — its run-state file, its worktree, its sandbox — and keeps the
+checkpoint, so a requeue never refuses over a state file still claiming
+the task nor fails as <code>gate_infrastructure_failure</code> on what its own
+escalation left behind (S-0094/D-3). <code>torve reap --escalated</code> is no
+longer a step in this loop; it is the sweep for what a resolution
+deliberately leaves, since <code>--resolution abandoned</code> clears nothing — an
+abandoned attempt's worktree and diff stay readable, the checkpoint
+commit's own message naming the reason the task stopped, until a person
+says otherwise (S-0094/D-5). A landed task has nothing left to continue,
 and a gate conviction still restarts from base. A continued attempt is an
 ordinary attempt: it counts toward the ceiling and the budgets, its diff
 and gates are measured against the original base, and it reads the contract
@@ -1995,13 +2165,50 @@ The queue may drain during a pause; it may not grow.</p>
 is worth knowing before wondering why a board went quiet: check
 <code>torve status</code>, resolve it with <code>torve manager resolve</code>, or discard the
 footprint with <code>torve reap --escalated</code>.</p>
+<h2 id="the-escalation-loop-is-an-amendment-and-a-command">The escalation loop is an amendment and a command<a class="headerlink" href="#the-escalation-loop-is-an-amendment-and-a-command" title="Permanent link">&para;</a></h2>
+<p>An escalation that convicts the contract rather than the work —
+<code>underspecified</code> most often — used to be five acts: widen the phase on the
+document's branch; edit the task's contract by hand, because
+<code>torve plan --refresh</code> derived from this checkout's corpus while the
+widened phase stood only on that branch; run <code>torve reap --escalated</code>,
+because a requeue over the escalated run's leftover host state failed as
+<code>gate_infrastructure_failure</code>; run <code>torve manager resolve --resolution
+requeued</code>; restart the night. The loop is now one amendment and one
+command (S-0094):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># it when pushed</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
+</span></code></pre></div>
+<p>The requeue clears the one task's escalated footprint, fetches, and
+refreshes the contract through <code>refresh_document</code>, the same derivation a
+mint runs, reading the task's document as the remote's copy of its branch
+holds it after that fetch and as the checkout holds it when the remote has
+no such branch; the rest of the corpus stays the checkout's, as always
+(S-0094/D-1). Nobody edits a contract file by hand: a phase widened on the
+branch reaches the next attempt as the text the pull request will merge,
+which is what the branch is for — and a review round takes its re-scope
+from the phasing in the same remote copy, not the checkout's ref, so an
+amendment pushed from another checkout reaches a round served here too
+(S-0094/D-2). The clear and the requeue are one act now, scoped to the task
+the person resolves rather than sweeping every escalated run at once, and
+the checkpoint a continued attempt resumes from survives it (S-0094/D-3) —
+for the <code>underspecified</code> halt itself the tree is kept for reading, but the
+next attempt starts from base against the amended contract, because the
+fix is the amendment, not a carry-over of abandoned work (S-0090/D-2).</p>
+<p>What the loop deliberately keeps to a person is the two judgements:
+widening a phase is an amendment, because the phase is the scope its
+owner accepted (S-0092), and a paused night resumes only when its
+escalation is resolved, because the pause is the statement that the board
+needs somebody. With a destination configured it at least says so out
+loud, whatever the reason's class (S-0094/D-4); with none, the night
+waits in silence, which remains a choice, not an accident.</p>
 <h2 id="unattended-landing">Unattended landing<a class="headerlink" href="#unattended-landing" title="Permanent link">&para;</a></h2>
 <p>A pass does not land anything by default. <code>torve merge</code> is the recorded
 approval, a human act, and that is the whole of the safety story here — a
 manager with the switch off behaves exactly as it did before the landing
 leg existed.</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
 </span></code></pre></div>
 <p>Armed, each pass runs the <strong>same</strong> serialized lane the verb runs, with the
 same arguments this configuration already feeds it. It adds a caller, not
@@ -2068,12 +2275,12 @@ what advancing produces.</p>
 <p>What a landing <em>is</em> comes from two terms of <code>promotion</code>, and neither is ever
 inferred from whether a remote exists or from whether the ready candidates
 happen to share a document (S-0080/D-1, S-0083/D-1):</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nt">scm</span><span class="p">:</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="nt">scm</span><span class="p">:</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
 </span></code></pre></div>
 <p>Under <code>local</code>, <strong>landing is not publishing</strong>: the lane fast-forwards this
 checkout's base and stops, and pushing it stays yours. Under <code>pull_request</code>
@@ -2272,11 +2479,11 @@ task, the sha and the verb that writes one (<code>torve log land &lt;task&gt; --
 not carry (S-0065/D-7).</p>
 <p><strong>A reviewer's threads can be answered by the night too.</strong> Off by default, and
 a separate switch from <code>auto_merge</code>:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">threads</span><span class="p">:</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">threads</span><span class="p">:</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
 </span></code></pre></div>
 <p>It refuses to load with <code>enabled: true</code> under any landing but <code>pull_request</code>
 with <code>unit: document</code> (S-0084/D-5): the leg reads a document's pull request, so
@@ -2354,7 +2561,10 @@ switch off or on.</p>
 nothing and reaches you by name, as an injecting thread does (S-0086/D-4) —
 the scope it is judged against is the phasing as the document's branch tip
 holds it, so widening a phase on the branch is what admits a finding the
-checkout's phasing refused (S-0092/D-2). And because a recorded finding was
+checkout's phasing refused (S-0092/D-2). The branch the leg reads is the
+remote's copy after the pass's fetch, not this checkout's ref: a phase
+widened and pushed from another checkout reaches the leg before it reaches
+this one (S-0094/D-2). And because a recorded finding was
 never a thread on the forge, its answer is written to the stream as
 <code>review_finding_answered</code> — the commit the round landed in, or the recorded
 reason it was not applied — and said once as a comment on the document's pull
@@ -2370,12 +2580,20 @@ re-derives the round's scope from the union of the whole document's phasing —
 the bound you accepted when you approved it, plus the round's log directory —
 and queues the round again, recording the act on the stream as
 <code>lane_round_requeued</code>. Once per round (S-0092/D-1). A second such halt stays
-with you, and the path is short: amend the phase on the document's branch —
-the phasing is what the round reads, and a round's contract lives in the
-record, so an edit to the contract file itself reaches an attempt only by
-accident — then <code>torve manager resolve &lt;partition&gt; &lt;task&gt; --resolution
-requeued</code>, which re-derives the round's scope from the phasing as the branch
-holds it at the requeue before the round goes back on the board (S-0092/D-4).</p>
+with you, and the path is the escalation loop above, shortened: amend the
+phase on the document's branch — the phasing is what the round reads, and a
+round's contract lives in the record, so an edit to the contract file
+itself reaches an attempt only by accident — then
+<code>torve manager resolve &lt;partition&gt; &lt;task&gt; --resolution requeued</code>, which
+re-derives the round's scope from the phasing as the branch holds it at the
+requeue before the round goes back on the board (S-0092/D-4). The requeue
+reads that phasing from the remote's copy after its own fetch (S-0094/D-2)
+and clears the halted round's run-state file, worktree and sandbox first
+(S-0094/D-3). A spec-gap halt is not one of the continuations: the next
+attempt starts from base against the re-derived scope — the amendment is
+the answer, not a carry-over (S-0090/D-2) — and the checkpointed tree the
+halt left is kept for reading under <code>refs/torve/checkpoints/</code>, as any
+recut keeps it.</p>
 <p><strong>A round's own review opens no round.</strong> <code>record</code> reads no finding from a
 review whose target is itself a round the leg minted on this branch —
 anything the stream records as a <code>lane_review_task</code> event (S-0090/D-1). The
@@ -2434,7 +2652,7 @@ morning, which is the measurement it is accountable to.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="./.." class="md-footer__link md-footer__link--prev" aria-label="Previous: Start here">
+          <a href="../get-started/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Get started">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -2444,7 +2662,7 @@ morning, which is the measurement it is accountable to.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Start here
+                Get started
               </div>
             </div>
           </a>
