@@ -1,0 +1,12 @@
+paths:
+  - src
+  - tests
+  - web/src
+  - sandboxes
+
+paths-ignore:
+  # The dashboard's built bundle, generated from web/src.
+  - src/torve/_web/assets
+  - "**/node_modules"
+  - pages
+  - "**/*.md"
