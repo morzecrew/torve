@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      The starter, and doctor seeing what dispatch refuses
+    intent: >-
+      `torve init --starter` writes the starter manifest and configuration unless
+      they exist, and a test runs `torve gates run --base main` green over them in
+      a fresh repository. `torve doctor` adds a red line for a tier whose provider
+      `route_provider` refuses. The get-started page opens with the starter. Settles
+      D-1 to D-3.
+    scope:
+      - src/torve/cli/init.py
+      - src/torve/cli/doctor.py
+      - tests/test_cli.py
+      - tests/test_doctor.py
+      - pages/docs/get-started.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_cli.py tests/test_doctor.py tests/test_docs.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      The retired grammar is checked where it was written
+    intent: >-
+      The tree scan and the document-prose check apply `LEGACY_CITE` and `TREE_LEGACY_CITE`
+      only when the archive holds `identifiers.yaml`; a test repository without the
+      map passes a design-document number with a section, a dotted decision, a ticket
+      number and a paper size, and with it they are refused as today. Settles D-4.
+    scope: [src/torve/config/spec.py, tests/test_spec.py, tests/test_cli_spec.py]
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_cli_spec.py
+      - uv run torve spec check
+      - uv run mypy src
+    character: structural
+  - phase: 3
+    title: A version this torve does not read is refused
+    intent: >-
+      A shared `schema_version` field type in `torve.base.model` refuses a version
+      other than the model's, absent reading as current, naming the file and both
+      versions; every model torve reads from YAML uses it, and `tests/test_versions.py`
+      refuses a foreign version and loads a current or absent one for each. Settles
+      D-5.
+    scope:
+      - src/torve/base/model.py
+      - src/torve/config/runconfig.py
+      - src/torve/config/manifest.py
+      - src/torve/config/agents.py
+      - src/torve/config/providers.py
+      - src/torve/config/fleet.py
+      - src/torve/domain/task.py
+      - src/torve/domain/spec.py
+      - tests/test_versions.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_versions.py tests/test_cli.py tests/test_doctor.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 4
+    title: The upgrade is written down
+    intent: >-
+      The stability page states the upgrade steps and the refusal of a foreign `schema_version`,
+      the README's install section links it, and the changelog convention for an Upgrade
+      note is stated there. Settles D-6.
+    scope: [pages/docs/reference/stability.md, README.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py
+    depends_on:
+      - 3
+    character: routine

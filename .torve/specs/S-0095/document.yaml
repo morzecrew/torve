@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0095
+title: A second repository can adopt torve
+kind: design
+change:
+  type: feat
+  scope: init
+status: draft
+implementation: none
+depends_on: [S-0057, S-0058]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  torve 0.1.0 is on PyPI, and the first repository to install it fresh hits four walls before anything runs. `torve init` writes schemas and an ignore file but never a gate manifest or a configuration, so `torve gates run` stops at "no gate manifest". A seat whose provider is missing from `providers.default` passes `torve doctor` and is refused at dispatch. `torve spec check` reads ordinary prose as torve's own retired citation grammar: two ordinary lines in a fresh repository get five problems. One cites the repository's own design document by number and section, a ticket and a dotted decision; the other cites a paper size and a second design document, so the `spec-valid` gate cannot run there. And nothing says how to upgrade: a config, manifest or contract with a `schema_version` this torve does not read loads silently as if it were current.
+
+  `torve init --starter` writes a manifest and a configuration that run green on the first try and never overwrites one. `torve doctor` reddens a seat that dispatch would refuse. The retired grammar is checked only in a repository whose archive holds the identifier map, so only where that grammar was ever written. Every file torve reads refuses a `schema_version` it does not read, naming the file, the version and what to do. The stability page then states the upgrade: install, `torve init`, commit, `torve doctor`, and `torve migrate --all` when the release notes name a record migration.
+motivation: >-
+  The readiness review of 2026-10-02 ranked the adopter path as what 0.2 must answer:
+  "a second team can run torve" is what stable should mean. Each wall above was hit
+  for real. The get-started page found the first two by running the first loop in
+  a scratch repository (the manifest, and `python:3.13-slim` having no pytest; the
+  provider allowlist doctor misses). bloomery's bootstrap on 2026-09-17 hit the third,
+  1,208 times (operator/adopter-citation-grammar). It reads 0 today only because bloomery
+  converted its own corpus to S-NNNN and committed an identifier map, which a new
+  adopter has no reason to do. Schema lag broke `spec amend` on 2026-09-19 and `spec
+  check` across a relock in bloomery #169.
+current_state: >-
+  `cli/init.py::init_cmd` writes the schemas, `.torve/.gitignore`, the `.wt/` exclude
+  and schema lines, and never a configuration or a manifest (S-0057/D-5, LOCKED).
+  `cli/doctor.py` prints each seat's provenance and runs no provider check, while
+  `cli/assembly.py` calls `route_provider(config.providers, repository_name(root),
+  tier.provider)` at dispatch. `config/spec.py` scans tracked files under `src/` and
+  `pages/` with `LEGACY_CITE` (dotted rows, `RFC NNNN`) and `TREE_LEGACY_CITE` (a
+  bare `A-n`), and a document's prose with `LEGACY_CITE`. A hit is a problem in any
+  repository (S-0058/D-3, LOCKED); `load_mapping` only shapes the hint. The document
+  loader refuses a `schema_version` other than 4. Every other model (`RunnerConfig`,
+  `Manifest`, `Task`, `TaskLog`, `AgentProfile`, `HarnessManifest`, `Provider`, `FleetManifest`)
+  declares `schema_version: int` and accepts any integer. `torve doctor` and `spec
+  check` already redden when a schema lags its model and name `torve init` as the
+  fix.
+goals: |-
+  - In a fresh repository, `torve init --starter` then `torve gates run --base main` exits 0.
+  - A seat that dispatch would refuse is red in `torve doctor`, before a night spends an attempt finding out.
+  - Prose that cites a design document, a ticket or a paper size passes `spec-valid` in a repository that never had torve's retired grammar.
+  - A file written for another torve is refused with its name, its version and the remedy, never read as current.
+  - An adopter can read, in one place, what upgrading torve takes.
+non_goals: |-
+  - Scoping the tree scan's roots (`src/`, `pages/`) per repository. A repository with code elsewhere loses coverage, not correctness. Add it when an adopter asks.
+  - A starter seat, harness or provider. They name an image the adopter builds and a credential they hold, so the get-started page stays the guide for a seat.
+  - A `torve upgrade` verb or format converters. No format has moved since 0.1.0; the first one that moves ships its converter as a step `torve init` runs.
+  - Engine-written state (`telemetry.jsonl`, run-state files, the record's events), which the stability page already calls internal.
+design:
+  - key: the-starter
+    md: >-
+      `torve init --starter` does everything `torve init` does, then writes `.torve/gates.yaml`
+      and `.torve/config.yaml` unless the file exists. A file that exists is named
+      and left alone, so `--starter` is safe to run twice and never overwrites a choice.
+      The manifest holds the four structural builtins, all blocking: `scope`, `secrets`,
+      `no-test-tampering` and `decisions-reported`. It also holds the repository's
+      test gate as a commented entry, which says that gates run inside the sandbox
+      image, so the image must carry the test toolchain. The configuration is the
+      get-started page's: `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter:
+      mock`. Both start with their schema line. Without `--starter`, `init` writes
+      neither file. Accepting this document amends S-0057/D-5 to say so (Q-1).
+  - key: doctor-sees-what-dispatch-refuses
+    md: >-
+      `torve doctor` runs `route_provider(config.providers, repository_name(root),
+      tier.provider)` for every configured tier, the call dispatch makes. A tier it
+      refuses is a red line naming the seat, its provider and the providers allowed.
+      The seat's provenance line is unchanged.
+  - key: the-retired-grammar-is-torves
+    md: >-
+      `LEGACY_CITE` and `TREE_LEGACY_CITE` apply in the tree scan and in a document's
+      prose only when the archive holds `identifiers.yaml`. That map is the record
+      that the repository once wrote the retired grammar, and S-0058/D-11 keeps it
+      through 0.x. Without the map, the text is prose. torve and bloomery both hold
+      a map, so nothing changes for either. Accepting this document amends S-0058/D-3
+      to say so (Q-2).
+  - key: a-version-is-checked
+    md: >-
+      One shared field type checks `schema_version` on every model torve reads from
+      YAML: the configuration, the manifest, the contract, the log, the profile, the
+      harness, the provider and the fleet manifest. An absent version reads as current,
+      as every committed file today has one or none. A different one is refused, naming
+      the file, the version found and the version this torve reads. A newer file says
+      it needs a newer torve, and an older one says to follow the release notes' conversion.
+      The check adds no JSON Schema keyword, so no schema lags.
+  - key: the-upgrade-is-written-down
+    md: |-
+      `pages/docs/reference/stability.md` states the upgrade: 1. install the release; 2. run `torve init`, which rewrites the schemas and the ignore patterns; 3. commit what it changed; 4. run `torve doctor` until it is clean; 5. run `torve migrate --all` when the release notes name a record migration.
+      A release that moves a format's `schema_version`, or adds a record migration, carries an **Upgrade note** in its changelog entry naming the conversion. The README's install section links the page.
+tests: |-
+  - `torve init --starter` in a fresh git repository writes both files with their schema lines, and `torve gates run --base main` exits 0; a second run writes nothing and names both files as kept.
+  - An existing `.torve/config.yaml` survives `--starter` byte for byte while a missing manifest is written; plain `torve init` writes neither file.
+  - `torve doctor` with a seat whose provider is outside `providers.default` prints a red line naming the seat, the provider and the allowed set, and exits non-zero; with the provider allowed it is green.
+  - `torve spec check` over a repository with no identifier map passes text citing a design-document number with a section, a dotted decision, a ticket number and a paper size; with the map present, the same text is refused as today.
+  - A configuration, manifest or contract with `schema_version: 2` (the contract with 3) is refused naming the file and both versions, and the same file with the current version or none loads.
+docs: >-
+  `pages/docs/get-started.md` opens with `torve init --starter` and keeps the hand-written
+  files as what the starter wrote. `pages/docs/reference/stability.md` gains the upgrade
+  steps and the refusal of a foreign `schema_version`, and the README's install section
+  links it.
+out_of_scope: ''
+risks: |-
+  - A starter is a default, and a default becomes the configuration nobody chose. It holds only what any repository needs (structural gates, a sandbox, an in-process store). The test command is left commented, because the starter cannot know it.
+  - Gating the retired grammar on the map means a repository that deletes its map stops being checked for old citations. S-0058/D-11 keeps the map through 0.x, and 1.0 decides again.
+  - Refusing an unknown version turns a silent misread into a stop. A file someone hand-edited to a wrong version used to work and now does not. The message names the fix.
+alternatives:
+  - option: >-
+      A separate `torve starter` verb instead of a flag on init
+    rejected_because: >-
+      it is the same act (initialise this repository) with one more file pair, and
+      a second verb is a second thing to discover
+  - option: >-
+      Let an adopter configure the citation grammar or the scan roots
+    rejected_because: >-
+      the grammar is torve's own history; whether a repository shares it is a fact
+      the map already records, so there is nothing for an adopter to configure
+  - option: >-
+      A `torve upgrade` verb that converts every format
+    rejected_because: >-
+      no format has moved since 0.1.0, and a converter for no format is code with
+      nothing to convert; `torve init` already rewrites what lags
+questions:
+  - id: Q-1
+    text: >-
+      `--starter` writes a configuration and a manifest, which LOCKED S-0057/D-5 says
+      `init` never does. Accepting this document would amend D-5 to "never, unless
+      asked with `--starter`, and never over an existing file". Lean: amend. D-5's
+      reason (those files are authored) still holds when the starter is a first draft
+      the adopter owns and edits, and never replaces theirs.
+  - id: Q-2
+    text: >-
+      Checking the retired grammar only where the archive holds the identifier map
+      narrows LOCKED S-0058/D-3, which refuses a legacy identifier in any repository.
+      Lean: amend. Without the map no identifier there ever stood, so the row's own
+      notion of "legacy" is empty, and torve and bloomery, which both hold a map,
+      see no change.
