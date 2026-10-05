@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `torve init --starter` writes `.torve/gates.yaml` and `.torve/config.yaml`,
+      each with its schema line, unless the file exists, which it names and leaves
+      alone; plain `torve init` writes neither
+    paths: [src/torve/cli/init.py, tests/test_cli.py]
+    consequence: >-
+      a fresh repository is one command from a gate run, and no adopter's file is
+      ever overwritten
+    rationale: >-
+      every adopter wrote the same two files by hand from the get-started page, and
+      the first loop stopped at the missing manifest until they did
+    cites: [S-0057/D-5]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The starter manifest is the four structural builtins (`scope`, `secrets`, `no-test-tampering`,
+      `decisions-reported`) blocking, with the repository's test gate a commented
+      entry saying gates run inside the sandbox image; the starter configuration is
+      `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter: mock`
+    paths: [src/torve/cli/init.py, tests/test_cli.py, pages/docs/get-started.md]
+    consequence: >-
+      `torve gates run --base main` exits 0 in a repository the starter just set up
+    rationale: >-
+      the starter cannot know the test command, and a guessed one fails in an image
+      that lacks the toolchain, which is the trap the get-started page found
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `torve doctor` runs dispatch's `route_provider` for every configured tier and
+      shows a refused one as a red line naming the seat, its provider and the providers
+      allowed
+    paths: [src/torve/cli/doctor.py, tests/test_doctor.py]
+    consequence: >-
+      a seat outside `providers.default` is found by `doctor`, not by a dispatch that
+      fails with `ProviderDenied`
+    rationale: >-
+      doctor exists to say a night will start; a seat it shows green and dispatch
+      refuses is the gap the get-started walkthrough hit
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The retired citation grammar (`LEGACY_CITE`, `TREE_LEGACY_CITE`) is checked,
+      in the tree scan and in a document's prose, only when the archive holds `identifiers.yaml`;
+      without it such text is prose
+    paths: [src/torve/config/spec.py, tests/test_spec.py, tests/test_cli_spec.py]
+    consequence: >-
+      a repository that never wrote torve's retired grammar can run `spec-valid`,
+      and torve and bloomery are checked exactly as today
+    rationale: >-
+      the map is the record that a repository had the retired grammar, and without
+      it a dotted decision number, a design-document number or a paper size is someone
+      else's vocabulary
+    cites: [S-0058/D-3, S-0058/D-11]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Every model torve reads from YAML checks `schema_version` through one shared
+      field type: absent reads as current; another value is refused naming the file,
+      the version found and the version read, with "a newer torve" for a newer file
+      and the release notes' conversion for an older one
+    paths:
+      - src/torve/base/model.py
+      - src/torve/config/runconfig.py
+      - src/torve/config/manifest.py
+      - src/torve/config/agents.py
+      - src/torve/config/providers.py
+      - src/torve/config/fleet.py
+      - src/torve/domain/task.py
+      - src/torve/domain/spec.py
+      - tests/test_versions.py
+    consequence: >-
+      a file written for another torve stops the command that reads it, instead of
+      being read as current
+    rationale: >-
+      every format already names its version, and the only loader that checks it,
+      the document's, is the one no adopter has been surprised by
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `pages/docs/reference/stability.md` states the upgrade (install the release,
+      `torve init`, commit, `torve doctor`, `torve migrate --all` when the notes name
+      a record migration), and a release that moves a `schema_version` or adds a record
+      migration carries an Upgrade note in its changelog entry
+    paths: [pages/docs/reference/stability.md, README.md]
+    consequence: >-
+      an adopter reads one page to upgrade, and a release cannot move a format silently
+    rationale: >-
+      `torve init` already rewrites what lags and `torve migrate` already moves the
+      record; what was missing is the sentence saying so
