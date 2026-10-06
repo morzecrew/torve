@@ -20,3 +20,10 @@ summary: |
   The landing file is written before the rebase and committed after it. It
   should name the rebased work commit, which the lane knows once
   `rebase_in_worktree` returns, or be written after the rebase.
+
+  Fixed at 8b9d3374. The runner writes the landing file at the attempt,
+  before any rebase, and the rebase replays it unchanged. After a rebase
+  onto a moved base, the lane now points each replayed landing file at its
+  work commit's new sha, the parent of the commit that added the file, and
+  amends the rebased tip; a document branch rebased onto `main` is
+  restated the same way.
