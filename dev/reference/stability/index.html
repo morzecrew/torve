@@ -727,6 +727,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Upgrading
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#internal" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -951,6 +962,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Files Torve reads
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Upgrading
       </span>
     </span>
   </a>
@@ -1184,14 +1206,35 @@ refuses a key it does not know, naming it.</p>
 </table>
 <p>A document's <code>decisions.yaml</code>, <code>phasing.yaml</code> and <code>amendments.yaml</code> follow
 its <code>document.yaml</code> and carry no version of their own.</p>
-<p>What 0.1 does not do yet: refuse a <code>schema_version</code> it does not know. A
-<code>gates.yaml</code> that says <code>schema_version: 2</code> loads under the version-1 model
-today. Until that changes, the changelog is how you learn a shape moved.
-<code>torve doctor</code> reddens when <code>.torve/schemas/</code> lags the installed engine, and
-<code>torve init</code> brings it back.</p>
+<p>A <code>schema_version</code> this torve does not read is refused where the file is
+loaded, not read as current. The refusal names the file, the version found
+and the version this build reads, and says which way to move: a newer file
+needs a newer torve, an older one needs the conversion its release's
+Upgrade note names. An absent line reads as current. <code>torve doctor</code> reddens
+when <code>.torve/schemas/</code> lags the installed engine, and <code>torve init</code> brings it
+back.</p>
 <p>Identifiers are permanent. A document number, a decision <code>S-NNNN/D-n</code>, an
 amendment <code>A-n</code> and a task <code>T-NNNN</code> are never reused once minted, and
 <code>torve spec check</code> refuses a corpus that reuses one.</p>
+<h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
+<p>One release to the next is five steps, in order:</p>
+<ol>
+<li>Install the release: <code>pip install -U torve</code>, or <code>uv tool upgrade torve</code>.</li>
+<li>Run <code>torve init</code> in the repository. It rewrites <code>.torve/schemas/</code> from
+   the engine you just installed and adds any ignore pattern minted since.
+   It touches a configuration or a gate manifest only under <code>--starter</code>,
+   and only where none exists.</li>
+<li>Commit what <code>torve init</code> changed, so every later run and every CI job
+   reads the schemas the installed engine wrote.</li>
+<li>Run <code>torve doctor</code> and read the red lines before running anything.</li>
+<li>When the release's Upgrade note names a record migration, run
+   <code>torve migrate --all</code> against the store.</li>
+</ol>
+<p>A release that moves a <code>schema_version</code> in the table above, or adds a
+record migration, carries an Upgrade note in its changelog entry, naming
+the files whose shape moved, the versions on either side, and the
+conversion. A release whose entry carries no Upgrade note moves neither,
+and steps 1 to 4 are the whole upgrade.</p>
 <h2 id="internal">Internal<a class="headerlink" href="#internal" title="Permanent link">&para;</a></h2>
 <p>These change without notice, in any release:</p>
 <ul>
