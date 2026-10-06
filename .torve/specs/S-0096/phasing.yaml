@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: A halt names a LOCKED row or is underspecified
+    intent: >-
+      `session._halt_reason` returns `underspecified` for every halted entry that
+      cites no LOCKED row; the test matrix's ASSUMED `drift` halt now reads `underspecified`.
+      Settles D-1.
+    scope:
+      - src/torve/application/session.py
+      - tests/test_session.py
+      - tests/test_runner.py
+      - tests/test_tiering.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_session.py tests/test_runner.py tests/test_tiering.py
+      - uv run mypy src
+    character: routine
+  - phase: 2
+    title: >-
+      A red battery without a review leg escalates at once
+    intent: >-
+      `process_lane` gains `rounds`; the manager's lane leg and `torve merge` pass
+      it from `threads`. Without rounds, a red completion battery escalates the completing
+      task `blocker_finding` and records no finding; with rounds, S-0093's path is
+      unchanged. Settles D-2.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/manager.py
+      - src/torve/cli/merge.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - tests/test_reviewleg.py
+      - tests/test_intake.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - tests/test_forge.py
+      - tests/test_residency.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_reviewleg.py
+        tests/test_intake.py tests/test_manager.py tests/test_forge.py tests/test_residency.py
+      - uv run mypy src
+    character: structural
+  - phase: 3
+    title: A night imports before it opens
+    intent: >-
+      `_serve` runs the scan's `mint` over the repository's contracts before `open_night`;
+      a night over an unimported contract opens with it queued, and an empty repository
+      is still refused. Waits on phase 2, which owns the same command. Settles D-3.
+    scope:
+      - src/torve/cli/manager.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+    acceptance:
+      - uv run pytest tests/test_manager.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: routine
+  - phase: 4
+    title: A module brings its named tests
+    intent: >-
+      `intake.lint` and `contextpack.tests_file` pair a module with `tests/test_<stem>.py`
+      and every existing `tests/test_<stem>_*.py`; a draft allowing `fleet.py` without
+      `test_fleet_config.py` is refused, and the pack names it. Waits on phase 2,
+      which shares two test files. Settles D-4.
+    scope:
+      - src/torve/application/intake.py
+      - src/torve/application/contextpack.py
+      - tests/test_intake.py
+      - tests/test_contextpack.py
+      - tests/test_reviewleg.py
+      - tests/test_mcp.py
+      - tests/test_standing.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_intake.py tests/test_contextpack.py tests/test_reviewleg.py
+        tests/test_mcp.py tests/test_standing.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 5
+    title: The operating guide follows the four
+    intent: >-
+      `operating.md`: the escalation table's two rows, the battery's no-leg case,
+      the night as one command, and the retried scope halt.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py -q
+    depends_on:
+      - 1
+      - 3
+      - 4
+    character: routine
