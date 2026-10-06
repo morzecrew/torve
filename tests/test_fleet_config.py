@@ -81,7 +81,9 @@ def test_load_fleet_manifest_parses_the_documented_shape(tmp_path: Path):
 
 def test_load_fleet_manifest_rejects_unknown_trust_classes(tmp_path: Path):
     path = write(tmp_path / "fleet.yaml", "repositories:\n  - root: /x\n    trust: superuser\n")
-    with pytest.raises(ValidationError):
+    # The refusal names the file it read (S-0095/D-5), so it is the loader's
+    # ValueError rather than the model's bare ValidationError.
+    with pytest.raises(ValueError, match=r"(?s)fleet\.yaml: .*trust"):
         load_fleet_manifest(path)
 
 
