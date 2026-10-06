@@ -42,6 +42,13 @@ pip install 'torve[opensandbox]' # the OpenSandbox runtime adapter
 
 From a checkout instead: `uv sync`, then `uv run torve ...`.
 
+Upgrading an installed torve is install the release, run `torve init` in
+the repository, then `torve doctor` — and `torve migrate --all` when the
+release's Upgrade note names a record migration.
+[Stability](https://morzecrew.github.io/torve/latest/reference/stability/)
+states the steps, what each release's changelog entry promises, and how a
+foreign `schema_version` is refused.
+
 Python 3.13 or 3.14, git, and a Docker daemon for anything that runs an
 agent. Agents run in Docker sandboxes; the engine never executes agent code
 on the host.
