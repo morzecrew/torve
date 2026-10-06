@@ -19,6 +19,7 @@ telemetry stream as an engine event (S-0006/D-7).
 
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -750,6 +751,57 @@ def _keep_ref(root: Path, ref: str, sha: str) -> None:
 # ....................... #
 
 
+def _restate_landings(workdir: Path, onto: str) -> None:
+    """Point every landing file a rebase replayed at its work commit's new sha.
+
+    A landing names the work commit before it (S-0058/D-12, S-0059/D-9), and a
+    rebase gives that commit a new sha while replaying the file unchanged, so
+    the record would name a commit no branch holds. A landing commit always
+    follows its work commit, so the work commit's new sha is the parent of the
+    commit that added the file; the correction amends the rebased tip."""
+
+    from torve.domain.spec import LANDING_FILE
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(workdir), *args], capture_output=True, text=True, check=False
+        )
+
+    changed: list[str] = []
+
+    for name in git("diff", "--name-only", "--diff-filter=A", f"{onto}..HEAD").stdout.split():
+        if not LANDING_FILE.match(name.rsplit("/", 1)[-1]):
+            continue
+
+        path = workdir / name
+        text = path.read_text(encoding="utf-8")
+        named = re.search(r"^commit: '?([0-9a-f]{7,40})'?$", text, re.MULTILINE)
+
+        if (
+            named is None
+            or git("merge-base", "--is-ancestor", named.group(1), "HEAD").returncode == 0
+        ):
+            continue
+
+        added = git(
+            "log", "--format=%H", "--diff-filter=A", f"{onto}..HEAD", "--", name
+        ).stdout.split()
+
+        if not added:
+            continue
+
+        work = git("rev-parse", f"{added[0]}^").stdout.strip()
+        path.write_text(text[: named.start(1)] + work + text[named.end(1) :], encoding="utf-8")
+        changed.append(name)
+
+    if changed:
+        git("add", "--", *changed)
+        git("commit", "--amend", "--no-edit", "--no-verify")
+
+
+# ....................... #
+
+
 def _completes(root: Path, task_id: str, document: str) -> bool:
     """Whether this landing leaves the document complete (S-0093/D-1)."""
 
@@ -1427,6 +1479,7 @@ def _rebase_document(
         return
 
     try:
+        _restate_landings(workdir, base)
         exit_code, summary = _regate(workdir, base, None)
 
     finally:
@@ -1721,6 +1774,7 @@ def _land_rebased(
         return
 
     try:
+        _restate_landings(workdir, base)
         exit_code, summary = _regate(workdir, base, task_id)
 
     finally:

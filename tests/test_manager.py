@@ -1297,6 +1297,10 @@ def test_the_board_names_the_document_a_task_waits_on(tmp_path, monkeypatch):
 
     assert shown.exit_code == 0, shown.output
     assert json.loads(shown.output)["waiting_on_documents"] == {"T-0003": {"S-0090": ["T-0002"]}}
+    # A candidate whose landing is recorded reads landed, not ready.
+    states = {row["task"]: row["state"] for row in json.loads(shown.output)["tasks"]}
+    assert states["T-0001"] == "landed"
+    assert states["T-0002"] != "landed"
 
     text = runner.invoke(app, ["manager", "board", "repo", "--root", str(tmp_path)])
 

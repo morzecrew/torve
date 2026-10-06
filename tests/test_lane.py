@@ -88,6 +88,50 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     assert all(r["approver"] == "Lane Operator" for r in landed)
 
 
+def _landing_commit(root: Path, task_id: str) -> str:
+    """The runner's second commit on a candidate: a landing file naming the
+    work commit before it (S-0059/D-9). Returns the landing file's path."""
+    branch = naming.branch(task_id)
+    work = git(root, "rev-parse", branch)
+    git(root, "checkout", "-q", branch)
+    path = f".torve/execution/{task_id}-1-20261006T000000Z.yaml"
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_text(f"task: {task_id}\ncommit: {work}\n", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", f"torve({task_id}): landing of attempt 1")
+    git(root, "checkout", "-q", "main")
+    return path
+
+
+def test_a_rebased_landing_names_the_commit_that_landed(lane_repo):
+    candidate(lane_repo, "T-7011", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7012", "two.py", "two = 2\n")
+    path = _landing_commit(lane_repo, "T-7012")
+    before = git(lane_repo, "rev-parse", f"{naming.branch('T-7012')}~1")
+
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+
+    # T-7012 was rebased onto T-7011's landing, so its work commit has a new
+    # sha. The landing file on main must name that one, not the pre-rebase
+    # commit no branch holds any more (S-0058/D-12).
+    named = git(lane_repo, "show", f"main:{path}").split("commit: ", 1)[1].strip()
+    added = git(lane_repo, "log", "--format=%H", "--diff-filter=A", "main", "--", path)
+    assert named != before
+    assert named == git(lane_repo, "rev-parse", f"{added}^")
+    git(lane_repo, "merge-base", "--is-ancestor", named, "main")
+
+
+def test_a_fast_forward_landing_keeps_the_commit_it_named(lane_repo):
+    candidate(lane_repo, "T-7013", "one.py", "one = 1\n")
+    path = _landing_commit(lane_repo, "T-7013")
+    work = git(lane_repo, "rev-parse", f"{naming.branch('T-7013')}~1")
+
+    assert invoke_merge(lane_repo).exit_code == 0
+
+    assert git(lane_repo, "show", f"main:{path}").split("commit: ", 1)[1].strip() == work
+
+
 def test_a_red_rebase_puts_the_branch_back_so_the_next_pass_regates(lane_repo):
     """T-0391 landed on a battery that had gone red, in two passes.
 

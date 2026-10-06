@@ -41,7 +41,7 @@ from torve.cli.options import (
     load_config,
     runtime_for,
 )
-from torve.domain.states import EXIT_CONFIG, EXIT_OK
+from torve.domain.states import EXIT_CONFIG, EXIT_OK, TaskState
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
@@ -529,11 +529,9 @@ def _document_waits(root: Path, board: Board) -> dict[str, dict[str, list[str]]]
     so the reader knows which pull request to look at. A landing the board,
     the lane or the base already holds is no wait."""
 
-    from torve.application.projections import cross_document_waits, lane_landings, shipped_ids
+    from torve.application.projections import cross_document_waits, landed_ids
 
-    landed = {view.task_id for view in board.tasks.values() if view.landed_sha}
-    landed |= set(lane_landings(root)) | shipped_ids(root)
-    waits = cross_document_waits(root, landed)
+    waits = cross_document_waits(root, landed_ids(root, board))
 
     return {
         task_id: by_document for task_id, by_document in waits.items() if task_id in board.tasks
@@ -563,8 +561,19 @@ def board_cmd(
     call, which is the same thing a manager does when it restarts.
     """
 
+    from torve.application.projections import LANDED, landed_ids
+
     result = asyncio.run(_board(dsn_for(root, dsn) or None, partition))
     waits = _document_waits(root, result)
+    landed = landed_ids(root, result)
+
+    def shown(view: TaskView) -> str:
+        """A candidate whose landing is recorded reads `landed`, not `ready`."""
+
+        if view.state is TaskState.READY and view.task_id in landed:
+            return LANDED
+
+        return str(view.state)
 
     if fmt is Format.JSON:
         emit_json(
@@ -579,7 +588,7 @@ def board_cmd(
                         # nobody will ever claim it. The role is what tells
                         # the two kinds of queued apart.
                         "role": view.contract.role if view.contract else None,
-                        "state": str(view.state),
+                        "state": shown(view),
                         "attempts": view.attempts,
                         "claimed_by": view.claimed_by,
                         "landed_sha": view.landed_sha,
@@ -603,7 +612,7 @@ def board_cmd(
             (
                 view.task_id,
                 view.contract.role if view.contract else "—",
-                view.escalation or str(view.state),
+                view.escalation or shown(view),
                 str(view.attempts),
                 view.claimed_by or "—",
                 _burn(view),
