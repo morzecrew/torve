@@ -1,0 +1,157 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0097
+title: The review leg keeps pace with the review bots
+kind: design
+change:
+  type: feat
+  scope: review
+status: draft
+implementation: none
+depends_on: [S-0083, S-0084, S-0086, S-0092]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The review-thread leg was built to turn a document pull request's bot threads into rounds, and on bloomery it barely does. On the 23 pull requests from #238 to #262 the bots opened 230 threads (cubic 181, CodeAnt 36, CodeRabbit 13), and the operator answered 223 of them by hand. Since 25 September the leg minted 43 rounds, only 4 of them from forge threads, and resolved 4 forge threads in all. The rest it either never saw or refused. It never saw them because the bots review a document after its pull request leaves draft, which is when its night drains: 71 of #261's 83 threads arrived after the worker had exited. It refused them because the injection scan read cubic's hidden `<!-- cubic:review-run=… -->` marker as "asks for a command to run", which turned 76 of 101 served-document threads away, and because a thread on a landing file is treated as injection; each refusal was repeated every pass, 130 times for 14 threads. Even a thread the leg accepts costs a round of one finding and a push of its own, and every push restarts the bots and dismisses CodeRabbit's approval, which the operator asked for again 15 times.
+
+  The leg sets a thread's HTML comments aside before judging it, as it already does a `<details>` block. It answers a thread on a file the engine writes (a landing record, a projection) with a fixed reply instead of escalating it, and it refuses any thread at most once. A night with a ready document pull request waits for its configured bots to review the head, so the leg sees the wave the night produced. A wave becomes a few rounds grouped by file, landed as one push. And once every bot thread on a head is resolved and its checks are green, the leg posts the configured approval request, once per head.
+motivation: >-
+  bloomery #261 (S-0089, 2026-10-05): 83 bot threads, every one answered by hand,
+  72 of them by five forked agents over disjoint files and the rest in a second round;
+  the leg resolved none. Measured on bloomery's pull requests #238–#262 and its telemetry
+  since 2026-09-25: 230 threads, 223 operator replies, 43 rounds minted (39 from review-tier
+  records, 4 from forge threads), 4 forge threads resolved by the leg, 130 `lane_thread_refused`
+  events for 14 distinct threads. Bot latency after a pull request left draft: CodeAnt
+  3–5 minutes, cubic 7–23, CodeRabbit 14–446. The readiness review of 2026-10-02 ranks
+  this the operator's largest share of hand work.
+current_state: >-
+  `reviewleg.injection_reason` scans a thread's text, with `<details>` blocks removed
+  (S-0092/D-5), for the words `run`, `execute`, `invoke`, `install` and four other
+  word lists, and refuses any thread anchored under `.github/` or `.torve/`; a refusal
+  writes `lane_thread_refused` and escalates, and nothing remembers it, so the next
+  pass refuses the same thread again. The leg runs only inside a served pass (S-0084/D-16)
+  and mints one finding per round, at most `threads.rounds_per_pass` rounds per pass
+  (default 1). A night closes as drained once nothing is dispatchable and the lane
+  owes no landing, whether or not its document pull request has been reviewed. At
+  every landing the lane pushes and refreshes the pull request (S-0083/D-7). `PrInfo`
+  carries the threads but not the reviews of the head or its checks. Nothing posts
+  an approval request. bloomery lists `coderabbitai` and `codeant-ai` in `threads.bots`
+  and not `cubic-dev-ai`, so cubic's threads, 79% of all, are treated as a person's
+  and never resolved.
+goals: |-
+  - A bot thread on a served document pull request reaches the leg, whenever the bot posts it during the night that produced the pull request.
+  - Only text a reader of the thread can see is judged as a request.
+  - A thread on a file the engine writes is answered and, for a bot, resolved, never escalated.
+  - A refusal reaches the operator once.
+  - A wave of threads costs a few rounds and one push, not a round and a push per finding.
+  - The operator no longer asks a bot for approval by hand.
+non_goals: |-
+  - Pull requests the lane did not open. Hand pull requests (a draft document, a bookkeeping change) carry 31 of the 40 threads on projections, and the leg does not read them.
+  - Loosening the word scan itself. A thread whose visible text asks to run something is still refused (S-0084/D-9); 7 of the 76 cubic threads stay refused that way and remain the operator's.
+  - Resolving a person's thread, or merging, approving or dismissing anything (S-0084/D-10, S-0084/D-11). The approval request is a comment addressed to a bot.
+  - Parallel rounds as a mechanism of their own. Rounds of one wave share no file, so a night with more than one worker already dispatches them side by side.
+  - A model of each bot's rate limit. The wait is per head and bounded; it does not schedule around a bot's quota.
+design:
+  - key: only-visible-text-is-judged
+    md: >-
+      `collapsed` removes `<!-- … -->` comments as it removes `<details>` blocks,
+      before the injection check and before the fence, so neither is judged and neither
+      reaches the attempt. An HTML comment is invisible to every person reading the
+      thread; on bloomery it holds the bots' bookkeeping (cubic's `review-run` marker,
+      CodeAnt's ids). With it set aside, 69 of the 76 cubic threads the scan refused
+      are composable. Accepting this amends S-0084/D-9's sentence on collapsed analysis
+      to name HTML comments too (Q-1).
+  - key: what-the-engine-writes-is-answered
+    md: >-
+      A thread anchored to a file the engine writes mints no round and is not escalated.
+      Those files are a landing record under a document's `execution/` and an `AGENTS.md`
+      that `torve spec project` writes. The leg replies once with a fixed text naming
+      what writes the file and where a fix belongs (the landing's task, or the decision
+      row the projection is generated from), and resolves the thread when its author
+      is in `threads.bots`; a person's thread gets the same reply and is left (S-0084/D-11).
+      Every other path under `.torve/`, and everything under `.github/`, stays refused
+      as injection. This narrows S-0084/D-9 for these two kinds of path (Q-2).
+  - key: a-refusal-is-said-once
+    md: >-
+      `lane_thread_refused` names the thread ids it refused, and a later pass skips
+      a thread whose id it already refused, unless the thread gained a comment since.
+      The escalation it raised stands; it is not raised again.
+  - key: the-night-waits-for-the-review
+    md: >-
+      A night whose lane published a document pull request out of draft does not close
+      as drained while that head's review wait runs: until every login in `threads.bots`
+      has submitted a review of the head, or `threads.review_wait` minutes (default
+      45) have passed since the head was pushed. The leg mints that pull request's
+      rounds only once the wait has ended, so the whole wave is in hand. `PrInfo`
+      gains the logins that reviewed its head and the head's check state, read in
+      the same GraphQL call as the threads (S-0084/D-1).
+  - key: a-wave-is-a-few-rounds-and-one-push
+    md: >-
+      The findings of a head are minted together as rounds of up to `threads.findings_per_round`
+      findings (default 15), grouped by file so no two rounds of the wave share a
+      file; `rounds_per_pass` still bounds what one pass mints. While rounds of one
+      wave are queued or running, the lane lands each onto the document branch and
+      does not publish; the landing that leaves none outstanding publishes, so a wave
+      costs one push and one re-review. This amends S-0083/D-7, which publishes at
+      every landing, for rounds of a wave.
+  - key: the-approval-is-asked-for
+    md: >-
+      When every thread a login in `threads.bots` opened on the head is resolved and
+      the head's checks are green, the leg posts `threads.approve_comment` on the
+      pull request, once per head (the comment's idempotency key is the head sha).
+      Unset by default, so nothing is posted unless the operator names the text.
+tests: |-
+  - A thread whose only `run` is inside an HTML comment is composable and the comment never reaches the attempt; a thread whose visible text asks to run a command is still refused.
+  - A bot's thread on `.torve/specs/S-NNNN/execution/T-NNNN-1-….yaml` or on an `AGENTS.md` projection gets the fixed reply and is resolved; a person's gets the reply and stays open; a thread on `.torve/config.yaml` or `.github/` is still refused.
+  - A refused thread refused on pass one is not refused or escalated on pass two; the same thread with a new comment is judged again.
+  - A night with a ready document pull request and no review of its head from a configured bot does not drain until the review arrives or `review_wait` elapses; the leg mints nothing for that pull request before then.
+  - Thirty findings over twelve files become rounds of at most fifteen findings with no file in two rounds.
+  - Two rounds of one wave landing in turn publish once, at the second landing.
+  - With `approve_comment` set, a head with every bot thread resolved and green checks gets the comment once; a second pass on the same head posts nothing, and a new head posts again.
+docs: >-
+  `pages/docs/operating.md` says that the night waits for its document's review wave,
+  how waves are batched and published, which threads the leg answers itself, that
+  every reviewing bot belongs in `threads.bots` (bloomery's lacks `cubic-dev-ai`),
+  and how to set `approve_comment`.
+out_of_scope: ''
+risks: |-
+  - A night now stays open up to `review_wait` after its last landing; a bot that never reviews costs that much wall clock every night. The wait is bounded and per head, and a night's wall-clock budget still applies.
+  - A round of fifteen findings is a larger attempt than a round of one, and one bad fix in it holds the others. The cap is a setting; the forks that answered #261 by hand handled 11 to 16 threads each.
+  - Holding publication until a wave's last round lands means a person sees none of the wave's fixes until all are in; a round that escalates releases the hold, so a stuck round does not hide the others.
+  - Setting HTML comments aside widens what reaches the fence by nothing: they are removed from the attempt's text too. A thread could hide a request inside a comment, and that request is then neither judged nor shown.
+alternatives:
+  - option: >-
+      Run the leg outside nights, from a resident `manager serve`
+    rejected_because: >-
+      it needs a resident process the operator does not run; keeping the night open
+      for the one wave it produced reaches the same threads with the loop that already
+      exists
+  - option: >-
+      Narrow the word scan to imperatives inside code fences
+    rejected_because: >-
+      S-0084/D-9 is the safety rule against injected requests, and the evidence shows
+      the hidden marker, not the scan's breadth, refused most threads
+  - option: Ask every bot for approval after each push
+    rejected_because: >-
+      a request before the threads are answered is refused by the bot or approved
+      too early; once per head after the threads resolve is when a person would ask
+questions:
+  - id: Q-1
+    text: >-
+      D-1 sets HTML comments aside before the injection check, which extends LOCKED
+      S-0084/D-9's clause about a reviewer's collapsed `<details>` analysis. Lean:
+      amend S-0084/D-9 to name HTML comments beside `<details>`. A comment no reader
+      of the thread can see is no request, and on bloomery's served pull requests
+      the only "run" the scan read in 69 refused threads was cubic's hidden `review-run`
+      marker.
+  - id: Q-2
+    text: >-
+      D-2 answers and resolves threads anchored to landing records and projections,
+      which LOCKED S-0084/D-9 refuses as injection and never answers. Lean: amend
+      S-0084/D-9 for those two kinds of path only. The anchor rule protects the engine's
+      records from edits made on a comment's say-so, and a fixed reply edits nothing;
+      the reason a refused thread is never answered (a reply tells the writer the
+      channel works) does not hold for one reply that is the same for every thread
+      on such a path. `.github/` and the rest of `.torve/` stay refused.

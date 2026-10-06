@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      The leg judges only visible text and answers what the engine writes
+    intent: >-
+      `collapsed` removes HTML comments beside `<details>` blocks. A thread anchored
+      to a landing record or an `AGENTS.md` projection gets one fixed reply, and is
+      resolved when its author is a configured bot, instead of being refused; every
+      other `.torve/` and `.github/` anchor stays refused. `lane_thread_refused` names
+      its thread ids, and a thread already refused is skipped on later passes until
+      it gains a comment. Settles D-1, D-2 and D-3.
+    scope: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    acceptance:
+      - uv run pytest tests/test_reviewleg.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      The night waits for its document's review, and a wave is a few rounds
+    intent: >-
+      `PrInfo` carries the logins that reviewed the head and the head's check state,
+      read in the pull request's GraphQL call. `threads.review_wait` and `threads.findings_per_round`
+      join the configuration and its schema. The night does not drain while a published
+      document's review wait runs, and the leg mints a head's findings only after
+      it, as rounds of up to `findings_per_round` grouped by file. Settles D-4 and
+      D-5.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/cli/manager.py
+      - src/torve/config/runconfig.py
+      - .torve/schemas/config.json
+      - tests/test_reviewleg.py
+      - tests/test_manager.py
+      - tests/test_runconfig.py
+      - tests/test_forge.py
+      - tests/test_pr_review.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reviewleg.py tests/test_manager.py tests/test_runconfig.py
+        tests/test_forge.py tests/test_pr_review.py
+      - uv run torve spec check
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: A wave is published once
+    intent: >-
+      While rounds minted from one head's wave are queued or running, the lane lands
+      each onto the document branch without publishing; the landing that leaves none
+      outstanding publishes, and an escalated round releases the hold. Settles D-6.
+    scope: [src/torve/application/lane.py, tests/test_lane.py]
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_reviewleg.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: The approval is asked for once per head
+    intent: >-
+      `threads.approve_comment` joins the configuration and its schema, unset by default.
+      When every configured bot's thread on the head is resolved and the head's checks
+      are green, the leg posts it once per head through the forge's keyed comment.
+      Settles D-7.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/config/runconfig.py
+      - .torve/schemas/config.json
+      - tests/test_reviewleg.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reviewleg.py tests/test_runconfig.py
+      - uv run torve spec check
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 5
+    title: The operating guide says how the leg keeps pace
+    intent: >-
+      `operating.md` says the night waits for its document's review wave, how waves
+      are batched and published once, which threads the leg answers itself, that every
+      reviewing bot belongs in `threads.bots`, and how to set `approve_comment`.
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py -q
+    depends_on:
+      - 4
+    character: routine

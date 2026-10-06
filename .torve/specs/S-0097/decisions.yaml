@@ -1,0 +1,117 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A forge thread's HTML comments are set aside with its collapsed `<details>`
+      blocks, before the injection check and before the fence; neither is judged and
+      neither reaches the attempt
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: >-
+      a bot's hidden bookkeeping no longer turns its thread away as injection
+    rationale: >-
+      an HTML comment is invisible to every reader of the thread; on bloomery's served
+      pull requests cubic's `<!-- cubic:review-run=… -->` marker alone refused 69
+      threads
+    cites: [S-0084/D-9, S-0092/D-5]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A thread anchored to a landing record under a document's `execution/` or to
+      an `AGENTS.md` projection mints no round and is not escalated; the leg replies
+      once with a fixed text naming what writes the file and where a fix belongs,
+      and resolves the thread when its author is in `threads.bots`; every other `.torve/`
+      and `.github/` anchor stays refused as injection
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: >-
+      a thread on what the engine writes costs the operator nothing, and nothing the
+      engine writes is edited on a comment's say-so
+    rationale: >-
+      40 of 230 bot threads on bloomery sat on landing records or projections, and
+      each was rejected by hand with the same reason
+    cites: [S-0084/D-9, S-0084/D-11]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `lane_thread_refused` names the thread ids it refused, and a later pass neither
+      refuses nor escalates a thread already refused unless the thread gained a comment
+      since
+    paths: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    consequence: a refusal reaches the operator once
+    rationale: >-
+      130 refusal events on bloomery named 14 threads, each re-refused and re-escalated
+      on every pass
+    cites: [S-0084/D-15]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A night whose lane published a document pull request out of draft is not drained
+      while that head's review wait runs, until every login in `threads.bots` has
+      reviewed the head or `threads.review_wait` minutes (default 45) have passed
+      since it was pushed; the leg mints that pull request's rounds only after the
+      wait, and `PrInfo` carries the logins that reviewed the head and the head's
+      check state from the same call as its threads
+    paths:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/cli/manager.py
+      - src/torve/config/runconfig.py
+      - tests/test_reviewleg.py
+      - tests/test_manager.py
+      - tests/test_runconfig.py
+      - tests/test_forge.py
+    consequence: >-
+      the leg sees the review wave the night produced instead of a drained night leaving
+      it to a person
+    rationale: >-
+      the bots review a pull request 3 to 23 minutes after it leaves draft, which
+      is when the night drains: 71 of #261's 83 threads arrived after its worker exited
+    cites: [S-0084/D-1, S-0084/D-16, S-0079/D-6]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A head's findings are minted together as rounds of up to `threads.findings_per_round`
+      findings (default 15), grouped by file so no two rounds of the wave share a
+      file; `threads.rounds_per_pass` still bounds what one pass mints
+    paths:
+      - src/torve/application/reviewleg.py
+      - src/torve/config/runconfig.py
+      - tests/test_reviewleg.py
+      - tests/test_runconfig.py
+    consequence: >-
+      a wave of 83 threads is a handful of rounds, not one round per finding
+    rationale: >-
+      one finding per round at one round per pass would have cost #261 dozens of passes;
+      five agents over disjoint files answered 72 of its threads in about ten minutes
+      each
+    cites: [S-0084/D-7, S-0092/D-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      While rounds minted from one head's wave are queued or running, the lane lands
+      each onto the document branch without publishing; the landing that leaves none
+      outstanding publishes, and a round that escalates releases the hold
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      a wave costs one push, one re-review by the bots and at most one dismissed approval
+    rationale: >-
+      every push restarts the bots and dismisses CodeRabbit's approval under a last-push
+      rule; #261 took 27 commits, 10 of them after it left draft
+    cites: [S-0083/D-7]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      When every thread a login in `threads.bots` opened on a head is resolved and
+      the head's checks are green, the leg posts `threads.approve_comment` on the
+      pull request once per head, keyed by the head sha; unset by default
+    paths:
+      - src/torve/application/reviewleg.py
+      - src/torve/config/runconfig.py
+      - tests/test_reviewleg.py
+      - tests/test_runconfig.py
+    consequence: >-
+      the operator stops asking a bot for approval by hand
+    rationale: >-
+      the operator posted `@coderabbitai approve` 15 times on 23 pull requests, each
+      after the threads were answered and the checks green
