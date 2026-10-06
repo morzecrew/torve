@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `torve init --starter` also writes `.torve/gates.yaml` and `.torve/config.yaml`, each
+  only where none exists, so `torve gates run` runs green in a fresh repository. The
+  manifest holds the four structural builtins (`scope`, `secrets`, `no-test-tampering`,
+  `decisions-reported`), all blocking, and a commented test gate that says gates run
+  inside the sandbox image. The configuration is docker on `python:3.13-slim` with the
+  in-process store. Plain `torve init` still writes neither file.
+
+- `torve doctor` runs the provider check dispatch makes, for every configured seat. A
+  seat dispatch would refuse is a red line naming the seat, its provider and the
+  providers allowed, before a night spends an attempt finding out.
+
+### Changed
+
+- **Breaking:** every file torve reads checks its `schema_version`. An absent version
+  reads as current; any other value is refused, naming the file, the version found and
+  the one this torve reads: "a newer torve reads this file" for a newer one, "the
+  release notes name the conversion" for an older one. Every file torve 0.1.0 wrote
+  passes.
+
+  **Upgrade note.** A file carrying a version torve never wrote, which used to load as
+  if current, is refused now. The stability page lists the upgrade steps: install the
+  release, run `torve init`, commit what it changed, run `torve doctor` until it is
+  clean, and run `torve migrate --all` when the release notes name a record migration.
+
+- The retired citation grammar is checked only in a repository whose archive holds
+  `.torve/archive/identifiers.yaml`, the record that the grammar was ever written there.
+  Elsewhere such text is prose, so `spec-valid` runs as a gate in a repository that never
+  used torve's old identifiers. torve and bloomery both hold the map and see no change.
+
 ## [0.1.0] - 2026-10-04
 
 ### Added
