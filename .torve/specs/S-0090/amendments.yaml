@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-06T19:33:10Z'
+    title: >-
+      An underspecified halt continues from its checkpoint too (S-0096)
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          The next dispatch of a task whose last attempt escalated `blocker_finding`
+          or `locked_conflict`, and which has not landed, continues from the tree
+          that attempt checkpointed, whether it was requeued on the board or its run
+          state was reaped; a gate conviction still restarts from the base
+        after: >-
+          The next dispatch of a task whose last attempt escalated `blocker_finding`,
+          `locked_conflict` or `underspecified` from a halt, and which has not landed,
+          continues from the tree that attempt checkpointed, whether it was requeued
+          on the board or by a person
+      - subject: D-2
+        field: fingerprint
+        after: fd07c012ef76c08a/d5444928038b97ea

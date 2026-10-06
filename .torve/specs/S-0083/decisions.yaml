@@ -94,8 +94,10 @@ decisions:
     grade: ASSUMED
     text: >-
       At every landing the lane pushes the document branch under lease and opens or
-      refreshes the document's one pull request, and then stops; merging is a person's
-      single act on the forge
+      refreshes the document's one pull request, and then stops, except that while
+      rounds of one review wave are outstanding a landing publishes nothing and the
+      landing that leaves none outstanding publishes; merging is a person's single
+      act on the forge
     paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
     consequence: >-
       a document of any number of phases costs a person one merge, and the pull request
@@ -105,6 +107,7 @@ decisions:
       tasks — `open_pr` reuses and edits the branch's open pull request — so the document
       unit is the same call against a different branch
     cites: [S-0010/D-10, S-0080/D-3]
+    fingerprint: edf0f8f4e940fe11/0e5e729b24c906e6
   - id: D-8
     grade: ASSUMED
     text: >-

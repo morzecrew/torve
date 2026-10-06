@@ -18,10 +18,10 @@ decisions:
   - id: D-2
     grade: ASSUMED
     text: >-
-      The next dispatch of a task whose last attempt escalated `blocker_finding` or
-      `locked_conflict`, and which has not landed, continues from the tree that attempt
-      checkpointed, whether it was requeued on the board or its run state was reaped;
-      a gate conviction still restarts from the base
+      The next dispatch of a task whose last attempt escalated `blocker_finding`,
+      `locked_conflict` or `underspecified` from a halt, and which has not landed,
+      continues from the tree that attempt checkpointed, whether it was requeued on
+      the board or by a person
     paths:
       - src/torve/application/runner.py
       - tests/test_runner.py
@@ -34,6 +34,7 @@ decisions:
       and a run already revises a blocker in the same worktree (S-0043/D-1); only
       a requeue threw the tree away, and bloomery paid a whole phase twice for it
     cites: [S-0026/D-8, S-0026/D-9, S-0086/D-2, S-0043/D-1]
+    fingerprint: fd07c012ef76c08a/d5444928038b97ea
   - id: D-3
     grade: ASSUMED
     text: >-

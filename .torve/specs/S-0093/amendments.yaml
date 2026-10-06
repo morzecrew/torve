@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-06T19:33:10Z'
+    title: >-
+      A red battery waits for a round only where a review leg runs (S-0096)
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          A red battery at completion is recorded as a review finding on the last
+          landed task — severity major, the failing gates and tests as the claim,
+          the battery's command as the evidence — so the review leg mints a round
+          for it
+        after: >-
+          Where a review leg reads recorded findings, a red battery at completion
+          is recorded as a review finding on the last landed task — severity major,
+          the failing gates and tests as the claim, the battery's command as the evidence
+          — so the review leg mints a round for it; elsewhere a red battery at completion
+          escalates the completing task `blocker_finding` at once
+      - subject: D-3
+        field: fingerprint
+        after: d122528719bf89ac/400d3c7ea4fef236
+      - subject: D-4
+        field: text
+        before: >-
+          A completion earns one round: the battery reruns when that round lands a
+          change or answers its finding without one, and a second red battery escalates
+          on the last landed task for a person
+        after: >-
+          Where a review leg runs, a completion earns one round: the battery reruns
+          when that round lands a change or answers its finding without one, and a
+          second red battery escalates on the last landed task for a person
+      - subject: D-4
+        field: fingerprint
+        after: 086942ad54629266/49e4175f74f7df4c

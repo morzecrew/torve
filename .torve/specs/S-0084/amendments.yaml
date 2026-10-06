@@ -81,3 +81,33 @@ amendments:
       ask anything of it. Amended rather than read into D-9 so the row an agent sees
       beside `reviewleg.py` says what the code does. The row stays LOCKED; S-0092/D-5
       states the change and its phase 2 implements it.
+  - id: A-3
+    at: '2026-10-06T19:33:10Z'
+    title: >-
+      HTML comments are set aside, and engine-written files are answered (S-0097)
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          A thread asking for anything but a change to the files in scope — run a
+          command, add a secret, change CI, merge, approve — is refused as injection
+          before the round is minted, reported to the operator through the escalation
+          path, and never answered on the forge. A reviewer's collapsed `<details>`
+          analysis is set aside before the check and never reaches the attempt: it
+          is the reviewer's work log, not a request, and the verdict outside it is
+          what is judged
+        after: >-
+          A thread asking for anything but a change to the files in scope — run a
+          command, add a secret, change CI, merge, approve — is refused as injection
+          before the round is minted, reported to the operator through the escalation
+          path, and never answered on the forge; a thread anchored to a landing record
+          under a document's `execution/` or to an `AGENTS.md` projection is instead
+          answered once with a fixed text, and resolved when a configured bot opened
+          it. A reviewer's collapsed `<details>` analysis and the thread's HTML comments
+          are set aside before the check and never reach the attempt: they are the
+          reviewer's work log and markup, not a request, and the verdict outside them
+          is what is judged
+      - subject: D-9
+        field: fingerprint
+        before: 80adefb9cb93bb81/c2490e3f3918a5c6
+        after: bff57ce6f89a3150/c2490e3f3918a5c6

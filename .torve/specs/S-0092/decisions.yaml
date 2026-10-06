@@ -34,8 +34,8 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      A halted divergence entry citing a LOCKED row escalates `locked_conflict`; one
-      of class `spec-gap` escalates `underspecified`; any other halt keeps `locked_conflict`
+      A halted divergence entry citing a LOCKED row escalates `locked_conflict`; every
+      other halt, whatever its class, escalates `underspecified`
     paths:
       - src/torve/application/runner.py
       - src/torve/application/session.py
@@ -47,6 +47,7 @@ decisions:
       `underspecified` already means "an amendment and a re-mint, never a retry";
       a scope halt is exactly that, and naming it a locked conflict sent the operator
       looking for a row nobody touched
+    fingerprint: 7555c1aada067ac6/c1ed9eeab625bbc4
   - id: D-4
     grade: ASSUMED
     text: >-

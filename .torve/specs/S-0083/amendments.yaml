@@ -48,3 +48,22 @@ amendments:
       branch the remote lost aside under a ref, and counts a phase from the landing
       files the branch carries. The rows now say so; the code lands with S-0091's
       phases.
+  - id: A-2
+    at: '2026-10-06T19:33:10Z'
+    title: A review wave publishes once (S-0097)
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          At every landing the lane pushes the document branch under lease and opens
+          or refreshes the document's one pull request, and then stops; merging is
+          a person's single act on the forge
+        after: >-
+          At every landing the lane pushes the document branch under lease and opens
+          or refreshes the document's one pull request, and then stops, except that
+          while rounds of one review wave are outstanding a landing publishes nothing
+          and the landing that leaves none outstanding publishes; merging is a person's
+          single act on the forge
+      - subject: D-7
+        field: fingerprint
+        after: edf0f8f4e940fe11/0e5e729b24c906e6

@@ -27,9 +27,11 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      A red battery at completion is recorded as a review finding on the last landed
-      task — severity major, the failing gates and tests as the claim, the battery's
-      command as the evidence — so the review leg mints a round for it
+      Where a review leg reads recorded findings, a red battery at completion is recorded
+      as a review finding on the last landed task — severity major, the failing gates
+      and tests as the claim, the battery's command as the evidence — so the review
+      leg mints a round for it; elsewhere a red battery at completion escalates the
+      completing task `blocker_finding` at once
     paths:
       - src/torve/application/lane.py
       - src/torve/application/reviewleg.py
@@ -41,12 +43,13 @@ decisions:
       `record_threads` already turns a recorded finding with command evidence into
       a round (S-0086/D-4) and S-0092 scopes it; a new path would duplicate both
     cites: [S-0086/D-4, S-0092/D-1]
+    fingerprint: d122528719bf89ac/400d3c7ea4fef236
   - id: D-4
     grade: ASSUMED
     text: >-
-      A completion earns one round: the battery reruns when that round lands a change
-      or answers its finding without one, and a second red battery escalates on the
-      last landed task for a person
+      Where a review leg runs, a completion earns one round: the battery reruns when
+      that round lands a change or answers its finding without one, and a second red
+      battery escalates on the last landed task for a person
     paths:
       - src/torve/application/lane.py
       - src/torve/application/reviewleg.py
@@ -60,6 +63,7 @@ decisions:
       to clear it, and an unbounded rerun would loop on a break the engine cannot
       fix
     cites: [D-3, S-0090/D-1]
+    fingerprint: 086942ad54629266/49e4175f74f7df4c
   - id: D-5
     grade: ASSUMED
     text: >-
