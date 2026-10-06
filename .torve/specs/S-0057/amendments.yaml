@@ -81,3 +81,28 @@ amendments:
 
       Answered by a later row, which the row now names:
       - D-13 is answered by S-0059/D-12: The runner no longer writes the trailer (S-0059/D-10), and S-0059/D-12 fixes `spec cites` to read landings through the tree; the question has no subject left.
+  - id: A-8
+    at: '2026-10-06T03:44:00Z'
+    title: >-
+      init writes a starter configuration and manifest when asked (S-0095)
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          `torve init` writes `.torve/schemas/*.json` from every model torve reads
+          from YAML — the four files, the contract, the log, the configuration, the
+          manifest — and `.torve/.gitignore` with the patterns for what torve alone
+          writes, idempotent, never a configuration or a manifest; every YAML torve
+          writes names its schema on its first line; `doctor` and `spec check` redden
+          when a schema lags its model or the ignore file lacks a minted pattern
+        after: >-
+          `torve init` writes `.torve/schemas/*.json` from every model torve reads
+          from YAML — the four files, the contract, the log, the configuration, the
+          manifest — and `.torve/.gitignore` with the patterns for what torve alone
+          writes, idempotent; it writes a configuration and a manifest only when asked
+          with `--starter`, and never over an existing file; every YAML torve writes
+          names its schema on its first line; `doctor` and `spec check` redden when
+          a schema lags its model or the ignore file lacks a minted pattern
+      - subject: D-5
+        field: fingerprint
+        after: 5a37d72f24cda8e5/28c964192f749129

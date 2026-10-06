@@ -105,3 +105,26 @@ amendments:
       - subject: D-11
         field: fingerprint
         after: b80417ce02756fe1/5882c2d1f678d4ba
+  - id: A-9
+    at: '2026-10-06T03:44:00Z'
+    title: >-
+      The retired grammar is checked where the identifier map is (S-0095)
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          `check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar;
+          a legacy identifier in the corpus or the tree is a problem naming its replacement,
+          `spec show` answers a legacy identifier from the mapping and says which
+          it was, and `cites` reads commit trailers and the record's history through
+          it
+        after: >-
+          `check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar;
+          in a repository whose archive holds `identifiers.yaml`, a legacy identifier
+          in the corpus or the tree is a problem naming its replacement, and without
+          that map such text is prose; `spec show` answers a legacy identifier from
+          the mapping and says which it was, and `cites` reads commit trailers and
+          the record's history through it
+      - subject: D-3
+        field: fingerprint
+        after: 7c0bd54affc20370/50d73682b4a734a4
