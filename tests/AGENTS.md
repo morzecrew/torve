@@ -177,7 +177,7 @@ The review-thread leg's record source reads no finding from a review whose targe
 
 ### S-0090/D-2 — `ASSUMED` (Review rounds converge, and judged work continues from its tree)
 
-The next dispatch of a task whose last attempt escalated `blocker_finding` or `locked_conflict`, and which has not landed, continues from the tree that attempt checkpointed, whether it was requeued on the board or its run state was reaped; a gate conviction still restarts from the base
+The next dispatch of a task whose last attempt escalated `blocker_finding`, `locked_conflict` or `underspecified` from a halt, and which has not landed, continues from the tree that attempt checkpointed, whether it was requeued on the board or by a person
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py` `tests/test_run_loop.py`
 - Consequence: a review that asks for one file's change costs that change, and a halt answered by an amendment resumes where it stopped
@@ -226,7 +226,7 @@ Whether a finding lies inside the document's phasing is judged against the phasi
 
 ### S-0092/D-3 — `ASSUMED` (A review round is scoped by its document)
 
-A halted divergence entry citing a LOCKED row escalates `locked_conflict`; one of class `spec-gap` escalates `underspecified`; any other halt keeps `locked_conflict`
+A halted divergence entry citing a LOCKED row escalates `locked_conflict`; every other halt, whatever its class, escalates `underspecified`
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `tests/test_runner.py`
 - Consequence: the escalation tells the operator whether to amend a phase or ask the owner about a locked row
@@ -261,14 +261,14 @@ A red battery at completion writes `lane_document_gates_red` with its summary an
 
 ### S-0093/D-3 — `ASSUMED` (A document runs the whole suite before it is ready)
 
-A red battery at completion is recorded as a review finding on the last landed task — severity major, the failing gates and tests as the claim, the battery's command as the evidence — so the review leg mints a round for it
+Where a review leg reads recorded findings, a red battery at completion is recorded as a review finding on the last landed task — severity major, the failing gates and tests as the claim, the battery's command as the evidence — so the review leg mints a round for it; elsewhere a red battery at completion escalates the completing task `blocker_finding` at once
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: the engine fixes what its phases broke outside their scope, and the round's landing reruns the battery
 
 ### S-0093/D-4 — `ASSUMED` (A document runs the whole suite before it is ready)
 
-A completion earns one round: the battery reruns when that round lands a change or answers its finding without one, and a second red battery escalates on the last landed task for a person
+Where a review leg runs, a completion earns one round: the battery reruns when that round lands a change or answers its finding without one, and a second red battery escalates on the last landed task for a person
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `tests/test_lane.py`
 - Consequence: a flaky test clears itself on the rerun, a break the round can fix is fixed, and one it cannot reaches a person instead of looping
@@ -342,6 +342,83 @@ Every model torve reads from YAML checks `schema_version` through one shared fie
 
 - Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
 - Consequence: a file written for another torve stops the command that reads it, instead of being read as current
+
+### S-0096/D-1 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+
+A halted divergence entry escalates `locked_conflict` only when it cites a LOCKED row; every other halt escalates `underspecified`, whatever its class. such a halt continues from its checkpoint as a locked one did. This amends S-0092/D-3 and S-0090/D-2
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `tests/test_session.py`
+- Consequence: an escalation names a LOCKED row only when one was cited, and a round halted on its scope gets the one whole-phasing retry
+
+### S-0096/D-2 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+
+The lane mints a red completion battery's round only where a review leg reads recorded findings (`threads.enabled` with `record` among `threads.sources`); elsewhere a red battery at completion escalates the completing task `blocker_finding` at once and records no finding. This narrows S-0093/D-3 and S-0093/D-4
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/cli/merge.py` `tests/test_lane.py` `tests/test_manager.py`
+- Consequence: a red battery reaches a person on every repository, never a wait for a round nobody mints
+
+### S-0096/D-3 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+
+`manager serve --night` runs one import pass, the scan's `mint` over the repository's contracts, before it opens the night, so the queue the open reads includes freshly minted contracts; a queue still empty after the import is refused as before
+
+- Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
+- Consequence: a night needs one command, and the queue `night.opened` records is the queue it will work
+
+### S-0096/D-4 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+
+The T-0113 rule pairs an existing module `<stem>.py` with `tests/test_<stem>.py` and every existing `tests/test_<stem>_*.py`, in the contract lint and in the tests the context pack names
+
+- Paths: `src/torve/application/intake.py` `src/torve/application/contextpack.py` `tests/test_intake.py` `tests/test_contextpack.py`
+- Consequence: a phase owns the tests named for the modules it changes, and its attempt is told which they are
+
+### S-0097/D-1 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+A forge thread's HTML comments are set aside with its collapsed `<details>` blocks, before the injection check and before the fence; neither is judged and neither reaches the attempt
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a bot's hidden bookkeeping no longer turns its thread away as injection
+
+### S-0097/D-2 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+A thread anchored to a landing record under a document's `execution/` or to an `AGENTS.md` projection mints no round and is not escalated; the leg replies once with a fixed text naming what writes the file and where a fix belongs, and resolves the thread when its author is in `threads.bots`; every other `.torve/` and `.github/` anchor stays refused as injection
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a thread on what the engine writes costs the operator nothing, and nothing the engine writes is edited on a comment's say-so
+
+### S-0097/D-3 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+`lane_thread_refused` names the thread ids it refused, and a later pass neither refuses nor escalates a thread already refused unless the thread gained a comment since
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
+- Consequence: a refusal reaches the operator once
+
+### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+A night whose lane published a document pull request out of draft is not drained while that head's review wait runs, until every login in `threads.bots` has reviewed the head or `threads.review_wait` minutes (default 45) have passed since it was pushed; the leg mints that pull request's rounds only after the wait, and `PrInfo` carries the logins that reviewed the head and the head's check state from the same call as its threads
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
+- Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
+
+### S-0097/D-5 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+A head's findings are minted together as rounds of up to `threads.findings_per_round` findings (default 15), grouped by file so no two rounds of the wave share a file; `threads.rounds_per_pass` still bounds what one pass mints
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_runconfig.py`
+- Consequence: a wave of 83 threads is a handful of rounds, not one round per finding
+
+### S-0097/D-6 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+While rounds minted from one head's wave are queued or running, the lane lands each onto the document branch without publishing; the landing that leaves none outstanding publishes, and a round that escalates releases the hold
+
+- Paths: `src/torve/application/lane.py` `tests/test_lane.py`
+- Consequence: a wave costs one push, one re-review by the bots and at most one dismissed approval
+
+### S-0097/D-7 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+When every thread a login in `threads.bots` opened on a head is resolved and the head's checks are green, the leg posts `threads.approve_comment` on the pull request once per head, keyed by the head sha; unset by default
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_runconfig.py`
+- Consequence: the operator stops asking a bot for approval by hand
 
 ## Invariants holding over `tests/`
 

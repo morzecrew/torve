@@ -59,4 +59,11 @@ Commits on the remote document branch that the lane did not make are the branch 
 - Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py` `tests/test_lane.py`
 - Consequence: a hand commit on an open document branch survives the next landing or stops it, and a push never drops a commit it did not see
 
+### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+A night whose lane published a document pull request out of draft is not drained while that head's review wait runs, until every login in `threads.bots` has reviewed the head or `threads.review_wait` minutes (default 45) have passed since it was pushed; the leg mints that pull request's rounds only after the wait, and `PrInfo` carries the logins that reviewed the head and the head's check state from the same call as its threads
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
+- Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
+
 <!-- /torve:managed -->

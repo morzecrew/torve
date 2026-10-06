@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: review
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0083, S-0084, S-0086, S-0092]
 informed_by: []
@@ -146,6 +146,8 @@ questions:
       of the thread can see is no request, and on bloomery's served pull requests
       the only "run" the scan read in 69 refused threads was cubic's hidden `review-run`
       marker.
+    status: settled
+    settled_by: D-1
   - id: Q-2
     text: >-
       D-2 answers and resolves threads anchored to landing records and projections,
@@ -155,3 +157,5 @@ questions:
       the reason a refused thread is never answered (a reply tells the writer the
       channel works) does not hold for one reply that is the same for every thread
       on such a path. `.github/` and the rest of `.torve/` stay refused.
+    status: settled
+    settled_by: D-2

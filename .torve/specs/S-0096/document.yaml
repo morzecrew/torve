@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: night
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0079, S-0092, S-0093]
 informed_by: [S-0095]
@@ -118,3 +118,5 @@ questions:
       does, or only warn? 40 of 164 phases would have had to name one more file. Lean:
       refuse, because allowing a file costs a phase nothing and the miss it prevents
       cost a red battery and a hand fix.
+    status: settled
+    settled_by: D-4
