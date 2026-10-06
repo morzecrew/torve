@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-06T03:49:52Z'
+    title: >-
+      Phase 3 takes the tests of the modules it changes
+    md: >-
+      Planning refused phase 3's contract: it allowed six modules (`src/torve/domain/spec.py`,
+      `src/torve/config/manifest.py`, `agents.py`, `fleet.py`, `providers.py`, `runconfig.py`)
+      without their existing test files, which the contract lint requires beside them
+      (the T-0113 rule). A model that refuses a foreign `schema_version` can turn
+      those tests red as well, so the phase owns them and its acceptance runs them.

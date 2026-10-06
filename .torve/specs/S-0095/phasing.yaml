@@ -53,9 +53,17 @@ phasing:
       - src/torve/domain/task.py
       - src/torve/domain/spec.py
       - tests/test_versions.py
+      - tests/test_spec.py
+      - tests/test_manifest.py
+      - tests/test_agents.py
+      - tests/test_fleet.py
+      - tests/test_providers.py
+      - tests/test_runconfig.py
     acceptance:
       - >-
         uv run pytest tests/test_versions.py tests/test_cli.py tests/test_doctor.py
+        tests/test_spec.py tests/test_manifest.py tests/test_agents.py tests/test_fleet.py
+        tests/test_providers.py tests/test_runconfig.py
       - uv run mypy src
     depends_on:
       - 1
