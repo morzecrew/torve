@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0486
+phase: 4
+base: 5cf9604a9e8e9de00ddc3421213e2116aa8fa408
+commit: a33c68a3d6a172f73cf957ab413bfeb104bfb8b4
+at: '2026-10-06T12:35:18Z'
+agent: harness/qwen3.8-flash@qwen3.8-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-6
+    grade: ASSUMED
+    at: '2026-10-06T12:34:36Z'
+    claim: >-
+      the page now states the five-step upgrade and the changelog's Upgrade-note convention,
+      and the README's install section links the page
+    evidence: >-
+      pages/docs/reference/stability.md:88-107 — the Upgrading section; README.md:45-50
+      is the install section's link
+    action: decided
+    notes: |-
+      acceptance command bringing up nodes...
+      bringing up nodes...
+
+      ....                                                                     [100%]
+      4 passed in 2.25s passes; WARN    S-0053/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0053: depends_on names S-0016, which is archived (S-0016) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: depends_on names S-0031, which is archived (S-0031) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: depends_on names S-0047, which is archived (S-0047) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: informed_by names S-0007, which is archived (S-0007) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: informed_by names S-0022, which is archived (S-0022) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: informed_by names S-0025, which is archived (S-0025) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: informed_by names S-0030, which is archived (S-0030) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0053: informed_by names S-0049, which is archived (S-0049) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0054: informed_by names S-0002, which is archived (S-0002) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0007, which is archived (S-0007) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0017, which is archived (S-0017) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0029, which is archived (S-0029) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0031, which is archived (S-0031) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0034, which is archived (S-0034) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0035, which is archived (S-0035) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0036, which is archived (S-0036) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0054: informed_by names S-0043, which is archived (S-0043) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0056/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0056/document.yaml: the summary's first sentence runs past 300 characters — it is the line `spec list` shows
+      WARN    S-0056: informed_by names S-0049, which is archived (S-0049) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0056: informed_by names S-0050, which is archived (S-0050) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0057/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0057/document.yaml: the summary's first sentence runs past 300 characters — it is the line `spec list` shows
+      WARN    S-0058/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0059/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0059: informed_by names S-0010, which is archived (S-0010) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0059: informed_by names S-0044, which is archived (S-0044) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0059: informed_by names S-0047, which is archived (S-0047) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0060/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0060: informed_by names S-0020, which is archived (S-0020) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0060: informed_by names S-0023, which is archived (S-0023) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0060: informed_by names S-0044, which is archived (S-0044) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0060: informed_by names S-0047, which is archived (S-0047) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0061: informed_by names S-0004, which is archived (S-0004) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0009, which is archived (S-0009) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0017, which is archived (S-0017) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0027, which is archived (S-0027) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0028, which is archived (S-0028) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0029, which is archived (S-0029) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0034, which is archived (S-0034) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0061: informed_by names S-0035, which is archived (S-0035) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0062/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0062: informed_by names S-0009, which is archived (S-0009) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0062: informed_by names S-0004, which is archived (S-0004) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0062: informed_by names S-0017, which is archived (S-0017) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0062: informed_by names S-0035, which is archived (S-0035) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0063/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0063: informed_by names S-0017, which is archived (S-0017) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0063: informed_by names S-0004, which is archived (S-0004) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0063: informed_by names S-0021, which is archived (S-0021) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0063: informed_by names S-0035, which is archived (S-0035) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0064/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0065/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0066/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0067/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0068/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0069/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0070/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0071/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0072/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0073/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0073: informed_by names S-0029, which is archived (S-0029) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0074/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0074: informed_by names S-0026, which is archived (S-0026) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0074: informed_by names S-0035, which is archived (S-0035) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0075/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0076/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0077/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0079/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0080/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0081/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0082/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0082: informed_by names S-0004, which is archived (S-0004) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0082: informed_by names S-0009, which is archived (S-0009) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0082: informed_by names S-0021, which is archived (S-0021) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0082: informed_by names S-0027, which is archived (S-0027) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0083/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0084/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0085/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0086/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0086: informed_by names S-0026, which is archived (S-0026) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0086: informed_by names S-0043, which is archived (S-0043) — nothing inherits from it (S-0053/D-8)
+      WARN    S-0087/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0088/document.yaml: no change — its landing will be untyped; the header says the Conventional Commits type, an optional scope and whether it breaks
+      WARN    S-0088: informed_by names S-0026, which is archived (S-0026) — nothing inherits from it (S-0053/D-8)
+      OK    43 document(s), 0 problem(s), 88 warning(s) exits 0
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-06T12:34:36Z'
+    claim: >-
+      the page claimed 0.1 did not yet refuse a foreign schema_version; the shared
+      validator landed since, so the stale paragraph was replaced with the refusal
+      as the code states it
+    evidence: >-
+      src/torve/base/model.py:20-39 — the SchemaVersion validator the new paragraph
+      describes; pages/docs/reference/stability.md:76-82 is that paragraph
+    action: decided
+    notes: >-
+      S-0055/D-52 requires a page never to contradict an accepted row; correcting
+      prose to the landed row is what D-6's page was asked to state
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-10-06T12:34:36Z'
+    claim: >-
+      the added prose carries only the one current grammar: no legacy identifier shape,
+      no retired citation form, no corpus coordinate in user-facing text
+    evidence: >-
+      pages/docs/reference/stability.md:88-107 — the added section names no identifiers;
+      README.md:45-50 is the added paragraph
+    action: decided
+    notes: close-out attestation over touched LOCKED paths
