@@ -208,6 +208,14 @@ def load_mapping(spec_dir: Path) -> dict[str, str]:
     return {str(k): str(v) for k, v in cast("dict[Any, Any]", raw).items()}
 
 
+def legacy_grammar_checked(spec_dir: Path) -> bool:
+    """Whether the retired citation grammar is checked at all (S-0095/D-4):
+    only an archive that holds the renumbering map ever carried it, so a
+    repository without `identifiers.yaml` reads such text as plain prose."""
+
+    return (archive_dir(spec_dir) / MAPPING_FILE).is_file()
+
+
 def legacy_hint(mapping: dict[str, str], legacy: str) -> str:
     """What a legacy citation should say now, from the mapping; a name for
     the mapping when it has nothing."""
@@ -926,11 +934,14 @@ def check_sections(doc: Document) -> list[str]:
     return problems
 
 
-def prose_citations(doc: Document, resolvable: set[str], mapping: dict[str, str]) -> list[str]:
+def prose_citations(
+    doc: Document, resolvable: set[str], mapping: dict[str, str], legacy_checked: bool = True
+) -> list[str]:
     """Every citation the document's prose makes that nothing defines
     (S-0058/D-1, S-0058/D-3): a global identifier no document holds, a bare local
     the document itself does not define, a legacy shape answered by the
-    mapping. One problem per identifier."""
+    mapping — the last only when the archive ever carried that grammar
+    (S-0095/D-4); without it such text is prose. One problem per identifier."""
 
     prose = _prose(doc)
     where = _name(doc)
@@ -953,14 +964,16 @@ def prose_citations(doc: Document, resolvable: set[str], mapping: dict[str, str]
                 f"{where}: cites {match.group(1)}, which this document does not define ({cited})"
             )
 
-    for match in LEGACY_CITE.finditer(prose):
-        cited = match.group(1)
+    if legacy_checked:
+        for match in LEGACY_CITE.finditer(prose):
+            cited = match.group(1)
 
-        if cited not in reported:
-            reported.add(cited)
-            problems.append(
-                f"{where}: cites {cited} in the old grammar — {legacy_hint(mapping, cited)} (S-0058/D-3)"
-            )
+            if cited not in reported:
+                reported.add(cited)
+                problems.append(
+                    f"{where}: cites {cited} in the old grammar — "
+                    f"{legacy_hint(mapping, cited)} (S-0058/D-3)"
+                )
 
     return problems
 
@@ -1165,11 +1178,14 @@ def tracked_files(root: Path) -> list[str]:
     ]
 
 
-def tree_citations(root: Path) -> list[tuple[str, int, str, bool]]:
+def tree_citations(root: Path, spec_dir: Path | None = None) -> list[tuple[str, int, str, bool]]:
     """Every citation in the scanned files, as (file, line, identifier,
-    legacy), in file order: the global grammar, and what stood before it."""
+    legacy), in file order: the global grammar, and — only when the archive
+    holds the renumbering map (S-0095/D-4) — what stood before it; without
+    the map that old-grammar text is prose."""
 
     found: list[tuple[str, int, str, bool]] = []
+    legacy_checked = spec_dir is not None and legacy_grammar_checked(spec_dir)
 
     for name in tracked_files(root):
         try:
@@ -1196,8 +1212,10 @@ def tree_citations(root: Path) -> list[tuple[str, int, str, bool]]:
                 continue
 
             found += [(name, number, m.group(1), False) for m in GLOBAL_CITE.finditer(line)]
-            found += [(name, number, m.group(1), True) for m in LEGACY_CITE.finditer(line)]
-            found += [(name, number, m.group(1), True) for m in TREE_LEGACY_CITE.finditer(line)]
+
+            if legacy_checked:
+                found += [(name, number, m.group(1), True) for m in LEGACY_CITE.finditer(line)]
+                found += [(name, number, m.group(1), True) for m in TREE_LEGACY_CITE.finditer(line)]
 
     return found
 
@@ -1265,7 +1283,9 @@ def check_tree(
     warnings: list[str] = []
     seen: set[tuple[str, str]] = set()
 
-    for name, line, ident, legacy in citations if citations is not None else tree_citations(root):
+    for name, line, ident, legacy in (
+        citations if citations is not None else tree_citations(root, spec_dir)
+    ):
         if (name, ident) in seen or (ident in defined and ident not in retired):
             continue
 
@@ -1406,6 +1426,7 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
     report.problems += check_cites(corpus)
     resolvable = corpus.defined_identifiers()
     mapping = load_mapping(spec_dir)
+    legacy_checked = legacy_grammar_checked(spec_dir)
     retired: dict[str, str] = {}
     seen: dict[str, str] = {}
 
@@ -1457,12 +1478,12 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
                     "only an accepted document has a tree to build on"
                 )
 
-        report.problems += prose_citations(doc, resolvable, mapping)
+        report.problems += prose_citations(doc, resolvable, mapping, legacy_checked)
 
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
-    citations = tree_citations(root)
+    citations = tree_citations(root, spec_dir)
     tree_problems, tree_warnings = check_tree(root, corpus, spec_dir, citations)
     report.problems += tree_problems
     report.warnings += tree_warnings

@@ -361,3 +361,33 @@ def test_schema_descriptions_cover_every_property(tmp_path) -> None:
                     missing.append(f"{path.name}: {model_name}.{prop}")
 
     assert missing == []
+
+
+# ----------------------- #
+# S-0095/D-4: the retired grammar is checked only when the archive holds the
+# renumbering map; without one, a design-document number with a section
+# and a dotted decision are prose like any other.
+
+
+def test_old_grammar_in_prose_is_silent_without_a_map_and_refused_with_one(tmp_path) -> None:
+    from test_decisions import corpus, document
+
+    from torve.config.spec import archive_dir, check_corpus
+
+    doc = document(
+        "0001", [("S-0001/D-1", "ASSUMED", "See RFC 0052 §4.2 and D-3.2 for context.", "—")]
+    )
+    specs = corpus(tmp_path, **{"0001": doc})
+
+    bare = check_corpus(specs, tmp_path)
+
+    assert not any("old grammar" in p for p in bare.problems)
+
+    archive = archive_dir(specs)
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / "identifiers.yaml").write_text("{}\n", encoding="utf-8")
+
+    mapped = check_corpus(specs, tmp_path)
+
+    assert any("RFC 0052" in p and "old grammar" in p for p in mapped.problems)
+    assert any("D-3.2" in p and "old grammar" in p for p in mapped.problems)
