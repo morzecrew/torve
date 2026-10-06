@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0485
+phase: 3
+base: cc8965525bb8ade1f6535e863e8b55aea6c73eca
+commit: eae3329248dc66f22d6e7005f453ce1cdb3808cb
+at: '2026-10-06T12:27:33Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5+claude-sonnet-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: ASSUMED
+    class: drift
+    at: '2026-10-06T12:25:52Z'
+    claim: >-
+      wiring the shared SchemaVersion check onto Task.schema_version reddens test_cli.py:
+      gates/sabotage.py's base_task fixture (out of this task's scope) still writes
+      the pre-S-0059 schema_version:1 into every contract it builds, and CONTRACT_SCHEMA_VERSION
+      is 2; Task keeps its plain int field, and the shared type covers the other six
+      models (runconfig, manifest, agents x2, providers, fleet) plus Document
+    evidence: >-
+      src/torve/gates/sabotage.py:74 — base_task() writes schema_version: 1 unconditionally;
+      src/torve/domain/task.py:25 — CONTRACT_SCHEMA_VERSION = 2
+    action: departed
+    notes: >-
+      Confirmed by reverting the wiring: uv run pytest tests/test_cli.py went from
+      11 failing to 0 once Task.schema_version stopped refusing the stale fixture
+      value; gates/sabotage.py is not in this task's scope.allow
