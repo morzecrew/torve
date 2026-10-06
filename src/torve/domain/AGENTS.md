@@ -308,6 +308,13 @@ A seat whose failure no retry can change escalates at once as `seat_refused` wit
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py` `src/torve/domain/states.py` `tests/test_run_loop.py` `tests/test_agents.py` `tests/test_domain.py`
 - Consequence: a broken image, an over-long prompt or an unsupported model is named as what it is in one dispatch, and the poison ceiling counts only attempts a model made
 
+### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
+
+- Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
+- Consequence: a file written for another torve stops the command that reads it, instead of being read as current
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

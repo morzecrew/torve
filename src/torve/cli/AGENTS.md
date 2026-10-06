@@ -131,7 +131,7 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 
 ### S-0057/D-5 — `LOCKED` (The specification is a directory)
 
-`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent, never a configuration or a manifest; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
+`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent; it writes a configuration and a manifest only when asked with `--starter`, and never over an existing file; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
 
 - Paths: `.torve/schemas/**` `.torve/.gitignore` `.gitignore` `src/torve/cli/init.py` `src/torve/cli/doctor.py`
 - Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
@@ -161,7 +161,7 @@ Every writer — `amend`, `fix`, `retire`, `archive`, `new` — mutates the mode
 
 ### S-0058/D-3 — `LOCKED` (One grammar and the anatomy)
 
-`check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; a legacy identifier in the corpus or the tree is a problem naming its replacement, `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it
+`check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; in a repository whose archive holds `identifiers.yaml`, a legacy identifier in the corpus or the tree is a problem naming its replacement, and without that map such text is prose; `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it
 
 - Paths: `src/torve/config/spec.py` `src/torve/cli/spec.py`
 - Consequence: A citation written the old way after the conversion cannot survive a check
@@ -539,6 +539,27 @@ While a pass is paused, the latest undelivered escalation of each task holding t
 
 - Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
 - Consequence: a person can still read an abandoned attempt's worktree and diff before sweeping it
+
+### S-0095/D-1 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+`torve init --starter` writes `.torve/gates.yaml` and `.torve/config.yaml`, each with its schema line, unless the file exists, which it names and leaves alone; plain `torve init` writes neither
+
+- Paths: `src/torve/cli/init.py` `tests/test_cli.py`
+- Consequence: a fresh repository is one command from a gate run, and no adopter's file is ever overwritten
+
+### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+The starter manifest is the four structural builtins (`scope`, `secrets`, `no-test-tampering`, `decisions-reported`) blocking, with the repository's test gate a commented entry saying gates run inside the sandbox image; the starter configuration is `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter: mock`
+
+- Paths: `src/torve/cli/init.py` `tests/test_cli.py` `pages/docs/get-started.md`
+- Consequence: `torve gates run --base main` exits 0 in a repository the starter just set up
+
+### S-0095/D-3 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+`torve doctor` runs dispatch's `route_provider` for every configured tier and shows a refused one as a red line naming the seat, its provider and the providers allowed
+
+- Paths: `src/torve/cli/doctor.py` `tests/test_doctor.py`
+- Consequence: a seat outside `providers.default` is found by `doctor`, not by a dispatch that fails with `ProviderDenied`
 
 <!-- /torve:managed -->
 

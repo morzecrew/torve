@@ -194,7 +194,7 @@ Every item the corpus defines has one global identifier, `S-NNNN/<local>` — `D
 
 ### S-0058/D-3 — `LOCKED` (One grammar and the anatomy)
 
-`check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; a legacy identifier in the corpus or the tree is a problem naming its replacement, `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it
+`check_cites`, `check_tree`, `spec cites` and `spec show` read the one grammar; in a repository whose archive holds `identifiers.yaml`, a legacy identifier in the corpus or the tree is a problem naming its replacement, and without that map such text is prose; `spec show` answers a legacy identifier from the mapping and says which it was, and `cites` reads commit trailers and the record's history through it
 
 - Paths: `src/torve/config/spec.py` `src/torve/cli/spec.py`
 - Consequence: A citation written the old way after the conversion cannot survive a check
@@ -613,6 +613,20 @@ A document's header may carry `change` — a Conventional Commits type from the 
 
 - Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/document.json`
 - Consequence: every document in the corpus loads as it is, and the one whose landing would be untyped is named at check, not discovered in `main`'s history
+
+### S-0095/D-4 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+The retired citation grammar (`LEGACY_CITE`, `TREE_LEGACY_CITE`) is checked, in the tree scan and in a document's prose, only when the archive holds `identifiers.yaml`; without it such text is prose
+
+- Paths: `src/torve/config/spec.py` `tests/test_spec.py` `tests/test_cli_spec.py`
+- Consequence: a repository that never wrote torve's retired grammar can run `spec-valid`, and torve and bloomery are checked exactly as today
+
+### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
+
+- Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
+- Consequence: a file written for another torve stops the command that reads it, instead of being read as current
 
 ## Invariants holding over `src/torve/config/`
 

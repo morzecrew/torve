@@ -16,4 +16,11 @@ The operating guide's arm section gains how to launch the arms beside how to rea
 - Paths: `pages/docs/operating.md`
 - Consequence: the sentence a reader quotes a year later is the one the code supports, rather than the one the design hoped for
 
+### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+The starter manifest is the four structural builtins (`scope`, `secrets`, `no-test-tampering`, `decisions-reported`) blocking, with the repository's test gate a commented entry saying gates run inside the sandbox image; the starter configuration is `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter: mock`
+
+- Paths: `src/torve/cli/init.py` `tests/test_cli.py` `pages/docs/get-started.md`
+- Consequence: `torve gates run --base main` exits 0 in a repository the starter just set up
+
 <!-- /torve:managed -->

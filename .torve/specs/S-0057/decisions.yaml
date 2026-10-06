@@ -66,10 +66,11 @@ decisions:
     text: >-
       `torve init` writes `.torve/schemas/*.json` from every model torve reads from
       YAML — the four files, the contract, the log, the configuration, the manifest
-      — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent,
-      never a configuration or a manifest; every YAML torve writes names its schema
-      on its first line; `doctor` and `spec check` redden when a schema lags its model
-      or the ignore file lacks a minted pattern
+      — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent;
+      it writes a configuration and a manifest only when asked with `--starter`, and
+      never over an existing file; every YAML torve writes names its schema on its
+      first line; `doctor` and `spec check` redden when a schema lags its model or
+      the ignore file lacks a minted pattern
     paths:
       - .torve/schemas/**
       - .torve/.gitignore
@@ -81,6 +82,7 @@ decisions:
       the right files without copying a block; `init` is the initialisation there
       is
     cites: [S-0056/D-6]
+    fingerprint: 5a37d72f24cda8e5/28c964192f749129
   - id: D-6
     grade: LOCKED
     text: >-
