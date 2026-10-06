@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-scope-halt-escalates-as-a-locked-conflict
+kind: operator
+ref: 'bloomery night 17, 2026-10-05: round T-0276 halted because its fix lay in
+  references/quality-rules.md, outside the phase-5 scope it was given; the divergence entry cites
+  S-0089/D-8 (ASSUMED) with class drift, and the task escalated locked_conflict; night 15''s
+  T-0231 halts read the same way'
+title: A round that halts on its scope escalates as a locked conflict
+at: '2026-10-05T16:00:00Z'
+summary: |
+  S-0092/D-3 sends a halt of class `spec-gap` to `underspecified` and
+  keeps every other halt at `locked_conflict`. An attempt that finds the
+  claim valid but its fix outside the contract's scope writes a halted
+  entry of class `drift` citing an ASSUMED row, so the escalation reads
+  `locked_conflict` although no LOCKED row is involved, and the
+  whole-phasing retry S-0092/D-1 gives a `spec-gap` halt never runs. The
+  operator reads the wrong cause and the cheap remedy is skipped.
+
+  A halted entry that cites no LOCKED row is a scope or specification gap
+  whatever class the attempt chose; `locked_conflict` should need a LOCKED
+  row in the entry. The attempt's own wording ("outside this task's scope
+  allow-list") is also available to classify on.
