@@ -28,12 +28,12 @@ site would be the split leaking out of the files it belongs in.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
-from torve.base.model import STRICT
+from torve.base.model import STRICT, SchemaVersion
 from torve.config import layout
 from torve.config.equipment import KINDS, Equipment, skill_names
 from torve.config.providers import APIS
@@ -63,7 +63,7 @@ class AgentProfile(BaseModel):
     """
 
     model_config = STRICT
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The profile's own shape version."""
     name: str = ""
     """What a seat resolves this profile by (S-0061/D-12). Empty is the filename stem,
@@ -114,7 +114,7 @@ class HarnessManifest(BaseModel):
     """
 
     model_config = STRICT
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The manifest's own shape version."""
     name: str = ""
     """What a seat resolves this manifest by (S-0061/D-12); empty is the filename stem."""
