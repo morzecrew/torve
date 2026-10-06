@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-red-completion-battery-waits-for-a-review-leg-that-is-off
+kind: operator
+ref: 'torve night for S-0095, 2026-10-06: lane_document_gates_red at 12:38:29Z on torve/S-0095
+  (coverage-delta and acceptance red: tests/test_fleet_config.py); the battery finding
+  record:T-0485-battery-bfa189d9f77c:0 was never minted into a round, because torve runs no
+  review-thread leg, and T-0486 sat at "awaiting round"; answered by hand at 12:50:47Z after the
+  fix 031875c1, and #28 turned ready on the rerun'
+title: A red completion battery waits for a review leg that is off
+at: '2026-10-06T13:00:00Z'
+summary: |
+  S-0093 turns a red battery at completion into a review finding on the
+  last landed task and holds the completing landing until that finding is
+  answered (S-0093/D-3, D-4). Only the review-thread leg answers it, by
+  minting and landing a round. In a repository whose configuration turns
+  that leg off, which is torve's own, nothing ever reads the finding: the
+  lane reports "awaiting round" on every pass, the pull request stays a
+  draft, and the night idles without escalating.
+
+  Where no review leg runs, a red battery at completion should escalate to
+  a person at once (the outcome S-0093 already gives a second red), or the
+  lane should refuse `unit: document` with the battery unless `threads` is
+  enabled. The operator workaround was a hand fix on the branch and a
+  `review_finding_answered` event written through `engine_event`, which
+  reran the battery green.
