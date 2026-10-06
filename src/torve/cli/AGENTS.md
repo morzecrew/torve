@@ -540,21 +540,21 @@ While a pass is paused, the latest undelivered escalation of each task holding t
 - Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
 - Consequence: a person can still read an abandoned attempt's worktree and diff before sweeping it
 
-### S-0095/D-1 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-1 — `ASSUMED` (A second repository can adopt torve)
 
 `torve init --starter` writes `.torve/gates.yaml` and `.torve/config.yaml`, each with its schema line, unless the file exists, which it names and leaves alone; plain `torve init` writes neither
 
 - Paths: `src/torve/cli/init.py` `tests/test_cli.py`
 - Consequence: a fresh repository is one command from a gate run, and no adopter's file is ever overwritten
 
-### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve)
 
 The starter manifest is the four structural builtins (`scope`, `secrets`, `no-test-tampering`, `decisions-reported`) blocking, with the repository's test gate a commented entry saying gates run inside the sandbox image; the starter configuration is `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter: mock`
 
 - Paths: `src/torve/cli/init.py` `tests/test_cli.py` `pages/docs/get-started.md`
 - Consequence: `torve gates run --base main` exits 0 in a repository the starter just set up
 
-### S-0095/D-3 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-3 — `ASSUMED` (A second repository can adopt torve)
 
 `torve doctor` runs dispatch's `route_provider` for every configured tier and shows a refused one as a red line naming the seat, its provider and the providers allowed
 

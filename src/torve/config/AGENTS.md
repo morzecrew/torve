@@ -614,14 +614,14 @@ A document's header may carry `change` — a Conventional Commits type from the 
 - Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/document.json`
 - Consequence: every document in the corpus loads as it is, and the one whose landing would be untyped is named at check, not discovered in `main`'s history
 
-### S-0095/D-4 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-4 — `ASSUMED` (A second repository can adopt torve)
 
 The retired citation grammar (`LEGACY_CITE`, `TREE_LEGACY_CITE`) is checked, in the tree scan and in a document's prose, only when the archive holds `identifiers.yaml`; without it such text is prose
 
 - Paths: `src/torve/config/spec.py` `tests/test_spec.py` `tests/test_cli_spec.py`
 - Consequence: a repository that never wrote torve's retired grammar can run `spec-valid`, and torve and bloomery are checked exactly as today
 
-### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve)
 
 Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
 

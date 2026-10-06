@@ -25,7 +25,7 @@ The document branch is named from the contract's own `spec` — `torve/S-NNNN` �
 - Paths: `src/torve/base/naming.py`
 - Consequence: a branch on the forge says which document it carries without anything having to look the mapping up, and `pr_for_branch` answers about a document by the same call it answers about a task
 
-### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve)
 
 Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
 
