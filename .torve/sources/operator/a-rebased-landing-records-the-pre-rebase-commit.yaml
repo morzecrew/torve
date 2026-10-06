@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-rebased-landing-records-the-pre-rebase-commit
+kind: operator
+ref: 'bloomery night 17, 2026-10-05: T-0270 landed on torve/S-0089 by rebase; its landing file
+  .torve/specs/S-0089/execution/T-0270-1-20261005T124731Z.yaml names commit a74dbfbe, the
+  attempt''s pre-rebase commit, while the commit on the branch is 14d808ec; cubic flagged it on
+  bloomery #261'
+title: A rebased landing records the attempt's pre-rebase commit
+at: '2026-10-05T16:00:00Z'
+summary: |
+  When the lane lands a candidate by rebase, the landing file it commits
+  names `commit:` as the attempt's own commit from before the rebase. That
+  commit is on no branch the remote holds once the task branch is pruned,
+  so the record's join from task to work commit points at nothing: a
+  reader following `commit:` finds an unreachable object, and a reviewer
+  reading the pull request flags the record as wrong. The landing that
+  went in by fast-forward records the right commit, so the defect is the
+  rebase path only.
+
+  The landing file is written before the rebase and committed after it. It
+  should name the rebased work commit, which the lane knows once
+  `rebase_in_worktree` returns, or be written after the rebase.
