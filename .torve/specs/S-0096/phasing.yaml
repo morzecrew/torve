@@ -5,15 +5,20 @@ phasing:
     intent: >-
       `session._halt_reason` returns `underspecified` for every halted entry that
       cites no LOCKED row; the test matrix's ASSUMED `drift` halt now reads `underspecified`.
-      Settles D-1.
+      Settles D-1. `runner._continuable` resumes an `underspecified` escalation from
+      its checkpoint as it resumes a `locked_conflict` one, so the halts this reclassifies
+      keep continuing where they stopped (S-0090/D-2).
     scope:
       - src/torve/application/session.py
       - tests/test_session.py
       - tests/test_runner.py
       - tests/test_tiering.py
+      - src/torve/application/runner.py
+      - tests/test_run_loop.py
     acceptance:
       - >-
         uv run pytest tests/test_session.py tests/test_runner.py tests/test_tiering.py
+        tests/test_run_loop.py
       - uv run mypy src
     character: routine
   - phase: 2

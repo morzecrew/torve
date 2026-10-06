@@ -4,9 +4,13 @@ decisions:
     grade: ASSUMED
     text: >-
       A halted divergence entry escalates `locked_conflict` only when it cites a LOCKED
-      row; every other halt escalates `underspecified`, whatever its class. This amends
-      S-0092/D-3
-    paths: [src/torve/application/session.py, tests/test_session.py]
+      row; every other halt escalates `underspecified`, whatever its class. such a
+      halt continues from its checkpoint as a locked one did. This amends S-0092/D-3
+      and S-0090/D-2
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - tests/test_session.py
     consequence: >-
       an escalation names a LOCKED row only when one was cited, and a round halted
       on its scope gets the one whole-phasing retry
@@ -14,7 +18,7 @@ decisions:
       the LOCKED row is the one fact the reason must be right about and is already
       on the entry; night 17's T-0276 halted on its scope, cited an ASSUMED row and
       read `locked_conflict`
-    cites: [S-0092/D-3, S-0092/D-1]
+    cites: [S-0090/D-2, S-0092/D-1, S-0092/D-3]
   - id: D-2
     grade: ASSUMED
     text: >-

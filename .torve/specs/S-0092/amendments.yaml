@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-06T19:33:10Z'
+    title: >-
+      Only a LOCKED row makes a halt a locked conflict (S-0096)
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          A halted divergence entry citing a LOCKED row escalates `locked_conflict`;
+          one of class `spec-gap` escalates `underspecified`; any other halt keeps
+          `locked_conflict`
+        after: >-
+          A halted divergence entry citing a LOCKED row escalates `locked_conflict`;
+          every other halt, whatever its class, escalates `underspecified`
+      - subject: D-3
+        field: fingerprint
+        after: 7555c1aada067ac6/c1ed9eeab625bbc4

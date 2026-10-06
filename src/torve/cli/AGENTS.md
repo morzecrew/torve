@@ -430,7 +430,7 @@ Before the first replay the verb prints which arms it will run over which tasks 
 
 ### S-0083/D-7 — `ASSUMED` (The pull request is one per document, not one per task)
 
-At every landing the lane pushes the document branch under lease and opens or refreshes the document's one pull request, and then stops; merging is a person's single act on the forge
+At every landing the lane pushes the document branch under lease and opens or refreshes the document's one pull request, and then stops, except that while rounds of one review wave are outstanding a landing publishes nothing and the landing that leaves none outstanding publishes; merging is a person's single act on the forge
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
 - Consequence: a document of any number of phases costs a person one merge, and the pull request a person opens is always showing the tree the battery last measured
@@ -560,6 +560,27 @@ The starter manifest is the four structural builtins (`scope`, `secrets`, `no-te
 
 - Paths: `src/torve/cli/doctor.py` `tests/test_doctor.py`
 - Consequence: a seat outside `providers.default` is found by `doctor`, not by a dispatch that fails with `ProviderDenied`
+
+### S-0096/D-2 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+
+The lane mints a red completion battery's round only where a review leg reads recorded findings (`threads.enabled` with `record` among `threads.sources`); elsewhere a red battery at completion escalates the completing task `blocker_finding` at once and records no finding. This narrows S-0093/D-3 and S-0093/D-4
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/cli/merge.py` `tests/test_lane.py` `tests/test_manager.py`
+- Consequence: a red battery reaches a person on every repository, never a wait for a round nobody mints
+
+### S-0096/D-3 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+
+`manager serve --night` runs one import pass, the scan's `mint` over the repository's contracts, before it opens the night, so the queue the open reads includes freshly minted contracts; a queue still empty after the import is refused as before
+
+- Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
+- Consequence: a night needs one command, and the queue `night.opened` records is the queue it will work
+
+### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+
+A night whose lane published a document pull request out of draft is not drained while that head's review wait runs, until every login in `threads.bots` has reviewed the head or `threads.review_wait` minutes (default 45) have passed since it was pushed; the leg mints that pull request's rounds only after the wait, and `PrInfo` carries the logins that reviewed the head and the head's check state from the same call as its threads
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
+- Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
 
 <!-- /torve:managed -->
 
