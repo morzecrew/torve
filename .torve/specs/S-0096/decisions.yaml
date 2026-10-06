@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A halted divergence entry escalates `locked_conflict` only when it cites a LOCKED
+      row; every other halt escalates `underspecified`, whatever its class. This amends
+      S-0092/D-3
+    paths: [src/torve/application/session.py, tests/test_session.py]
+    consequence: >-
+      an escalation names a LOCKED row only when one was cited, and a round halted
+      on its scope gets the one whole-phasing retry
+    rationale: >-
+      the LOCKED row is the one fact the reason must be right about and is already
+      on the entry; night 17's T-0276 halted on its scope, cited an ASSUMED row and
+      read `locked_conflict`
+    cites: [S-0092/D-3, S-0092/D-1]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The lane mints a red completion battery's round only where a review leg reads
+      recorded findings (`threads.enabled` with `record` among `threads.sources`);
+      elsewhere a red battery at completion escalates the completing task `blocker_finding`
+      at once and records no finding. This narrows S-0093/D-3 and S-0093/D-4
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/manager.py
+      - src/torve/cli/merge.py
+      - tests/test_lane.py
+      - tests/test_manager.py
+    consequence: >-
+      a red battery reaches a person on every repository, never a wait for a round
+      nobody mints
+    rationale: >-
+      torve runs no review leg, and its S-0095 document sat at "awaiting round" until
+      a hand fix; escalating is what S-0093 already does for a second red
+    cites: [S-0093/D-3, S-0093/D-4]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `manager serve --night` runs one import pass, the scan's `mint` over the repository's
+      contracts, before it opens the night, so the queue the open reads includes freshly
+      minted contracts; a queue still empty after the import is refused as before
+    paths: [src/torve/cli/manager.py, tests/test_manager.py]
+    consequence: >-
+      a night needs one command, and the queue `night.opened` records is the queue
+      it will work
+    rationale: >-
+      every served night since 2026-09-19 began with a hand import pass because the
+      open read a board the minted contracts had not reached
+    cites: [S-0079/D-6]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The T-0113 rule pairs an existing module `<stem>.py` with `tests/test_<stem>.py`
+      and every existing `tests/test_<stem>_*.py`, in the contract lint and in the
+      tests the context pack names
+    paths:
+      - src/torve/application/intake.py
+      - src/torve/application/contextpack.py
+      - tests/test_intake.py
+      - tests/test_contextpack.py
+    consequence: >-
+      a phase owns the tests named for the modules it changes, and its attempt is
+      told which they are
+    rationale: >-
+      S-0095 phase 3 changed `fleet.py` while `test_fleet_config.py` went red unseen;
+      the prefix rule catches it for 56 more files across 40 of 164 phases, where
+      an import scan demands 1,836

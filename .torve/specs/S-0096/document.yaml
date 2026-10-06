@@ -1,0 +1,120 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0096
+title: The loose ends the 0.1 nights left
+kind: design
+change:
+  type: fix
+  scope: night
+status: draft
+implementation: none
+depends_on: [S-0079, S-0092, S-0093]
+informed_by: [S-0095]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Four things went wrong in the nights after 0.1.0, and each needed the operator. A round on bloomery that halted because its fix lay outside its scope escalated as `locked_conflict`, though it cited no LOCKED row, so the one whole-phasing retry S-0092 gives a scope halt never ran. A red completion battery on torve waited for a round that nobody mints, because torve runs no review leg, and the document sat as a draft until a hand fix. Every `--night` refused its own freshly minted contracts until the operator ran an import pass by hand. And a phase that changed `config/fleet.py` passed its acceptance while the loader's tests in `tests/test_fleet_config.py`, which the T-0113 rule does not pair with the module, went red; only the completion battery caught it.
+
+  A halted entry escalates `locked_conflict` only when it cites a LOCKED row; every other halt is `underspecified`, which a round turns into its one retry at the whole phasing. A red battery at completion escalates the completing task at once where no review leg reads recorded findings. A night runs one import pass before it opens. And the T-0113 rule pairs a module with `tests/test_<module>.py` and every `tests/test_<module>_*.py`, in the contract lint and in the context pack.
+motivation: >-
+  bloomery night 17 (2026-10-05): round T-0276 halted on a census finding whose fix
+  lay in a phase-3 file, escalated `locked_conflict`, and stopped the night; fixed
+  by hand at 59ad9112. torve's S-0095 night (2026-10-06): the completion battery went
+  red on `tests/test_fleet_config.py`, T-0486 sat at "awaiting round" with no round
+  ever minted, and the operator wrote the answer event by hand after fixing the test
+  (031875c1). Every served night since 2026-09-19, on both repositories, began with
+  `manager serve --no-dispatch --passes 1` because `--night` refused a board its own
+  minted contracts had not reached. Filed as operator/a-scope-halt-escalates-as-a-locked-conflict
+  and operator/a-red-completion-battery-waits-for-a-review-leg-that-is-off.
+current_state: >-
+  `session._halt_reason` returns `locked_conflict` for a halt citing a LOCKED row,
+  `underspecified` for class `spec-gap`, and `locked_conflict` for every other halt
+  (S-0092/D-3); `reviewleg.requeue_underspecified` retries only rounds escalated `underspecified`.
+  `lane._land_document` records a red completion battery as a finding for the review
+  leg and holds the landing while `_battery_round` reads "pending" (S-0093/D-3, D-4);
+  `process_lane` is never told whether a review leg runs. `cli/manager._serve` calls
+  `residency.open_night`, which refuses an empty dispatchable queue on the board (S-0079/D-6),
+  before the first pass's `mint` imports the contracts on disk. `intake.lint` and
+  `contextpack.tests_file` pair a scoped module only with `tests/test_<stem>.py` (the
+  T-0113 rule).
+goals: |-
+  - An escalation names a LOCKED row only when one was cited, and a scope halt gets the retry it is owed.
+  - A red battery at completion reaches a person, never a wait for a leg that is off.
+  - `manager serve --night` is the one command a night needs.
+  - A phase owns the tests named for the modules it changes, as `test_fleet_config.py` is for `fleet.py`.
+non_goals: |-
+  - Changing what a LOCKED halt does, or the escalation of a second red battery where a review leg runs.
+  - Turning the review leg on for torve. Whether a repository runs it stays its configuration's call.
+  - Pairing a module with every test that imports it. Measured over the corpus's 164 phases, that demands 1,836 extra test files across 106 phases, against 56 across 40 for the name-prefix rule.
+design:
+  - key: a-halt-names-a-locked-row-or-is-underspecified
+    md: >-
+      `session._halt_reason` keeps its first rule (a halted entry citing a LOCKED
+      row is `locked_conflict`) and sends every other halt to `underspecified`, whatever
+      class the attempt chose. A round so escalated is the one `reviewleg.requeue_underspecified`
+      re-scopes to the whole document's phasing once (S-0092/D-1); a phase task so
+      escalated is the operator's amend-then-resolve loop (S-0094/D-1). This amends
+      S-0092/D-3, which is ASSUMED.
+  - key: no-review-leg-no-round
+    md: >-
+      `process_lane` takes `rounds: bool`, true where a review leg reads recorded
+      findings (`threads.enabled` with `record` among `threads.sources`). The manager's
+      lane leg and `torve merge` pass it from the configuration. Without rounds, a
+      red battery at completion escalates the completing task `blocker_finding` at
+      once, the outcome S-0093/D-4 already gives a second red, and records no finding.
+      This narrows S-0093/D-3 and D-4 to repositories that run the leg.
+  - key: a-night-imports-before-it-opens
+    md: >-
+      `_serve` runs the scan's `mint` over the repository's contracts, with the landings
+      and runs it already reads, before `open_night`, so the queue the open reads
+      and records in `night.opened` includes contracts minted since the last pass.
+      S-0079/D-6 is unchanged: a queue still empty after the import refuses the night.
+  - key: a-module-brings-its-named-tests
+    md: >-
+      The T-0113 rule pairs an existing module `<stem>.py` with `tests/test_<stem>.py`
+      and with every existing `tests/test_<stem>_*.py`, in `intake.lint` (which minting
+      shares) and in the tests the context pack names. Measured over the corpus's
+      phasings, the wider rule would have demanded 56 more test files across 40 of
+      164 phases, among them S-0095 phase 3's `test_fleet_config.py`, `test_fleet_cli.py`
+      and `test_fleet_serve.py`.
+tests: |-
+  - A halted entry citing an ASSUMED row with class `drift` escalates `underspecified`; one citing a LOCKED row stays `locked_conflict`; a round escalated so is requeued once at the whole phasing.
+  - With `rounds` false, a red battery at completion escalates the completing task `blocker_finding`, records no battery finding and publishes nothing ready; with `rounds` true the S-0093 round path is unchanged.
+  - The lane leg passes `rounds` true only for `threads.enabled` with `record` among the sources.
+  - `manager serve --night` over a repository holding an unimported contract opens the night with that task in its queue; one holding none is still refused.
+  - A draft allowing `fleet.py` but not an existing `tests/test_fleet_config.py` is refused by the lint; the context pack names `test_fleet_config.py` for `fleet.py`.
+docs: >-
+  `pages/docs/operating.md`: the escalation table's `locked_conflict` and `underspecified`
+  rows; the completion battery's paragraph says what happens where no review leg runs;
+  the "running a pass without spending" section no longer precedes every night; and
+  the round-halt paragraph says a scope halt is retried.
+out_of_scope: ''
+risks: |-
+  - More halts escalate `underspecified` than before. A night configured to stop on `locked_conflict` and not on `underspecified` now runs past a halt it used to stop at; the halted task waits on the board either way, and the operator's stop list decides.
+  - The night's import pass runs before the operator can look at the board, so a contract minted by mistake is in the night's queue. It was in the first pass's queue before; the night only stopped refusing it.
+  - The wider T-0113 rule refuses minting for a phasing that omits a prefix-named test, so an already accepted document planned later may need its phasing widened by amendment, as S-0095/A-1 did.
+alternatives:
+  - option: >-
+      Classify a halt from the attempt's wording ("outside this task's scope")
+    rejected_because: >-
+      the LOCKED row is the one fact an escalation needs to be right about, and it
+      is already on the entry; parsing prose for the rest adds a classifier where
+      a default suffices
+  - option: >-
+      Refuse a battery-at-completion configuration without a review leg
+    rejected_because: >-
+      the battery is worth running on a repository that has no leg; only the round
+      is missing, and a person can take the red battery's place as they take a second
+      red's
+  - option: Pair a module with every test that imports it
+    rejected_because: >-
+      measured at 1,836 extra test files across 106 of 164 phases, which turns every
+      scope into most of the suite
+questions:
+  - id: Q-1
+    text: >-
+      Should a missing prefix-named test refuse the contract, as today's T-0113 rule
+      does, or only warn? 40 of 164 phases would have had to name one more file. Lean:
+      refuse, because allowing a file costs a phase nothing and the miss it prevents
+      cost a red battery and a hand fix.
