@@ -1456,14 +1456,34 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
     carriers was ever written (S-0044/A-5).
     """
 
-    if board is not None:
-        runs = runs_from_board(board)
+    runs = runs_from_board(board) if board is not None else []
 
-        if runs:
-            return {"schema_version": 1, "runs": runs}
+    if not runs:
+        runs = [s.to_record() for s in RunState.load_all(root.resolve() / naming.WORKTREE_DIR)]
 
-    states = RunState.load_all(root.resolve() / naming.WORKTREE_DIR)
-    return {"schema_version": 1, "runs": [s.to_record() for s in states]}
+    landed = landed_ids(root, board)
+
+    for run in runs:
+        if run.get("state") == TaskState.READY.value and run.get("task_id") in landed:
+            run["state"] = LANDED
+
+    return {"schema_version": 1, "runs": runs}
+
+
+# What a reader is shown for a candidate whose landing is recorded. The state
+# machine ends a candidate at `ready` and records the landing beside it, so a
+# task that landed weeks ago read as waiting to land; the display says what the
+# record already knows, and the state machine is unchanged.
+LANDED = "landed"
+
+
+def landed_ids(root: Path, board: Board | None = None) -> set[str]:
+    """Every task whose landing is recorded: on the board, by the lane, or by
+    the tree's own trailers and landing files."""
+
+    landed = {view.task_id for view in board.tasks.values() if view.landed_sha} if board else set()
+
+    return landed | set(lane_landings(root)) | shipped_ids(root)
 
 
 # ....................... #

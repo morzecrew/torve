@@ -170,6 +170,28 @@ def test_status_json_carries_persisted_records(tmp_path):
     assert json.loads(result.stdout) == {"schema_version": 1, "runs": []}
 
 
+def test_status_shows_a_landed_candidate_as_landed(tmp_path):
+    from torve.application.runstate import RunState
+    from torve.application.telemetry import engine_event
+    from torve.base import naming
+    from torve.domain.states import TaskState
+
+    for task_id in ("T-7501", "T-7502"):
+        state = RunState(task_id=task_id, path=naming.state_file(tmp_path, task_id))
+        state.state = TaskState.READY
+        state.save()
+
+    # T-7501's landing is recorded; T-7502 is a candidate still waiting to land.
+    engine_event(
+        tmp_path, "lane_landed", {"task": "T-7501", "mode": "fast-forward", "sha": "a" * 40}
+    )
+
+    result = CliRunner().invoke(app, ["status", "--root", str(tmp_path), "--format", "json"])
+    assert result.exit_code == 0, result.output
+    states = {run["task_id"]: run["state"] for run in json.loads(result.stdout)["runs"]}
+    assert states == {"T-7501": "landed", "T-7502": "ready"}
+
+
 def test_doctor_json_and_exit():
     result = CliRunner().invoke(app, ["doctor", "--format", "json"])
     document = json.loads(result.stdout)
