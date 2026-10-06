@@ -308,35 +308,35 @@ While a pass is paused, the latest undelivered escalation of each task holding t
 - Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
 - Consequence: a person can still read an abandoned attempt's worktree and diff before sweeping it
 
-### S-0095/D-1 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-1 — `ASSUMED` (A second repository can adopt torve)
 
 `torve init --starter` writes `.torve/gates.yaml` and `.torve/config.yaml`, each with its schema line, unless the file exists, which it names and leaves alone; plain `torve init` writes neither
 
 - Paths: `src/torve/cli/init.py` `tests/test_cli.py`
 - Consequence: a fresh repository is one command from a gate run, and no adopter's file is ever overwritten
 
-### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve)
 
 The starter manifest is the four structural builtins (`scope`, `secrets`, `no-test-tampering`, `decisions-reported`) blocking, with the repository's test gate a commented entry saying gates run inside the sandbox image; the starter configuration is `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter: mock`
 
 - Paths: `src/torve/cli/init.py` `tests/test_cli.py` `pages/docs/get-started.md`
 - Consequence: `torve gates run --base main` exits 0 in a repository the starter just set up
 
-### S-0095/D-3 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-3 — `ASSUMED` (A second repository can adopt torve)
 
 `torve doctor` runs dispatch's `route_provider` for every configured tier and shows a refused one as a red line naming the seat, its provider and the providers allowed
 
 - Paths: `src/torve/cli/doctor.py` `tests/test_doctor.py`
 - Consequence: a seat outside `providers.default` is found by `doctor`, not by a dispatch that fails with `ProviderDenied`
 
-### S-0095/D-4 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-4 — `ASSUMED` (A second repository can adopt torve)
 
 The retired citation grammar (`LEGACY_CITE`, `TREE_LEGACY_CITE`) is checked, in the tree scan and in a document's prose, only when the archive holds `identifiers.yaml`; without it such text is prose
 
 - Paths: `src/torve/config/spec.py` `tests/test_spec.py` `tests/test_cli_spec.py`
 - Consequence: a repository that never wrote torve's retired grammar can run `spec-valid`, and torve and bloomery are checked exactly as today
 
-### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve)
 
 Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
 

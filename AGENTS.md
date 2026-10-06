@@ -99,7 +99,7 @@ A dependency change here is an image change: the pinned seat images are rebuilt 
 - Paths: `pyproject.toml` `uv.lock`
 - Consequence: an attempt's `uv run` reconciles against a populated environment instead of reaching a network it may not have
 
-### S-0095/D-6 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-6 — `ASSUMED` (A second repository can adopt torve)
 
 `pages/docs/reference/stability.md` states the upgrade (install the release, `torve init`, commit, `torve doctor`, `torve migrate --all` when the notes name a record migration), and a release that moves a `schema_version` or adds a record migration carries an Upgrade note in its changelog entry
 

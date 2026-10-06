@@ -6,7 +6,7 @@ change:
   type: feat
   scope: init
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0057, S-0058]
 informed_by: []
 supersedes: []

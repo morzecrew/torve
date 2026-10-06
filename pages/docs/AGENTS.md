@@ -16,7 +16,7 @@ The operating guide's arm section gains how to launch the arms beside how to rea
 - Paths: `pages/docs/operating.md`
 - Consequence: the sentence a reader quotes a year later is the one the code supports, rather than the one the design hoped for
 
-### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+### S-0095/D-2 — `ASSUMED` (A second repository can adopt torve)
 
 The starter manifest is the four structural builtins (`scope`, `secrets`, `no-test-tampering`, `decisions-reported`) blocking, with the repository's test gate a commented entry saying gates run inside the sandbox image; the starter configuration is `runtime.adapter: docker`, `image: python:3.13-slim`, `store.adapter: mock`
 
