@@ -301,3 +301,37 @@ def test_the_toolkit_listing_leaves_the_projection_out(tmp_path: Path):
 
     assert set(_toolkit_tree(tmp_path)) == {"./run"}
     assert "! -name 'AGENTS.md'" in _TOOLKIT_LIST
+
+
+# ----------------------- #
+# S-0095/D-3: a seat dispatch would refuse its provider is red in doctor
+
+
+def test_route_check_reds_a_seat_whose_provider_is_not_allowed(tmp_path: Path):
+    from torve.cli.doctor import _route_checks
+
+    root = _doctor_repo(
+        tmp_path,
+        {
+            "tiers": {
+                "executor": {"harness": "fake"},
+                "executor.deep": {"harness": "deep", "provider": "deepseek", "model": "m"},
+            },
+            "providers": {"default": ["anthropic"]},
+        },
+    )
+    write(harnesses_dir(root) / "fake.yaml", "adapter: fake\n")
+    write(harnesses_dir(root) / "deep.yaml", "adapter: harness\nimage: probe-sandbox\n")
+
+    checks = _route_checks(root, None)
+
+    assert checks == [
+        (
+            "route executor.deep",
+            False,
+            (
+                "seat executor.deep: provider 'deepseek' is not permitted for repository "
+                "'repo'; allowed: anthropic"
+            ),
+        )
+    ]

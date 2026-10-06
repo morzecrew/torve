@@ -5,7 +5,8 @@ typed, and the ignore file for what torve alone writes. Idempotent: a
 schema is rewritten when it lags, a pattern the ignore file lacks is
 appended below the operator's own lines, and the configuration and the
 manifest get their schema line once. Never a configuration or a
-manifest — those are authored.
+manifest — those are authored — except the starter pair `--starter` asks
+for, and never over a file that exists (S-0095/D-1).
 """
 
 from __future__ import annotations
@@ -46,6 +47,50 @@ MINTED_PATTERNS = (
     "skills/",
     "tmp/",
 )
+
+
+# S-0095/D-2: the starter `torve init --starter` writes — the structural
+# builtins blocking, and a configuration `torve gates run --base main` passes
+# under in the repository it just set up. The schema line is added below with
+# every other file's.
+STARTER_GATES = """\
+schema_version: 1
+
+gates:
+  - name: scope
+    run: "@scope"
+    state: blocking
+    origin: structural
+  - name: secrets
+    run: "@secrets"
+    state: blocking
+    origin: structural
+  - name: no-test-tampering
+    run: "@no-test-tampering"
+    state: blocking
+    origin: structural
+  - name: decisions-reported
+    run: "@decisions-reported"
+    state: blocking
+    origin: structural
+  # Your test gate. Gates run inside the sandbox image (`runtime.image` in
+  # config.yaml), so the command needs the toolchain that image carries.
+  # - name: tests
+  #   run: "python3 -m unittest discover -s tests -t ."
+  #   state: blocking
+  #   origin: structural
+"""
+
+STARTER_CONFIG = """\
+schema_version: 1
+
+runtime:
+  adapter: docker
+  image: python:3.13-slim
+
+store:
+  adapter: mock
+"""
 
 
 def _json(schema: dict[str, Any]) -> str:
@@ -212,18 +257,43 @@ def _add_header(target: Path, schema: Path) -> bool:
 def init_cmd(
     root: RootOption = Path("."),
     config: ConfigOption = None,
+    starter: bool = typer.Option(
+        False,
+        "--starter",
+        help=(
+            "Also write a starter gate manifest and configuration, each only "
+            "when the file does not exist yet."
+        ),
+    ),
 ) -> None:
     """Write what the code derives under .torve/: one JSON Schema per file
     torve reads from YAML (the four files of a document, the contract, the
     log, the configuration, the manifest) into the schemas directory beside
     the corpus, the ignore file for what torve alone writes, and the schema
     line at the top of the configuration and the manifest. Runs again
-    without a diff; `torve doctor` reddens when any of it lags."""
+    without a diff; `torve doctor` reddens when any of it lags. With
+    --starter, also a gate manifest of the structural builtins and a docker
+    configuration with the in-process store, each only where none exists."""
+
+    console = out()
+    written: list[str] = []
+
+    if starter:
+        for path, text in (
+            (layout.gates_file(root), STARTER_GATES),
+            (layout.config_file(root), STARTER_CONFIG),
+        ):
+            if path.exists():
+                console.print(f"  {path.name}  exists, left alone", style=STYLE_DIM)
+                continue
+
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            console.print(f"  {path.name}  written", style=STYLE_PASS)
+            written.append(path.name)
 
     corpus = root / load_config(root, config).specs.path
     corpus.mkdir(parents=True, exist_ok=True)
-    console = out()
-    written: list[str] = []
 
     for path, text in expected_schemas(corpus).items():
         if path.is_file() and path.read_text(encoding="utf-8") == text:

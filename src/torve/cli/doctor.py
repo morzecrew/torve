@@ -786,6 +786,27 @@ def _profile_checks(root: Path, config_path: Path | None) -> list[tuple[str, boo
     ]
 
 
+def _route_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """S-0095/D-3: every configured seat routed as dispatch routes it, so a
+    seat outside the allowed providers is a red line here, not a
+    `ProviderDenied` at dispatch. Only refusals get a line."""
+
+    from torve.adapters.vcs.git import repository_name
+    from torve.config.runconfig import ProviderDenied, route_provider
+
+    config = load_config(root, config_path)
+    repository = repository_name(root)
+    checks: list[tuple[str, bool, str]] = []
+
+    for name, tier in sorted(config.tiers.items()):
+        try:
+            route_provider(config.providers, repository, tier.provider)
+        except ProviderDenied as exc:
+            checks.append((f"route {name}", False, f"seat {name}: {exc}"))
+
+    return checks
+
+
 def _routes(config: Any, tier: Any) -> set[str]:
     record = config.provider_records.get(tier.provider)
 
@@ -961,6 +982,7 @@ def doctor(
     checks += _review_bias_check(root, config_path)
     checks += _promotion_check(root, config_path)
     checks += _profile_checks(root, config_path)
+    checks += _route_checks(root, config_path)
     checks += _equipment_checks(root, config_path)
     checks += _image_checks(root, config_path)
     checks += _init_checks(root, config_path)
