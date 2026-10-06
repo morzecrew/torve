@@ -64,7 +64,7 @@ Every task directory whose contract names an archived document is deleted, not a
 
 ### S-0057/D-5 — `LOCKED` (The specification is a directory)
 
-`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent, never a configuration or a manifest; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
+`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent; it writes a configuration and a manifest only when asked with `--starter`, and never over an existing file; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
 
 - Paths: `.torve/schemas/**` `.torve/.gitignore` `.gitignore` `src/torve/cli/init.py` `src/torve/cli/doctor.py`
 - Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
@@ -99,6 +99,13 @@ A dependency change here is an image change: the pinned seat images are rebuilt 
 - Paths: `pyproject.toml` `uv.lock`
 - Consequence: an attempt's `uv run` reconciles against a populated environment instead of reaching a network it may not have
 
+### S-0095/D-6 — `ASSUMED` (A second repository can adopt torve) — implementation: none
+
+`pages/docs/reference/stability.md` states the upgrade (install the release, `torve init`, commit, `torve doctor`, `torve migrate --all` when the notes name a record migration), and a release that moves a `schema_version` or adds a record migration carries an Upgrade note in its changelog entry
+
+- Paths: `pages/docs/reference/stability.md` `README.md`
+- Consequence: an adopter reads one page to upgrade, and a release cannot move a format silently
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -118,8 +125,9 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `migrations/` — 1 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/diagrams/` — 0 decision(s)
-- `pages/docs/` — 2 decision(s)
+- `pages/docs/` — 3 decision(s)
 - `pages/docs/architecture/` — 0 decision(s)
+- `pages/docs/reference/` — 1 decision(s)
 - `sandboxes/` — 11 decision(s)
 - `sandboxes/base/` — 0 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
@@ -143,12 +151,12 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/vcs/` — 8 decision(s)
 - `src/torve/adapters/workspace/` — 3 decision(s)
 - `src/torve/application/` — 224 decision(s)
-- `src/torve/base/` — 3 decision(s)
-- `src/torve/cli/` — 73 decision(s)
-- `src/torve/config/` — 81 decision(s)
-- `src/torve/domain/` — 40 decision(s)
+- `src/torve/base/` — 4 decision(s)
+- `src/torve/cli/` — 76 decision(s)
+- `src/torve/config/` — 83 decision(s)
+- `src/torve/domain/` — 41 decision(s)
 - `src/torve/gates/` — 34 decision(s)
-- `tests/` — 43 decision(s)
+- `tests/` — 48 decision(s)
 - `web/` — 1 decision(s)
 - `web/src/` — 1 decision(s)
 

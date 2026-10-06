@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: init
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0057, S-0058]
 informed_by: []
@@ -132,6 +132,8 @@ questions:
       asked with `--starter`, and never over an existing file". Lean: amend. D-5's
       reason (those files are authored) still holds when the starter is a first draft
       the adopter owns and edits, and never replaces theirs.
+    status: settled
+    settled_by: D-1
   - id: Q-2
     text: >-
       Checking the retired grammar only where the archive holds the identifier map
@@ -139,3 +141,5 @@ questions:
       Lean: amend. Without the map no identifier there ever stood, so the row's own
       notion of "legacy" is empty, and torve and bloomery, which both hold a map,
       see no change.
+    status: settled
+    settled_by: D-4
