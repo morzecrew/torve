@@ -73,15 +73,38 @@ refuses a key it does not know, naming it.
 A document's `decisions.yaml`, `phasing.yaml` and `amendments.yaml` follow
 its `document.yaml` and carry no version of their own.
 
-What 0.1 does not do yet: refuse a `schema_version` it does not know. A
-`gates.yaml` that says `schema_version: 2` loads under the version-1 model
-today. Until that changes, the changelog is how you learn a shape moved.
-`torve doctor` reddens when `.torve/schemas/` lags the installed engine, and
-`torve init` brings it back.
+A `schema_version` this torve does not read is refused where the file is
+loaded, not read as current. The refusal names the file, the version found
+and the version this build reads, and says which way to move: a newer file
+needs a newer torve, an older one needs the conversion its release's
+Upgrade note names. An absent line reads as current. `torve doctor` reddens
+when `.torve/schemas/` lags the installed engine, and `torve init` brings it
+back.
 
 Identifiers are permanent. A document number, a decision `S-NNNN/D-n`, an
 amendment `A-n` and a task `T-NNNN` are never reused once minted, and
 `torve spec check` refuses a corpus that reuses one.
+
+## Upgrading
+
+One release to the next is five steps, in order:
+
+1. Install the release: `pip install -U torve`, or `uv tool upgrade torve`.
+2. Run `torve init` in the repository. It rewrites `.torve/schemas/` from
+   the engine you just installed and adds any ignore pattern minted since.
+   It touches a configuration or a gate manifest only under `--starter`,
+   and only where none exists.
+3. Commit what `torve init` changed, so every later run and every CI job
+   reads the schemas the installed engine wrote.
+4. Run `torve doctor` and read the red lines before running anything.
+5. When the release's Upgrade note names a record migration, run
+   `torve migrate --all` against the store.
+
+A release that moves a `schema_version` in the table above, or adds a
+record migration, carries an Upgrade note in its changelog entry, naming
+the files whose shape moved, the versions on either side, and the
+conversion. A release whose entry carries no Upgrade note moves neither,
+and steps 1 to 4 are the whole upgrade.
 
 ## Internal
 

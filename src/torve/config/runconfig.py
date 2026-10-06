@@ -13,13 +13,13 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
 
-from torve.base.model import STRICT
+from torve.base.model import STRICT, SchemaVersion
 from torve.config import layout
 from torve.config.agents import (
     AgentError,
@@ -1565,7 +1565,7 @@ def _model(seat: str, tier: TierConfig, record: Provider) -> None:
 class RunnerConfig(BaseModel):
     model_config = STRICT
 
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The engine's shape version this configuration is read under."""
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     """The sandbox runtime: which adapter creates sandboxes, in what image, under what
@@ -1968,6 +1968,12 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     try:
         loaded = RunnerConfig.model_validate(config)
     except ValidationError as exc:
+        # S-0095/D-5: a `schema_version` refusal names the file, which only the
+        # loader knows — the model's own error names the two versions alone.
+        for error in exc.errors():
+            if error["loc"] == ("schema_version",):
+                raise ValueError(f"{resolved}: {error['ctx']['error']}") from exc
+
         # S-0028/D-3's fourth refusal class: a merged result invalid enough that
         # TierConfig itself refuses it. Pydantic's error names the field, not
         # the profile that supplied it — named here so the offending

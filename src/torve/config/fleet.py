@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import yaml
 from pydantic import BaseModel, Field
 
-from torve.base.model import STRICT
+from torve.base.model import STRICT, SchemaVersion
 from torve.config.runconfig import RunnerConfig
 
 # ----------------------- #
@@ -75,7 +75,7 @@ class FleetManifest(BaseModel):
     under work never gets to argue with it."""
 
     model_config = STRICT
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The manifest's own shape version (T-0321) — the fleet declared none at all, so
     a reader had nothing to refuse an older file by."""
     repositories: list[FleetRepository] = Field(default_factory=list)
@@ -184,4 +184,7 @@ def load_fleet_manifest(path: Path) -> FleetManifest:
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: fleet manifest must be a mapping")
 
-    return FleetManifest.model_validate(raw)
+    try:
+        return FleetManifest.model_validate(raw)
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from None

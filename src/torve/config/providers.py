@@ -32,12 +32,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
-from torve.base.model import STRICT
+from torve.base.model import STRICT, SchemaVersion
 from torve.config import layout
 
 # ----------------------- #
@@ -226,7 +226,7 @@ class Provider(BaseModel):
 
     model_config = STRICT
 
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The record's own shape version."""
     name: str = ""
     """What a seat resolves this provider by; empty is the filename stem, the same rule

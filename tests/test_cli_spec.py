@@ -273,3 +273,35 @@ def test_the_scan_leaves_a_foreign_projection_unread(tmp_path: Path) -> None:
     cited = {ident for _name, _line, ident, _legacy in tree_citations(tmp_path)}
 
     assert cited == {"S-0001/D-1", "S-0002/D-2", "S-0003/D-3"}
+
+
+# ----------------------- #
+# S-0095/D-4: the retired grammar is checked in the tree scan only when the
+# archive holds the renumbering map — a design-document number with a
+# section, a dotted decision, a dotted question (a ticket number) and a
+# bare amendment (a paper size) are all prose without one.
+
+
+def test_the_tree_scan_leaves_old_grammar_alone_without_a_map(tmp_path: Path) -> None:
+    import subprocess
+
+    from torve.config.spec import archive_dir, tree_citations
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "AGENTS.md").write_text(
+        "See RFC 0052 §4.2, D-3.2, Q-4.2 and A-7 for the history.\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    spec_dir = tmp_path / ".torve" / "specs"
+
+    assert tree_citations(tmp_path) == []
+    assert tree_citations(tmp_path, spec_dir) == []
+
+    archive = archive_dir(spec_dir)
+    archive.mkdir(parents=True)
+    (archive / "identifiers.yaml").write_text("{}\n", encoding="utf-8")
+
+    cited = {ident for _name, _line, ident, legacy in tree_citations(tmp_path, spec_dir) if legacy}
+
+    assert cited == {"RFC 0052 §4.2", "D-3.2", "Q-4.2", "A-7"}

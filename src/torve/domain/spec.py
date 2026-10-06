@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from torve.base.clock import INSTANT_PATTERN
-from torve.base.model import STRICT
+from torve.base.model import STRICT, SchemaVersion
 from torve.domain.task import SPEC_PATTERN, Task
 from torve.domain.vocabulary import (
     Character,
@@ -517,7 +517,7 @@ class Document(Item):
     """This document's own rows that no longer stand."""
     owner: str
     """Who answers for the document."""
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The document's shape version: 4 is the typed anatomy (S-0058/D-4)."""
     path: str = Field(default="", exclude=True)
     """The directory the document was loaded from; the loader's, never written."""

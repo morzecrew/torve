@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
+from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from torve.base.model import STRICT
+from torve.base.model import STRICT, SchemaVersion
 from torve.domain.spec import is_citation
 from torve.domain.task import Scope
 from torve.domain.vocabulary import GateAxis, GateInput, GateState
@@ -226,7 +227,7 @@ class SecretsConfig(BaseModel):
 
 class Manifest(BaseModel):
     model_config = STRICT
-    schema_version: int = SCHEMA_VERSION
+    schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The engine's shape version this manifest is read under."""
     scope: Scope = Field(default_factory=Scope)
     """The repository-wide scope the scope gate judges a diff against when the run carries
@@ -305,7 +306,11 @@ def load_manifest(path: Path) -> Manifest:
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: manifest must be a mapping")
 
-    manifest = Manifest.model_validate(raw)
+    try:
+        manifest = Manifest.model_validate(raw)
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from None
+
     manifest.resolved_gates()  # surface builtin/name errors at load time
 
     # S-0036/D-3, refusal stage: a manifest that names the twin for any gate has

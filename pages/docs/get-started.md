@@ -2,7 +2,7 @@
 
 This page takes an empty repository through Torve's whole loop:
 
-1. A gate manifest.
+1. The starter: a gate manifest and a configuration.
 2. A design document.
 3. A minted task contract.
 4. A sandboxed run with no model in it.
@@ -17,27 +17,43 @@ You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.1 is an alpha.
 One operator has run it, against one adopting repository, with Claude Code
 as the agent seat.
 
-## Install and initialise
+## Install and start
 
 ```bash
 pip install torve                # or: uv tool install torve
 cd your-repository
-torve init
+torve init --starter
+git add .torve && git commit -m "torve starter"
+torve gates run --base main
 ```
 
-`torve init` writes what the code derives, and nothing you author:
+```text
+ ✓   scope                pass      blocking
+ ✓   secrets              pass      blocking
+ ∅   no-test-tampering    skipped   blocking
+ ∅   decisions-reported   skipped   blocking
+exit 0
+```
+
+That is a complete CI install: one step running `torve gates run --base
+origin/main`, whose exit code is the outcome. The rest of this page says
+what the starter wrote and takes it the rest of the way.
+
+`torve init` writes what the code derives:
 
 - a JSON Schema for every file Torve reads, under `.torve/schemas/`;
 - `.torve/.gitignore` for what Torve alone writes;
 - `.wt/`, where task worktrees live, added to `.git/info/exclude`.
 
-It never writes a configuration or a gate manifest. Until there is a
-manifest, `torve gates run` stops with
+`--starter` also writes a gate manifest and a configuration, each only when
+the file does not exist yet. An existing file is named in the output and
+left alone. Plain `torve init` writes neither; without a manifest,
+`torve gates run` stops with
 `configuration error: no gate manifest at .torve/gates.yaml`.
 
-## A gate manifest
+## The gate manifest
 
-`.torve/gates.yaml`:
+`.torve/gates.yaml`, as the starter writes it:
 
 ```yaml
 # yaml-language-server: $schema=schemas/gates.json
@@ -60,10 +76,12 @@ gates:
     run: "@decisions-reported"
     state: blocking
     origin: structural
-  - name: tests
-    run: "python3 -m unittest discover -s tests -t ."
-    state: blocking
-    origin: structural
+  # Your test gate. Gates run inside the sandbox image (`runtime.image` in
+  # config.yaml), so the command needs the toolchain that image carries.
+  # - name: tests
+  #   run: "python3 -m unittest discover -s tests -t ."
+  #   state: blocking
+  #   origin: structural
 ```
 
 How the entries work:
@@ -74,25 +92,11 @@ How the entries work:
 - **`origin`.** Says why the gate exists: `structural`, or a citation of the
   document that decided it.
 
-Commit the manifest, then run the gates against your base branch:
-
-```bash
-torve gates run --base main
-```
-
-```text
- ✓   scope                pass      blocking
- ✓   secrets              pass      blocking
- ∅   no-test-tampering    skipped   blocking
- ∅   decisions-reported   skipped   blocking
- ✓   tests                pass      blocking
-exit 0
-```
+Uncomment the `tests` entry, with your own test command, once the sandbox
+image can run it.
 
 `no-test-tampering` and `decisions-reported` read a task contract and its
-log, so with no task they report `skipped`, never a silent green. This much
-is a complete CI install: one step running `torve gates run --base
-origin/main`, whose exit code is the outcome.
+log, so with no task they report `skipped`, never a silent green.
 
 The run also warns `TwinlessGateWarning`. A gate can name a `sabotage:` twin,
 which is the evidence that the gate is able to fail. For a builtin, the twin
@@ -100,9 +104,9 @@ is the family of the same name in `torve gates check`. For a shell gate, it
 is a test path. Once any entry names a twin, every entry must, so add them
 all at once or leave them all out.
 
-## A configuration
+## The configuration
 
-`.torve/config.yaml`:
+`.torve/config.yaml`, as the starter writes it:
 
 ```yaml
 # yaml-language-server: $schema=schemas/config.json
@@ -120,13 +124,14 @@ What these settings mean:
 
 - **`runtime.image`.** The sandbox a task runs in, and the gates and
   acceptance commands run inside it too. The image needs your test
-  toolchain. `python:3.13-slim` has no pytest, which is why the manifest
-  above uses `unittest`.
+  toolchain. `python:3.13-slim` has no pytest, which is why the commented
+  test gate uses `unittest`.
 - **`store: mock`.** Keeps run state in-process. It is enough for
   `torve run`; a served manager needs Postgres, as
   [Operating the engine](operating.md) says.
 
-`torve doctor` checks the configuration and the environment.
+`torve doctor` checks the configuration and the environment, including that
+every configured seat's provider is one this repository may reach.
 
 ## A first document
 

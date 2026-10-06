@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0483
+phase: 1
+base: cc3ff51a468e89ebb02c93fa8be090693a73fe8d
+commit: a7ec31bf2dc8ab9b315189de5b40eb5c867d9669
+at: '2026-10-06T11:50:52Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-06T11:48:31Z'
+    claim: >-
+      --starter writes gates.yaml and config.yaml only where absent, names an existing
+      one and leaves it; the schema line comes from the existing header pass; plain
+      init writes neither
+    evidence: >-
+      src/torve/cli/init.py:274-288 — the starter loop runs before the configuration
+      loads, so a fresh repository has one to load
+    action: decided
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-10-06T11:48:31Z'
+    claim: >-
+      starter is the four structural builtins blocking with a commented tests entry,
+      and docker/python:3.13-slim/mock; gates run --base main exits 0 over it in a
+      fresh repository
+    evidence: >-
+      tests/test_cli.py:1320 — test_init_starter_sets_up_a_repository_the_gates_pass;
+      get-started.md opens with it
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-06T11:48:31Z'
+    claim: >-
+      doctor routes every configured tier through route_provider and shows a refusal
+      as a red 'route <tier>' line carrying ProviderDenied's message, which names
+      the provider and the allowed set; allowed seats get no line
+    evidence: src/torve/cli/doctor.py:789-807 — _route_checks
+    action: decided
+  - decision: D-1
+    grade: ASSUMED
+    at: '2026-10-06T11:48:42Z'
+    claim: >-
+      correction to the earlier D-1 and D-2 entries: their line citations were approximate;
+      the starter loop and the starter test are at the lines cited here
+    evidence: >-
+      src/torve/cli/init.py:281-293 — the starter loop; tests/test_cli.py:1321 is
+      the green gate-run test
+    action: decided

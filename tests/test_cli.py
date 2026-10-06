@@ -1311,3 +1311,51 @@ def test_failure_detail_keeps_the_tail():
     assert "line 99" in rendered
     assert "60 line(s) omitted" in rendered
     assert "line 50" not in rendered
+
+
+# ----------------------- #
+# S-0095/D-1, S-0095/D-2: `torve init --starter` sets a fresh repository up
+# for a green gate run, and never overwrites what an adopter wrote
+
+
+def test_init_starter_sets_up_a_repository_the_gates_pass(repo):
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Starter Human")
+    repo.git("config", "user.email", "human@example.invalid")
+    repo.write("README.md", "hello\n")
+
+    result = CliRunner().invoke(app, ["init", "--starter", "--root", str(repo.root)])
+
+    assert result.exit_code == 0, result.output
+    gates = (repo.root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
+    config = (repo.root / ".torve" / "config.yaml").read_text(encoding="utf-8")
+    assert gates.startswith("# yaml-language-server: $schema=schemas/gates.json\n")
+    assert config.startswith("# yaml-language-server: $schema=schemas/config.json\n")
+    assert "store:\n  adapter: mock" in config
+
+    repo.commit("starter")
+    run = CliRunner().invoke(
+        app, ["gates", "run", "--root", str(repo.root), "--base", "main", "--format", "json"]
+    )
+
+    assert run.exit_code == 0, run.output
+    names = {r["name"] for r in json.loads(run.stdout)["results"]}
+    assert {"scope", "secrets", "no-test-tampering", "decisions-reported"} <= names
+
+
+def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neither(tmp_path):
+    root = _bare_repo(tmp_path)
+    (root / ".torve" / "gates.yaml").unlink()
+
+    plain = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert plain.exit_code == 0, plain.output
+    assert not (root / ".torve" / "gates.yaml").exists()
+
+    before = (root / ".torve" / "config.yaml").read_text(encoding="utf-8")
+    starter = CliRunner().invoke(app, ["init", "--starter", "--root", str(root)])
+
+    assert starter.exit_code == 0, starter.output
+    assert "config.yaml  exists, left alone" in starter.output
+    assert (root / ".torve" / "config.yaml").read_text(encoding="utf-8") == before
+    assert "@decisions-reported" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
