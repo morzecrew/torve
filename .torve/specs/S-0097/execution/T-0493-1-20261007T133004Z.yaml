@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0493
+phase: 2
+base: 0b2d4000a079ba353f35b0a6f1c5c5143101d548
+commit: 57f588364676e60471c8eb8a8ebd8262a1fce430
+at: '2026-10-07T13:30:04Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-07T13:27:37Z'
+    claim: >-
+      D-4 measures the wait from when the head was pushed but names no source for
+      that instant; PrInfo gains head_pushed_at, read from the head commit's pushedDate
+      (committedDate as fallback) in the same GraphQL call that carries reviewers
+      and checks
+    evidence: >-
+      src/torve/application/ports.py:563 — info.head_pushed_at = pushed_at is set
+      in src/torve/adapters/vcs/git.py:782 from the head commit's pushedDate/committedDate
+    action: decided
+    proposal: >-
+      add head_pushed_at to the PrInfo fields D-4 enumerates, or name another source
+      for the push instant
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-07T13:27:49Z'
+    claim: >-
+      D-5 mints several findings into one round but no row settles how a minted round
+      records them; lane_review_task gains a findings list of path/line/end_line/threads,
+      and keeps the first finding's path/line/end_line plus the union of thread ids
+      at top level so older readers and the anchor matchers keep working
+    evidence: >-
+      src/torve/application/reviewleg.py:686 — the findings list on the lane_review_task
+      payload; src/torve/application/reviewleg.py:1138 — _row_findings reads it, falling
+      back to the top-level anchor
+    action: decided
+    proposal: >-
+      settle the minted-round event shape in D-5 and retire the top-level anchor fields
+      once no reader needs them
