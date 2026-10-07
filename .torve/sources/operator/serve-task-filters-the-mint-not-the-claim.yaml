@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/serve-task-filters-the-mint-not-the-claim
+kind: operator
+ref: 'bloomery night 18, 2026-10-07: `manager serve --night --task T-0279` claimed T-0278, a
+  task already landed on torve/S-0090, and cut its attempt 3 before it was stopped by hand'
+title: '`serve --task` limits what is minted, not what is claimed'
+at: '2026-10-07T13:30:00Z'
+summary: |
+  `--task` is documented as "run only this contract", and `residency.once`
+  applies it to the contracts it mints. The claim that follows is
+  `worker.once(partition)`, which takes the board's order with no filter,
+  so any other queued row is claimed first. An operator who names a task to
+  step around a bad row is served the bad row.
+
+  The claim should take the same filter, so a pass with `--task` claims
+  that task or nothing.

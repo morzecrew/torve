@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-killed-worker-leaves-a-landed-task-queued
+kind: operator
+ref: 'bloomery night 18, 2026-10-07: T-0278 landed on torve/S-0090 at dafd8c36; after the stuck
+  worker was killed and an import pass ran, its board row read queued with two attempts and
+  no landed sha, and the next night claimed it again'
+title: A landed task's row reads queued after its worker is killed, and runs again
+at: '2026-10-07T13:30:00Z'
+summary: |
+  A task whose landing is on its document branch can still be offered to a
+  worker. After a kill, the reclaim puts the row back to queued, and
+  `mint` will not restate the landing because the row has run here: once a
+  task has run, the board outranks the repository (S-0049/A-2). The next
+  dispatch cuts a fresh attempt of finished work.
+
+  The landing is proven by the document branch's own landing file, the
+  same evidence `lane_landings` reads. A reclaim or a claim should consult
+  it before offering a task, and record the landing instead. The by-hand
+  repair today is `manager resolve --resolution landed --sha <landing>`,
+  plus removing the killed attempt's run state, which otherwise fences
+  overlapping dispatches.
