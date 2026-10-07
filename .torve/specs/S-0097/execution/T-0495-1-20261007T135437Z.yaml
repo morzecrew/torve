@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0495
+phase: 4
+base: c229b0e57840f879e6e29b11c0bbdb8d4964830c
+commit: a0bbf6afeb73a31ae25850d3b2ce97cab0b44808
+at: '2026-10-07T13:54:37Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-07T13:52:21Z'
+    claim: >-
+      with no login configured in threads.bots the approval condition is vacuously
+      true, so the leg treats an empty bot list as nothing to approve for and posts
+      nothing — the same inert case review_wait_running already takes for a pull request
+      with no bot to wait for
+    evidence: >-
+      src/torve/application/reviewleg.py:932 — the guard returns False before the
+      resolved-threads and green-checks tests
+    action: decided
+    proposal: >-
+      D-7 should name the empty-bots case: approve_comment posts only when threads.bots
+      names at least one login
