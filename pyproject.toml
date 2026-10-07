@@ -200,9 +200,10 @@ line-length = 100
 target-version = "py311"
 # Skills are content this repository vendors, not code it owns: `.agents` and
 # `.claude` hold the ones beside the tree, `.torve/skills-vendor` the ones a
-# run materialises. The formatter reads Python fences inside their markdown and
-# would edit a teaching template's deliberate ellipsis.
-extend-exclude = [".agents", ".claude", ".torve/skills-vendor"]
+# run materialises, `.dsh` the ones the dsh harness writes into a worktree. The
+# formatter reads Python fences inside their markdown and would edit a teaching
+# template's deliberate ellipsis.
+extend-exclude = [".agents", ".claude", ".dsh", ".torve/skills-vendor"]
 
 [tool.ruff.lint]
 # forze's selection (S-0014 S-0014/D-9): two codebases read by the same people
