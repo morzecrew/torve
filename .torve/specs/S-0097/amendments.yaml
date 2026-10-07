@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-07T13:00:00Z'
+    title: >-
+      Phases 2 and 3 take the split tests of the modules they change
+    md: >-
+      Planning refused two contracts once S-0096/D-4 widened the test-pairing rule
+      to `tests/test_<stem>_*.py`: phase 2 allows `src/torve/cli/manager.py` without
+      `tests/test_manager_e2e.py`, and phase 3 allows `src/torve/application/lane.py`
+      without `tests/test_lane_prevention.py`. Both files import the module the phase
+      changes, so the phase owns them and its acceptance runs them.
