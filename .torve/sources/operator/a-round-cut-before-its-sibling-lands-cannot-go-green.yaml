@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-round-cut-before-its-sibling-lands-cannot-go-green
+kind: operator
+ref: 'bloomery night 18, 2026-10-07: review round T-0283 was cut from torve/S-0090 at dafd8c36
+  while T-0279 waited to land; its full-suite acceptance needed T-0279''s test fixes, outside
+  its scope. Later the completing landing''s red battery reset the branch to dafd8c36 too'
+title: A round cut before a sibling lands cannot go green, and retries cannot wait for it
+at: '2026-10-07T13:30:00Z'
+summary: |
+  A review round is cut from the document branch as it stands. If a
+  sibling task is ready but not landed, and the round's acceptance runs
+  the whole suite, the round goes red on failures only the sibling fixes.
+  Its retries run inside the same dispatch, so the lane, which runs between
+  dispatches, never lands the sibling in time, and the round burns its
+  attempts toward the poison ceiling.
+
+  The completion battery has the same shape. A red battery resets the
+  document branch to before the completing landing, so a round minted
+  about it is cut without the completing task's work.
+
+  Either the lane lands ready siblings before a round is cut, or a red
+  attempt whose failures sit outside its scope stops retrying and goes
+  back to the queue, so the lane runs before its next attempt.
