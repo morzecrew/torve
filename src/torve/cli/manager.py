@@ -154,6 +154,10 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             publish=_publisher(root, config),
             forge=_forge(config),
             unit=config.promotion.unit,
+            # A red completion battery is minted as a round only where the
+            # review leg reads recorded findings (S-0096/D-2); elsewhere it
+            # escalates the completing task at once.
+            rounds=config.threads.enabled and "record" in config.threads.sources,
         )
 
         return [result.task for result in results if result.landed]
@@ -349,7 +353,15 @@ async def _serve(
     from torve.application.fleet import escalated_tasks
     from torve.application.manager import project
     from torve.application.projections import lane_landings, shipped_landings
-    from torve.application.residency import close_night, open_night, ran_here, reached, serve
+    from torve.application.residency import (
+        close_night,
+        contracts,
+        mint,
+        open_night,
+        ran_here,
+        reached,
+        serve,
+    )
     from torve.application.worker import Worker
     from torve.cli import assembly
     from torve.cli.assembly import build_notifier
@@ -441,6 +453,22 @@ async def _serve(
 
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
+
+        # S-0096/D-3: one import pass before the night opens, so the queue
+        # `night.opened` records is the one it will work. A repository whose
+        # contracts the board has never seen is not an empty night, so the
+        # scan's mint runs here — the same `contracts` scan and `mint` the
+        # passes run, without reclaim or dispatch, since opening is not
+        # working. A queue still empty after the import is refused below.
+        if night:
+            await mint(
+                log,
+                contracts(root),
+                partition=partition,
+                actor_id=worker,
+                landed=landings.get,
+                ran=ran.__contains__,
+            )
 
         # S-0079/D-6: refused here, before the first pass, while the operator
         # who typed the command is still standing there. Nothing refuses the

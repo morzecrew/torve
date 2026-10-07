@@ -425,6 +425,10 @@ def merge_cmd(
             # (S-0083/D-1); a local landing has no pull request to be one per,
             # and the lane ignores it there (S-0083/D-2).
             unit=config.promotion.unit,
+            # A red completion battery is a round only where the review leg
+            # reads recorded findings (S-0096/D-2); elsewhere it escalates the
+            # completing task at once and records no finding.
+            rounds=config.threads.enabled and "record" in config.threads.sources,
         )
 
     except RuntimeError as exc:

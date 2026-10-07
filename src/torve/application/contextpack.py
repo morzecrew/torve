@@ -228,17 +228,18 @@ def tests_file(root: Path, task: Task) -> dict[str, Any]:
                 hit = sum(1 for line in lines if line.get("hits") not in (None, "0"))
                 covered.append({"path": path, "lines": len(lines), "covered": hit})
 
+    from torve.application.intake import paired_test_files
+
     named: list[dict[str, str]] = []
+    tests_dir = root / "tests"
+    test_names = [p.name for p in tests_dir.iterdir()] if tests_dir.is_dir() else []
 
     for glob in task.scope.allow:
         if "*" in glob or not glob.endswith(".py") or glob.startswith("tests/"):
             continue
 
-        stem = Path(glob).stem
-        candidate = root / "tests" / f"test_{stem}.py"
-
-        if candidate.is_file():
-            named.append({"module": glob, "test": f"tests/test_{stem}.py"})
+        for name in paired_test_files(Path(glob).stem, test_names):
+            named.append({"module": glob, "test": f"tests/{name}"})
 
     return {"schema_version": 1, "coverage": covered, "named_tests": named}
 

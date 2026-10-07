@@ -2176,6 +2176,7 @@ def test_a_red_battery_at_completion_withholds_the_ready_publication(
         GitLane(),
         publish=_recording_publisher(published, root=lane_repo),
         unit="document",
+        rounds=True,
     )
 
     document = naming.document_branch("S-0930")
@@ -2193,6 +2194,7 @@ def test_a_red_battery_at_completion_withholds_the_ready_publication(
         GitLane(),
         publish=_recording_publisher(published, root=lane_repo),
         unit="document",
+        rounds=True,
     )
     assert [r.action for r in again] == ["already landed", "awaiting round"]
     assert len(published) == 1
@@ -2248,7 +2250,7 @@ def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
 
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
     (record,) = _battery_findings(lane_repo)
     (finding,) = record["findings"]
@@ -2259,7 +2261,7 @@ def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp
     assert finding["evidence"].startswith("`torve gates run`")
 
     # While the round is outstanding the battery does not run again.
-    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
     assert [r.action for r in again] == ["already landed", "awaiting round"]
     assert calls == [None]
     assert len(_battery_findings(lane_repo)) == 1
@@ -2271,10 +2273,10 @@ def test_an_answered_round_reruns_the_battery_and_a_green_rerun_publishes(
     calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 0])
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
     _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
 
-    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
     assert calls == [None, None]
     assert [r.action for r in again] == ["already landed", "landed"]
@@ -2285,10 +2287,10 @@ def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp
     calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 1])
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
     _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
 
-    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
     assert calls == [None, None]
     assert [r.action for r in again] == ["already landed", "gates red"]
@@ -2299,5 +2301,33 @@ def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp
     assert len(published) == 1
 
     # Escalated, the candidate leaves the lane: no third battery.
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
     assert calls == [None, None]
+
+
+def test_without_rounds_a_red_battery_escalates_at_once_and_records_no_finding(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0096/D-2: where no review leg reads recorded findings there is no
+    round to mint, so a red completion battery escalates the completing task
+    on the spot and records nothing — it reaches a person on every repository
+    rather than waiting on a round nobody mints."""
+
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1])
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    assert [r.action for r in results] == ["landed", "gates red"]
+    assert results[-1].detail.startswith("escalated")
+    assert _battery_findings(lane_repo) == []
+    state = RunState.load(naming.state_file(lane_repo, "T-7307"))
+    assert state.state is TaskState.ESCALATED
+    assert len(published) == 1
+
+    # With nothing recorded, no pass waits on a round: the escalated candidate
+    # has left the lane and the battery is not run again.
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    assert calls == [None]
+    assert _battery_findings(lane_repo) == []

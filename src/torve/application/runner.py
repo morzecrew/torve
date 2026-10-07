@@ -132,11 +132,12 @@ class AttemptHooks:
 # generation and detection can never drift apart.
 _WALLCLOCK_MARKER = "wallclock budget exhausted"
 
-# The subjects `_commit_reviewed_tree` writes for the two escalations a
-# continuation resumes from (S-0090/D-2), and the only thing
+# The subjects `_commit_reviewed_tree` writes for the escalations a
+# continuation resumes from (S-0090/D-2, S-0096/D-1), and the only thing
 # `_checkpointed_for_resume` reads off a branch tip.
 _BLOCKER_MARKER = "escalated from review on a blocker"
 _HALTED_MARKER = "escalated halted on a locked row"
+_UNDERSPECIFIED_MARKER = "escalated halted on a spec gap"
 
 
 def _exhausted(escalation: Escalation) -> bool:
@@ -155,14 +156,16 @@ def _exhausted(escalation: Escalation) -> bool:
 
 def _continuable(escalation: Escalation) -> bool:
     """The escalations the next dispatch resumes from: budget exhaustion
-    (S-0026/D-8), and a review blocker or a halt on a locked row (S-0090/D-2) —
+    (S-0026/D-8), and a review blocker or a halt (S-0090/D-2, S-0096/D-1) —
     a review that asks for one file's change costs that change, and a halt
-    answered by an amendment resumes where it stopped. A gate conviction
-    still restarts from base."""
+    answered by an amendment resumes where it stopped, whether it cites a
+    LOCKED row or is `underspecified`. A gate conviction still restarts from
+    base."""
 
     return _exhausted(escalation) or escalation.reason in (
         str(EscalationReason.BLOCKER_FINDING),
         str(EscalationReason.LOCKED_CONFLICT),
+        str(EscalationReason.UNDERSPECIFIED),
     )
 
 
@@ -267,7 +270,8 @@ async def _attempt_loop(
         if halt := hooks.halted():
             # Terminal by design, not an error: the one case where a task
             # stops on working code (S-0001/state-machine). The entry picks
-            # the escalation — a locked row or a spec gap (S-0092/D-3).
+            # the escalation — a LOCKED row or, otherwise, underspecified
+            # (S-0096/D-1).
             state.escalate(
                 halt,
                 f"halted divergence entry in the {task.id} execution log",
@@ -922,8 +926,7 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
         why = _BLOCKER_MARKER
 
     elif reason == str(EscalationReason.UNDERSPECIFIED):
-        # Not a resume marker: the fix is an amendment and a re-mint.
-        why = "escalated halted on a spec gap"
+        why = _UNDERSPECIFIED_MARKER
 
     message = (
         f"torve({run.task.id}): attempt {state.attempts} {why}\n\n"
@@ -1380,7 +1383,7 @@ def _checkpointed_for_resume(root: Path, task: Task) -> bool:
     subject = message.splitlines()[0] if message else ""
 
     return f"Torve-Checkpoint: {task.id} " in message and subject.endswith(
-        (_BLOCKER_MARKER, _HALTED_MARKER)
+        (_BLOCKER_MARKER, _HALTED_MARKER, _UNDERSPECIFIED_MARKER)
     )
 
 
