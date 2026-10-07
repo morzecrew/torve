@@ -107,10 +107,15 @@ gates:
   # the other half: an unformatted file landed in S-0064 phase 1 and came back
   # twice, because nothing but a person running `ruff format` ever noticed.
   #
-  # Enters at shadow and is promoted on soak evidence (S-0055/D-14).
+  # Entered at shadow and promoted on soak evidence (S-0055/D-14): 177 shadow
+  # runs from 2026-09-12 to 2026-10-07, 36 red. Eight of those were the dsh
+  # harness's own skills under `.dsh/`, which ruff now excludes; the rest were
+  # files the attempt wrote, and twice (S-0094, S-0096) they reached a pull
+  # request because nothing blocked on them. The seat that writes this
+  # repository's code no longer runs the formatter on its own.
   - name: lint
     run: "uv run ruff check . && uv run ruff format --check ."
-    state: shadow
+    state: blocking
     origin: S-0015
     input: worktree
     # Both halves together measure 0.05s over three runs of the whole tree —
