@@ -770,10 +770,10 @@ async def _prepare(
 
 
 def _halt_reason(worktree: Path, task_id: str) -> EscalationReason | None:
-    """The escalation a halted divergence entry asks for (S-0092/D-3): one
-    citing a LOCKED row is `locked_conflict`, one of class `spec-gap` is
-    `underspecified`, any other halt keeps `locked_conflict`. A LOCKED row
-    wins over a spec gap in the same log — the owner is asked first."""
+    """The escalation a halted divergence entry asks for (S-0096/D-1,
+    amending S-0092/D-3): one citing a LOCKED row is `locked_conflict`; every
+    other halt, whatever its class, is `underspecified`. A LOCKED row wins in
+    the same log — the owner is asked first."""
 
     log = layout.log_file(worktree, task_id)
 
@@ -806,10 +806,7 @@ def _halt_reason(worktree: Path, task_id: str) -> EscalationReason | None:
     if any(str(e.get("grade", "")) == "LOCKED" for e in halts):
         return EscalationReason.LOCKED_CONFLICT
 
-    if any(str(e.get("class", "")) == "spec-gap" for e in halts):
-        return EscalationReason.UNDERSPECIFIED
-
-    return EscalationReason.LOCKED_CONFLICT
+    return EscalationReason.UNDERSPECIFIED
 
 
 # ....................... #

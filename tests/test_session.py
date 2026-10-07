@@ -518,7 +518,7 @@ def _halt_log(tmp_path, *entries):
         ([{"grade": "ASSUMED", "class": "discovery", "action": "departed"}], None),
         ([{"grade": "LOCKED", "class": "discovery", "action": "halted"}], "locked_conflict"),
         ([{"grade": "UNLISTED", "class": "spec-gap", "action": "halted"}], "underspecified"),
-        ([{"grade": "ASSUMED", "class": "drift", "action": "halted"}], "locked_conflict"),
+        ([{"grade": "ASSUMED", "class": "drift", "action": "halted"}], "underspecified"),
         (
             [
                 {"grade": "UNLISTED", "class": "spec-gap", "action": "halted"},
@@ -529,8 +529,8 @@ def _halt_log(tmp_path, *entries):
     ],
 )
 def test_a_halted_entry_picks_its_escalation(tmp_path, entries, expected):
-    """S-0092/D-3: a cited LOCKED row escalates locked_conflict, a spec gap
-    underspecified, any other halt locked_conflict as before."""
+    """S-0096/D-1: a cited LOCKED row escalates locked_conflict; every other
+    halt, whatever its class, escalates underspecified."""
     from torve.application.session import _halt_reason
 
     _halt_log(tmp_path, *entries)
