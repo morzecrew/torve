@@ -1557,3 +1557,57 @@ def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, mon
 
     assert result.exit_code == 0, result.output
     assert state.path.exists()
+
+
+# ....................... #
+# The lane leg's rounds (S-0096/D-2): the lane mints a red completion
+# battery's round only where the review leg reads recorded findings, so the
+# caller derives `rounds` from the threads configuration.
+
+
+def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch):
+    """S-0096/D-2: `rounds` is true only for `threads.enabled` with `record`
+    among the sources; every other configuration leaves a red battery to
+    escalate the completing task at once and record no finding."""
+
+    import pathlib
+
+    from torve.application import lane as lane_module
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import PromotionConfig, RunnerConfig, ThreadsConfig
+
+    seen: list[bool] = []
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        seen.append(kwargs["rounds"])
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+
+    document = {"landing": "pull_request", "unit": "document", "auto_merge": True}
+    configs = [
+        RunnerConfig(promotion=PromotionConfig(auto_merge=True)),
+        RunnerConfig(
+            promotion=PromotionConfig(**document),
+            threads=ThreadsConfig(enabled=True),
+        ),
+        RunnerConfig(
+            promotion=PromotionConfig(**document),
+            threads=ThreadsConfig(enabled=True, sources=["forge"]),
+        ),
+        RunnerConfig(
+            promotion=PromotionConfig(**document),
+            threads=ThreadsConfig(sources=["record"]),
+        ),
+        RunnerConfig(
+            promotion=PromotionConfig(**document),
+            threads=ThreadsConfig(enabled=True, sources=["record"]),
+        ),
+    ]
+
+    for config in configs:
+        leg = _lane_leg(pathlib.Path("."), config, only=None)
+        assert leg is not None
+        asyncio.run(leg())
+
+    assert seen == [False, False, False, False, True]

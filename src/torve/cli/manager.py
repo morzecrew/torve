@@ -154,6 +154,10 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             publish=_publisher(root, config),
             forge=_forge(config),
             unit=config.promotion.unit,
+            # A red completion battery is minted as a round only where the
+            # review leg reads recorded findings (S-0096/D-2); elsewhere it
+            # escalates the completing task at once.
+            rounds=config.threads.enabled and "record" in config.threads.sources,
         )
 
         return [result.task for result in results if result.landed]

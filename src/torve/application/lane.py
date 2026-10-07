@@ -941,6 +941,7 @@ def _land_document(
     mode: str,
     approver: str,
     results: list[LaneResult],
+    rounds: bool = False,
 ) -> None:
     """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
 
@@ -959,12 +960,16 @@ def _land_document(
     A forge that refuses puts the ref back where it was: the publication is
     half of this landing, so a landing nobody could publish is one the next
     pass must make again.
+
+    `rounds` is whether a review leg reads recorded findings at all
+    (S-0096/D-2): a red completion battery is minted as a round only where
+    one does, and everywhere else it escalates the completing task at once.
     """
 
     before = vcs.tip(root, document)
     vcs.reset_branch(root, document, tip)
     complete = _completes(root, task_id, document)
-    round_ = _battery_round(root, document) if complete else ""
+    round_ = _battery_round(root, document) if complete and rounds else ""
 
     # The battery reruns once the round answers, not on every pass while it
     # is outstanding (S-0093/D-4).
@@ -998,7 +1003,9 @@ def _land_document(
 
         # One round per completion (S-0093/D-3, S-0093/D-4); a red rerun, or a
         # document with no landed task a round could be about, is a person's.
-        if round_ == "" and target is not None:
+        # A lane whose caller mints no rounds (S-0096/D-2) escalates here too,
+        # records no finding, and reaches a person on every repository.
+        if rounds and round_ == "" and target is not None:
             record_battery_red(root, document, target, tip, red)
             results.append(LaneResult(task_id, document, "gates red", red, tip))
 
@@ -1644,6 +1651,7 @@ def _land_fast_forward(
     results: list[LaneResult],
     publish: Publisher | None = None,
     document: str | None = None,
+    rounds: bool = False,
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -1660,7 +1668,16 @@ def _land_fast_forward(
     if publish is not None:
         if document is not None:
             _land_document(
-                root, vcs, publish, task_id, document, branch_tip, "fast-forward", approver, results
+                root,
+                vcs,
+                publish,
+                task_id,
+                document,
+                branch_tip,
+                "fast-forward",
+                approver,
+                results,
+                rounds,
             )
         else:
             _open_pull_request(
@@ -1748,6 +1765,7 @@ def _land_rebased(
     results: list[LaneResult],
     publish: Publisher | None = None,
     document: str | None = None,
+    rounds: bool = False,
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -1794,7 +1812,16 @@ def _land_rebased(
 
         if document is not None:
             _land_document(
-                root, vcs, publish, task_id, document, rebased_tip, "rebased", approver, results
+                root,
+                vcs,
+                publish,
+                task_id,
+                document,
+                rebased_tip,
+                "rebased",
+                approver,
+                results,
+                rounds,
             )
         else:
             _open_pull_request(
@@ -1838,6 +1865,7 @@ def _land_candidate(
     results: list[LaneResult],
     publish: Publisher | None = None,
     document: str | None = None,
+    rounds: bool = False,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -1845,7 +1873,17 @@ def _land_candidate(
         # The base has not moved under this branch: the tree that would
         # land is byte-identical to the one the gates measured.
         _land_fast_forward(
-            root, vcs, task_id, branch, branch_tip, dry_run, approver, results, publish, document
+            root,
+            vcs,
+            task_id,
+            branch,
+            branch_tip,
+            dry_run,
+            approver,
+            results,
+            publish,
+            document,
+            rounds,
         )
         return
 
@@ -1870,6 +1908,7 @@ def _land_candidate(
         results,
         publish,
         document,
+        rounds,
     )
 
 
@@ -1889,6 +1928,7 @@ def process_lane(
     publish: Publisher | None = None,
     forge: Forge | None = None,
     unit: str = "task",
+    rounds: bool = False,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -1907,7 +1947,13 @@ def process_lane(
     behind one pull request, `task` opens one per task. It governs only where
     there is a pull request to be one per, so a `local` landing ignores it
     (S-0083/D-2), and only a candidate whose contract names a document
-    (S-0083/D-4)."""
+    (S-0083/D-4).
+
+    `rounds` is whether a review leg reads recorded findings (S-0096/D-2):
+    only then may the lane mint a red completion battery's round, and the
+    callers derive it from the threads configuration. Off, a red battery
+    escalates the completing task `blocker_finding` at once and records no
+    finding."""
 
     base = vcs.current_branch(root)
 
@@ -2031,6 +2077,7 @@ def process_lane(
             results,
             publish,
             document,
+            rounds,
         )
 
     return results
