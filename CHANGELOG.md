@@ -38,6 +38,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Elsewhere such text is prose, so `spec-valid` runs as a gate in a repository that never
   used torve's old identifiers. torve and bloomery both hold the map and see no change.
 
+- A halted attempt escalates `locked_conflict` only when its divergence entry cites a
+  `LOCKED` row. Every other halt escalates `underspecified`, whatever class its entry
+  chose; before, a halt that was neither a `LOCKED` row nor a `spec-gap` also read
+  `locked_conflict` and sent the operator looking for a row nobody had touched. A
+  requeued `underspecified` halt now continues from the checkpoint its attempt left, as
+  a `locked_conflict` one does, rather than restarting from base.
+
+- The contract lint's test-pairing rule and the context pack's named tests pair a module
+  `<stem>.py` with `tests/test_<stem>.py` and with every existing
+  `tests/test_<stem>_*.py`, so a phase that scopes a module also owns the split test
+  files that import it.
+
+### Fixed
+
+- A red completion battery no longer waits for a review round in a repository where no
+  review leg reads recorded findings (`threads` off, or `record` missing from
+  `threads.sources`). There the completing task escalates `blocker_finding` at once and
+  no finding is recorded; before, the document's pull request stayed a draft and the
+  battery never ran again.
+
+- `torve manager serve --night` imports the repository's contracts before it opens, so a
+  night started right after `torve plan` works the tasks just minted. Before, the
+  queue the night recorded and the empty-queue refusal both read the board as it was
+  before the import, and an import pass had to be run by hand first.
+
 ## [0.1.0] - 2026-10-04
 
 ### Added

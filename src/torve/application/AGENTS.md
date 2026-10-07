@@ -1630,21 +1630,21 @@ While a pass is paused, the latest undelivered escalation of each task holding t
 - Paths: `src/torve/application/notify.py` `src/torve/cli/manager.py` `tests/test_notify.py`
 - Consequence: a night that stops serving work pages the operator once, if a destination is configured
 
-### S-0096/D-1 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+### S-0096/D-1 — `ASSUMED` (The loose ends the 0.1 nights left)
 
 A halted divergence entry escalates `locked_conflict` only when it cites a LOCKED row; every other halt escalates `underspecified`, whatever its class. such a halt continues from its checkpoint as a locked one did. This amends S-0092/D-3 and S-0090/D-2
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `tests/test_session.py`
 - Consequence: an escalation names a LOCKED row only when one was cited, and a round halted on its scope gets the one whole-phasing retry
 
-### S-0096/D-2 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+### S-0096/D-2 — `ASSUMED` (The loose ends the 0.1 nights left)
 
 The lane mints a red completion battery's round only where a review leg reads recorded findings (`threads.enabled` with `record` among `threads.sources`); elsewhere a red battery at completion escalates the completing task `blocker_finding` at once and records no finding. This narrows S-0093/D-3 and S-0093/D-4
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/cli/merge.py` `tests/test_lane.py` `tests/test_manager.py`
 - Consequence: a red battery reaches a person on every repository, never a wait for a round nobody mints
 
-### S-0096/D-4 — `ASSUMED` (The loose ends the 0.1 nights left) — implementation: none
+### S-0096/D-4 — `ASSUMED` (The loose ends the 0.1 nights left)
 
 The T-0113 rule pairs an existing module `<stem>.py` with `tests/test_<stem>.py` and every existing `tests/test_<stem>_*.py`, in the contract lint and in the tests the context pack names
 
