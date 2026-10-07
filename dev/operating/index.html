@@ -2494,8 +2494,14 @@ a separate switch from <code>auto_merge</code>:</p>
 </span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
 </span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
 </span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
 </span></code></pre></div>
+<p><code>bots</code> is every login the night both waits for and may answer: the review wait
+ends once all of them have reviewed the head, and only their threads does the
+leg resolve (S-0097/D-4).</p>
 <p>It refuses to load with <code>enabled: true</code> under any landing but <code>pull_request</code>
 with <code>unit: document</code> (S-0084/D-5): the leg reads a document's pull request, so
 a configuration that could only ever fail at the first thread fails while you
@@ -2507,11 +2513,12 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:</p>
 <li><strong>Unresolved threads become findings</strong>, grouped by what they anchor to rather
   than by who wrote them (S-0084/D-3) — three bots on one null check are one
   finding, one task, and one commit replied to all three.</li>
-<li><strong>One finding becomes one implement task</strong>, cut from the document branch and
+<li><strong>One round becomes one implement task</strong>, cut from the document branch and
   landed back onto it by the same lane that lands every other phase
-  (S-0084/D-7). The leg never merges, never pushes and never force-pushes
-  (S-0084/D-10); its attempts spend the night's budget like any other, and
-  <code>rounds_per_pass</code> bounds how many it may start a pass.</li>
+  (S-0084/D-7); a round carries one finding, or the file-disjoint handful a wave
+  packs together (S-0097/D-5). The leg never merges, never pushes and never
+  force-pushes (S-0084/D-10); its attempts spend the night's budget like any
+  other, and <code>rounds_per_pass</code> bounds how many it may start a pass.</li>
 <li><strong>A round is scoped by its document, not by its thread.</strong> The scope is the
   phasing scope of the phases the finding's target task landed — or, for a
   thread on the pull request, which has no target task, the phases whose scope
@@ -2531,10 +2538,12 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:</p>
   change CI, merge, approve — is refused as injection before anything is
   minted, escalated to you, and never answered on the forge (S-0084/D-9). The
   collapsed <code>&lt;details&gt;</code> blocks a reviewer leaves under its verdict —
-  CodeRabbit's analysis scripts are the standing case — are removed before
-  that check and before the fence, so the work log asks nothing of the round
-  and never reaches the attempt; the verdict outside the blocks is judged
-  exactly as before (S-0092/D-5, amending S-0084/D-9).</li>
+  CodeRabbit's analysis scripts are the standing case — and the HTML comments
+  a bot leaves as hidden bookkeeping — cubic's <code>review-run</code> marker, CodeAnt's
+  ids — are removed before that check and before the fence, so neither the
+  work log nor the bookkeeping asks anything of the round and neither reaches
+  the attempt; the verdict outside them is judged exactly as before
+  (S-0092/D-5, S-0097/D-1, amending S-0084/D-9).</li>
 <li><strong>A thread is answered only after its round landed</strong>, with a reply naming the
   commit the fix landed in or the recorded reason it was not applied
   (S-0084/D-12) — composed from the attempt's divergence entry, never from
@@ -2556,7 +2565,46 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:</p>
   already answered it escalates to you instead of being dispatched a second
   time (S-0084/D-14), so a night cannot spend itself arguing with a bot at the
   bot's own re-review rate.</li>
+<li><strong>A wave is a handful of rounds, not one round per finding.</strong> The findings
+  one head raises are minted together as rounds of up to
+  <code>threads.findings_per_round</code> findings (default 15), grouped by file so no two
+  rounds of the wave share a file. A file's findings are never split, so a file
+  carrying more than the cap makes an oversize round rather than a split, and
+  <code>rounds_per_pass</code> still bounds what one pass mints (S-0097/D-5).</li>
+<li><strong>A thread on a file the engine writes is answered, never composed.</strong> A
+  landing record under a document's <code>execution/</code> or an <code>AGENTS.md</code> the spec's
+  projection writes (S-0054) mints no round and escalates nobody: the thread is
+  not a change anyone may make on a comment's say-so. The leg replies once with
+  a fixed text naming what writes the file and where a fix belongs, and resolves
+  the thread when its author is in <code>threads.bots</code>; every other <code>.torve/</code> anchor
+  and everything under <code>.github/</code> stays refused as injection (S-0097/D-2).</li>
+<li><strong>A refusal reaches you once.</strong> <code>lane_thread_refused</code> records the thread ids
+  it refused and the comment count each carried; a later pass neither refuses
+  nor escalates a thread it already refused unless the thread gained a comment
+  since (S-0097/D-3).</li>
+<li><strong>The leg asks a bot for its approval once.</strong> When every thread a login in
+  <code>threads.bots</code> opened on a head is resolved and the head's checks are green,
+  the leg posts <code>threads.approve_comment</code> on the pull request, keyed by the head
+  sha so it lands once per head; unset posts nothing (S-0097/D-7).</li>
 </ul>
+<p><strong>The night waits for the review wave it published.</strong> A night whose lane
+published a document pull request out of draft is not drained while that head's
+review wait runs: the bots review what leaves draft, and the leg waits until
+every login in <code>threads.bots</code> has reviewed the head, or <code>threads.review_wait</code>
+minutes (default 45) have passed since it was pushed, whichever comes first.
+There is nothing to wait for when the leg is off, when no bot is configured,
+when the pull request is still a draft, or when the forge reads no push time to
+bound the wait by. While the wait runs the leg still answers what already
+landed, but mints no new round — so the leg sees the review wave the night
+produced instead of a drained night leaving it to a person, and <code>PrInfo</code> reads
+the logins that reviewed the head and the head's check state in the same call
+as its threads (S-0097/D-4).</p>
+<p><strong>A wave costs one push.</strong> While the rounds minted from one head's wave are
+queued or running, the lane lands each onto the document branch without
+publishing; the landing that leaves none outstanding — the last round done, or
+a round whose hold an escalation released — publishes, so the wave reaches the
+forge as one push, one re-review by the bots and at most one dismissed approval
+(S-0097/D-6).</p>
 <p><strong>The tier's own findings can be a source too.</strong> <code>sources</code> names where the leg
 reads from, and defaults to <code>[forge]</code> — so a configuration written before this
 existed changes nothing. Adding <code>record</code> reads the task-gated review records of
