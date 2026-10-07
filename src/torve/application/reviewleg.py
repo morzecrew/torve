@@ -91,6 +91,20 @@ INJECTION = (
 # asks for: the forge's own configuration and the engine's own records.
 FORBIDDEN_ANCHORS = (".github/", ".torve/")
 
+# The `AGENTS.md` a projection writes (S-0054/the-projections-beside-the-code).
+AGENTS_FILE = "AGENTS.md"
+
+# What a thread on a file the engine writes earns (S-0097/D-2): the same reply
+# for every such thread, naming what writes the file and where a fix belongs.
+# No corpus coordinate: this text is posted to the forge, where nobody has a
+# corpus to resolve one.
+ENGINE_WRITTEN_REPLY = (
+    "Not applied — this file is written by the engine, not by a change a round "
+    "makes. A landing record is rewritten by the task that landed it, and an "
+    f"{AGENTS_FILE} projection is regenerated from the decision rows it renders; "
+    "a fix belongs in that task or those rows, not in a comment on this pull request."
+)
+
 
 class FenceRefused(ValueError):
     """A composition whose text could close its own fence — refused and
@@ -178,18 +192,25 @@ def thread_text(thread: ReviewThread) -> str:
 DETAILS = re.compile(r"<details\b(?:(?!<details\b).)*?</details\s*>", re.IGNORECASE | re.DOTALL)
 UNCLOSED = re.compile(r"<details\b.*\Z", re.IGNORECASE | re.DOTALL)
 
+# An HTML comment, and one left open running to the end of its comment. It
+# holds a bot's bookkeeping — cubic's `review-run` marker, CodeAnt's ids —
+# which no reader of the thread sees (S-0097/D-1).
+COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+UNCLOSED_COMMENT = re.compile(r"<!--.*\Z", re.DOTALL)
+
 
 def collapsed(thread: ReviewThread) -> ReviewThread:
-    """The thread without its collapsed `<details>` blocks (S-0092/D-5): a
-    bot's analysis scripts are neither a request to judge nor text the attempt
-    reads. A block left open runs to the end of its comment."""
+    """The thread without its collapsed `<details>` blocks (S-0092/D-5) or its
+    HTML comments (S-0097/D-1): a bot's hidden bookkeeping and its analysis
+    scripts are neither a request to judge nor text the attempt reads. A block
+    or a comment left open runs to the end of its comment."""
 
     def strip(body: str) -> str:
         while True:
-            shorter = DETAILS.sub("", body)
+            shorter = COMMENT.sub("", DETAILS.sub("", body))
 
             if shorter == body:
-                return UNCLOSED.sub("", body).strip()
+                return UNCLOSED_COMMENT.sub("", UNCLOSED.sub("", body)).strip()
 
             body = shorter
 
@@ -264,6 +285,23 @@ def injection_reason(thread: ReviewThread) -> str:
             return f"asks for {what}"
 
     return ""
+
+
+# ....................... #
+
+
+def engine_written(path: str) -> bool:
+    """Whether *path* is a file the engine writes and no comment may change
+    (S-0097/D-2): a landing record under a document's `execution/`, or an
+    `AGENTS.md` the spec's projection writes. A thread on one mints no round
+    and is not escalated — it is answered with a fixed reply, and resolved
+    when its author is a bot. Every other `.torve/` anchor and everything
+    under `.github/` stays refused as injection."""
+
+    if path == AGENTS_FILE or path.endswith(f"/{AGENTS_FILE}"):
+        return True
+
+    return path.startswith(f"{layout.TORVE_DIR}/") and "/execution/" in path
 
 
 # ....................... #
@@ -704,6 +742,36 @@ def _answered(rows: Sequence[dict[str, Any]], branch: str) -> list[dict[str, Any
 
 # ....................... #
 
+
+def _handled(rows: Sequence[dict[str, Any]], branch: str) -> dict[str, int]:
+    """thread id -> the comment count it carried when this branch last refused
+    it or answered it as engine-written (S-0097/D-3). A later pass leaves such
+    a thread alone unless it gained a comment since."""
+
+    seen: dict[str, int] = {}
+
+    for row in rows:
+        if row.get("branch") != branch:
+            continue
+
+        if row.get("event") not in ("lane_thread_refused", "lane_engine_thread"):
+            continue
+
+        counts = row.get("comments")
+        counts = counts if isinstance(counts, dict) else {}
+
+        for ident in row.get("threads") or []:
+            seen[str(ident)] = int(counts.get(str(ident), 0))
+
+    return seen
+
+
+def _already_handled(thread: ReviewThread, seen: dict[str, int]) -> bool:
+    return thread.id in seen and len(thread.comments) <= seen[thread.id]
+
+
+# ....................... #
+
 # The identifier a recorded finding's synthetic thread carries: its review
 # task and the finding's place in that record. The prefix is what the
 # answering half reads to know the finding was never on the forge
@@ -1074,6 +1142,48 @@ def answer_round(
 # ....................... #
 
 
+def answer_engine_thread(
+    root: Path,
+    config: RunnerConfig,
+    forge: ThreadForge,
+    branch: str,
+    info: PrInfo,
+    finding: Finding,
+) -> int:
+    """A finding on a file the engine writes gets the fixed reply, once, and
+    its bot threads are resolved (S-0097/D-2). Nothing is minted and nobody is
+    escalated: what the engine writes is not edited on a comment's say-so."""
+
+    answered = 0
+
+    for thread in finding.threads:
+        forge.reply_thread(thread.id, ENGINE_WRITTEN_REPLY)
+        bot = thread.author in config.threads.bots
+
+        if bot:
+            forge.resolve_thread(thread.id)
+
+        engine_event(
+            root,
+            "lane_engine_thread",
+            {
+                "branch": branch,
+                "pr": info.number,
+                "path": finding.path,
+                "line": finding.line,
+                "threads": [thread.id],
+                "comments": {thread.id: len(thread.comments)},
+                "resolved": bot,
+            },
+        )
+        answered += 1
+
+    return answered
+
+
+# ....................... #
+
+
 def review_thread_leg(
     root: Path,
     config: RunnerConfig,
@@ -1116,6 +1226,10 @@ def review_thread_leg(
         sources = config.threads.sources
         recorded, touched = record_threads(root, branch, rows) if "record" in sources else ([], {})
         raised = [*(info.threads if "forge" in sources else ()), *recorded]
+        # A thread this branch already refused or answered as engine-written is
+        # left alone unless it gained a comment since (S-0097/D-3).
+        handled = _handled(rows, branch)
+        raised = [thread for thread in raised if not _already_handled(thread, handled)]
         prior = _rounds(rows, branch)
         replies = _answered(rows, branch)
         spoken = {str(row.get("task") or "") for row in replies}
@@ -1132,6 +1246,12 @@ def review_thread_leg(
             if len(minted) >= config.threads.rounds_per_pass:
                 break
 
+            # A thread on a file the engine writes is answered with the fixed
+            # reply, never composed and never escalated (S-0097/D-2).
+            if engine_written(finding.path):
+                answered += answer_engine_thread(root, config, forge, branch, info, finding)
+                continue
+
             from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             # A recorded finding pointing outside the document's phasing scope
@@ -1147,6 +1267,7 @@ def review_thread_leg(
                         "pr": info.number,
                         "path": finding.path,
                         "threads": list(finding.ids),
+                        "comments": {thread.id: len(thread.comments) for thread in finding.threads},
                         "reason": reason,
                     },
                 )
@@ -1205,6 +1326,7 @@ def review_thread_leg(
                         "pr": info.number,
                         "path": finding.path,
                         "threads": list(finding.ids),
+                        "comments": {thread.id: len(thread.comments) for thread in finding.threads},
                         "reason": str(exc),
                     },
                 )
@@ -1221,6 +1343,7 @@ def review_thread_leg(
                         "pr": info.number,
                         "path": finding.path,
                         "threads": list(finding.ids),
+                        "comments": {thread.id: len(thread.comments) for thread in finding.threads},
                         "reason": str(exc),
                     },
                 )
