@@ -710,6 +710,13 @@ pass to run after changing contracts, when you want the board to catch up
 without a worker taking the first thing it finds there — which on a full
 board is a real agent and real money.
 
+It is no longer a step every night needs. `torve manager serve --night` runs
+the same import pass before it opens, so the queue the open reads and records
+in `night.opened` includes contracts minted since the last pass; a queue still
+empty after the import refuses the night as it always did (S-0096/D-3). Reach
+for the pass above when you want to look at the board first, not to make a
+night work.
+
 ## Getting told
 
 An interrupt-class escalation is delivered once, by a leg of the manager's
@@ -764,11 +771,11 @@ exit accordingly.
 
 | Reason | What it says | Exit |
 | --- | --- | --- |
-| `locked_conflict` | an attempt halted on a `LOCKED` row — or halted naming no class that says otherwise, which keeps this reason (S-0092/D-3): the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
+| `locked_conflict` | an attempt halted on a `LOCKED` row (S-0096/D-1, amending S-0092/D-3): the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
 | `merge_conflict` | the landing lane's rebase conflicted; the branch is untouched and waits for a human — the lane never resolves one | 2 |
 | `blocker_finding` | review ended with a blocker surviving | 2 |
 | `killed` | an operator interrupted the run | 2 |
-| `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt left a `spec-gap` entry and cited no `LOCKED` row (S-0092/D-3) — a specification defect: amend the document, never retry. The loop is one amendment and one command: widen the phase on the document's branch, then `torve manager resolve --resolution requeued`, which refreshes the task's contract from the branch before the task goes back on the board (S-0094/D-1); a review round is re-scoped from the same branch the same way (S-0092/D-4, S-0094/D-2). See the escalation loop below | 2 |
+| `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt cited no `LOCKED` row, whatever class its entry chose (S-0096/D-1, amending S-0092/D-3) — a specification defect: amend the document, never retry. The loop is one amendment and one command: widen the phase on the document's branch, then `torve manager resolve --resolution requeued`, which refreshes the task's contract from the branch before the task goes back on the board (S-0094/D-1); a review round is re-scoped from the same branch the same way (S-0092/D-4, S-0094/D-2). See the escalation loop below | 2 |
 | `stale_inheritance` | the document it was minted from was superseded after the mint: re-mint from the superseding one, or abandon | 2 |
 | `gate_infrastructure_failure` | the battery broke rather than the work being wrong | 4 |
 | `lease_expired` | a claim's lease ran out while its worker was gone; the process that died cannot release itself | 4 |
@@ -787,7 +794,8 @@ discover it; a 429 or a non-zero exit that carried usage is an ordinary
 attempt and retries as one.
 
 **A judged escalation continues from its tree.** A requeued
-`blocker_finding` or `locked_conflict` starts from the checkpoint the
+`blocker_finding` or a halt — `locked_conflict`, or the `underspecified` every
+other halt now carries (S-0096/D-1) — starts from the checkpoint the
 attempt left on the task's branch, not from base (S-0090/D-2): a review
 that asked for one file's change costs that change, and a halt answered by
 an amendment resumes where it stopped. The requeue reaches that tree by
@@ -849,9 +857,10 @@ amendment pushed from another checkout reaches a round served here too
 (S-0094/D-2). The clear and the requeue are one act now, scoped to the task
 the person resolves rather than sweeping every escalated run at once, and
 the checkpoint a continued attempt resumes from survives it (S-0094/D-3) —
-for the `underspecified` halt itself the tree is kept for reading, but the
-next attempt starts from base against the amended contract, because the
-fix is the amendment, not a carry-over of abandoned work (S-0090/D-2).
+including the `underspecified` halt itself, which continues from that
+checkpoint as a `locked_conflict` does (S-0096/D-1): the amendment widens the
+contract the attempt worked against, so the work that stopped on it is kept
+rather than re-cut from base.
 
 What the loop deliberately keeps to a person is the two judgements:
 widening a phase is an amendment, because the phase is the scope its
@@ -1096,7 +1105,8 @@ Green, the pull request turns ready. Red, the landing is withheld: the branch
 goes back to where the last landed phase left it, the pull request stays the
 draft its earlier phases opened, and `lane_document_gates_red` records the
 task, the tip and the failing summary — a person reading the draft sees why it
-is one (S-0093/D-2). The red is also written to the stream as a review finding
+is one (S-0093/D-2). Where the leg reads recorded findings, the red is also
+written to the stream as a review finding
 on the last landed task: severity major, the failing gates and tests as the
 claim, the battery's command as the evidence — exactly the shape the thread
 leg's `record` source mints a round from (S-0093/D-3, S-0086/D-4). A
@@ -1109,8 +1119,10 @@ fixed (S-0093/D-4). A second red reaches a person: the withheld landing
 escalates as a blocker finding, leaves the lane, and no third battery runs. A
 document with no landed task a round could be about — a one-phase document
 whose first landing turns red — escalates on that first red instead. And the
-round runs on the leg: `threads` off, or `record` missing from its `sources`,
-mints nothing, and the draft waits for a round that will not come.
+round is the review leg's: `threads` off, or `record` missing from its
+`sources`, means no leg reads recorded findings, so there is no round to wait
+for — the red battery escalates the completing task `blocker_finding` at once,
+records no finding, and reaches a person on every repository (S-0096/D-2).
 
 **A phase counts from the tree, not from who landed it.** The carried list the
 title and the body are composed from is the lane's records of landings on the
@@ -1226,9 +1238,12 @@ request, never again (S-0086/D-5).
 **A round that halts on its scope gets one widening, and then it is your
 turn.** The scope is a bound, not a guess about the fix: an attempt whose fix
 needs a file outside it halts and leaves a divergence entry of class
-`spec-gap` rather than reaching past the bound. Such a halt, when it cites no
-`LOCKED` row, escalates `underspecified` and not `locked_conflict` — the old
-name sent operators hunting for a row nobody had touched (S-0092/D-3). The
+`spec-gap` rather than reaching past the bound. Such a halt cites no `LOCKED`
+row, so it escalates `underspecified` and not `locked_conflict` — as every
+halt that cites no such row now does, whatever class its entry chose
+(S-0096/D-1, amending S-0092/D-3) — and that is exactly the escalation the
+retry below acts on; the old name sent operators hunting for a row nobody had
+touched. The
 leg then makes the one widening that needs no decision: on its next pass it
 re-derives the round's scope from the union of the whole document's phasing —
 the bound you accepted when you approved it, plus the round's log directory —
@@ -1243,11 +1258,10 @@ re-derives the round's scope from the phasing as the branch holds it at the
 requeue before the round goes back on the board (S-0092/D-4). The requeue
 reads that phasing from the remote's copy after its own fetch (S-0094/D-2)
 and clears the halted round's run-state file, worktree and sandbox first
-(S-0094/D-3). A spec-gap halt is not one of the continuations: the next
-attempt starts from base against the re-derived scope — the amendment is
-the answer, not a carry-over (S-0090/D-2) — and the checkpointed tree the
-halt left is kept for reading under `refs/torve/checkpoints/`, as any
-recut keeps it.
+(S-0094/D-3). A spec-gap halt is one of the continuations now (S-0096/D-1):
+the next attempt resumes from the checkpoint the halt left — the amendment
+re-cuts its scope, not its work — and that checkpointed tree is kept for
+reading under `refs/torve/checkpoints/`, as any recut keeps it.
 
 **A round's own review opens no round.** `record` reads no finding from a
 review whose target is itself a round the leg minted on this branch —
