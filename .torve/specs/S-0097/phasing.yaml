@@ -37,10 +37,11 @@ phasing:
       - tests/test_runconfig.py
       - tests/test_forge.py
       - tests/test_pr_review.py
+      - tests/test_manager_e2e.py
     acceptance:
       - >-
         uv run pytest tests/test_reviewleg.py tests/test_manager.py tests/test_runconfig.py
-        tests/test_forge.py tests/test_pr_review.py
+        tests/test_forge.py tests/test_pr_review.py tests/test_manager_e2e.py
       - uv run torve spec check
       - uv run mypy src
     depends_on:
@@ -52,10 +53,13 @@ phasing:
       While rounds minted from one head's wave are queued or running, the lane lands
       each onto the document branch without publishing; the landing that leaves none
       outstanding publishes, and an escalated round releases the hold. Settles D-6.
-    scope: [src/torve/application/lane.py, tests/test_lane.py]
+    scope:
+      - src/torve/application/lane.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
     acceptance:
       - >-
-        uv run pytest tests/test_lane.py tests/test_reviewleg.py
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_reviewleg.py
       - uv run mypy src
     depends_on:
       - 2
