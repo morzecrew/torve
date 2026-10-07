@@ -575,7 +575,7 @@ The lane mints a red completion battery's round only where a review leg reads re
 - Paths: `src/torve/cli/manager.py` `tests/test_manager.py`
 - Consequence: a night needs one command, and the queue `night.opened` records is the queue it will work
 
-### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 A night whose lane published a document pull request out of draft is not drained while that head's review wait runs, until every login in `threads.bots` has reviewed the head or `threads.review_wait` minutes (default 45) have passed since it was pushed; the leg mints that pull request's rounds only after the wait, and `PrInfo` carries the logins that reviewed the head and the head's check state from the same call as its threads
 

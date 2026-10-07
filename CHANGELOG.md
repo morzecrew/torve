@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   seat dispatch would refuse is a red line naming the seat, its provider and the
   providers allowed, before a night spends an attempt finding out.
 
+- The review-thread leg keeps pace with a wave of bot reviews. A night whose lane takes a
+  document pull request out of draft keeps running while that head's review wait runs:
+  until every login in `threads.bots` has reviewed it, or `threads.review_wait` minutes
+  (default 45) have passed since the push. The leg then mints the wave's findings
+  together, as rounds of up to `threads.findings_per_round` (default 15) grouped so no
+  two rounds share a file. The lane publishes the wave once: a round's landing that
+  leaves others queued or running waits on the document branch, and the last one pushes.
+
+- `threads.approve_comment`: once every thread a bot opened on a head is resolved, the
+  head's review wait is over and its checks are green, the leg posts this comment on the
+  pull request, once per head. Unset by default.
+
 ### Changed
 
 - **Breaking:** every file torve reads checks its `schema_version`. An absent version
@@ -51,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files that import it.
 
 ### Fixed
+
+- A bot's thread is judged on what a reader sees. HTML comments, where review bots keep
+  their bookkeeping, are set aside with the collapsed `<details>` blocks; before, a hidden
+  marker could get a whole thread refused as an injection.
+
+- A thread on a file the engine writes (a landing record under a document's
+  `execution/`, or an `AGENTS.md` projection) is answered once with a fixed reply naming
+  what writes the file, and resolved when a bot opened it. Before, it was refused on
+  every pass. A thread the leg refused stays refused until someone comments on it again.
 
 - A red completion battery no longer waits for a review round in a repository where no
   review leg reads recorded findings (`threads` off, or `record` missing from
