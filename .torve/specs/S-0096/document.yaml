@@ -6,7 +6,7 @@ change:
   type: fix
   scope: night
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0079, S-0092, S-0093]
 informed_by: [S-0095]
 supersedes: []
