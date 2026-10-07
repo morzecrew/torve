@@ -2343,11 +2343,12 @@ def _round(
     spec: str,
     filename: str,
     content: str,
-    state: TaskState = TaskState.READY,
+    state: TaskState | None = TaskState.READY,
 ) -> None:
     """A round the review leg minted: a task branch off the document branch,
     its contract naming the document, its `lane_review_task` record and its
-    run state — the shape the lane reads a head's wave off."""
+    run state — the shape the lane reads a head's wave off. No state is a round
+    no worker has claimed yet: the runner writes one at dispatch."""
     from torve.application.telemetry import engine_event
 
     git(root, "checkout", "-q", "-b", naming.branch(task_id), document)
@@ -2360,6 +2361,10 @@ def _round(
     git(root, "checkout", "-q", "main")
     _contract(root, task_id, spec)
     engine_event(root, "lane_review_task", {"branch": document, "task": task_id, "path": filename})
+
+    if state is None:
+        return
+
     run = RunState(task_id=task_id, path=naming.state_file(root, task_id))
     run.state = state
     run.save()
@@ -2425,6 +2430,49 @@ def test_a_round_that_escalated_does_not_hold_the_wave(lane_repo, tmp_path):
     assert not [r for r in results if "held for the wave" in r.detail]
     assert published == [("T-7511", document), ("T-7512", document)]
     assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7512"
+
+
+def test_a_round_no_worker_has_claimed_holds_the_wave(lane_repo, tmp_path):
+    """A minted round has no run state until a worker claims it, and it is
+    outstanding all the same: the wave is not over while it waits."""
+    published: list[tuple[str, str]] = []
+    spec = "S-0934"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7531": "one.py"}, published)
+    _round(lane_repo, "T-7532", document, spec, "two.py", "# T-7532\n")
+    _round(lane_repo, "T-7533", document, spec, "three.py", "# T-7533\n", state=None)
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    assert [r.task for r in results if "held for the wave" in r.detail] == ["T-7532"]
+    assert published == [("T-7531", document)]
+
+
+def test_a_round_a_person_resolved_and_reaped_does_not_hold_the_wave(lane_repo, tmp_path):
+    """An abandoned round swept by `reap --escalated` leaves no run state, so
+    the resolution `manager resolve` writes to the stream is what releases it."""
+    from torve.application.telemetry import engine_event
+
+    published: list[tuple[str, str]] = []
+    spec = "S-0935"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7541": "one.py"}, published)
+    _round(lane_repo, "T-7542", document, spec, "two.py", "# T-7542\n")
+    _round(lane_repo, "T-7543", document, spec, "three.py", "# T-7543\n", state=None)
+    engine_event(lane_repo, "manager_resolved", {"task": "T-7543", "resolution": "abandoned"})
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    assert not [r for r in results if "held for the wave" in r.detail]
+    assert published == [("T-7541", document), ("T-7542", document)]
 
 
 def test_an_open_document_is_not_republished_while_the_wave_runs(lane_repo, tmp_path):

@@ -1088,6 +1088,13 @@ def resolve_cmd(
         _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
     )
 
+    from torve.application.telemetry import engine_event
+
+    # The board holds the resolution; the stream gets it too, because the lane
+    # reads the host and the stream and a swept abandonment leaves no run
+    # state to read (S-0097/D-6).
+    engine_event(root.resolve(), "manager_resolved", {"task": task_id, "resolution": resolution})
+
     if resolution == "requeued":
         from torve.application.projections import stream_rows
         from torve.application.reviewleg import rescope
