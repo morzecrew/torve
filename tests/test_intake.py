@@ -351,9 +351,7 @@ def test_lint_t0113_rule_wants_every_prefixed_test_file(tree: Path):
 
     green = lint_drafts(
         tree,
-        document(
-            draft_dict(allow=["src/app.py", "tests/test_app.py", "tests/test_app_config.py"])
-        ),
+        document(draft_dict(allow=["src/app.py", "tests/test_app.py", "tests/test_app_config.py"])),
         4,
     )
     assert green == []

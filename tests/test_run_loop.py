@@ -338,6 +338,11 @@ def test_should_resume_true_straight_off_a_continuable_escalation():
 
     assert run_module._should_resume(state)
 
+    # S-0096/D-1: a halt that cites no LOCKED row resumes the same way.
+    state.escalation = Escalation(reason="underspecified", detail="halted divergence entry")
+
+    assert run_module._should_resume(state)
+
     state.escalation = Escalation(reason="blocker_finding", detail="R-1: the change is wrong")
 
     assert run_module._should_resume(state)
@@ -494,7 +499,12 @@ def _checkpoint_tip(repo, task_id, subject):
 
 
 @pytest.mark.parametrize(
-    "subject", ["escalated from review on a blocker", "escalated halted on a locked row"]
+    "subject",
+    [
+        "escalated from review on a blocker",
+        "escalated halted on a locked row",
+        "escalated halted on a spec gap",
+    ],
 )
 def test_a_reaped_run_resumes_off_its_escalation_checkpoint(rig, subject):
     # S-0090/D-2: the state file was reaped, the branch tip is the checkpoint.

@@ -1084,9 +1084,7 @@ def test_a_night_imports_the_repositorys_contracts_before_it_opens(tmp_path, mon
     contract = tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
     contract.parent.mkdir(parents=True)
     contract.write_text(
-        yaml.safe_dump(
-            {"id": "T-1", "decisions": [], "scope": {"allow": ["src/**"], "deny": []}}
-        ),
+        yaml.safe_dump({"id": "T-1", "decisions": [], "scope": {"allow": ["src/**"], "deny": []}}),
         encoding="utf-8",
     )
 
