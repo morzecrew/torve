@@ -16,6 +16,7 @@ import re
 import subprocess
 import time
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -745,9 +746,10 @@ class GhScm:
     def pr_for_branch(self, branch: str) -> PrInfo | None:
         """What happened to this branch (S-0080/D-6): the branch's pull request
         in whatever state the forge holds it, with the merge commit when it
-        was merged — the sha a squash lands in, and the unresolved review
-        threads when it is still open (S-0084/D-1). None when the forge knows no
-        pull request for the branch."""
+        was merged — the sha a squash lands in, and, when it is still open, the
+        unresolved review threads beside the head's reviewers, its check state
+        and its push time (S-0084/D-1, S-0097/D-4). None when the forge knows
+        no pull request for the branch."""
 
         listed = cast(
             "list[dict[str, Any]]",
@@ -771,7 +773,13 @@ class GhScm:
             info = self.pr_info(info.number)
 
         if info.state == "open":
-            info.threads = self.unresolved_threads(info.number)
+            # The threads, the head's reviewers, its check state and its push
+            # time, all from the one GraphQL call (S-0097/D-4).
+            threads, reviewers, checks, pushed_at = self._review_surface(info.number)
+            info.threads = threads
+            info.reviewers = reviewers
+            info.checks = checks
+            info.head_pushed_at = pushed_at
 
         return info
 
@@ -790,25 +798,93 @@ class GhScm:
                 comments(first: 50) { nodes { author { login } body } }
               }
             }
+            reviews(first: 100) {
+              nodes { author { login } state commit { oid } }
+            }
+            commits(last: 1) {
+              nodes { commit { oid pushedDate statusCheckRollup { state } } }
+            }
           }
         }
       }
     """
 
-    def unresolved_threads(self, number: int) -> tuple[ReviewThread, ...]:
-        """The pull request's unresolved review threads, over the forge's
-        GraphQL pull request (S-0084/D-2).
+    @staticmethod
+    def _head_commit(document: dict[str, Any]) -> dict[str, Any]:
+        nodes = cast("list[dict[str, Any]]", (document.get("commits") or {}).get("nodes") or [])
 
-        `isResolved` is a `reviewThreads` fact the REST review-comment
-        endpoint does not carry, and `id` here is the GraphQL node id a reply
-        or a resolve addresses — which is why the thread read lives on this
-        endpoint and not beside `review_threads`. Every thread comes back
-        whoever wrote it; who counts as a bot is the caller's term, not the
-        adapter's.
-        """
+        return cast("dict[str, Any]", (nodes[-1] or {}).get("commit") or {}) if nodes else {}
+
+    @classmethod
+    def _reviewers(cls, document: dict[str, Any]) -> tuple[str, ...]:
+        """The logins that submitted a review of the head (S-0097/D-4): a
+        review whose own commit is not the head was written against a tree the
+        head has since replaced, so it does not count as a review of this one.
+        Every state but `PENDING` is a submitted review; a `PENDING` node is a
+        draft the reviewer has not sent."""
+
+        head = str(cls._head_commit(document).get("oid") or "")
+        logins: list[str] = []
+
+        for node in cast(
+            "list[dict[str, Any]]", (document.get("reviews") or {}).get("nodes") or []
+        ):
+            commit = cast("dict[str, Any]", node.get("commit") or {})
+
+            if head and str(commit.get("oid") or "") != head:
+                continue
+
+            if str(node.get("state") or "") == "PENDING":
+                continue
+
+            login = str(cast("dict[str, Any]", node.get("author") or {}).get("login") or "")
+
+            if login and login not in logins:
+                logins.append(login)
+
+        return tuple(logins)
+
+    @classmethod
+    def _checks(cls, document: dict[str, Any]) -> str:
+        """The head commit's aggregate check state (S-0097/D-4), lower-cased
+        to the vocabulary the CI adapter already speaks; "" when the forge
+        reports none."""
+
+        rollup = cls._head_commit(document).get("statusCheckRollup")
+
+        return str(cast("dict[str, Any]", rollup or {}).get("state") or "").lower()
+
+    @classmethod
+    def _pushed_at(cls, document: dict[str, Any]) -> datetime | None:
+        """When the head was pushed (S-0097/D-4), falling back to when it was
+        committed for a tree the forge holds no push date for."""
+
+        commit = cls._head_commit(document)
+
+        for key in ("pushedDate", "committedDate"):
+            raw = commit.get(key)
+
+            if not raw:
+                continue
+
+            try:
+                return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+
+            except ValueError:
+                return None
+
+        return None
+
+    def _review_surface(
+        self, number: int
+    ) -> tuple[tuple[ReviewThread, ...], tuple[str, ...], str, datetime | None]:
+        """One GraphQL call carrying everything the review-thread leg reads off
+        a pull request (S-0084/D-1, S-0097/D-4): the unresolved threads beside
+        the logins that reviewed the head, its check state and when it was
+        pushed. Empty for no repository."""
 
         if not self.repo:
-            return ()
+            return (), (), "", None
 
         owner, _, name = self.repo.partition("/")
         answered = json.loads(
@@ -863,7 +939,26 @@ class GhScm:
                 )
             )
 
-        return tuple(threads)
+        return (
+            tuple(threads),
+            self._reviewers(pull_request),
+            self._checks(pull_request),
+            self._pushed_at(pull_request),
+        )
+
+    def unresolved_threads(self, number: int) -> tuple[ReviewThread, ...]:
+        """The pull request's unresolved review threads, over the forge's
+        GraphQL pull request (S-0084/D-2).
+
+        `isResolved` is a `reviewThreads` fact the REST review-comment
+        endpoint does not carry, and `id` here is the GraphQL node id a reply
+        or a resolve addresses — which is why the thread read lives on this
+        endpoint and not beside `review_threads`. Every thread comes back
+        whoever wrote it; who counts as a bot is the caller's term, not the
+        adapter's.
+        """
+
+        return self._review_surface(number)[0]
 
     # ....................... #
 

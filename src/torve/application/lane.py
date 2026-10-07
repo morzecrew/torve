@@ -696,7 +696,12 @@ def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> s
     entry = _document_ledger(root).get(branch)
 
     if remote is not None and not (entry is not None and entry.verdict == "landed"):
-        vcs.reset_branch(root, branch, remote)
+        # A branch carrying landings held for a wave is kept as this checkout
+        # has it: the push that will publish them has not happened yet, and
+        # resetting to the remote would drop them (S-0097/D-6).
+        if entry is None or not entry.held:
+            vcs.reset_branch(root, branch, remote)
+
         return branch
 
     local = vcs.tip(root, branch)
@@ -928,6 +933,40 @@ def _battery_target(root: Path, document: str) -> str | None:
     return landed[-1] if landed else None
 
 
+def _wave_outstanding(root: Path, document: str) -> set[str]:
+    """The rounds a review leg minted for *document* that have not yet landed
+    on its branch (S-0097/D-6): queued, running or waiting to land. A round
+    that landed is in the branch's ledger, and one that escalated or was
+    abandoned is not outstanding — and so releases the hold."""
+
+    from torve.application.projections import stream_rows
+
+    entry = _document_ledger(root).get(document)
+    landed = set(entry.tasks) | set(entry.earlier) if entry is not None else set()
+    outstanding: set[str] = set()
+
+    for row in stream_rows(root):
+        if row.get("event") != "lane_review_task" or row.get("branch") != document:
+            continue
+
+        task = str(row.get("task") or "")
+
+        if not task or task in landed or task in outstanding:
+            continue
+
+        path = naming.state_file(root, task)
+
+        if not path.is_file():
+            continue
+
+        if RunState.load(path).state in (TaskState.ESCALATED, TaskState.ABANDONED):
+            continue
+
+        outstanding.add(task)
+
+    return outstanding
+
+
 # ....................... #
 
 
@@ -1023,6 +1062,41 @@ def _land_document(
                 )
 
         results.append(LaneResult(task_id, document, "gates red", f"escalated: {red}", tip))
+
+        return
+
+    outstanding = _wave_outstanding(root, document) - {task_id}
+
+    if outstanding:
+        # A wave costs one push (S-0097/D-6): the landing is on the branch as
+        # this checkout has it, and the push waits for the round that leaves
+        # none outstanding. The landing is still recorded — the branch carries
+        # the task — so the next pass reads it back and no round is offered
+        # twice.
+        engine_event(
+            root,
+            "lane_landed",
+            {
+                "task": task_id,
+                "mode": mode,
+                "sha": tip,
+                "approver": approver,
+                "carried": _carried(root, task_id),
+                "unit": "document",
+                "branch": document,
+                "pr": "",
+                "held": True,
+            },
+        )
+        results.append(
+            LaneResult(
+                task_id,
+                document,
+                "landed",
+                f"held for the wave: {len(outstanding)} round(s) still outstanding",
+                tip,
+            )
+        )
 
         return
 
@@ -1228,6 +1302,10 @@ class _Document:
     tasks: list[str] = field(default_factory=list)
     conflict_base: str = ""
     earlier: dict[str, str] = field(default_factory=dict)
+    # The branch carries landings the lane held back from publishing while a
+    # head's wave is still queued or running (S-0097/D-6); the last landing of
+    # the wave clears it.
+    held: bool = False
 
 
 def _document_ledger(root: Path) -> dict[str, _Document]:
@@ -1260,6 +1338,7 @@ def _document_ledger(root: Path) -> dict[str, _Document]:
                 entry.conflict_base = ""
 
             entry.verdict = "open"
+            entry.held = bool(row.get("held"))
             task = str(row.get("task") or "")
 
             if task and task not in entry.tasks:
@@ -1419,6 +1498,24 @@ def _rebase_document(
     # the republish leases against the fetch just made, so rebasing the local
     # ref would drop that commit without a refusal.
     remote = vcs.remote_tip(root, branch)
+
+    if entry.held or _wave_outstanding(root, branch):
+        # The wave has not finished: a head's rounds are still queued or
+        # running, so nothing here resets or republishes the branch, and any
+        # landing already held on it stays unpublished (S-0097/D-6). The last
+        # round's landing publishes, and a later pass rebases what it
+        # published as it always has.
+        results.append(
+            LaneResult(
+                document,
+                branch,
+                "pull request open",
+                f"pull request #{number} awaits a person",
+                vcs.tip(root, branch) or "",
+            )
+        )
+
+        return
 
     if remote is not None:
         vcs.reset_branch(root, branch, remote)

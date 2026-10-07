@@ -898,17 +898,22 @@ def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> 
 
     assert defaults.enabled is False
     assert defaults.bots == [] and defaults.rounds_per_pass == 1
+    # S-0097/D-4, S-0097/D-5: the wait and the wave's cap have defaults too.
+    assert defaults.review_wait == 45 and defaults.findings_per_round == 15
 
     config = load(
         tmp_path,
         "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
         "scm:\n  repo: acme/widgets\n  open_pr: true\n"
-        'threads:\n  enabled: true\n  bots: ["coderabbitai[bot]"]\n  rounds_per_pass: 2\n',
+        'threads:\n  enabled: true\n  bots: ["coderabbitai[bot]"]\n  rounds_per_pass: 2\n'
+        "  review_wait: 10\n  findings_per_round: 5\n",
     )
 
     assert config.threads.enabled is True
     assert config.threads.bots == ["coderabbitai[bot]"]
     assert config.threads.rounds_per_pass == 2
+    assert config.threads.review_wait == 10
+    assert config.threads.findings_per_round == 5
 
 
 def test_the_thread_sources_default_to_the_forge_and_load_from_yaml(tmp_path: Path) -> None:
@@ -984,3 +989,19 @@ def test_the_thread_leg_is_refused_under_any_other_landing(tmp_path: Path, promo
         ).threads.enabled
         is False
     )
+
+
+def test_the_approve_comment_defaults_unset_and_loads_from_yaml(tmp_path: Path) -> None:
+    """S-0097/D-7: unset by default, so a configuration that turned the leg on
+    beforehand posts no approval; written, it is the text the leg posts."""
+
+    assert load(tmp_path, "schema_version: 1\n").threads.approve_comment == ""
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "scm:\n  repo: acme/widgets\n  open_pr: true\n"
+        "threads:\n  enabled: true\n  approve_comment: 'Approved — nothing left open.'\n",
+    )
+
+    assert config.threads.approve_comment == "Approved — nothing left open."

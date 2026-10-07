@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0494
+phase: 3
+base: c229b0e57840f879e6e29b11c0bbdb8d4964830c
+commit: 16bb014836c5d150b410a86472790147122e1291
+at: '2026-10-07T13:45:34Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-07T13:43:26Z'
+    claim: >-
+      D-6 holds publication while rounds are queued or running, but does not settle
+      what the lane counts: a round waiting to land, a round that escalated, and a
+      document rebase onto a moved base are all unstated, and the wave's one push
+      depends on all three.
+    evidence: >-
+      src/torve/application/lane.py:936 — _wave_outstanding counts a minted round
+      that has not landed on the branch and is neither escalated nor abandoned, and
+      the hold is read off it
+    action: decided
+    proposal: >-
+      D-6 should read: a round the leg minted for the head is outstanding until it
+      lands on the document branch or reaches escalation or abandonment; while any
+      round is outstanding the lane neither pushes nor rebases the document branch,
+      and the landing that leaves none outstanding publishes.

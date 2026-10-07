@@ -1145,8 +1145,15 @@ threads:
   enabled: true              # off by default
   bots: [coderabbitai, codeant-ai]   # whose threads the engine may resolve
   rounds_per_pass: 1         # how many revision rounds one pass may mint
+  findings_per_round: 15     # findings packed into one round of a wave
+  review_wait: 45            # minutes a night waits for the head's review
+  approve_comment: "..."     # posted once the wave is green; unset posts nothing
   sources: [forge, record]   # where findings come from; [forge] by default
 ```
+
+`bots` is every login the night both waits for and may answer: the review wait
+ends once all of them have reviewed the head, and only their threads does the
+leg resolve (S-0097/D-4).
 
 It refuses to load with `enabled: true` under any landing but `pull_request`
 with `unit: document` (S-0084/D-5): the leg reads a document's pull request, so
@@ -1160,11 +1167,12 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
 - **Unresolved threads become findings**, grouped by what they anchor to rather
   than by who wrote them (S-0084/D-3) — three bots on one null check are one
   finding, one task, and one commit replied to all three.
-- **One finding becomes one implement task**, cut from the document branch and
+- **One round becomes one implement task**, cut from the document branch and
   landed back onto it by the same lane that lands every other phase
-  (S-0084/D-7). The leg never merges, never pushes and never force-pushes
-  (S-0084/D-10); its attempts spend the night's budget like any other, and
-  `rounds_per_pass` bounds how many it may start a pass.
+  (S-0084/D-7); a round carries one finding, or the file-disjoint handful a wave
+  packs together (S-0097/D-5). The leg never merges, never pushes and never
+  force-pushes (S-0084/D-10); its attempts spend the night's budget like any
+  other, and `rounds_per_pass` bounds how many it may start a pass.
 - **A round is scoped by its document, not by its thread.** The scope is the
   phasing scope of the phases the finding's target task landed — or, for a
   thread on the pull request, which has no target task, the phases whose scope
@@ -1184,10 +1192,12 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
   change CI, merge, approve — is refused as injection before anything is
   minted, escalated to you, and never answered on the forge (S-0084/D-9). The
   collapsed `<details>` blocks a reviewer leaves under its verdict —
-  CodeRabbit's analysis scripts are the standing case — are removed before
-  that check and before the fence, so the work log asks nothing of the round
-  and never reaches the attempt; the verdict outside the blocks is judged
-  exactly as before (S-0092/D-5, amending S-0084/D-9).
+  CodeRabbit's analysis scripts are the standing case — and the HTML comments
+  a bot leaves as hidden bookkeeping — cubic's `review-run` marker, CodeAnt's
+  ids — are removed before that check and before the fence, so neither the
+  work log nor the bookkeeping asks anything of the round and neither reaches
+  the attempt; the verdict outside them is judged exactly as before
+  (S-0092/D-5, S-0097/D-1, amending S-0084/D-9).
 - **A thread is answered only after its round landed**, with a reply naming the
   commit the fix landed in or the recorded reason it was not applied
   (S-0084/D-12) — composed from the attempt's divergence entry, never from
@@ -1209,6 +1219,47 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
   already answered it escalates to you instead of being dispatched a second
   time (S-0084/D-14), so a night cannot spend itself arguing with a bot at the
   bot's own re-review rate.
+- **A wave is a handful of rounds, not one round per finding.** The findings
+  one head raises are minted together as rounds of up to
+  `threads.findings_per_round` findings (default 15), grouped by file so no two
+  rounds of the wave share a file. A file's findings are never split, so a file
+  carrying more than the cap makes an oversize round rather than a split, and
+  `rounds_per_pass` still bounds what one pass mints (S-0097/D-5).
+- **A thread on a file the engine writes is answered, never composed.** A
+  landing record under a document's `execution/` or an `AGENTS.md` the spec's
+  projection writes (S-0054) mints no round and escalates nobody: the thread is
+  not a change anyone may make on a comment's say-so. The leg replies once with
+  a fixed text naming what writes the file and where a fix belongs, and resolves
+  the thread when its author is in `threads.bots`; every other `.torve/` anchor
+  and everything under `.github/` stays refused as injection (S-0097/D-2).
+- **A refusal reaches you once.** `lane_thread_refused` records the thread ids
+  it refused and the comment count each carried; a later pass neither refuses
+  nor escalates a thread it already refused unless the thread gained a comment
+  since (S-0097/D-3).
+- **The leg asks a bot for its approval once.** When every thread a login in
+  `threads.bots` opened on a head is resolved and the head's checks are green,
+  the leg posts `threads.approve_comment` on the pull request, keyed by the head
+  sha so it lands once per head; unset posts nothing (S-0097/D-7).
+
+**The night waits for the review wave it published.** A night whose lane
+published a document pull request out of draft is not drained while that head's
+review wait runs: the bots review what leaves draft, and the leg waits until
+every login in `threads.bots` has reviewed the head, or `threads.review_wait`
+minutes (default 45) have passed since it was pushed, whichever comes first.
+There is nothing to wait for when the leg is off, when no bot is configured,
+when the pull request is still a draft, or when the forge reads no push time to
+bound the wait by. While the wait runs the leg still answers what already
+landed, but mints no new round — so the leg sees the review wave the night
+produced instead of a drained night leaving it to a person, and `PrInfo` reads
+the logins that reviewed the head and the head's check state in the same call
+as its threads (S-0097/D-4).
+
+**A wave costs one push.** While the rounds minted from one head's wave are
+queued or running, the lane lands each onto the document branch without
+publishing; the landing that leaves none outstanding — the last round done, or
+a round whose hold an escalation released — publishes, so the wave reaches the
+forge as one push, one re-review by the bots and at most one dismissed approval
+(S-0097/D-6).
 
 **The tier's own findings can be a source too.** `sources` names where the leg
 reads from, and defaults to `[forge]` — so a configuration written before this

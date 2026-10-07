@@ -1662,3 +1662,68 @@ def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch)
         asyncio.run(leg())
 
     assert seen == [False, False, False, False, True]
+
+
+# ....................... #
+# The night waits for its document's review (S-0097/D-4).
+
+
+def test_a_night_owes_a_document_pull_request_s_review_wait(tmp_path, monkeypatch):
+    """A published document pull request whose head the bots have not finished
+    reviewing is something the night owes: the drain check `_serve` asks is
+    handed the wait, so the leg sees the wave the night produced instead of a
+    drained night leaving it to a person."""
+
+    import yaml
+
+    from torve.application import residency, reviewleg
+    from torve.cli import manager as manager_cli
+    from torve.cli.manager import _serve
+    from torve.config.runconfig import PromotionConfig, RunnerConfig, ThreadsConfig
+
+    contract = tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        yaml.safe_dump({"id": "T-1", "decisions": [], "scope": {"allow": ["src/**"], "deny": []}}),
+        encoding="utf-8",
+    )
+
+    terms = RunnerConfig(
+        promotion=PromotionConfig(landing="pull_request", unit="document"),
+        threads=ThreadsConfig(enabled=True, bots=["coderabbitai"]),
+    )
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: terms)
+    # The wait is read off the forge, which a unit test does not have; what is
+    # asserted here is that the night's own drain check carries it.
+    monkeypatch.setattr(reviewleg, "review_wait_owing", lambda *_args, **_kwargs: True)
+
+    seen: dict[str, object] = {}
+
+    class Stopped(Exception):
+        pass
+
+    async def spy(log, partition, night, *, owed=None, **kwargs):
+        seen["owed"] = owed
+        raise Stopped
+
+    monkeypatch.setattr(residency, "reached", spy)
+
+    with pytest.raises(Stopped):
+        asyncio.run(
+            _serve(
+                None,
+                PARTITION,
+                root=tmp_path,
+                config_path=None,
+                worker="w-1",
+                passes=1,
+                interval=0,
+                only=None,
+                dispatch=False,
+                night=True,
+            )
+        )
+
+    owed = seen["owed"]
+
+    assert callable(owed) and owed() is True
