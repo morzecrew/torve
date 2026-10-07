@@ -132,6 +132,7 @@ def config(
     rounds: int = 1,
     findings: int = 15,
     sources: list[str] | None = None,
+    approve: str = "",
 ) -> RunnerConfig:
     return RunnerConfig(
         # The one landing the leg is legal under: it answers the threads of a
@@ -142,6 +143,7 @@ def config(
             bots=[BOT],
             rounds_per_pass=rounds,
             findings_per_round=findings,
+            approve_comment=approve,
             **({"sources": sources} if sources is not None else {}),
         ),
     )
@@ -1251,3 +1253,61 @@ def test_a_night_owes_the_wait_of_an_open_document(seeded):
     forge = StubForge(pr(thread("t1"), pushed=datetime.now(UTC)))
 
     assert review_wait_owing(seeded.root, config(), forge) is True
+
+
+# ----------------------- #
+# The approval comment lands once per head (S-0097/D-7).
+
+APPROVE = "every configured bot's threads are resolved and the head is green"
+
+
+def test_no_approve_comment_is_posted_when_none_is_configured(seeded):
+    open_document(seeded.root)
+    forge = StubForge(pr(checks="success"))
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.commented == []
+    assert events(seeded.root, "lane_approve_comment") == []
+
+
+def test_the_approve_comment_is_posted_once_the_bot_threads_are_resolved(seeded):
+    """S-0097/D-7: nothing a bot opened is left unresolved and the head is
+    green, so the comment lands — keyed by the head sha, its once-per-head."""
+    open_document(seeded.root)
+    forge = StubForge(pr(checks="success"))
+
+    review_thread_leg(seeded.root, config(approve=APPROVE), forge, lambda _t: False)
+
+    assert forge.commented == [(7, APPROVE, "deadbeef")]
+    (row,) = events(seeded.root, "lane_approve_comment")
+    assert row["sha"] == "deadbeef" and row["pr"] == 7
+
+
+def test_an_unresolved_bot_thread_holds_the_approve_comment(seeded):
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1"), checks="success"))
+
+    review_thread_leg(seeded.root, config(rounds=0, approve=APPROVE), forge, lambda _t: False)
+
+    assert forge.commented == []
+
+
+def test_a_head_that_is_not_green_earns_no_approve_comment(seeded):
+    open_document(seeded.root)
+    forge = StubForge(pr(checks="pending"))
+
+    review_thread_leg(seeded.root, config(approve=APPROVE), forge, lambda _t: False)
+
+    assert forge.commented == []
+
+
+def test_a_persons_unresolved_thread_does_not_hold_the_approve_comment(seeded):
+    """Only a bot's threads gate the approval (S-0097/D-7): a person's open
+    thread is replied to and left, not made to hold the head's."""
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1", author=HUMAN), checks="success"))
+
+    review_thread_leg(seeded.root, config(rounds=0, approve=APPROVE), forge, lambda _t: False)
+
+    assert forge.commented == [(7, APPROVE, "deadbeef")]

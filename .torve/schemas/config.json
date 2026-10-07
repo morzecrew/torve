@@ -823,6 +823,12 @@
       "additionalProperties": false,
       "description": "The review-thread leg's terms (S-0084/D-5): which logins are bots, how\nmany rounds one pass may mint, and whether the leg runs at all.\n\nOff by default \u2014 a repository configured today gains nothing until\nsomebody writes that it should. On, it is refused at load under any\nlanding but `pull_request` with `unit: document` (see the refusal on\n`RunnerConfig`): the leg reads a document's pull request, so a\nconfiguration that could only ever fail at the first thread fails while a\nperson is standing at the terminal instead.",
       "properties": {
+        "approve_comment": {
+          "default": "",
+          "description": "What the leg posts on a document pull request once every thread a login in `bots`\nopened on its head is resolved and the head's checks are green (S-0097/D-7). Keyed\nby the head sha, so it lands once per head; unset posts nothing.",
+          "title": "Approve Comment",
+          "type": "string"
+        },
         "bots": {
           "description": "The forge logins whose threads the engine may answer and resolve. Every other\nthread is a person's: replied to and left (S-0084/D-11). Empty answers nobody.",
           "items": {

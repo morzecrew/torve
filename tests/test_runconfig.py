@@ -989,3 +989,19 @@ def test_the_thread_leg_is_refused_under_any_other_landing(tmp_path: Path, promo
         ).threads.enabled
         is False
     )
+
+
+def test_the_approve_comment_defaults_unset_and_loads_from_yaml(tmp_path: Path) -> None:
+    """S-0097/D-7: unset by default, so a configuration that turned the leg on
+    beforehand posts no approval; written, it is the text the leg posts."""
+
+    assert load(tmp_path, "schema_version: 1\n").threads.approve_comment == ""
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "scm:\n  repo: acme/widgets\n  open_pr: true\n"
+        "threads:\n  enabled: true\n  approve_comment: 'Approved — nothing left open.'\n",
+    )
+
+    assert config.threads.approve_comment == "Approved — nothing left open."

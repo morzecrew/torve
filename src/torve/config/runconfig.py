@@ -1260,6 +1260,10 @@ class ThreadsConfig(BaseModel):
     """Minutes a night waits for a document pull request's head to be reviewed before
     it would otherwise drain (S-0097/D-4). The wait ends early once every login in
     `bots` has reviewed the head, and is measured from the head's push."""
+    approve_comment: str = ""
+    """What the leg posts on a document pull request once every thread a login in `bots`
+    opened on its head is resolved and the head's checks are green (S-0097/D-7). Keyed
+    by the head sha, so it lands once per head; unset posts nothing."""
     sources: list[Literal["forge", "record"]] = Field(
         default_factory=lambda: cast("list[Literal['forge', 'record']]", ["forge"])
     )

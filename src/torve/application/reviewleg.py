@@ -921,6 +921,26 @@ def review_wait_owing(
 # ....................... #
 
 
+def approve_due(info: PrInfo, config: RunnerConfig) -> bool:
+    """Whether this pull request's head earns the `threads.approve_comment`
+    (S-0097/D-7): a comment is configured, a bot is configured to have opened
+    threads, every thread a bot opened on the head is resolved — the forge
+    reports only unresolved threads — and the head's checks are green. The
+    forge's keyed comment makes the post land once per head; this is only
+    whether it is due."""
+
+    if not config.threads.approve_comment or not config.threads.bots:
+        return False
+
+    if any(thread.author in set(config.threads.bots) for thread in info.threads):
+        return False
+
+    return info.checks == "success"
+
+
+# ....................... #
+
+
 def _rounds(rows: Sequence[dict[str, Any]], branch: str) -> list[dict[str, Any]]:
     return [
         row
@@ -1484,6 +1504,17 @@ def review_thread_leg(
             answered += answer_round(root, config, forge, branch, row, open_threads, rows)
 
         requeued += requeue_underspecified(root, rows, branch)
+
+        # S-0097/D-7: the wave is behind the head, so the operator no longer
+        # asks a bot for its approval by hand. The forge's keyed comment makes
+        # it land once per head, so a later pass over the same head is free.
+        if approve_due(info, config) and isinstance(forge, CommentingForge):
+            forge.comment(info.number, config.threads.approve_comment, info.head_sha)
+            engine_event(
+                root,
+                "lane_approve_comment",
+                {"branch": branch, "pr": info.number, "sha": info.head_sha},
+            )
 
         if review_wait_running(info, config):
             # S-0097/D-4: the wave has not arrived yet. What landed is still
