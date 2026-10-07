@@ -371,49 +371,49 @@ The T-0113 rule pairs an existing module `<stem>.py` with `tests/test_<stem>.py`
 - Paths: `src/torve/application/intake.py` `src/torve/application/contextpack.py` `tests/test_intake.py` `tests/test_contextpack.py`
 - Consequence: a phase owns the tests named for the modules it changes, and its attempt is told which they are
 
-### S-0097/D-1 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-1 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 A forge thread's HTML comments are set aside with its collapsed `<details>` blocks, before the injection check and before the fence; neither is judged and neither reaches the attempt
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a bot's hidden bookkeeping no longer turns its thread away as injection
 
-### S-0097/D-2 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-2 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 A thread anchored to a landing record under a document's `execution/` or to an `AGENTS.md` projection mints no round and is not escalated; the leg replies once with a fixed text naming what writes the file and where a fix belongs, and resolves the thread when its author is in `threads.bots`; every other `.torve/` and `.github/` anchor stays refused as injection
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a thread on what the engine writes costs the operator nothing, and nothing the engine writes is edited on a comment's say-so
 
-### S-0097/D-3 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-3 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 `lane_thread_refused` names the thread ids it refused, and a later pass neither refuses nor escalates a thread already refused unless the thread gained a comment since
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_reviewleg.py`
 - Consequence: a refusal reaches the operator once
 
-### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-4 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 A night whose lane published a document pull request out of draft is not drained while that head's review wait runs, until every login in `threads.bots` has reviewed the head or `threads.review_wait` minutes (default 45) have passed since it was pushed; the leg mints that pull request's rounds only after the wait, and `PrInfo` carries the logins that reviewed the head and the head's check state from the same call as its threads
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
 - Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
 
-### S-0097/D-5 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-5 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 A head's findings are minted together as rounds of up to `threads.findings_per_round` findings (default 15), grouped by file so no two rounds of the wave share a file; `threads.rounds_per_pass` still bounds what one pass mints
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_runconfig.py`
 - Consequence: a wave of 83 threads is a handful of rounds, not one round per finding
 
-### S-0097/D-6 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-6 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 While rounds minted from one head's wave are queued or running, the lane lands each onto the document branch without publishing; the landing that leaves none outstanding publishes, and a round that escalates releases the hold
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: a wave costs one push, one re-review by the bots and at most one dismissed approval
 
-### S-0097/D-7 — `ASSUMED` (The review leg keeps pace with the review bots) — implementation: none
+### S-0097/D-7 — `ASSUMED` (The review leg keeps pace with the review bots)
 
 When every thread a login in `threads.bots` opened on a head is resolved and the head's checks are green, the leg posts `threads.approve_comment` on the pull request once per head, keyed by the head sha; unset by default
 
