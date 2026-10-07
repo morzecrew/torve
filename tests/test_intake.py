@@ -339,6 +339,26 @@ def test_lint_t0113_rule_wants_the_existing_test_file(tree: Path):
     assert green == []
 
 
+def test_lint_t0113_rule_wants_every_prefixed_test_file(tree: Path):
+    # S-0096/D-4: an existing module brings `test_<stem>.py` and every existing
+    # `test_<stem>_*.py`; a name that only shares a prefix is not one.
+    (tree / "tests" / "test_app_config.py").write_text("", encoding="utf-8")
+    (tree / "tests" / "test_appish.py").write_text("", encoding="utf-8")
+
+    red = lint_drafts(tree, document(draft_dict(allow=["src/app.py", "tests/test_app.py"])), 4)
+    assert any("test_app_config.py" in e and "T-0113" in e for e in red)
+    assert not any("test_appish.py" in e for e in red)
+
+    green = lint_drafts(
+        tree,
+        document(
+            draft_dict(allow=["src/app.py", "tests/test_app.py", "tests/test_app_config.py"])
+        ),
+        4,
+    )
+    assert green == []
+
+
 def test_lint_refuses_intersecting_scopes(tree: Path):
     errors = lint_drafts(tree, document(draft_dict("DRAFT-1"), draft_dict("DRAFT-2")), 4)
     assert any("scopes intersect" in e for e in errors)

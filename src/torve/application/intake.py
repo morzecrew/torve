@@ -15,7 +15,7 @@ import json
 import re
 import shlex
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
@@ -296,6 +296,24 @@ def _matched(path: Path, globs: list[str]) -> bool:
 # ....................... #
 
 
+def paired_test_files(stem: str, names: Iterable[str]) -> list[str]:
+    """The T-0113 rule's pairing (S-0096/D-4): an existing module `<stem>.py`
+    brings `tests/test_<stem>.py` and every existing `tests/test_<stem>_*.py`.
+    `names` are the file names sitting directly in `tests/`."""
+
+    exact = f"test_{stem}.py"
+    prefix = f"test_{stem}_"
+
+    return sorted(
+        name
+        for name in names
+        if name == exact or (name.startswith(prefix) and name.endswith(".py"))
+    )
+
+
+# ....................... #
+
+
 def lint_drafts(
     tree: Path,
     document: DraftsDocument,
@@ -328,6 +346,7 @@ def lint_drafts(
 
     errors: list[str] = []
     tree_paths = _tree_paths(tree)
+    test_names = [p.name for p in tree_paths if p.parent == Path("tests")]
     drafts = document.drafts
 
     if not drafts:
@@ -412,13 +431,14 @@ def lint_drafts(
                 and "tests" not in path.parts
                 and _matched(path, draft.scope.allow)
             ):
-                test_file = Path("tests") / f"test_{path.stem}.py"
+                for name in paired_test_files(path.stem, test_names):
+                    test_file = Path("tests") / name
 
-                if (tree / test_file).is_file() and not _matched(test_file, draft.scope.allow):
-                    errors.append(
-                        f"{ref}: allows existing module {path} but not its "
-                        f"existing test file {test_file} — the T-0113 rule"
-                    )
+                    if not _matched(test_file, draft.scope.allow):
+                        errors.append(
+                            f"{ref}: allows existing module {path} but not its "
+                            f"existing test file {test_file} — the T-0113 rule"
+                        )
 
     for i, one in enumerate(drafts):
         for other in drafts[i + 1 :]:

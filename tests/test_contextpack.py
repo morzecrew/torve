@@ -212,6 +212,21 @@ def test_tests_read_coverage_under_scope_and_the_named_test_files(tmp_path: Path
     assert payload["named_tests"] == [{"module": "src/a/thing.py", "test": "tests/test_thing.py"}]
 
 
+def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
+    """S-0096/D-4: the pack names `test_<stem>.py` and every existing
+    `test_<stem>_*.py`, and no name that merely shares a prefix."""
+    _seed(tmp_path)
+    (tmp_path / "tests" / "test_thing_config.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "test_thingish.py").write_text("", encoding="utf-8")
+
+    payload = tests_file(tmp_path, _task())
+
+    assert payload["named_tests"] == [
+        {"module": "src/a/thing.py", "test": "tests/test_thing.py"},
+        {"module": "src/a/thing.py", "test": "tests/test_thing_config.py"},
+    ]
+
+
 def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
     (tmp_path / ".torve").mkdir()
     rows = [
