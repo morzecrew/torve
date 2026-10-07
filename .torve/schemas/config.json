@@ -837,6 +837,18 @@
           "title": "Enabled",
           "type": "boolean"
         },
+        "findings_per_round": {
+          "default": 15,
+          "description": "How many findings one round carries (S-0097/D-5). A head's findings are minted\ntogether as rounds of at most this many, grouped by file so no two rounds of one\nwave share a file; `rounds_per_pass` still bounds what a pass mints.",
+          "title": "Findings Per Round",
+          "type": "integer"
+        },
+        "review_wait": {
+          "default": 45,
+          "description": "Minutes a night waits for a document pull request's head to be reviewed before\nit would otherwise drain (S-0097/D-4). The wait ends early once every login in\n`bots` has reviewed the head, and is measured from the head's push.",
+          "title": "Review Wait",
+          "type": "integer"
+        },
         "rounds_per_pass": {
           "default": 1,
           "description": "How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per\npass; the night's own budget bounds it across the night.",

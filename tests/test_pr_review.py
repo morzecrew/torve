@@ -700,3 +700,64 @@ def test_pr_for_branch_answers_with_the_threads_beside_the_state(monkeypatch):
     none = scripted_gh(monkeypatch, {"pr list": "[]"})
     assert GhScm("example/lab", token_env=None).pr_for_branch("torve/S-0084") is None
     assert not any("graphql" in c for c in none)
+
+
+def test_pr_for_branch_carries_the_head_s_reviewers_and_checks(monkeypatch):
+    """S-0097/D-4: the logins that reviewed the head, its check state and its
+    push time ride the one GraphQL call the threads already cost."""
+
+    from datetime import UTC, datetime
+
+    listed = json.dumps([{"number": 12, "state": "OPEN", "headRefOid": "a" * 40}])
+    answered = json.dumps(
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {"nodes": []},
+                        "reviews": {
+                            "nodes": [
+                                {
+                                    "author": {"login": "coderabbitai[bot]"},
+                                    "state": "COMMENTED",
+                                    "commit": {"oid": "a" * 40},
+                                },
+                                # A review of an older commit is not a review of the head.
+                                {
+                                    "author": {"login": "drive-by"},
+                                    "state": "APPROVED",
+                                    "commit": {"oid": "b" * 40},
+                                },
+                                # A draft review nobody sent does not count.
+                                {
+                                    "author": {"login": "unsent"},
+                                    "state": "PENDING",
+                                    "commit": {"oid": "a" * 40},
+                                },
+                            ]
+                        },
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "oid": "a" * 40,
+                                        "pushedDate": "2026-10-07T12:00:00Z",
+                                        "statusCheckRollup": {"state": "SUCCESS"},
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+    )
+    calls = scripted_gh(monkeypatch, {"pr list": listed, "graphql": answered})
+
+    info = GhScm("example/lab", token_env=None).pr_for_branch("torve/S-0084")
+
+    assert info is not None
+    assert info.reviewers == ("coderabbitai[bot]",)
+    assert info.checks == "success"
+    assert info.head_pushed_at == datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
+    assert len([call for call in calls if "graphql" in call]) == 1

@@ -451,6 +451,25 @@ async def _serve(
             )
         )
 
+    def review_owes() -> bool:
+        """Whether a document pull request's head is still inside its review
+        wait (S-0097/D-4): a night with one is not drained, so the leg sees the
+        wave the night produced instead of leaving it to a person. Nothing to
+        wait for when the leg is off."""
+
+        if thread_leg is None:
+            return False
+
+        from torve.adapters.vcs.git import GhScm
+        from torve.application.reviewleg import review_wait_owing
+
+        return review_wait_owing(
+            root, config, _ThreadForge(GhScm(config.scm.repo, config.scm.token_env))
+        )
+
+    def owed() -> bool:
+        return lane_owes() or review_owes()
+
     async with _runtime(dsn) as runtime:
         log = event_log(runtime.get_context())
 
@@ -481,9 +500,7 @@ async def _serve(
         )
 
         async def stop() -> str | None:
-            return (
-                await reached(log, partition, terms, owed=lane_owes) if terms is not None else None
-            )
+            return await reached(log, partition, terms, owed=owed) if terms is not None else None
 
         handled = await serve(
             log,
@@ -526,7 +543,7 @@ async def _serve(
             log,
             partition,
             terms,
-            reason=await reached(log, partition, terms, owed=lane_owes) or "passes",
+            reason=await reached(log, partition, terms, owed=owed) or "passes",
             handled=handled,
             actor_id=worker,
         )

@@ -553,6 +553,14 @@ class PrInfo:
     # remember to ask. Empty for a pull request nobody has reviewed, and for
     # every state but open.
     threads: tuple[ReviewThread, ...] = ()
+    # S-0097/D-4: the logins that submitted a review of the head, the head's
+    # check state, and when the head was pushed — read in the same GraphQL
+    # call as the threads, so the review wait costs no second question. Empty,
+    # "", and None for a pull request read off the REST surface, where none of
+    # the three is carried.
+    reviewers: tuple[str, ...] = ()
+    checks: str = ""
+    head_pushed_at: datetime | None = None
 
 
 # ....................... #

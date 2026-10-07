@@ -34,6 +34,7 @@ import subprocess
 import uuid
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -122,12 +123,14 @@ class InjectionRefused(ValueError):
 
 @dataclass(frozen=True)
 class Round:
-    """One round of one finding, composed and not yet minted."""
+    """One round of one head's wave, composed and not yet minted. A round
+    carries the findings minted together (S-0097/D-5): one, or a file-disjoint
+    handful bounded by `threads.findings_per_round`."""
 
     branch: str
     pr: int
     document: str
-    finding: Finding
+    findings: tuple[Finding, ...]
     nonce: str
     intent: str
     allow: list[str]
@@ -136,7 +139,24 @@ class Round:
 
     @property
     def title(self) -> str:
-        return f"review round on {self.branch}: {self.finding.path}"
+        if len(self.findings) == 1:
+            return f"review round on {self.branch}: {self.findings[0].path}"
+
+        return f"review round on {self.branch}: {len(self.findings)} findings"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
+class Claim:
+    """One finding and what the leg already knows about composing it: the
+    files a record-sourced finding is about, and the phases its target landed
+    (S-0086/D-4, S-0092/D-1)."""
+
+    finding: Finding
+    files: tuple[str, ...] = ()
+    phases: tuple[int, ...] = ()
 
 
 # ....................... #
@@ -486,14 +506,38 @@ def compose_round(
     phases: Collection[int] = (),
     nonce_source: Callable[[], str] = _mint_nonce,
 ) -> Round:
-    """One finding composed into a round (S-0084/D-7, S-0084/D-8, S-0084/D-9).
+    """One finding composed into a round (S-0084/D-7, S-0084/D-8, S-0084/D-9)."""
+
+    return compose_wave(
+        root,
+        branch,
+        info,
+        (Claim(finding, tuple(files), tuple(phases)),),
+        nonce_source=nonce_source,
+    )
+
+
+# ....................... #
+
+
+def compose_wave(
+    root: Path,
+    branch: str,
+    info: PrInfo,
+    claims: Sequence[Claim],
+    *,
+    nonce_source: Callable[[], str] = _mint_nonce,
+) -> Round:
+    """The findings of one file-disjoint wave into one round (S-0097/D-5):
+    every claim's threads fenced together, and a scope wide enough for every
+    one of them.
 
     Nothing is written and nothing reaches the forge: an injecting thread
     raises here, before the round exists, and so does a text that could close
     its own fence.
     """
 
-    threads = [collapsed(thread) for thread in finding.threads]
+    threads = [collapsed(thread) for claim in claims for thread in claim.finding.threads]
 
     for thread in threads:
         reason = injection_reason(thread)
@@ -503,17 +547,62 @@ def compose_round(
 
     nonce, fenced = fence(threads, nonce_source=nonce_source)
 
+    allow: list[str] = []
+
+    for claim in claims:
+        for path in _allow(root, branch, claim.finding.path, claim.files, claim.phases):
+            if path not in allow:
+                allow.append(path)
+
+    phases = sorted({int(phase) for claim in claims for phase in claim.phases})
+
     return Round(
         branch=branch,
         pr=info.number,
         document=branch.rsplit("/", 1)[-1],
-        finding=finding,
+        findings=tuple(claim.finding for claim in claims),
         nonce=nonce,
         intent="\n\n".join([INSTRUCTIONS, fenced]),
-        allow=_allow(root, branch, finding.path, files, phases),
+        allow=allow,
         acceptance=_acceptance(root),
-        phases=tuple(sorted(phases)),
+        phases=tuple(phases),
     )
+
+
+# ....................... #
+
+
+def batch_claims(claims: Sequence[Claim], cap: int) -> list[list[Claim]]:
+    """A head's findings as the rounds one pass mints (S-0097/D-5): grouped by
+    file, so no file is worked by two rounds of the wave, and packed into
+    rounds of at most *cap* findings.
+
+    A file's findings are never split across rounds — that is the whole point
+    of grouping by file, two rounds of a wave never touching the same file —
+    so a file carrying more than *cap* findings on its own makes an oversize
+    round rather than a split."""
+
+    ordered: dict[str, list[Claim]] = {}
+
+    for claim in claims:
+        ordered.setdefault(claim.finding.path, []).append(claim)
+
+    waves: list[list[Claim]] = []
+    current: list[Claim] = []
+
+    for path in sorted(ordered):
+        group = ordered[path]
+
+        if current and len(current) + len(group) > cap:
+            waves.append(current)
+            current = []
+
+        current.extend(group)
+
+    if current:
+        waves.append(current)
+
+    return waves
 
 
 # ....................... #
@@ -583,6 +672,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
     document["scope"]["allow"] = [*round_.allow, f"{layout.TORVE_DIR}/tasks/{task_id}/**"]
     contract.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
+    first = round_.findings[0]
     engine_event(
         root,
         "lane_review_task",
@@ -590,10 +680,22 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
             "branch": round_.branch,
             "pr": round_.pr,
             "task": task_id,
-            "path": round_.finding.path,
-            "line": round_.finding.line,
-            "end_line": round_.finding.end_line,
-            "threads": list(round_.finding.ids),
+            # Every finding the round carries (S-0097/D-5), beside the first
+            # one's anchor and the round's whole thread list — the shape a
+            # single-finding round has always written.
+            "findings": [
+                {
+                    "path": finding.path,
+                    "line": finding.line,
+                    "end_line": finding.end_line,
+                    "threads": list(finding.ids),
+                }
+                for finding in round_.findings
+            ],
+            "path": first.path,
+            "line": first.line,
+            "end_line": first.end_line,
+            "threads": [ident for finding in round_.findings for ident in finding.ids],
             "nonce": round_.nonce,
             "phases": list(round_.phases),
         },
@@ -615,9 +717,14 @@ def rescope(root: Path, row: dict[str, Any], *, whole: bool = False) -> list[str
     task_id = str(row.get("task") or "")
     phasing = _phasing(root, str(row.get("branch") or ""))
     phases = {int(p["phase"]) for p in phasing if whole and p.get("phase") is not None}
-    allow = _phase_scope(
-        phasing, str(row.get("path") or ""), phases or set(row.get("phases") or [])
-    )
+    anchors = [str(one.get("path") or "") for one in _row_findings(row)]
+    allow: list[str] = []
+
+    for anchor in anchors or [""]:
+        for path in _phase_scope(phasing, anchor, phases or set(row.get("phases") or [])):
+            if path not in allow:
+                allow.append(path)
+
     contract = layout.task_file(root, task_id)
 
     if not allow or not contract.is_file():
@@ -703,6 +810,53 @@ def _escalate(root: Path, branch: str, detail: str) -> None:
 # ....................... #
 
 
+def _injection(finding: Finding) -> str:
+    """The first thread of *finding* that asks for something a claim may not
+    (S-0084/D-9), read off its visible text; "" when none does. The same scan
+    `compose_wave` runs, hoisted before batching so one bad thread refuses only
+    its own finding."""
+
+    for thread in finding.threads:
+        reason = injection_reason(collapsed(thread))
+
+        if reason:
+            return f"{thread.id} {reason}"
+
+    return ""
+
+
+# ....................... #
+
+
+def _refuse(
+    root: Path,
+    branch: str,
+    info: PrInfo,
+    finding: Finding,
+    reason: str,
+    detail: str,
+) -> None:
+    """One finding refused, recorded by its thread ids and escalated by name
+    (S-0084/D-9, S-0097/D-3)."""
+
+    engine_event(
+        root,
+        "lane_thread_refused",
+        {
+            "branch": branch,
+            "pr": info.number,
+            "path": finding.path,
+            "threads": list(finding.ids),
+            "comments": {thread.id: len(thread.comments) for thread in finding.threads},
+            "reason": reason,
+        },
+    )
+    _escalate(root, branch, detail)
+
+
+# ....................... #
+
+
 def _open_documents(root: Path) -> list[str]:
     """The document branches the lane's own records say are open — read from
     the lane's ledger rather than from a second one, so a branch a person
@@ -711,6 +865,57 @@ def _open_documents(root: Path) -> list[str]:
     from torve.application.lane import _document_ledger
 
     return [branch for branch, entry in _document_ledger(root).items() if entry.verdict == "open"]
+
+
+# ....................... #
+
+
+def review_wait_running(info: PrInfo, config: RunnerConfig, *, now: datetime | None = None) -> bool:
+    """Whether this pull request's head is still inside its review wait
+    (S-0097/D-4): the bots configured to review it have not all reviewed the
+    head, and its `review_wait` minutes have not passed since it was pushed.
+
+    False when there is no bot to wait for, when the pull request is still a
+    draft — the bots review what leaves draft, and a draft has not been
+    published — and when the forge reads no push time to bound the wait by."""
+
+    bots = set(config.threads.bots)
+
+    if not bots or info.draft:
+        return False
+
+    if bots <= set(info.reviewers):
+        return False
+
+    if info.head_pushed_at is None:
+        return False
+
+    moment = now or datetime.now(UTC)
+    elapsed = (moment - info.head_pushed_at).total_seconds() / 60
+
+    return elapsed < config.threads.review_wait
+
+
+# ....................... #
+
+
+def review_wait_owing(
+    root: Path, config: RunnerConfig, forge: ThreadForge, *, now: datetime | None = None
+) -> bool:
+    """Whether any open document pull request is still inside its review wait
+    (S-0097/D-4): the reason a night does not drain while the bots are still
+    reading what its lane published."""
+
+    for branch in sorted(_open_documents(root)):
+        info = forge.pr_for_branch(branch)
+
+        if info is None or info.state != "open":
+            continue
+
+        if review_wait_running(info, config, now=now):
+            return True
+
+    return False
 
 
 # ....................... #
@@ -930,19 +1135,46 @@ def phased(root: Path, branch: str, path: str) -> bool:
 # ....................... #
 
 
+def _row_findings(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every finding a round's record carries (S-0097/D-5). A round written
+    before a wave could carry more than one finding has only the top-level
+    anchor, so that shape is read back as a one-finding list."""
+
+    findings = row.get("findings")
+
+    if isinstance(findings, list) and findings:
+        return [finding for finding in findings if isinstance(finding, dict)]
+
+    return [
+        {
+            "path": row.get("path"),
+            "line": row.get("line"),
+            "end_line": row.get("end_line"),
+            "threads": row.get("threads") or [],
+        }
+    ]
+
+
+# ....................... #
+
+
 def _same_anchor(finding: Finding, row: dict[str, Any]) -> bool:
-    """Whether this finding is the one that record already answered — the
+    """Whether this finding is one that record already answered — the
     grouping key over again (S-0084/D-14). A finding whose anchor moved because
     the fix moved the code reads as new, which is the generous reading and the
-    cheap error."""
+    cheap error. A round carrying a wave matches on any of its findings."""
 
-    if row.get("path") != finding.path:
-        return False
+    for one in _row_findings(row):
+        if one.get("path") != finding.path:
+            continue
 
-    if finding.line is None or row.get("line") is None:
-        return True
+        if finding.line is None or one.get("line") is None:
+            return True
 
-    return abs(int(row["line"]) - finding.line) <= WINDOW
+        if abs(int(one["line"]) - finding.line) <= WINDOW:
+            return True
+
+    return False
 
 
 # ....................... #
@@ -1080,8 +1312,19 @@ def answer_round(
     # three findings on one line earned three identical comments on
     # bloomery #160.
     commented = False
+    # Each thread is answered against the finding that raised it (S-0097/D-5):
+    # a round carries a wave, and the anchor on the answer's record is the
+    # thread's own.
+    anchors: dict[str, tuple[Any, Any, Any]] = {}
+
+    for one in _row_findings(row):
+        for ident in one.get("threads") or []:
+            anchors[str(ident)] = (one.get("path"), one.get("line"), one.get("end_line"))
 
     for thread_id in row.get("threads", []):
+        path, line, end_line = anchors.get(
+            str(thread_id), (row.get("path"), row.get("line"), row.get("end_line"))
+        )
         # A recorded finding was never on the forge, so it is answered on the
         # stream and said once as a comment on the pull request (S-0086/D-5).
         if str(thread_id).startswith(RECORD):
@@ -1092,9 +1335,9 @@ def answer_round(
                     "branch": branch,
                     "task": task_id,
                     "finding": str(thread_id),
-                    "path": row.get("path"),
-                    "line": row.get("line"),
-                    "end_line": row.get("end_line"),
+                    "path": path,
+                    "line": line,
+                    "end_line": end_line,
                     "sha": _landing_sha(rows, task_id),
                     "body": body,
                 },
@@ -1128,9 +1371,9 @@ def answer_round(
                 "branch": branch,
                 "task": task_id,
                 "thread": thread.id,
-                "path": row.get("path"),
-                "line": row.get("line"),
-                "end_line": row.get("end_line"),
+                "path": path,
+                "line": line,
+                "end_line": end_line,
                 "resolved": bot,
             },
         )
@@ -1242,10 +1485,15 @@ def review_thread_leg(
 
         requeued += requeue_underspecified(root, rows, branch)
 
-        for finding in group_findings(raised):
-            if len(minted) >= config.threads.rounds_per_pass:
-                break
+        if review_wait_running(info, config):
+            # S-0097/D-4: the wave has not arrived yet. What landed is still
+            # answered above; nothing new is minted until the bots have read
+            # the head or the wait has run out.
+            continue
 
+        claims: list[Claim] = []
+
+        for finding in group_findings(raised):
             # A thread on a file the engine writes is answered with the fixed
             # reply, never composed and never escalated (S-0097/D-2).
             if engine_written(finding.path):
@@ -1259,19 +1507,14 @@ def review_thread_leg(
             # thread does (S-0086/D-4).
             if from_record and not phased(root, branch, finding.path):
                 reason = f"{finding.path} lies outside the document's phasing scope"
-                engine_event(
+                _refuse(
                     root,
-                    "lane_thread_refused",
-                    {
-                        "branch": branch,
-                        "pr": info.number,
-                        "path": finding.path,
-                        "threads": list(finding.ids),
-                        "comments": {thread.id: len(thread.comments) for thread in finding.threads},
-                        "reason": reason,
-                    },
+                    branch,
+                    info,
+                    finding,
+                    reason,
+                    f"a recorded review finding was not composable: {reason}",
                 )
-                _escalate(root, branch, f"a recorded review finding was not composable: {reason}")
                 refused.append(reason)
                 continue
 
@@ -1297,61 +1540,71 @@ def review_thread_leg(
                 # answered when it lands, not dispatched a second time.
                 continue
 
-            try:
-                files = sorted({f for ident in from_record for f in touched.get(ident, [])})
-                reviews = {ident[len(RECORD) :].rsplit(":", 1)[0] for ident in from_record}
-                targets = sorted(
-                    {
-                        str(row.get("target") or "")
-                        for row in rows
-                        if row.get("kind") == "review" and row.get("task_id") in reviews
-                    }
-                    - {""}
-                )
-                round_ = compose_round(
+            # The injection scan runs before a round is composed, so one bad
+            # thread refuses only its own finding and not the wave it would
+            # otherwise share (S-0084/D-9, S-0097/D-5).
+            reason = _injection(finding)
+
+            if reason:
+                _refuse(
                     root,
                     branch,
                     info,
                     finding,
-                    files=files,
-                    phases=_target_phases(root, rows, targets),
+                    reason,
+                    f"a review thread was refused as injection: {reason}",
                 )
-
-            except InjectionRefused as exc:
-                engine_event(
-                    root,
-                    "lane_thread_refused",
-                    {
-                        "branch": branch,
-                        "pr": info.number,
-                        "path": finding.path,
-                        "threads": list(finding.ids),
-                        "comments": {thread.id: len(thread.comments) for thread in finding.threads},
-                        "reason": str(exc),
-                    },
-                )
-                _escalate(root, branch, f"a review thread was refused as injection: {exc}")
-                refused.append(str(exc))
+                refused.append(reason)
                 continue
 
-            except FenceRefused as exc:
-                engine_event(
-                    root,
-                    "lane_thread_refused",
-                    {
-                        "branch": branch,
-                        "pr": info.number,
-                        "path": finding.path,
-                        "threads": list(finding.ids),
-                        "comments": {thread.id: len(thread.comments) for thread in finding.threads},
-                        "reason": str(exc),
-                    },
-                )
-                _escalate(root, branch, f"a review thread could close its own fence: {exc}")
-                refused.append(str(exc))
-                continue
+            files = sorted({f for ident in from_record for f in touched.get(ident, [])})
+            reviews = {ident[len(RECORD) :].rsplit(":", 1)[0] for ident in from_record}
+            targets = sorted(
+                {
+                    str(row.get("target") or "")
+                    for row in rows
+                    if row.get("kind") == "review" and row.get("task_id") in reviews
+                }
+                - {""}
+            )
+            claims.append(Claim(finding, tuple(files), tuple(_target_phases(root, rows, targets))))
 
-            minted.append(mint_round(root, config, round_))
+        # The head's findings minted together as rounds of file-disjoint waves
+        # (S-0097/D-5), `rounds_per_pass` still bounding what this pass mints.
+        for wave in batch_claims(claims, config.threads.findings_per_round):
+            if len(minted) >= config.threads.rounds_per_pass:
+                break
+
+            try:
+                composed = [compose_wave(root, branch, info, wave)]
+
+            except FenceRefused:
+                # A body that could close its own fence aborts the whole wave,
+                # so its findings are composed one at a time: only the
+                # offending one is refused and the rest still mint
+                # (S-0084/D-8).
+                composed = []
+
+                for claim in wave:
+                    try:
+                        composed.append(compose_wave(root, branch, info, (claim,)))
+
+                    except (InjectionRefused, FenceRefused) as one:
+                        _refuse(
+                            root,
+                            branch,
+                            info,
+                            claim.finding,
+                            str(one),
+                            f"a review thread could close its own fence: {one}",
+                        )
+                        refused.append(str(one))
+
+            for round_ in composed:
+                if len(minted) >= config.threads.rounds_per_pass:
+                    break
+
+                minted.append(mint_round(root, config, round_))
 
     parts: list[str] = []
 
