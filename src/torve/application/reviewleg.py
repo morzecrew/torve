@@ -924,12 +924,17 @@ def review_wait_owing(
 def approve_due(info: PrInfo, config: RunnerConfig) -> bool:
     """Whether this pull request's head earns the `threads.approve_comment`
     (S-0097/D-7): a comment is configured, a bot is configured to have opened
-    threads, every thread a bot opened on the head is resolved — the forge
-    reports only unresolved threads — and the head's checks are green. The
-    forge's keyed comment makes the post land once per head; this is only
-    whether it is due."""
+    threads, the head's review wait is over (S-0097/D-4), every thread a bot
+    opened on the head is resolved — the forge reports only unresolved
+    threads — and the head's checks are green. Checks can go green before a
+    bot has read the head, and an approval asked for then is one for a review
+    that has not happened. The forge's keyed comment makes the post land once
+    per head; this is only whether it is due."""
 
     if not config.threads.approve_comment or not config.threads.bots:
+        return False
+
+    if review_wait_running(info, config):
         return False
 
     if any(thread.author in set(config.threads.bots) for thread in info.threads):

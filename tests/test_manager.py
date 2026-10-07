@@ -1525,6 +1525,13 @@ def test_a_requeued_phase_task_takes_its_contract_from_the_remotes_document_bran
     assert load_task(layout.task_file(root, "T-0001")).scope.allow == ["src/widget/**", "pages/**"]
     assert load_task(layout.task_file(root, "T-0002")).scope.allow == ["src/frob/**"]
 
+    # The lane reads a resolution off the stream, where a swept run leaves none
+    # on the host (S-0097/D-6).
+    from torve.application.projections import stream_rows
+
+    (row,) = [r for r in stream_rows(root) if r.get("event") == "manager_resolved"]
+    assert (row["task"], row["resolution"]) == ("T-0001", "requeued")
+
 
 def _escalated_state(root, task_id):
     from torve.application.runstate import RunState

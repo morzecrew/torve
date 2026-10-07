@@ -936,30 +936,42 @@ def _battery_target(root: Path, document: str) -> str | None:
 def _wave_outstanding(root: Path, document: str) -> set[str]:
     """The rounds a review leg minted for *document* that have not yet landed
     on its branch (S-0097/D-6): queued, running or waiting to land. A round
-    that landed is in the branch's ledger, and one that escalated or was
-    abandoned is not outstanding — and so releases the hold."""
+    that landed is in the branch's ledger, and one that escalated or that a
+    person resolved is not outstanding — and so releases the hold.
+
+    A round with no run state is one no worker has claimed yet, which is
+    queued and outstanding: the runner writes the state at dispatch, not at
+    the mint. A round a person abandoned and `reap --escalated` swept also
+    has none, so the resolution is read off the stream rather than the
+    host."""
 
     from torve.application.projections import stream_rows
 
     entry = _document_ledger(root).get(document)
     landed = set(entry.tasks) | set(entry.earlier) if entry is not None else set()
+    rows = stream_rows(root)
+    resolved = {
+        str(row.get("task") or "")
+        for row in rows
+        if row.get("event") == "manager_resolved" and row.get("resolution") != "requeued"
+    }
     outstanding: set[str] = set()
 
-    for row in stream_rows(root):
+    for row in rows:
         if row.get("event") != "lane_review_task" or row.get("branch") != document:
             continue
 
         task = str(row.get("task") or "")
 
-        if not task or task in landed or task in outstanding:
+        if not task or task in landed or task in resolved or task in outstanding:
             continue
 
         path = naming.state_file(root, task)
 
-        if not path.is_file():
-            continue
-
-        if RunState.load(path).state in (TaskState.ESCALATED, TaskState.ABANDONED):
+        if path.is_file() and RunState.load(path).state in (
+            TaskState.ESCALATED,
+            TaskState.ABANDONED,
+        ):
             continue
 
         outstanding.add(task)

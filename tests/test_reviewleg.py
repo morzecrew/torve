@@ -1302,6 +1302,18 @@ def test_a_head_that_is_not_green_earns_no_approve_comment(seeded):
     assert forge.commented == []
 
 
+def test_a_green_head_no_bot_has_read_yet_earns_no_approve_comment(seeded):
+    """Checks go green in minutes and a bot reviews in its own time: inside the
+    head's review wait no bot has read it, so an approval asked for now would
+    be for a review that has not happened (S-0097/D-4, S-0097/D-7)."""
+    open_document(seeded.root)
+    forge = StubForge(pr(checks="success", reviewers=(), pushed=datetime.now(UTC)))
+
+    review_thread_leg(seeded.root, config(approve=APPROVE), forge, lambda _t: False)
+
+    assert forge.commented == []
+
+
 def test_a_persons_unresolved_thread_does_not_hold_the_approve_comment(seeded):
     """Only a bot's threads gate the approval (S-0097/D-7): a person's open
     thread is replied to and left, not made to hold the head's."""
