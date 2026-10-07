@@ -22,7 +22,7 @@ are not backported.
 
 Torve runs coding agents, which execute whatever code a model chose, on the
 operator's machine. The operator's credentials sit close by. This section
-says what 0.1 defends and what it does not. Read both halves: a reader who
+says what 0.2 defends and what it does not. Read both halves: a reader who
 believes a boundary is stronger than it is ends up worse off than one who
 knows it is absent.
 
