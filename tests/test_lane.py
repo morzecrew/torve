@@ -2331,3 +2331,125 @@ def test_without_rounds_a_red_battery_escalates_at_once_and_records_no_finding(
     process_lane(lane_repo, GitLane(), publish=publish, unit="document")
     assert calls == [None]
     assert _battery_findings(lane_repo) == []
+
+
+# A wave is published once (S-0097/D-6).
+
+
+def _round(
+    root: Path,
+    task_id: str,
+    document: str,
+    spec: str,
+    filename: str,
+    content: str,
+    state: TaskState = TaskState.READY,
+) -> None:
+    """A round the review leg minted: a task branch off the document branch,
+    its contract naming the document, its `lane_review_task` record and its
+    run state — the shape the lane reads a head's wave off."""
+    from torve.application.telemetry import engine_event
+
+    git(root, "checkout", "-q", "-b", naming.branch(task_id), document)
+    (root / filename).write_text(content, encoding="utf-8")
+    # Only the round's own file: the contracts of tasks already on `main` are
+    # untracked, and `add -A` would carry them onto the round's branch and off
+    # the checkout.
+    git(root, "add", filename)
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", f"round ({task_id})")
+    git(root, "checkout", "-q", "main")
+    _contract(root, task_id, spec)
+    engine_event(root, "lane_review_task", {"branch": document, "task": task_id, "path": filename})
+    run = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    run.state = state
+    run.save()
+
+
+def test_a_wave_of_rounds_costs_one_push(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    spec = "S-0931"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7501": "one.py"}, published)
+    assert published == [("T-7501", document)]
+
+    _round(lane_repo, "T-7502", document, spec, "two.py", "# T-7502\n")
+    _round(lane_repo, "T-7503", document, spec, "three.py", "# T-7503\n", state=TaskState.QUEUED)
+
+    first = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    # The ready round landed on the branch; the queued one held the push.
+    held = [r for r in first if r.landed and "held for the wave" in r.detail]
+    assert [r.task for r in held] == ["T-7502"]
+    assert published == [("T-7501", document)]
+    assert git(lane_repo, "show", f"{document}:two.py") == "# T-7502"
+    assert "two.py" not in git(lane_repo, "ls-tree", "--name-only", f"origin/{document}")
+
+    # The queued round finishes: the landing that leaves none outstanding
+    # publishes, and one push carries the whole wave.
+    state = RunState.load(naming.state_file(lane_repo, "T-7503"))
+    state.state = TaskState.READY
+    state.save()
+
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    assert published == [("T-7501", document), ("T-7503", document)]
+    assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7502"
+    assert git(lane_repo, "show", f"origin/{document}:three.py") == "# T-7503"
+
+
+def test_a_round_that_escalated_does_not_hold_the_wave(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    spec = "S-0932"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7511": "one.py"}, published)
+    _round(lane_repo, "T-7512", document, spec, "two.py", "# T-7512\n")
+    _round(lane_repo, "T-7513", document, spec, "three.py", "# T-7513\n", state=TaskState.ESCALATED)
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    # The escalated round is not outstanding, so the ready round's landing is
+    # the one that leaves none and publishes at once.
+    assert not [r for r in results if "held for the wave" in r.detail]
+    assert published == [("T-7511", document), ("T-7512", document)]
+    assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7512"
+
+
+def test_an_open_document_is_not_republished_while_the_wave_runs(lane_repo, tmp_path):
+    published: list[tuple[str, str]] = []
+    spec = "S-0933"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7521": "one.py"}, published)
+    _round(lane_repo, "T-7522", document, spec, "two.py", "# T-7522\n")
+    _round(lane_repo, "T-7523", document, spec, "three.py", "# T-7523\n", state=TaskState.QUEUED)
+
+    # The base moves: an open document would ordinarily rebase and republish.
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "main moves")
+    git(lane_repo, "push", "-q", "origin", "main")
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=31, state="open"), []),
+        unit="document",
+    )
+
+    # The read-back left the held branch alone: no rebase, no republish, and
+    # the held round's commit is still on it.
+    assert published == [("T-7521", document)]
+    assert not [r for r in results if r.task == document and r.action == "pull request"]
+    assert git(lane_repo, "show", f"{document}:two.py") == "# T-7522"
