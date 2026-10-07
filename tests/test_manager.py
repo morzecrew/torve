@@ -1067,6 +1067,59 @@ def test_a_night_over_an_empty_board_is_refused_before_the_first_pass(tmp_path):
     assert "night refused" in result.output
 
 
+def test_a_night_imports_the_repositorys_contracts_before_it_opens(tmp_path, monkeypatch):
+    """S-0096/D-3: `serve --night` runs one import pass — the scan's `mint`
+    over the repository's contracts — before it opens, so the queue the open
+    reads is the queue it will work. Observed at the open rather than after
+    it, which is the only place the ordering is visible: the board already
+    carries the contract the repository minted, never seen by this partition
+    before."""
+
+    import yaml
+
+    from torve.application import residency
+    from torve.application.manager import project
+    from torve.cli.manager import _serve
+
+    contract = tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        yaml.safe_dump(
+            {"id": "T-1", "decisions": [], "scope": {"allow": ["src/**"], "deny": []}}
+        ),
+        encoding="utf-8",
+    )
+
+    seen = {}
+
+    class Opened(Exception):
+        pass
+
+    async def spy(log, partition, **kwargs):
+        seen["board"] = project(await log.since(partition=partition))
+        raise Opened
+
+    monkeypatch.setattr(residency, "open_night", spy)
+
+    with pytest.raises(Opened):
+        asyncio.run(
+            _serve(
+                None,
+                PARTITION,
+                root=tmp_path,
+                config_path=None,
+                worker="w-1",
+                passes=1,
+                interval=0,
+                only=None,
+                dispatch=False,
+                night=True,
+            )
+        )
+
+    assert "T-1" in seen["board"].tasks
+
+
 def test_a_serve_without_the_switch_is_the_pass_it_always_was(tmp_path):
     """The night is opt-in: the same empty board is an idle pass and a
     success, which is what it was before the switch existed."""
