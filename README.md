@@ -22,9 +22,10 @@ Three ideas carry the design:
 
 ## Status
 
-0.1 is an alpha with one operator and one adopter so far. It has been run
-on Linux with Docker, with Claude Code as the agent seat. The other seats'
-images exist and have run far less. Nothing is promised across minor releases yet:
+0.2 is an alpha with one operator and one adopter so far. It has been run
+on Linux with Docker, with Claude Code as the agent seat, driving Claude Opus
+and, through ModelStudio, deepseek-v4.1-flash. The other seats' images exist
+and have run far less. Nothing is promised across minor releases yet:
 [Stability](https://morzecrew.github.io/torve/latest/reference/stability/)
 says what each surface does and does not promise. Report security issues as
 [SECURITY.md](SECURITY.md) says.

@@ -7,4 +7,4 @@ nothing here imports them, not because a lazy front door defers them
 (S-0015/the-front-door, S-0015/A-2).
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
