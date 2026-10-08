@@ -1226,7 +1226,11 @@ amendment <code>A-n</code> and a task <code>T-NNNN</code> are never reused once 
    and only where none exists.</li>
 <li>Commit what <code>torve init</code> changed, so every later run and every CI job
    reads the schemas the installed engine wrote.</li>
-<li>Run <code>torve doctor</code> and read the red lines before running anything.</li>
+<li>Run <code>torve doctor</code> and read the red lines before running anything. A
+   red line for a sandbox image means the image and the definition copied
+   under <code>.torve/sandbox/</code> no longer agree: copy <code>sandboxes/&lt;name&gt;</code> from
+   the release into <code>.torve/sandbox/</code> again, and rebuild the image from a
+   checkout at that release (<code>just image &lt;name&gt;</code>).</li>
 <li>When the release's Upgrade note names a record migration, run
    <code>torve migrate --all</code> against the store.</li>
 </ol>
