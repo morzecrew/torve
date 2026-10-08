@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0499
+phase: 3
+base: 1f31edd74a3a4ab6666196364bd3c4e258e3d1cb
+commit: 0e2326c79968791ad108d75abe172147fcca83c9
+at: '2026-10-08T11:03:37Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+entries:
+  - decision: S-0093/D-4
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-08T11:00:57Z'
+    claim: >-
+      publishing the completing landing removes the re-land path S-0093/D-4's 'answers
+      its finding without one' rerun relied on: the completing candidate now reads
+      already landed, so nothing calls _land_document to rerun the battery at an unchanged
+      tip. The round's own landing at a later tip is the surviving rerun, which S-0098/D-4
+      names; an answered round that changes nothing no longer clears a red battery.
+    evidence: >-
+      src/torve/application/lane.py:2166 — the completing candidate reads "already
+      landed" once its landing is published, so no second _land_document runs to rerun
+      an answered-without-change battery
+    action: departed
