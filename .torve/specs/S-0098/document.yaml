@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0098
+title: A served pass works only what it can finish
+kind: design
+change:
+  type: fix
+  scope: manager
+status: draft
+implementation: none
+depends_on: [S-0093, S-0096]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The bloomery night of 2026-10-07 lost three attempts to work a served pass started but could not finish. `serve --task T-0279` claimed T-0278, because the name filters the mint and never the claim. T-0278 had already landed on its document branch, but after its worker was killed the lease expired and the reclaim put it back in the queue. And review round T-0283 was cut while its sibling T-0279 waited out the quiet window, so its acceptance failed on what only T-0279 fixed, and its retries ran inside one dispatch while the lane could not land T-0279 between them. A red completion battery does the same to its own round: it resets the branch to before the completing landing, so the round is cut without it.
+
+  `--task` narrows the claim as well as the mint. A lease that expires on a task whose landing the repository already proves records the landing instead of a requeue. A task waits while a sibling of its document is ready and not yet landed. And a red completion battery publishes the completing landing with the pull request kept as a draft, so everything after it works on a branch that carries the whole document.
+motivation: >-
+  Filed as operator sources in #43 on 2026-10-07 (serve-task-filters-the-mint-not-the-claim,
+  a-killed-worker-leaves-a-landed-task-queued, a-round-cut-before-its-sibling-lands-cannot-go-green).
+  Each cost a hand repair on bloomery's S-0090 night; the owner asked for them on
+  2026-10-08.
+current_state: >-
+  `residency.once` filters `contracts(root)` by `only` before the mint and then calls
+  `worker.once(partition)`, whose `claim` takes `dispatchable(board)` in id order.
+  `residency.reclaim` releases every expired lease back to queued with no look at
+  landings, while `mint` restates a landing only for a row that has never run (S-0049/A-2).
+  `manager.dispatchable` checks dependencies and scope overlap, not whether a sibling
+  of the same document is ready. `lane._land_document` resets the document branch
+  to its previous tip when the completion battery is red, because `cli/merge.py`'s
+  publisher sets the pull request's draft flag from completeness alone.
+goals: |-
+  - A named task is the only task a pass with `--task` claims.
+  - A task whose work is on its document branch is never offered to a worker again by a lease expiring.
+  - No task is cut from a document branch a ready sibling is about to move.
+  - A completion battery's round works on the complete document.
+non_goals: |-
+  - Overruling a person: a task a person requeued is run again even if it landed (S-0049/A-2).
+  - Ending retries inside a dispatch; D-3 keeps a round from being cut early instead.
+  - The worker that hung after a review was recorded on 2026-10-07; its cause is not known.
+design:
+  - key: the-claim
+    md: >-
+      `once` passes `only` to `worker.once`, and `claim` takes the named task or nothing.
+      A named task that is not dispatchable yet leaves the pass idle, which is what
+      an operator naming it expects.
+  - key: the-reclaim
+    md: >-
+      `reclaim` takes the same `landed` lookup the mint uses. For an expired lease
+      on a task whose landing is proven (a lane landing or a landing file on the base),
+      it records the landing at that sha instead of a release. A requeue a person
+      writes through `manager resolve` is untouched, because it is not a lease expiring.
+  - key: the-sibling
+    md: >-
+      `dispatchable` skips a task while another task naming the same document is `ready`
+      with no landing. The lane runs first in every pass, so the wait lasts until
+      the sibling's quiet window ends and it lands, one idle pass later.
+  - key: the-battery
+    md: >-
+      On a red completion battery the lane publishes the completing landing instead
+      of resetting the ref, and the publisher keeps the pull request a draft while
+      the branch tip carries a recorded red. The round S-0093/D-3 mints, or the escalation
+      S-0096/D-2 raises, then works on a branch with every phase on it. A later landing
+      whose battery is green publishes the pull request ready.
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: ''
+alternatives:
+  - option: >-
+      End a dispatch's retries when a red gate's failures sit outside the task's scope.
+    rejected_because: >-
+      It needs the runner to judge which failures a task can fix; D-3 keeps the task
+      from being cut early instead.
+  - option: >-
+      Restate every landing at claim time, overruling the board.
+    rejected_because: >-
+      It would overrule a person who requeued a landed task on purpose (S-0049/A-2).
+questions:
+  - id: Q-1
+    text: >-
+      D-3 also holds back a document's other tasks while a sibling waits on something
+      slower than the quiet window, such as `require_ci`. Should the wait be bounded?
+      Lean: no bound; a sibling that cannot land escalates out of `ready`, which ends
+      the wait.

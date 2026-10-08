@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `manager serve --task X` claims only `X`: the name filters the claim as it filters
+      the mint, and a pass whose named task is not dispatchable claims nothing.
+    paths: [src/torve/application/residency.py, src/torve/application/worker.py]
+    consequence: >-
+      an operator who names a task to step around a bad row is never served the bad
+      row
+    rationale: >-
+      `--task` is documented as running only that contract, and bloomery's night claimed
+      T-0278 under `--task T-0279`.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A lease that expires on a task whose landing the repository proves records that
+      landing instead of releasing the task to the queue.
+    paths: [src/torve/application/residency.py]
+    consequence: >-
+      a killed worker's finished task is never cut again; a person's requeue still
+      is
+    rationale: >-
+      The reclaim is the one step that put a landed task back in the queue; the mint
+      already restates landings for rows that never ran (S-0049/A-2).
+    cites: [S-0049/A-2]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A task is not dispatchable while another task naming the same document is `ready`
+      and has not landed.
+    paths: [src/torve/application/manager.py]
+    consequence: >-
+      no task is cut from a document branch that a ready sibling is about to move
+    rationale: >-
+      Waiting one pass for the lane is cheaper than three attempts that cannot pass
+      and a hand repair.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A red completion battery publishes the completing landing with the document's
+      pull request kept a draft, as S-0093/D-2 decided, instead of withholding it;
+      the draft holds while the branch tip carries a recorded red, and a later green
+      battery publishes it ready.
+    paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
+    consequence: >-
+      the round or the person that answers a red battery works on the whole document,
+      and a draft is never merged as complete on a red suite
+    rationale: >-
+      S-0093/D-2 already decided the draft; the lane withheld the landing instead,
+      which kept the pull request honest and cut every round about the red without
+      the work the red was about.
+    cites: [S-0093/D-2]
