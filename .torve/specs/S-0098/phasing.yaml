@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A served pass claims what it was asked for, and a landed task stays landed
+    intent: >-
+      `once` passes `only` to the claim; `reclaim` records a proven landing instead
+      of a release. Tests: a pass with `--task` naming a blocked task claims nothing
+      while another is queued; an expired lease on a task with a lane landing records
+      the landing; one with no landing is released as before. Settles D-1 and D-2.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/application/worker.py
+      - tests/test_residency.py
+      - tests/test_worker.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_residency.py tests/test_worker.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: A task waits for its ready sibling to land
+    intent: >-
+      `dispatchable` skips a task while a sibling of its document is ready and unlanded.
+      Tests: a round with a ready phase sibling is not dispatchable, and is once the
+      sibling lands; tasks of other documents are unaffected. Settles D-3.
+    scope:
+      - src/torve/application/manager.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_manager_e2e.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: >-
+      A red completion battery publishes the document as a draft
+    intent: >-
+      On a red completion battery the lane publishes the completing landing; the publisher
+      keeps the pull request a draft while the tip carries a recorded red, and a green
+      battery at a later tip publishes it ready. Tests: the red completing landing
+      reaches the remote branch and the pull request stays draft; the round is cut
+      from a tip carrying the completing task; a green rerun turns it ready. Settles
+      D-4.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_cli.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      The operating guide says when a pass waits and what a red battery publishes
+    intent: '`pages/docs/operating.md` follows D-1 to D-4.'
+    scope: [pages/docs/operating.md]
+    acceptance:
+      - uv run torve spec check
+    depends_on:
+      - 3
+    character: routine
