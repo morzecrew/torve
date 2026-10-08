@@ -1060,6 +1060,27 @@ with its holder, its age and when its lease expires, and counts the queued
 tasks waiting on dependencies and the ones waiting on scope overlap: what
 the operator is waiting on, and until when.
 
+**A claim whose lease expires is not always a task to run again.** The
+manager reclaims a claim whose holder went silent past its lease
+(S-0044/D-6), and where the repository proves the task's landing — a lane
+landing, or a landing file on the base — it records that landing at its sha
+instead of releasing the task to the queue (S-0098/D-2): a killed worker's
+finished task is not cut a second time, and the document branch it already
+moved is not reset. A task with no landing proven is released as before,
+and a person's requeue through `torve manager resolve` is untouched — that
+is not a lease expiring, and a landed task a person requeued on purpose
+still runs (S-0049/A-2).
+
+**A task waits for its document's ready sibling to land.** A task is not
+dispatchable while another task naming the same document is `ready` with no
+landing recorded (S-0098/D-3): the lane runs first in every pass, so the
+wait lasts until the sibling's quiet window ends and it lands, one idle
+pass later. No task is cut from a document branch a ready sibling is about
+to move — which is what kept a review round's acceptance failing on a fix
+its sibling had not landed yet. The wait is not bounded: a sibling that
+cannot land escalates out of `ready`, which ends it, and tasks of other
+documents are unaffected.
+
 **Phase after phase, unattended.** Under `pull_request` with `unit: document` a
 task's worktree is cut from the remote's copy of the document branch when that
 branch is on the remote, and from the remote's `main` after a fetch when it is
@@ -1101,12 +1122,15 @@ re-runs and a second setting would let them disagree (S-0093/D-5). It runs
 once per completion: a landing that leaves phases still to come runs no
 battery at all.
 
-Green, the pull request turns ready. Red, the landing is withheld: the branch
-goes back to where the last landed phase left it, the pull request stays the
-draft its earlier phases opened, and `lane_document_gates_red` records the
-task, the tip and the failing summary — a person reading the draft sees why it
-is one (S-0093/D-2). Where the leg reads recorded findings, the red is also
-written to the stream as a review finding
+Green, the pull request turns ready. Red, the completing landing is
+published all the same: the branch tip carries it, and the document's pull
+request stays the draft its earlier phases opened, held there while the tip
+carries a recorded red (S-0093/D-2, S-0098/D-4). `lane_document_gates_red`
+records the task, the tip and the failing summary, so a person reading the
+draft sees why it is one; and the round minted about the red is cut from a
+branch carrying every phase, including the work the red was about, rather
+than from a branch reset to before it. Where the leg reads recorded
+findings, the red is also written to the stream as a review finding
 on the last landed task: severity major, the failing gates and tests as the
 claim, the battery's command as the evidence — exactly the shape the thread
 leg's `record` source mints a round from (S-0093/D-3, S-0086/D-4). A
@@ -1115,7 +1139,7 @@ landing waits, reported as `awaiting round`, rather than re-running the suite
 every pass; when the round lands a change, or answers the finding without one,
 the battery runs again, and a green rerun turns the pull request ready at
 last — a flaky test clears itself there, and a break the round can fix is
-fixed (S-0093/D-4). A second red reaches a person: the withheld landing
+fixed (S-0093/D-4). A second red reaches a person: the red landing
 escalates as a blocker finding, leaves the lane, and no third battery runs. A
 document with no landed task a round could be about — a one-phase document
 whose first landing turns red — escalates on that first red instead. And the
@@ -1211,10 +1235,14 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
   the repository keeps its contracts on the record and has no root log — a
   round that changes nothing and says why lands as its execution record alone,
   and that is not an empty diff.
-- **`serve --task` is the whole pass, not only the claim.** A worker started
-  with `--task T-0028` imports, lands and dispatches that contract and no
-  other, so a night serving one round leaves every other green candidate on
-  the board for `torve merge` or the next unfiltered pass.
+- **`serve --task` is the whole pass, and the name filters the claim as it
+  filters the mint.** A worker started with `--task T-0028` imports, lands and
+  dispatches that contract and no other (S-0098/D-1), so a night serving one
+  round leaves every other green candidate on the board for `torve merge` or
+  the next unfiltered pass. When the named task is not dispatchable — a
+  dependency unlanded, its scope in flight, a sibling of its document ready —
+  the pass claims nothing rather than falling back to the queue: an operator
+  who names a task to step around a bad row is never served the bad row.
 - **One round per finding.** A finding raised again after a landed reply
   already answered it escalates to you instead of being dispatched a second
   time (S-0084/D-14), so a night cannot spend itself arguing with a bot at the
