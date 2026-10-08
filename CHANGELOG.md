@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A red completion battery publishes the document's last phase instead of withholding
+  it: the branch carries every phase, and the pull request stays a draft while its tip
+  carries the recorded red. The round that answers the red, or the person it escalates
+  to, works on the whole document, and a later green battery turns the pull request
+  ready.
+
+### Fixed
+
+- `torve manager serve --task X` claims only `X`. The name used to filter only the
+  contracts a pass imports, so a pass named for one task could claim another.
+
+- A task whose lease expires after its work has landed is recorded as landed instead of
+  going back to the queue, so a killed worker's finished task is not run a second time.
+  A task a person requeues still runs. A served pass now sees the landings its lane made
+  during the night, not only those there when it started.
+
+- A task waits while another task of its document is ready and not yet landed, so no
+  task, a review round especially, is cut from a branch its sibling is about to move.
+
 ## [0.2.0] - 2026-10-07
 
 ### Added
