@@ -349,6 +349,79 @@ def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
     run(scenario)
 
 
+def test_a_task_waits_while_a_ready_sibling_of_its_document_is_unlanded():
+    """S-0098/D-3: no task is cut from a document branch a ready sibling is
+    about to move. A round waits while another task naming the same document
+    sits `ready` with no landing recorded, dispatches once that sibling lands,
+    and a task of another document is untouched throughout."""
+
+    def contract(task_id: str, spec: str | None) -> Task:
+        return Task(
+            id=task_id,
+            spec=spec,
+            decisions=[],
+            scope=Scope(allow=[f"src/{task_id}/**"], deny=[]),
+        )
+
+    def view(task_id, spec, *, state=TaskState.QUEUED, landed_sha=None) -> TaskView:
+        return TaskView(
+            task_id=task_id,
+            partition=PARTITION,
+            state=state,
+            landed_sha=landed_sha,
+            contract=contract(task_id, spec),
+        )
+
+    board = Board(
+        tasks={
+            "T-0001": view("T-0001", "S-0090"),  # the round, waiting
+            "T-0002": view("T-0002", "S-0090", state=TaskState.READY),  # ready, unlanded
+            "T-0003": view("T-0003", "S-0091"),  # a task of another document
+        }
+    )
+
+    # The round waits for its document's ready sibling; the other document
+    # does not.
+    assert dispatchable(board, PARTITION) == ["T-0003"]
+
+    landed = Board(
+        tasks={
+            **board.tasks,
+            "T-0002": view("T-0002", "S-0090", state=TaskState.READY, landed_sha="a" * 40),
+        }
+    )
+
+    # The sibling landed, so the round is cut now.
+    assert dispatchable(landed, PARTITION) == ["T-0001", "T-0003"]
+
+
+def test_a_document_less_task_waits_for_no_sibling():
+    """An operator's ask or a standing job names no document (S-0059/D-1), so
+    no document's readiness holds it (S-0098/D-3)."""
+
+    def view(task_id, *, state=TaskState.QUEUED) -> TaskView:
+        return TaskView(
+            task_id=task_id,
+            partition=PARTITION,
+            state=state,
+            contract=Task(
+                id=task_id,
+                spec=None,
+                decisions=[],
+                scope=Scope(allow=["src/**"], deny=[]),
+            ),
+        )
+
+    board = Board(
+        tasks={
+            "T-0001": view("T-0001"),
+            "T-0002": view("T-0002", state=TaskState.READY),
+        }
+    )
+
+    assert dispatchable(board, PARTITION) == ["T-0001"]
+
+
 def test_partitions_do_not_see_each_others_work():
     async def scenario(log):
         await mint(log, "T-1", partition=PARTITION)
@@ -1621,6 +1694,25 @@ def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, mon
 # The lane leg's rounds (S-0096/D-2): the lane mints a red completion
 # battery's round only where the review leg reads recorded findings, so the
 # caller derives `rounds` from the threads configuration.
+
+
+def test_the_landing_leg_refreshes_the_landings_the_pass_reads(tmp_path):
+    """S-0098/D-2: a serve reads its landings once, and the lane lands onto
+    document branches for hours after. The leg re-reads them, so a reclaim in
+    the same pass as a landing records it instead of releasing the task."""
+    import asyncio
+
+    from torve.application.telemetry import engine_event
+    from torve.cli.manager import _refreshing
+
+    landings = {"T-0001": "aaaa"}
+
+    async def lane() -> list[str]:
+        engine_event(tmp_path, "lane_landed", {"task": "T-0002", "sha": "bbbb"})
+        return ["T-0002"]
+
+    assert asyncio.run(_refreshing(lane, landings, tmp_path)()) == ["T-0002"]
+    assert landings == {"T-0001": "aaaa", "T-0002": "bbbb"}
 
 
 def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch):

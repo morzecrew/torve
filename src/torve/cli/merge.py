@@ -218,12 +218,22 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
         if branch == naming.document_branch(branch.rsplit("/", 1)[-1]):
             # Draft while phases are still to come, ready at the last one: a
             # person who merges a draft merges knowingly, and the document's
-            # later phases then land on a branch behind main.
-            title, body, complete = _document_pr_text(
-                root, task_id, branch, tip=lane.tip(root, branch)
-            )
+            # later phases then land on a branch behind main. The draft also
+            # holds while the tip carries a recorded red completion battery
+            # (S-0093/D-2, S-0098/D-4), and a later green battery at a later
+            # tip publishes it ready.
+            from torve.application.lane import document_tip_red
 
-            return scm.open_pr(root, branch, title, body, draft=not complete)
+            tip = lane.tip(root, branch)
+            title, body, complete = _document_pr_text(root, task_id, branch, tip=tip)
+
+            return scm.open_pr(
+                root,
+                branch,
+                title,
+                body,
+                draft=not complete or document_tip_red(root, branch, tip or ""),
+            )
 
         title, body = _pr_text(root, task_id)
 

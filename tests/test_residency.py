@@ -948,6 +948,48 @@ def test_a_dead_worker_s_task_comes_back_when_its_lease_runs_out(tmp_path):
     run(scenario)
 
 
+def test_an_expired_lease_on_a_landed_task_records_the_landing(tmp_path):
+    """A killed worker's finished task is never cut again (S-0098/D-2): a
+    lease that expires on a task the repository proves landed records that
+    landing instead of releasing it to the queue, so the document branch it
+    already moved is not advanced a second time."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        executed: list[str] = []
+        # A worker claims, lands and dies before it can release: the record
+        # holds a claim and no landing, and the repository holds the landing.
+        dead = Worker(log=log, name="w-dead", execute=worker_over(log, []).execute)
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        assert await dead.claim(PARTITION) is not None
+
+        sha = "b" * 40
+        handled = await once(
+            log,
+            worker_over(log, executed),
+            tmp_path,
+            PARTITION,
+            lease=timedelta(0),
+            landed={"T-0001": sha}.get,
+        )
+
+        # The landing is the fact, not a release: nothing is left to start.
+        assert handled is None
+        assert executed == []
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.READY
+        assert board.tasks["T-0001"].landed_sha == sha
+        assert board.tasks["T-0001"].claimed_by is None
+
+        kinds = [one.kind for one in await log.history("T-0001")]
+        assert EventKind.LANDING_RECORDED in kinds
+        assert EventKind.TASK_RELEASED not in kinds
+
+    run(scenario)
+
+
 def test_the_next_pass_picks_up_what_the_lease_released(tmp_path):
     contract(tmp_path, "T-0001")
 
@@ -1099,6 +1141,28 @@ def test_naming_one_task_runs_that_one_and_no_other(tmp_path):
         # naming a task means that task.
         board = project(await log.since(partition=PARTITION))
         assert "T-0001" not in board.tasks
+
+    run(scenario)
+
+
+def test_naming_a_blocked_task_claims_nothing_while_another_is_queued(tmp_path):
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+    path = tmp_path / ".torve" / "tasks" / "T-0002" / "contract.yaml"
+    path.write_text(path.read_text() + "depends_on: [T-0001]\n", encoding="utf-8")
+
+    async def scenario(log):
+        executed: list[str] = []
+        # A prior pass put both on the board: T-0001 queued and dispatchable,
+        # T-0002 waiting on a dependency that has not landed.
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+
+        # Naming the blocked task filters the claim, not just the mint: the
+        # pass takes nothing rather than falling back to the board's order.
+        handled = await once(log, worker_over(log, executed), tmp_path, PARTITION, only="T-0002")
+
+        assert handled is None
+        assert executed == []
 
     run(scenario)
 

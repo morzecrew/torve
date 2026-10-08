@@ -933,6 +933,22 @@ def _battery_target(root: Path, document: str) -> str | None:
     return landed[-1] if landed else None
 
 
+def document_tip_red(root: Path, branch: str, tip: str) -> bool:
+    """Whether *tip* on *branch* carries a recorded red completion battery
+    (S-0093/D-2, S-0098/D-4). The document's pull request stays a draft while
+    it does, and a later green battery at a later tip — a round's landing that
+    moves the branch — publishes it ready."""
+
+    from torve.application.projections import stream_rows
+
+    return any(
+        row.get("event") == "lane_document_gates_red"
+        and str(row.get("branch") or "") == branch
+        and str(row.get("sha") or "") == tip
+        for row in stream_rows(root)
+    )
+
+
 def _wave_outstanding(root: Path, document: str) -> set[str]:
     """The rounds a review leg minted for *document* that have not yet landed
     on its branch (S-0097/D-6): queued, running or waiting to land. A round
@@ -1037,19 +1053,40 @@ def _land_document(
     red = _completion_battery(root, vcs, document) if complete else None
 
     if red is not None:
-        # The publisher sets the draft flag from completeness alone, so a
-        # complete document published now would turn ready on a red suite.
-        # The ref goes back, as for a refused publication: the pull request
-        # stays the draft its earlier phases opened, and the next pass lands
-        # and judges the phase again.
-        if before is not None:
-            vcs.reset_branch(root, document, before)
-
+        # A red completion is published all the same, with the pull request
+        # kept a draft (S-0093/D-2, S-0098/D-4): the tip carries the red, so
+        # the publisher holds the draft until a later battery turns it green,
+        # and a round is cut from a branch that carries the completing work.
+        # Withholding the landing cut every round about the red without the
+        # work the red was about.
         engine_event(
             root,
             "lane_document_gates_red",
             {"task": task_id, "branch": document, "sha": tip, "gates": red},
         )
+        reference = _publish(root, publish, task_id, document, tip, results)
+
+        if reference is None:
+            if before is not None:
+                vcs.reset_branch(root, document, before)
+
+            return
+
+        engine_event(
+            root,
+            "lane_landed",
+            {
+                "task": task_id,
+                "mode": mode,
+                "sha": tip,
+                "approver": approver,
+                "carried": _carried(root, task_id),
+                "unit": "document",
+                "branch": document,
+                "pr": reference,
+            },
+        )
+        results.append(LaneResult(task_id, document, "landed", f"{mode} onto {document}", tip))
         target = _battery_target(root, document)
 
         # One round per completion (S-0093/D-3, S-0093/D-4); a red rerun, or a

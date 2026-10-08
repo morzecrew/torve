@@ -165,6 +165,27 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
     return lane
 
 
+def _refreshing(lane: Lane, landings: dict[str, str], root: Path) -> Lane:
+    """The landing leg, followed by a fresh read of what the lane has landed
+    (S-0098/D-2).
+
+    A serve reads its landings once, when it starts, and a night runs for
+    hours. The lane is what lands onto document branches meanwhile, and it
+    runs before the reclaim in every pass: without this, a lease that expires
+    in the same pass as its task's landing is released to the queue, and the
+    task is cut again.
+    """
+
+    async def leg() -> list[str]:
+        from torve.application.projections import lane_landings
+
+        landed = await lane()
+        landings.update(lane_landings(root))
+        return landed
+
+    return leg
+
+
 # ....................... #
 
 
@@ -431,6 +452,9 @@ async def _serve(
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
     lane_leg = _lane_leg(root, config, only=only)
+
+    if lane_leg is not None:
+        lane_leg = _refreshing(lane_leg, landings, root)
     # None unless the review-thread switch is on, for the same reason.
     thread_leg = _thread_leg(root, config)
 

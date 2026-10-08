@@ -2151,9 +2151,13 @@ def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     assert calls == [None]
 
 
-def test_a_red_battery_at_completion_withholds_the_ready_publication(
+def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
     lane_repo, tmp_path, monkeypatch
 ):
+    """S-0098/D-4: the completing landing reaches the remote branch with the
+    pull request kept a draft, so the round about the red is cut from a branch
+    that carries the work the red was about."""
+
     import torve.application.lane as lane
 
     _phased(lane_repo)
@@ -2180,15 +2184,20 @@ def test_a_red_battery_at_completion_withholds_the_ready_publication(
     )
 
     document = naming.document_branch("S-0930")
-    phase_one = git(lane_repo, "rev-parse", document)
-    # Phase 1 opened the draft; the completing phase is not published ready.
-    assert [r.action for r in results] == ["landed", "gates red"]
-    assert published == [("T-7304", document)]
+    completing = git(lane_repo, "rev-parse", naming.branch("T-7305"))
+    assert [r.action for r in results] == ["landed", "landed", "gates red"]
+    # The completing landing reached the remote branch under the document's
+    # one pull request, and the branch tip still carries the red the publisher
+    # reads to keep it a draft.
+    assert published == [("T-7304", document), ("T-7305", document)]
+    assert git(lane_repo, "rev-parse", document) == completing
+    assert git(lane_repo, "rev-parse", f"origin/{document}") == completing
+    assert lane.document_tip_red(lane_repo, document, completing) is True
     red = [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
     assert [(e["task"], e["gates"]) for e in red] == [("T-7305", "tests=fail")]
-    # The branch is back where phase 1 left it, so the next pass judges again.
-    assert git(lane_repo, "rev-parse", document) == phase_one
 
+    # The completing candidate is landed; the next pass offers no second
+    # landing and reruns no battery while the round is outstanding.
     again = process_lane(
         lane_repo,
         GitLane(),
@@ -2196,8 +2205,57 @@ def test_a_red_battery_at_completion_withholds_the_ready_publication(
         unit="document",
         rounds=True,
     )
-    assert [r.action for r in again] == ["already landed", "awaiting round"]
-    assert len(published) == 1
+    assert [r.action for r in again] == ["already landed", "already landed"]
+    assert len(published) == 2
+
+
+def test_the_publisher_keeps_the_draft_while_the_tip_carries_a_recorded_red(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0093/D-2, S-0098/D-4: the flag the forge is asked for is a draft
+    while the branch tip carries a recorded red, even on a complete document
+    whose battery was green elsewhere."""
+
+    import torve.application.lane as lane
+    from torve.adapters.vcs.git import GhScm
+    from torve.cli.merge import _publisher
+    from torve.cli.options import load_config
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7320", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7321", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7320", 1)
+    _phase_contract(lane_repo, "T-7321", 2)
+    real = lane._regate
+    monkeypatch.setattr(
+        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+    )
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  landing: pull_request\n"
+        "scm:\n  open_pr: true\n  repo: owner/name\n",
+        encoding="utf-8",
+    )
+    # Committed, or the lane refuses the pass on a dirty checkout.
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "configure")
+
+    drafts: list[bool] = []
+    monkeypatch.setattr(
+        GhScm,
+        "open_pr",
+        lambda self, *a, **k: drafts.append(k["draft"]) or "https://forge/pr/7",
+    )
+    publish = _publisher(lane_repo, load_config(lane_repo, None))
+    assert publish is not None
+
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+
+    # Phase 1 was incomplete, phase 2 complete on a red suite: both drafts,
+    # the second only because the tip carries a recorded red.
+    assert drafts == [True, True]
+    document = naming.document_branch("S-0930")
+    assert lane.document_tip_red(lane_repo, document, git(lane_repo, "rev-parse", document)) is True
 
 
 # The red battery's one round (S-0093/D-3, S-0093/D-4).
@@ -2254,7 +2312,9 @@ def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp
 
     (record,) = _battery_findings(lane_repo)
     (finding,) = record["findings"]
-    assert record["target"] == "T-7306"
+    # The completing landing is published, so the finding is about it — the
+    # round is cut from a tip that carries the completing task (S-0098/D-4).
+    assert record["target"] == "T-7307"
     assert record["trigger"] == "task_gated"
     assert finding["severity"] == "major"
     assert "tests=fail" in finding["claim"] and "lint=pass" not in finding["claim"]
@@ -2262,25 +2322,39 @@ def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp
 
     # While the round is outstanding the battery does not run again.
     again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
-    assert [r.action for r in again] == ["already landed", "awaiting round"]
+    assert [r.action for r in again] == ["already landed", "already landed"]
     assert calls == [None]
     assert len(_battery_findings(lane_repo)) == 1
 
 
-def test_an_answered_round_reruns_the_battery_and_a_green_rerun_publishes(
+def test_a_green_rerun_at_the_rounds_tip_publishes_the_document_ready(
     lane_repo, tmp_path, monkeypatch
 ):
+    """S-0093/D-4, S-0098/D-4: the round is cut from the published red tip, so
+    it carries the completing task; landing its change reruns the battery, and
+    a green rerun at the later tip turns the pull request ready."""
+
+    import torve.application.lane as lane
+
     calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 0])
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
     process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    document = naming.document_branch("S-0930")
+    red_tip = git(lane_repo, "rev-parse", document)
+    _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n")
     _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
 
     again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
     assert calls == [None, None]
-    assert [r.action for r in again] == ["already landed", "landed"]
-    assert published[-1] == ("T-7307", naming.document_branch("S-0930"))
+    assert [r.action for r in again] == ["already landed", "already landed", "landed"]
+    green_tip = git(lane_repo, "rev-parse", naming.branch("T-7308"))
+    assert green_tip != red_tip
+    assert published[-1] == ("T-7308", document)
+    # The later tip no longer carries the recorded red, so a green battery
+    # publishes the pull request ready (S-0098/D-4).
+    assert lane.document_tip_red(lane_repo, document, green_tip) is False
 
 
 def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp_path, monkeypatch):
@@ -2288,19 +2362,22 @@ def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
     process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    document = naming.document_branch("S-0930")
+    _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n")
     _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
 
     again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
     assert calls == [None, None]
-    assert [r.action for r in again] == ["already landed", "gates red"]
+    # The round landed, and the second red battery escalated it (S-0093/D-4).
+    assert [r.action for r in again] == ["already landed", "already landed", "landed", "gates red"]
     assert again[-1].detail.startswith("escalated")
     assert len(_battery_findings(lane_repo)) == 1
-    state = RunState.load(naming.state_file(lane_repo, "T-7307"))
+    state = RunState.load(naming.state_file(lane_repo, "T-7308"))
     assert state.state is TaskState.ESCALATED
-    assert len(published) == 1
+    assert len(published) == 3
 
-    # Escalated, the candidate leaves the lane: no third battery.
+    # Escalated, the round leaves the lane: no third battery.
     process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
     assert calls == [None, None]
 
@@ -2319,12 +2396,16 @@ def test_without_rounds_a_red_battery_escalates_at_once_and_records_no_finding(
 
     results = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
 
-    assert [r.action for r in results] == ["landed", "gates red"]
+    assert [r.action for r in results] == ["landed", "landed", "gates red"]
     assert results[-1].detail.startswith("escalated")
     assert _battery_findings(lane_repo) == []
     state = RunState.load(naming.state_file(lane_repo, "T-7307"))
     assert state.state is TaskState.ESCALATED
-    assert len(published) == 1
+    # The completing landing was published as a draft all the same (S-0098/D-4).
+    assert published == [
+        ("T-7306", naming.document_branch("S-0930")),
+        ("T-7307", naming.document_branch("S-0930")),
+    ]
 
     # With nothing recorded, no pass waits on a round: the escalated candidate
     # has left the lane and the battery is not run again.
