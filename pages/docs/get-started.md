@@ -10,10 +10,10 @@ This page takes an empty repository through Torve's whole loop:
 6. A seat with a real agent.
 
 Every file below loads as written. Every command up to the last section
-was run against Torve 0.1, and the last section was checked with
-`torve doctor`.
+was run against Torve 0.2, in a fresh repository with torve installed from
+PyPI, and the last section was checked with `torve doctor`.
 
-You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.1 is an alpha.
+You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.2 is an alpha.
 One operator has run it, against one adopting repository, with Claude Code
 as the agent seat.
 

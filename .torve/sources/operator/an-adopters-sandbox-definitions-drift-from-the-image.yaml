@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/an-adopters-sandbox-definitions-drift-from-the-image
+kind: operator
+ref: 'bloomery on torve 0.2.0, 2026-10-07: `torve doctor` reported claude-sandbox:2.1.283 as
+  differing from the reviewed definition. bloomery''s .torve/sandbox/claude predated the toolkit
+  the image was built from (`run` changed, `capacity.py` missing, CLAUDE_VERSION 2.1.252);
+  refreshed from v0.2.0 in bloomery #276. This replaces a source filed in #43 that blamed the
+  wheel; the check was right'
+title: An adopter's copied sandbox definitions drift from the images torve builds
+at: '2026-10-08T10:00:00Z'
+summary: |
+  An adopting repository copies `sandboxes/base` and `sandboxes/<name>`
+  into `.torve/sandbox/` once, when it sets up a seat, and `torve doctor`
+  compares each configured image against that copy. When torve changes a
+  toolkit and the operator rebuilds the image from a newer checkout, the
+  copy lags the image and doctor goes red, correctly, with nothing in the
+  repository saying how to bring it back.
+
+  The upgrade steps on the stability page now say it: re-copy the
+  definition from the release and rebuild the image at that release. The
+  copy itself stays a step a person takes, because doctor's comparison is
+  what keeps an image nobody reviewed from running a seat.

@@ -96,7 +96,11 @@ One release to the next is five steps, in order:
    and only where none exists.
 3. Commit what `torve init` changed, so every later run and every CI job
    reads the schemas the installed engine wrote.
-4. Run `torve doctor` and read the red lines before running anything.
+4. Run `torve doctor` and read the red lines before running anything. A
+   red line for a sandbox image means the image and the definition copied
+   under `.torve/sandbox/` no longer agree: copy `sandboxes/<name>` from
+   the release into `.torve/sandbox/` again, and rebuild the image from a
+   checkout at that release (`just image <name>`).
 5. When the release's Upgrade note names a record migration, run
    `torve migrate --all` against the store.
 
