@@ -295,12 +295,39 @@ def overlaps(task: Task, board: Board) -> list[str]:
 # ....................... #
 
 
+def unlanded_siblings(task: Task, board: Board) -> list[str]:
+    """The tasks naming the same document as *task* that are ready and not
+    yet landed (S-0098/D-3): no task is cut from a document branch a ready
+    sibling is about to move, so a round waits one pass for the lane while
+    another task of its document sits `ready` with no landing recorded. A
+    sibling whose landing the board already holds is landed and no wait, and
+    a task naming no document — an operator's ask, a standing job — has no
+    siblings to wait on."""
+
+    if not task.spec:
+        return []
+
+    return sorted(
+        view.task_id
+        for view in board.tasks.values()
+        if view.task_id != task.id
+        and view.contract is not None
+        and view.contract.spec == task.spec
+        and view.state is TaskState.READY
+        and not view.landed_sha
+    )
+
+
+# ....................... #
+
+
 def dispatchable(board: Board, partition: str) -> list[str]:
     """What this partition could start right now, in id order.
 
     A task qualifies when this partition's board carries it as queued with a
-    contract a worker may take, its dependencies have landed, and nothing
-    sharing its scope is in flight — whatever its size (S-0089/D-1).
+    contract a worker may take, its dependencies have landed, nothing
+    sharing its scope is in flight, and no sibling of its document is ready
+    and unlanded (S-0098/D-3) — whatever its size (S-0089/D-1).
     Everything else is somebody's turn: an escalated task waits on a human, a claimed one on its worker, a landed
     one on nobody.
 
@@ -332,7 +359,7 @@ def dispatchable(board: Board, partition: str) -> list[str]:
         if view.state is not TaskState.QUEUED:
             continue
 
-        if blocked_by(task, board) or overlaps(task, board):
+        if blocked_by(task, board) or overlaps(task, board) or unlanded_siblings(task, board):
             continue
 
         ready.append(task_id)
