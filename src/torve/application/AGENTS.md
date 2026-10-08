@@ -1700,28 +1700,28 @@ When every thread a login in `threads.bots` opened on a head is resolved and the
 - Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_runconfig.py`
 - Consequence: the operator stops asking a bot for approval by hand
 
-### S-0098/D-1 — `ASSUMED` (A served pass works only what it can finish) — implementation: none
+### S-0098/D-1 — `ASSUMED` (A served pass works only what it can finish)
 
 `manager serve --task X` claims only `X`: the name filters the claim as it filters the mint, and a pass whose named task is not dispatchable claims nothing.
 
 - Paths: `src/torve/application/residency.py` `src/torve/application/worker.py`
 - Consequence: an operator who names a task to step around a bad row is never served the bad row
 
-### S-0098/D-2 — `ASSUMED` (A served pass works only what it can finish) — implementation: none
+### S-0098/D-2 — `ASSUMED` (A served pass works only what it can finish)
 
 A lease that expires on a task whose landing the repository proves records that landing instead of releasing the task to the queue.
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: a killed worker's finished task is never cut again; a person's requeue still is
 
-### S-0098/D-3 — `ASSUMED` (A served pass works only what it can finish) — implementation: none
+### S-0098/D-3 — `ASSUMED` (A served pass works only what it can finish)
 
 A task is not dispatchable while another task naming the same document is `ready` and has not landed.
 
 - Paths: `src/torve/application/manager.py`
 - Consequence: no task is cut from a document branch that a ready sibling is about to move
 
-### S-0098/D-4 — `ASSUMED` (A served pass works only what it can finish) — implementation: none
+### S-0098/D-4 — `ASSUMED` (A served pass works only what it can finish)
 
 A red completion battery publishes the completing landing with the document's pull request kept a draft, as S-0093/D-2 decided, instead of withholding it; the draft holds while the branch tip carries a recorded red, and a later green battery publishes it ready.
 

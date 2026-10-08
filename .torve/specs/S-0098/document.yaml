@@ -6,7 +6,7 @@ change:
   type: fix
   scope: manager
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0093, S-0096]
 informed_by: []
 supersedes: []
