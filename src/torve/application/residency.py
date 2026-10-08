@@ -400,21 +400,38 @@ async def mint(
 
 
 async def reclaim(
-    log: EventLog, *, partition: str, actor_id: str, lease: timedelta | None = None
+    log: EventLog,
+    *,
+    partition: str,
+    actor_id: str,
+    lease: timedelta | None = None,
+    landed: Landed | None = None,
 ) -> list[str]:
-    """Return tasks whose holder has gone silent past its lease.
+    """Return the tasks put back on the queue, whose holder has gone silent
+    past its lease.
 
     This is the other half of "a killed worker loses nothing but its lease"
     (S-0044/D-6): something has to be the lease running out, and it is the
     manager, because the process that died cannot release itself. The
     release is a recorded fact with its reason, so a task that came back to
     the queue can always be told from one that never left.
+
+    A task whose landing the repository proves is *not* released (S-0098/D-2):
+    the holder died after its attempt landed, and releasing it would cut the
+    document branch a finished task already moved. The landing is recorded
+    instead, and the task is no more the queue's.
     """
 
     board = project(await log.since(partition=partition))
     released: list[str] = []
 
     for view in expired(board, lease=lease):
+        sha = landed(view.task_id) if landed is not None else None
+
+        if sha:
+            await _record_landing(log, view.task_id, sha, partition=partition, actor_id=actor_id)
+            continue
+
         await log.record(
             EventKind.TASK_RELEASED,
             partition=partition,
@@ -522,15 +539,18 @@ async def once(
     if only is not None:
         # An operator naming one task means that task and no other: the
         # board's own order is the right default and the wrong answer when
-        # somebody is standing there asking for something specific.
+        # somebody is standing there asking for something specific. The
+        # name filters the claim as it filters the mint (S-0098/D-1), so a
+        # pass whose named task is not dispatchable starts nothing rather
+        # than falling back to a row the operator stepped around.
         tasks = {task_id: task for task_id, task in tasks.items() if task_id == only}
 
-    await reclaim(log, partition=partition, actor_id=worker.name, lease=lease)
+    await reclaim(log, partition=partition, actor_id=worker.name, lease=lease, landed=landed)
 
     if not paused:
         await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
 
-    return await worker.once(partition) if dispatch else None
+    return await worker.once(partition, only=only) if dispatch else None
 
 
 # ....................... #

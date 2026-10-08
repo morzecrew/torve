@@ -81,7 +81,7 @@ class Worker:
 
     # ....................... #
 
-    async def claim(self, partition: str) -> Task | None:
+    async def claim(self, partition: str, *, only: str | None = None) -> Task | None:
         """Take the first task this partition could start, or nothing.
 
         The board is rebuilt from the log on every pass rather than carried
@@ -92,6 +92,11 @@ class Worker:
         needs to claim and run a task is the record and a worktree — not the
         repository's task directory, which is what "a worker holds nothing
         but a lease" had been true of for state and false of for intent.
+
+        `only` is the operator naming one task (S-0098/D-1): the name filters
+        the claim as it filters the mint, so a pass that named a task which
+        is not dispatchable claims nothing rather than falling back to the
+        board's order.
         """
 
         board = project(await self.log.since(partition=partition))
@@ -100,6 +105,9 @@ class Worker:
         now = time.monotonic()
 
         for one in dispatchable(board, partition):
+            if only is not None and one != only:
+                continue
+
             if now - self.held.get(one, float("-inf")) < LEASE_SECONDS:
                 continue
 
@@ -190,11 +198,11 @@ class Worker:
 
     # ....................... #
 
-    async def once(self, partition: str) -> str | None:
+    async def once(self, partition: str, *, only: str | None = None) -> str | None:
         """One full pass: claim, run, release. Returns the task id it
         handled, or None when the partition had nothing to start."""
 
-        task = await self.claim(partition)
+        task = await self.claim(partition, only=only)
 
         if task is None:
             return None
