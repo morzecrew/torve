@@ -582,6 +582,13 @@ A night whose lane published a document pull request out of draft is not drained
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
 - Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
 
+### S-0098/D-4 — `ASSUMED` (A served pass works only what it can finish) — implementation: none
+
+A red completion battery publishes the completing landing with the document's pull request kept a draft, as S-0093/D-2 decided, instead of withholding it; the draft holds while the branch tip carries a recorded red, and a later green battery publishes it ready.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: the round or the person that answers a red battery works on the whole document, and a draft is never merged as complete on a red suite
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

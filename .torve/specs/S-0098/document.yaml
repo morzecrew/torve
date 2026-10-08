@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: manager
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0093, S-0096]
 informed_by: []
@@ -64,10 +64,17 @@ design:
       the branch tip carries a recorded red. The round S-0093/D-3 mints, or the escalation
       S-0096/D-2 raises, then works on a branch with every phase on it. A later landing
       whose battery is green publishes the pull request ready.
-tests: ''
+tests: |-
+  - A pass with `--task X` claims nothing while `X` is blocked, even with another task queued (D-1).
+  - An expired lease on a task with a lane landing or a landing file records the landing at that sha; one with neither is released to the queue as before; a person's requeue of a landed task still dispatches it (D-2).
+  - A task is not dispatchable while a sibling of its document is ready and unlanded, is dispatchable once the sibling lands, and tasks of other documents are unaffected (D-3).
+  - A red completion battery pushes the completing landing and the pull request stays draft; a round minted from it is cut from a tip carrying the completing task; a green battery at a later tip publishes it ready (D-4).
 docs: ''
 out_of_scope: ''
-risks: ''
+risks: |-
+  - D-3 has no time limit (Q-1): a sibling held in `ready` by something slow, such as `require_ci`, holds its document's other tasks with it. A sibling that cannot land escalates out of `ready`, which ends the wait.
+  - D-4 puts a red completing landing on the remote branch, so the document's pull request carries failing CI until the round lands; it stays a draft for exactly that time.
+  - D-2 trusts the landing evidence the mint already trusts; a landing file written by hand for work that never landed would be recorded as landed, as it is by a mint today.
 alternatives:
   - option: >-
       End a dispatch's retries when a red gate's failures sit outside the task's scope.
@@ -85,3 +92,5 @@ questions:
       slower than the quiet window, such as `require_ci`. Should the wait be bounded?
       Lean: no bound; a sibling that cannot land escalates out of `ready`, which ends
       the wait.
+    status: settled
+    settled_by: D-3
