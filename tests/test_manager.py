@@ -1696,6 +1696,25 @@ def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, mon
 # caller derives `rounds` from the threads configuration.
 
 
+def test_the_landing_leg_refreshes_the_landings_the_pass_reads(tmp_path):
+    """S-0098/D-2: a serve reads its landings once, and the lane lands onto
+    document branches for hours after. The leg re-reads them, so a reclaim in
+    the same pass as a landing records it instead of releasing the task."""
+    import asyncio
+
+    from torve.application.telemetry import engine_event
+    from torve.cli.manager import _refreshing
+
+    landings = {"T-0001": "aaaa"}
+
+    async def lane() -> list[str]:
+        engine_event(tmp_path, "lane_landed", {"task": "T-0002", "sha": "bbbb"})
+        return ["T-0002"]
+
+    assert asyncio.run(_refreshing(lane, landings, tmp_path)()) == ["T-0002"]
+    assert landings == {"T-0001": "aaaa", "T-0002": "bbbb"}
+
+
 def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch):
     """S-0096/D-2: `rounds` is true only for `threads.enabled` with `record`
     among the sources; every other configuration leaves a red battery to
