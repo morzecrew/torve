@@ -16,6 +16,7 @@ from torve.application import sizing
 from torve.application.projections import why_report
 from torve.cli import app
 from torve.cli import sandbox as sandbox_cli
+from torve.domain.states import EXIT_CONFIG
 from torve.gates.sabotage import TASK_ID, base_task, log_document
 
 
@@ -1381,3 +1382,45 @@ def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neithe
     assert "config.yaml  exists, left alone" in starter.output
     assert (root / ".torve" / "config.yaml").read_text(encoding="utf-8") == before
     assert "@decisions-reported" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
+
+
+# ....................... #
+# `torve guide` — the text of a shipped skill, from the installed package.
+
+
+def test_guide_lists_the_shipped_skills():
+    from torve.application.skills import available
+
+    result = CliRunner().invoke(app, ["guide"])
+
+    assert result.exit_code == 0, result.stderr
+    for name in available():
+        assert name in result.stdout
+
+
+def test_guide_prints_a_skill_and_one_of_its_references():
+    from torve.application.skills import skills_root
+
+    skill = CliRunner().invoke(app, ["guide", "spec-writer"])
+
+    assert skill.exit_code == 0, skill.stderr
+    assert skill.stdout == (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
+
+    reference = CliRunner().invoke(app, ["guide", "spec-writer", "authoring"])
+
+    assert reference.exit_code == 0, reference.stderr
+    assert reference.stdout == (
+        skills_root() / "spec-writer" / "references" / "authoring.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_guide_refuses_an_unknown_skill_and_an_unknown_reference():
+    unknown = CliRunner().invoke(app, ["guide", "definitely-not-a-skill"])
+
+    assert unknown.exit_code == EXIT_CONFIG
+    assert "definitely-not-a-skill" in unknown.stderr
+
+    missing = CliRunner().invoke(app, ["guide", "spec-writer", "no-such-reference"])
+
+    assert missing.exit_code == EXIT_CONFIG
+    assert "no-such-reference" in missing.stderr

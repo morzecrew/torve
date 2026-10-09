@@ -43,6 +43,58 @@ def available() -> list[str]:
 # ....................... #
 
 
+def skill_dir(name: str) -> Path:
+    """A shipped skill's directory, or a refusal naming what does ship."""
+
+    directory = skills_root() / name
+
+    if not (directory / "SKILL.md").is_file():
+        raise LookupError(f"no skill named {name!r} ships (available: {', '.join(available())})")
+
+    return directory
+
+
+# ....................... #
+
+
+def description(name: str) -> str:
+    """The skill's own one-line description, from its frontmatter."""
+
+    for line in (skill_dir(name) / "SKILL.md").read_text(encoding="utf-8").splitlines():
+        if line.startswith("description:"):
+            return line.partition(":")[2].strip()
+
+    return ""
+
+
+# ....................... #
+
+
+def read_skill(name: str) -> str:
+    """A shipped skill's `SKILL.md`, whole."""
+
+    return (skill_dir(name) / "SKILL.md").read_text(encoding="utf-8")
+
+
+# ....................... #
+
+
+def read_reference(name: str, reference: str) -> str:
+    """One file under a shipped skill's `references/` directory, by name with
+    or without its `.md` suffix."""
+
+    base = skill_dir(name) / "references"
+
+    for candidate in (base / reference, base / f"{reference}.md"):
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8")
+
+    raise LookupError(f"skill {name!r} has no reference {reference!r}")
+
+
+# ....................... #
+
+
 def materialize(
     role: str, dest: Path, sets: dict[str, list[str]], vendor_root: Path | None = None
 ) -> list[str]:
@@ -85,7 +137,10 @@ def materialize(
         if target.exists():
             shutil.rmtree(target)
 
-        shutil.copytree(source, target)
+        # The projections are torve's corpus, never the adopter's: a sandbox
+        # copy carries the skill's text and nothing of the rows beside it
+        # (S-0100/D-7).
+        shutil.copytree(source, target, ignore=shutil.ignore_patterns("AGENTS.md"))
         written.append(name)
 
     return written

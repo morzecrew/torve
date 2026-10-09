@@ -9,12 +9,14 @@ out — the shape the skill teaches pinned against the package's own parsers.
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from torve.application.skills import available, materialize, skills_root
-from torve.config.runconfig import ROLE_SKILLS
 from torve.config.spec import DOCUMENT_DIRNAME, load_document
 from torve.domain.vocabulary import GRADES, STATUSES
 
@@ -120,14 +122,24 @@ def test_no_shipped_skill_is_byte_identical_to_upstream():
 
 
 def test_materialize_writes_the_role_set_and_nothing_else(tmp_path):
-    # S-0061/D-11: the role default is `.torve/agents/implement.yaml`, minted from
-    # this table — a bare RunnerConfig carries no sets because nobody writes them.
-    sets = dict(ROLE_SKILLS)
+    sets = {"implement": ["flag-dont-flip", "working-rules"]}
     written = materialize("implement", tmp_path, sets)
-    assert written == ["flag-dont-flip", "ratchet-what-you-build"]
+    assert written == ["flag-dont-flip", "working-rules"]
     on_disk = sorted(p.name for p in tmp_path.iterdir())
     assert on_disk == sorted(written)  # exactly the role's set, nothing else
     assert (tmp_path / "flag-dont-flip" / "SKILL.md").is_file()
+
+
+def test_a_materialized_skill_set_carries_no_projection(tmp_path):
+    """S-0100/D-7: the `AGENTS.md` beside a skill is torve's corpus projection,
+    and a sandbox copy takes the skill's text and nothing of the rows."""
+
+    assert (skills_root() / "flag-dont-flip" / "AGENTS.md").is_file(), "the source has one"
+
+    materialize("implement", tmp_path, {"implement": ["flag-dont-flip"]})
+
+    assert (tmp_path / "flag-dont-flip" / "SKILL.md").is_file()
+    assert not list(tmp_path.rglob("AGENTS.md"))
 
 
 def test_materialize_refuses_an_unknown_skill(tmp_path):
@@ -290,18 +302,6 @@ def test_a_collision_with_a_shipped_skill_is_refused_both_directions(tmp_path):
         materialize("implement", tmp_path / "out", {"implement": ["flag-dont-flip"]}, vendor_root)
 
 
-def test_the_committed_vendor_directory_is_well_formed():
-    """The repository's own vendored skills: every entry carries a SKILL.md
-    and none collides with a shipped name (S-0009/D-12 held at rest)."""
-    committed = Path(__file__).resolve().parents[1] / ".torve" / "skills-vendor"
-    assert committed.is_dir(), "torve vendors at least one skill"
-    names = sorted(p.name for p in committed.iterdir() if p.is_dir())
-    assert names, "the vendor directory is not empty"
-    for name in names:
-        assert (committed / name / "SKILL.md").is_file(), name
-        assert name not in available(), f"{name} collides with a shipped skill"
-
-
 def test_an_edited_vendored_skill_is_a_regime_change(tmp_path):
     from torve.application.telemetry import config_hash
 
@@ -315,3 +315,30 @@ def test_an_edited_vendored_skill_is_a_regime_change(tmp_path):
     before = config_hash(manifest, root)
     (vendor_dir / "SKILL.md").write_text("v2\n", encoding="utf-8")
     assert config_hash(manifest, root) != before
+
+
+# ....................... #
+
+
+def test_the_built_wheel_carries_no_projection(tmp_path):
+    """S-0100/D-7: the projections stay out of the distribution. The wheel is
+    built from the sdist, and the sdist prunes `skills/**/AGENTS.md`, so the
+    built wheel holds the skills and none of the corpus rows beside them."""
+
+    if shutil.which("uv") is None:
+        pytest.skip("uv is not on PATH")
+
+    root = Path(__file__).resolve().parents[1]
+    subprocess.run(
+        ["uv", "build", "-o", str(tmp_path)],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    wheel = next(tmp_path.glob("torve-*.whl"))
+    names = zipfile.ZipFile(wheel).namelist()
+
+    assert any(name.endswith("_skills/flag-dont-flip/SKILL.md") for name in names)
+    assert not [
+        name for name in names if name.startswith("torve/_skills/") and name.endswith("AGENTS.md")
+    ]
