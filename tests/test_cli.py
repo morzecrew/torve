@@ -1384,6 +1384,65 @@ def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neithe
     assert "@decisions-reported" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
 
 
+# ----------------------- #
+# S-0100/D-3, S-0100/D-8: `torve init` writes the stub every skill root carries,
+# and `--starter` equips the shipped role skills
+
+
+def test_init_writes_the_stub_once_and_never_overwrites_one(tmp_path):
+    root = _bare_repo(tmp_path)
+
+    first = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert first.exit_code == 0, first.output
+    stub = root / ".claude" / "skills" / "torve" / "SKILL.md"
+    twin = root / ".agents" / "skills" / "torve" / "SKILL.md"
+    for path in (stub, twin):
+        assert path.is_file()
+        text = path.read_text(encoding="utf-8")
+        assert "name: torve" in text
+        # The pointer is inlined by command injection, with the fallback named.
+        assert "!`torve guide torve`" in text
+        assert "torve guide spec-writer" in text
+
+    before = twin.read_text(encoding="utf-8")
+    # A session's own copy is never overwritten, whatever it holds.
+    stub.write_text("mine\n", encoding="utf-8")
+    second = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert second.exit_code == 0, second.output
+    assert stub.read_text(encoding="utf-8") == "mine\n"
+    assert twin.read_text(encoding="utf-8") == before
+
+
+def test_init_starter_equips_the_role_skills(tmp_path):
+    root = _bare_repo(tmp_path)
+
+    result = CliRunner().invoke(app, ["init", "--starter", "--root", str(root)])
+
+    assert result.exit_code == 0, result.output
+
+    from torve.application.skills import materialize
+    from torve.config.agents import role_skills
+
+    sets = role_skills(root)
+    assert set(sets["implement"]) == {"working-rules", "flag-dont-flip"}
+    assert set(sets["revert"]) == {"working-rules", "flag-dont-flip"}
+    assert set(sets["review"]) == {"working-rules"}
+
+    written = materialize("implement", root / ".torve" / "skills", sets)
+
+    assert sorted(written) == ["flag-dont-flip", "working-rules"]
+
+    # Never over a profile an adopter wrote.
+    profile = root / ".torve" / "agents" / "implement.yaml"
+    profile.write_text("role: implement\nequipment: []\n", encoding="utf-8")
+    again = CliRunner().invoke(app, ["init", "--starter", "--root", str(root)])
+
+    assert again.exit_code == 0, again.output
+    assert "equipment: []" in profile.read_text(encoding="utf-8")  # not replaced
+
+
 # ....................... #
 # `torve guide` — the text of a shipped skill, from the installed package.
 
