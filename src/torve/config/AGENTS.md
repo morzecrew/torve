@@ -50,7 +50,7 @@ The next document number derives as the maximum plus one over the corpus path **
 
 ### S-0054/D-14 — `ASSUMED` (Decisions as gates and the projections beside the code)
 
-The default review skill set is `[reading-isnt-proof, ratchet-what-you-build]`
+The default review skill set is `[working-rules]` (S-0100/D-12)
 
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: Two skills that declare the role reach it
@@ -648,6 +648,20 @@ When every thread a login in `threads.bots` opened on a head is resolved and the
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_runconfig.py`
 - Consequence: the operator stops asking a bot for approval by hand
+
+### S-0100/D-9 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+
+corpus-bootstrap becomes the operator skill's `references/adopting.md`, written for the YAML corpus, and its fixture moves under `tests/`; `.torve/skills-vendor/reading-isnt-proof` and `runconfig.ROLE_SKILLS` are deleted.
+
+- Paths: `skills/corpus-bootstrap/**` `skills/torve/**` `.torve/skills-vendor/**` `src/torve/config/runconfig.py`
+- Consequence: onboarding a repository is taught in the format the engine reads, by the skill that teaches the rest of operating it
+
+### S-0100/D-12 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+
+The default review skill set is `[working-rules]`, amending S-0054/D-14, and torve's review profile equips exactly that.
+
+- Paths: `src/torve/config/runconfig.py` `.torve/agents/review.yaml`
+- Consequence: the review role reads a skill that ships, and the row says what the profile does
 
 ## Invariants holding over `src/torve/config/`
 

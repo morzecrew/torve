@@ -6,13 +6,16 @@ decisions:
       torve ships four skills, each for one audience named in the first words of its
       description: `torve` for a session operating torve, spec-writer for a session
       writing a document, and working-rules and flag-dont-flip for an agent executing
-      a contract. ratchet-what-you-build and corpus-bootstrap leave package data.
+      a contract. ratchet-what-you-build and corpus-bootstrap leave package data,
+      and ratchet-what-you-build is deleted rather than vendored.
     paths: [skills/**]
     consequence: >-
       a reader knows from a skill's first line whether it is for them
     rationale: >-
       The audit found every audience reading skills meant for another, and two shipped
-      skills nobody equips.
+      skills nobody equips. The owner chose deletion for ratchet-what-you-build (Q-1,
+      2026-10-09): no gate reads it, two skill evals showed no effect, and `torve
+      gates check` enforces its one rule.
   - id: D-2
     grade: ASSUMED
     text: >-
@@ -151,3 +154,16 @@ decisions:
       The page names a `fleet serve` verb that does not exist and documents no `night
       show`.
     cites: [S-0073/D-1]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      The default review skill set is `[working-rules]`, amending S-0054/D-14, and
+      torve's review profile equips exactly that.
+    paths: [src/torve/config/runconfig.py, .torve/agents/review.yaml]
+    consequence: >-
+      the review role reads a skill that ships, and the row says what the profile
+      does
+    rationale: >-
+      Neither skill S-0054/D-14 names remains; the owner chose this amendment (Q-2,
+      2026-10-09).
+    cites: [S-0054/D-14]

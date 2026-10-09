@@ -27,11 +27,25 @@ phasing:
       - tests/test_lane.py
       - tests/test_lane_prevention.py
       - tests/test_why_record.py
+      - src/torve/application/evals.py
+      - src/torve/application/specquality.py
+      - src/torve/application/ledger.py
+      - src/torve/cli/fleet.py
+      - src/torve/cli/status.py
+      - tests/test_divergence.py
+      - tests/test_context.py
+      - tests/test_evals.py
+      - tests/test_ledger.py
+      - tests/test_specquality.py
+      - tests/test_fleet.py
+      - tests/test_fleet_cli.py
     acceptance:
       - >-
         uv run pytest tests/test_projections.py tests/test_decisions.py tests/test_manager.py
         tests/test_manager_e2e.py tests/test_residency.py tests/test_plan.py tests/test_cli.py
         tests/test_lane.py tests/test_lane_prevention.py tests/test_why_record.py
+        tests/test_divergence.py tests/test_context.py tests/test_evals.py tests/test_ledger.py
+        tests/test_specquality.py tests/test_fleet.py tests/test_fleet_cli.py
       - uv run mypy src
     character: structural
   - phase: 2
@@ -56,11 +70,21 @@ phasing:
       - tests/test_runner.py
       - tests/test_run_loop.py
       - tests/test_attempt_record.py
+      - src/torve/application/worker.py
+      - src/torve/application/executors.py
+      - tests/test_residency.py
+      - tests/test_worker.py
+      - tests/test_state_parity.py
+      - tests/test_taskstore.py
+      - tests/test_run_integration.py
     acceptance:
       - >-
         uv run pytest tests/test_broker.py tests/test_eventlog.py tests/test_events.py
-        tests/test_runner.py tests/test_run_loop.py tests/test_attempt_record.py
+        tests/test_runner.py tests/test_run_loop.py tests/test_attempt_record.py tests/test_residency.py
+        tests/test_worker.py tests/test_state_parity.py tests/test_taskstore.py tests/test_run_integration.py
       - uv run mypy src
+    depends_on:
+      - 1
     character: routine
   - phase: 3
     title: >-
@@ -81,13 +105,15 @@ phasing:
       - tests/test_lane_prevention.py
       - tests/test_forge.py
       - tests/test_cli.py
+      - src/torve/application/reviewleg.py
+      - tests/test_reviewleg.py
     acceptance:
       - >-
         uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_forge.py
-        tests/test_cli.py
+        tests/test_cli.py tests/test_reviewleg.py
       - uv run mypy src
     depends_on:
-      - 1
+      - 2
     character: structural
   - phase: 4
     title: >-
@@ -124,8 +150,9 @@ phasing:
       the ledger, the evals and the night report; identical leg failures back off,
       re-raises on an unchanged head are not recorded, and a candidate red twice at
       the same base and head escalates. Tests: the import boundary; a leg failing
-      the same way three times records once per wait; the third red escalates. Settles
-      D-6 and D-9.
+      the same way three times records once per wait; the third red escalates. `doctor`
+      and the lane refuse document or pull-request landing on a mock store. Settles
+      D-6, D-9, D-10 and D-11.
     scope:
       - src/torve/application/projections.py
       - src/torve/application/lane.py
@@ -141,10 +168,18 @@ phasing:
       - tests/test_residency.py
       - tests/test_plan.py
       - tests/test_cli.py
+      - src/torve/cli/doctor.py
+      - src/torve/cli/fleet.py
+      - src/torve/application/telemetry.py
+      - tests/test_doctor.py
+      - tests/test_fleet.py
+      - tests/test_fleet_cli.py
+      - tests/test_intake.py
     acceptance:
       - >-
         uv run pytest tests/test_layout.py tests/test_lane.py tests/test_manager.py
         tests/test_reviewleg.py tests/test_residency.py tests/test_plan.py tests/test_cli.py
+        tests/test_doctor.py tests/test_fleet.py tests/test_fleet_cli.py tests/test_intake.py
       - uv run mypy src
     depends_on:
       - 4

@@ -208,3 +208,22 @@ amendments:
       Settled by the implementation:
       - D-17: Code answers 'the manifest default's' (commit 32240b22). The row's own settling event has not strictly happened: no decision row with a `check` runs the full suite; only the invariant S-0055/I-5 (`uv run pytest`) does, and invariants do not become decision gates. A full-suite row that outgrows 600s would reopen it. Evidence: src/torve/gates/runner.py::decision_gates; src/torve/config/manifest.py; src/torve/domain/spec.py::Decision; tests/test_gates.py::test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis.
       - D-18: The first option of S-0054/Q-2 was implemented; no test pins the 500 itself, only the event and path counting. Evidence: src/torve/application/colocation.py::contended_paths and CONTENTION_WINDOW; src/torve/application/contextpack.py::contended_file; src/torve/application/intake.py; tests/test_contextpack.py::test_contention_and_the_index_and_the_replay_rule.
+  - id: A-9
+    at: '2026-10-09T17:47:07Z'
+    title: >-
+      The default review set is the shipped working-rules (S-0100/D-12)
+    changes:
+      - subject: D-14
+        field: text
+        before: >-
+          The default review skill set is `[reading-isnt-proof, ratchet-what-you-build]`
+        after: >-
+          The default review skill set is `[working-rules]` (S-0100/D-12)
+      - subject: D-14
+        field: fingerprint
+        after: 18f652064234321f/3fe568a12e5031ef
+    md: >-
+      Neither skill D-14 named ships any more: reading-isnt-proof survived only as
+      an unequipped vendored copy, and S-0100/D-1 deletes ratchet-what-you-build.
+      The review profile already equips working-rules, so the row now says what the
+      profile does. The owner chose this on 2026-10-09 (S-0100/Q-2).

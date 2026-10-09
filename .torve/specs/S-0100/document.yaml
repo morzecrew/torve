@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: skills
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0062, S-0095]
 informed_by: []
@@ -88,12 +88,29 @@ design:
       - `adopting.md`: `init --starter`, gates, a derived sandbox image, a partition, and the first document, absorbing corpus-bootstrap for the YAML corpus.
 
       It defers to `--help` for flags and to `pages/docs/operating.md` for concepts.
-tests: ''
+tests: |-
+  - The package ships exactly four skills, and each description opens with its audience (D-1).
+  - `torve guide` lists the four with their descriptions; `torve guide <skill>` prints its SKILL.md and `torve guide <skill> <reference>` one reference; an unknown name exits non-zero naming the available ones (D-2).
+  - `torve init` writes the stub under `.claude/skills/torve/` and `.agents/skills/torve/` once and never overwrites an existing one; the stub carries the `torve guide torve` injection and the fallback instruction; `torve doctor` warns when it is missing (D-3).
+  - The stub and the operator skill each state the rails (D-4).
+  - No shipped skill names an `S-NNNN` identifier or a `src/torve/` path (D-5).
+  - flag-dont-flip carries no `torve log` invocation; every flag working-rules names exists in `torve log divergence --help` (D-6).
+  - A materialized skill set and the built wheel carry no `AGENTS.md` under a skill (D-7).
+  - A starter repository's implement role materializes working-rules and flag-dont-flip; a role equipped with neither gets a prompt that does not name working-rules (D-8).
+  - corpus-bootstrap, ratchet-what-you-build, the vendored reading-isnt-proof and `ROLE_SKILLS` are gone; the operator skill has `references/adopting.md`; the bootstrap fixture is under `tests/` (D-1, D-9).
+  - torve's `.claude/skills` and `.agents/skills` list the same names, and neither lists working-rules or flag-dont-flip (D-10).
+  - Every verb `pages/docs/operating.md` names exists in the CLI (D-11).
+  - torve's review profile equips `[working-rules]` (D-12).
 docs: ''
 out_of_scope: |-
   - bloomery's `.agents/skills` copies (an older flag-dont-flip with a hand-written log format among them): bloomery runs `torve init` after the release and deletes what the stub replaces.
   - A torve MCP prompt carrying the same text; `torve mcp` exists, but no adopter configures it.
-risks: ''
+risks: |-
+  - Invoking the stub runs `uv run torve guide torve` on the host; a repository without uv gets an error line in place of the text, and the fallback instruction covers it.
+  - Claude Code may change its command-injection syntax; the fallback instruction keeps the stub working either way.
+  - A session in torve executing a contract by hand no longer finds working-rules in its skill list; `torve guide working-rules` prints it.
+  - bloomery's older flag-dont-flip copy keeps contradicting the engine until bloomery re-runs `torve init` on the release that carries this.
+  - Phase 3 is written in a session rather than served, so it lands by hand through `torve log land`; its acceptance is a test, as any phase's is.
 alternatives:
   - option: >-
       `torve init` writes the full operator skill into each repository and `doctor`
@@ -114,8 +131,12 @@ questions:
       showed no effect, and its one torve rule (a new gate ships with a sabotage twin)
       is already enforced by `torve gates check` in CI. Delete it, or keep a vendored
       copy that torve's own profiles still equip? Lean: delete.
+    status: settled
+    settled_by: D-1
   - id: Q-2
     text: >-
       S-0054/D-14 makes `[reading-isnt-proof, ratchet-what-you-build]` the default
       review skill set, and neither remains. Amend it to `[working-rules]`, the set
       torve's review profile equips today? Lean: yes.
+    status: settled
+    settled_by: D-12

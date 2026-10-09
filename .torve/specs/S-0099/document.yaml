@@ -6,7 +6,7 @@ kind: design
 change:
   type: refactor
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0065, S-0085, S-0093, S-0097, S-0098]
 informed_by: []
@@ -99,12 +99,29 @@ design:
       wait. A finding re-raised on an unchanged head is not recorded again. A candidate
       the lane finds red twice at the same base tip and the same head escalates instead
       of regating a third time.
-tests: ''
+tests: |-
+  - A task landed only on a document branch's remote tip reads landed on a host whose stream is empty; a squash-merged document's tasks read landed from the base's landing files; a rebase that renames every sha leaves the answer unchanged; `lane_landings`, `shipped_landings`, `shipped_ids` and `landed_ids` no longer import (D-1).
+  - With an empty stream, the pull request body lists the branch's tasks in landing order, a phase finished by hand included (D-2).
+  - An idle pass with no open document branch makes no forge call; a merge one host reads back is seen by another host's next pass (D-3).
+  - A red completion battery writes a failing `torve/completion` status on the tip it judged and the pull request stays a draft; a green status at a later tip publishes it ready; a status on another sha changes nothing; a forge that answers no status keeps the draft (D-4).
+  - A round minted on one host is in the wave another host computes; a requeued round is rescoped from its contract's `round:` (D-5).
+  - A test fails when any module under `src/` other than the ledger, the evals and the night report imports `stream_rows` (D-6).
+  - A recorded Anthropic streamed body and an OpenAI streamed body meter their input, output, cache-read and cache-write tokens; a plain JSON body meters as before; `seat.consumed` carries the four counts (D-7).
+  - A requeued task's next attempt is numbered after its last recorded attempt (D-8).
+  - A leg failing the same way three times records once per wait with the wait doubling; a finding re-raised on an unchanged head writes no row; a third red at the same base tip and head escalates (D-9).
+  - The ledger still reads attempt rows from the stream (D-10).
+  - `torve doctor` is red and the lane refuses for `unit: document` or `landing: pull_request` on a mock store; `landing: local` on a mock store is unaffected (D-11).
 docs: ''
 out_of_scope: |-
   - Rounds and document ledgers minted before this document: upgrade between documents, with no document pull request open and no round queued (risk).
-  - A file-backed record for repositories without Postgres (Q-2).
-risks: ''
+  - A file-backed record for repositories without Postgres (D-11).
+  - Moving attempt metrics out of `.torve/telemetry.jsonl` (D-10).
+risks: |-
+  - A night that spans the upgrade loses the stream's ledger: rounds minted before it carry no `round:` and the lane no longer reads `lane_*` rows. Upgrade with no document pull request open and no round queued.
+  - `landed` lists the tree of every open document branch after the pass's fetch, one `ls-tree` per branch; with tens of open documents that is still well under a second.
+  - A commit status needs the token's status scope; the host's `gh` login has it. A forge that refuses or loses a status leaves the verdict unknown, which D-4's tests treat as not green, so the draft holds.
+  - A landing file written by hand for work that never landed reads as landed, as it does for the mint today.
+  - Tests that asserted on `lane_*` stream rows are rewritten to assert on the carriers; a behaviour only those rows pinned could change unnoticed. Each phase's acceptance runs the lane and manager suites whole.
 alternatives:
   - option: >-
       Move the lane's rows into the record as new event kinds (`document.landed`,
@@ -126,6 +143,8 @@ questions:
       rows the ledger and evals read, or should those move into the record so the
       file can go? Lean: keep it for now, and decide after a month of the record carrying
       real token counts.
+    status: settled
+    settled_by: D-10
   - id: Q-2
     text: >-
       The review rounds and escalations a document landing depends on live in the
@@ -134,3 +153,5 @@ questions:
       refuses), or should torve grow a file-backed record for repositories without
       Postgres? Lean: require Postgres; a served manager already needs it, and every
       adopter so far has one.
+    status: settled
+    settled_by: D-11

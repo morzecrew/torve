@@ -315,6 +315,20 @@ Every model torve reads from YAML checks `schema_version` through one shared fie
 - Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
 - Consequence: a file written for another torve stops the command that reads it, instead of being read as current
 
+### S-0099/D-5 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: none
+
+A review round's branch, pull request, target, findings and phases ride in its own contract under `round:`, which `task.minted` carries; the wave, the requeue's rescope and the morning report read the board.
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/application/manager.py` `src/torve/domain/task.py`
+- Consequence: a round is described by the record that minted it, not by a row on the host that minted it
+
+### S-0099/D-7 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: none
+
+The broker meters streamed responses, and `seat.consumed` carries input, output, cache-read and cache-write tokens beside the total for every attempt and review.
+
+- Paths: `src/torve/adapters/broker/local.py` `src/torve/application/eventlog.py` `src/torve/application/ports.py` `src/torve/domain/events.py`
+- Consequence: cost per landing is a query for every seat, including plan-billed ones
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

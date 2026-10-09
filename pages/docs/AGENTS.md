@@ -23,4 +23,11 @@ The starter manifest is the four structural builtins (`scope`, `secrets`, `no-te
 - Paths: `src/torve/cli/init.py` `tests/test_cli.py` `pages/docs/get-started.md`
 - Consequence: `torve gates run --base main` exits 0 in a repository the starter just set up
 
+### S-0100/D-11 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+
+`pages/docs/operating.md` lists only verbs that exist, documents `night show`, `manager note`, the `log` verbs, `review pr`, `equip` and `spec project`, and describes the prompt S-0073/D-1 builds; the operator skill defers to it for concepts and to `--help` for flags.
+
+- Paths: `pages/docs/operating.md`
+- Consequence: the operating page, the skill and the CLI say the same thing once each
+
 <!-- /torve:managed -->
