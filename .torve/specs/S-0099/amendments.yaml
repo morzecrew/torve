@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-09T18:32:26Z'
+    title: >-
+      Phases 1, 4 and 5 take the tests of the modules they change
+    md: >-
+      Planning refused three contracts under the T-0113 rule: each allowed a module
+      without that module's existing test file. Phase 1 changes `decisions.py` and
+      `cli/fleet.py` and now owns `tests/test_decisions_record.py`, `tests/test_fleet_config.py`
+      and `tests/test_fleet_serve.py`. Phase 4 changes `application/manager.py`, `lane.py`
+      and `cli/manager.py` and now owns `tests/test_manager_e2e.py` and `tests/test_lane_prevention.py`.
+      Phase 5 changes `projections.py`, `lane.py`, `cli/manager.py` and `cli/fleet.py`
+      and now owns the same pair, `tests/test_projections.py` and both fleet test
+      files. Each phase's acceptance runs the files it now owns.
