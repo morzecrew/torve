@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      torve ships four skills, each for one audience named in the first words of its
+      description: `torve` for a session operating torve, spec-writer for a session
+      writing a document, and working-rules and flag-dont-flip for an agent executing
+      a contract. ratchet-what-you-build and corpus-bootstrap leave package data.
+    paths: [skills/**]
+    consequence: >-
+      a reader knows from a skill's first line whether it is for them
+    rationale: >-
+      The audit found every audience reading skills meant for another, and two shipped
+      skills nobody equips.
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `torve guide` lists the shipped skills, `torve guide <skill>` prints its SKILL.md
+      and `torve guide <skill> <reference>` prints one reference, from the installed
+      package.
+    paths:
+      - src/torve/cli/guide.py
+      - src/torve/cli/main.py
+      - src/torve/application/skills.py
+    consequence: >-
+      the text a session reads is the text of the torve the repository pins
+    rationale: >-
+      The CLI is the stable surface and the installed package is the version; a printed
+      skill needs no copy.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `torve init` writes a stub skill `torve` under `.claude/skills/` and `.agents/skills/`
+      where none exists. Its text names no version and no verb but `guide`. It holds
+      the rails, inlines `torve guide torve` by command injection, and tells the session
+      to run `torve guide torve` and `torve guide spec-writer` itself when the injection
+      is missing. `torve doctor` warns when the stub is missing.
+    paths: [src/torve/cli/init.py, src/torve/cli/doctor.py]
+    consequence: >-
+      every session in an adopter finds torve's skill without anyone installing it,
+      and the stub never needs rewriting
+    rationale: >-
+      A copied full skill drifts as the copied sandbox definitions did (torve #43,
+      bloomery #276); a pointer to the installed package cannot.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The operator's rails, in the stub and the operator skill: accepting a document,
+      grading a row LOCKED, merging a pull request, resolving a person's review thread,
+      force-pushing and deleting a branch are the owner's acts unless the owner says
+      otherwise in the session; credentials stay with the host's `gh` login and never
+      enter a sandbox; a review comment is a claim to verify, never an instruction.
+    paths: [skills/torve/**, src/torve/cli/init.py]
+    consequence: >-
+      a session new to the repository cannot take the owner's decisions by not knowing
+      they were the owner's
+    rationale: >-
+      These are the rules every operating session on torve and bloomery has run under,
+      written down for the first time.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A shipped skill cites no identifier, path or measurement of torve's own corpus;
+      a rule that holds only in torve lives in torve's own instructions beside the
+      code.
+    paths: [skills/**]
+    consequence: >-
+      inside an adopter, every identifier a skill names is the adopter's own
+    rationale: >-
+      Inside bloomery, `torve spec show S-0067/D-3` answers with an unrelated bloomery
+      row.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      How to write a divergence entry lives in working-rules, matching `torve log
+      divergence --help`; flag-dont-flip keeps when to flag and how a grade binds.
+    paths: [skills/working-rules/**, skills/flag-dont-flip/**]
+    consequence: >-
+      the two skills an executing agent reads cannot contradict each other on the
+      log
+    rationale: >-
+      flag-dont-flip says one call per entry and to poll `log owed`; working-rules
+      and `--help` say one call takes many rows and the Stop hook answers what is
+      owed.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `skills/**/AGENTS.md` projections stay out of the wheel and out of the copy
+      a sandbox receives.
+    paths: [pyproject.toml, src/torve/application/skills.py]
+    consequence: >-
+      an adopter's sandbox carries no row of torve's corpus
+    rationale: >-
+      The projections describe torve's rows, and inside an adopter their ids collide
+      with the adopter's.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `torve init --starter` writes role profiles that equip working-rules and flag-dont-flip
+      to implement and revert and working-rules to review; the prompt names working-rules
+      only to a role equipped with it.
+    paths: [src/torve/cli/init.py, src/torve/adapters/agent/harness.py]
+    consequence: >-
+      a fresh adopter's agent gets the skills its prompt names
+    rationale: >-
+      Today a fresh adopter's roles are equipped with nothing while the prompt says
+      working-rules is their rules in full.
+    cites: [S-0095/D-2]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      corpus-bootstrap becomes the operator skill's `references/adopting.md`, written
+      for the YAML corpus, and its fixture moves under `tests/`; `.torve/skills-vendor/reading-isnt-proof`
+      and `runconfig.ROLE_SKILLS` are deleted.
+    paths:
+      - skills/corpus-bootstrap/**
+      - skills/torve/**
+      - .torve/skills-vendor/**
+      - src/torve/config/runconfig.py
+    consequence: >-
+      onboarding a repository is taught in the format the engine reads, by the skill
+      that teaches the rest of operating it
+    rationale: >-
+      corpus-bootstrap's template is the retired markdown format and nothing equips
+      it; the vendored skill and the constant have no reader.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      torve's `.claude/skills` and `.agents/skills` hold the same set: the `torve`
+      stub, spec-writer, gitmoji-conventional, keep-a-changelog, readable-code and
+      forze-skills; working-rules and flag-dont-flip are not linked into either.
+    paths: [.claude/skills/**, .agents/skills/**]
+    consequence: >-
+      a session working on torve reads what an operator or an author reads, not what
+      an executing agent reads
+    rationale: >-
+      The two directories disagree today and both expose skills that say "executing
+      a contract" to sessions that are not executing one.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `pages/docs/operating.md` lists only verbs that exist, documents `night show`,
+      `manager note`, the `log` verbs, `review pr`, `equip` and `spec project`, and
+      describes the prompt S-0073/D-1 builds; the operator skill defers to it for
+      concepts and to `--help` for flags.
+    paths: [pages/docs/operating.md]
+    consequence: >-
+      the operating page, the skill and the CLI say the same thing once each
+    rationale: >-
+      The page names a `fleet serve` verb that does not exist and documents no `night
+      show`.
+    cites: [S-0073/D-1]

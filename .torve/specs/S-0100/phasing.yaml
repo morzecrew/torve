@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      `torve guide` prints a shipped skill, and the package ships no projections
+    intent: >-
+      Add the `guide` verb; keep `skills/**/AGENTS.md` out of the wheel and the sandbox
+      copy; delete `ROLE_SKILLS` and the vendored reading-isnt-proof. Tests: `guide`
+      lists the shipped skills, prints a SKILL.md and a reference, and refuses an
+      unknown name; a materialized skill set carries no AGENTS.md; the built wheel
+      has none. Settles D-2, D-7 and part of D-9.
+    scope:
+      - src/torve/cli/guide.py
+      - src/torve/cli/main.py
+      - src/torve/application/skills.py
+      - src/torve/config/runconfig.py
+      - pyproject.toml
+      - .torve/skills-vendor/**
+      - tests/test_skills.py
+      - tests/test_cli.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_skills.py tests/test_cli.py tests/test_runconfig.py
+      - uv run mypy src
+    character: routine
+  - phase: 2
+    title: >-
+      `torve init` writes the stub and the starter profiles
+    intent: >-
+      `init` writes the stub skill under `.claude/skills/torve/` and `.agents/skills/torve/`
+      where absent; `--starter` also writes role profiles equipping the shipped role
+      skills; `doctor` warns on a missing stub; the prompt names working-rules only
+      to a role equipped with it. Tests: a fresh init writes the stub once and never
+      overwrites one; a starter repository's implement role materializes working-rules
+      and flag-dont-flip; doctor warns without the stub; an unequipped role's prompt
+      does not name working-rules. Settles D-3, D-8 and the stub half of D-4.
+    scope:
+      - src/torve/cli/init.py
+      - src/torve/cli/doctor.py
+      - src/torve/adapters/agent/harness.py
+      - tests/test_cli.py
+      - tests/test_doctor.py
+      - tests/test_equipment.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_cli.py tests/test_doctor.py tests/test_equipment.py
+        tests/test_runconfig.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: >-
+      The operator skill, written from the operating sessions' practice
+    intent: >-
+      `skills/torve/` with SKILL.md and the night, escalations, by-hand, review and
+      adopting references, every verb checked against `--help`; corpus-bootstrap's
+      content folded into adopting for the YAML corpus and its fixture moved under
+      `tests/`; ratchet-what-you-build removed and torve's profiles updated. Written
+      in a session from the operator's practice, not served. Settles D-1, the skill
+      half of D-4, and D-9.
+    scope:
+      - skills/torve/**
+      - skills/corpus-bootstrap/**
+      - skills/ratchet-what-you-build/**
+      - tests/fixtures/**
+      - tests/test_skills.py
+      - .torve/agents/**
+    acceptance:
+      - uv run pytest tests/test_skills.py
+      - uv run torve guide torve
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      The shipped skills are repository-agnostic and each says who it is for
+    intent: >-
+      working-rules, flag-dont-flip and spec-writer lose torve's identifiers, paths
+      and numbers; descriptions open with their audience; log mechanics live in working-rules
+      alone; spec-writer catches up with `change:`, `after:` and the `spec` verbs;
+      torve-only rules move beside torve's code. Settles D-5 and D-6.
+    scope:
+      - skills/working-rules/**
+      - skills/flag-dont-flip/**
+      - skills/spec-writer/**
+      - AGENTS.md
+      - tests/test_skills.py
+    acceptance:
+      - uv run pytest tests/test_skills.py
+      - uv run torve spec check
+    depends_on:
+      - 3
+    character: structural
+  - phase: 5
+    title: >-
+      torve's sessions read one skill set, and the operating page is true
+    intent: >-
+      `.claude/skills` and `.agents/skills` hold the same links and neither links
+      the executing agent's skills; `operating.md` drops `fleet serve`, documents
+      the missing verbs and the current prompt. Settles D-10 and D-11.
+    scope:
+      - .claude/skills/**
+      - .agents/skills/**
+      - pages/docs/operating.md
+      - tests/test_layout.py
+    acceptance:
+      - uv run pytest tests/test_layout.py
+      - uv run torve spec check
+    depends_on:
+      - 4
+    character: routine

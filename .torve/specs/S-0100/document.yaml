@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0100
+title: A session learns torve from the torve it runs
+kind: design
+change:
+  type: feat
+  scope: skills
+status: draft
+implementation: none
+depends_on: [S-0062, S-0095]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  No skill teaches a session how to operate torve: how to write and accept a document, plan it, serve a night, read the board in the morning, resolve an escalation, land a phase by hand, or answer a pull request's review. That knowledge lives in one operator's scripts and notes, so a new session in another repository starts from nothing. The skills torve does ship confuse every audience they reach. The ones written for an agent executing a contract are linked into torve's interactive sessions. The shipped ones cite torve's own identifiers, which resolve to unrelated rows inside an adopter. corpus-bootstrap still teaches the retired markdown format. A fresh adopter's sandbox gets no skills, yet the prompt names one.
+
+  torve ships one operator skill, `torve`, and prints any shipped skill for the installed version with `torve guide`. `torve init` writes a small stub that sends a session there, so the knowledge always matches the engine the repository pins. The shipped skills are sorted by audience and made repository-agnostic. Each piece of knowledge has one home, and the skills that no gate reads and no measurement supports leave the package.
+motivation: >-
+  The owner asked on 2026-10-09 for a skill that teaches how to use torve from a session,
+  before torve is adopted in more repositories, so the work can continue "using our
+  engine from any session"; and named the current skills strange and confusing. An
+  audit the same day found the confusions this document lists.
+current_state: >-
+  `skills/` ships five skills as package data: working-rules, flag-dont-flip and ratchet-what-you-build
+  (equipped to implement, review and revert by torve's `.torve/agents/*.yaml`), spec-writer
+  (equipped by no role; `author` is not a role) and corpus-bootstrap (read only by
+  `tests/test_skills.py`). Their `roles:` and `gate:` frontmatter is never read. working-rules,
+  flag-dont-flip and ratchet cite torve identifiers (S-0067/D-3, S-0002/D-2, S-0055/D-19)
+  that `torve spec show` resolves to bloomery's own rows inside bloomery; flag-dont-flip
+  says "against an RFC", names `rfcs/0009-*.md` and contradicts working-rules on log
+  calls; ratchet names a `gates-sabotage` gate that does not exist; spec-writer omits
+  `change:` and `after:` and lists 8 of 19 `spec` verbs; corpus-bootstrap's template
+  is the markdown RFC format. The wheel and every sandbox copy carry `skills/**/AGENTS.md`
+  projections of torve's rows. `torve init --starter` writes no `.torve/agents/` profiles,
+  so a fresh adopter's roles get no skills while `adapters/agent/harness.py` tells
+  the agent working-rules is its rules in full. torve's `.claude/skills` and `.agents/skills`
+  disagree, and both expose the executing agent's skills to interactive sessions.
+  `.torve/skills-vendor/reading-isnt-proof` and `runconfig.ROLE_SKILLS` are unused.
+  `pages/docs/operating.md` lists a `fleet serve` verb that does not exist, describes
+  a prompt S-0073/D-1 replaced, and documents no `night show`.
+goals: |-
+  - A session in any repository that pins torve learns to operate it from one skill, and what it learns matches the installed version.
+  - Each shipped skill says in its first words who it is for.
+  - No shipped skill cites an identifier, path or number of torve's own corpus.
+  - A fresh adopter's sandbox gets the skills its prompt names.
+  - Each piece of knowledge has one home: verb mechanics in `--help` and working-rules, concepts in the operating page, judgement in the skills.
+non_goals: |-
+  - Changing what the gates parse; flag-dont-flip's log format and spec-writer's grammar stay as the gates read them (S-0062/D-6).
+  - A Claude Code plugin or a user-level skill: both version apart from the torve a repository pins.
+  - Rewriting bloomery's own `.agents/skills`; it runs `torve init` after the release that carries this.
+design:
+  - key: the-audiences
+    md: |-
+      | Skill | Audience | Reaches it through |
+      |---|---|---|
+      | `torve` (new) | a session operating torve | `torve guide`, via the stub `torve init` writes |
+      | spec-writer | a session writing a document | `torve guide spec-writer`, via the same stub |
+      | working-rules | an agent executing a contract | role equipment in the sandbox |
+      | flag-dont-flip | an agent executing a contract | role equipment in the sandbox |
+
+      ratchet-what-you-build and corpus-bootstrap leave the package. Interactive sessions never see the executing agent's skills.
+  - key: the-guide
+    md: >-
+      `torve guide` lists the shipped skills with their descriptions. `torve guide
+      <skill>` prints its SKILL.md, and `torve guide <skill> <reference>` prints one
+      of its references, all from the installed package. A repository that pins `torve>=0.2,<0.3`
+      gets the text of the torve it runs, with no copy to drift.
+  - key: the-stub
+    md: >-
+      `torve init` writes `.claude/skills/torve/SKILL.md`, and the same file under
+      `.agents/skills/torve/`, where none exists. Its description names operating
+      torve and writing its documents. Its body holds the rails and inlines the operator
+      skill with Claude Code's command injection, `!`uv run torve guide torve``, so
+      invoking the skill loads the installed version's text. For a harness without
+      injection, or a run where the command fails, the body also tells the session
+      to run `torve guide torve` itself before acting, and `torve guide spec-writer`
+      before writing a document. The stub names no version and no verb beyond `guide`,
+      so it never needs rewriting. `torve doctor` warns when it is missing.
+  - key: the-operator-skill
+    md: |-
+      `skills/torve/SKILL.md` is short: the loop (document, acceptance, plan, night, landing, pull request, review, merge), the rails, and which reference to read for which job. The references hold the procedures, each verified against the CLI:
+      - `night.md`: preflight, serving a night, watching it, and the morning;
+      - `escalations.md`: each escalation reason and the order of `reap` and `resolve`;
+      - `by-hand.md`: landing a phase by hand with `torve log land`;
+      - `review.md`: answering a pull request's review;
+      - `adopting.md`: `init --starter`, gates, a derived sandbox image, a partition, and the first document, absorbing corpus-bootstrap for the YAML corpus.
+
+      It defers to `--help` for flags and to `pages/docs/operating.md` for concepts.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - bloomery's `.agents/skills` copies (an older flag-dont-flip with a hand-written log format among them): bloomery runs `torve init` after the release and deletes what the stub replaces.
+  - A torve MCP prompt carrying the same text; `torve mcp` exists, but no adopter configures it.
+risks: ''
+alternatives:
+  - option: >-
+      `torve init` writes the full operator skill into each repository and `doctor`
+      reddens when it lags the installed version.
+    rejected_because: >-
+      It is the copy-and-drift pattern that left bloomery's sandbox definitions behind
+      the image (torve #43, bloomery #276); a stub that defers to the installed package
+      cannot drift.
+  - option: >-
+      A Claude Code plugin, a user-level skill, or the org's agent-skills repository.
+    rejected_because: >-
+      Each versions apart from the torve a repository pins, so a session would read
+      verbs another version has.
+questions:
+  - id: Q-1
+    text: >-
+      ratchet-what-you-build leaves the package: no gate reads it, two skill evals
+      showed no effect, and its one torve rule (a new gate ships with a sabotage twin)
+      is already enforced by `torve gates check` in CI. Delete it, or keep a vendored
+      copy that torve's own profiles still equip? Lean: delete.
+  - id: Q-2
+    text: >-
+      S-0054/D-14 makes `[reading-isnt-proof, ratchet-what-you-build]` the default
+      review skill set, and neither remains. Amend it to `[working-rules]`, the set
+      torve's review profile equips today? Lean: yes.
