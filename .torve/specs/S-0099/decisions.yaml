@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A task is landed when a landing file for it is in the base tree or in the remote
+      tip of its document branch, and one function, `landed`, answers that for every
+      caller; `lane_landings`, `shipped_landings`, `shipped_ids` and `landed_ids`
+      are deleted.
+    paths:
+      - src/torve/application/projections.py
+      - src/torve/application/decisions.py
+      - src/torve/cli/manager.py
+      - src/torve/application/residency.py
+      - src/torve/application/planner.py
+      - src/torve/cli/night.py
+    consequence: >-
+      every reader agrees on what landed, on every host, after any kill or rebase
+    rationale: >-
+      The landing file is written by the commit that lands the task, so it cannot
+      disagree with git; S-0065/D-7 already named one carrier and S-0065/Q-1 asked
+      which.
+    cites: [S-0065/D-7, S-0065/Q-1, S-0085/D-3]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The tasks a document carries, in landing order, are the landing files on its
+      remote branch tip; the lane keeps no ledger of them.
+    paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
+    consequence: >-
+      the pull request body, the completion battery and the wave count the same list,
+      whichever host asks
+    rationale: >-
+      `carried_tasks` already falls back to these files for a phase finished by hand
+      (S-0091/D-3); the stream half is the one that drifted.
+    cites: [S-0091/D-3]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A document pull request's state is read from the forge when the lane needs it,
+      at most once per pass; the open documents are the remote `torve/S-*` branches
+      carrying a landing file the base does not.
+    paths: [src/torve/application/lane.py, src/torve/application/reviewleg.py]
+    consequence: >-
+      a merge, a close or a reopen a person makes is seen by the next pass of any
+      host
+    rationale: >-
+      S-0080/D-16 kept a stream ledger so an idle pass asks the forge nothing; reading
+      the remote's branches gives the same economy with no memory.
+    cites: [S-0080/D-16]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A completion battery's verdict is a commit status `torve/completion` on the
+      tip it judged, written to the forge; the draft flag and the battery round read
+      it there.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+    consequence: >-
+      a red tip stays red for every host and for the person reading the pull request's
+      checks, and a later green tip carries its own verdict
+    rationale: >-
+      A status is keyed by the sha it judges, so it cannot be read against the wrong
+      tip; the stream row could.
+    cites: [S-0093/D-2, S-0098/D-4]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A review round's branch, pull request, target, findings and phases ride in its
+      own contract under `round:`, which `task.minted` carries; the wave, the requeue's
+      rescope and the morning report read the board.
+    paths:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/lane.py
+      - src/torve/cli/manager.py
+      - src/torve/application/manager.py
+      - src/torve/domain/task.py
+    consequence: >-
+      a round is described by the record that minted it, not by a row on the host
+      that minted it
+    rationale: >-
+      `lane_review_task` is the only place this exists today, and three decisions
+      read it.
+    cites: [S-0097/D-6, S-0092/D-4]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      No decision reads `.torve/telemetry.jsonl`: `stream_rows` is imported only by
+      the ledger, the evals and the night report, and a test fails on any other import.
+    paths: [src/torve/application/projections.py, tests/test_layout.py]
+    consequence: >-
+      the file can be lost, rotated or absent and the engine decides the same
+    rationale: >-
+      `pages/docs/architecture/state.md` says telemetry is a projection that cannot
+      disagree; twelve decision callers made that untrue, and a test keeps it true.
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The broker meters streamed responses, and `seat.consumed` carries input, output,
+      cache-read and cache-write tokens beside the total for every attempt and review.
+    paths:
+      - src/torve/adapters/broker/local.py
+      - src/torve/application/eventlog.py
+      - src/torve/application/ports.py
+      - src/torve/domain/events.py
+    consequence: >-
+      cost per landing is a query for every seat, including plan-billed ones
+    rationale: >-
+      All 8,895 `seat.consumed` rows on record read `tokens=0`, because Claude Code
+      streams and `_meter` parses one JSON object.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      An attempt's number counts every attempt the task has had, read from the record,
+      so a requeue continues the count instead of restarting it.
+    paths: [src/torve/application/runner.py, src/torve/application/runstate.py]
+    consequence: >-
+      a task's attempts are one sequence, and no two attempts share a number
+    rationale: >-
+      bloomery's record holds 31 duplicate (task, attempt) pairs, each a requeue that
+      started again at 1.
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A leg that fails with the same error on the same branch backs off, doubling
+      its wait up to an hour and recording the failure once per wait; a finding re-raised
+      on an unchanged head is not recorded again; a candidate the lane finds red twice
+      at the same base tip and head escalates instead of regating again.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/manager.py
+      - src/torve/application/reviewleg.py
+    consequence: >-
+      a fault costs one record and one escalation, not a storm
+    rationale: >-
+      Retry storms on bloomery: 41 identical `leg_failed` rows in an hour, 46 re-raises
+      of seven threads, 16 lane reruns of T-0091's acceptance. Unguided reruns repair
+      few failures; a person repairs the rest.

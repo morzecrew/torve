@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0099
+title: >-
+  Every fact has one carrier, and no decision reads telemetry
+kind: design
+change:
+  type: refactor
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0065, S-0085, S-0093, S-0097, S-0098]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Torve main took 60 engine fixes between 2026-09-17 and 2026-10-08, and 33 of them kept the record, git and the forge consistent with each other. The lane, the merge, the review leg, the residency, the planner and the manager decide from `.torve/telemetry.jsonl`, a gitignored file on one host. At least five functions answer "is this task landed?", each from a different store. S-0065/Q-1 asked which carrier is the landing three weeks ago and is still open.
+
+  This document gives every fact the lane decides from exactly one carrier: the place the act that creates it writes it atomically. A landing is its landing file, on the base or on the document branch's remote tip. A pull request's state is the forge's. A completion battery's verdict is a commit status on the tip it judged. A review round's document and findings ride in its own contract. Escalations, attempts and seat consumption stay in the record. Telemetry stays a diagnostic stream that no decision reads. Two measurement fixes ride along because they are this document's exit numbers: the broker meters streamed responses (every `seat.consumed` row reads `tokens=0` today), and an attempt's number survives a requeue. Legs that fail the same way record it once and back off.
+motivation: >-
+  The owner chose this as the first of five moves on 2026-10-09, after the research
+  "Where the Night Leaks" (https://claude.ai/artifact/31iYwLtccAPTdjdkHe2HDy), and
+  froze new lane and forge features until it lands. Its exit is fewer than five engine
+  fix commits a week, from twenty, and a known cost per landing for every seat.
+current_state: >-
+  `projections.lane_landings` reads `lane_landed` and `lane_document_landed` rows
+  from the host's stream; `shipped_landings`, `shipped_ids` and `decisions.landed_by_task`
+  read landing files in the working tree; `landed_ids` unions the board, the stream
+  and the files; `cli/manager._dependencies_on_base` reads the base tree's landing
+  files and falls back to shas from the stream and the board. `lane._document_ledger`,
+  `_pr_ledger`, `_battery_round`, `_battery_target`, `document_tip_red` and `_wave_outstanding`
+  rebuild the lane's memory from the stream every call; `cli/merge` composes pull
+  request bodies from stream rows; `reviewleg.review_thread_leg`, `residency.ran_here`,
+  `planner._beyond_refresh`, `cli/manager.resolve_cmd` and `cli/night` read it as
+  well, twelve decision callers in all. A round's branch, target and findings exist
+  only in its `lane_review_task` row. `adapters/broker/local._meter` parses a response
+  body as one JSON object, so a streamed response meters zero tokens, and cache tokens
+  are never counted. `RunState.attempts` lives in `.wt/<task>.state.json`, which a
+  reap removes, so a requeued task's attempts start again at 1. On bloomery one hour
+  of 2026-09-19 recorded 41 identical `leg_failed` rows, seven threads were re-raised
+  46 times, and T-0091's acceptance re-ran at the lane 16 times.
+goals: |-
+  - One function answers "is this task landed", and it reads only landing files.
+  - Two hosts serving one partition make the same lane decision from the same git remote, forge and store.
+  - A killed manager restarts with no memory to rebuild: nothing the lane needs lives on the host.
+  - `seat.consumed` carries real input, output and cache token counts for every attempt and review, so cost per landing is a query.
+  - A leg that fails the same way stops repeating it.
+non_goals: |-
+  - New lane or forge features; the owner froze them until this lands.
+  - Deleting `.torve/telemetry.jsonl`: attempt metrics and engine health still go there (Q-1).
+  - The task-unit pull request mode and other simplifications the research proposed; they get their own document.
+  - Width above one worker per process (move 5).
+design:
+  - key: the-carriers
+    md: |-
+      | Fact | Carrier | Written by | Read by |
+      |---|---|---|---|
+      | A task landed | its landing file, in the base tree or the document branch's remote tip | the landing commit | `landed()` |
+      | Which tasks a document carries, in order | the landing files on the document branch | the lane's landing | the pull request body, the battery, the wave |
+      | A pull request's state | the forge | a person or the lane | the lane, once per pass at most |
+      | A completion battery's verdict | a commit status `torve/completion` on the judged tip | the lane | the draft flag, the battery round |
+      | A review round's document, target, findings and phases | `round:` in its own contract, carried by `task.minted` | the review leg | the wave, the requeue's rescope, the morning report |
+      | Escalations, resolutions, attempts, gates, seat consumption | the record | manager, worker, operator | the board |
+
+      A fact is written once, by the act that makes it true, in the place that act already writes. Nothing reconciles two carriers, because no fact has two.
+  - key: the-landed-function
+    md: >-
+      `landed(root, config)` returns task id to landing commit. It reads landing files
+      from the base tree and from the remote tip of every `torve/S-*` branch, after
+      the fetch the pass already makes. Every caller of `lane_landings`, `shipped_landings`,
+      `shipped_ids` and `landed_ids` calls it instead, and those four are deleted.
+      A squash-merged document's tasks are on the base because its landing files are
+      (S-0085/D-3 needed the stream for that, and no longer does). `landing.recorded`
+      stays in the record as a projection the importer writes from the same files.
+  - key: the-battery-status
+    md: >-
+      The lane writes `torve/completion` as `success` or `failure` on the tip it ran
+      the completion battery at, with the failing gates in the description. A person
+      sees it in the pull request's checks. `document_tip_red` becomes a forge read
+      of that status, and a later green tip carries its own.
+  - key: the-round-contract
+    md: >-
+      The review leg writes `round: {branch, pr, target, findings, phases, nonce}`
+      into the round's contract before adoption, so `task.minted` carries it. `_wave_outstanding`
+      lists the board's rounds of the document that are not terminal. The requeue's
+      rescope reads the contract.
+  - key: the-meter
+    md: >-
+      `_meter` reads a streamed body's events: Anthropic `message_start` usage (input
+      and cache) and `message_delta` usage (output), and the OpenAI final chunk's
+      `usage`. `BurnEvent` and `seat.consumed` carry `input`, `output`, `cache_read`
+      and `cache_write` beside the total. `cost_usd` stays null where the provider
+      bills by plan.
+  - key: the-settling-legs
+    md: >-
+      A leg that fails with the same error on the same branch waits twice its last
+      wait, up to an hour, before it tries again, and records the failure once per
+      wait. A finding re-raised on an unchanged head is not recorded again. A candidate
+      the lane finds red twice at the same base tip and the same head escalates instead
+      of regating a third time.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - Rounds and document ledgers minted before this document: upgrade between documents, with no document pull request open and no round queued (risk).
+  - A file-backed record for repositories without Postgres (Q-2).
+risks: ''
+alternatives:
+  - option: >-
+      Move the lane's rows into the record as new event kinds (`document.landed`,
+      `document.verdict`, `document.battery`) and have every reader read the board.
+    rejected_because: >-
+      It keeps two writes per fact: the landing commit is pushed, then the event is
+      appended, and a crash between them leaves the record and git disagreeing, which
+      is the class of bug this document ends. The lane is also synchronous and the
+      record's port is not.
+  - option: >-
+      Keep the stream as the lane's memory and ship it between hosts.
+    rejected_because: >-
+      It makes a diagnostic file a database, which `pages/docs/architecture/state.md`
+      already says it is not.
+questions:
+  - id: Q-1
+    text: >-
+      Once no decision reads it, should `.torve/telemetry.jsonl` keep the attempt
+      rows the ledger and evals read, or should those move into the record so the
+      file can go? Lean: keep it for now, and decide after a month of the record carrying
+      real token counts.
+  - id: Q-2
+    text: >-
+      The review rounds and escalations a document landing depends on live in the
+      record, which a mock store loses when its process exits. Should `unit: document`
+      and `landing: pull_request` require the Postgres store (doctor red, the lane
+      refuses), or should torve grow a file-backed record for repositories without
+      Postgres? Lean: require Postgres; a served manager already needs it, and every
+      adopter so far has one.
