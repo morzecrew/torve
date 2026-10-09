@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-09T19:35:08Z'
+    title: >-
+      Phase 3 is judged by tests, and finishes what review found
+    md: >-
+      Planning refused phase 3: `uv run torve guide torve` reads the host, which a
+      contract's acceptance may not, so the phase is judged by its tests and `mypy`
+      instead. The reviewer on phases 1 and 2 recorded two major findings. Phase 1
+      left `runconfig.ROLE_SKILLS` in place because `tests/test_review_run.py` and
+      `tests/test_evals.py` still import it, so D-9 is only half settled. Phase 2's
+      `equipped_working_rules` reads a missing skills directory as equipped, so a
+      role with an empty skill set still gets the working-rules line D-8 removes.
+      Phase 3 now owns `src/torve/config/runconfig.py`, `src/torve/adapters/agent/harness.py`
+      and the tests that import or pin them, and settles both.
