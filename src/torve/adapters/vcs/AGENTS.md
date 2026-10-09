@@ -66,4 +66,11 @@ A night whose lane published a document pull request out of draft is not drained
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
 - Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
 
+### S-0099/D-4 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: none
+
+A completion battery's verdict is a commit status `torve/completion` on the tip it judged, written to the forge; the draft flag and the battery round read it there.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: a red tip stays red for every host and for the person reading the pull request's checks, and a later green tip carries its own verdict
+
 <!-- /torve:managed -->

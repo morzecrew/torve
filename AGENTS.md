@@ -106,6 +106,13 @@ A dependency change here is an image change: the pinned seat images are rebuilt 
 - Paths: `pages/docs/reference/stability.md` `README.md`
 - Consequence: an adopter reads one page to upgrade, and a release cannot move a format silently
 
+### S-0100/D-7 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+
+`skills/**/AGENTS.md` projections stay out of the wheel and out of the copy a sandbox receives.
+
+- Paths: `pyproject.toml` `src/torve/application/skills.py`
+- Consequence: an adopter's sandbox carries no row of torve's corpus
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -125,7 +132,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `migrations/` — 1 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/diagrams/` — 0 decision(s)
-- `pages/docs/` — 3 decision(s)
+- `pages/docs/` — 4 decision(s)
 - `pages/docs/architecture/` — 0 decision(s)
 - `pages/docs/reference/` — 1 decision(s)
 - `sandboxes/` — 11 decision(s)
@@ -136,27 +143,29 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `sandboxes/dsh/toolkit/` — 3 decision(s)
 - `sandboxes/mimo/` — 0 decision(s)
 - `sandboxes/mimo/toolkit/` — 2 decision(s)
-- `skills/` — 6 decision(s)
-- `skills/corpus-bootstrap/` — 0 decision(s)
+- `skills/` — 8 decision(s)
+- `skills/corpus-bootstrap/` — 1 decision(s)
+- `skills/flag-dont-flip/` — 1 decision(s)
+- `skills/ratchet-what-you-build/` — 0 decision(s)
 - `skills/spec-writer/` — 1 decision(s)
-- `skills/working-rules/` — 7 decision(s)
+- `skills/working-rules/` — 8 decision(s)
 - `src/` — 1 decision(s)
 - `src/torve/` — 3 decision(s)
 - `src/torve/_web/` — 1 decision(s)
 - `src/torve/adapters/` — 2 decision(s)
-- `src/torve/adapters/agent/` — 27 decision(s)
-- `src/torve/adapters/broker/` — 1 decision(s)
+- `src/torve/adapters/agent/` — 28 decision(s)
+- `src/torve/adapters/broker/` — 2 decision(s)
 - `src/torve/adapters/notify/` — 0 decision(s)
 - `src/torve/adapters/runtime/` — 4 decision(s)
-- `src/torve/adapters/vcs/` — 9 decision(s)
+- `src/torve/adapters/vcs/` — 10 decision(s)
 - `src/torve/adapters/workspace/` — 3 decision(s)
-- `src/torve/application/` — 238 decision(s)
+- `src/torve/application/` — 251 decision(s)
 - `src/torve/base/` — 4 decision(s)
-- `src/torve/cli/` — 80 decision(s)
-- `src/torve/config/` — 86 decision(s)
-- `src/torve/domain/` — 41 decision(s)
+- `src/torve/cli/` — 90 decision(s)
+- `src/torve/config/` — 88 decision(s)
+- `src/torve/domain/` — 43 decision(s)
 - `src/torve/gates/` — 34 decision(s)
-- `tests/` — 59 decision(s)
+- `tests/` — 60 decision(s)
 - `web/` — 1 decision(s)
 - `web/src/` — 1 decision(s)
 

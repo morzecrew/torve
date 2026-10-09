@@ -158,9 +158,10 @@ decisions:
   - id: D-14
     grade: ASSUMED
     text: >-
-      The default review skill set is `[reading-isnt-proof, ratchet-what-you-build]`
+      The default review skill set is `[working-rules]` (S-0100/D-12)
     paths: [src/torve/config/runconfig.py]
     consequence: Two skills that declare the role reach it
+    fingerprint: 18f652064234321f/3fe568a12e5031ef
   - id: D-15
     grade: ASSUMED
     text: >-

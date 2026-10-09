@@ -139,3 +139,30 @@ decisions:
       Retry storms on bloomery: 41 identical `leg_failed` rows in an hour, 46 re-raises
       of seven threads, 16 lane reruns of T-0091's acceptance. Unguided reruns repair
       few failures; a person repairs the rest.
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      `.torve/telemetry.jsonl` keeps the attempt rows and engine-health rows it carries
+      today, read by the ledger, the evals and the night report only; whether attempt
+      metrics move into the record is decided after a month of `seat.consumed` carrying
+      real token counts.
+    paths: [src/torve/application/telemetry.py, src/torve/application/ledger.py]
+    consequence: >-
+      the ledger and the evals keep working through the change, and no decision depends
+      on the file
+    rationale: >-
+      The owner's answer to Q-1 (2026-10-09); moving metrics is a separate change
+      with its own evidence.
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `promotion.unit: document` and `promotion.landing: pull_request` require the
+      Postgres store: `torve doctor` is red and the lane refuses to run on a mock
+      store under either.
+    paths: [src/torve/cli/doctor.py, src/torve/application/lane.py]
+    consequence: >-
+      the rounds and escalations a document's landing depends on are never in a store
+      that vanishes with its process
+    rationale: >-
+      The owner's answer to Q-2 (2026-10-09): a served manager already needs Postgres,
+      and every adopter so far has one.

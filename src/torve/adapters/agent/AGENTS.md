@@ -200,6 +200,13 @@ A seat whose failure no retry can change escalates at once as `seat_refused` wit
 - Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py` `src/torve/domain/states.py` `tests/test_run_loop.py` `tests/test_agents.py` `tests/test_domain.py`
 - Consequence: a broken image, an over-long prompt or an unsupported model is named as what it is in one dispatch, and the poison ceiling counts only attempts a model made
 
+### S-0100/D-8 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+
+`torve init --starter` writes role profiles that equip working-rules and flag-dont-flip to implement and revert and working-rules to review; the prompt names working-rules only to a role equipped with it.
+
+- Paths: `src/torve/cli/init.py` `src/torve/adapters/agent/harness.py`
+- Consequence: a fresh adopter's agent gets the skills its prompt names
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
