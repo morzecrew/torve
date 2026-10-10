@@ -113,7 +113,7 @@ def landed(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
         if best is None or candidate > best:
             found[one.task] = candidate
 
-    for at, task, commit in _remote_landings(root):
+    for at, task, commit in _remote_landings(root, spec_dir):
         best = found.get(task)
         candidate = (at, commit)
 
@@ -123,12 +123,17 @@ def landed(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
     return {task: commit for task, (_, commit) in found.items()}
 
 
-def _remote_landings(root: Path) -> list[tuple[str, str, str]]:
+def _remote_landings(root: Path, spec_dir: Path | None = None) -> list[tuple[str, str, str]]:
     """*(at, task, commit)* for every landing file on the remote tip of a
     `torve/S-*` document branch, as the last fetch left it (S-0099/D-1). The
     base tree holds a document's landings only once it merged; this is the
     half a document branch carries until then. A tree that is no checkout, or
-    has no such branch, contributes nothing."""
+    has no such branch, contributes nothing.
+
+    Each branch is read under its own document's execution directory only:
+    the other documents' landings a branch carries are the base's, which the
+    working tree already answers, and reading them again cost one `git show`
+    per landing in the corpus per branch."""
 
     import subprocess
 
@@ -153,9 +158,28 @@ def _remote_landings(root: Path) -> list[tuple[str, str, str]]:
 
     found: list[tuple[str, str, str]] = []
 
+    specs = spec_dir if spec_dir is not None else root / layout.SPECS_DIR
+
+    try:
+        specs_rel = specs.resolve().relative_to(root.resolve()).as_posix()
+
+    except ValueError:
+        specs_rel = layout.SPECS_DIR
+
     for ref in refs.stdout.split():
+        document = ref.rsplit("/", 1)[-1]
         tree = subprocess.run(
-            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", ref],
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-tree",
+                "-r",
+                "--name-only",
+                ref,
+                "--",
+                f"{specs_rel}/{document}/{EXECUTION_DIR}",
+            ],
             capture_output=True,
             text=True,
             check=False,
