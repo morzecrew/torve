@@ -51,6 +51,7 @@ import socket
 import subprocess
 import threading
 import time
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -135,40 +136,178 @@ UPSTREAM_TIMEOUT_S = 300.0
 # ....................... #
 
 
-def _meter(body: bytes) -> tuple[int, float | None]:
-    """(tokens, cost_usd) from a provider response body, best effort: the
-    provider's own usage fields are the wire's truth (S-0021/D-5). The body is
-    read, counted and discarded — the broker keeps no bodies (S-0021/D-7)."""
+@dataclass(frozen=True)
+class Metered:
+    """One response's metering: the total, the four counts a rate card prices
+    and the price where the provider reported one (S-0099/D-7)."""
+
+    tokens: int = 0
+    cost_usd: float | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+
+
+def _int(value: Any) -> int | None:
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+def _counts(usage: dict[str, Any]) -> tuple[int, int, int, int]:
+    """(input, output, cache_read, cache_write) from one usage block.
+
+    Anthropic reports the legs apart — `input_tokens` excludes
+    `cache_read_input_tokens` and `cache_creation_input_tokens`. OpenAI folds
+    a cache read into `prompt_tokens`, so it is taken back out to hold the
+    same convention on both wires."""
+
+    cache_read = (
+        _int(usage.get("cache_read_input_tokens")) or _int(usage.get("cache_read_tokens")) or 0
+    )
+    cache_write = (
+        _int(usage.get("cache_creation_input_tokens")) or _int(usage.get("cache_write_tokens")) or 0
+    )
+    details = usage.get("prompt_tokens_details")
+    cached = 0
+
+    if isinstance(details, dict):
+        cached = _int(cast("dict[str, Any]", details).get("cached_tokens")) or 0
+
+    prompt = _int(usage.get("prompt_tokens"))
+    tokens_in = _int(usage.get("input_tokens"))
+
+    if tokens_in is None:
+        tokens_in = (prompt - cached) if prompt is not None else 0
+        cache_read = cache_read or cached
+
+    tokens_out = _int(usage.get("output_tokens"))
+
+    if tokens_out is None:
+        tokens_out = _int(usage.get("completion_tokens")) or 0
+
+    return tokens_in, tokens_out, cache_read, cache_write
+
+
+def _streamed(text: str) -> list[dict[str, Any]]:
+    """The JSON objects a streamed (SSE) body carries, one per `data:` line.
+    Event-only lines and the `[DONE]` sentinel carry none."""
+
+    events: list[dict[str, Any]] = []
+
+    for line in text.splitlines():
+        line = line.strip()
+
+        if not line.startswith("data:"):
+            continue
+
+        chunk = line[5:].strip()
+
+        if not chunk or chunk == "[DONE]":
+            continue
+
+        try:
+            parsed: Any = json.loads(chunk)
+
+        except ValueError:
+            continue
+
+        if isinstance(parsed, dict):
+            events.append(cast("dict[str, Any]", parsed))
+
+    return events
+
+
+def _meter(body: bytes) -> Metered:
+    """The counts and price from a provider response body, best effort: the
+    provider's own usage fields are the wire's truth (S-0021/D-5). A plain
+    JSON body meters as it always did; a streamed body is read for the usage
+    its events carry — Anthropic's `message_start` (input and cache) and
+    `message_delta` (output), and OpenAI's final chunk's `usage`
+    (S-0099/D-7). The body is read, counted and discarded — the broker keeps
+    no bodies (S-0021/D-7)."""
 
     try:
         data: Any = json.loads(body)
 
     except ValueError:
-        return 0, None
+        data = None
 
-    if not isinstance(data, dict):
-        return 0, None
+    if isinstance(data, dict):
+        return _meter_json(cast("dict[str, Any]", data))
 
-    record = cast("dict[str, Any]", data)
+    return _meter_stream(body.decode("utf-8", errors="replace"))
+
+
+def _meter_json(record: dict[str, Any]) -> Metered:
     usage = record.get("usage")
+    counts = (0, 0, 0, 0)
     tokens = 0
 
     if isinstance(usage, dict):
         usage_map = cast("dict[str, Any]", usage)
-        total = usage_map.get("total_tokens")
-
-        if isinstance(total, (int, float)):
-            tokens = int(total)
-        else:
-            for key in ("prompt_tokens", "completion_tokens", "input_tokens", "output_tokens"):
-                value = usage_map.get(key)
-
-                if isinstance(value, (int, float)):
-                    tokens += int(value)
+        counts = _counts(usage_map)
+        total = _int(usage_map.get("total_tokens"))
+        tokens = total if total is not None else sum(counts)
 
     cost: Any = record.get("total_cost_usd", record.get("cost_usd", record.get("cost")))
 
-    return tokens, float(cost) if isinstance(cost, (int, float)) else None
+    return Metered(
+        tokens=tokens,
+        cost_usd=float(cost) if isinstance(cost, (int, float)) else None,
+        input_tokens=counts[0],
+        output_tokens=counts[1],
+        cache_read_tokens=counts[2],
+        cache_write_tokens=counts[3],
+    )
+
+
+def _meter_stream(text: str) -> Metered:
+    """Meter a streamed body from the usage its events carry, taking each
+    count as the largest any event reported — the same number the provider
+    would have put in an unstreamed body."""
+
+    counts = (0, 0, 0, 0)
+    total: int | None = None
+    cost: float | None = None
+
+    for event in _streamed(text):
+        reported_cost = event.get("total_cost_usd", event.get("cost_usd", event.get("cost")))
+
+        if isinstance(reported_cost, (int, float)):
+            cost = float(reported_cost)
+
+        usage = event.get("usage")
+
+        if event.get("type") == "message_start":
+            message = event.get("message")
+            usage = (
+                cast("dict[str, Any]", message).get("usage") if isinstance(message, dict) else None
+            )
+
+        if not isinstance(usage, dict):
+            continue
+
+        usage_map = cast("dict[str, Any]", usage)
+        one = _counts(usage_map)
+        counts = (
+            max(counts[0], one[0]),
+            max(counts[1], one[1]),
+            max(counts[2], one[2]),
+            max(counts[3], one[3]),
+        )
+        reported_total = _int(usage_map.get("total_tokens"))
+
+        if reported_total is not None:
+            total = reported_total
+
+    return Metered(
+        tokens=total if total is not None else sum(counts),
+        cost_usd=cost,
+        input_tokens=counts[0],
+        output_tokens=counts[1],
+        cache_read_tokens=counts[2],
+        cache_write_tokens=counts[3],
+    )
 
 
 # ....................... #
@@ -279,15 +418,15 @@ class _BrokerState:
 
     # ....................... #
 
-    def record(self, provider: str, tokens: int, cost: float | None) -> None:
+    def record(self, provider: str, metered: Metered) -> None:
         with self.lock:
             self.requests += 1
 
-            if tokens:
-                self.tokens[provider] = self.tokens.get(provider, 0) + tokens
+            if metered.tokens:
+                self.tokens[provider] = self.tokens.get(provider, 0) + metered.tokens
 
-            if cost is not None:
-                self.cost += cost
+            if metered.cost_usd is not None:
+                self.cost += metered.cost_usd
                 self.cost_seen = True
 
         # S-0045 S-0045/D-3: emitted outside the lock, after the aggregate is
@@ -297,7 +436,17 @@ class _BrokerState:
         # and this is the request path (S-0045/D-3).
         if self.sink is not None:
             with contextlib.suppress(Exception):
-                self.sink(BurnEvent(provider=provider, tokens=tokens, cost_usd=cost))
+                self.sink(
+                    BurnEvent(
+                        provider=provider,
+                        tokens=metered.tokens,
+                        cost_usd=metered.cost_usd,
+                        input_tokens=metered.input_tokens,
+                        output_tokens=metered.output_tokens,
+                        cache_read_tokens=metered.cache_read_tokens,
+                        cache_write_tokens=metered.cache_write_tokens,
+                    )
+                )
 
     # ....................... #
 
@@ -414,8 +563,7 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
                     CAUSE_UPSTREAM, 502, route.provider, message=f"{type(exc).__name__}: {exc}"
                 )
                 return
-            tokens, cost = _meter(data)
-            state.record(route.provider, tokens, cost)
+            state.record(route.provider, _meter(data))
 
             self.send_response(resp.status)
 
@@ -547,7 +695,7 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
 
                 return False
 
-            state.record(authority, 0, None)  # counts only (S-0021/D-7)
+            state.record(authority, Metered())  # counts only (S-0021/D-7)
             return True
 
         # ....................... #

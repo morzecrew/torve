@@ -306,11 +306,22 @@ class BurnEvent:
     numbers, as the wire reported them. Emitted per call rather than summed
     at close, because a rate is the form the question "is this attempt
     working?" is actually asked in — and an attempt with no recent burn is
-    not working, whatever it would say about itself (S-0045/D-4)."""
+    not working, whatever it would say about itself (S-0045/D-4).
+
+    The four counts ride beside the total (S-0099/D-7): a cached read and a
+    cached write are priced differently from a fresh input token, so a seat
+    billed by plan can still be priced per landing. `input` excludes the
+    cache legs, which is the provider's own convention. `cost_usd` stays
+    null where the provider reports none — a plan-billed seat, or a stream
+    whose events carry usage but no price."""
 
     provider: str
     tokens: int
     cost_usd: float | None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 # A sink the broker calls, in the request thread, once per metered response.

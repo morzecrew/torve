@@ -51,6 +51,10 @@ class RunState:
     schema_version: int = SCHEMA_VERSION
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     state: TaskState = TaskState.QUEUED
+    # Every attempt the task has had, this dispatch's included (S-0099/D-8):
+    # dispatch seeds it from the record, so a requeue continues the count and
+    # no two attempts share a number. The ceiling and the budget are counted
+    # from the seed, not from zero.
     attempts: int = 0
     heartbeat: str = field(default_factory=_now)
     sandbox_id: str | None = None

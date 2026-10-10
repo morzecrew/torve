@@ -784,7 +784,7 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
         encoding="utf-8",
     )
 
-    def fake_run_task(root, task, config, deps):
+    def fake_run_task(root, task, config, deps, *, attempt_base=0):
         from torve.application.ports import AttemptFact
 
         # The broker meters on the request thread, which is this one: the
@@ -856,7 +856,7 @@ def test_an_unobserved_run_is_still_a_run(tmp_path, monkeypatch):
     contract(tmp_path, "T-0001")
     seen: list[object] = []
 
-    def fake_run_task(root, task, config, deps):
+    def fake_run_task(root, task, config, deps, *, attempt_base=0):
         seen.append(deps.sink)
 
         return SimpleNamespace(
