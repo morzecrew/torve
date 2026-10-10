@@ -247,7 +247,11 @@ def _meter_json(record: dict[str, Any]) -> Metered:
         usage_map = cast("dict[str, Any]", usage)
         counts = _counts(usage_map)
         total = _int(usage_map.get("total_tokens"))
-        tokens = total if total is not None else sum(counts)
+        # The total stays input plus output, as it always was: the broker's
+        # token budget sums it, and cache reads counted in would spend a
+        # cache-heavy run's budget many times over. The cache counts ride
+        # beside it.
+        tokens = total if total is not None else counts[0] + counts[1]
 
     cost: Any = record.get("total_cost_usd", record.get("cost_usd", record.get("cost")))
 
@@ -301,7 +305,7 @@ def _meter_stream(text: str) -> Metered:
             total = reported_total
 
     return Metered(
-        tokens=total if total is not None else sum(counts),
+        tokens=total if total is not None else counts[0] + counts[1],
         cost_usd=cost,
         input_tokens=counts[0],
         output_tokens=counts[1],

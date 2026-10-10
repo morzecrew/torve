@@ -361,7 +361,8 @@ def test_an_anthropic_streamed_body_meters_its_real_counts():
     # input and cache come from `message_start`, output from `message_delta`.
     assert (metered.input_tokens, metered.output_tokens) == (25, 200)
     assert (metered.cache_read_tokens, metered.cache_write_tokens) == (5, 10)
-    assert metered.tokens == 240
+    # The total is input plus output; the cache counts ride beside it.
+    assert metered.tokens == 225
     assert metered.cost_usd is None  # billed by plan: no price on the wire
 
 
@@ -387,6 +388,21 @@ def test_a_json_body_meters_as_before():
     assert metered.tokens == 5
     assert metered.cost_usd == 0.01
     assert (metered.input_tokens, metered.output_tokens) == (0, 0)
+
+
+def test_an_anthropic_json_body_keeps_cache_out_of_the_total():
+    """The broker's token budget sums `tokens`; a cache-heavy Anthropic body
+    counts input plus output there, as it did before the cache counts existed,
+    and reports the cache beside it."""
+    from torve.adapters.broker.local import _meter
+
+    metered = _meter(
+        b'{"usage": {"input_tokens": 10, "output_tokens": 4,'
+        b' "cache_read_input_tokens": 9000, "cache_creation_input_tokens": 300}}'
+    )
+
+    assert metered.tokens == 14
+    assert (metered.cache_read_tokens, metered.cache_write_tokens) == (9000, 300)
 
 
 # ....................... #
