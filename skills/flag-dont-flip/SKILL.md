@@ -1,6 +1,6 @@
 ---
 name: flag-dont-flip
-description: Executing a task against an RFC with graded decisions — what to do when reality contradicts a decision, and how to write the divergence log that decisions-reported gates.
+description: When executing a torve task contract against graded decisions — what to do when reality contradicts a decision, when a contract is too underspecified to build, and what a divergence entry must say for the decisions-reported gate.
 roles: [implement, revert]
 gate: decisions-reported
 ---
@@ -12,155 +12,106 @@ gate: decisions-reported
 
 # Flag, Don't Flip
 
-When reality contradicts a decision, **report the contradiction — do not quietly
+When reality contradicts a decision, **report the contradiction; do not quietly
 pick the other branch.** The decision was made by someone with context you do
-not have; acting on the contradiction without recording it leaves the codebase
-disagreeing with its own specification with nothing to say when or why.
+not have. Acting on the contradiction without recording it leaves the codebase
+disagreeing with its own specification, with nothing to say when or why.
+
+How to record an entry, the verb and its options, is in `working-rules`. This
+skill is about what to do and what the entry must say.
 
 ## The grade decides the action
 
 | Grade | On contradiction | Logged action | Never |
 |---|---|---|---|
-| `LOCKED` | **Halt.** Write the entry, stop, escalate. | `halted` | Proceed — even when the alternative is obviously better. |
+| `LOCKED` | **Halt.** Write the entry, stop, escalate. | `halted` | Proceed, even when the alternative is obviously better. |
 | `ASSUMED` | **Depart.** Write the entry, build the better option, carry on. | `departed` | Halt. You were licensed to decide this. |
 | `OPEN` | **Decide.** Write the entry recording the choice and why, carry on. | `decided` | Halt, or hand back half an implementation. |
-| `UNLISTED` | **Decide, and owe a row.** The entry carries the `proposal:` it puts back. | `decided` | Treat it as `OPEN`. Nobody looked; a proposal is owed. |
+| `UNLISTED` | **Decide, and owe a row.** The entry carries the proposal it puts back. | `decided` | Treat it as `OPEN`. Nobody looked; a proposal is owed. |
 
-Two symmetric failures: flipping a lock leaves the spec fiction; halting on an
-assumption costs the round-trip grading exists to avoid. Over-caution is a real
-failure, not a safe default.
+Two symmetric failures: flipping a lock leaves the specification fiction, and
+halting on an assumption costs the round trip grading exists to avoid.
+Over-caution is a real failure, not a safe default.
 
 ## Underspecification is a halt, not a question
 
 You are executing autonomously. There is nobody to hand a plan to, and stopping
-to propose one deadlocks the task — no diff, nothing for the gates to run
+to propose one deadlocks the task: no diff, nothing for the gates to run
 against, and a run that dies on wall-clock rather than saying anything useful.
 
-Plan internally, then build. What the plan is *for* is the third list below.
+Plan internally, then build. Before writing code, work out the files you will
+touch, the decision governing each non-trivial choice, and **the decisions your
+plan needs that the contract does not settle**.
 
-Before writing code, work out: the files you will touch, the decision row
-governing each non-trivial choice, and **the decisions your plan needs that the
-contract does not settle**.
+If that last list has **three or more load-bearing entries**, the contract is
+not executable. Halt with one `unlisted` entry of kind `blocked`, class
+`spec-gap` and action `halted`, whose claim names the unsettled decisions and
+whose proposal says what rows are needed. Its evidence can be a search that
+came back empty, as a backticked command with its output.
 
-If that third list has **three or more load-bearing entries**, the contract is
-not executable. Halt:
-
-```yaml
-- decision: unlisted
-  grade: UNLISTED
-  kind: blocked
-  class: spec-gap
-  at: 2026-08-20T11:04:12Z
-  attempt: 1
-  claim: retry policy, backoff bounds and dead-letter behaviour are all unsettled;
-    any implementation of this contract invents three load-bearing decisions
-  evidence: `rg -n "retry|backoff|dead.?letter" rfcs/0009-*.md` — no matches
-  action: halted
-  proposal: three rows needed before this is executable; see claim
-```
-
-Fewer than three: decide them, log each as `UNLISTED`, carry on. That is what
-`UNLISTED` is for, and each entry owes a `proposal:` back.
+Fewer than three: decide them, record each as `UNLISTED`, and carry on. That is
+what `UNLISTED` is for, and each entry owes a proposal back.
 
 **Inventing the missing decisions silently is the failure this skill exists to
-prevent.** A contract that needs three load-bearing inventions is not a contract
-you can satisfy — it is a specification defect, and reporting it is the correct
-outcome, not a failure to complete. The halt escalates as `underspecified`
-(charter S-0001/A-7): it indicts the contract, not the code, and the fix is an
-amendment and a re-mint, never a retry.
+prevent.** A contract that needs three load-bearing inventions is a
+specification defect, and reporting it is the correct outcome, not a failure to
+complete. The halt escalates as `underspecified`: it indicts the contract, not
+the code, and the fix is an amendment and a re-mint, never a retry.
 
-## The log: `torve log divergence`
+A file outside the contract's scope that the change cannot avoid is the same
+kind of finding. Name the file in the entry's claim and its proposal, and halt;
+do not edit outside the scope.
 
-You state an entry; the engine writes the log. One call per entry:
+## What an entry must say
 
-```console
-$ torve log divergence T-0142 --attempt 2 \
-    --decision D-3 --grade LOCKED \
-    --kind contradicted --class spec-gap \
-    --claim "sessions cannot live in Redis; no Redis service in this deployment" \
-    --evidence "infra/compose.yaml:1 — no redis service is defined" \
-    --action halted \
-    --proposal "LOCKED — sessions live in Postgres until Redis is provisioned"
-```
-
-Everything mechanical belongs to the engine: the file and its YAML quoting,
-the timestamp, the pin your evidence resolves against, the drift count, and
-staging the log so the gate that judges the diff can see it. You supply the
-judgement, which is the part no one else can.
-
-**The entry is checked before anything is written.** A refused entry leaves
-the log exactly as it was and prints what to repair — in the same words the
-gate would use hours later, which is the point of being told now. Fix the
-line and run the command again.
-
-**Never write or edit `.torve/tasks/<task-id>/log.yaml` yourself.** The
-engine owns that file. A hand-written log is the failure this verb exists to
-remove: it has ended three-attempt runs over a stray character, an evidence
-line in the wrong shape, and a file nobody staged.
-
-## Before you finish: `torve log owed`
-
-```console
-$ torve log owed T-0142 --touched src/app/session.py --touched tests/test_session.py
-```
-
-Name the files you changed. It answers which LOCKED decisions govern them
-with no entry citing them yet — the same check the gate convicts on, run
-while you can still answer it. Nothing is written and nothing is judged.
-
-This is worth a habit because silence over a governed file is the most
-common way an attempt is thrown away: the work is done, the gate refuses it
-for the log, and the next attempt starts from a tree it cannot tell apart
-from the last one. The most recent run lost three attempts to exactly two
-missing entries.
-
-A decision you touched and disagree with still gets an entry — that is what
-`--kind contradicted` and `--action halted` are for. What is never right is
-saying nothing.
-
-Write the entry **before** you act; an entry written afterwards is a
-rationalisation. Entries are append-only — a wrong entry gets a later entry
-saying so, never an edit of the old one. `--grade` is the grade the task
-carries now, never re-read from the current spec.
-
-- **`--evidence` must be locatable by someone else**: `path:line`,
+- **Write the entry before you act.** An entry written afterwards is a
+  rationalisation. Entries are append-only: a wrong entry gets a later entry
+  saying so, never an edit of the old one.
+- **The grade is the grade the task carries now,** never re-read from the
+  current specification.
+- **Evidence must be locatable by someone else**: `path:line`,
   `path:start-end`, or a backticked command with its output. A sentence is a
-  claim, and `--claim` is where claims go; unlocatable evidence is discarded,
+  claim, and the claim is where claims go; unlocatable evidence is discarded,
   and a discarded entry counts as none.
-- **The citation LEADS, prose follows after ` — `.** Everything before the
+- **The citation leads, prose follows after ` — `.** Everything before the
   first ` — ` is read as the citation and nothing else. Extra citations go in
   the prose. Parentheses after the path break the parse, and a path without
   `:line` is not a citation:
   - wrong: `src/a.py:10-20 (the guard); src/b.py:5 (its caller)`
   - wrong: `src/a.py — the guard` (no line number)
-  - wrong: `src/a.py:10-20; src/b.py:5 — the guard` (semicolon-joined citations where prose belongs — one citation leads)
+  - wrong: `src/a.py:10-20; src/b.py:5 — the guard` (one citation leads)
   - right: `src/a.py:10-20 — the guard; src/b.py:5 is its caller`
-- **`--class` answers: could this have been known before code existed?**
-  `discovery` no (healthy) · `spec-gap` yes, spec was silent · `drift` yes, spec
-  covered it and it was built otherwise (**a defect** — should be zero) ·
-  `irreducible` neither: stop and spike.
-- **`--kind resolved` with `--action decided` is the close-out** — the legal
-  attestation of compliance in a touched `LOCKED` area, which the silence check
-  demands an entry for. `--kind blocked` licenses only `--action halted`.
-- **`--decision unlisted` owes a `--proposal`**, and takes `--grade UNLISTED`.
-- **`--notes` carries prose that belongs beside the entry** — never a sibling
+- **The class answers: could this have been known before code existed?**
+  `discovery`: no, which is healthy. `spec-gap`: yes, the specification was
+  silent. `drift`: yes, the specification covered it and it was built
+  otherwise, which is a defect and should be zero. `irreducible`: neither;
+  stop and spike.
+- **Kind `resolved` with action `decided` is the close-out**: the attestation
+  of compliance in a touched `LOCKED` area, which the silence check demands an
+  entry for. Kind `blocked` licenses only action `halted`.
+- **An `unlisted` decision owes a proposal** and takes grade `UNLISTED`.
+- **Notes carry prose that belongs beside the entry**, never a sibling
   document.
-- Bypass records (S-0002/three-outcomes-gates-need-beyond-pass-and-fail) live in a separate `bypasses:` list in the
-  same file, written by the runner from a human's signed trailer. Not yours.
+- Bypass records live in a separate `bypasses:` list in the same file, written
+  by the runner from a person's signed trailer. They are not yours.
 
 ## Silence is what gets caught
 
 Violating a lock is not mechanically detectable; the absence of an entry in an
-area a `LOCKED` decision declares trivially is. When in doubt whether a
-contradiction is worth reporting, report it — a surplus entry costs a reader
-ten seconds, a missing one is an unexplained divergence found months later.
-Compliant work in a touched `LOCKED` area owes a close-out entry too.
+area a `LOCKED` decision declares is. When in doubt whether a contradiction is
+worth reporting, report it: a surplus entry costs a reader ten seconds, and a
+missing one is an unexplained divergence found months later. Compliant work in
+a touched `LOCKED` area owes a close-out entry too.
+
+A decision you touched and disagree with still gets an entry; that is what kind
+`contradicted` and action `halted` are for. What is never right is saying
+nothing.
 
 Halting on a `LOCKED` row is a success. State it plainly ("Halted on D-3 …
-needs a human decision"), never soften it into a flip wearing a disclaimer.
-And never amend the spec from inside a task — your entry *is* the amendment
-proposal; the author accepts it into the decision table, citing your entry.
+needs a human decision"), never soften it into a flip wearing a disclaimer. And
+never amend the specification from inside a task: your entry *is* the amendment
+proposal, and the author accepts it into the decision table, citing your entry.
 
-The enforcing gate is `decisions-reported` in the Torve package: schema,
-grade/action legality, evidence locatability, the drift count, and the silence
-check over the task's declared decision paths.
+The enforcing gate is `decisions-reported`: schema, grade and action legality,
+evidence locatability, the drift count, and the silence check over the task's
+declared decision paths.

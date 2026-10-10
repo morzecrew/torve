@@ -3,35 +3,38 @@ set into the sandbox and the specialisation is visible. The corpus-validator
 breakage cases moved to tests/test_rfc_check.py when validation moved into
 the package (S-0007/format-validation, S-0007/D-12). The corpus-bootstrap fixture (S-0031 phase
 2) rides here too: the sample survey report in, the checkable output shape
-out — the shape the skill teaches pinned against the package's own parsers.
+out — the shape the operator skill's adopting reference teaches (S-0100/D-9),
+pinned against the package's own parsers.
 """
 
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from torve.application.skills import available, materialize, skills_root
-from torve.config.runconfig import ROLE_SKILLS
 from torve.config.spec import DOCUMENT_DIRNAME, load_document
 from torve.domain.vocabulary import GRADES, STATUSES
 
+BOOTSTRAP = Path(__file__).resolve().parent / "fixtures" / "corpus-bootstrap"
 
-def test_the_four_specialised_skills_ship():
-    assert {
-        "corpus-bootstrap",
-        "flag-dont-flip",
-        "ratchet-what-you-build",
-        "spec-writer",
-    } <= set(available())
+
+def test_torve_ships_four_skills_each_for_one_audience():
+    """S-0100/D-1: the operator's, the author's, and the two an executing
+    agent reads — nothing else ships."""
+
+    assert set(available()) == {"torve", "spec-writer", "working-rules", "flag-dont-flip"}
 
 
 # Torve's own skills, written here rather than specialised from upstream, so
 # the specialisation header and the gate below say nothing about them
 # (S-0067/D-3: the working rules live once, and their source is this repository).
-NATIVE = ("working-rules",)
+NATIVE = ("working-rules", "torve")
 
 
 def test_every_shipped_skill_carries_the_specialisation_header_and_a_gate():
@@ -120,14 +123,24 @@ def test_no_shipped_skill_is_byte_identical_to_upstream():
 
 
 def test_materialize_writes_the_role_set_and_nothing_else(tmp_path):
-    # S-0061/D-11: the role default is `.torve/agents/implement.yaml`, minted from
-    # this table — a bare RunnerConfig carries no sets because nobody writes them.
-    sets = dict(ROLE_SKILLS)
+    sets = {"implement": ["flag-dont-flip", "working-rules"]}
     written = materialize("implement", tmp_path, sets)
-    assert written == ["flag-dont-flip", "ratchet-what-you-build"]
+    assert written == ["flag-dont-flip", "working-rules"]
     on_disk = sorted(p.name for p in tmp_path.iterdir())
     assert on_disk == sorted(written)  # exactly the role's set, nothing else
     assert (tmp_path / "flag-dont-flip" / "SKILL.md").is_file()
+
+
+def test_a_materialized_skill_set_carries_no_projection(tmp_path):
+    """S-0100/D-7: the `AGENTS.md` beside a skill is torve's corpus projection,
+    and a sandbox copy takes the skill's text and nothing of the rows."""
+
+    assert (skills_root() / "flag-dont-flip" / "AGENTS.md").is_file(), "the source has one"
+
+    materialize("implement", tmp_path, {"implement": ["flag-dont-flip"]})
+
+    assert (tmp_path / "flag-dont-flip" / "SKILL.md").is_file()
+    assert not list(tmp_path.rglob("AGENTS.md"))
 
 
 def test_materialize_refuses_an_unknown_skill(tmp_path):
@@ -136,7 +149,8 @@ def test_materialize_refuses_an_unknown_skill(tmp_path):
 
 
 # ....................... #
-# corpus-bootstrap (S-0031 phase 2): the skill's fixture — a sample survey
+# corpus-bootstrap (S-0031 phase 2), now the operator skill's adopting reference
+# (S-0100/D-9): the fixture — a sample survey
 # report in, the checkable output shape out. The extraction doctrine's
 # properties (paths on every row, no phasing, mostly ASSUMED, the recorded
 # shape) are pinned against the fixture with the package's own parsers.
@@ -147,11 +161,7 @@ def test_the_bootstrap_fixture_survey_report_is_a_wellformed_survey():
     survey emits — the extraction's evidence base cannot be a lookalike, or
     the doctrine teaches reading a shape the engine never writes."""
 
-    doc = json.loads(
-        (skills_root() / "corpus-bootstrap" / "fixtures" / "survey-report.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    doc = json.loads((BOOTSTRAP / "survey-report.json").read_text(encoding="utf-8"))
     assert set(doc) == {
         "schema_version",
         "kind",
@@ -199,7 +209,7 @@ def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
     phasing. The fixture stays a draft, because acceptance is the human's
     edit, never the skill's."""
 
-    doc = load_document(skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001")
+    doc = load_document(BOOTSTRAP / "S-0001")
 
     assert doc.status in STATUSES
     assert doc.status == "draft"
@@ -224,14 +234,9 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
     draft: the report's corpus gaps and its fired gates both appear in the
     draft — the input fixture and the output fixture tell the same story."""
 
-    report = json.loads(
-        (skills_root() / "corpus-bootstrap" / "fixtures" / "survey-report.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    report = json.loads((BOOTSTRAP / "survey-report.json").read_text(encoding="utf-8"))
     draft = "".join(
-        one.read_text(encoding="utf-8")
-        for one in sorted((skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001").iterdir())
+        one.read_text(encoding="utf-8") for one in sorted((BOOTSTRAP / "S-0001").iterdir())
     )
 
     for gate in report["summary"]["corpus_adds"]:
@@ -254,10 +259,10 @@ def test_the_bootstrap_skill_records_the_shape_it_chose():
     names the convention, and the output fixture's directory is that shape
     concrete."""
 
-    skill = (skills_root() / "corpus-bootstrap" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (skills_root() / "torve" / "references" / "adopting.md").read_text(encoding="utf-8")
     assert "S-NNNN" in skill
 
-    fixture = skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001"
+    fixture = BOOTSTRAP / "S-0001"
     assert fixture.is_dir()
     assert DOCUMENT_DIRNAME.match(fixture.name)
 
@@ -290,18 +295,6 @@ def test_a_collision_with_a_shipped_skill_is_refused_both_directions(tmp_path):
         materialize("implement", tmp_path / "out", {"implement": ["flag-dont-flip"]}, vendor_root)
 
 
-def test_the_committed_vendor_directory_is_well_formed():
-    """The repository's own vendored skills: every entry carries a SKILL.md
-    and none collides with a shipped name (S-0009/D-12 held at rest)."""
-    committed = Path(__file__).resolve().parents[1] / ".torve" / "skills-vendor"
-    assert committed.is_dir(), "torve vendors at least one skill"
-    names = sorted(p.name for p in committed.iterdir() if p.is_dir())
-    assert names, "the vendor directory is not empty"
-    for name in names:
-        assert (committed / name / "SKILL.md").is_file(), name
-        assert name not in available(), f"{name} collides with a shipped skill"
-
-
 def test_an_edited_vendored_skill_is_a_regime_change(tmp_path):
     from torve.application.telemetry import config_hash
 
@@ -315,3 +308,112 @@ def test_an_edited_vendored_skill_is_a_regime_change(tmp_path):
     before = config_hash(manifest, root)
     (vendor_dir / "SKILL.md").write_text("v2\n", encoding="utf-8")
     assert config_hash(manifest, root) != before
+
+
+# ....................... #
+
+
+def test_the_built_wheel_carries_no_projection(tmp_path):
+    """S-0100/D-7: the projections stay out of the distribution. The wheel is
+    built from the sdist, and the sdist prunes `skills/**/AGENTS.md`, so the
+    built wheel holds the skills and none of the corpus rows beside them."""
+
+    if shutil.which("uv") is None:
+        pytest.skip("uv is not on PATH")
+
+    root = Path(__file__).resolve().parents[1]
+    subprocess.run(
+        ["uv", "build", "-o", str(tmp_path)],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    wheel = next(tmp_path.glob("torve-*.whl"))
+    names = zipfile.ZipFile(wheel).namelist()
+
+    assert any(name.endswith("_skills/flag-dont-flip/SKILL.md") for name in names)
+    assert not [
+        name for name in names if name.startswith("torve/_skills/") and name.endswith("AGENTS.md")
+    ]
+
+
+# ....................... #
+# The operator skill (S-0100/D-1, S-0100/D-4)
+
+
+def test_every_shipped_skill_opens_its_description_with_its_audience():
+    """S-0100/D-1: a reader knows from the first words whom a skill is for."""
+    from torve.application.skills import description
+
+    assert description("torve").startswith("When operating torve from a session")
+    assert description("spec-writer").startswith("When writing a torve specification")
+    for name in ("working-rules", "flag-dont-flip"):
+        assert description(name).startswith("When executing a torve task contract"), name
+
+
+def test_no_shipped_skill_cites_torve_s_own_corpus():
+    """S-0100/D-5: inside an adopter, `torve spec show` resolves an identifier
+    against the adopter's corpus, so a provenance citation into torve's would
+    answer with an unrelated row. Example identifiers in a grammar lesson are
+    not citations; a parenthesised one and a path into torve's source are."""
+    import re
+
+    for path in sorted(skills_root().rglob("*.md")):
+        if path.name == "AGENTS.md":
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"\(S-\d{4}|S-\d{4}/[A-Z]-\d+\)", text), path
+        assert "src/torve/" not in text, path
+
+
+def test_the_divergence_mechanics_live_in_working_rules_alone():
+    """S-0100/D-6: flag-dont-flip says what an entry must say; how to record
+    one is working-rules', so the two cannot contradict each other."""
+
+    text = (skills_root() / "flag-dont-flip" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "torve log divergence" not in text
+    assert "torve log owed" not in text
+
+
+def test_the_operator_skill_states_the_rails_and_ships_its_references():
+    text = (skills_root() / "torve" / "SKILL.md").read_text(encoding="utf-8")
+
+    for rail in (
+        "Accepting a document",
+        "Merging a pull request",
+        "A review thread a person opened is never resolved by you",
+        "Credentials stay with the host's `gh` login",
+        "are claims",
+    ):
+        assert rail in text, rail
+
+    references = skills_root() / "torve" / "references"
+    for name in ("night", "escalations", "by-hand", "review", "adopting"):
+        assert (references / f"{name}.md").is_file(), name
+        assert f"torve guide torve {name}" in text, name
+
+
+def test_every_verb_the_operator_skill_names_exists():
+    """The skill defers to `--help` for flags, so what it can drift on is a verb:
+    every `torve <group> <verb>` it names resolves in the CLI."""
+
+    import re
+
+    from typer.main import get_command
+
+    from torve.cli.main import app
+
+    root = get_command(app)
+    texts = [(skills_root() / "torve" / "SKILL.md").read_text(encoding="utf-8")]
+    texts += [
+        one.read_text(encoding="utf-8")
+        for one in sorted((skills_root() / "torve" / "references").glob("*.md"))
+    ]
+
+    for text in texts:
+        for first, second in re.findall(r"`torve ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?", text):
+            assert first in root.commands, first
+            group = root.commands[first]
+            if second and hasattr(group, "commands") and first != "guide":
+                assert second in group.commands, f"{first} {second}"

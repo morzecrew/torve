@@ -16,6 +16,7 @@ from torve.application import sizing
 from torve.application.projections import why_report
 from torve.cli import app
 from torve.cli import sandbox as sandbox_cli
+from torve.domain.states import EXIT_CONFIG
 from torve.gates.sabotage import TASK_ID, base_task, log_document
 
 
@@ -1381,3 +1382,104 @@ def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neithe
     assert "config.yaml  exists, left alone" in starter.output
     assert (root / ".torve" / "config.yaml").read_text(encoding="utf-8") == before
     assert "@decisions-reported" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
+
+
+# ----------------------- #
+# S-0100/D-3, S-0100/D-8: `torve init` writes the stub every skill root carries,
+# and `--starter` equips the shipped role skills
+
+
+def test_init_writes_the_stub_once_and_never_overwrites_one(tmp_path):
+    root = _bare_repo(tmp_path)
+
+    first = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert first.exit_code == 0, first.output
+    stub = root / ".claude" / "skills" / "torve" / "SKILL.md"
+    twin = root / ".agents" / "skills" / "torve" / "SKILL.md"
+    for path in (stub, twin):
+        assert path.is_file()
+        text = path.read_text(encoding="utf-8")
+        assert "name: torve" in text
+        # The pointer is inlined by command injection, with the fallback named.
+        assert "!`uv run --quiet torve guide torve`" in text
+        assert "torve guide spec-writer" in text
+
+    before = twin.read_text(encoding="utf-8")
+    # A session's own copy is never overwritten, whatever it holds.
+    stub.write_text("mine\n", encoding="utf-8")
+    second = CliRunner().invoke(app, ["init", "--root", str(root)])
+
+    assert second.exit_code == 0, second.output
+    assert stub.read_text(encoding="utf-8") == "mine\n"
+    assert twin.read_text(encoding="utf-8") == before
+
+
+def test_init_starter_equips_the_role_skills(tmp_path):
+    root = _bare_repo(tmp_path)
+
+    result = CliRunner().invoke(app, ["init", "--starter", "--root", str(root)])
+
+    assert result.exit_code == 0, result.output
+
+    from torve.application.skills import materialize
+    from torve.config.agents import role_skills
+
+    sets = role_skills(root)
+    assert set(sets["implement"]) == {"working-rules", "flag-dont-flip"}
+    assert set(sets["revert"]) == {"working-rules", "flag-dont-flip"}
+    assert set(sets["review"]) == {"working-rules"}
+
+    written = materialize("implement", root / ".torve" / "skills", sets)
+
+    assert sorted(written) == ["flag-dont-flip", "working-rules"]
+
+    # Never over a profile an adopter wrote.
+    profile = root / ".torve" / "agents" / "implement.yaml"
+    profile.write_text("role: implement\nequipment: []\n", encoding="utf-8")
+    again = CliRunner().invoke(app, ["init", "--starter", "--root", str(root)])
+
+    assert again.exit_code == 0, again.output
+    assert "equipment: []" in profile.read_text(encoding="utf-8")  # not replaced
+
+
+# ....................... #
+# `torve guide` — the text of a shipped skill, from the installed package.
+
+
+def test_guide_lists_the_shipped_skills():
+    from torve.application.skills import available
+
+    result = CliRunner().invoke(app, ["guide"])
+
+    assert result.exit_code == 0, result.stderr
+    for name in available():
+        assert name in result.stdout
+
+
+def test_guide_prints_a_skill_and_one_of_its_references():
+    from torve.application.skills import skills_root
+
+    skill = CliRunner().invoke(app, ["guide", "spec-writer"])
+
+    assert skill.exit_code == 0, skill.stderr
+    assert skill.stdout == (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
+
+    reference = CliRunner().invoke(app, ["guide", "spec-writer", "authoring"])
+
+    assert reference.exit_code == 0, reference.stderr
+    assert reference.stdout == (
+        skills_root() / "spec-writer" / "references" / "authoring.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_guide_refuses_an_unknown_skill_and_an_unknown_reference():
+    unknown = CliRunner().invoke(app, ["guide", "definitely-not-a-skill"])
+
+    assert unknown.exit_code == EXIT_CONFIG
+    assert "definitely-not-a-skill" in unknown.stderr
+
+    missing = CliRunner().invoke(app, ["guide", "spec-writer", "no-such-reference"])
+
+    assert missing.exit_code == EXIT_CONFIG
+    assert "no-such-reference" in missing.stderr

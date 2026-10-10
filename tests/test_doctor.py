@@ -174,6 +174,28 @@ def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Pa
     assert "tasks/" not in tampered[1][2]
 
 
+def test_doctor_warns_when_the_stub_is_missing(tmp_path: Path):
+    """S-0100/D-3: `torve init` writes the stub every skill root carries, and
+    doctor names a root that lacks it — a hint, never a red, as with the
+    schemas a repository has not yet had written."""
+    from torve.cli.doctor import _stub_checks
+
+    root = _doctor_repo(tmp_path, {})
+
+    missing = _stub_checks(root)
+
+    assert [(name, ok) for name, ok, _ in missing] == [("stub", True)]
+    assert ".claude/skills/torve/SKILL.md" in missing[0][2]
+    assert "not written yet" in missing[0][2]
+
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+    present = _stub_checks(root)
+
+    assert [(name, ok) for name, ok, _ in present] == [("stub", True)]
+    assert present[0][2] != missing[0][2]
+    assert "not written yet" not in present[0][2]
+
+
 # ----------------------- #
 # S-0068/D-2, S-0068/D-3: two statements about what is armed, neither a verdict on
 # whether it should be — so neither may ever turn doctor red.

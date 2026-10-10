@@ -258,3 +258,48 @@ def test_the_sweep_names_a_reintroduced_dependency(tmp_path: Path) -> None:
     )
 
     assert _literal_references(tmp_path) == {"src/render.py": [3]}
+
+
+# ....................... #
+# S-0100/D-10, S-0100/D-11
+
+
+def test_the_session_skill_roots_hold_one_set_and_no_executor_skill():
+    """torve's `.claude/skills` and `.agents/skills` hold the same names — what
+    an operator or an author reads — and neither the executing agent's two."""
+
+    root = Path(__file__).resolve().parents[1]
+    claude = sorted(p.name for p in (root / ".claude" / "skills").iterdir())
+    agents = sorted(p.name for p in (root / ".agents" / "skills").iterdir())
+
+    assert claude == agents
+    assert "torve" in claude
+    assert not {"working-rules", "flag-dont-flip"} & set(claude)
+
+
+def test_every_verb_the_operating_page_lists_exists():
+    """The operating page's verbs table names only verbs the CLI has: each row's
+    first command resolves, and so does its subcommand when it names one."""
+
+    from typer.main import get_command
+
+    from torve.cli.main import app
+
+    root = Path(__file__).resolve().parents[1]
+    page = (root / "pages" / "docs" / "operating.md").read_text(encoding="utf-8")
+    table = page.split("## The verbs", 1)[1].split("\n## ", 1)[0]
+    cli = get_command(app)
+
+    for line in table.splitlines():
+        found = re.match(r"\| `torve ([^`]+)`", line)
+        if not found:
+            continue
+        words = found.group(1).split()
+        assert words[0] in cli.commands, line
+        group = cli.commands[words[0]]
+        if (
+            hasattr(group, "commands")
+            and len(words) > 1
+            and re.fullmatch(r"[a-z][a-z-]*", words[1])
+        ):
+            assert words[1] in group.commands, line
