@@ -152,10 +152,10 @@ def _swept(
 ) -> ReapReport:
     from torve.adapters.store.durable import open_store
     from torve.adapters.workspace.git import GitWorkspace
-    from torve.application.projections import shipped_ids
+    from torve.application.projections import landed
     from torve.application.reaper import reap
 
-    landed_ids = shipped_ids(root, root / config.specs.path)
+    landed_ids = set(landed(root, root / config.specs.path))
 
     return reap(
         root,

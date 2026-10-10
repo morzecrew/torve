@@ -784,7 +784,7 @@ def test_the_attempt_burns_into_the_log_and_its_divergences_land_after(tmp_path,
         encoding="utf-8",
     )
 
-    def fake_run_task(root, task, config, deps):
+    def fake_run_task(root, task, config, deps, *, attempt_base=0):
         from torve.application.ports import AttemptFact
 
         # The broker meters on the request thread, which is this one: the
@@ -856,7 +856,7 @@ def test_an_unobserved_run_is_still_a_run(tmp_path, monkeypatch):
     contract(tmp_path, "T-0001")
     seen: list[object] = []
 
-    def fake_run_task(root, task, config, deps):
+    def fake_run_task(root, task, config, deps, *, attempt_base=0):
         seen.append(deps.sink)
 
         return SimpleNamespace(
@@ -2029,3 +2029,36 @@ def test_a_night_is_not_drained_while_the_lane_owes_a_landing(tmp_path):
         assert await reached(log, PARTITION, night) == "drained"
 
     run(scenario)
+
+
+def test_a_leg_failing_the_same_way_three_times_records_once_per_wait_with_the_wait_doubling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """S-0099/D-9: an identical leg failure backs off, doubling its wait up to
+    an hour, and each wait it reaches records the failure once — the second and
+    third calls inside a wait attempt nothing and write nothing."""
+
+    import torve.application.residency as residency
+
+    clock = {"now": 0.0}
+    monkeypatch.setattr(residency, "_now", lambda: clock["now"])
+    monkeypatch.setattr(residency, "_LEG_FAILURES", {})
+
+    async def boom():
+        raise RuntimeError("the same error")
+
+    async def three_failures():
+        await residency._leg(tmp_path, "lane", boom)
+        # Still inside the first wait: no attempt, no row.
+        clock["now"] += 0.5
+        await residency._leg(tmp_path, "lane", boom)
+        # Past the first wait: the second record, the wait doubled.
+        clock["now"] += 0.6
+        await residency._leg(tmp_path, "lane", boom)
+        # Past the second wait: the third record, doubled again.
+        clock["now"] += 2.1
+        await residency._leg(tmp_path, "lane", boom)
+
+    asyncio.run(three_failures())
+
+    assert [row["wait"] for row in engine_events(tmp_path, "leg_failed")] == [1.0, 2.0, 4.0]

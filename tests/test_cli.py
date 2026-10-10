@@ -172,7 +172,6 @@ def test_status_json_carries_persisted_records(tmp_path):
 
 def test_status_shows_a_landed_candidate_as_landed(tmp_path):
     from torve.application.runstate import RunState
-    from torve.application.telemetry import engine_event
     from torve.base import naming
     from torve.domain.states import TaskState
 
@@ -181,9 +180,13 @@ def test_status_shows_a_landed_candidate_as_landed(tmp_path):
         state.state = TaskState.READY
         state.save()
 
-    # T-7501's landing is recorded; T-7502 is a candidate still waiting to land.
-    engine_event(
-        tmp_path, "lane_landed", {"task": "T-7501", "mode": "fast-forward", "sha": "a" * 40}
+    # T-7501's landing file is on the base; T-7502 is a candidate still
+    # waiting to land.
+    execution = tmp_path / ".torve" / "execution"
+    execution.mkdir(parents=True, exist_ok=True)
+    (execution / "T-7501-1-20260909T120000Z.yaml").write_text(
+        "task: T-7501\nat: '2026-09-09T12:00:00Z'\ncommit: " + "a" * 40 + "\n",
+        encoding="utf-8",
     )
 
     result = CliRunner().invoke(app, ["status", "--root", str(tmp_path), "--format", "json"])

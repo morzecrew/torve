@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from rich.console import Console
 
     from torve.application.lane import Forge, LaneResult, Publisher
-    from torve.application.ports import CiStatus
+    from torve.application.ports import CiStatus, StatusScm
     from torve.config.runconfig import RunnerConfig
 
 # ----------------------- #
@@ -103,7 +103,7 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
     the agent wrote as prose reaches it."""
 
     from torve.application.forge import compose_pr
-    from torve.application.projections import stream_rows
+    from torve.application.projections import attempt_rows
     from torve.application.runstate import RunState
     from torve.base import naming
     from torve.config import layout
@@ -113,7 +113,7 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
     task = load_task(layout.task_file(root, task_id))
     state = RunState.load(naming.state_file(root, task_id))
 
-    rows = [r for r in stream_rows(root) if r.get("task_id") == task_id and "results" in r]
+    rows = [r for r in attempt_rows(root) if r.get("task_id") == task_id]
     row: dict[str, Any] = rows[-1] if rows else {}
     recorded: list[Any] = row.get("results") or []
 
@@ -138,7 +138,7 @@ def _document_pr_text(
     root: Path, task_id: str, branch: str, tip: str | None = None
 ) -> tuple[str, str, bool]:
     """The document pull request's title and body (S-0083/D-8): every task
-    the lane's records say the branch carries, plus the one landing now —
+    the branch's landing files carry, plus the one landing now —
     it is published before its own record is written, so its sha is `tip`,
     the branch's tip the lane just set — each with its rows, the gates of its
     last recorded attempt and its landing sha.
@@ -147,33 +147,29 @@ def _document_pr_text(
     in the branch tip's tree; it counts as carried too, under the tip."""
 
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
-    from torve.application.lane import carried_tasks
-    from torve.application.projections import stream_rows
+    from torve.application.lane import carried_landings, carried_tasks
+    from torve.application.projections import recorded_rows
     from torve.config import layout
     from torve.domain.attempt import GateResult
     from torve.gates.context import load_task
 
     document = branch.rsplit("/", 1)[-1]
-    # S-0091/D-3: the tree's landing files are a carrier the lane's records may lack.
+    # S-0099/D-2: every task the branch carries comes from the landing files on
+    # its tip, in landing order, and each landing's sha is the commit its own
+    # file names — no stream row is consulted for either.
     carried = carried_tasks(root, branch)
+    commits = dict(carried_landings(root, branch))
     task_ids = carried + ([task_id] if task_id not in carried else [])
-    rows = stream_rows(root)
+    rows = recorded_rows(root)
     landings = []
 
     for carried_id in task_ids:
         judged = [r for r in rows if r.get("task_id") == carried_id and "results" in r]
         recorded: list[Any] = (judged[-1].get("results") or []) if judged else []
-        landed = [
-            r
-            for r in rows
-            if r.get("event") == "lane_landed"
-            and r.get("task") == carried_id
-            and r.get("branch") == branch
-        ]
         landings.append(
             DocumentLanding(
                 task=load_task(layout.task_file(root, carried_id)),
-                sha=str(landed[-1].get("sha") or "") if landed else (tip or ""),
+                sha=commits.get(carried_id) or (tip or ""),
                 results=[GateResult.model_validate(r) for r in recorded],
             )
         )
@@ -232,7 +228,10 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
                 branch,
                 title,
                 body,
-                draft=not complete or document_tip_red(root, branch, tip or ""),
+                # The draft reads the completion battery's verdict off the tip
+                # it judged (S-0099/D-4): a red status, or none at all, holds
+                # the draft; a green one at a later tip publishes it ready.
+                draft=not complete or document_tip_red(root, branch, tip or "", scm),
             )
 
         title, body = _pr_text(root, task_id)
@@ -260,6 +259,22 @@ def _forge(config: RunnerConfig) -> Forge | None:
     from torve.adapters.vcs.git import GhScm
 
     return GhScm(config.scm.repo, config.scm.token_env).pr_for_branch
+
+
+# ....................... #
+
+
+def _status(config: RunnerConfig) -> StatusScm | None:
+    """The forge the lane writes the completion battery's verdict to, or None
+    in `local` mode and for a repository naming no remote (S-0099/D-4).
+    Keyed by the sha it judges, so a reader needs no pass of its own."""
+
+    if config.promotion.landing != "pull_request" or not config.scm.repo:
+        return None
+
+    from torve.adapters.vcs.git import GhScm
+
+    return GhScm(config.scm.repo, config.scm.token_env)
 
 
 # ....................... #
@@ -309,7 +324,7 @@ def _render_text(console: Console, dry_run: bool, results: list[LaneResult]) -> 
 
 
 def _exit_code(results: list[LaneResult]) -> int:
-    if any(r.action == "conflict" for r in results):
+    if any(r.action in ("conflict", "stuck") for r in results):
         return EXIT_ESCALATED
 
     if any(
@@ -404,7 +419,7 @@ def merge_cmd(
     is reported and left for a human — the lane never resolves one."""
 
     from torve.adapters.vcs.git import GitLane
-    from torve.application.lane import process_lane
+    from torve.application.lane import process_lane, promotion_needs_durable_store
     from torve.cli.options import load_config
 
     root = root.resolve()
@@ -415,6 +430,17 @@ def merge_cmd(
 
     except ValueError as exc:
         raise fail(str(exc), EXIT_CONFIG) from exc
+
+    # S-0099/D-11: the same refusal the lane makes, raised here so the operator
+    # gets a configuration exit rather than the lane's infrastructure one.
+    if config.store.adapter != "postgres" and promotion_needs_durable_store(
+        config.promotion.unit, config.promotion.landing == "pull_request"
+    ):
+        raise fail(
+            f"store {config.store.adapter!r} is in-process and test-only; promotion "
+            "unit 'document' and landing 'pull_request' need a postgres store",
+            EXIT_CONFIG,
+        )
 
     try:
         results = process_lane(
@@ -439,6 +465,10 @@ def merge_cmd(
             # reads recorded findings (S-0096/D-2); elsewhere it escalates the
             # completing task at once and records no finding.
             rounds=config.threads.enabled and "record" in config.threads.sources,
+            # The verdict is a commit status on the tip it judged (S-0099/D-4).
+            status=_status(config),
+            # The store the promotion unit and landing need (S-0099/D-11).
+            store=config.store.adapter,
         )
 
     except RuntimeError as exc:

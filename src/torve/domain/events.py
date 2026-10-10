@@ -465,11 +465,22 @@ class MessageSent(BaseModel):
 
 
 class SeatConsumed(BaseModel):
+    """One metered provider response as the record holds it (S-0099/D-7).
+
+    `tokens` is the provider's own total; the four counts beside it are the
+    breakdown a rate card prices — input and output at one rate, a cache
+    read and a cache write at their own. `cost_usd` is null where the
+    provider reports no price, which is every plan-billed seat."""
+
     model_config = STRICT
 
     seat: str
     tokens: int | None = None
     cost_usd: float | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 # ....................... #

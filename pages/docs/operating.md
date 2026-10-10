@@ -258,6 +258,22 @@ the JSON envelope carries a `sources` block. Read it before quoting a
 figure. On this repository the record holds 10 attempt rows where the files
 hold 636 — both true, and only one of them answers "what has this cost".
 
+### Where each fact lives
+
+Those reports answer from the record or from this host's files. The other
+facts an operator asks about live each in the one place the act that makes
+them true writes them:
+
+| You want to know | Look at |
+| --- | --- |
+| whether a task landed, and the sha it landed at | its landing file, in the base tree or on the document branch's remote tip |
+| which tasks a document carries, in landing order | the landing files on the document branch, or the pull request body they build |
+| whether a document's pull request is open, merged, closed or a draft | the forge |
+| whether a tip passed the completion battery | the `torve/completion` commit status on that tip, in the pull request's checks |
+| what a review round covers — branch, target, findings, phases | the round's contract, under `round:`, on the board |
+| what each attempt did, what it cost, which gates failed, who holds a task, what escalated | the record — the board, or a report run with `--partition` |
+| attempt rows and engine health | `.torve/telemetry.jsonl`, a diagnostic stream (S-0099/D-10); five lane facts still read it until the follow-up to S-0099 lands |
+
 `torve serve` and `torve mcp` take the same two options and pass them into
 every reader, per request — so a dashboard left running shows the board as
 it is, not as it was at boot.

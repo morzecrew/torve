@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
-from torve.application.ports import PrInfo, ReviewThread, ThreadComment
+from torve.application.ports import COMPLETION_CONTEXT, PrInfo, ReviewThread, ThreadComment
 from torve.domain.spec import LANDING_FILE
 
 # ----------------------- #
@@ -673,6 +673,42 @@ class GhScm:
 
     # ....................... #
 
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        """Write the completion battery's verdict on *sha* (S-0099/D-4): a
+        commit status under `torve/completion` a person sees in the pull
+        request's checks and every host reads back keyed by the sha it judged."""
+
+        if not self.repo:
+            raise RuntimeError("scm.repo names no repository to write a status to")
+
+        args = ["-X", "POST", f"repos/{self.repo}/statuses/{sha}", "-f", f"state={state}"]
+        args += ["-f", f"context={COMPLETION_CONTEXT}"]
+
+        if description:
+            args += ["-f", f"description={description[:140]}"]
+
+        self._api(*args)
+
+    # ....................... #
+
+    def completion(self, sha: str) -> str | None:
+        """The state of the newest `torve/completion` status on *sha*, or None
+        when the forge holds none — which the draft flag reads as not green
+        (S-0099/D-4)."""
+
+        if not self.repo or not sha:
+            return None
+
+        raw = self._api(f"repos/{self.repo}/commits/{sha}/statuses")
+
+        for one in cast("list[dict[str, Any]]", json.loads(raw or "[]")):
+            if str(one.get("context") or "") == COMPLETION_CONTEXT:
+                return str(one.get("state") or "") or None
+
+        return None
+
+    # ....................... #
+
     def _gh(self, *args: str) -> str:
         command = ["gh", *args]
 
@@ -1189,6 +1225,12 @@ class NullScm:
         self, worktree: Path, branch: str, title: str, body: str, *, draft: bool = False
     ) -> str:
         return ""
+
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        return None
+
+    def completion(self, sha: str) -> str | None:
+        return None
 
 
 # ....................... #

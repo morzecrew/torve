@@ -487,6 +487,19 @@ def test_a_continued_attempt_reads_the_contract_as_it_stands_now(rig):
     assert peeker.seen["contract"] == refreshed
 
 
+def test_a_requeued_task_continues_its_attempt_number(rig):
+    # S-0099/D-8: the host's own run record carries the count when no observer
+    # is reading the durable one, so the second dispatch numbers its attempt
+    # after the first rather than starting again at one.
+    repo, deps, task = _halt_then_requeue(rig)
+    deps.agent = ScriptedAgent([OK])
+
+    second = run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert second.state is TaskState.READY
+    assert second.attempts == 2
+
+
 def _checkpoint_tip(repo, task_id, subject):
     repo.git(
         "commit",

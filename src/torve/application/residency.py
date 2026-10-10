@@ -137,14 +137,14 @@ def ran_here(root: Path) -> set[str]:
     answer one question about it.
     """
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import attempted_tasks
 
     found = {
         path.name.removesuffix(".state.json")
         for path in (root / naming.WORKTREE_DIR).glob("*.state.json")
     }
 
-    return found | {str(row["task_id"]) for row in stream_rows(root) if row.get("task_id")}
+    return found | attempted_tasks(root)
 
 
 # ....................... #
@@ -167,6 +167,14 @@ async def _leg(root: Path, name: str, call: Callable[[], object]) -> None:
 
     from torve.application.telemetry import engine_event
 
+    key = (str(root), name)
+    error, allowed_at, wait = _LEG_FAILURES.get(key, ("", 0.0, _LEG_WAIT))
+
+    if error and _now() < allowed_at:
+        # S-0099/D-9: the same leg failing the same way backs off — it is not
+        # re-attempted, and nothing is recorded, until its wait has elapsed.
+        return
+
     try:
         outcome = call()
 
@@ -174,7 +182,30 @@ async def _leg(root: Path, name: str, call: Callable[[], object]) -> None:
             await outcome
 
     except Exception as exc:
-        engine_event(root, "leg_failed", {"leg": name, "error": str(exc)[:300]})
+        message = str(exc)[:300]
+        wait = min(wait * 2, _LEG_WAIT_MAX) if message == error else _LEG_WAIT
+        _LEG_FAILURES[key] = (message, _now() + wait, wait)
+        engine_event(root, "leg_failed", {"leg": name, "error": message, "wait": wait})
+
+    else:
+        _LEG_FAILURES.pop(key, None)
+
+
+# ....................... #
+
+# S-0099/D-9's backoff: the failure a leg is currently carrying, when its next
+# attempt is allowed, and the wait before the one after that. In-process, like
+# the pass that observes it; a leg that fails differently, or recovers, starts
+# over. `_LEG_WAIT` is the first wait, doubling to `_LEG_WAIT_MAX` (an hour).
+_LEG_WAIT = 1.0
+_LEG_WAIT_MAX = 3600.0
+_LEG_FAILURES: dict[tuple[str, str], tuple[str, float, float]] = {}
+
+
+def _now() -> float:
+    import time
+
+    return time.monotonic()
 
 
 # ....................... #

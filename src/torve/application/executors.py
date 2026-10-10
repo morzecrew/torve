@@ -114,6 +114,7 @@ def runner_execute(
     async def execute(task: Task) -> Outcome:
         task, bound = prepare(task)
         journal = None
+        attempt_base = 0
 
         if log is not None:
             loop = asyncio.get_running_loop()
@@ -129,8 +130,13 @@ def runner_execute(
                     log=log, loop=loop, partition=partition, task_id=task.id, seat=seat
                 ),
             )
+            # S-0099/D-8: the number the runner starts at, read from the
+            # record rather than from a state file a reap may have removed.
+            attempt_base = await _recorded_attempts(log, partition, task.id)
 
-        state = await asyncio.to_thread(run_task, root, task, config, bound)
+        state = await asyncio.to_thread(
+            run_task, root, task, config, bound, attempt_base=attempt_base
+        )
 
         if journal is not None:
             # One more, for whatever the last attempt wrote after its gate
@@ -141,3 +147,19 @@ def runner_execute(
         return outcome_of(state)
 
     return execute
+
+
+# ....................... #
+
+
+async def _recorded_attempts(log: EventLog, partition: str, task_id: str) -> int:
+    """Every attempt the record holds for the task (S-0099/D-8): the board's
+    own count, folded from the task's events, so a requeue numbers the next
+    attempt after the last one instead of starting again at one."""
+
+    from torve.application.manager import project  # local: keep the import graph flat
+
+    board = project(await log.history(task_id, partition=partition or None))
+    view = board.tasks.get(task_id)
+
+    return view.attempts if view is not None else 0

@@ -859,25 +859,6 @@ def landed_commits(root: Path, spec_dir: Path, task_id: str) -> list[str]:
 # ....................... #
 
 
-def landed_by_task(root: Path, spec_dir: Path) -> dict[str, str]:
-    """Task id to the commit that landed it, newest winning — the map the
-    projections, the reaper and the shadow lane all ask for (S-0059/D-12).
-    A task that landed without a commit is absent here and present in
-    `landed_task_ids`, which is the difference between "what shipped" and
-    "what finished"."""
-
-    found: dict[str, str] = {}
-
-    for one in landings(root, spec_dir):
-        if one.commit:
-            found[one.task] = one.commit
-
-    return found
-
-
-# ....................... #
-
-
 def landed_task_ids(root: Path, spec_dir: Path) -> set[str]:
     """Every task the tree records as landed, with or without a commit."""
 
@@ -974,7 +955,6 @@ __all__ = [
     "fingerprint_drift",
     "import_sources",
     "land",
-    "landed_by_task",
     "landed_commit",
     "landed_commits",
     "landed_task_ids",

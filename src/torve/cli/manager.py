@@ -158,6 +158,8 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             # review leg reads recorded findings (S-0096/D-2); elsewhere it
             # escalates the completing task at once.
             rounds=config.threads.enabled and "record" in config.threads.sources,
+            # The store the promotion unit and landing need (S-0099/D-11).
+            store=config.store.adapter,
         )
 
         return [result.task for result in results if result.landed]
@@ -177,11 +179,11 @@ def _refreshing(lane: Lane, landings: dict[str, str], root: Path) -> Lane:
     """
 
     async def leg() -> list[str]:
-        from torve.application.projections import lane_landings
+        from torve.application.projections import landed
 
-        landed = await lane()
-        landings.update(lane_landings(root))
-        return landed
+        done = await lane()
+        landings.update(landed(root))
+        return done
 
     return leg
 
@@ -259,16 +261,16 @@ def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
         # rather than once per process — a round's task lands during the
         # night, and the answering half is what that landing unblocks.
         from torve.adapters.vcs.git import GhScm
-        from torve.application.projections import lane_landings, shipped_landings
+        from torve.application.projections import landed
         from torve.application.reviewleg import review_thread_leg
 
-        landed = {**lane_landings(root), **shipped_landings(root)}
+        held = landed(root)
 
         return review_thread_leg(
             root,
             config,
             _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
-            landed.__contains__,
+            held.__contains__,
         )
 
     return threads
@@ -326,10 +328,10 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
         # carries no file — a hand finish, a task minted before the carrier.
         # (bloomery night 10: every phase 2+ waited on shas no branch held
         # while rounds ran, twice, once per reading of "landed".)
-        from torve.application.projections import lane_landings
+        from torve.application.projections import landed
         from torve.config import layout
 
-        by_lane = lane_landings(root)
+        by_lane = landed(root)
         carried = {
             name.split("/")[-1].rsplit("-", 2)[0]
             for name in vcs.tree_paths(root, base, layout.TORVE_DIR + "/specs")
@@ -341,13 +343,13 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
                 continue
 
             view = board.tasks.get(dependency)
-            landed = [
+            shas = [
                 sha
                 for sha in (view.landed_sha if view is not None else None, by_lane.get(dependency))
                 if sha
             ]
 
-            if not any(vcs.is_ancestor(root, sha, base) for sha in landed):
+            if not any(vcs.is_ancestor(root, sha, base) for sha in shas):
                 return False
 
         return True
@@ -373,7 +375,7 @@ async def _serve(
     from torve.application.executors import runner_execute
     from torve.application.fleet import escalated_tasks
     from torve.application.manager import project
-    from torve.application.projections import lane_landings, shipped_landings
+    from torve.application.projections import landed
     from torve.application.residency import (
         close_night,
         contracts,
@@ -400,7 +402,7 @@ async def _serve(
     # the engine's trailer and a human's citation both mean finished.
     # The lane's own landings beside the tree's: a task landed onto a document
     # branch is landed, whether or not the base holds its landing file yet.
-    landings = {**lane_landings(root), **shipped_landings(root)}
+    landings = landed(root)
     ran = ran_here(root)
     # The tasks holding the pause, as the pass's own `paused` computed them,
     # so the relay that follows pages exactly those (S-0094/D-4).
@@ -598,9 +600,9 @@ def _document_waits(root: Path, board: Board) -> dict[str, dict[str, list[str]]]
     so the reader knows which pull request to look at. A landing the board,
     the lane or the base already holds is no wait."""
 
-    from torve.application.projections import cross_document_waits, landed_ids
+    from torve.application.projections import cross_document_waits, landed
 
-    waits = cross_document_waits(root, landed_ids(root, board))
+    waits = cross_document_waits(root, landed(root))
 
     return {
         task_id: by_document for task_id, by_document in waits.items() if task_id in board.tasks
@@ -630,16 +632,16 @@ def board_cmd(
     call, which is the same thing a manager does when it restarts.
     """
 
-    from torve.application.projections import LANDED, landed_ids
+    from torve.application.projections import LANDED, landed
 
     result = asyncio.run(_board(dsn_for(root, dsn) or None, partition))
     waits = _document_waits(root, result)
-    landed = landed_ids(root, result)
+    recorded = landed(root)
 
     def shown(view: TaskView) -> str:
         """A candidate whose landing is recorded reads `landed`, not `ready`."""
 
-        if view.state is TaskState.READY and view.task_id in landed:
+        if view.state is TaskState.READY and view.task_id in recorded:
             return LANDED
 
         return str(view.state)
@@ -1120,27 +1122,36 @@ def resolve_cmd(
     engine_event(root.resolve(), "manager_resolved", {"task": task_id, "resolution": resolution})
 
     if resolution == "requeued":
-        from torve.application.projections import stream_rows
+        from torve.application.projections import round_already_requeued
         from torve.application.reviewleg import rescope
+        from torve.config import layout
+        from torve.gates.context import load_task
 
         root = root.resolve()
-        rows = stream_rows(root)
-        rounds = [
-            row
-            for row in rows
-            if row.get("event") == "lane_review_task" and row.get("task") == task_id
-        ]
+        contract = layout.task_file(root, task_id)
+        round_task = None
+
+        if contract.is_file():
+            try:
+                candidate = load_task(contract)
+
+            except (OSError, ValueError):
+                candidate = None
+
+            # A review round is described by its own contract (S-0099/D-5),
+            # never by a row on the host that minted it; a phase task has none
+            # and takes the refresh path instead.
+            if candidate is not None and candidate.round is not None:
+                round_task = candidate
+
         _fetch(root)
         # A review round takes its document's phasing as the branch holds it
         # now (S-0092/D-4); one the leg already widened to the whole phasing
         # keeps the whole of it.
-        for row in rounds:
-            whole = any(
-                r.get("event") == "lane_round_requeued" and r.get("task") == task_id for r in rows
-            )
-            rescope(root, row, whole=whole)
-
-        if not rounds:
+        if round_task is not None:
+            whole = round_already_requeued(root, task_id)
+            rescope(root, round_task, whole=whole)
+        else:
             _refresh_phase(root, task_id, fmt)
 
     if fmt is Format.JSON:

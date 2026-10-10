@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0510
+phase: 5
+attempt: 2
+base: 7a1cb3d9c47c26291577f7ff3d5c6ec2f4e7cf1b
+commit: 621b5ea7fa08de7c2035994ea7dd8f72cceb7b5e
+at: '2026-10-10T20:54:48Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-6
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-10T20:48:44Z'
+    claim: >-
+      D-6's import boundary is met — no module outside projections, the ledger, the
+      evals and the night report imports stream_rows, and a new test in tests/test_layout.py
+      enforces it — but the lane, the merge verb, the review leg and the planner still
+      read .torve/telemetry.jsonl through the projections helpers. No synchronous
+      non-telemetry carrier exists for the lane's pull-request, wave, battery and
+      conflict memory: the board is async and unreachable from process_lane, merge_cmd
+      and review_thread_leg, so the fact has not moved to the record as the decision's
+      title requires.
+    evidence: >-
+      src/torve/application/projections.py:2240 — lane_verdicts reads stream_rows;
+      src/torve/application/lane.py:1174 _pr_ledger now delegates to it
+    action: departed
+    proposal: >-
+      D-6 should say the boundary is the projections layer and require the lane's
+      facts onto the record in a follow-up; today the test enforces only the import
+      name, which relocating a reader satisfies without moving the fact
+  - decision: D-9
+    grade: ASSUMED
+    at: '2026-10-10T20:48:44Z'
+    claim: >-
+      D-9 leaves three load-bearing sub-decisions to the implementer: the leg backoff
+      and the red-count memory are process-local (a killed manager loses both), the
+      backoff is keyed by (root, leg name) rather than a branch since a leg has no
+      branch, and a candidate red three times at the same base and head escalates
+      with poison_ceiling. Each behaviour is pinned by a test; the carriers are invented
+      here.
+    evidence: >-
+      src/torve/application/residency.py:205 — _now backs the process-local _LEG_FAILURES;
+      src/torve/application/lane.py:64 _note_red counts the reds
+    action: decided
+    proposal: >-
+      D-9 should name the escalation reason and say whether the backoff and the red
+      counts live on the record rather than in the process

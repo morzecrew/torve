@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0509
+phase: 4
+attempt: 2
+base: debec08b737c9e2d1761f4d8cec14007039130a9
+commit: 56e32056dfa651f9c40bf5b100d351d6663e25f0
+at: '2026-10-10T20:21:47Z'
+agent: subscription/deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-10T20:18:40Z'
+    attempt: 2
+    claim: >-
+      D-5 requires a review round's branch, pull request, target, findings and phases
+      to ride in its own contract under `round:`, and `task.minted` to carry it. A
+      normal pydantic field on Task reaches Document, and Document.model_json_schema()
+      embeds Task in $defs, so adding one field changes .torve/schemas/document.json,
+      decisions.json, phasing.json and amendments.json — four tracked artefacts outside
+      the contract's scope.allow. The generated schema and the scope gate therefore
+      cannot both stay green. Resolved by carrying `round:` through a PrivateAttr
+      lifted out by a wrap validator: the contract still carries the mapping and every
+      reader still reads task.round, but the model's generated schema is byte-identical
+      to the base and no tracked schema needs regenerating.
+    evidence: >-
+      src/torve/domain/task.py:221 — `_round: RoundRecord | None = PrivateAttr(default=None)`,
+      lifted from the contract's `round:` mapping by the wrap validator at src/torve/domain/task.py:255-274
+    action: decided
+    proposal: >-
+      D-5's consequence should say the round rides in the contract's `round:` mapping
+      while staying off Task's JSON-schema surface — either by widening the task's
+      scope to admit .torve/schemas/*.json, or by naming the private-attribute carrier
+      as the sanctioned shape.
