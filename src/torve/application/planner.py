@@ -749,7 +749,7 @@ def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
     carrying the task's landing commit. A landed phase's terms are the ones
     its landing was judged by."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import lane_carried
     from torve.domain.spec import LANDING_FILE
 
     directory = spec.document_dir(rfc_dir, document)
@@ -757,17 +757,7 @@ def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
     files += spec.landing_files(directory) if directory is not None else []
     held = {found.group(1): "landed" for path in files if (found := LANDING_FILE.match(path.name))}
 
-    for row in stream_rows(root):
-        task_id = str(row.get("task") or "")
-
-        if row.get("event") != "lane_landed" or not task_id:
-            continue
-
-        held[task_id] = (
-            f"carried by the branch {row.get('branch')}"
-            if row.get("unit") == "document"
-            else "landed"
-        )
+    held.update(lane_carried(root))
 
     return held
 

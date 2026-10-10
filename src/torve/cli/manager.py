@@ -158,6 +158,8 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             # review leg reads recorded findings (S-0096/D-2); elsewhere it
             # escalates the completing task at once.
             rounds=config.threads.enabled and "record" in config.threads.sources,
+            # The store the promotion unit and landing need (S-0099/D-11).
+            store=config.store.adapter,
         )
 
         return [result.task for result in results if result.landed]
@@ -1120,13 +1122,12 @@ def resolve_cmd(
     engine_event(root.resolve(), "manager_resolved", {"task": task_id, "resolution": resolution})
 
     if resolution == "requeued":
-        from torve.application.projections import stream_rows
+        from torve.application.projections import round_already_requeued
         from torve.application.reviewleg import rescope
         from torve.config import layout
         from torve.gates.context import load_task
 
         root = root.resolve()
-        rows = stream_rows(root)
         contract = layout.task_file(root, task_id)
         round_task = None
 
@@ -1148,9 +1149,7 @@ def resolve_cmd(
         # now (S-0092/D-4); one the leg already widened to the whole phasing
         # keeps the whole of it.
         if round_task is not None:
-            whole = any(
-                r.get("event") == "lane_round_requeued" and r.get("task") == task_id for r in rows
-            )
+            whole = round_already_requeued(root, task_id)
             rescope(root, round_task, whole=whole)
         else:
             _refresh_phase(root, task_id, fmt)

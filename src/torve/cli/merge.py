@@ -103,7 +103,7 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
     the agent wrote as prose reaches it."""
 
     from torve.application.forge import compose_pr
-    from torve.application.projections import stream_rows
+    from torve.application.projections import attempt_rows
     from torve.application.runstate import RunState
     from torve.base import naming
     from torve.config import layout
@@ -113,7 +113,7 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
     task = load_task(layout.task_file(root, task_id))
     state = RunState.load(naming.state_file(root, task_id))
 
-    rows = [r for r in stream_rows(root) if r.get("task_id") == task_id and "results" in r]
+    rows = [r for r in attempt_rows(root) if r.get("task_id") == task_id]
     row: dict[str, Any] = rows[-1] if rows else {}
     recorded: list[Any] = row.get("results") or []
 
@@ -148,7 +148,7 @@ def _document_pr_text(
 
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import carried_landings, carried_tasks
-    from torve.application.projections import stream_rows
+    from torve.application.projections import recorded_rows
     from torve.config import layout
     from torve.domain.attempt import GateResult
     from torve.gates.context import load_task
@@ -160,7 +160,7 @@ def _document_pr_text(
     carried = carried_tasks(root, branch)
     commits = dict(carried_landings(root, branch))
     task_ids = carried + ([task_id] if task_id not in carried else [])
-    rows = stream_rows(root)
+    rows = recorded_rows(root)
     landings = []
 
     for carried_id in task_ids:
@@ -324,7 +324,7 @@ def _render_text(console: Console, dry_run: bool, results: list[LaneResult]) -> 
 
 
 def _exit_code(results: list[LaneResult]) -> int:
-    if any(r.action == "conflict" for r in results):
+    if any(r.action in ("conflict", "stuck") for r in results):
         return EXIT_ESCALATED
 
     if any(
@@ -419,7 +419,7 @@ def merge_cmd(
     is reported and left for a human — the lane never resolves one."""
 
     from torve.adapters.vcs.git import GitLane
-    from torve.application.lane import process_lane
+    from torve.application.lane import process_lane, promotion_needs_durable_store
     from torve.cli.options import load_config
 
     root = root.resolve()
@@ -430,6 +430,17 @@ def merge_cmd(
 
     except ValueError as exc:
         raise fail(str(exc), EXIT_CONFIG) from exc
+
+    # S-0099/D-11: the same refusal the lane makes, raised here so the operator
+    # gets a configuration exit rather than the lane's infrastructure one.
+    if config.store.adapter != "postgres" and promotion_needs_durable_store(
+        config.promotion.unit, config.promotion.landing == "pull_request"
+    ):
+        raise fail(
+            f"store {config.store.adapter!r} is in-process and test-only; promotion "
+            "unit 'document' and landing 'pull_request' need a postgres store (S-0099/D-11)",
+            EXIT_CONFIG,
+        )
 
     try:
         results = process_lane(
@@ -456,6 +467,8 @@ def merge_cmd(
             rounds=config.threads.enabled and "record" in config.threads.sources,
             # The verdict is a commit status on the tip it judged (S-0099/D-4).
             status=_status(config),
+            # The store the promotion unit and landing need (S-0099/D-11).
+            store=config.store.adapter,
         )
 
     except RuntimeError as exc:

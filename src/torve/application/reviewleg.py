@@ -1563,9 +1563,10 @@ def review_thread_leg(
     if not config.threads.enabled:
         return "review-thread leg is off", False
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import lane_finding_reraised, recorded_rows
 
-    rows = stream_rows(root)
+    rows = recorded_rows(root)
+    reraises = lane_finding_reraised(root)
     minted: list[str] = []
     answered = 0
     refused: list[str] = []
@@ -1643,20 +1644,26 @@ def review_thread_leg(
                 continue
 
             if any(_same_anchor(finding, row) for row in replies):
-                detail = f"{finding.path} was raised again after a landed reply answered it"
-                engine_event(
-                    root,
-                    "lane_finding_reraised",
-                    {
-                        "branch": branch,
-                        "pr": info.number,
-                        "path": finding.path,
-                        "line": finding.line,
-                        "threads": list(finding.ids),
-                    },
-                )
-                _escalate(root, branch, detail)
-                escalated.append(finding.path)
+                # S-0099/D-9: only a re-raise on a moved head is news — a
+                # finding raised again on the head the lane already recorded
+                # writes no row and does not escalate twice.
+                if reraises.get((branch, finding.path, finding.line or 0)) != info.head_sha:
+                    detail = f"{finding.path} was raised again after a landed reply answered it"
+                    engine_event(
+                        root,
+                        "lane_finding_reraised",
+                        {
+                            "branch": branch,
+                            "pr": info.number,
+                            "path": finding.path,
+                            "line": finding.line,
+                            "threads": list(finding.ids),
+                            "head": info.head_sha,
+                        },
+                    )
+                    reraises[(branch, finding.path, finding.line or 0)] = info.head_sha
+                    _escalate(root, branch, detail)
+                    escalated.append(finding.path)
                 continue
 
             if any(_same_anchor(finding, row) for row in prior):

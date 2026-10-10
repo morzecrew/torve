@@ -304,6 +304,38 @@ def test_the_toolkit_listing_leaves_the_projection_out(tmp_path: Path):
 
 
 # ----------------------- #
+# S-0099/D-11: a promotion that needs a durable store is red on the mock
+
+
+def test_doctor_reds_a_promotion_that_needs_a_durable_store(tmp_path: Path):
+    """S-0099/D-11: a document unit and a pull-request landing need the
+    Postgres store; on the in-process mock doctor is red under either, and a
+    local, task-unit promotion is unaffected."""
+    from torve.cli.doctor import _store_checks
+
+    for name, config in (
+        ("document", {"promotion": {"unit": "document"}}),
+        (
+            "pull_request",
+            {"promotion": {"landing": "pull_request"}, "scm": {"open_pr": True, "repo": "o/n"}},
+        ),
+    ):
+        root = _doctor_repo(tmp_path / name, config)
+
+        check, ok, detail = _store_checks(root, None)[0]
+        assert (check, ok) == ("store", False), detail
+        assert "postgres store" in detail
+
+        document = json.loads(
+            CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"]).stdout
+        )
+        assert {c["name"]: c["ok"] for c in document["checks"]}["store"] is False
+
+    local = _doctor_repo(tmp_path / "local", {"promotion": {"landing": "local"}})
+    assert _store_checks(local, None)[0][1] is True
+
+
+# ----------------------- #
 # S-0095/D-3: a seat dispatch would refuse its provider is red in doctor
 
 

@@ -2219,3 +2219,163 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+# ....................... #
+# The lane's own event memory (S-0080/D-16), projected here so the lane, a
+# merge or a review leg asks a question of the record and never imports the
+# stream reader itself (S-0099/D-6): the ledger, the evals and the night
+# report are the stream's only readers (S-0099/D-10).
+
+# What the stream last recorded about a task's pull request, and the verdict a
+# candidate already carrying one reports on every later pass (S-0080/D-8, D-17).
+LANE_VERDICTS = {
+    "lane_pr_opened": "open",
+    "lane_landed": "landed",
+    "lane_pr_closed": "closed",
+    "lane_pr_unresolved": "unresolved",
+}
+
+
+def lane_verdicts(root: Path) -> dict[str, str]:
+    """Task id -> the last verdict the lane recorded for its pull request."""
+
+    ledger: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        verdict = LANE_VERDICTS.get(str(row.get("event", "")))
+        task = str(row.get("task", ""))
+
+        if verdict and task:
+            ledger[task] = verdict
+
+    return ledger
+
+
+def lane_battery_state(root: Path, document: str, tasks: set[str]) -> str:
+    """Where *document*'s one round for a red completion battery stands
+    (S-0093/D-4): "" before any, "pending" until the review leg answers its
+    finding, "answered" once the round landed or answered it without a
+    change. *tasks* are the document's landed tasks, which the caller reads
+    from the branch rather than from here (S-0099/D-2)."""
+
+    rows = stream_rows(root)
+    recorded = [
+        str(row.get("task_id") or "")
+        for row in rows
+        if row.get("kind") == "review"
+        and row.get("battery")
+        and row.get("branch") == document
+        and row.get("target") in tasks
+    ]
+
+    if not recorded:
+        return ""
+
+    answered = {
+        str(row.get("finding") or "")
+        for row in rows
+        if row.get("event") == "review_finding_answered"
+    }
+
+    return "answered" if f"record:{recorded[-1]}:0" in answered else "pending"
+
+
+def lane_resolved(root: Path) -> set[str]:
+    """The rounds a person resolved off the lane (S-0097/D-6): a round a
+    person abandoned and `reap --escalated` swept leaves no run state, so the
+    resolution is read here rather than off the host."""
+
+    return {
+        str(row.get("task") or "")
+        for row in stream_rows(root)
+        if row.get("event") == "manager_resolved" and row.get("resolution") != "requeued"
+    }
+
+
+def lane_conflict_bases(root: Path) -> dict[str, str]:
+    """Branch -> the base tip the lane last reported a conflict against, so
+    the same collision against the same base is not reported twice
+    (S-0083/D-13)."""
+
+    found: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        branch = str(row.get("branch") or "")
+
+        if branch and row.get("event") == "lane_document_conflict":
+            found[branch] = str(row.get("base_tip") or "")
+
+    return found
+
+
+def lane_carried(root: Path) -> dict[str, str]:
+    """Task id -> why a refresh leaves it alone for a lane landing
+    (S-0088/D-2): "landed", or "carried by the branch <branch>" for a
+    document-unit landing."""
+
+    held: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        task_id = str(row.get("task") or "")
+
+        if row.get("event") != "lane_landed" or not task_id:
+            continue
+
+        held[task_id] = (
+            f"carried by the branch {row.get('branch')}"
+            if row.get("unit") == "document"
+            else "landed"
+        )
+
+    return held
+
+
+def lane_finding_reraised(root: Path) -> dict[tuple[str, str, int], str]:
+    """(branch, path, line) -> the head the lane last recorded a re-raise at
+    (S-0099/D-9): a finding raised again on that same head writes no new row."""
+
+    found: dict[tuple[str, str, int], str] = {}
+
+    for row in stream_rows(root):
+        if row.get("event") == "lane_finding_reraised":
+            key = (
+                str(row.get("branch") or ""),
+                str(row.get("path") or ""),
+                int(row.get("line") or 0),
+            )
+            found[key] = str(row.get("head") or "")
+
+    return found
+
+
+def round_already_requeued(root: Path, task_id: str) -> bool:
+    """Whether the review leg already widened this round to the whole phasing
+    (S-0092/D-4)."""
+
+    return any(
+        row.get("event") == "lane_round_requeued" and row.get("task") == task_id
+        for row in stream_rows(root)
+    )
+
+
+def attempted_tasks(root: Path) -> set[str]:
+    """Every task this host has a telemetry record of having run — the
+    companion of the run-state files, for a task whose state file a sweep
+    removed (S-0088/D-2)."""
+
+    return {str(row["task_id"]) for row in stream_rows(root) if row.get("task_id")}
+
+
+def attempt_rows(root: Path) -> list[dict[str, Any]]:
+    """The stream's attempt rows — the ones a pull request body is composed
+    from (S-0080/D-4), each carrying its gate `results`."""
+
+    return [row for row in stream_rows(root) if "results" in row]
+
+
+def recorded_rows(root: Path) -> list[dict[str, Any]]:
+    """The whole telemetry stream, for a review leg that reads only its own
+    vocabulary of events (S-0086/D-3)."""
+
+    return stream_rows(root)

@@ -239,6 +239,43 @@ def test_every_reference_to_an_uncommitted_path_carries_a_verdict() -> None:
     assert not stale, f"a verdict outlived its reference; drop it: {stale}"
 
 
+# ....................... #
+# The import boundary (S-0099/D-6): no decision reads `.torve/telemetry.jsonl`,
+# so only the ledger, the evals and the night report import the stream reader.
+
+
+def test_no_module_outside_the_streams_three_readers_imports_stream_rows() -> None:
+    # projections defines the reader; the ledger, the evals and the night
+    # report are its only consumers (S-0099/D-6, D-10).
+    allowed = {
+        "src/torve/application/ledger.py",
+        "src/torve/cli/ledger.py",
+        "src/torve/cli/evals.py",
+        "src/torve/cli/night.py",
+    }
+    offenders = set()
+
+    for path in sorted((_REPO_ROOT / "src").rglob("*.py")):
+        name = path.relative_to(_REPO_ROOT).as_posix()
+
+        if name in allowed or name == "src/torve/application/projections.py":
+            continue
+
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and any(
+                alias.name == "stream_rows" for alias in node.names
+            ):
+                offenders.add(name)
+                break
+
+    assert not offenders, (
+        "these import the telemetry stream reader outside the ledger, the evals "
+        f"and the night report; read the fact from its carrier instead: {sorted(offenders)}"
+    )
+
+
 def test_the_sweep_names_a_reintroduced_dependency(tmp_path: Path) -> None:
     # The twin: a projection reading an uncommitted path is the violation the
     # sweep exists to name, and it is reachable again the moment someone writes

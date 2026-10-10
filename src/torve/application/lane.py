@@ -49,18 +49,26 @@ Publisher = Callable[[str, str], str]
 # request for that branch. Injected for the same reason `Publisher` is.
 Forge = Callable[[str], PrInfo | None]
 
-# What the stream last recorded about a task's pull request, and the action a
-# candidate already carrying a verdict reports on every later pass. A verdict
-# is terminal: the lane reads it back from its own records and never asks the
-# forge again, so a closed pull request is never re-opened (S-0080/D-8, S-0080/D-17).
-_VERDICTS = {
-    "lane_pr_opened": "open",
-    "lane_landed": "landed",
-    "lane_pr_closed": "closed",
-    "lane_pr_unresolved": "unresolved",
-}
-
+# The action a candidate already carrying a verdict reports on every later
+# pass. A verdict is terminal: the lane reads it back from the record
+# (`projections.lane_verdicts`, S-0099/D-6) and never asks the forge again, so
+# a closed pull request is never re-opened (S-0080/D-8, S-0080/D-17).
 _RECORDED = {"landed": "already landed", "closed": "abandoned", "unresolved": "pr unresolved"}
+
+# S-0099/D-9: a candidate the lane keeps finding red at the same base tip and
+# the same head is not regated for ever — the third red escalates instead. The
+# count lives in the process that observed it, beside the pass that acts on it.
+_RED_RUNS: dict[tuple[str, str, str, str], int] = {}
+
+
+def _note_red(root: Path, task_id: str, base_tip: str, head: str) -> int:
+    """How many consecutive reds this candidate has now had at this (base, head)."""
+
+    key = (str(root), task_id, base_tip, head)
+    count = _RED_RUNS.get(key, 0) + 1
+    _RED_RUNS[key] = count
+
+    return count
 
 
 @dataclass
@@ -898,29 +906,9 @@ def _battery_round(root: Path, document: str) -> str:
     finding, "answered" once the round landed or answered it without a
     change — the rerun that a second red escalates on."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import lane_battery_state
 
-    rows = stream_rows(root)
-    tasks = set(document_tasks(root, document))
-    recorded = [
-        str(row.get("task_id") or "")
-        for row in rows
-        if row.get("kind") == "review"
-        and row.get("battery")
-        and row.get("branch") == document
-        and row.get("target") in tasks
-    ]
-
-    if not recorded:
-        return ""
-
-    answered = {
-        str(row.get("finding") or "")
-        for row in rows
-        if row.get("event") == "review_finding_answered"
-    }
-
-    return "answered" if f"record:{recorded[-1]}:0" in answered else "pending"
+    return lane_battery_state(root, document, set(document_tasks(root, document)))
 
 
 def _battery_target(root: Path, document: str) -> str | None:
@@ -966,16 +954,11 @@ def _wave_outstanding(root: Path, document: str) -> set[str]:
     has none, so the resolution is read off the stream rather than the
     host."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import lane_resolved
     from torve.application.reviewleg import round_tasks
 
     landed = set(document_tasks(root, document))
-    rows = stream_rows(root)
-    resolved = {
-        str(row.get("task") or "")
-        for row in rows
-        if row.get("event") == "manager_resolved" and row.get("resolution") != "requeued"
-    }
+    resolved = lane_resolved(root)
     outstanding: set[str] = set()
 
     for task, _contract in round_tasks(root, document):
@@ -1194,18 +1177,9 @@ def _pr_ledger(root: Path) -> dict[str, str]:
     nothing open asks the forge nothing at all (S-0080/D-16) — no ledger of its
     own, and no call per idle candidate."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import lane_verdicts as _lane_verdicts
 
-    ledger: dict[str, str] = {}
-
-    for row in stream_rows(root):
-        verdict = _VERDICTS.get(str(row.get("event", "")))
-        task = str(row.get("task", ""))
-
-        if verdict and task:
-            ledger[task] = verdict
-
-    return ledger
+    return _lane_verdicts(root)
 
 
 # ....................... #
@@ -1415,17 +1389,9 @@ def _document_conflicts(root: Path) -> dict[str, str]:
     of it; which branches are read back at all comes from the remote
     (S-0099/D-3)."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.projections import lane_conflict_bases
 
-    found: dict[str, str] = {}
-
-    for row in stream_rows(root):
-        branch = str(row.get("branch") or "")
-
-        if branch and row.get("event") == "lane_document_conflict":
-            found[branch] = str(row.get("base_tip") or "")
-
-    return found
+    return lane_conflict_bases(root)
 
 
 def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
@@ -2036,6 +2002,40 @@ def _land_rebased(
 
     if exit_code != 0:
         vcs.reset_branch(root, branch, before_rebase)
+        reds = _note_red(root, task_id, base_tip, branch_tip)
+
+        if reds >= 3:
+            # S-0099/D-9: the same candidate red at the same base and head for
+            # the third time is a person's to look at, not another rebase's.
+            engine_event(
+                root,
+                "lane_candidate_stuck",
+                {
+                    "task": task_id,
+                    "base": base_tip,
+                    "head": branch_tip,
+                    "reds": reds,
+                    "gates": summary,
+                },
+            )
+
+            if state.state is TaskState.READY:
+                state.escalate(
+                    EscalationReason.POISON_CEILING,
+                    f"red {reds} times at the same base and head: {summary}",
+                )
+
+            results.append(
+                LaneResult(
+                    task_id,
+                    branch,
+                    "stuck",
+                    f"red {reds} times at the same base and head — escalated",
+                )
+            )
+
+            return
+
         engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
         results.append(LaneResult(task_id, branch, "gates red", summary))
         return
@@ -2155,6 +2155,14 @@ def _land_candidate(
 # ....................... #
 
 
+def promotion_needs_durable_store(unit: str, pull_request: bool) -> bool:
+    """S-0099/D-11: a document unit and a pull-request landing both need the
+    Postgres store — a mock is in-process, so a reaper on another host sees
+    nothing of what this one holds."""
+
+    return unit == "document" or pull_request
+
+
 def process_lane(
     root: Path,
     vcs: LaneVcs,
@@ -2170,6 +2178,7 @@ def process_lane(
     unit: str = "task",
     rounds: bool = False,
     status: StatusScm | None = None,
+    store: str = "",
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -2197,6 +2206,18 @@ def process_lane(
     finding."""
 
     base = vcs.current_branch(root)
+
+    # S-0099/D-11: a document unit and a pull-request landing both need the
+    # Postgres store — a mock is in-process, so a reaper on another host sees
+    # nothing. `store` is the configured adapter, empty when the caller names
+    # none (a direct caller that is not a run).
+    if store and store != "postgres" and promotion_needs_durable_store(
+        unit, publish is not None
+    ):
+        raise RuntimeError(
+            f"store {store!r} is in-process and test-only; promotion unit "
+            "'document' and landing 'pull_request' need a postgres store (S-0099/D-11)"
+        )
 
     if not dry_run:
         dirt = [p for p in vcs.dirty_paths(root) if not _engine_record(root, p)]

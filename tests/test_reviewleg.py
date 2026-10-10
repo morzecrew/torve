@@ -548,6 +548,30 @@ def test_a_finding_reraised_after_a_landed_reply_is_escalated_not_dispatched(see
     assert RunState.load(naming.state_file(seeded.root, "T-0900")).state is TaskState.ESCALATED
 
 
+def test_a_finding_reraised_on_an_unchanged_head_writes_no_new_row(seeded):
+    """S-0099/D-9: a re-raise is news only when the head moved. On the head the
+    lane already recorded it, the second raise writes no row."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+
+    forge = StubForge(pr(thread("t1")))
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (minted,) = events(seeded.root, "lane_review_task")
+    task_id = minted["task"]
+    engine_event(seeded.root, "lane_landed", {"task": task_id, "sha": "cafe123", "unit": "task"})
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+
+    # The bot raises the same anchor again, on a new thread, at a new-for-it head.
+    forge.info = pr(thread("t9", line=13))
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+    assert len(events(seeded.root, "lane_finding_reraised")) == 1
+
+    # The same head again: no second row.
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+    assert len(events(seeded.root, "lane_finding_reraised")) == 1
+
+
 def test_the_records_are_read_only_when_the_sources_say_so(seeded):
     """S-0086/D-6: the leg's default source is the forge alone, so a
     configuration written before the records were a source changes nothing."""

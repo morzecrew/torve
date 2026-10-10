@@ -476,6 +476,21 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     config = load_config(root, config_path)
 
     if config.store.adapter != "postgres":
+        # S-0099/D-11: a document unit and a pull-request landing need a durable
+        # store; the mock is in-process, so the promotion cannot be run on it.
+        if config.promotion.unit == "document" or config.promotion.landing == "pull_request":
+            return [
+                (
+                    "store",
+                    False,
+                    (
+                        f"store: {config.store.adapter} — in-process and test-only; "
+                        "promotion unit 'document' and landing 'pull_request' need a "
+                        "postgres store (S-0099/D-11)"
+                    ),
+                )
+            ]
+
         return [
             (
                 "store",

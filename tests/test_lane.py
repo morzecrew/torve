@@ -20,7 +20,7 @@ from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
 from torve.cli.manager import _lane_leg
-from torve.config.runconfig import PromotionConfig, RunnerConfig
+from torve.config.runconfig import PromotionConfig, RunnerConfig, StoreConfig
 from torve.domain.states import TaskState
 
 
@@ -181,6 +181,52 @@ def test_a_red_rebase_puts_the_branch_back_so_the_next_pass_regates(lane_repo):
     assert second.exit_code == 1, second.output
     assert json.loads(second.stdout)["results"][0]["action"] == "gates red"
     assert (lane_repo / "twenty.py").exists() is False
+
+
+def test_a_third_red_at_the_same_base_and_head_escalates(lane_repo, monkeypatch):
+    """S-0099/D-9: a candidate the lane keeps finding red at the same base tip
+    and the same head is not regated for ever — the third red escalates the
+    run instead of rebasing it a third time."""
+
+    import torve.application.lane as lane_module
+
+    monkeypatch.setattr(lane_module, "_RED_RUNS", {})
+
+    candidate(lane_repo, "T-7030", "thirty.py", "thirty = 30\n")
+    # Move the base under it, so landing needs a rebase and a re-gate.
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    before = git(lane_repo, "rev-parse", naming.branch("T-7030"))
+
+    # A gate that cannot pass, so every re-gate is red at the same pair.
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\n"
+        "gates:\n"
+        "  - name: refuses\n"
+        "    run: 'false'\n"
+        "    state: blocking\n"
+        "    origin: structural\n"
+        "    input: worktree\n"
+        "    timeout: 30\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a gate that refuses")
+
+    # The first two reds regate and leave the branch where it was.
+    for _ in range(2):
+        result = invoke_merge(lane_repo)
+        assert result.exit_code == 1, result.output
+        assert json.loads(result.stdout)["results"][0]["action"] == "gates red"
+        assert git(lane_repo, "rev-parse", naming.branch("T-7030")) == before
+
+    # The third red is a person's: escalated, not rebased again.
+    third = invoke_merge(lane_repo)
+    assert third.exit_code == 2, third.output
+    assert json.loads(third.stdout)["results"][0]["action"] == "stuck"
+    assert RunState.load(naming.state_file(lane_repo, "T-7030")).state is TaskState.ESCALATED
 
 
 def test_the_lane_event_is_reconciled_against_the_landing_files(lane_repo):
@@ -1535,6 +1581,7 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
     _contract(lane_repo, "T-7209", "S-0905")
     (lane_repo / ".torve" / "config.yaml").write_text(
         "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "store:\n  adapter: postgres\n"
         "scm:\n  open_pr: true\n  repo: owner/name\n",
         encoding="utf-8",
     )
@@ -1558,6 +1605,29 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
 
     assert result.exit_code == 0, result.output
     assert seen == [("T-7209", naming.document_branch("S-0905"))]
+
+
+def test_the_lane_refuses_document_or_pull_request_landing_on_a_mock_store(lane_repo, tmp_path):
+    """S-0099/D-11: a mock store is in-process, so a document unit and a
+    pull-request landing cannot be run on it — the lane refuses, and a local
+    landing on a mock store is unaffected."""
+
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7210", "ten.py", "ten = 10\n")
+    _contract(lane_repo, "T-7210", "S-0906")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "store:\n  adapter: mock\n"
+        "scm:\n  open_pr: true\n  repo: owner/name\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "configure the unit")
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code != 0, result.output
+    assert "postgres store" in result.output
 
 
 # The later pass at the document unit (S-0083/D-10, S-0083/D-11, S-0083/D-12,
@@ -1878,7 +1948,9 @@ def test_the_served_leg_publishes_and_reads_back_as_the_manual_verb_does(lane_re
     base_before = git(lane_repo, "rev-parse", "main")
 
     config = RunnerConfig(
-        promotion=PromotionConfig(auto_merge=True, landing="pull_request", unit="document")
+        promotion=PromotionConfig(auto_merge=True, landing="pull_request", unit="document"),
+        # A pull-request landing needs a durable store (S-0099/D-11).
+        store=StoreConfig(adapter="postgres"),
     )
     published: list[tuple[str, str]] = []
     asked: list[str] = []
