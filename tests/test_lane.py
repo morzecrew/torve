@@ -1604,7 +1604,9 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
         merge_module._publisher, merge_module._status = original
 
     assert result.exit_code == 0, result.output
-    assert seen == [("T-7209", naming.document_branch("S-0905"))]
+    # Published, then published again once the green verdict is on the forge,
+    # so the completed document turns ready (S-0099/D-4).
+    assert seen == [("T-7209", naming.document_branch("S-0905"))] * 2
 
 
 def test_the_lane_refuses_document_or_pull_request_landing_on_a_mock_store(lane_repo, tmp_path):
@@ -2369,6 +2371,98 @@ def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
     assert len(published) == 2
 
 
+class _PushedOnlyStatus(_Status):
+    """A forge that, like GitHub, refuses a status on a commit it does not
+    hold: the lane must write the verdict after the push, never before."""
+
+    def __init__(self, root: Path, document: str) -> None:
+        super().__init__()
+        self.root = root
+        self.document = document
+
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        remote = git(self.root, "rev-parse", f"origin/{self.document}")
+        if remote != sha:
+            raise RuntimeError(f"gh: No commit found for SHA: {sha} (HTTP 422)")
+        super().set_status(sha, state, description)
+
+
+class _RefusingStatus(_Status):
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        raise RuntimeError("gh: HTTP 502")
+
+
+def test_the_verdict_is_written_after_the_push_and_a_refusal_never_ends_the_pass(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0099/D-4: the forge holds a status only for a commit it has, so the
+    verdict follows the push; and a forge that refuses the status leaves the
+    tip with no verdict — read as not green — without aborting the pass or
+    putting the published landing back."""
+
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7340", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7341", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7340", 1)
+    _phase_contract(lane_repo, "T-7341", 2)
+    real = lane._regate
+    monkeypatch.setattr(
+        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+    )
+    document = naming.document_branch("S-0930")
+    published: list[tuple[str, str]] = []
+    status = _PushedOnlyStatus(lane_repo, document)
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        rounds=True,
+        status=status,
+    )
+
+    completing = git(lane_repo, "rev-parse", naming.branch("T-7341"))
+    assert [r.action for r in results] == ["landed", "landed", "gates red"]
+    assert status.completion(completing) == "failure"
+
+
+def test_a_refused_verdict_leaves_the_landing_published(lane_repo, tmp_path, monkeypatch):
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7342", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7343", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7342", 1)
+    _phase_contract(lane_repo, "T-7343", 2)
+    real = lane._regate
+    monkeypatch.setattr(
+        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+    )
+    document = naming.document_branch("S-0930")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        rounds=True,
+        status=_RefusingStatus(),
+    )
+
+    completing = git(lane_repo, "rev-parse", naming.branch("T-7343"))
+    assert [r.action for r in results][:2] == ["landed", "landed"]
+    assert git(lane_repo, "rev-parse", f"origin/{document}") == completing
+    refused = [e for e in _events(lane_repo) if e.get("event") == "lane_status_refused"]
+    assert [e["sha"] for e in refused] == [completing]
+    assert lane.document_tip_red(lane_repo, document, completing, _RefusingStatus()) is True
+
+
 def test_the_publisher_keeps_the_draft_while_the_tip_carries_a_recorded_red(
     lane_repo, tmp_path, monkeypatch
 ):
@@ -2784,3 +2878,46 @@ def test_an_open_document_is_not_republished_while_the_wave_runs(lane_repo, tmp_
     assert published == [("T-7521", document)]
     assert not [r for r in results if r.task == document and r.action == "pull request"]
     assert git(lane_repo, "show", f"{document}:two.py") == "# T-7522"
+
+
+def _landing_on_branch(root: Path, branch: str, document: str, task_id: str) -> None:
+    """Commit a landing file for *task_id* under *document*'s execution
+    directory onto *branch*, cut from the current HEAD."""
+    git(root, "checkout", "-q", "-b", branch)
+    path = root / ".torve" / "specs" / document / "execution" / f"{task_id}-1-20261010T000000Z.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"schema_version: 1\ntask: {task_id}\nattempt: 1\ncommit: abc123\n", encoding="utf-8"
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", f"land {task_id}")
+    git(root, "checkout", "-q", "main")
+
+
+def test_a_host_that_only_fetched_reads_the_branch_s_tasks_from_the_remote(lane_repo, tmp_path):
+    """S-0099/D-2: the tasks a document branch carries are read from its remote
+    tip, so a host with no local `torve/S-*` branch decides as the host that
+    landed them does."""
+
+    from torve.application.lane import document_tasks
+
+    _origin(lane_repo, tmp_path)
+    branch = naming.document_branch("S-0950")
+    _landing_on_branch(lane_repo, branch, "S-0950", "T-9001")
+    git(lane_repo, "push", "-q", "origin", branch)
+    git(lane_repo, "branch", "-q", "-D", branch)
+
+    assert document_tasks(lane_repo, branch) == ["T-9001"]
+
+
+def test_a_branch_is_read_under_its_own_document_only(lane_repo, tmp_path):
+    """A landing file another document's directory holds on the branch is the
+    base's to answer, not the branch's."""
+
+    from torve.application.lane import document_tasks
+
+    _origin(lane_repo, tmp_path)
+    branch = naming.document_branch("S-0951")
+    _landing_on_branch(lane_repo, branch, "S-0952", "T-9002")
+
+    assert document_tasks(lane_repo, branch) == []

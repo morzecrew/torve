@@ -1036,15 +1036,6 @@ def _land_document(
 
     red = _completion_battery(root, vcs, document) if complete else None
 
-    if complete and status is not None:
-        # The verdict rides the fork's commit status, keyed by the tip it
-        # judged (S-0099/D-4): a red stays red for every host and the person
-        # reading the pull request's checks, and a later green tip carries its
-        # own. The stream row below stays a diagnostic no decision reads.
-        status.set_status(
-            tip, "failure" if red else "success", red or "the completion battery passed"
-        )
-
     if red is not None:
         # A red completion is published all the same, with the pull request
         # kept a draft (S-0093/D-2, S-0098/D-4): the tip carries the red, so
@@ -1065,6 +1056,7 @@ def _land_document(
 
             return
 
+        _write_verdict(root, status, tip, red)
         engine_event(
             root,
             "lane_landed",
@@ -1150,6 +1142,12 @@ def _land_document(
 
         return
 
+    # The publisher composed the pull request before the tip's verdict could
+    # exist on the forge, so it published a draft; once the green verdict is
+    # written, publishing again turns the completed document ready.
+    if complete and _write_verdict(root, status, tip, None):
+        _publish(root, publish, task_id, document, tip, results)
+
     engine_event(
         root,
         "lane_landed",
@@ -1166,6 +1164,29 @@ def _land_document(
     )
 
     results.append(LaneResult(task_id, document, "landed", f"{mode} onto {document}", tip))
+
+
+def _write_verdict(root: Path, status: StatusScm | None, tip: str, red: str | None) -> bool:
+    """Write the completion battery's verdict as the `torve/completion` commit
+    status on *tip* (S-0099/D-4), after the push that put *tip* on the forge:
+    the forge refuses a status on a commit it does not hold. A refusal is a
+    diagnostic, never the pass's end — the tip then has no verdict, which the
+    draft flag reads as not green. Whether a status was written."""
+
+    if status is None:
+        return False
+
+    try:
+        status.set_status(
+            tip, "failure" if red else "success", red or "the completion battery passed"
+        )
+
+    except (RuntimeError, OSError) as exc:
+        engine_event(root, "lane_status_refused", {"sha": tip, "detail": str(exc)})
+
+        return False
+
+    return True
 
 
 # ....................... #
@@ -1409,55 +1430,68 @@ def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
 
 
 def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]:
-    """*(at, task, commit, attempt)* for the landing files on *branch*'s tip,
-    in landing order (S-0099/D-2). The landing file is the carrier of what a
+    """*(at, task, commit, attempt)* for the landing files *branch* carries, in
+    landing order (S-0099/D-2). The landing file is the carrier of what a
     document branch holds — a phase finished by hand, or one whose publication
-    the forge refused, rides in the tree exactly as a lane landing does. A
-    tree that is no checkout, or a branch git cannot resolve, contributes
+    the forge refused, rides in the tree exactly as a lane landing does.
+
+    The remote tip is read beside the local branch, so a host that only
+    fetched (no local `torve/S-*` branch) reads what the host that landed
+    reads, and a landing this host made but has not published yet still
+    counts. Only the branch's own document's execution directory is listed.
+    A tree that is no checkout, or a branch git cannot resolve, contributes
     nothing."""
 
     import yaml
 
     from torve.domain.spec import EXECUTION_DIR, LANDING_FILE
 
-    proc = subprocess.run(
-        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", branch],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    document = branch.rsplit("/", 1)[-1]
+    directory = f"{layout.SPECS_DIR}/{document}/{EXECUTION_DIR}"
+    refs = [branch] if branch.startswith(("origin/", "refs/")) else [f"origin/{branch}", branch]
+    found: dict[tuple[str, str, int], str] = {}
 
-    if proc.returncode != 0:
-        return []
-
-    found: list[tuple[str, str, str, int]] = []
-
-    for path in proc.stdout.splitlines():
-        directory, _, name = path.rpartition("/")
-        matched = LANDING_FILE.match(name)
-
-        if directory.rpartition("/")[2] != EXECUTION_DIR or matched is None:
-            continue
-
-        commit = ""
-        body = subprocess.run(
-            ["git", "-C", str(root), "show", f"{branch}:{path}"],
+    for ref in refs:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", ref, "--", directory],
             capture_output=True,
             text=True,
             check=False,
         )
 
-        if body.returncode == 0:
-            try:
-                raw = yaml.safe_load(body.stdout) or {}
-                commit = str(raw.get("commit") or "") if isinstance(raw, dict) else ""
+        if proc.returncode != 0:
+            continue
 
-            except yaml.YAMLError:
-                commit = ""
+        for path in proc.stdout.splitlines():
+            matched = LANDING_FILE.match(path.rpartition("/")[2])
 
-        found.append((matched.group(3), matched.group(1), commit, int(matched.group(2))))
+            if matched is None:
+                continue
 
-    return sorted(found)
+            key = (matched.group(3), matched.group(1), int(matched.group(2)))
+
+            if key in found:
+                continue
+
+            commit = ""
+            body = subprocess.run(
+                ["git", "-C", str(root), "show", f"{ref}:{path}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if body.returncode == 0:
+                try:
+                    raw = yaml.safe_load(body.stdout) or {}
+                    commit = str(raw.get("commit") or "") if isinstance(raw, dict) else ""
+
+                except yaml.YAMLError:
+                    commit = ""
+
+            found[key] = commit
+
+    return sorted((at, task, commit, attempt) for (at, task, attempt), commit in found.items())
 
 
 def carried_landings(root: Path, branch: str) -> list[tuple[str, str]]:
