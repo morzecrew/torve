@@ -307,10 +307,10 @@ def _landed_task_ids(root: Path) -> set[str]:
 
     # One derivation, not two (S-0007/D-26, retired by S-0059/D-12):
     # projections owns the reading and a second copy here would drift.
-    from torve.application.projections import shipped_ids
+    from torve.application.projections import landed
 
     try:
-        return shipped_ids(root)
+        return set(landed(root))
 
     except OSError:
         return set()
@@ -856,7 +856,7 @@ def operator_attention(root: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]
 
     # S-0022/D-5 layering: `torve.application.projections` imports `read_tasks`
     # from this module at load time, so the reverse import stays lazy the
-    # same way `_landed_task_ids` above imports `shipped_ids`.
+    # same way `_landed_task_ids` above imports `landed`.
     from torve.application.projections import feedback_records
 
     # Feedback is one row per task id (latest wins); the joined count is the

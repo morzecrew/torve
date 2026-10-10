@@ -214,9 +214,9 @@ def _carried(root: Path, task_id: str) -> bool:
     count of its own.
     """
 
-    from torve.application.projections import shipped_ids
+    from torve.application.projections import landed
 
-    return task_id in shipped_ids(root)
+    return task_id in landed(root)
 
 
 # ....................... #

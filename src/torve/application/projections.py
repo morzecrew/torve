@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import yaml
+from pydantic import ValidationError
 
 from torve.application.manager import IN_FLIGHT, Board, TaskView, current_shape, project
 from torve.application.planner import document_of
@@ -78,66 +79,117 @@ SPEC_DRIFT_FINDINGS_LIMIT = 10
 
 # S-0065/D-7: three readers counted landings and disagreed — the record's
 # `landing.recorded` events (263), the lane's `lane_landed` telemetry (49)
-# and the landing files in the tree (58). The landing files are the
-# carrier, and these two functions are how it is read. A landing file is
-# only in the tree at this base because the commit carrying it landed
-# here, so the file answers "did this task land" with no store, no
-# telemetry and no git; the record's events are already minted from these
-# same files by `decisions.landing_events`, and the lane's event is
-# reconciled against them at the landing rather than tallied beside them.
+# and the landing files in the tree (58). The landing file is the carrier
+# (S-0099/D-1): the commit that lands a task writes it, so it cannot disagree
+# with git, and `landed` below is the one reader of it. Every caller that
+# once asked "did this task land" through a telemetry row, a stream tally or
+# a git trailer asks here instead.
 
 
-def shipped_landings(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
-    """Task id to the commit that landed it, from the landings the tree
-    holds (S-0059/D-12) — newest winning.
+def landed(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
+    """Task id to the commit that landed it, newest winning — the landing
+    files in the base tree (S-0059/D-12) beside those on the remote tip of
+    every `torve/S-*` document branch (S-0099/D-1).
 
-    A task with no run state is not necessarily unstarted: the engine did
-    not run it, but a landing records that someone did. This read the
-    commit history until the landing file carried the commit, and had to
-    know three spellings of a shipped task to do it (S-0007/D-26, retired
-    here); now it reads files, so a tree without git answers too.
-    """
+    A task is landed when a landing file for it is in the base tree or in a
+    document branch's remote tip, so a task the lane has landed but whose
+    document the base does not yet hold still reads landed, and a squash
+    merge — whose branch commits the base never holds — reads the same as a
+    fast-forward. The file carries the logical commit, not the branch sha,
+    so a rebase that renames every sha leaves the answer unchanged. A landing
+    with no commit is a landing still, present here with the empty string.
 
-    from torve.application.decisions import landed_by_task
+    Reads no store and no telemetry: a tree without git, or with a stream
+    another host emptied, answers too."""
 
-    return landed_by_task(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
+    from torve.application.decisions import landings
 
+    found: dict[str, tuple[str, str]] = {}
 
-def lane_landings(root: Path) -> dict[str, str]:
-    """Task id to the commit the lane landed it as, from this host's own
-    stream — the landings on a document branch that the base's tree does not
-    yet hold. A phase run by hand and landed by `torve merge` is a landing the
-    served manager would otherwise never hear of, and its dependents would
-    wait on the board forever (bloomery S-0008, 2026-09-19). Newest wins.
+    for one in landings(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR):
+        best = found.get(one.task)
+        candidate = (one.at, one.commit)
 
-    A document's landing is its tasks' landing (S-0085/D-3): the merge commit
-    the base holds stamps every task the branch carried, so ancestry answers
-    the same for a squash — whose branch commits the base never holds — as for
-    a fast-forward. `shipped_landings` and the tree's landing files are
-    unchanged."""
+        if best is None or candidate > best:
+            found[one.task] = candidate
 
-    landed: dict[str, str] = {}
+    for at, task, commit in _remote_landings(root):
+        best = found.get(task)
+        candidate = (at, commit)
 
-    for row in stream_rows(root):
-        event = row.get("event")
+        if best is None or candidate > best:
+            found[task] = candidate
 
-        if event == "lane_landed" and row.get("task") and row.get("sha"):
-            landed[str(row["task"])] = str(row["sha"])
-
-        elif event == "lane_document_landed" and row.get("sha"):
-            for task_id in row.get("tasks") or []:
-                landed[str(task_id)] = str(row["sha"])
-
-    return landed
+    return {task: commit for task, (_, commit) in found.items()}
 
 
-def shipped_ids(root: Path, spec_dir: Path | None = None) -> set[str]:
-    """Task ids the tree records as landed, with or without a commit — the
-    denominator every rate is divided by, whichever reader asks."""
+def _remote_landings(root: Path) -> list[tuple[str, str, str]]:
+    """*(at, task, commit)* for every landing file on the remote tip of a
+    `torve/S-*` document branch, as the last fetch left it (S-0099/D-1). The
+    base tree holds a document's landings only once it merged; this is the
+    half a document branch carries until then. A tree that is no checkout, or
+    has no such branch, contributes nothing."""
 
-    from torve.application.decisions import landed_task_ids
+    import subprocess
 
-    return landed_task_ids(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
+    from torve.domain.spec import EXECUTION_DIR, LANDING_FILE, Landing
+
+    refs = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/remotes/origin/torve/S-*",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if refs.returncode != 0:
+        return []
+
+    found: list[tuple[str, str, str]] = []
+
+    for ref in refs.stdout.split():
+        tree = subprocess.run(
+            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", ref],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if tree.returncode != 0:
+            continue
+
+        for path in tree.stdout.splitlines():
+            directory, _, name = path.rpartition("/")
+
+            if directory.rpartition("/")[2] != EXECUTION_DIR or not LANDING_FILE.match(name):
+                continue
+
+            body = subprocess.run(
+                ["git", "-C", str(root), "show", f"{ref}:{path}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if body.returncode != 0:
+                continue
+
+            try:
+                raw: Any = yaml.safe_load(body.stdout) or {}
+                landing = Landing.model_validate(raw)
+
+            except (yaml.YAMLError, ValidationError):
+                continue
+
+            found.append((landing.at, landing.task, landing.commit))
+
+    return found
 
 
 # ....................... #
@@ -212,7 +264,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
     if not tasks_dir.is_dir():
         return found
 
-    shipped = shipped_ids(root)
+    shipped = landed(root)
 
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         record = _load_yaml_dict(contract)
@@ -372,7 +424,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
     if not telemetry.is_file():
         return []
 
-    landed = shipped_ids(root)
+    shipped = landed(root)
     contract_texts = _contract_texts(root)
     found: list[dict[str, Any]] = []
 
@@ -395,7 +447,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
         target = str(row.get("target") or "")
         findings = row.get("findings")
 
-        if not review_id or not target or target not in landed or not isinstance(findings, list):
+        if not review_id or not target or target not in shipped or not isinstance(findings, list):
             continue
 
         # Any contract text citing the review id is evidence a follow-up
@@ -900,7 +952,7 @@ def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
     append-only and keyed by task id, latest wins at analysis time
     (S-0022/current-state). Public: `specquality.operator_attention` reads this
     corpus-wide, the same lazy-import-to-avoid-a-cycle shape as
-    `specquality._landed_task_ids` already uses for `shipped_ids`."""
+    `specquality._landed_task_ids` already uses for `landed`."""
 
     found: dict[str, dict[str, Any]] = {}
     path = layout.feedback_file(root)
@@ -1461,10 +1513,10 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
     if not runs:
         runs = [s.to_record() for s in RunState.load_all(root.resolve() / naming.WORKTREE_DIR)]
 
-    landed = landed_ids(root, board)
+    recorded = landed(root)
 
     for run in runs:
-        if run.get("state") == TaskState.READY.value and run.get("task_id") in landed:
+        if run.get("state") == TaskState.READY.value and run.get("task_id") in recorded:
             run["state"] = LANDED
 
     return {"schema_version": 1, "runs": runs}
@@ -1475,15 +1527,6 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
 # task that landed weeks ago read as waiting to land; the display says what the
 # record already knows, and the state machine is unchanged.
 LANDED = "landed"
-
-
-def landed_ids(root: Path, board: Board | None = None) -> set[str]:
-    """Every task whose landing is recorded: on the board, by the lane, or by
-    the tree's own trailers and landing files."""
-
-    landed = {view.task_id for view in board.tasks.values() if view.landed_sha} if board else set()
-
-    return landed | set(lane_landings(root)) | shipped_ids(root)
 
 
 # ....................... #
