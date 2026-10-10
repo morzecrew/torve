@@ -171,14 +171,45 @@ def seeded(repo):
 
 
 def open_document(root: Path, task_id: str = "T-0900", sha: str = "abc1234") -> None:
-    """What the lane's own records say makes a document branch open: one
-    landing onto it, and no verdict after."""
+    """What makes a document branch open: one landing file on its tip — the
+    carrier the lane reads the branch's tasks from (S-0099/D-2) — and the
+    stream record the leg still reads a landed sha from."""
 
     engine_event(
         root,
         "lane_landed",
         {"task": task_id, "unit": "document", "branch": BRANCH, "sha": sha, "mode": "ff"},
     )
+    _land_on(root, BRANCH, task_id, sha)
+
+
+def _land_on(root: Path, branch: str, task_id: str, sha: str) -> None:
+    """A landing file for *task_id* committed on *branch*'s tip, the branch cut
+    from the checkout's `main` when it does not exist yet."""
+    import subprocess
+
+    def g(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    probe = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "-q", f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    g("checkout", "-q", branch) if probe.returncode == 0 else g("checkout", "-q", "-b", branch)
+    rel = f".torve/specs/S-0084/execution/{task_id}-1-20261010T000000Z.yaml"
+    landing = root / rel
+    landing.parent.mkdir(parents=True, exist_ok=True)
+    landing.write_text(f"task: {task_id}\ncommit: {sha}\n", encoding="utf-8")
+    g("add", rel)
+
+    if g("diff", "--cached", "--name-only"):
+        g("commit", "-q", "--no-gpg-sign", "-m", f"torve({task_id}): landing of attempt 1")
+
+    g("checkout", "-q", "main")
 
 
 # ....................... #

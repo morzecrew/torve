@@ -504,6 +504,25 @@ class Scm(Protocol):
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str: ...
 
 
+# The context a completion battery's verdict is written under, and read back
+# by (S-0099/D-4): a commit status on the sha the tree was judged at, so a red
+# tip stays red for every host and a later green tip carries its own.
+COMPLETION_CONTEXT = "torve/completion"
+
+
+# ....................... #
+
+
+class StatusScm(Protocol):
+    """The forge's commit statuses (S-0099/D-4): the lane writes the completion
+    battery's verdict on the tip it judged, and the draft flag and the battery
+    round read it back there rather than from a host's stream."""
+
+    def set_status(self, sha: str, state: str, description: str = "") -> None: ...
+
+    def completion(self, sha: str) -> str | None: ...
+
+
 # ....................... #
 
 

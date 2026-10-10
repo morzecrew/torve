@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from torve.application.feedback import capture_feedback
-from torve.application.ports import CiStatus, LaneVcs, PrInfo
+from torve.application.ports import CiStatus, LaneVcs, PrInfo, StatusScm
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.application.threads import group_findings
@@ -933,20 +933,21 @@ def _battery_target(root: Path, document: str) -> str | None:
     return landed[-1] if landed else None
 
 
-def document_tip_red(root: Path, branch: str, tip: str) -> bool:
-    """Whether *tip* on *branch* carries a recorded red completion battery
-    (S-0093/D-2, S-0098/D-4). The document's pull request stays a draft while
-    it does, and a later green battery at a later tip — a round's landing that
-    moves the branch — publishes it ready."""
+def document_tip_red(root: Path, branch: str, tip: str, status: StatusScm | None = None) -> bool:
+    """Whether *tip* on *branch* is not green (S-0099/D-4): the completion
+    battery's verdict is a commit status `torve/completion` on the tip it
+    judged, and the draft flag reads it from the forge.
 
-    from torve.application.projections import stream_rows
+    A tip the forge holds no status for keeps the draft — an unreadable
+    verdict is never a green one — and a later green battery at a later tip —
+    a round's landing that moves the branch — publishes it ready. Without a
+    forge (a local landing, or a caller that writes no status) a tip with no
+    verdict is red by the same rule."""
 
-    return any(
-        row.get("event") == "lane_document_gates_red"
-        and str(row.get("branch") or "") == branch
-        and str(row.get("sha") or "") == tip
-        for row in stream_rows(root)
-    )
+    if status is None:
+        return True
+
+    return status.completion(tip) != "success"
 
 
 def _wave_outstanding(root: Path, document: str) -> set[str]:
@@ -963,8 +964,7 @@ def _wave_outstanding(root: Path, document: str) -> set[str]:
 
     from torve.application.projections import stream_rows
 
-    entry = _document_ledger(root).get(document)
-    landed = set(entry.tasks) | set(entry.earlier) if entry is not None else set()
+    landed = set(document_tasks(root, document))
     rows = stream_rows(root)
     resolved = {
         str(row.get("task") or "")
@@ -1009,6 +1009,7 @@ def _land_document(
     approver: str,
     results: list[LaneResult],
     rounds: bool = False,
+    status: StatusScm | None = None,
 ) -> None:
     """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
 
@@ -1051,6 +1052,15 @@ def _land_document(
         return
 
     red = _completion_battery(root, vcs, document) if complete else None
+
+    if complete and status is not None:
+        # The verdict rides the fork's commit status, keyed by the tip it
+        # judged (S-0099/D-4): a red stays red for every host and the person
+        # reading the pull request's checks, and a later green tip carries its
+        # own. The stream row below stays a diagnostic no decision reads.
+        status.set_status(
+            tip, "failure" if red else "success", red or "the completion battery passed"
+        )
 
     if red is not None:
         # A red completion is published all the same, with the pull request
@@ -1408,54 +1418,90 @@ def _document_ledger(root: Path) -> dict[str, _Document]:
 # ....................... #
 
 
-def document_tasks(root: Path, branch: str) -> list[str]:
-    """The tasks the lane's own records say a document branch carries, in
-    landing order — what the document's pull request is composed from
-    (S-0083/D-8). Empty for a branch no landing has named yet."""
+def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]:
+    """*(at, task, commit, attempt)* for the landing files on *branch*'s tip,
+    in landing order (S-0099/D-2). The landing file is the carrier of what a
+    document branch holds — a phase finished by hand, or one whose publication
+    the forge refused, rides in the tree exactly as a lane landing does. A
+    tree that is no checkout, or a branch git cannot resolve, contributes
+    nothing."""
 
-    entry = _document_ledger(root).get(branch)
+    import yaml
 
-    return list(entry.tasks) if entry is not None else []
+    from torve.domain.spec import EXECUTION_DIR, LANDING_FILE
 
-
-def carried_tasks(root: Path, branch: str) -> list[str]:
-    """Every task a document branch carries: the lane's own records in landing
-    order, then each task whose landing file rides in the branch tip's tree
-    with no lane record — a phase finished by hand, or one whose publication
-    the forge refused (S-0091/D-3). The pull request's body and draft flag
-    and the completion battery count from this one list, so a pull request
-    never leaves draft on a completion the battery did not see."""
-
-    carried = document_tasks(root, branch)
-    document = branch.rsplit("/", 1)[-1]
     proc = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "ls-tree",
-            "-r",
-            "--name-only",
-            branch,
-            "--",
-            f"{layout.TORVE_DIR}/specs/{document}/execution",
-        ],
+        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", branch],
         capture_output=True,
         text=True,
         check=False,
     )
 
-    for name in proc.stdout.split():
-        found = name.rsplit("/", 1)[-1].rsplit("-", 2)[0]
+    if proc.returncode != 0:
+        return []
 
-        if (
-            name.endswith(".yaml")
-            and found not in carried
-            and layout.task_file(root, found).is_file()
-        ):
-            carried.append(found)
+    found: list[tuple[str, str, str, int]] = []
 
-    return carried
+    for path in proc.stdout.splitlines():
+        directory, _, name = path.rpartition("/")
+        matched = LANDING_FILE.match(name)
+
+        if directory.rpartition("/")[2] != EXECUTION_DIR or matched is None:
+            continue
+
+        commit = ""
+        body = subprocess.run(
+            ["git", "-C", str(root), "show", f"{branch}:{path}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if body.returncode == 0:
+            try:
+                raw = yaml.safe_load(body.stdout) or {}
+                commit = str(raw.get("commit") or "") if isinstance(raw, dict) else ""
+
+            except yaml.YAMLError:
+                commit = ""
+
+        found.append((matched.group(3), matched.group(1), commit, int(matched.group(2))))
+
+    return sorted(found)
+
+
+def carried_landings(root: Path, branch: str) -> list[tuple[str, str]]:
+    """*(task, commit)* for the tasks a document branch carries, in landing
+    order — the landing files on the branch tip (S-0099/D-2), newest landing
+    of a task winning. What the document's pull request is composed from."""
+
+    order: list[str] = []
+    commits: dict[str, str] = {}
+
+    for _at, task, commit, _attempt in _branch_landings(root, branch):
+        if task not in commits:
+            order.append(task)
+
+        commits[task] = commit
+
+    return [(task, commits[task]) for task in order]
+
+
+def document_tasks(root: Path, branch: str) -> list[str]:
+    """The tasks a document branch carries, in landing order: the landing
+    files on its tip (S-0099/D-2). The pull request body, the completion
+    battery and the wave count this one list, whichever host asks. Empty for
+    a branch carrying no landing."""
+
+    return [task for task, _commit in carried_landings(root, branch)]
+
+
+def carried_tasks(root: Path, branch: str) -> list[str]:
+    """The tasks a document branch carries whose contract the corpus holds —
+    the same carrier as `document_tasks` (S-0099/D-2), so a stray file names
+    no task."""
+
+    return [task for task in document_tasks(root, branch) if layout.task_file(root, task).is_file()]
 
 
 # ....................... #
@@ -1540,6 +1586,8 @@ def _rebase_document(
 
     from torve.gates.context import resolve_base
 
+    tasks = document_tasks(root, branch)
+
     base = resolve_base(root, None, fetch=True)
     base_tip = vcs.tip(root, base) if base else None
     # The remote's copy is the one rebased (S-0091/D-1). A hand commit pushed
@@ -1610,12 +1658,12 @@ def _rebase_document(
         engine_event(
             root,
             "lane_document_conflict",
-            {"branch": branch, "base_tip": base_tip, "tasks": entry.tasks, "pr": number},
+            {"branch": branch, "base_tip": base_tip, "tasks": tasks, "pr": number},
         )
         _escalate_document(
             root,
             branch,
-            entry.tasks,
+            tasks,
             f"the document branch {branch!r} no longer rebases onto {base!r}; "
             "a person resolves it — the branch is untouched",
         )
@@ -1649,7 +1697,7 @@ def _rebase_document(
         return
 
     rebased = vcs.tip(root, branch) or branch_tip
-    reference = _publish(root, publish, entry.tasks[-1], branch, rebased, results)
+    reference = _publish(root, publish, tasks[-1], branch, rebased, results)
 
     if reference is None:
         vcs.reset_branch(root, branch, branch_tip)
@@ -1658,7 +1706,7 @@ def _rebase_document(
     engine_event(
         root,
         "lane_document_rebased",
-        {"branch": branch, "sha": rebased, "pr": reference, "tasks": entry.tasks},
+        {"branch": branch, "sha": rebased, "pr": reference, "tasks": tasks},
     )
     results.append(
         LaneResult(document, branch, "pull request", f"rebased onto {base}, gates green", rebased)
@@ -1705,10 +1753,12 @@ def _document_verdicts(
     carried: dict[str, tuple[str, str]] = {}
 
     for branch, entry in sorted(_document_ledger(root).items()):
+        tasks = document_tasks(root, branch)
+
         for task_id, verdict in entry.earlier.items():
             carried[task_id] = ("abandoned" if verdict == "closed" else "already landed", branch)
 
-        for task_id in entry.tasks:
+        for task_id in tasks:
             carried[task_id] = (
                 "abandoned" if entry.verdict == "closed" else "already landed",
                 branch,
@@ -1721,7 +1771,7 @@ def _document_verdicts(
         document = branch.rsplit("/", 1)[-1]
 
         if info is None:
-            engine_event(root, "lane_pr_unresolved", {"branch": branch, "tasks": entry.tasks})
+            engine_event(root, "lane_pr_unresolved", {"branch": branch, "tasks": tasks})
             results.append(
                 LaneResult(
                     document,
@@ -1741,7 +1791,7 @@ def _document_verdicts(
                     "branch": branch,
                     "sha": sha,
                     "pr": info.number,
-                    "tasks": entry.tasks,
+                    "tasks": tasks,
                     # Read after the fact: `at` is when the engine asked, not
                     # when the person clicked.
                     "observed": True,
@@ -1752,7 +1802,7 @@ def _document_verdicts(
                     document,
                     branch,
                     "landed",
-                    f"pull request #{info.number} merged, carrying {', '.join(entry.tasks)}",
+                    f"pull request #{info.number} merged, carrying {', '.join(tasks)}",
                     sha,
                 )
             )
@@ -1761,7 +1811,7 @@ def _document_verdicts(
             engine_event(
                 root,
                 "lane_document_closed",
-                {"branch": branch, "pr": info.number, "tasks": entry.tasks},
+                {"branch": branch, "pr": info.number, "tasks": tasks},
             )
             results.append(
                 LaneResult(
@@ -1769,7 +1819,7 @@ def _document_verdicts(
                     branch,
                     "abandoned",
                     f"pull request #{info.number} was closed without merging, "
-                    f"abandoning {', '.join(entry.tasks)}",
+                    f"abandoning {', '.join(tasks)}",
                 )
             )
 
@@ -1778,7 +1828,7 @@ def _document_verdicts(
             _rebase_document(root, vcs, publish, document, branch, entry, info.number, results)
 
         if info is not None and info.state == "closed":
-            carried.update(dict.fromkeys(entry.tasks, ("abandoned", branch)))
+            carried.update(dict.fromkeys(tasks, ("abandoned", branch)))
 
     return carried
 
@@ -1798,6 +1848,7 @@ def _land_fast_forward(
     publish: Publisher | None = None,
     document: str | None = None,
     rounds: bool = False,
+    status: StatusScm | None = None,
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -1824,6 +1875,7 @@ def _land_fast_forward(
                 approver,
                 results,
                 rounds,
+                status,
             )
         else:
             _open_pull_request(
@@ -1912,6 +1964,7 @@ def _land_rebased(
     publish: Publisher | None = None,
     document: str | None = None,
     rounds: bool = False,
+    status: StatusScm | None = None,
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -1968,6 +2021,7 @@ def _land_rebased(
                 approver,
                 results,
                 rounds,
+                status,
             )
         else:
             _open_pull_request(
@@ -2012,6 +2066,7 @@ def _land_candidate(
     publish: Publisher | None = None,
     document: str | None = None,
     rounds: bool = False,
+    status: StatusScm | None = None,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -2030,6 +2085,7 @@ def _land_candidate(
             publish,
             document,
             rounds,
+            status,
         )
         return
 
@@ -2055,6 +2111,7 @@ def _land_candidate(
         publish,
         document,
         rounds,
+        status,
     )
 
 
@@ -2075,6 +2132,7 @@ def process_lane(
     forge: Forge | None = None,
     unit: str = "task",
     rounds: bool = False,
+    status: StatusScm | None = None,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -2224,6 +2282,7 @@ def process_lane(
             publish,
             document,
             rounds,
+            status,
         )
 
     return results
