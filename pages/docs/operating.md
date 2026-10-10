@@ -272,7 +272,7 @@ them true writes them:
 | whether a tip passed the completion battery | the `torve/completion` commit status on that tip, in the pull request's checks |
 | what a review round covers — branch, target, findings, phases | the round's contract, under `round:`, on the board |
 | what each attempt did, what it cost, which gates failed, who holds a task, what escalated | the record — the board, or a report run with `--partition` |
-| attempt rows and engine health | `.torve/telemetry.jsonl`, a diagnostic stream no decision reads (S-0099/D-6, S-0099/D-10) |
+| attempt rows and engine health | `.torve/telemetry.jsonl`, a diagnostic stream (S-0099/D-10); five lane facts still read it until the follow-up to S-0099 lands |
 
 `torve serve` and `torve mcp` take the same two options and pass them into
 every reader, per request — so a dashboard left running shows the board as
