@@ -63,6 +63,9 @@ phasing:
       `tests/`; ratchet-what-you-build removed and torve's profiles updated. Written
       in a session from the operator's practice, not served. torve's review profile
       equips `[working-rules]`. Settles D-1, the skill half of D-4, D-9 and D-12.
+      It also finishes what review found phase 1 and 2 left: `runconfig.ROLE_SKILLS`
+      is deleted with its last importers, and a role equipped with no skill gets no
+      working-rules line in its prompt.
     scope:
       - skills/torve/**
       - skills/corpus-bootstrap/**
@@ -73,11 +76,17 @@ phasing:
       - tests/test_equipment.py
       - tests/test_agents.py
       - tests/test_run_integration.py
+      - src/torve/config/runconfig.py
+      - src/torve/adapters/agent/harness.py
+      - tests/test_review_run.py
+      - tests/test_evals.py
+      - tests/test_runconfig.py
     acceptance:
       - >-
         uv run pytest tests/test_skills.py tests/test_equipment.py tests/test_agents.py
-        tests/test_run_integration.py
-      - uv run torve guide torve
+        tests/test_run_integration.py tests/test_review_run.py tests/test_evals.py
+        tests/test_runconfig.py tests/test_cli.py
+      - uv run mypy src
     depends_on:
       - 2
     character: structural

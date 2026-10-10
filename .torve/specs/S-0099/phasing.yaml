@@ -39,13 +39,17 @@ phasing:
       - tests/test_specquality.py
       - tests/test_fleet.py
       - tests/test_fleet_cli.py
+      - tests/test_decisions_record.py
+      - tests/test_fleet_config.py
+      - tests/test_fleet_serve.py
     acceptance:
       - >-
         uv run pytest tests/test_projections.py tests/test_decisions.py tests/test_manager.py
         tests/test_manager_e2e.py tests/test_residency.py tests/test_plan.py tests/test_cli.py
         tests/test_lane.py tests/test_lane_prevention.py tests/test_why_record.py
         tests/test_divergence.py tests/test_context.py tests/test_evals.py tests/test_ledger.py
-        tests/test_specquality.py tests/test_fleet.py tests/test_fleet_cli.py
+        tests/test_specquality.py tests/test_fleet.py tests/test_fleet_cli.py tests/test_decisions_record.py
+        tests/test_fleet_config.py tests/test_fleet_serve.py
       - uv run mypy src
     character: structural
   - phase: 2
@@ -135,10 +139,13 @@ phasing:
       - tests/test_lane.py
       - tests/test_manager.py
       - tests/test_task_records.py
+      - tests/test_manager_e2e.py
+      - tests/test_lane_prevention.py
     acceptance:
       - >-
         uv run pytest tests/test_reviewleg.py tests/test_pr_review.py tests/test_lane.py
-        tests/test_manager.py tests/test_task_records.py
+        tests/test_manager.py tests/test_task_records.py tests/test_manager_e2e.py
+        tests/test_lane_prevention.py
       - uv run mypy src
     depends_on:
       - 3
@@ -175,11 +182,18 @@ phasing:
       - tests/test_fleet.py
       - tests/test_fleet_cli.py
       - tests/test_intake.py
+      - tests/test_projections.py
+      - tests/test_lane_prevention.py
+      - tests/test_manager_e2e.py
+      - tests/test_fleet_config.py
+      - tests/test_fleet_serve.py
     acceptance:
       - >-
         uv run pytest tests/test_layout.py tests/test_lane.py tests/test_manager.py
         tests/test_reviewleg.py tests/test_residency.py tests/test_plan.py tests/test_cli.py
         tests/test_doctor.py tests/test_fleet.py tests/test_fleet_cli.py tests/test_intake.py
+        tests/test_projections.py tests/test_lane_prevention.py tests/test_manager_e2e.py
+        tests/test_fleet_config.py tests/test_fleet_serve.py
       - uv run mypy src
     depends_on:
       - 4
