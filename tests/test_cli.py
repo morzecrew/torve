@@ -1402,7 +1402,7 @@ def test_init_writes_the_stub_once_and_never_overwrites_one(tmp_path):
         text = path.read_text(encoding="utf-8")
         assert "name: torve" in text
         # The pointer is inlined by command injection, with the fallback named.
-        assert "!`torve guide torve`" in text
+        assert "!`uv run --quiet torve guide torve`" in text
         assert "torve guide spec-writer" in text
 
     before = twin.read_text(encoding="utf-8")
