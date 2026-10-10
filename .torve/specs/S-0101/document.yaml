@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0101
+title: The last lane facts leave the stream
+kind: design
+change:
+  type: refactor
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0099]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  S-0099 gave the landing, a document's tasks, a pull request's state and the completion verdict each one carrier, but its phase 5 moved the remaining stream reads into `projections` wrappers instead of giving them carriers. Five lane facts are still read from `.torve/telemetry.jsonl`: a battery round's state, the rounds a person resolved, a document branch's last conflict base, the review tier's recorded findings, and the gate results a pull request body lists. Two more facts live in process memory, so `torve merge` run once per pass loses them: the count of reds at the same base and head, and the tasks of a pull request a person closed.
+
+  Each gets the carrier the act that makes it true already writes. A battery round says so in its own contract. A resolution is the board's. A conflict and a red regate are commit statuses on the tip they judged. A closed pull request is the forge's, found by its head branch name even after the branch is deleted. The reviewer's findings ride in the record's `review.recorded`, and gate results in its `gates.evaluated`. Every stream reader then lives in one module that only the reports import, and the boundary test checks that module rather than one function's name.
+motivation: >-
+  The reviewer on S-0099's night (2026-10-10) recorded these as majors on T-0509,
+  T-0510 and T-0511, and S-0099/D-6 is only partly implemented without them. The owner
+  chose "every fact has one carrier" as the first of five moves on 2026-10-09.
+current_state: >-
+  `projections.lane_battery_state`, `lane_resolved`, `lane_conflict_bases`, `lane_carried`,
+  `lane_finding_reraised`, `round_already_requeued`, `attempted_tasks`, `attempt_rows`
+  and `recorded_rows` each call `stream_rows`; `lane.py`, `reviewleg.py`, `planner.py`,
+  `cli/merge.py` and `residency.py` call them. The boundary test in `tests/test_layout.py`
+  refuses an import of `stream_rows` itself outside the ledger, the evals and the
+  night report, and exempts `projections.py`, where the wrappers live. `review.recorded`
+  carries only counts of findings, so the findings themselves exist only in the stream's
+  `kind: review` rows. `lane._land_rebased` keeps its red-regate count in a module-level
+  dict. `lane._document_verdicts` finds abandoned tasks by walking the remote's open
+  document branches, so a closed pull request whose branch was deleted stops being
+  found and its tasks are offered again.
+goals: |-
+  - No decision reads `.torve/telemetry.jsonl`, and a test proves it for every reader, not one function name.
+  - A red at the same base and head, and a closed pull request, are remembered across processes and hosts.
+  - The reviewer's findings are in the record, so a host that did not run the review reads them.
+non_goals: |-
+  - Moving attempt metrics out of the stream (S-0099/D-10).
+  - Width, or any new lane behaviour.
+design:
+  - key: the-carriers
+    md: |-
+      | Fact | Carrier | Written by | Read by |
+      |---|---|---|---|
+      | A round answers a red completion battery | `battery: true` and the target in the round's `round:` | the review leg | the battery's round state |
+      | A person resolved a round | the board's `escalation.resolved` | the operator | the wave |
+      | A document branch conflicts with the base | commit status `torve/rebase` on the branch tip, naming the base tip | the lane | the lane's conflict report |
+      | A candidate was red at the lane against a base | commit status `torve/regate` on the candidate head, naming the base tip | the lane | the second-red escalation |
+      | A person closed a document's pull request | the forge, by head branch name | a person | the lane's abandonment |
+      | What the reviewer found | `review.recorded`, carrying each finding | the worker | the review leg |
+      | A carried task's gate results | `gates.evaluated` | the worker | the pull request body |
+  - key: the-reports-module
+    md: >-
+      `application/streams.py` holds every function that reads the stream, moved out
+      of `projections.py`. The ledger, the evals, the night report and the read-only
+      reports (`why`, `status`, `context`) import it; the test refuses any other importer
+      of the module, which closes the route a wrapper in another module opened.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - A file-backed record for repositories without Postgres (S-0099/D-11).
+  - Counting reds in local landing mode across processes: without a forge there is no status to write, and the count stays per process there.
+risks: ''
+alternatives:
+  - option: >-
+      New record event kinds for the lane's own facts (a conflict, a red regate, a
+      closure).
+    rejected_because: >-
+      Each is a judgement about a commit or a pull request the forge already holds;
+      a status or the pull request itself is written by the same act and cannot disagree
+      with it, where an event appended after the act can.
+questions:
+  - id: Q-1
+    text: >-
+      `review.recorded` grows a `items` list carrying each finding. Its payload model
+      is strict, so an older reader refuses the new field. Bump the record's schema
+      version with a migration, or add the field with a default so old rows read as
+      before? Lean: add with a default; no stored row changes.

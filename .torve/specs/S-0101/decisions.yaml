@@ -1,0 +1,145 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A round that answers a red completion battery carries `battery: true` and its
+      target in its contract's `round:`; the battery's round state is pending until
+      that round lands or a person resolves it, and answered after.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/reviewleg.py
+      - src/torve/domain/task.py
+    consequence: >-
+      a battery's round is recognised on any host from the record that minted it
+    rationale: >-
+      `lane_battery_state` read the stream's review rows for a fact the round's own
+      contract can carry.
+    cites: [S-0093/D-4, S-0099/D-5]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The rounds a person resolved are read from the board's `escalation.resolved`
+      events, which the lane's caller passes in; the manager pass and `torve merge`
+      both open the store.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+    consequence: >-
+      a round abandoned on one host releases the wave on every host
+    rationale: >-
+      `manager resolve` already writes the resolution to the record; the stream row
+      beside it was a second copy.
+    cites: [S-0097/D-6, S-0099/D-11]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A document branch that conflicts with the base gets a `torve/rebase` commit
+      status of `failure` on its tip naming the base tip; the same tip against the
+      same base is reported once, and a later clean rebase writes `success`.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+    consequence: >-
+      a person sees the conflict in the pull request's checks, and no host reports
+      it twice
+    rationale: >-
+      The conflict is a judgement about a commit the forge holds; the status is keyed
+      by that commit.
+    cites: [S-0083/D-13]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `review.recorded` carries each finding (severity, path, line, claim, evidence),
+      and the review leg reads recorded findings from the board.
+    paths:
+      - src/torve/domain/events.py
+      - src/torve/application/eventlog.py
+      - src/torve/application/review.py
+      - src/torve/application/reviewleg.py
+    consequence: >-
+      a host that did not run a review still reads what it found
+    rationale: >-
+      The record held only counts, so the findings existed only in one host's stream.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A forge thread the engine already answered or refused is known from the forge:
+      its last comment is the engine's and no comment follows it.
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      the leg does not re-raise a thread it already handled, on any host
+    rationale: >-
+      The thread itself carries who spoke last; the stream rows that recorded it were
+      a copy.
+    cites: [S-0097/D-3, S-0099/D-9]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The gate results a document pull request's body lists are read from the record's
+      `gates.evaluated` events for each carried task.
+    paths: [src/torve/cli/merge.py]
+    consequence: the body is composed the same from any host
+    rationale: >-
+      `gates.evaluated` already carries `results`; the stream's attempt rows are rendered
+      from the same payload.
+    cites: [S-0083/D-8]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The planner's refresh reads `landed()` and the document branch's carried tasks
+      to say why it leaves a task alone.
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      a refresh on any host leaves the same tasks alone
+    rationale: >-
+      `lane_carried` read the stream for what the landing files already say.
+    cites: [S-0088/D-2, S-0099/D-1]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A candidate the lane finds red against a base gets a `torve/regate` commit status
+      of `failure` on its head naming the base tip; a second red at the same base
+      and head escalates. In local landing mode, with no forge, the count stays per
+      process.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+    consequence: >-
+      `torve merge` run once per pass escalates a candidate that stays red, instead
+      of regating it forever
+    rationale: >-
+      The count lived in a module-level dict, so a fresh process started at zero.
+    cites: [S-0099/D-9]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A ready candidate whose document has a closed, unmerged pull request, found
+      on the forge by its head branch name, is abandoned; the lane asks about a document
+      at most once per pass and records its closure once.
+    paths: [src/torve/application/lane.py, src/torve/adapters/vcs/git.py]
+    consequence: >-
+      deleting a closed document's branch does not bring its tasks back
+    rationale: >-
+      The lane found closures by walking the remote's branches, so a deleted branch's
+      closure was lost; the forge keeps the pull request after the branch goes.
+    cites: [S-0080/D-8]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Every function that reads the stream lives in `application/streams.py`; only
+      the ledger, the evals, the night report and the read-only reports import it,
+      and a test refuses any other importer.
+    paths:
+      - src/torve/application/streams.py
+      - src/torve/application/projections.py
+      - tests/test_layout.py
+    consequence: >-
+      a decision cannot read the stream through a wrapper in another module
+    rationale: >-
+      S-0099's test checked one function's name, and five wrappers in `projections.py`
+      read the stream for decisions.
+    cites: [S-0099/D-6]
