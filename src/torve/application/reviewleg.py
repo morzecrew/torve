@@ -136,6 +136,7 @@ class Round:
     allow: list[str]
     acceptance: list[str]
     phases: tuple[int, ...] = ()
+    target: str = ""
 
     @property
     def title(self) -> str:
@@ -157,6 +158,7 @@ class Claim:
     finding: Finding
     files: tuple[str, ...] = ()
     phases: tuple[int, ...] = ()
+    target: str = ""
 
 
 # ....................... #
@@ -566,6 +568,7 @@ def compose_wave(
         allow=allow,
         acceptance=_acceptance(root),
         phases=tuple(phases),
+        target=next((claim.target for claim in claims if claim.target), ""),
     )
 
 
@@ -670,6 +673,25 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
     document["title"] = round_.title
     document["character"] = "structural"
     document["scope"]["allow"] = [*round_.allow, f"{layout.TORVE_DIR}/tasks/{task_id}/**"]
+    # The round's own description (S-0099/D-5): carried by `task.minted`, so
+    # the wave, the requeue's rescope and the morning report read the board
+    # rather than a row on the host that minted it.
+    document["round"] = {
+        "branch": round_.branch,
+        "pr": round_.pr,
+        "target": round_.target or None,
+        "findings": [
+            {
+                "path": finding.path,
+                "line": finding.line,
+                "end_line": finding.end_line,
+                "threads": list(finding.ids),
+            }
+            for finding in round_.findings
+        ],
+        "phases": list(round_.phases),
+        "nonce": round_.nonce,
+    }
     contract.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
     first = round_.findings[0]
@@ -707,21 +729,28 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
 # ....................... #
 
 
-def rescope(root: Path, row: dict[str, Any], *, whole: bool = False) -> list[str]:
+def rescope(root: Path, task: Any, *, whole: bool = False) -> list[str]:
     """A minted round's scope derived again from its document's phasing on
-    the branch (S-0092/D-4): the phases it was minted from, or those covering
-    its anchor — or, *whole*, every phase of the document (S-0092/D-1) — plus
-    the round's own log directory. The contract is rewritten; nothing is, and
-    the answer is empty, when the branch holds no phasing to derive from."""
+    the branch (S-0092/D-4, S-0099/D-5): the phases its contract carries, or
+    those covering its anchor — or, *whole*, every phase of the document
+    (S-0092/D-1) — plus the round's own log directory. The contract is
+    rewritten; nothing is, and the answer is empty, when the branch holds no
+    phasing to derive from. The round is read from its own contract, never
+    from a row on the host that minted it."""
 
-    task_id = str(row.get("task") or "")
-    phasing = _phasing(root, str(row.get("branch") or ""))
+    round_ = task.round
+
+    if round_ is None:
+        return []
+
+    task_id = task.id
+    phasing = _phasing(root, round_.branch)
     phases = {int(p["phase"]) for p in phasing if whole and p.get("phase") is not None}
-    anchors = [str(one.get("path") or "") for one in _row_findings(row)]
+    anchors = [one.path for one in round_.findings]
     allow: list[str] = []
 
     for anchor in anchors or [""]:
-        for path in _phase_scope(phasing, anchor, phases or set(row.get("phases") or [])):
+        for path in _phase_scope(phasing, anchor, phases or set(round_.phases)):
             if path not in allow:
                 allow.append(path)
 
@@ -749,8 +778,7 @@ def requeue_underspecified(root: Path, rows: Sequence[dict[str, Any]], branch: s
     done = {str(row.get("task") or "") for row in rows if row.get("event") == "lane_round_requeued"}
     requeued: list[str] = []
 
-    for row in _rounds(rows, branch):
-        task_id = str(row.get("task") or "")
+    for task_id, task in round_tasks(root, branch):
         path = naming.state_file(root, task_id)
 
         if task_id in done or not path.is_file():
@@ -764,7 +792,7 @@ def requeue_underspecified(root: Path, rows: Sequence[dict[str, Any]], branch: s
         if state.escalation.reason != str(EscalationReason.UNDERSPECIFIED):
             continue
 
-        allow = rescope(root, row, whole=True)
+        allow = rescope(root, task, whole=True)
 
         if not allow:
             continue
@@ -858,13 +886,15 @@ def _refuse(
 
 
 def _open_documents(root: Path) -> list[str]:
-    """The document branches the lane's own records say are open — read from
-    the lane's ledger rather than from a second one, so a branch a person
-    merged this evening is not one the leg then composes about."""
+    """The document branches a pass reads back (S-0099/D-3): the remote
+    `torve/S-*` branches carrying a landing file the base does not. A branch a
+    person merged this evening is not one — the base holds its landings — and
+    a pass holding none asks the forge nothing, so an idle leg spends no forge
+    call at all."""
 
-    from torve.application.lane import _document_ledger
+    from torve.application.lane import open_documents
 
-    return [branch for branch, entry in _document_ledger(root).items() if entry.verdict == "open"]
+    return open_documents(root)
 
 
 # ....................... #
@@ -946,12 +976,70 @@ def approve_due(info: PrInfo, config: RunnerConfig) -> bool:
 # ....................... #
 
 
-def _rounds(rows: Sequence[dict[str, Any]], branch: str) -> list[dict[str, Any]]:
-    return [
-        row
-        for row in rows
-        if row.get("event") == "lane_review_task" and row.get("branch") == branch
-    ]
+def round_tasks(root: Path, branch: str | None = None) -> list[tuple[str, Any]]:
+    """Every review round the repository's contracts carry (S-0099/D-5): the
+    task id and its contract, for *branch* or every branch.
+
+    The contract is the carrier — `task.minted` writes it — so a round minted
+    on one host is read here on another, and no reader consults the stream for
+    what a round is about. An unreadable or round-less contract is skipped."""
+
+    from torve.gates.context import load_task
+
+    found: list[tuple[str, Any]] = []
+    tasks_dir = root / layout.TORVE_DIR / "tasks"
+
+    if not tasks_dir.is_dir():
+        return found
+
+    for path in sorted(tasks_dir.glob("T-*/contract.yaml")):
+        try:
+            task = load_task(path)
+
+        except (OSError, ValueError):
+            continue
+
+        if task.round is None:
+            continue
+
+        if branch is not None and task.round.branch != branch:
+            continue
+
+        found.append((task.id, task))
+
+    return found
+
+
+def round_row(task: Any) -> dict[str, Any]:
+    """A round's contract as the row-shaped description the leg's readers
+    already take (S-0099/D-5) — the shape `lane_review_task` wrote, so the
+    answering half and the anchor comparison need no second parser."""
+
+    round_ = task.round
+    findings = [one.model_dump() for one in round_.findings]
+    first = round_.findings[0] if round_.findings else None
+
+    return {
+        "event": "lane_review_task",
+        "branch": round_.branch,
+        "pr": round_.pr,
+        "task": task.id,
+        "target": round_.target or "",
+        "findings": findings,
+        "path": first.path if first else None,
+        "line": first.line if first else None,
+        "end_line": first.end_line if first else None,
+        "threads": [ident for one in round_.findings for ident in one.threads],
+        "nonce": round_.nonce,
+        "phases": list(round_.phases),
+    }
+
+
+def _rounds(root: Path, branch: str) -> list[dict[str, Any]]:
+    """The rounds of *branch* as the leg reads them (S-0099/D-5): from their
+    contracts, not from a row on the host that minted them."""
+
+    return [round_row(task) for _task_id, task in round_tasks(root, branch)]
 
 
 # ....................... #
@@ -1084,7 +1172,7 @@ def record_threads(
     # A review of a round the leg minted is the round's own check: its
     # blocker still holds the round's landing, but nothing it finds opens a
     # further round (S-0090/D-1).
-    rounds = {str(row.get("task") or "") for row in _rounds(rows, branch)}
+    rounds = {task_id for task_id, _task in round_tasks(root, branch)}
     answered = {
         str(row.get("finding") or "")
         for row in rows
@@ -1498,7 +1586,7 @@ def review_thread_leg(
         # left alone unless it gained a comment since (S-0097/D-3).
         handled = _handled(rows, branch)
         raised = [thread for thread in raised if not _already_handled(thread, handled)]
-        prior = _rounds(rows, branch)
+        prior = _rounds(root, branch)
         replies = _answered(rows, branch)
         spoken = {str(row.get("task") or "") for row in replies}
 
@@ -1603,7 +1691,14 @@ def review_thread_leg(
                 }
                 - {""}
             )
-            claims.append(Claim(finding, tuple(files), tuple(_target_phases(root, rows, targets))))
+            claims.append(
+                Claim(
+                    finding,
+                    tuple(files),
+                    tuple(_target_phases(root, rows, targets)),
+                    targets[0] if len(targets) == 1 else "",
+                )
+            )
 
         # The head's findings minted together as rounds of file-disjoint waves
         # (S-0097/D-5), `rounds_per_pass` still bounding what this pass mints.

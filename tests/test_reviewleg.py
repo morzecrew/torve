@@ -209,6 +209,9 @@ def _land_on(root: Path, branch: str, task_id: str, sha: str) -> None:
     if g("diff", "--cached", "--name-only"):
         g("commit", "-q", "--no-gpg-sign", "-m", f"torve({task_id}): landing of attempt 1")
 
+    # The branch is a document the pass reads back only where the remote has
+    # it (S-0099/D-3): the remote-tracking ref stands in for the fetch.
+    g("update-ref", f"refs/remotes/origin/{branch}", g("rev-parse", branch))
     g("checkout", "-q", "main")
 
 
@@ -892,7 +895,21 @@ def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
         RECORDED
     ]
 
-    engine_event(seeded.root, "lane_review_task", {"branch": BRANCH, "task": "T-0900"})
+    # T-0900's contract carries `round:` — the carrier the leg now reads the
+    # round from (S-0099/D-5), not a row on the host that minted it.
+    contract = seeded.root / ".torve" / "tasks" / "T-0900" / "contract.yaml"
+    contract.parent.mkdir(parents=True, exist_ok=True)
+    contract.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "id": "T-0900",
+                "decisions": [],
+                "round": {"branch": BRANCH, "pr": 0, "findings": [], "phases": [], "nonce": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     assert record_threads(seeded.root, BRANCH, events_all(seeded.root)) == ([], {})
 
@@ -952,15 +969,15 @@ def test_a_recorded_round_takes_the_scope_of_its_target_s_phase(seeded):
 
 
 def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
-    seeded.git("checkout", "-q", "-b", BRANCH)
+    # The landing makes the branch a document the pass reads back (S-0099/D-3).
+    open_document(seeded.root)
+    seeded.git("checkout", "-q", BRANCH)
     phased_document(seeded.root, ["src/**", "pages/**"])
     seeded.commit("the phase widened by amendment")
-    # The remote's copy, as the pass's fetch leaves it (S-0094/D-2).
-    seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", "HEAD")
-    seeded.git("checkout", "-q", "main")
-    seeded.git("branch", "-q", "-D", BRANCH)
-    phased_document(seeded.root, ["src/**"])
+    # The landing again, on the widened tip: the remote's copy of the branch
+    # carries both, as the pass's fetch leaves it (S-0094/D-2).
     open_document(seeded.root)
+    phased_document(seeded.root, ["src/**"])
     reviewed(seeded.root, ("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))
 
     review_thread_leg(seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False)

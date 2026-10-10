@@ -1497,7 +1497,25 @@ def test_a_requeued_round_takes_its_documents_phasing_as_the_branch_holds_it(tmp
     repo.git("update-ref", "-d", "refs/remotes/origin/torve/S-0084")
     repo.write(
         f"{layout.TORVE_DIR}/tasks/T-0950/contract.yaml",
-        yaml.safe_dump({"id": "T-0950", "scope": {"allow": ["src/app.py"], "deny": []}}),
+        yaml.safe_dump(
+            {
+                "id": "T-0950",
+                "decisions": [],
+                "scope": {"allow": ["src/app.py"], "deny": []},
+                # The round rides in its own contract (S-0099/D-5): the
+                # requeue's rescope reads it here, not from a `lane_review_task`
+                # row on the host that minted it.
+                "round": {
+                    "branch": "torve/S-0084",
+                    "pr": 0,
+                    "findings": [
+                        {"path": "src/app.py", "line": 3, "end_line": None, "threads": []}
+                    ],
+                    "phases": [],
+                    "nonce": "",
+                },
+            }
+        ),
     )
     engine_event(
         repo.root,

@@ -1122,25 +1122,37 @@ def resolve_cmd(
     if resolution == "requeued":
         from torve.application.projections import stream_rows
         from torve.application.reviewleg import rescope
+        from torve.config import layout
+        from torve.gates.context import load_task
 
         root = root.resolve()
         rows = stream_rows(root)
-        rounds = [
-            row
-            for row in rows
-            if row.get("event") == "lane_review_task" and row.get("task") == task_id
-        ]
+        contract = layout.task_file(root, task_id)
+        round_task = None
+
+        if contract.is_file():
+            try:
+                candidate = load_task(contract)
+
+            except (OSError, ValueError):
+                candidate = None
+
+            # A review round is described by its own contract (S-0099/D-5),
+            # never by a row on the host that minted it; a phase task has none
+            # and takes the refresh path instead.
+            if candidate is not None and candidate.round is not None:
+                round_task = candidate
+
         _fetch(root)
         # A review round takes its document's phasing as the branch holds it
         # now (S-0092/D-4); one the leg already widened to the whole phasing
         # keeps the whole of it.
-        for row in rounds:
+        if round_task is not None:
             whole = any(
                 r.get("event") == "lane_round_requeued" and r.get("task") == task_id for r in rows
             )
-            rescope(root, row, whole=whole)
-
-        if not rounds:
+            rescope(root, round_task, whole=whole)
+        else:
             _refresh_phase(root, task_id, fmt)
 
     if fmt is Format.JSON:

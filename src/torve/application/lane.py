@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import re
 import subprocess
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Collection
+from dataclasses import dataclass
 from pathlib import Path
 
 from torve.application.feedback import capture_feedback
@@ -107,8 +107,10 @@ def awaiting_landing(root: Path, vcs: LaneVcs, base: str | None, unit: str = "ta
     # The record, not the ancestry (S-0083/D-10): a task the lane landed onto a
     # document branch is off its hands, whether a rebase of that branch onto a
     # moved base renamed its commit or a squash merge left none of them on it.
+    # The branches are the remote's (S-0099/D-3) and the tasks are the landing
+    # files they carry (S-0099/D-2).
     on_documents = {
-        task for entry in _document_ledger(root).values() for task in (*entry.tasks, *entry.earlier)
+        task for branch in open_documents(root) for task in document_tasks(root, branch)
     }
 
     for state in ready_candidates(root):
@@ -647,7 +649,9 @@ def _open_pull_request(
 # ....................... #
 
 
-def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> str | None:
+def _document_branch(
+    root: Path, vcs: LaneVcs, task_id: str, dry_run: bool, merged: Collection[str] = ()
+) -> str | None:
     """The branch this candidate's phases land onto under `unit: document`,
     or None when the contract names no document — that candidate lands by the
     task unit whatever the unit says, and nothing here infers a document for
@@ -662,12 +666,14 @@ def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> s
     dry run cuts nothing and fetches nothing, as it publishes nothing.
 
     The remote's copy is the one worked from (S-0091/D-1): the fetch prunes,
-    and a branch the remote no longer has, or whose pull request the ledger
-    recorded merged, is never landed onto again — the local ref is kept under
-    `refs/torve/documents/<branch>/<tip>` so its commits stay reachable, and
-    the branch is cut again from the remote's `main`, so the next pull request
-    carries only what `main` lacks. A branch the remote has sets the local ref
-    to the remote tip.
+    and a branch the remote no longer has, or one the base already holds every
+    landing of — a merge — is never landed onto again (S-0099/D-3): the local
+    ref is kept under `refs/torve/documents/<branch>/<tip>` so its commits stay
+    reachable, and the branch is cut again from the remote's `main`, so the
+    next pull request carries only what `main` lacks. An open branch the
+    remote has sets the local ref to the remote tip — unless this pass read
+    its pull request merged (*merged*), when the branch is cut from the base
+    too and the next pull request carries only new work (S-0099/D-3).
     """
 
     from torve.gates.context import load_task, resolve_base
@@ -693,13 +699,13 @@ def _document_branch(root: Path, vcs: LaneVcs, task_id: str, dry_run: bool) -> s
 
     vcs.fetch(root, prune=True)
     remote = vcs.remote_tip(root, branch)
-    entry = _document_ledger(root).get(branch)
 
-    if remote is not None and not (entry is not None and entry.verdict == "landed"):
-        # A branch carrying landings held for a wave is kept as this checkout
-        # has it: the push that will publish them has not happened yet, and
-        # resetting to the remote would drop them (S-0097/D-6).
-        if entry is None or not entry.held:
+    if remote is not None and branch in open_documents(root) and branch not in merged:
+        # The remote's copy is the one worked from (S-0091/D-1). A branch
+        # carrying landings held for a wave is kept as this checkout has it:
+        # the push that will publish them has not happened yet, and resetting
+        # to the remote would drop them (S-0097/D-6).
+        if not _unpublished(root, vcs, branch, remote):
             vcs.reset_branch(root, branch, remote)
 
         return branch
@@ -919,15 +925,13 @@ def _battery_round(root: Path, document: str) -> str:
 
 def _battery_target(root: Path, document: str) -> str | None:
     """The last task landed on the document that is not itself a round: a
-    finding on a round's work opens no further round (S-0090/D-1)."""
+    finding on a round's work opens no further round (S-0090/D-1). The rounds
+    are read from their contracts, not from a row on the host that minted them
+    (S-0099/D-5)."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.reviewleg import round_tasks
 
-    rounds = {
-        str(row.get("task") or "")
-        for row in stream_rows(root)
-        if row.get("event") == "lane_review_task"
-    }
+    rounds = {task_id for task_id, _task in round_tasks(root)}
     landed = [task for task in document_tasks(root, document) if task not in rounds]
 
     return landed[-1] if landed else None
@@ -963,6 +967,7 @@ def _wave_outstanding(root: Path, document: str) -> set[str]:
     host."""
 
     from torve.application.projections import stream_rows
+    from torve.application.reviewleg import round_tasks
 
     landed = set(document_tasks(root, document))
     rows = stream_rows(root)
@@ -973,12 +978,7 @@ def _wave_outstanding(root: Path, document: str) -> set[str]:
     }
     outstanding: set[str] = set()
 
-    for row in rows:
-        if row.get("event") != "lane_review_task" or row.get("branch") != document:
-            continue
-
-        task = str(row.get("task") or "")
-
+    for task, _contract in round_tasks(root, document):
         if not task or task in landed or task in resolved or task in outstanding:
             continue
 
@@ -1338,81 +1338,105 @@ def _forge_verdict(
 
 # ....................... #
 
-# What the stream last recorded about a document branch's own pull request
-# (S-0083/D-10, S-0083/D-11). A verdict is terminal here for the reason it is
-# terminal per task: the lane reads it back from its own records and never
-# asks the forge about that branch again.
-_DOCUMENT_VERDICTS = {
-    "lane_document_landed": "landed",
-    "lane_document_closed": "closed",
-    "lane_pr_unresolved": "unresolved",
-}
+
+def open_documents(root: Path) -> list[str]:
+    """The document branches whose pull request a pass reads back (S-0099/D-3):
+    the remote `torve/S-*` branches carrying a landing file the base does not.
+    A document whose landings the base holds — the shape a merge leaves — is
+    closed by that act, and a branch the remote no longer has is nothing here.
+
+    Read from the fetch the pass already made and from no memory of the lane's
+    own: a merge, a close or a reopen a person makes is seen on the next pass
+    of any host, and a pass holding no such branch asks the forge nothing at
+    all (S-0080/D-16)."""
+
+    from torve.gates.context import resolve_base
+
+    refs = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/remotes/origin/torve/S-*",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if refs.returncode != 0:
+        return []
+
+    base = resolve_base(root, None)
+    on_base = _landing_paths(root, base) if base else set()
+    found: list[str] = []
+
+    for ref in refs.stdout.split():
+        if _landing_paths(root, ref) - on_base:
+            found.append(ref.removeprefix("refs/remotes/origin/"))
+
+    return sorted(found)
 
 
-@dataclass
-class _Document:
-    """What the lane's own records say about one document branch: the verdict
-    its pull request carries, every task its landings named, and the base tip
-    a rebase of it last conflicted against. `earlier` holds the tasks of the
-    branch's previous pull requests with the verdict each ended under — a
-    branch cut again after a merge starts a new list (S-0091/D-1)."""
+def _landing_paths(root: Path, ref: str) -> set[str]:
+    """The landing files in *ref*'s tree, by path — what a document branch
+    carries and the base does not (S-0099/D-3). A ref git cannot resolve
+    contributes nothing."""
 
-    verdict: str = ""
-    tasks: list[str] = field(default_factory=list)
-    conflict_base: str = ""
-    earlier: dict[str, str] = field(default_factory=dict)
-    # The branch carries landings the lane held back from publishing while a
-    # head's wave is still queued or running (S-0097/D-6); the last landing of
-    # the wave clears it.
-    held: bool = False
+    from torve.domain.spec import EXECUTION_DIR, LANDING_FILE
+
+    tree = subprocess.run(
+        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if tree.returncode != 0:
+        return set()
+
+    found: set[str] = set()
+
+    for path in tree.stdout.splitlines():
+        directory, _, name = path.rpartition("/")
+
+        if directory.rpartition("/")[2] == EXECUTION_DIR and LANDING_FILE.match(name):
+            found.add(path)
+
+    return found
 
 
-def _document_ledger(root: Path) -> dict[str, _Document]:
-    """The document pull requests the lane holds, from its own recorded
-    events (S-0083/D-12): a branch is open from the first landing onto it, and
-    a later verdict closes it out. The tasks are read from the same landings,
-    so the join from the branch back to the work it carries needs no second
-    record and no forge call (S-0083/D-10).
-
-    Only a branch a landing named is tracked, so a task branch the forge
-    could not resolve is not mistaken for a document."""
+def _document_conflicts(root: Path) -> dict[str, str]:
+    """Branch to the base tip the lane last reported a conflict against, so
+    the same collision against the same base is not reported a second time
+    (S-0083/D-13). The lane's own `lane_document_conflict` rows are the memory
+    of it; which branches are read back at all comes from the remote
+    (S-0099/D-3)."""
 
     from torve.application.projections import stream_rows
 
-    ledger: dict[str, _Document] = {}
+    found: dict[str, str] = {}
 
     for row in stream_rows(root):
-        event = str(row.get("event", ""))
         branch = str(row.get("branch") or "")
 
-        if not branch:
-            continue
+        if branch and row.get("event") == "lane_document_conflict":
+            found[branch] = str(row.get("base_tip") or "")
 
-        if event == "lane_landed" and row.get("unit") == "document":
-            entry = ledger.setdefault(branch, _Document())
+    return found
 
-            if entry.verdict not in ("", "open"):
-                entry.earlier.update(dict.fromkeys(entry.tasks, entry.verdict))
-                entry.tasks = []
-                entry.conflict_base = ""
 
-            entry.verdict = "open"
-            entry.held = bool(row.get("held"))
-            task = str(row.get("task") or "")
+def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
+    """Whether this checkout's copy of *branch* carries landings the remote
+    does not have yet — a wave's held landing (S-0097/D-6). The branch is kept
+    as it is rather than reset to the remote, so the push that publishes the
+    wave carries what it holds."""
 
-            if task and task not in entry.tasks:
-                entry.tasks.append(task)
+    local = vcs.tip(root, branch)
 
-        elif branch not in ledger:
-            continue
-
-        elif event in _DOCUMENT_VERDICTS:
-            ledger[branch].verdict = _DOCUMENT_VERDICTS[event]
-
-        elif event == "lane_document_conflict":
-            ledger[branch].conflict_base = str(row.get("base_tip") or "")
-
-    return ledger
+    return local is not None and local != remote and not vcs.is_ancestor(root, local, remote)
 
 
 # ....................... #
@@ -1570,7 +1594,7 @@ def _rebase_document(
     publish: Publisher,
     document: str,
     branch: str,
-    entry: _Document,
+    conflict_base: str,
     number: int,
     results: list[LaneResult],
 ) -> None:
@@ -1596,7 +1620,9 @@ def _rebase_document(
     # ref would drop that commit without a refusal.
     remote = vcs.remote_tip(root, branch)
 
-    if entry.held or _wave_outstanding(root, branch):
+    if (remote is not None and _unpublished(root, vcs, branch, remote)) or _wave_outstanding(
+        root, branch
+    ):
         # The wave has not finished: a head's rounds are still queued or
         # running, so nothing here resets or republishes the branch, and any
         # landing already held on it stays unpublished (S-0097/D-6). The last
@@ -1637,7 +1663,7 @@ def _rebase_document(
 
         return
 
-    if entry.conflict_base == base_tip:
+    if conflict_base == base_tip:
         # Once per base tip (S-0006/D-12): the same conflict against the same
         # base is the person's, and re-running it buys no new signal.
         results.append(
@@ -1722,13 +1748,14 @@ def _document_verdicts(
     forge: Forge,
     publish: Publisher,
     results: list[LaneResult],
-) -> dict[str, tuple[str, str]]:
-    """The later pass's read-back at the document unit (S-0083/P-3).
+) -> tuple[dict[str, tuple[str, str]], set[str]]:
+    """The later pass's read-back at the document unit (S-0083/P-3, S-0099/D-3).
 
-    One forge call per open document pull request the lane's own records
-    name, and none at all for a pass holding none (S-0083/D-12) — a document
-    of six phases costs one call per pass rather than six, because the
-    question is now per document.
+    One forge call per open document — the remote `torve/S-*` branches
+    carrying a landing file the base does not — and none at all for a pass
+    holding none (S-0083/D-12) — a document of six phases costs one call per
+    pass rather than six, because the question is now per document, and a
+    branch whose landings the base holds is not asked about at all.
 
     **Merged** is the document's landing (S-0083/D-10): one record naming the
     squash commit and every task the branch carried, and not a second landing
@@ -1747,28 +1774,22 @@ def _document_verdicts(
     record says landed on a document branch has landed, whatever a rebase of
     that branch did to the ancestry its own tip used to have, and a task on a
     branch a person closed is abandoned rather than offered a second pull
-    request.
+    request. Beside it, the branches this pass read merged — a branch landed
+    onto again is cut from the base first, so its next pull request carries
+    only what the base lacks (S-0099/D-3).
     """
 
     carried: dict[str, tuple[str, str]] = {}
+    merged: set[str] = set()
+    # The once-per-base-tip bound on a rebase (S-0083/D-13) is the one fact
+    # this read-back keeps in the lane's own records; which branches it reads
+    # back at all comes from the remote (S-0099/D-3).
+    conflicts = _document_conflicts(root)
 
-    for branch, entry in sorted(_document_ledger(root).items()):
+    for branch in open_documents(root):
         tasks = document_tasks(root, branch)
-
-        for task_id, verdict in entry.earlier.items():
-            carried[task_id] = ("abandoned" if verdict == "closed" else "already landed", branch)
-
-        for task_id in tasks:
-            carried[task_id] = (
-                "abandoned" if entry.verdict == "closed" else "already landed",
-                branch,
-            )
-
-        if entry.verdict != "open":
-            continue
-
-        info = forge(branch)
         document = branch.rsplit("/", 1)[-1]
+        info = forge(branch)
 
         if info is None:
             engine_event(root, "lane_pr_unresolved", {"branch": branch, "tasks": tasks})
@@ -1783,6 +1804,7 @@ def _document_verdicts(
 
         elif info.state == "merged":
             sha = info.merge_commit or info.head_sha
+            merged.add(branch)
 
             engine_event(
                 root,
@@ -1825,12 +1847,27 @@ def _document_verdicts(
 
         else:
             _record_threads(root, branch, info)
-            _rebase_document(root, vcs, publish, document, branch, entry, info.number, results)
+            _rebase_document(
+                root,
+                vcs,
+                publish,
+                document,
+                branch,
+                conflicts.get(branch, ""),
+                info.number,
+                results,
+            )
 
-        if info is not None and info.state == "closed":
-            carried.update(dict.fromkeys(tasks, ("abandoned", branch)))
+        carried.update(
+            dict.fromkeys(
+                tasks,
+                ("abandoned", branch)
+                if info is not None and info.state == "closed"
+                else ("already landed", branch),
+            )
+        )
 
-    return carried
+    return carried, merged
 
 
 # ....................... #
@@ -2177,13 +2214,14 @@ def process_lane(
     ledger = _pr_ledger(root) if forge is not None and not dry_run else {}
 
     carried: dict[str, tuple[str, str]] = {}
+    merged_documents: set[str] = set()
 
     if forge is not None and publish is not None and not dry_run:
         # Before the candidates, so a document a person merged or closed this
         # evening is recorded before anything lands onto its branch again.
         # Asked per document rather than per task, from the lane's own
         # records, so a pass holding none asks nothing (S-0083/D-12).
-        carried = _document_verdicts(root, vcs, forge, publish, results)
+        carried, merged_documents = _document_verdicts(root, vcs, forge, publish, results)
 
     for state in ready_candidates(root):
         if only is not None and state.task_id != only:
@@ -2214,7 +2252,7 @@ def process_lane(
         # Where this candidate lands: the document's branch under
         # `unit: document`, the checkout's base otherwise (S-0083/D-4).
         document = (
-            _document_branch(root, vcs, task_id, dry_run)
+            _document_branch(root, vcs, task_id, dry_run, merged_documents)
             if publish is not None and unit == "document"
             else None
         )

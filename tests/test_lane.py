@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from torve.adapters.vcs.git import GitLane
@@ -1628,9 +1629,11 @@ def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_re
         forge=_forge(_pr(number=21, state="merged", merge_commit="d" * 40), asked),
         unit="document",
     )
-    # The verdict is terminal: no second question and no second pull request.
-    assert asked == [document]
-    assert [r.action for r in again] == ["already landed", "already landed"]
+    # The state is read from the forge on every pass, at most once per pass
+    # (S-0099/D-3): the branch is still open — the merge put nothing on the
+    # base — so it is asked about again, and no second pull request is opened.
+    assert asked == [document, document]
+    assert [r.action for r in again] == ["landed", "already landed", "already landed"]
     assert len(published) == 2
 
 
@@ -1695,8 +1698,10 @@ def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch
         forge=_forge(_pr(number=22, state="closed"), asked),
         unit="document",
     )
-    assert [r.action for r in again] == ["abandoned", "abandoned"]
-    assert asked == [document]
+    # The branch stays open — a close puts nothing on the base — so the state
+    # is read from the forge again (S-0099/D-3), and nothing is published.
+    assert [r.action for r in again] == ["abandoned", "abandoned", "abandoned"]
+    assert asked == [document, document]
     assert len(published) == 2
 
 
@@ -1991,7 +1996,9 @@ def test_a_merged_document_is_cut_again_and_its_next_pull_request_is_new_work(la
         unit="document",
     )
 
-    by_task = {r.task: r.action for r in results}
+    # The document's own read-back row is beside the tasks' (S-0099/D-3): the
+    # test is about what each candidate became.
+    by_task = {r.task: r.action for r in results if r.task.startswith("T-")}
     assert by_task == {"T-7401": "already landed", "T-7402": "landed"}
     # The old commits stay reachable; the new branch carries only new work.
     assert _kept(lane_repo, document) == f"refs/torve/documents/{document}/{old}"
@@ -2029,9 +2036,9 @@ def test_a_document_branch_the_remote_deleted_is_cut_again(lane_repo, tmp_path):
 def test_a_document_branch_the_remote_has_is_worked_from_the_remote_tip(lane_repo, tmp_path):
     published: list[tuple[str, str]] = []
     document = _landed_document(lane_repo, tmp_path, "S-0922", {"T-7405": "five.py"}, published)
-    # Someone else moved the remote branch; the local ref is stale.
-    remote_tip = git(lane_repo, "rev-parse", "main")
-    git(lane_repo, "push", "-q", "--force", "origin", f"{remote_tip}:refs/heads/{document}")
+    # Someone else pushed onto the remote branch; the local ref is stale.
+    remote_tip = _hand_commit(lane_repo, document, "hand.py", "hand = 1\n")
+    git(lane_repo, "branch", "-f", document, f"{remote_tip}~1")
 
     candidate(lane_repo, "T-7406", "six.py", "# T-7406\n")
     _contract(lane_repo, "T-7406", "S-0922")
@@ -2515,9 +2522,11 @@ def _round(
     state: TaskState | None = TaskState.READY,
 ) -> None:
     """A round the review leg minted: a task branch off the document branch,
-    its contract naming the document, its `lane_review_task` record and its
-    run state — the shape the lane reads a head's wave off. No state is a round
-    no worker has claimed yet: the runner writes one at dispatch."""
+    its contract naming the document, its `round:` description and its run
+    state — the shape the lane reads a head's wave off (S-0099/D-5). The
+    `lane_review_task` row is written beside it as the diagnostic the night
+    report still folds. No state is a round no worker has claimed yet: the
+    runner writes one at dispatch."""
     from torve.application.telemetry import engine_event
 
     git(root, "checkout", "-q", "-b", naming.branch(task_id), document)
@@ -2529,6 +2538,16 @@ def _round(
     git(root, "commit", "-q", "--no-gpg-sign", "-m", f"round ({task_id})")
     git(root, "checkout", "-q", "main")
     _contract(root, task_id, spec)
+    contract = root / ".torve" / "tasks" / task_id / "contract.yaml"
+    body = yaml.safe_load(contract.read_text(encoding="utf-8"))
+    body["round"] = {
+        "branch": document,
+        "pr": 0,
+        "findings": [{"path": filename, "line": None, "end_line": None, "threads": []}],
+        "phases": [],
+        "nonce": "",
+    }
+    contract.write_text(yaml.safe_dump(body, sort_keys=False), encoding="utf-8")
     engine_event(root, "lane_review_task", {"branch": document, "task": task_id, "path": filename})
 
     if state is None:
@@ -2619,6 +2638,29 @@ def test_a_round_no_worker_has_claimed_holds_the_wave(lane_repo, tmp_path):
 
     assert [r.task for r in results if "held for the wave" in r.detail] == ["T-7532"]
     assert published == [("T-7531", document)]
+
+
+def test_a_round_minted_on_one_host_holds_the_wave_on_another(lane_repo, tmp_path):
+    """S-0099/D-5: a round is described by its own contract, so the wave is
+    read from the board — a host whose stream never saw the mint still counts
+    the round outstanding, and the landing waits for it."""
+    published: list[tuple[str, str]] = []
+    spec = "S-0936"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7551": "one.py"}, published)
+    _round(lane_repo, "T-7552", document, spec, "two.py", "# T-7552\n")
+    _round(lane_repo, "T-7553", document, spec, "three.py", "# T-7553\n", state=None)
+    # Another host: the contracts arrived, the mint events did not.
+    (lane_repo / ".torve" / "telemetry.jsonl").write_text("", encoding="utf-8")
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    assert [r.task for r in results if "held for the wave" in r.detail] == ["T-7552"]
+    assert published == [("T-7551", document)]
 
 
 def test_a_round_a_person_resolved_and_reaped_does_not_hold_the_wave(lane_repo, tmp_path):
