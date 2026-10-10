@@ -9,7 +9,7 @@ A document is a `design` or a `convention`, and `kind` answers one
 question: what prose an accepted document owes. A design owes the seven
 and designs something; a convention owes its summary and is its rows.
 
-Where the work came from is not a kind (S-0060/D-8). A bug worth a
+Where the work came from is not a kind. A bug worth a
 document is a **design** whose motivation is the defect and whose current
 state measures it. An audit's standing rules are a **convention**. The
 audit, the incident, the review or the ask itself is a *source*, filed

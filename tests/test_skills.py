@@ -342,9 +342,38 @@ def test_the_built_wheel_carries_no_projection(tmp_path):
 
 
 def test_every_shipped_skill_opens_its_description_with_its_audience():
+    """S-0100/D-1: a reader knows from the first words whom a skill is for."""
     from torve.application.skills import description
 
     assert description("torve").startswith("When operating torve from a session")
+    assert description("spec-writer").startswith("When writing a torve specification")
+    for name in ("working-rules", "flag-dont-flip"):
+        assert description(name).startswith("When executing a torve task contract"), name
+
+
+def test_no_shipped_skill_cites_torve_s_own_corpus():
+    """S-0100/D-5: inside an adopter, `torve spec show` resolves an identifier
+    against the adopter's corpus, so a provenance citation into torve's would
+    answer with an unrelated row. Example identifiers in a grammar lesson are
+    not citations; a parenthesised one and a path into torve's source are."""
+    import re
+
+    for path in sorted(skills_root().rglob("*.md")):
+        if path.name == "AGENTS.md":
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"\(S-\d{4}|S-\d{4}/[A-Z]-\d+\)", text), path
+        assert "src/torve/" not in text, path
+
+
+def test_the_divergence_mechanics_live_in_working_rules_alone():
+    """S-0100/D-6: flag-dont-flip says what an entry must say; how to record
+    one is working-rules', so the two cannot contradict each other."""
+
+    text = (skills_root() / "flag-dont-flip" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "torve log divergence" not in text
+    assert "torve log owed" not in text
 
 
 def test_the_operator_skill_states_the_rails_and_ships_its_references():
