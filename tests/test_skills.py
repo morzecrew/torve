@@ -3,7 +3,8 @@ set into the sandbox and the specialisation is visible. The corpus-validator
 breakage cases moved to tests/test_rfc_check.py when validation moved into
 the package (S-0007/format-validation, S-0007/D-12). The corpus-bootstrap fixture (S-0031 phase
 2) rides here too: the sample survey report in, the checkable output shape
-out — the shape the skill teaches pinned against the package's own parsers.
+out — the shape the operator skill's adopting reference teaches (S-0100/D-9),
+pinned against the package's own parsers.
 """
 
 from __future__ import annotations
@@ -20,20 +21,20 @@ from torve.application.skills import available, materialize, skills_root
 from torve.config.spec import DOCUMENT_DIRNAME, load_document
 from torve.domain.vocabulary import GRADES, STATUSES
 
+BOOTSTRAP = Path(__file__).resolve().parent / "fixtures" / "corpus-bootstrap"
 
-def test_the_four_specialised_skills_ship():
-    assert {
-        "corpus-bootstrap",
-        "flag-dont-flip",
-        "ratchet-what-you-build",
-        "spec-writer",
-    } <= set(available())
+
+def test_torve_ships_four_skills_each_for_one_audience():
+    """S-0100/D-1: the operator's, the author's, and the two an executing
+    agent reads — nothing else ships."""
+
+    assert set(available()) == {"torve", "spec-writer", "working-rules", "flag-dont-flip"}
 
 
 # Torve's own skills, written here rather than specialised from upstream, so
 # the specialisation header and the gate below say nothing about them
 # (S-0067/D-3: the working rules live once, and their source is this repository).
-NATIVE = ("working-rules",)
+NATIVE = ("working-rules", "torve")
 
 
 def test_every_shipped_skill_carries_the_specialisation_header_and_a_gate():
@@ -148,7 +149,8 @@ def test_materialize_refuses_an_unknown_skill(tmp_path):
 
 
 # ....................... #
-# corpus-bootstrap (S-0031 phase 2): the skill's fixture — a sample survey
+# corpus-bootstrap (S-0031 phase 2), now the operator skill's adopting reference
+# (S-0100/D-9): the fixture — a sample survey
 # report in, the checkable output shape out. The extraction doctrine's
 # properties (paths on every row, no phasing, mostly ASSUMED, the recorded
 # shape) are pinned against the fixture with the package's own parsers.
@@ -159,11 +161,7 @@ def test_the_bootstrap_fixture_survey_report_is_a_wellformed_survey():
     survey emits — the extraction's evidence base cannot be a lookalike, or
     the doctrine teaches reading a shape the engine never writes."""
 
-    doc = json.loads(
-        (skills_root() / "corpus-bootstrap" / "fixtures" / "survey-report.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    doc = json.loads((BOOTSTRAP / "survey-report.json").read_text(encoding="utf-8"))
     assert set(doc) == {
         "schema_version",
         "kind",
@@ -211,7 +209,7 @@ def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
     phasing. The fixture stays a draft, because acceptance is the human's
     edit, never the skill's."""
 
-    doc = load_document(skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001")
+    doc = load_document(BOOTSTRAP / "S-0001")
 
     assert doc.status in STATUSES
     assert doc.status == "draft"
@@ -236,14 +234,9 @@ def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
     draft: the report's corpus gaps and its fired gates both appear in the
     draft — the input fixture and the output fixture tell the same story."""
 
-    report = json.loads(
-        (skills_root() / "corpus-bootstrap" / "fixtures" / "survey-report.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    report = json.loads((BOOTSTRAP / "survey-report.json").read_text(encoding="utf-8"))
     draft = "".join(
-        one.read_text(encoding="utf-8")
-        for one in sorted((skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001").iterdir())
+        one.read_text(encoding="utf-8") for one in sorted((BOOTSTRAP / "S-0001").iterdir())
     )
 
     for gate in report["summary"]["corpus_adds"]:
@@ -266,10 +259,10 @@ def test_the_bootstrap_skill_records_the_shape_it_chose():
     names the convention, and the output fixture's directory is that shape
     concrete."""
 
-    skill = (skills_root() / "corpus-bootstrap" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (skills_root() / "torve" / "references" / "adopting.md").read_text(encoding="utf-8")
     assert "S-NNNN" in skill
 
-    fixture = skills_root() / "corpus-bootstrap" / "fixtures" / "S-0001"
+    fixture = BOOTSTRAP / "S-0001"
     assert fixture.is_dir()
     assert DOCUMENT_DIRNAME.match(fixture.name)
 
@@ -342,3 +335,56 @@ def test_the_built_wheel_carries_no_projection(tmp_path):
     assert not [
         name for name in names if name.startswith("torve/_skills/") and name.endswith("AGENTS.md")
     ]
+
+
+# ....................... #
+# The operator skill (S-0100/D-1, S-0100/D-4)
+
+
+def test_every_shipped_skill_opens_its_description_with_its_audience():
+    from torve.application.skills import description
+
+    assert description("torve").startswith("When operating torve from a session")
+
+
+def test_the_operator_skill_states_the_rails_and_ships_its_references():
+    text = (skills_root() / "torve" / "SKILL.md").read_text(encoding="utf-8")
+
+    for rail in (
+        "Accepting a document",
+        "Merging a pull request",
+        "A review thread a person opened is never resolved by you",
+        "Credentials stay with the host's `gh` login",
+        "are claims",
+    ):
+        assert rail in text, rail
+
+    references = skills_root() / "torve" / "references"
+    for name in ("night", "escalations", "by-hand", "review", "adopting"):
+        assert (references / f"{name}.md").is_file(), name
+        assert f"torve guide torve {name}" in text, name
+
+
+def test_every_verb_the_operator_skill_names_exists():
+    """The skill defers to `--help` for flags, so what it can drift on is a verb:
+    every `torve <group> <verb>` it names resolves in the CLI."""
+
+    import re
+
+    from typer.main import get_command
+
+    from torve.cli.main import app
+
+    root = get_command(app)
+    texts = [(skills_root() / "torve" / "SKILL.md").read_text(encoding="utf-8")]
+    texts += [
+        one.read_text(encoding="utf-8")
+        for one in sorted((skills_root() / "torve" / "references").glob("*.md"))
+    ]
+
+    for text in texts:
+        for first, second in re.findall(r"`torve ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?", text):
+            assert first in root.commands, first
+            group = root.commands[first]
+            if second and hasattr(group, "commands") and first != "guide":
+                assert second in group.commands, f"{first} {second}"

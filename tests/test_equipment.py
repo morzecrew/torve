@@ -171,13 +171,13 @@ def test_the_seat_s_profile_is_appended_to_the_role_s_not_substituted_for_it():
 
     role = [
         Equipment(kind="skill", source="torve:flag-dont-flip"),
-        Equipment(kind="skill", source="torve:ratchet-what-you-build"),
+        Equipment(kind="skill", source="torve:working-rules"),
     ]
     seat = [Equipment(kind="plugin", source="github:owner/caveman", ref="abc")]
 
     assert [item.source for item in merge_equipment(role, seat)] == [
         "torve:flag-dont-flip",
-        "torve:ratchet-what-you-build",
+        "torve:working-rules",
         "github:owner/caveman",
     ]
 
@@ -1426,3 +1426,24 @@ def test_an_unequipped_role_prompt_does_not_name_working_rules(tmp_path: Path):
 
     assert equipped_working_rules(workspace) is True
     assert "`working-rules`" in build_prompt(Task(id="T-1", decisions=[]))
+
+
+def test_a_role_equipped_with_nothing_is_not_told_of_working_rules(tmp_path: Path):
+    """An empty skill set writes no skills directory. In a worktree the engine
+    prepared — the task's contract projected beside it — that absence is a role
+    equipped with nothing, and the prompt does not name working-rules; a worktree
+    the engine never prepared stays undetermined and keeps naming it."""
+    from torve.adapters.agent.harness import equipped_working_rules
+    from torve.config import layout
+
+    workspace = tmp_path / "wt"
+    workspace.mkdir()
+
+    assert equipped_working_rules(workspace, "T-1") is True
+
+    contract = layout.task_file(workspace, "T-1")
+    contract.parent.mkdir(parents=True)
+    contract.write_text("id: T-1\n", encoding="utf-8")
+
+    assert equipped_working_rules(workspace, "T-1") is False
+    assert equipped_working_rules(workspace) is True

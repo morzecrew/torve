@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(not docker_available(), reason="docker daemon no
 # S-0061/D-11: a configuration built in Python carries no role sets, since they
 # are read off `.torve/agents/` at load; this run measures what materialize
 # wrote for the role, so the set is written here.
-SKILL_SETS = {"implement": ["flag-dont-flip", "ratchet-what-you-build"]}
+SKILL_SETS = {"implement": ["flag-dont-flip", "working-rules"]}
 
 CONFIG = RunnerConfig(
     runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90),
@@ -250,6 +250,6 @@ def test_harness_tier_end_to_end(repo, monkeypatch):
     assert str(agent_block["image_digest"]).startswith("sha256:")
     # Per-skill attribution (T-0070): the record names what materialize
     # wrote for the role, so cohorts group by skill regime.
-    assert agent_block["skills"] == ["flag-dont-flip", "ratchet-what-you-build"]
+    assert agent_block["skills"] == ["flag-dont-flip", "working-rules"]
     trace = agent_block["trace_ref"]
     assert trace and (repo.root / trace).is_file()

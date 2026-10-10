@@ -49,7 +49,6 @@ from torve.application.shadow import ShadowSource, run_shadow
 from torve.cli import app
 from torve.config import layout
 from torve.config.runconfig import (
-    ROLE_SKILLS,
     RunnerConfig,
     RuntimeConfig,
     SkillsConfig,
@@ -59,6 +58,13 @@ from torve.gates.context import load_task
 from torve.gates.sabotage import TASK_ID, base_task
 
 # ----------------------- #
+
+# The shipped role skills, as a repository's profiles would declare them.
+ROLE_SKILLS: dict[str, list[str]] = {
+    "implement": ["flag-dont-flip", "working-rules"],
+    "review": ["working-rules"],
+    "revert": ["flag-dont-flip", "working-rules"],
+}
 
 
 def test_without_skill_strips_every_role_set():

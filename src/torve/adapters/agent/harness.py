@@ -270,22 +270,27 @@ def skills_handover(workspace: Path) -> str:
     )
 
 
-def equipped_working_rules(workspace: Path) -> bool:
+def equipped_working_rules(workspace: Path, task_id: str = "") -> bool:
     """Whether the role's materialized skills carry the working rules
     (S-0100/D-8): the prompt names `working-rules` only to a role equipped
     with it.
 
     Read from the worktree the engine materialised — `skills_handover`'s own
     directory — because the role's set is resolved at dispatch and never
-    reaches the adapter. A worktree with no materialized set at all is
-    undetermined (a bare harness, a unit test) and keeps naming it, which is
-    the behaviour every attempt had before a role could be equipped at all.
+    reaches the adapter. An empty set writes no directory, so a missing one
+    in a worktree the engine prepared (its contract is projected there just
+    before the skills) is a role equipped with nothing. A worktree with
+    neither is undetermined (a bare harness, a unit test) and keeps naming
+    it, which is the behaviour every attempt had before a role could be
+    equipped at all.
     """
+
+    from torve.config import layout
 
     try:
         names = {path.name for path in (workspace / SKILLS_RELPATH).iterdir() if path.is_dir()}
     except OSError:
-        return True
+        return not (task_id and layout.task_file(workspace, task_id).is_file())
 
     return "working-rules" in names
 
@@ -1876,7 +1881,7 @@ class HarnessAgent:
             ctx.broker.channel_url if ctx.broker is not None else "",
             ctx.broker.token if ctx.broker is not None else "",
         )
-        equipped = equipped_working_rules(ctx.workspace)
+        equipped = equipped_working_rules(ctx.workspace, ctx.task.id)
         prompt = (
             ctx.prompt
             if ctx.prompt is not None

@@ -1021,23 +1021,6 @@ class StoreConfig(BaseModel):
 # ....................... #
 
 
-# The two skills this engine ships, against the roles that would load them — a
-# sample the suite builds a `SkillsConfig` from, and nothing a repository gets.
-# `torve init` mints no profile any more (S-0062/A-6): equipment is what a
-# repository asked for, never what the engine assumed.
-#
-# ponytail: lives here because four test modules import it; it belongs in
-# tests/conftest.py, and moves the next time those files are in scope.
-ROLE_SKILLS: dict[str, list[str]] = {
-    "implement": ["flag-dont-flip", "ratchet-what-you-build"],
-    "review": ["ratchet-what-you-build"],
-    "revert": ["flag-dont-flip"],
-}
-
-
-# ....................... #
-
-
 class SkillsConfig(BaseModel):
     """Role-scoped skill sets (S-0009/trigger-collision-is-the-real-cost, S-0009/D-1)
     materialized into the sandbox from package data at dispatch (S-0009/A-1, S-0009/D-7).
