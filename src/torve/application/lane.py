@@ -2211,12 +2211,10 @@ def process_lane(
     # Postgres store — a mock is in-process, so a reaper on another host sees
     # nothing. `store` is the configured adapter, empty when the caller names
     # none (a direct caller that is not a run).
-    if store and store != "postgres" and promotion_needs_durable_store(
-        unit, publish is not None
-    ):
+    if store and store != "postgres" and promotion_needs_durable_store(unit, publish is not None):
         raise RuntimeError(
             f"store {store!r} is in-process and test-only; promotion unit "
-            "'document' and landing 'pull_request' need a postgres store (S-0099/D-11)"
+            "'document' and landing 'pull_request' need a postgres store"
         )
 
     if not dry_run:

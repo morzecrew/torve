@@ -486,7 +486,7 @@ def _store_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     (
                         f"store: {config.store.adapter} — in-process and test-only; "
                         "promotion unit 'document' and landing 'pull_request' need a "
-                        "postgres store (S-0099/D-11)"
+                        "postgres store"
                     ),
                 )
             ]

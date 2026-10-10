@@ -438,7 +438,7 @@ def merge_cmd(
     ):
         raise fail(
             f"store {config.store.adapter!r} is in-process and test-only; promotion "
-            "unit 'document' and landing 'pull_request' need a postgres store (S-0099/D-11)",
+            "unit 'document' and landing 'pull_request' need a postgres store",
             EXIT_CONFIG,
         )
 
