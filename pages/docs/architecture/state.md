@@ -7,30 +7,44 @@ tables, task contracts, source code. A human writes it, a human reviews it,
 and nothing an agent does becomes intent without passing through a commit
 somebody signed off.
 
-**What happened?** [The record](record.md). Attempts, verdicts, landings,
-escalations, divergences, spend. It used to be a durable store holding run
-rows beside a git history holding trailers, with each answering part of the
-question and neither answering it whole.
+**What happened?** [The record](record.md), and the few other carriers the
+table below names — git for what landed, the forge for a pull request and a
+battery's verdict, a contract for a review round. It used to be a durable
+store holding run rows beside a git history holding trailers, with each
+answering part of the question and neither answering it whole; now each fact
+has exactly one place, written by the act that made it true.
 
 ![What holds what](../assets/diagrams/state.svg)
 
 ## The carriers
 
-Several files still hold execution state. They are not competing answers —
-each is a projection of the record with a reason to exist:
+Every fact the engine decides from has exactly one carrier, and a carrier
+is the place the act that makes the fact true already writes it. No fact has
+two, so nothing reconciles them and no two of them can disagree:
 
-| Carrier | Holds | Why it exists |
-| --- | --- | --- |
-| the event log | every fact, append-only | the record itself |
-| `.torve/telemetry.jsonl` | one row per attempt | what the cost, regime and quality projections read; **rendered from the event payload**, so it cannot disagree |
-| `.wt/<task>.state.json` | the run the attempt loop is driving | the loop's own aggregate, and the only carrier a run without a store has |
-| `.torve/tasks/<id>/contract.yaml` | what a task was asked to do | the authored artefact a human reviews and commits — and the *importer* the mint reads, not something dispatch consults |
-| `.torve/tasks/<id>/log.yaml` | the task's divergences | written into the worktree from the record before each gate pass, and landed with the work so the diff carries its own account |
-| landings | `.torve/specs/S-NNNN/execution/` and `.torve/execution/` | one file per landing, naming the base, the commit and the rows the contract carried — what survives a fresh clone with no store at all |
+| Fact | Carrier | Written by | Read by |
+| --- | --- | --- | --- |
+| A task landed | its landing file, in the base tree or the document branch's remote tip | the landing commit | `landed()` |
+| Which tasks a document carries, in order | the landing files on the document branch | the lane's landing | the pull request body, the battery, the wave |
+| A pull request's state | the forge | a person or the lane | the lane, once per pass at most |
+| A completion battery's verdict | a commit status `torve/completion` on the judged tip | the lane | the draft flag, the battery round |
+| A review round's document, target, findings and phases | `round:` in its own contract, carried by `task.minted` | the review leg | the wave, the requeue's rescope, the morning report |
+| Escalations, resolutions, attempts, gates, seat consumption | the record | manager, worker, operator | the board |
 
-The rule that keeps them honest: **one record, rendered into carriers**.
-Where two carriers hold the same fact, one of them is generated from the
-other, and a test says so.
+`.torve/telemetry.jsonl` is not on this table. It is a diagnostic stream —
+one row per attempt, and the engine-health rows — that the ledger, the evals
+and the night report read and no decision does (S-0099/D-6, S-0099/D-10). A
+file a decision read would be a decision that depends on one host's disk,
+which is what these carriers replaced.
+
+The record is one carrier among several, not the sink of all of them: what
+git, the forge or a contract holds it does not hold, and what it does hold
+it holds once. The authored artefacts stay where a human puts them — a
+task's contract and its divergence log are files in the repository, reviewed
+and committed, not projections. The run a single process drives keeps its
+own aggregate in `.wt/<task>.state.json`, the loop's memory and the only
+carrier a run with no store has; but the board's answer to what happened is
+the record's, never that file's.
 
 ## What outranks what
 

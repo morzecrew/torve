@@ -6,6 +6,24 @@ S-0044/D-1). Every other view of engine state — the board, the projections, th
 telemetry stream — is rebuildable from it. Source code stays git's; only
 intent and record moved.
 
+The record is one carrier among several, not the only place a fact lives. A
+fact the lane decides from is written once, by the act that makes it true, in
+the place that act already writes:
+
+| Fact | Carrier | Written by | Read by |
+| --- | --- | --- | --- |
+| A task landed | its landing file, in the base tree or the document branch's remote tip | the landing commit | `landed()` |
+| Which tasks a document carries, in order | the landing files on the document branch | the lane's landing | the pull request body, the battery, the wave |
+| A pull request's state | the forge | a person or the lane | the lane, once per pass at most |
+| A completion battery's verdict | a commit status `torve/completion` on the judged tip | the lane | the draft flag, the battery round |
+| A review round's document, target, findings and phases | `round:` in its own contract, carried by `task.minted` | the review leg | the wave, the requeue's rescope, the morning report |
+| Escalations, resolutions, attempts, gates, seat consumption | the record | manager, worker, operator | the board |
+
+What the record holds it holds once; what git, the forge or a contract holds
+it does not hold at all. `.torve/telemetry.jsonl` is not on the table — a
+diagnostic stream the ledger, the evals and the night report read and no
+decision does (S-0099/D-6, S-0099/D-10).
+
 There is no update and no delete, in the service or in the port beneath it.
 A correction is another event, because a history that can be rewritten
 answers no question reliably.
@@ -95,10 +113,11 @@ The rule has teeth in two places worth naming:
   record would be writing a summary that claims to be a history. Each
   attempt is recorded from where it happens, under the tier that actually
   ran it.
-- **One record, two carriers.** The attempt record is one object. The
-  telemetry row every projection reads is *rendered* from the event
-  payload, so a field added to one carrier and not the other is not
-  expressible.
+- **One record, one row rendered from it.** The attempt record is one
+  object, and it lives in the record. The telemetry row is *rendered* from
+  the same event payload — a diagnostic the ledger, the evals and the night
+  report read, and no decision does (S-0099/D-6) — so it is a view of the
+  record and not a second place the fact is written and can disagree.
 
 ## The intent half: sources and decisions
 
@@ -168,7 +187,7 @@ contracts inherit from; the archive is what the record remembers.
 | --- | --- |
 | the board (`torve manager board`) | what each task's recorded facts add up to: state, attempts, who holds it, what it landed, what it has burned |
 | the divergence log (`.torve/tasks/<id>/log.yaml`) | the entries the record holds for a task, written into the worktree before each gate pass so the battery judges the record |
-| the telemetry stream | the attempt rows the cost, regime and quality projections read |
+| the telemetry stream | the attempt rows the ledger, the evals and the night report read — a diagnostic, and no decision reads it (S-0099/D-6) |
 | the decision graph (`torve decisions`) | what is in force, what each decision used to say, and which decisions govern a set of paths |
 | the notification queue | escalations with no settled delivery recorded against them — the queue is the *absence* of a second event, so there is nothing to update and nothing to lose |
 | one task's history (`torve why --partition`) | every attempt with its verdict, cost and convictions, the events and reviews around them, and the totals |
