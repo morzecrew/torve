@@ -5,7 +5,7 @@ kind: design
 change:
   type: refactor
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0099]
 informed_by: []
@@ -58,12 +58,26 @@ design:
       of `projections.py`. The ledger, the evals, the night report and the read-only
       reports (`why`, `status`, `context`) import it; the test refuses any other importer
       of the module, which closes the route a wrapper in another module opened.
-tests: ''
+tests: |-
+  - A battery round minted on one host reads pending on another host whose stream is empty, until the round lands or a person resolves it (D-1).
+  - A round a person abandoned releases the document's wave with an empty stream, from the board the caller passes in (D-2).
+  - A document branch that conflicts writes a failing `torve/rebase` status naming the base tip; a second pass against the same tip and base reports nothing new; a clean rebase writes `success` (D-3).
+  - A finding the reviewer recorded on one host is raised by the review leg on another, read from `review.recorded`; a row recorded before the field existed reads with no findings (D-4, D-11).
+  - A forge thread whose last comment is the engine's is not raised again; one a person commented on since is (D-5).
+  - A document pull request's body lists each carried task's gate results with an empty stream (D-6).
+  - A refresh leaves a task carried by a document branch alone with an empty stream (D-7).
+  - A second `torve merge` process that finds a candidate red at the same base and head escalates it, read from the `torve/regate` status; a red against a new base re-gates (D-8).
+  - A ready candidate whose document's pull request was closed stays abandoned after the branch is deleted; the closure is recorded once (D-9).
+  - A test fails when any module other than the ledger, the evals, the night report and the read-only reports imports `application/streams.py`, and `projections.py` holds no stream reader (D-10).
 docs: ''
 out_of_scope: |-
   - A file-backed record for repositories without Postgres (S-0099/D-11).
   - Counting reds in local landing mode across processes: without a forge there is no status to write, and the count stays per process there.
-risks: ''
+risks: |-
+  - A document whose rounds were minted before this lands carries no `battery:` in `round:`; its battery state reads as no round. Serve it with no document pull request open and no round queued, as S-0099 asked.
+  - Two more commit statuses (`torve/rebase`, `torve/regate`) appear in a pull request's checks. They are informational; a repository whose branch protection requires every status would need to exempt them.
+  - The forge is asked about closed pull requests by head name once per pass per document with ready candidates; a repository with many documents in flight pays one call each.
+  - In local landing mode, with no forge, the red-twice count stays per process (out of scope).
 alternatives:
   - option: >-
       New record event kinds for the lane's own facts (a conflict, a red regate, a
@@ -79,3 +93,5 @@ questions:
       is strict, so an older reader refuses the new field. Bump the record's schema
       version with a migration, or add the field with a default so old rows read as
       before? Lean: add with a default; no stored row changes.
+    status: settled
+    settled_by: D-11

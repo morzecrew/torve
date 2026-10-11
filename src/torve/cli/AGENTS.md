@@ -659,6 +659,20 @@ The operator's rails, in the stub and the operator skill: accepting a document, 
 - Paths: `src/torve/cli/init.py` `src/torve/adapters/agent/harness.py`
 - Consequence: a fresh adopter's agent gets the skills its prompt names
 
+### S-0101/D-2 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+The rounds a person resolved are read from the board's `escalation.resolved` events, which the lane's caller passes in; the manager pass and `torve merge` both open the store.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
+- Consequence: a round abandoned on one host releases the wave on every host
+
+### S-0101/D-6 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+The gate results a document pull request's body lists are read from the record's `gates.evaluated` events for each carried task.
+
+- Paths: `src/torve/cli/merge.py`
+- Consequence: the body is composed the same from any host
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

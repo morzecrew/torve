@@ -1819,6 +1819,69 @@ A leg that fails with the same error on the same branch backs off, doubling its 
 - Paths: `pyproject.toml` `src/torve/application/skills.py`
 - Consequence: an adopter's sandbox carries no row of torve's corpus
 
+### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A round that answers a red completion battery carries `battery: true` and its target in its contract's `round:`; the battery's round state is pending until that round lands or a person resolves it, and answered after.
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `src/torve/domain/task.py`
+- Consequence: a battery's round is recognised on any host from the record that minted it
+
+### S-0101/D-2 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+The rounds a person resolved are read from the board's `escalation.resolved` events, which the lane's caller passes in; the manager pass and `torve merge` both open the store.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
+- Consequence: a round abandoned on one host releases the wave on every host
+
+### S-0101/D-3 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A document branch that conflicts with the base gets a `torve/rebase` commit status of `failure` on its tip naming the base tip; the same tip against the same base is reported once, and a later clean rebase writes `success`.
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: a person sees the conflict in the pull request's checks, and no host reports it twice
+
+### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+`review.recorded` carries each finding (severity, path, line, claim, evidence), and the review leg reads recorded findings from the board.
+
+- Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py` `src/torve/application/review.py` `src/torve/application/reviewleg.py`
+- Consequence: a host that did not run a review still reads what it found
+
+### S-0101/D-5 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A forge thread the engine already answered or refused is known from the forge: its last comment is the engine's and no comment follows it.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: the leg does not re-raise a thread it already handled, on any host
+
+### S-0101/D-7 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+The planner's refresh reads `landed()` and the document branch's carried tasks to say why it leaves a task alone.
+
+- Paths: `src/torve/application/planner.py`
+- Consequence: a refresh on any host leaves the same tasks alone
+
+### S-0101/D-8 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A candidate the lane finds red against a base gets a `torve/regate` commit status of `failure` on its head naming the base tip; a second red at the same base and head escalates. In local landing mode, with no forge, the count stays per process.
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: `torve merge` run once per pass escalates a candidate that stays red, instead of regating it forever
+
+### S-0101/D-9 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A ready candidate whose document has a closed, unmerged pull request, found on the forge by its head branch name, is abandoned; the lane asks about a document at most once per pass and records its closure once.
+
+- Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py`
+- Consequence: deleting a closed document's branch does not bring its tasks back
+
+### S-0101/D-10 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+Every function that reads the stream lives in `application/streams.py`; only the ledger, the evals, the night report and the read-only reports import it, and a test refuses any other importer.
+
+- Paths: `src/torve/application/streams.py` `src/torve/application/projections.py` `tests/test_layout.py`
+- Consequence: a decision cannot read the stream through a wrapper in another module
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

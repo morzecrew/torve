@@ -329,6 +329,27 @@ The broker meters streamed responses, and `seat.consumed` carries input, output,
 - Paths: `src/torve/adapters/broker/local.py` `src/torve/application/eventlog.py` `src/torve/application/ports.py` `src/torve/domain/events.py`
 - Consequence: cost per landing is a query for every seat, including plan-billed ones
 
+### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A round that answers a red completion battery carries `battery: true` and its target in its contract's `round:`; the battery's round state is pending until that round lands or a person resolves it, and answered after.
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `src/torve/domain/task.py`
+- Consequence: a battery's round is recognised on any host from the record that minted it
+
+### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+`review.recorded` carries each finding (severity, path, line, claim, evidence), and the review leg reads recorded findings from the board.
+
+- Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py` `src/torve/application/review.py` `src/torve/application/reviewleg.py`
+- Consequence: a host that did not run a review still reads what it found
+
+### S-0101/D-11 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+`review.recorded` gains `items`, the list of the review's findings with severity, path, line, claim and evidence, defaulting to empty: no stored row changes and no migration runs.
+
+- Paths: `src/torve/domain/events.py`
+- Consequence: rows recorded before the field read as a review with no findings, which is what they hold
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
