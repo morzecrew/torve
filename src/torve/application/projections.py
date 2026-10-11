@@ -1977,6 +1977,42 @@ def rows_from_events(events: Iterable[EventRecord]) -> list[dict[str, Any]]:
 # ....................... #
 
 
+def recorded_review_rows(records: Iterable[EventRecord]) -> list[dict[str, Any]]:
+    """The review rows the board holds, findings rendered from `items`
+    (S-0101/D-4) — the shape `record_threads` reads, so the leg's second
+    source is the record and not a host's stream.
+
+    A review recorded before `items` existed carries no finding list and
+    reads with none (S-0101/D-11): the counts it holds are not expanded back
+    into findings the record never carried, because the leg cannot tell a
+    fabricated finding from a real one and would raise a round from nothing."""
+
+    rows: list[dict[str, Any]] = []
+
+    for event in records:
+        if event.kind is not EventKind.REVIEW_RECORDED:
+            continue
+
+        payload = event.payload
+        items = payload.get("items") or []
+
+        rows.append(
+            {
+                "kind": "review",
+                "at": stamp(event.created_at),
+                "task_id": str(payload.get("review_id") or ""),
+                "target": event.subject_id,
+                "trigger": str(payload.get("trigger") or ""),
+                "findings": [dict(item) for item in items if isinstance(item, dict)],
+            }
+        )
+
+    return rows
+
+
+# ....................... #
+
+
 def why_report(
     root: Path, task_id: str, *, recorded: Sequence[EventRecord] | None = None
 ) -> dict[str, Any]:

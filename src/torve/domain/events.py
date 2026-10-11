@@ -37,6 +37,7 @@ from torve.domain.vocabulary import (
     EntryClass,
     EntryGrade,
     EntryKind,
+    FindingSeverity,
     Grade,
     SourceKind,
 )
@@ -395,12 +396,35 @@ class DivergenceRecorded(BaseModel):
 # ....................... #
 
 
+class ReviewItem(BaseModel):
+    """One finding a review recorded (S-0101/D-4): its severity, the anchor
+    it cites and the claim and evidence that locate it, so a host that did
+    not run the review reads the finding itself rather than a count of them."""
+
+    model_config = STRICT
+
+    severity: FindingSeverity
+    path: str = ""
+    line: int | None = None
+    claim: str
+    evidence: str
+
+
+# ....................... #
+
+
 class ReviewRecorded(BaseModel):
     model_config = STRICT
 
     review_id: str
     findings: int = 0
     blockers: int = 0
+    # S-0101/D-11: additive with a default, so a row written before the field
+    # existed reads as a review with no findings, which is what it holds.
+    items: list[ReviewItem] = Field(default_factory=list)
+    # S-0101/D-4: which trigger produced the review — the task-gated leg reads
+    # only `task_gated`; a pull-request review is reported and stops nothing.
+    trigger: str = "task_gated"
 
 
 # ....................... #

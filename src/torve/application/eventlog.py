@@ -301,6 +301,10 @@ ATTEMPT_KINDS: Mapping[str, EventKind] = {
     "attempt_started": EventKind.ATTEMPT_STARTED,
     "attempt_finished": EventKind.ATTEMPT_FINISHED,
     "gates_evaluated": EventKind.GATES_EVALUATED,
+    # S-0101/D-4: the reviewer's findings ride the record too, so a host that
+    # did not run the review reads them. Not an attempt fact — its payload
+    # carries no `attempt` — so the sink below records it without one.
+    "review_recorded": EventKind.REVIEW_RECORDED,
 }
 
 
@@ -332,6 +336,13 @@ def attempt_sink(
 
     def sink(fact: AttemptFact) -> None:
         kind = ATTEMPT_KINDS[fact.kind]
+        # S-0101/D-4: a review's payload has no `attempt` field and its model
+        # refuses one, so the review fact is recorded as it stands.
+        payload = (
+            dict(fact.payload)
+            if kind is EventKind.REVIEW_RECORDED
+            else {"attempt": fact.attempt, **fact.payload}
+        )
 
         run_coroutine_threadsafe(
             log.record(
@@ -341,7 +352,7 @@ def attempt_sink(
                 subject_id=task_id,
                 actor_kind=ActorKind.WORKER,
                 actor_id=seat,
-                payload={"attempt": fact.attempt, **fact.payload},
+                payload=payload,
                 correlation_id=correlation_id,
             ),
             loop,

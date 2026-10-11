@@ -6,6 +6,7 @@ the queue without moving anything, per the house convention.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
     from torve.application.lane import Forge, LaneResult, Publisher
     from torve.application.ports import CiStatus, StatusScm
     from torve.config.runconfig import RunnerConfig
+    from torve.domain.events import EventRecord
 
 # ----------------------- #
 
@@ -135,7 +137,11 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
 
 
 def _document_pr_text(
-    root: Path, task_id: str, branch: str, tip: str | None = None
+    root: Path,
+    task_id: str,
+    branch: str,
+    tip: str | None = None,
+    records: Sequence[EventRecord] = (),
 ) -> tuple[str, str, bool]:
     """The document pull request's title and body (S-0083/D-8): every task
     the branch's landing files carry, plus the one landing now —
@@ -144,11 +150,16 @@ def _document_pr_text(
     last recorded attempt and its landing sha.
 
     A phase finished by hand has no lane record, but its landing file rides
-    in the branch tip's tree; it counts as carried too, under the tip."""
+    in the branch tip's tree; it counts as carried too, under the tip.
+
+    The gate results are read from the record's `gates.evaluated` events
+    (S-0101/D-6), the board the caller opened: the body is composed the same
+    from any host, and a host whose stream is empty lists the same results.
+    """
 
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import carried_landings, carried_tasks
-    from torve.application.projections import recorded_rows
+    from torve.application.projections import rows_from_events
     from torve.config import layout
     from torve.domain.attempt import GateResult
     from torve.gates.context import load_task
@@ -160,7 +171,7 @@ def _document_pr_text(
     carried = carried_tasks(root, branch)
     commits = dict(carried_landings(root, branch))
     task_ids = carried + ([task_id] if task_id not in carried else [])
-    rows = recorded_rows(root)
+    rows = rows_from_events(records)
     landings = []
 
     for carried_id in task_ids:
@@ -219,9 +230,20 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
             # (S-0093/D-2, S-0098/D-4), and a later green battery at a later
             # tip publishes it ready.
             from torve.application.lane import document_tip_red
+            from torve.cli.options import dsn_for, task_events
 
             tip = lane.tip(root, branch)
-            title, body, complete = _document_pr_text(root, task_id, branch, tip=tip)
+            # S-0101/D-6: the body's gate results come from the record, so a
+            # host whose stream is empty composes the same body. No partition,
+            # or no reachable store, reads nothing — the same promise
+            # `_resolved` makes, for the same reason.
+            try:
+                records = task_events(dsn_for(root), config.scm.repo or "") or []
+            except Exception:
+                records = []
+            title, body, complete = _document_pr_text(
+                root, task_id, branch, tip=tip, records=records
+            )
 
             return scm.open_pr(
                 root,
