@@ -44,7 +44,7 @@ from torve.cli.options import (
 from torve.domain.states import EXIT_CONFIG, EXIT_OK, TaskState
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Awaitable, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 
     from forze.application.execution import ExecutionRuntime
 
@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
     from torve.config.runconfig import RunnerConfig
+    from torve.domain.events import EventRecord
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -254,7 +255,11 @@ class _ThreadForge:
 # ....................... #
 
 
-def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
+def _thread_leg(
+    root: Path,
+    config: RunnerConfig,
+    records: Callable[[], Awaitable[Sequence[EventRecord]]] | None = None,
+) -> Threads | None:
     """The pass's review-thread leg, or None when the switch is off.
 
     Off by default, and the configuration refuses to load with it on under
@@ -267,7 +272,7 @@ def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
     if not config.threads.enabled:
         return None
 
-    def threads() -> tuple[str, bool]:
+    async def threads() -> tuple[str, bool]:
         # Built inside the leg for S-0044/A-11's reason, as the lane's is: `_leg`
         # protects the call, so anything raised while building one would
         # otherwise take the whole pass down. The landings are read per pass
@@ -278,12 +283,17 @@ def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
         from torve.application.reviewleg import review_thread_leg
 
         held = landed(root)
+        # The board the pass already reads (S-0101/D-4): the task-gated
+        # findings are raised from `review.recorded`, so a host that did not
+        # run a review still raises what it found.
+        board = list(await records()) if records is not None else []
 
         return review_thread_leg(
             root,
             config,
             _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
             held.__contains__,
+            records=board,
         )
 
     return threads
@@ -480,8 +490,12 @@ async def _serve(
 
     if lane_leg is not None:
         lane_leg = _refreshing(lane_leg, landings, root)
+
     # None unless the review-thread switch is on, for the same reason.
-    thread_leg = _thread_leg(root, config)
+    async def board_records() -> list[EventRecord]:
+        return list(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
+    thread_leg = _thread_leg(root, config, records=board_records)
 
     def lane_owes() -> bool:
         """Whether a ready candidate is still off the base it lands onto — a

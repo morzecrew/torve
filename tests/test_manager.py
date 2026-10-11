@@ -1886,3 +1886,39 @@ def test_a_night_owes_a_document_pull_request_s_review_wait(tmp_path, monkeypatc
     owed = seen["owed"]
 
     assert callable(owed) and owed() is True
+
+
+def test_the_served_thread_leg_reads_the_board_s_review_records(tmp_path, monkeypatch):
+    """S-0101/D-4 in production: the manager pass hands the review-thread leg
+    the board it reads, so the task-gated findings are raised from
+    `review.recorded` rather than this host's stream."""
+
+    import torve.application.reviewleg as reviewleg
+    from torve.cli.manager import _thread_leg
+    from torve.config.runconfig import RunnerConfig
+
+    seen: list[object] = []
+
+    def leg(root, config, forge, landed, records=()):
+        seen.append(list(records))
+        return "ok", False
+
+    monkeypatch.setattr(reviewleg, "review_thread_leg", leg)
+    config = RunnerConfig.model_validate(
+        {
+            "promotion": {"landing": "pull_request", "unit": "document"},
+            "scm": {"repo": "owner/name", "open_pr": True},
+            "store": {"adapter": "postgres"},
+            "threads": {"enabled": True},
+        }
+    )
+    sentinel = object()
+
+    async def records():
+        return [sentinel]
+
+    threads = _thread_leg(tmp_path, config, records=records)
+    assert threads is not None
+
+    assert asyncio.run(threads()) == ("ok", False)
+    assert seen == [[sentinel]]
