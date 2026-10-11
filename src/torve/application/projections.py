@@ -2276,44 +2276,19 @@ def lane_verdicts(root: Path) -> dict[str, str]:
     return ledger
 
 
-def lane_battery_state(root: Path, document: str, tasks: set[str]) -> str:
-    """Where *document*'s one round for a red completion battery stands
-    (S-0093/D-4): "" before any, "pending" until the review leg answers its
-    finding, "answered" once the round landed or answered it without a
-    change. *tasks* are the document's landed tasks, which the caller reads
-    from the branch rather than from here (S-0099/D-2)."""
-
-    rows = stream_rows(root)
-    recorded = [
-        str(row.get("task_id") or "")
-        for row in rows
-        if row.get("kind") == "review"
-        and row.get("battery")
-        and row.get("branch") == document
-        and row.get("target") in tasks
-    ]
-
-    if not recorded:
-        return ""
-
-    answered = {
-        str(row.get("finding") or "")
-        for row in rows
-        if row.get("event") == "review_finding_answered"
-    }
-
-    return "answered" if f"record:{recorded[-1]}:0" in answered else "pending"
-
-
-def lane_resolved(root: Path) -> set[str]:
-    """The rounds a person resolved off the lane (S-0097/D-6): a round a
-    person abandoned and `reap --escalated` swept leaves no run state, so the
-    resolution is read here rather than off the host."""
+def resolved_rounds(records: Iterable[EventRecord]) -> set[str]:
+    """The rounds a person resolved off the lane (S-0097/D-6, S-0101/D-2): the
+    board's `escalation.resolved` events, which the lane's caller opens the
+    store to read. A round a person abandoned and `reap --escalated` swept
+    leaves no run state, so the resolution is read from the board rather than
+    off the host. `requeued` is not a resolution — the round is offered
+    again."""
 
     return {
-        str(row.get("task") or "")
-        for row in stream_rows(root)
-        if row.get("event") == "manager_resolved" and row.get("resolution") != "requeued"
+        str(record.subject_id)
+        for record in records
+        if record.kind is EventKind.ESCALATION_RESOLVED
+        and str((record.payload or {}).get("resolution") or "") != "requeued"
     }
 
 

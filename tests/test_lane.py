@@ -843,6 +843,32 @@ def _events(root: Path) -> list[dict]:
     ]
 
 
+def _board_event(task_id: str, resolution: str):
+    """One board record, built rather than written: the lane's caller hands the
+    lane the fact, and no store is needed to say what the fold reads."""
+
+    import uuid
+    from datetime import UTC, datetime
+
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    stamp = datetime.now(UTC)
+
+    return EventRecord(
+        id=uuid.uuid4().hex,
+        rev=1,
+        created_at=stamp,
+        last_update_at=stamp,
+        kind=EventKind.ESCALATION_RESOLVED,
+        partition="morzecrew/torve",
+        subject_type=SubjectType.TASK,
+        subject_id=task_id,
+        actor_kind=ActorKind.OPERATOR,
+        actor_id="op-1",
+        payload={"resolution": resolution},
+    )
+
+
 def test_require_review_refuses_a_candidate_without_a_verdict(lane_repo):
     candidate(lane_repo, "T-7040", "forty.py", "f = 40\n")
     results = process_lane(lane_repo, GitLane(), require_review=True)
@@ -2550,16 +2576,6 @@ def _battery_findings(root: Path) -> list[dict]:
     return [r for r in stream_rows(root) if r.get("kind") == "review" and r.get("battery")]
 
 
-def _answer(root: Path, review: str) -> None:
-    from torve.application.telemetry import engine_event
-
-    engine_event(
-        root,
-        "review_finding_answered",
-        {"branch": naming.document_branch("S-0930"), "finding": f"record:{review}:0"},
-    )
-
-
 def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp_path, monkeypatch):
     calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1])
     published: list[tuple[str, str]] = []
@@ -2600,8 +2616,7 @@ def test_a_green_rerun_at_the_rounds_tip_publishes_the_document_ready(
     process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status)
     document = naming.document_branch("S-0930")
     red_tip = git(lane_repo, "rev-parse", document)
-    _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n")
-    _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
+    _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n", battery=True)
 
     again = process_lane(
         lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status
@@ -2624,8 +2639,7 @@ def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp
     publish = _recording_publisher(published, root=lane_repo)
     process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
     document = naming.document_branch("S-0930")
-    _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n")
-    _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
+    _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n", battery=True)
 
     again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
@@ -2686,6 +2700,7 @@ def _round(
     filename: str,
     content: str,
     state: TaskState | None = TaskState.READY,
+    battery: bool = False,
 ) -> None:
     """A round the review leg minted: a task branch off the document branch,
     its contract naming the document, its `round:` description and its run
@@ -2712,6 +2727,7 @@ def _round(
         "findings": [{"path": filename, "line": None, "end_line": None, "threads": []}],
         "phases": [],
         "nonce": "",
+        "battery": battery,
     }
     contract.write_text(yaml.safe_dump(body, sort_keys=False), encoding="utf-8")
     engine_event(root, "lane_review_task", {"branch": document, "task": task_id, "path": filename})
@@ -2829,27 +2845,96 @@ def test_a_round_minted_on_one_host_holds_the_wave_on_another(lane_repo, tmp_pat
     assert published == [("T-7551", document)]
 
 
+def test_a_battery_round_is_pending_on_another_host_until_it_lands(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0101/D-1: a battery round is described by its own contract, so a host
+    whose stream never saw the mint still waits for it — the battery does not
+    rerun while the round is outstanding, and answers at the later tip once
+    the round lands."""
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 0])
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    document = naming.document_branch("S-0930")
+    # The round the red minted, on another host: the contract arrived, the mint
+    # events did not, and no worker has claimed it.
+    _round(
+        lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n", state=None, battery=True
+    )
+    # A later completing phase, ready to land onto the same document.
+    _round(lane_repo, "T-7309", document, "S-0930", "later.py", "# T-7309\n")
+    (lane_repo / ".torve" / "telemetry.jsonl").write_text("", encoding="utf-8")
+
+    held = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+
+    # A completing landing waits on the outstanding round: it is not made and
+    # the battery is not run again.
+    assert [r.task for r in held if r.action == "awaiting round"] == ["T-7309"]
+    assert calls == [None]
+
+    # The round lands: the battery answers at the later tip and reruns.
+    run = RunState(task_id="T-7308", path=naming.state_file(lane_repo, "T-7308"))
+    run.state = TaskState.READY
+    run.save()
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True, only="T-7308")
+
+    assert calls == [None, None]
+
+
 def test_a_round_a_person_resolved_and_reaped_does_not_hold_the_wave(lane_repo, tmp_path):
-    """An abandoned round swept by `reap --escalated` leaves no run state, so
-    the resolution `manager resolve` writes to the stream is what releases it."""
-    from torve.application.telemetry import engine_event
+    """S-0101/D-2: an abandoned round swept by `reap --escalated` leaves no run
+    state and no stream row, so the board's `escalation.resolved` — read by the
+    caller and passed in — is what releases the wave on a host that never saw
+    the round."""
+    from torve.application.projections import resolved_rounds
 
     published: list[tuple[str, str]] = []
     spec = "S-0935"
     document = _landed_document(lane_repo, tmp_path, spec, {"T-7541": "one.py"}, published)
     _round(lane_repo, "T-7542", document, spec, "two.py", "# T-7542\n")
     _round(lane_repo, "T-7543", document, spec, "three.py", "# T-7543\n", state=None)
-    engine_event(lane_repo, "manager_resolved", {"task": "T-7543", "resolution": "abandoned"})
+    # Another host: the wave is read from the contracts, and the stream holds
+    # nothing at all about the round.
+    (lane_repo / ".torve" / "telemetry.jsonl").write_text("", encoding="utf-8")
+
+    resolved = resolved_rounds([_board_event("T-7543", "abandoned")])
 
     results = process_lane(
         lane_repo,
         GitLane(),
         publish=_recording_publisher(published, root=lane_repo),
         unit="document",
+        resolved=resolved,
     )
 
     assert not [r for r in results if "held for the wave" in r.detail]
     assert published == [("T-7541", document), ("T-7542", document)]
+
+
+def test_merge_reads_the_boards_resolutions(tmp_path, monkeypatch):
+    """S-0101/D-2: `torve merge` opens the store its caller names and reads the
+    board's `escalation.resolved` events, so a round abandoned on another host
+    releases the wave here; a repository naming no remote reads nothing."""
+    import asyncio
+
+    from torve.cli import merge as merge_module
+    from torve.config.runconfig import ScmConfig
+
+    records = [_board_event("T-7543", "abandoned"), _board_event("T-7544", "requeued")]
+
+    class Board:
+        async def of_subject_type(self, subject_type, *, partition=None):
+            return records
+
+    monkeypatch.setattr(
+        "torve.cli.options.read_log", lambda dsn, reader: asyncio.run(reader(Board()))
+    )
+
+    config = RunnerConfig(promotion=PromotionConfig(), scm=ScmConfig(repo="morzecrew/torve"))
+
+    assert merge_module._resolved(tmp_path, config) == {"T-7543"}
+    assert merge_module._resolved(tmp_path, RunnerConfig()) == set()
 
 
 def test_an_open_document_is_not_republished_while_the_wave_runs(lane_repo, tmp_path):

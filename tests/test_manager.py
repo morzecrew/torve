@@ -1596,13 +1596,6 @@ def test_a_requeued_phase_task_takes_its_contract_from_the_remotes_document_bran
     assert load_task(layout.task_file(root, "T-0001")).scope.allow == ["src/widget/**", "pages/**"]
     assert load_task(layout.task_file(root, "T-0002")).scope.allow == ["src/frob/**"]
 
-    # The lane reads a resolution off the stream, where a swept run leaves none
-    # on the host (S-0097/D-6).
-    from torve.application.projections import stream_rows
-
-    (row,) = [r for r in stream_rows(root) if r.get("event") == "manager_resolved"]
-    assert (row["task"], row["resolution"]) == ("T-0001", "requeued")
-
 
 def _escalated_state(root, task_id):
     from torve.application.runstate import RunState
@@ -1765,6 +1758,69 @@ def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch)
         asyncio.run(leg())
 
     assert seen == [False, False, False, False, True]
+
+
+def test_a_serve_reads_the_boards_resolutions_into_the_lane(tmp_path, monkeypatch):
+    """S-0101/D-2: the pass's `resolutions` closure reads the board the caller
+    already holds and hands the lane the fact, so a round a person abandoned on
+    any host releases the wave. The skeleton of the round lives on the host that
+    minted it; the resolution rides the log."""
+
+    from forze_mock import MockDepsModule, MockState
+
+    from torve.adapters.eventstore import document as eventstore
+    from torve.application import lane as lane_module
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    state = MockState()
+    monkeypatch.setattr(eventstore, "mock_module", lambda: MockDepsModule(state=state))
+
+    async def seed() -> None:
+        runtime = ExecutionRuntime(
+            deps=DepsRegistry.from_modules(MockDepsModule(state=state)).freeze()
+        )
+
+        async with runtime.scope():
+            await event_log(runtime.get_context()).record(
+                EventKind.ESCALATION_RESOLVED,
+                partition=PARTITION,
+                subject_type=SubjectType.TASK,
+                subject_id="T-7543",
+                actor_kind=ActorKind.OPERATOR,
+                actor_id="op-1",
+                payload={"resolution": "abandoned"},
+            )
+
+    asyncio.run(seed())
+
+    seen: dict[str, object] = {}
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        seen["resolved"] = kwargs["resolved"]
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    terms = RunnerConfig(
+        promotion=PromotionConfig(landing="pull_request", unit="document", auto_merge=True)
+    )
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: terms)
+
+    asyncio.run(
+        manager_cli._serve(
+            None,
+            PARTITION,
+            root=tmp_path,
+            config_path=None,
+            worker="w-1",
+            passes=1,
+            interval=0,
+            only=None,
+            dispatch=False,
+        )
+    )
+
+    assert seen["resolved"] == {"T-7543"}
 
 
 # ....................... #

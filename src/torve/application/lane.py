@@ -900,15 +900,27 @@ def record_battery_red(root: Path, document: str, target: str, tip: str, summary
     )
 
 
-def _battery_round(root: Path, document: str) -> str:
+def _battery_round(root: Path, document: str, resolved: Collection[str] = ()) -> str:
     """Where this document's one round for a red completion battery stands
-    (S-0093/D-4): "" before any, "pending" until the review leg answers its
-    finding, "answered" once the round landed or answered it without a
-    change — the rerun that a second red escalates on."""
+    (S-0093/D-4, S-0101/D-1): "" before any, "pending" until the round lands
+    or a person resolves it, "answered" after — the rerun that a second red
+    escalates on.
 
-    from torve.application.projections import lane_battery_state
+    The round is read from its own contract, so it is recognised on any host
+    from the record that minted it; whether it landed is the document's
+    ledger and whether a person resolved it the board's resolutions the
+    caller passes in."""
 
-    return lane_battery_state(root, document, set(document_tasks(root, document)))
+    from torve.application.reviewleg import round_tasks
+
+    rounds = [task for task, contract in round_tasks(root, document) if contract.round.battery]
+
+    if not rounds:
+        return ""
+
+    landed = set(document_tasks(root, document))
+
+    return "answered" if any(task in landed or task in resolved for task in rounds) else "pending"
 
 
 def _battery_target(root: Path, document: str) -> str | None:
@@ -942,7 +954,7 @@ def document_tip_red(root: Path, branch: str, tip: str, status: StatusScm | None
     return status.completion(tip) != "success"
 
 
-def _wave_outstanding(root: Path, document: str) -> set[str]:
+def _wave_outstanding(root: Path, document: str, resolved: Collection[str] = ()) -> set[str]:
     """The rounds a review leg minted for *document* that have not yet landed
     on its branch (S-0097/D-6): queued, running or waiting to land. A round
     that landed is in the branch's ledger, and one that escalated or that a
@@ -951,14 +963,12 @@ def _wave_outstanding(root: Path, document: str) -> set[str]:
     A round with no run state is one no worker has claimed yet, which is
     queued and outstanding: the runner writes the state at dispatch, not at
     the mint. A round a person abandoned and `reap --escalated` swept also
-    has none, so the resolution is read off the stream rather than the
-    host."""
+    has none, so the resolutions come from the board, passed in by the
+    caller (S-0101/D-2)."""
 
-    from torve.application.projections import lane_resolved
     from torve.application.reviewleg import round_tasks
 
     landed = set(document_tasks(root, document))
-    resolved = lane_resolved(root)
     outstanding: set[str] = set()
 
     for task, _contract in round_tasks(root, document):
@@ -993,6 +1003,7 @@ def _land_document(
     results: list[LaneResult],
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
 
@@ -1020,7 +1031,7 @@ def _land_document(
     before = vcs.tip(root, document)
     vcs.reset_branch(root, document, tip)
     complete = _completes(root, task_id, document)
-    round_ = _battery_round(root, document) if complete and rounds else ""
+    round_ = _battery_round(root, document, resolved) if complete and rounds else ""
 
     # The battery reruns once the round answers, not on every pass while it
     # is outstanding (S-0093/D-4).
@@ -1099,7 +1110,7 @@ def _land_document(
 
         return
 
-    outstanding = _wave_outstanding(root, document) - {task_id}
+    outstanding = _wave_outstanding(root, document, resolved) - {task_id}
 
     if outstanding:
         # A wave costs one push (S-0097/D-6): the landing is on the branch as
@@ -1597,6 +1608,7 @@ def _rebase_document(
     conflict_base: str,
     number: int,
     results: list[LaneResult],
+    resolved: Collection[str] = (),
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
     already shows the tree the battery judged and it is a person's turn. A
@@ -1621,7 +1633,7 @@ def _rebase_document(
     remote = vcs.remote_tip(root, branch)
 
     if (remote is not None and _unpublished(root, vcs, branch, remote)) or _wave_outstanding(
-        root, branch
+        root, branch, resolved
     ):
         # The wave has not finished: a head's rounds are still queued or
         # running, so nothing here resets or republishes the branch, and any
@@ -1748,6 +1760,7 @@ def _document_verdicts(
     forge: Forge,
     publish: Publisher,
     results: list[LaneResult],
+    resolved: Collection[str] = (),
 ) -> tuple[dict[str, tuple[str, str]], set[str]]:
     """The later pass's read-back at the document unit (S-0083/P-3, S-0099/D-3).
 
@@ -1856,6 +1869,7 @@ def _document_verdicts(
                 conflicts.get(branch, ""),
                 info.number,
                 results,
+                resolved,
             )
 
         carried.update(
@@ -1886,6 +1900,7 @@ def _land_fast_forward(
     document: str | None = None,
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -1913,6 +1928,7 @@ def _land_fast_forward(
                 results,
                 rounds,
                 status,
+                resolved,
             )
         else:
             _open_pull_request(
@@ -2002,6 +2018,7 @@ def _land_rebased(
     document: str | None = None,
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -2093,6 +2110,7 @@ def _land_rebased(
                 results,
                 rounds,
                 status,
+                resolved,
             )
         else:
             _open_pull_request(
@@ -2138,6 +2156,7 @@ def _land_candidate(
     document: str | None = None,
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -2157,6 +2176,7 @@ def _land_candidate(
             document,
             rounds,
             status,
+            resolved,
         )
         return
 
@@ -2183,6 +2203,7 @@ def _land_candidate(
         document,
         rounds,
         status,
+        resolved,
     )
 
 
@@ -2213,6 +2234,7 @@ def process_lane(
     rounds: bool = False,
     status: StatusScm | None = None,
     store: str = "",
+    resolved: Collection[str] = (),
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -2274,7 +2296,7 @@ def process_lane(
         # evening is recorded before anything lands onto its branch again.
         # Asked per document rather than per task, from the lane's own
         # records, so a pass holding none asks nothing (S-0083/D-12).
-        carried, merged_documents = _document_verdicts(root, vcs, forge, publish, results)
+        carried, merged_documents = _document_verdicts(root, vcs, forge, publish, results, resolved)
 
     for state in ready_candidates(root):
         if only is not None and state.task_id != only:
@@ -2374,6 +2396,7 @@ def process_lane(
             document,
             rounds,
             status,
+            resolved,
         )
 
     return results

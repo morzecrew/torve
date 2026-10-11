@@ -137,6 +137,7 @@ class Round:
     acceptance: list[str]
     phases: tuple[int, ...] = ()
     target: str = ""
+    battery: bool = False
 
     @property
     def title(self) -> str:
@@ -159,6 +160,7 @@ class Claim:
     files: tuple[str, ...] = ()
     phases: tuple[int, ...] = ()
     target: str = ""
+    battery: bool = False
 
 
 # ....................... #
@@ -569,6 +571,7 @@ def compose_wave(
         acceptance=_acceptance(root),
         phases=tuple(phases),
         target=next((claim.target for claim in claims if claim.target), ""),
+        battery=any(claim.battery for claim in claims),
     )
 
 
@@ -691,6 +694,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
         ],
         "phases": list(round_.phases),
         "nonce": round_.nonce,
+        "battery": round_.battery,
     }
     contract.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
@@ -1698,12 +1702,18 @@ def review_thread_leg(
                 }
                 - {""}
             )
+            battery = any(
+                bool(row.get("battery"))
+                for row in rows
+                if row.get("kind") == "review" and row.get("task_id") in reviews
+            )
             claims.append(
                 Claim(
                     finding,
                     tuple(files),
                     tuple(_target_phases(root, rows, targets)),
                     targets[0] if len(targets) == 1 else "",
+                    battery,
                 )
             )
 

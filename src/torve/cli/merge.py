@@ -280,6 +280,31 @@ def _status(config: RunnerConfig) -> StatusScm | None:
 # ....................... #
 
 
+def _resolved(root: Path, config: RunnerConfig) -> set[str]:
+    """The rounds a person resolved off the board (S-0101/D-2): the merge's
+    caller opens the store, as the manager pass does, and hands the lane the
+    facts. A round abandoned on one host releases the wave on every host, so
+    the resolution is read from the log rather than a row on the host that
+    minted the round. No partition, or no reachable store, reads nothing."""
+
+    partition = config.scm.repo
+
+    if not partition:
+        return set()
+
+    from torve.application.projections import resolved_rounds
+    from torve.cli.options import dsn_for, read_log
+    from torve.domain.events import SubjectType
+
+    async def read(log: Any) -> set[str]:
+        return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
+    return read_log(dsn_for(root), read)
+
+
+# ....................... #
+
+
 def _action_style(action: str) -> str:
     if action in ("conflict", "gates red", "pr refused"):
         return STYLE_FAIL
@@ -469,6 +494,8 @@ def merge_cmd(
             status=_status(config),
             # The store the promotion unit and landing need (S-0099/D-11).
             store=config.store.adapter,
+            # The board's resolutions, read by the caller (S-0101/D-2).
+            resolved=_resolved(root, config),
         )
 
     except RuntimeError as exc:

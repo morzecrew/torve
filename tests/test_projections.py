@@ -114,6 +114,41 @@ def test_a_wait_on_another_documents_tasks_names_the_document(tmp_path):
     assert cross_document_waits(tmp_path, {"T-0001", "T-0002"}) == {}
 
 
+def test_a_resolution_is_a_resolution_and_a_requeue_is_not():
+    """S-0101/D-2: the rounds a person resolved are read from the board's
+    `escalation.resolved` events — an abandonment releases the wave and a
+    requeue does not, because the round is offered again."""
+    import uuid
+    from datetime import UTC, datetime
+
+    from torve.application.projections import resolved_rounds
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    def record(task_id: str, resolution: str) -> EventRecord:
+        stamp = datetime.now(UTC)
+        return EventRecord(
+            id=uuid.uuid4().hex,
+            rev=1,
+            created_at=stamp,
+            last_update_at=stamp,
+            kind=EventKind.ESCALATION_RESOLVED,
+            partition="morzecrew/torve",
+            subject_type=SubjectType.TASK,
+            subject_id=task_id,
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="op-1",
+            payload={"resolution": resolution},
+        )
+
+    records = [
+        record("T-1", "abandoned"),
+        record("T-2", "landed"),
+        record("T-3", "requeued"),
+    ]
+
+    assert resolved_rounds(records) == {"T-1", "T-2"}
+
+
 def test_the_four_old_landing_readers_are_gone():
     """S-0099/D-1: one function answers "is this task landed" for every
     caller, and the four readers it replaced are deleted."""
