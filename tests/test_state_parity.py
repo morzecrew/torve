@@ -37,6 +37,7 @@ from torve.application.manager import project
 from torve.application.residency import mint
 from torve.application.worker import Worker
 from torve.config.runconfig import RunnerConfig
+from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
 
 PARTITION = "morzecrew/torve"
@@ -141,3 +142,63 @@ def test_the_attempt_count_survives_a_retry(rig):
     # run that took two tries cannot read as one.
     assert view.attempts == state.attempts
     assert view.state is state.state is TaskState.READY
+
+
+def test_a_requeued_run_numbers_the_next_attempt_after_the_record(rig):
+    """S-0099/D-8: the count lives in the record, so a requeue continues the
+    sequence — even after the host's own state file has been reaped."""
+
+    repo, deps, verdicts = rig
+    task = task_for(repo)
+    verdicts.extend([1, 1])  # red twice, to a ceiling of two
+
+    async def main():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            await mint(log, {task.id: task}, partition=PARTITION, actor_id="manager-1")
+            worker = Worker(
+                log=log,
+                name="w-1",
+                execute=runner_execute(
+                    repo.root,
+                    RunnerConfig(poison_ceiling=2),
+                    lambda one: (one, deps),
+                    log=log,
+                    partition=PARTITION,
+                    seat="w-1",
+                ),
+            )
+            await worker.once(PARTITION)
+            escalated = project(await log.since(partition=PARTITION)).tasks[task.id]
+            assert escalated.attempts == 2 and escalated.escalation is not None
+
+            # A person requeues it; the reap clears the host's own state file,
+            # which is exactly what used to restart the count at one.
+            await log.record(
+                EventKind.ESCALATION_RESOLVED,
+                partition=PARTITION,
+                subject_type=SubjectType.TASK,
+                subject_id=task.id,
+                actor_kind=ActorKind.OPERATOR,
+                actor_id="operator",
+                payload={"resolution": "requeued", "note": ""},
+            )
+            (repo.root / ".wt" / f"{task.id}.state.json").unlink(missing_ok=True)
+
+            await worker.once(PARTITION)
+            board = project(await log.since(partition=PARTITION)).tasks[task.id]
+            started = [
+                int(event.payload["attempt"])
+                for event in await log.history(task.id, partition=PARTITION)
+                if event.kind is EventKind.ATTEMPT_STARTED
+            ]
+
+        return board, started
+
+    board, started = asyncio.run(main())
+
+    assert board.state is TaskState.READY
+    assert board.attempts == 3
+    assert started == [1, 2, 3]

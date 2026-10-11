@@ -703,7 +703,7 @@ def test_the_document_less_landing_counts_as_shipped(tmp_path):
     landed and names its commit like any other."""
 
     from torve.application.decisions import land, landed_commits, landings
-    from torve.application.projections import shipped_ids
+    from torve.application.projections import landed as project_landed
     from torve.domain.task import Task
 
     spec_dir, task = _landing_repo(tmp_path)
@@ -720,7 +720,7 @@ def test_the_document_less_landing_counts_as_shipped(tmp_path):
 
     assert {one.task for one in landings(tmp_path, spec_dir)} == {task.id, "T-0002"}
     assert landed_commits(tmp_path, spec_dir, "T-0002") == ["b" * 40]
-    assert shipped_ids(tmp_path, spec_dir) == {task.id, "T-0002"}
+    assert set(project_landed(tmp_path, spec_dir)) == {task.id, "T-0002"}
 
 
 def test_the_log_land_verb_lands_the_contracts_task_with_the_commit_named(tmp_path):

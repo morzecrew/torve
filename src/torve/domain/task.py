@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from torve.base.model import STRICT
 from torve.domain.source import SOURCE_PATTERN
@@ -94,6 +94,54 @@ class Budget(BaseModel):
 
 # ....................... #
 
+
+class RoundFinding(BaseModel):
+    """One finding a review round carries (S-0099/D-5): its anchor and the
+    thread identifiers that raised it — the shape `lane_review_task` wrote,
+    now riding in the round's own contract."""
+
+    model_config = STRICT
+
+    path: str
+    """The file the finding anchors to."""
+    line: int | None = None
+    """The line it anchors at, None for a file-level finding."""
+    end_line: int | None = None
+    """The last line of the span, None when the finding anchors at one line."""
+    threads: list[str] = Field(default_factory=list)
+    """The threads that raised it — the reply addresses the answer names."""
+
+
+# ....................... #
+
+
+class RoundRecord(BaseModel):
+    """A review round as its own contract describes it (S-0099/D-5): the branch
+    and pull request it is about, the task it targets, every finding it carries
+    and the phases it was minted from. Carried by `task.minted`, so the wave,
+    the requeue's rescope and the morning report read the board rather than a
+    row on the host that minted it."""
+
+    model_config = STRICT
+
+    branch: str
+    """The document branch the round's pull request is on."""
+    pr: int = 0
+    """The pull request number the round answers, 0 when the forge named none."""
+    target: str | None = None
+    """The task the findings are on — the last landed task, or the review the
+    recorded findings came from. None for a round composed from forge threads."""
+    findings: list[RoundFinding] = Field(default_factory=list)
+    """Every finding the round carries, one or a file-disjoint wave."""
+    phases: list[int] = Field(default_factory=list)
+    """The document's phasing entries the round was minted from."""
+    nonce: str = ""
+    """The per-composition fence nonce, so the answering half can recognise
+    its own intent."""
+
+
+# ....................... #
+
 # The roles a worker may take off the board. Review and draft contracts are
 # runner-minted mid-run (S-0005/D-2, S-0020/D-2) and conclude with the run that
 # minted them, so nobody claims one — they are recorded (S-0049/A-1) because the
@@ -170,6 +218,12 @@ class Task(BaseModel):
     """The phase's declared structural or routine character, copied verbatim from
     the phasing entry at mint (S-0034/D-1). Absent by default — a task with no
     character routes on the seat alone, same as one with no tier_variant."""
+    _round: RoundRecord | None = PrivateAttr(default=None)
+    """A review round's own description (S-0099/D-5), read from the contract's
+    `round:` mapping. Kept off the model's field surface on purpose: a task is
+    minted from a document and the `Document` model embeds `Task`, so a new
+    field reddens the generated schemas the contract's scope does not admit.
+    The `round` property is what every reader uses."""
 
     # ....................... #
 
@@ -185,6 +239,39 @@ class Task(BaseModel):
             )
 
         return data
+
+    # ....................... #
+
+    @property
+    def round(self) -> RoundRecord | None:
+        """A review round's own description (S-0099/D-5): the document branch
+        and pull request it answers, its target, findings and phases. None for
+        every contract that is not a round."""
+
+        return self._round
+
+    # ....................... #
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _carry_round(cls, data: Any, handler: Any) -> Any:
+        # S-0099/D-5: `round:` is the round's carrier. It is lifted out before
+        # `extra="forbid"` sees it and handed to the private attribute, so the
+        # contract carries it without the model's generated schema changing.
+        carried: Any = None
+
+        if isinstance(data, dict) and "round" in data:
+            carried = data["round"]
+            data = {key: value for key, value in data.items() if key != "round"}
+
+        task = handler(data)
+
+        if carried is not None:
+            task._round = (
+                carried if isinstance(carried, RoundRecord) else RoundRecord.model_validate(carried)
+            )
+
+        return task
 
     # ....................... #
 

@@ -312,7 +312,7 @@ def test_a_task_with_no_landing_ships_nothing(tmp_path):
     with them the mint chore whose subject shipped a whole phase once."""
     import subprocess
 
-    from torve.application.projections import shipped_ids
+    from torve.application.projections import landed as project_landed
 
     root = tmp_path
     subprocess.run(["git", "init", "-q", str(root)], check=True)
@@ -328,12 +328,12 @@ def test_a_task_with_no_landing_ships_nothing(tmp_path):
         subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", subject], check=True)
 
-    assert shipped_ids(root) == set()
+    assert set(project_landed(root)) == set()
 
     # The one task the tree holds a landing for is the one that shipped.
     landed(root, "T-0105")
 
-    assert shipped_ids(root) == {"T-0105"}
+    assert set(project_landed(root)) == {"T-0105"}
 
 
 # ----------------------- #

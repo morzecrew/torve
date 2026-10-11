@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0507
+phase: 2
+base: 0bda1941413fba969117d9e1acde7309f3bf27c7
+commit: 0f9a401bcbf32295826d24e5c3111b091965a62d
+at: '2026-10-10T18:39:26Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-10T18:36:14Z'
+    claim: >-
+      D-8 requires the attempt number be read from the record, but the paths it governs
+      (runner.py, runstate.py) hold no event-log handle, so the read lands in executors.py,
+      which the row does not name; runner.py still seeds and continues the count.
+    evidence: >-
+      src/torve/application/executors.py:135 — the record is read here, and the number
+      it yields is handed to run_task as attempt_base
+    action: decided
+    proposal: >-
+      D-8's governed paths name src/torve/application/executors.py, where the record
+      read that feeds the number lives.

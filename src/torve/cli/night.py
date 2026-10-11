@@ -89,8 +89,7 @@ def night_show(
     )
     from torve.application.projections import (
         cross_document_waits,
-        lane_landings,
-        shipped_ids,
+        landed,
         stream_rows,
     )
 
@@ -117,7 +116,7 @@ def night_show(
     reviews = review_threads(rows, since=report.opened_at, until=report.closed_at)
     # S-0085/D-6: a task waiting on another document's landing names the
     # document, so the reader knows which pull request to look at.
-    waits = cross_document_waits(root, set(lane_landings(root)) | shipped_ids(root))
+    waits = cross_document_waits(root, landed(root))
 
     if fmt is Format.JSON:
         emit_json(

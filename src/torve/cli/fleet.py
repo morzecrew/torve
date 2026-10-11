@@ -143,7 +143,7 @@ async def _serve_fleet(
     from torve.application.executors import runner_execute
     from torve.application.fleet import serve_fleet
     from torve.application.manager import project
-    from torve.application.projections import shipped_landings
+    from torve.application.projections import landed
     from torve.application.residency import once, ran_here
     from torve.application.worker import Worker
     from torve.cli import assembly
@@ -167,7 +167,7 @@ async def _serve_fleet(
             root = repo.path
             config = load_runner_config(root)
             seat = f"{worker}:{repo.partition}"
-            landings = shipped_landings(root)
+            landings = landed(root)
             ran = ran_here(root)
 
             def standing() -> tuple[str, bool]:

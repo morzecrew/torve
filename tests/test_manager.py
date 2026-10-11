@@ -218,14 +218,11 @@ def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
     assert on_base(dependent, board_with(merge_sha))
 
 
-def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_path):
-    """The board holds the attempt's sha; the lane, landing onto a branch that
-    had moved, rebased the candidate and the branch holds a different commit.
-    That commit is in the lane's `lane_landed` row and nowhere else — read
-    there, or every phase after the first waits forever while the branch
-    fills with rounds (bloomery night 10, 2026-09-25)."""
-    import json
-
+def test_a_landing_file_on_the_documents_remote_tip_satisfies_a_dependency(tmp_path):
+    """The dependency check reads the remote's copy of the document branch
+    (S-0091/D-1), and the landing file on it is the carrier (S-0099/D-1). A
+    branch whose shas a rebase renamed still answers, where the attempt's sha
+    no branch holds does not."""
     from torve.adapters.vcs.git import GitLane
     from torve.cli.manager import _dependencies_on_base
     from torve.config.runconfig import RunnerConfig
@@ -238,28 +235,11 @@ def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_
     repo.git("config", "user.email", "lane@example.invalid")
     repo.write("src/a/app.py", "print('hello')\n")
     repo.commit("init")
-    repo.git("checkout", "-q", "-b", "torve/T-1")
-    repo.write("src/a/app.py", "print('landed')\n")
-    repo.commit("the phase")
-    attempt_sha = GitLane().tip(repo.root, "HEAD")
-    # The document branch moved (a round landed) before the lane got to T-1,
-    # so the lane rebased: the branch holds a different commit.
-    repo.git("checkout", "-q", "-b", "torve/S-0013", "main")
+    repo.git("checkout", "-q", "-b", "torve/S-0013")
     repo.write("docs/round.md", "a round\n")
     repo.commit("a round")
-    repo.git("cherry-pick", attempt_sha)
-    rebased_sha = GitLane().tip(repo.root, "HEAD")
-    assert rebased_sha != attempt_sha
     # The dependency check reads the remote's copy (S-0091/D-1).
     repo.git("update-ref", "refs/remotes/origin/torve/S-0013", "HEAD")
-
-    telemetry = repo.root / ".torve" / "telemetry.jsonl"
-    telemetry.parent.mkdir(parents=True, exist_ok=True)
-    telemetry.write_text(
-        json.dumps({"kind": "engine", "event": "lane_landed", "task": "T-1", "sha": rebased_sha})
-        + "\n",
-        encoding="utf-8",
-    )
 
     config = RunnerConfig.model_validate(
         {"promotion": {"landing": "pull_request", "unit": "document", "auto_merge": True}}
@@ -272,27 +252,20 @@ def test_a_rebased_landing_satisfies_a_dependency_through_the_lanes_own_row(tmp_
         depends_on=["T-1"],
         scope=Scope(allow=["src/b/**"], deny=[]),
     )
+    # The board's sha names no commit on the branch, and no landing file is
+    # on it: the dependency is not satisfied.
     board = Board(
-        tasks={"T-1": TaskView(task_id="T-1", state=TaskState.READY, landed_sha=attempt_sha)}
+        tasks={"T-1": TaskView(task_id="T-1", state=TaskState.READY, landed_sha="f" * 40)}
     )
-    assert on_base(dependent, board)
-    # Without the lane's row the attempt's sha is on no branch, as before.
-    telemetry.write_text("", encoding="utf-8")
     assert not on_base(dependent, board)
 
-    # The base moved and the lane rebased the document branch onto it: every
-    # sha is renamed, the board's and the lane's alike. The landing file the
-    # tree carries is what still says T-1 landed here.
+    # The landing file on the branch's remote tip is the carrier: the
+    # dependency is satisfied however the branch's shas are rewritten.
     repo.write(".torve/specs/S-0013/execution/T-1-1-20260926T000000Z.yaml", "task: T-1\n")
     repo.commit("torve(T-1): landing of attempt 1")
-    repo.git("checkout", "-q", "main")
-    repo.write("README.md", "moved\n")
-    repo.commit("a merge to main")
-    repo.git("checkout", "-q", "torve/S-0013")
-    repo.git("rebase", "-q", "main")
     repo.git("update-ref", "refs/remotes/origin/torve/S-0013", "HEAD")
-    assert not GitLane().is_ancestor(repo.root, rebased_sha, "torve/S-0013")
     assert on_base(dependent, board)
+    assert not GitLane().is_ancestor(repo.root, "f" * 40, "torve/S-0013")
 
 
 def test_a_local_document_branch_the_remote_lacks_is_no_base(tmp_path):
@@ -1377,8 +1350,8 @@ def test_a_named_night_is_the_one_folded_and_the_default_is_the_latest():
 def test_the_board_names_the_document_a_task_waits_on(tmp_path, monkeypatch):
     """S-0085/D-6 promised it on `torve manager board` as well as on `torve
     night show`, and only the night had it: a task waiting on another
-    document's landing names that document, and a dependency the board
-    already holds as landed is no wait."""
+    document's landing names that document, and a dependency the base holds
+    a landing for is no wait."""
     import json
 
     import yaml
@@ -1387,6 +1360,13 @@ def test_the_board_names_the_document_a_task_waits_on(tmp_path, monkeypatch):
     from torve.application.manager import Board, TaskView
     from torve.cli import manager as manager_cli
     from torve.cli.main import app
+
+    landing = tmp_path / ".torve" / "execution"
+    landing.mkdir(parents=True)
+    (landing / "T-0001-1-20260909T120000Z.yaml").write_text(
+        "task: T-0001\nat: '2026-09-09T12:00:00Z'\ncommit: " + "a" * 40 + "\n",
+        encoding="utf-8",
+    )
 
     for task_id, spec, depends_on in (
         ("T-0001", "S-0090", ()),
@@ -1517,7 +1497,25 @@ def test_a_requeued_round_takes_its_documents_phasing_as_the_branch_holds_it(tmp
     repo.git("update-ref", "-d", "refs/remotes/origin/torve/S-0084")
     repo.write(
         f"{layout.TORVE_DIR}/tasks/T-0950/contract.yaml",
-        yaml.safe_dump({"id": "T-0950", "scope": {"allow": ["src/app.py"], "deny": []}}),
+        yaml.safe_dump(
+            {
+                "id": "T-0950",
+                "decisions": [],
+                "scope": {"allow": ["src/app.py"], "deny": []},
+                # The round rides in its own contract (S-0099/D-5): the
+                # requeue's rescope reads it here, not from a `lane_review_task`
+                # row on the host that minted it.
+                "round": {
+                    "branch": "torve/S-0084",
+                    "pr": 0,
+                    "findings": [
+                        {"path": "src/app.py", "line": 3, "end_line": None, "threads": []}
+                    ],
+                    "phases": [],
+                    "nonce": "",
+                },
+            }
+        ),
     )
     engine_event(
         repo.root,
@@ -1702,13 +1700,19 @@ def test_the_landing_leg_refreshes_the_landings_the_pass_reads(tmp_path):
     the same pass as a landing records it instead of releasing the task."""
     import asyncio
 
-    from torve.application.telemetry import engine_event
     from torve.cli.manager import _refreshing
+
+    # The leg re-reads the carrier the lane writes — the landing file, not
+    # the stream (S-0099/D-1).
 
     landings = {"T-0001": "aaaa"}
 
     async def lane() -> list[str]:
-        engine_event(tmp_path, "lane_landed", {"task": "T-0002", "sha": "bbbb"})
+        execution = tmp_path / ".torve" / "execution"
+        execution.mkdir(parents=True, exist_ok=True)
+        (execution / "T-0002-1-20260909T120000Z.yaml").write_text(
+            "task: T-0002\nat: '2026-09-09T12:00:00Z'\ncommit: bbbb\n", encoding="utf-8"
+        )
         return ["T-0002"]
 
     assert asyncio.run(_refreshing(lane, landings, tmp_path)()) == ["T-0002"]

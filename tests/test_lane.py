@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from torve.adapters.vcs.git import GitLane
@@ -19,7 +20,7 @@ from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
 from torve.cli.manager import _lane_leg
-from torve.config.runconfig import PromotionConfig, RunnerConfig
+from torve.config.runconfig import PromotionConfig, RunnerConfig, StoreConfig
 from torve.domain.states import TaskState
 
 
@@ -180,6 +181,52 @@ def test_a_red_rebase_puts_the_branch_back_so_the_next_pass_regates(lane_repo):
     assert second.exit_code == 1, second.output
     assert json.loads(second.stdout)["results"][0]["action"] == "gates red"
     assert (lane_repo / "twenty.py").exists() is False
+
+
+def test_a_third_red_at_the_same_base_and_head_escalates(lane_repo, monkeypatch):
+    """S-0099/D-9: a candidate the lane keeps finding red at the same base tip
+    and the same head is not regated for ever — the third red escalates the
+    run instead of rebasing it a third time."""
+
+    import torve.application.lane as lane_module
+
+    monkeypatch.setattr(lane_module, "_RED_RUNS", {})
+
+    candidate(lane_repo, "T-7030", "thirty.py", "thirty = 30\n")
+    # Move the base under it, so landing needs a rebase and a re-gate.
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    before = git(lane_repo, "rev-parse", naming.branch("T-7030"))
+
+    # A gate that cannot pass, so every re-gate is red at the same pair.
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\n"
+        "gates:\n"
+        "  - name: refuses\n"
+        "    run: 'false'\n"
+        "    state: blocking\n"
+        "    origin: structural\n"
+        "    input: worktree\n"
+        "    timeout: 30\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a gate that refuses")
+
+    # The first two reds regate and leave the branch where it was.
+    for _ in range(2):
+        result = invoke_merge(lane_repo)
+        assert result.exit_code == 1, result.output
+        assert json.loads(result.stdout)["results"][0]["action"] == "gates red"
+        assert git(lane_repo, "rev-parse", naming.branch("T-7030")) == before
+
+    # The third red is a person's: escalated, not rebased again.
+    third = invoke_merge(lane_repo)
+    assert third.exit_code == 2, third.output
+    assert json.loads(third.stdout)["results"][0]["action"] == "stuck"
+    assert RunState.load(naming.state_file(lane_repo, "T-7030")).state is TaskState.ESCALATED
 
 
 def test_the_lane_event_is_reconciled_against_the_landing_files(lane_repo):
@@ -1236,11 +1283,49 @@ def _origin(root: Path, tmp_path: Path) -> Path:
 
 def _contract(root: Path, task_id: str, spec: str | None) -> None:
     """The contract is what names the document — written after every
-    candidate, because `candidate` stages the whole tree onto its branch."""
+    candidate, because `candidate` stages the whole tree onto its branch. A
+    contract naming a document also carries that task's landing file onto the
+    branch, the carrier a document branch's tasks are read from (S-0099/D-2)."""
     path = root / ".torve" / "tasks" / task_id / "contract.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     body = f"schema_version: 2\nid: {task_id}\ndecisions: []\n"
     path.write_text(body + (f"spec: {spec}\n" if spec else ""), encoding="utf-8")
+
+    if spec:
+        _carry_landing(root, task_id, spec)
+
+
+def _carry_landing(root: Path, task_id: str, spec: str) -> None:
+    """The runner's landing file on a candidate (S-0059/D-9), the carrier of
+    what a document branch holds (S-0099/D-2). A task whose branch does not
+    exist — a phase landed by hand — is skipped, and one whose landing file is
+    already there is left alone."""
+    branch = naming.branch(task_id)
+    probe = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "-q", f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if probe.returncode != 0:
+        return
+
+    work = git(root, "rev-parse", branch)
+    git(root, "checkout", "-q", branch)
+    rel = f".torve/specs/{spec}/execution/{task_id}-1-20261010T000000Z.yaml"
+    landing = root / rel
+    landing.parent.mkdir(parents=True, exist_ok=True)
+    landing.write_text(f"task: {task_id}\ncommit: {work}\n", encoding="utf-8")
+    git(root, "add", rel)
+
+    if git(root, "diff", "--cached", "--name-only"):
+        # Amended onto the candidate's work commit, so a phase is one commit
+        # on the document branch — the shape the runner's landing produces
+        # (S-0059/D-9) and the one the branch-history assertions read.
+        git(root, "commit", "-q", "--amend", "--no-edit", "--no-gpg-sign")
+
+    git(root, "checkout", "-q", "main")
 
 
 def test_the_first_phase_cuts_the_document_branch_and_lands_onto_it(lane_repo, tmp_path):
@@ -1496,6 +1581,7 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
     _contract(lane_repo, "T-7209", "S-0905")
     (lane_repo / ".torve" / "config.yaml").write_text(
         "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "store:\n  adapter: postgres\n"
         "scm:\n  open_pr: true\n  repo: owner/name\n",
         encoding="utf-8",
     )
@@ -1506,16 +1592,44 @@ def test_the_configured_unit_reaches_the_lane(lane_repo, tmp_path):
     seen: list[tuple[str, str]] = []
     import torve.cli.merge as merge_module
 
-    original = merge_module._publisher
+    original = (merge_module._publisher, merge_module._status)
     merge_module._publisher = lambda root, config: _recording_publisher(seen, root=root)
+    # The verdict the completion battery writes goes to a forge that a checkout
+    # without `gh` cannot reach (S-0099/D-4).
+    merge_module._status = lambda config: _Status()
 
     try:
         result = invoke_merge(lane_repo)
     finally:
-        merge_module._publisher = original
+        merge_module._publisher, merge_module._status = original
 
     assert result.exit_code == 0, result.output
-    assert seen == [("T-7209", naming.document_branch("S-0905"))]
+    # Published, then published again once the green verdict is on the forge,
+    # so the completed document turns ready (S-0099/D-4).
+    assert seen == [("T-7209", naming.document_branch("S-0905"))] * 2
+
+
+def test_the_lane_refuses_document_or_pull_request_landing_on_a_mock_store(lane_repo, tmp_path):
+    """S-0099/D-11: a mock store is in-process, so a document unit and a
+    pull-request landing cannot be run on it — the lane refuses, and a local
+    landing on a mock store is unaffected."""
+
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7210", "ten.py", "ten = 10\n")
+    _contract(lane_repo, "T-7210", "S-0906")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  landing: pull_request\n  unit: document\n"
+        "store:\n  adapter: mock\n"
+        "scm:\n  open_pr: true\n  repo: owner/name\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "configure the unit")
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code != 0, result.output
+    assert "postgres store" in result.output
 
 
 # The later pass at the document unit (S-0083/D-10, S-0083/D-11, S-0083/D-12,
@@ -1587,9 +1701,11 @@ def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_re
         forge=_forge(_pr(number=21, state="merged", merge_commit="d" * 40), asked),
         unit="document",
     )
-    # The verdict is terminal: no second question and no second pull request.
-    assert asked == [document]
-    assert [r.action for r in again] == ["already landed", "already landed"]
+    # The state is read from the forge on every pass, at most once per pass
+    # (S-0099/D-3): the branch is still open — the merge put nothing on the
+    # base — so it is asked about again, and no second pull request is opened.
+    assert asked == [document, document]
+    assert [r.action for r in again] == ["landed", "already landed", "already landed"]
     assert len(published) == 2
 
 
@@ -1654,8 +1770,10 @@ def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch
         forge=_forge(_pr(number=22, state="closed"), asked),
         unit="document",
     )
-    assert [r.action for r in again] == ["abandoned", "abandoned"]
-    assert asked == [document]
+    # The branch stays open — a close puts nothing on the base — so the state
+    # is read from the forge again (S-0099/D-3), and nothing is published.
+    assert [r.action for r in again] == ["abandoned", "abandoned", "abandoned"]
+    assert asked == [document, document]
     assert len(published) == 2
 
 
@@ -1832,7 +1950,9 @@ def test_the_served_leg_publishes_and_reads_back_as_the_manual_verb_does(lane_re
     base_before = git(lane_repo, "rev-parse", "main")
 
     config = RunnerConfig(
-        promotion=PromotionConfig(auto_merge=True, landing="pull_request", unit="document")
+        promotion=PromotionConfig(auto_merge=True, landing="pull_request", unit="document"),
+        # A pull-request landing needs a durable store (S-0099/D-11).
+        store=StoreConfig(adapter="postgres"),
     )
     published: list[tuple[str, str]] = []
     asked: list[str] = []
@@ -1950,7 +2070,9 @@ def test_a_merged_document_is_cut_again_and_its_next_pull_request_is_new_work(la
         unit="document",
     )
 
-    by_task = {r.task: r.action for r in results}
+    # The document's own read-back row is beside the tasks' (S-0099/D-3): the
+    # test is about what each candidate became.
+    by_task = {r.task: r.action for r in results if r.task.startswith("T-")}
     assert by_task == {"T-7401": "already landed", "T-7402": "landed"}
     # The old commits stay reachable; the new branch carries only new work.
     assert _kept(lane_repo, document) == f"refs/torve/documents/{document}/{old}"
@@ -1988,9 +2110,9 @@ def test_a_document_branch_the_remote_deleted_is_cut_again(lane_repo, tmp_path):
 def test_a_document_branch_the_remote_has_is_worked_from_the_remote_tip(lane_repo, tmp_path):
     published: list[tuple[str, str]] = []
     document = _landed_document(lane_repo, tmp_path, "S-0922", {"T-7405": "five.py"}, published)
-    # Someone else moved the remote branch; the local ref is stale.
-    remote_tip = git(lane_repo, "rev-parse", "main")
-    git(lane_repo, "push", "-q", "--force", "origin", f"{remote_tip}:refs/heads/{document}")
+    # Someone else pushed onto the remote branch; the local ref is stale.
+    remote_tip = _hand_commit(lane_repo, document, "hand.py", "hand = 1\n")
+    git(lane_repo, "branch", "-f", document, f"{remote_tip}~1")
 
     candidate(lane_repo, "T-7406", "six.py", "# T-7406\n")
     _contract(lane_repo, "T-7406", "S-0922")
@@ -2004,6 +2126,27 @@ def test_a_document_branch_the_remote_has_is_worked_from_the_remote_tip(lane_rep
 
     assert git(lane_repo, "rev-parse", f"{document}~1") == remote_tip
     assert not _kept(lane_repo, document)
+
+
+def test_a_second_host_reads_the_branch_s_tasks_from_the_same_remote(lane_repo, tmp_path):
+    # S-0099/D-2: the branch's landing files are the whole carrier, so a host
+    # that only ever fetched decides the same tasks as the one that landed them.
+    from torve.application.lane import document_tasks
+
+    published: list[tuple[str, str]] = []
+    document = _landed_document(
+        lane_repo, tmp_path, "S-0940", {"T-7601": "one.py", "T-7602": "two.py"}, published
+    )
+    other = tmp_path / "other"
+
+    subprocess.run(
+        ["git", "clone", "-q", str(tmp_path / "origin.git"), str(other)],
+        check=True,
+        capture_output=True,
+    )
+
+    assert document_tasks(lane_repo, document) == ["T-7601", "T-7602"]
+    assert document_tasks(other, f"refs/remotes/origin/{document}") == ["T-7601", "T-7602"]
 
 
 # The battery at completion (S-0093/D-1, S-0093/D-2, S-0093/D-5).
@@ -2037,6 +2180,7 @@ def _phase_contract(root: Path, task_id: str, phase: int) -> None:
         f"schema_version: 2\nid: {task_id}\ndecisions: []\nspec: S-0930\nphase: {phase}\n",
         encoding="utf-8",
     )
+    _carry_landing(root, task_id, "S-0930")
 
 
 def _counting_regate(monkeypatch) -> list[str | None]:
@@ -2151,12 +2295,26 @@ def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     assert calls == [None]
 
 
+class _Status:
+    """A forge holding the completion battery's verdict per judged tip
+    (S-0099/D-4): the write the lane makes, and the read the draft flag makes."""
+
+    def __init__(self) -> None:
+        self.by_sha: dict[str, str] = {}
+
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        self.by_sha[sha] = state
+
+    def completion(self, sha: str) -> str | None:
+        return self.by_sha.get(sha)
+
+
 def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
     lane_repo, tmp_path, monkeypatch
 ):
-    """S-0098/D-4: the completing landing reaches the remote branch with the
-    pull request kept a draft, so the round about the red is cut from a branch
-    that carries the work the red was about."""
+    """S-0098/D-4, S-0099/D-4: the completing landing reaches the remote branch
+    with the pull request kept a draft, and the verdict that holds it is the
+    commit status the battery wrote on the tip it judged."""
 
     import torve.application.lane as lane
 
@@ -2174,6 +2332,7 @@ def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
         lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t),
     )
     published: list[tuple[str, str]] = []
+    status = _Status()
 
     results = process_lane(
         lane_repo,
@@ -2181,18 +2340,20 @@ def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
         publish=_recording_publisher(published, root=lane_repo),
         unit="document",
         rounds=True,
+        status=status,
     )
 
     document = naming.document_branch("S-0930")
     completing = git(lane_repo, "rev-parse", naming.branch("T-7305"))
     assert [r.action for r in results] == ["landed", "landed", "gates red"]
     # The completing landing reached the remote branch under the document's
-    # one pull request, and the branch tip still carries the red the publisher
+    # one pull request, and the tip's status is red — the verdict the publisher
     # reads to keep it a draft.
     assert published == [("T-7304", document), ("T-7305", document)]
     assert git(lane_repo, "rev-parse", document) == completing
     assert git(lane_repo, "rev-parse", f"origin/{document}") == completing
-    assert lane.document_tip_red(lane_repo, document, completing) is True
+    assert status.completion(completing) == "failure"
+    assert lane.document_tip_red(lane_repo, document, completing, status) is True
     red = [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
     assert [(e["task"], e["gates"]) for e in red] == [("T-7305", "tests=fail")]
 
@@ -2204,9 +2365,102 @@ def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
         publish=_recording_publisher(published, root=lane_repo),
         unit="document",
         rounds=True,
+        status=status,
     )
     assert [r.action for r in again] == ["already landed", "already landed"]
     assert len(published) == 2
+
+
+class _PushedOnlyStatus(_Status):
+    """A forge that, like GitHub, refuses a status on a commit it does not
+    hold: the lane must write the verdict after the push, never before."""
+
+    def __init__(self, root: Path, document: str) -> None:
+        super().__init__()
+        self.root = root
+        self.document = document
+
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        remote = git(self.root, "rev-parse", f"origin/{self.document}")
+        if remote != sha:
+            raise RuntimeError(f"gh: No commit found for SHA: {sha} (HTTP 422)")
+        super().set_status(sha, state, description)
+
+
+class _RefusingStatus(_Status):
+    def set_status(self, sha: str, state: str, description: str = "") -> None:
+        raise RuntimeError("gh: HTTP 502")
+
+
+def test_the_verdict_is_written_after_the_push_and_a_refusal_never_ends_the_pass(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0099/D-4: the forge holds a status only for a commit it has, so the
+    verdict follows the push; and a forge that refuses the status leaves the
+    tip with no verdict — read as not green — without aborting the pass or
+    putting the published landing back."""
+
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7340", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7341", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7340", 1)
+    _phase_contract(lane_repo, "T-7341", 2)
+    real = lane._regate
+    monkeypatch.setattr(
+        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+    )
+    document = naming.document_branch("S-0930")
+    published: list[tuple[str, str]] = []
+    status = _PushedOnlyStatus(lane_repo, document)
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        rounds=True,
+        status=status,
+    )
+
+    completing = git(lane_repo, "rev-parse", naming.branch("T-7341"))
+    assert [r.action for r in results] == ["landed", "landed", "gates red"]
+    assert status.completion(completing) == "failure"
+
+
+def test_a_refused_verdict_leaves_the_landing_published(lane_repo, tmp_path, monkeypatch):
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7342", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7343", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7342", 1)
+    _phase_contract(lane_repo, "T-7343", 2)
+    real = lane._regate
+    monkeypatch.setattr(
+        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+    )
+    document = naming.document_branch("S-0930")
+    published: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+        rounds=True,
+        status=_RefusingStatus(),
+    )
+
+    completing = git(lane_repo, "rev-parse", naming.branch("T-7343"))
+    assert [r.action for r in results][:2] == ["landed", "landed"]
+    assert git(lane_repo, "rev-parse", f"origin/{document}") == completing
+    refused = [e for e in _events(lane_repo) if e.get("event") == "lane_status_refused"]
+    assert [e["sha"] for e in refused] == [completing]
+    assert lane.document_tip_red(lane_repo, document, completing, _RefusingStatus()) is True
 
 
 def test_the_publisher_keeps_the_draft_while_the_tip_carries_a_recorded_red(
@@ -2246,16 +2500,19 @@ def test_the_publisher_keeps_the_draft_while_the_tip_carries_a_recorded_red(
         "open_pr",
         lambda self, *a, **k: drafts.append(k["draft"]) or "https://forge/pr/7",
     )
+    # The forge holds the red verdict the battery wrote on the tip (S-0099/D-4).
+    monkeypatch.setattr(GhScm, "completion", lambda self, sha: "failure")
     publish = _publisher(lane_repo, load_config(lane_repo, None))
     assert publish is not None
 
     process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
 
     # Phase 1 was incomplete, phase 2 complete on a red suite: both drafts,
-    # the second only because the tip carries a recorded red.
+    # the second only because the tip carries a red status.
     assert drafts == [True, True]
     document = naming.document_branch("S-0930")
-    assert lane.document_tip_red(lane_repo, document, git(lane_repo, "rev-parse", document)) is True
+    tip = git(lane_repo, "rev-parse", document)
+    assert lane.document_tip_red(lane_repo, document, tip, GhScm("", "")) is True
 
 
 # The red battery's one round (S-0093/D-3, S-0093/D-4).
@@ -2339,22 +2596,26 @@ def test_a_green_rerun_at_the_rounds_tip_publishes_the_document_ready(
     calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 0])
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    status = _Status()
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status)
     document = naming.document_branch("S-0930")
     red_tip = git(lane_repo, "rev-parse", document)
     _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n")
     _answer(lane_repo, _battery_findings(lane_repo)[0]["task_id"])
 
-    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    again = process_lane(
+        lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status
+    )
 
     assert calls == [None, None]
     assert [r.action for r in again] == ["already landed", "already landed", "landed"]
     green_tip = git(lane_repo, "rev-parse", naming.branch("T-7308"))
     assert green_tip != red_tip
     assert published[-1] == ("T-7308", document)
-    # The later tip no longer carries the recorded red, so a green battery
-    # publishes the pull request ready (S-0098/D-4).
-    assert lane.document_tip_red(lane_repo, document, green_tip) is False
+    # The later tip carries its own green verdict, so the pull request
+    # publishes ready (S-0098/D-4, S-0099/D-4).
+    assert status.completion(red_tip) == "failure"
+    assert lane.document_tip_red(lane_repo, document, green_tip, status) is False
 
 
 def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp_path, monkeypatch):
@@ -2427,9 +2688,11 @@ def _round(
     state: TaskState | None = TaskState.READY,
 ) -> None:
     """A round the review leg minted: a task branch off the document branch,
-    its contract naming the document, its `lane_review_task` record and its
-    run state — the shape the lane reads a head's wave off. No state is a round
-    no worker has claimed yet: the runner writes one at dispatch."""
+    its contract naming the document, its `round:` description and its run
+    state — the shape the lane reads a head's wave off (S-0099/D-5). The
+    `lane_review_task` row is written beside it as the diagnostic the night
+    report still folds. No state is a round no worker has claimed yet: the
+    runner writes one at dispatch."""
     from torve.application.telemetry import engine_event
 
     git(root, "checkout", "-q", "-b", naming.branch(task_id), document)
@@ -2441,6 +2704,16 @@ def _round(
     git(root, "commit", "-q", "--no-gpg-sign", "-m", f"round ({task_id})")
     git(root, "checkout", "-q", "main")
     _contract(root, task_id, spec)
+    contract = root / ".torve" / "tasks" / task_id / "contract.yaml"
+    body = yaml.safe_load(contract.read_text(encoding="utf-8"))
+    body["round"] = {
+        "branch": document,
+        "pr": 0,
+        "findings": [{"path": filename, "line": None, "end_line": None, "threads": []}],
+        "phases": [],
+        "nonce": "",
+    }
+    contract.write_text(yaml.safe_dump(body, sort_keys=False), encoding="utf-8")
     engine_event(root, "lane_review_task", {"branch": document, "task": task_id, "path": filename})
 
     if state is None:
@@ -2533,6 +2806,29 @@ def test_a_round_no_worker_has_claimed_holds_the_wave(lane_repo, tmp_path):
     assert published == [("T-7531", document)]
 
 
+def test_a_round_minted_on_one_host_holds_the_wave_on_another(lane_repo, tmp_path):
+    """S-0099/D-5: a round is described by its own contract, so the wave is
+    read from the board — a host whose stream never saw the mint still counts
+    the round outstanding, and the landing waits for it."""
+    published: list[tuple[str, str]] = []
+    spec = "S-0936"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7551": "one.py"}, published)
+    _round(lane_repo, "T-7552", document, spec, "two.py", "# T-7552\n")
+    _round(lane_repo, "T-7553", document, spec, "three.py", "# T-7553\n", state=None)
+    # Another host: the contracts arrived, the mint events did not.
+    (lane_repo / ".torve" / "telemetry.jsonl").write_text("", encoding="utf-8")
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    assert [r.task for r in results if "held for the wave" in r.detail] == ["T-7552"]
+    assert published == [("T-7551", document)]
+
+
 def test_a_round_a_person_resolved_and_reaped_does_not_hold_the_wave(lane_repo, tmp_path):
     """An abandoned round swept by `reap --escalated` leaves no run state, so
     the resolution `manager resolve` writes to the stream is what releases it."""
@@ -2582,3 +2878,46 @@ def test_an_open_document_is_not_republished_while_the_wave_runs(lane_repo, tmp_
     assert published == [("T-7521", document)]
     assert not [r for r in results if r.task == document and r.action == "pull request"]
     assert git(lane_repo, "show", f"{document}:two.py") == "# T-7522"
+
+
+def _landing_on_branch(root: Path, branch: str, document: str, task_id: str) -> None:
+    """Commit a landing file for *task_id* under *document*'s execution
+    directory onto *branch*, cut from the current HEAD."""
+    git(root, "checkout", "-q", "-b", branch)
+    path = root / ".torve" / "specs" / document / "execution" / f"{task_id}-1-20261010T000000Z.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"schema_version: 1\ntask: {task_id}\nattempt: 1\ncommit: abc123\n", encoding="utf-8"
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", f"land {task_id}")
+    git(root, "checkout", "-q", "main")
+
+
+def test_a_host_that_only_fetched_reads_the_branch_s_tasks_from_the_remote(lane_repo, tmp_path):
+    """S-0099/D-2: the tasks a document branch carries are read from its remote
+    tip, so a host with no local `torve/S-*` branch decides as the host that
+    landed them does."""
+
+    from torve.application.lane import document_tasks
+
+    _origin(lane_repo, tmp_path)
+    branch = naming.document_branch("S-0950")
+    _landing_on_branch(lane_repo, branch, "S-0950", "T-9001")
+    git(lane_repo, "push", "-q", "origin", branch)
+    git(lane_repo, "branch", "-q", "-D", branch)
+
+    assert document_tasks(lane_repo, branch) == ["T-9001"]
+
+
+def test_a_branch_is_read_under_its_own_document_only(lane_repo, tmp_path):
+    """A landing file another document's directory holds on the branch is the
+    base's to answer, not the branch's."""
+
+    from torve.application.lane import document_tasks
+
+    _origin(lane_repo, tmp_path)
+    branch = naming.document_branch("S-0951")
+    _landing_on_branch(lane_repo, branch, "S-0952", "T-9002")
+
+    assert document_tasks(lane_repo, branch) == []

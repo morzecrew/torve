@@ -171,14 +171,48 @@ def seeded(repo):
 
 
 def open_document(root: Path, task_id: str = "T-0900", sha: str = "abc1234") -> None:
-    """What the lane's own records say makes a document branch open: one
-    landing onto it, and no verdict after."""
+    """What makes a document branch open: one landing file on its tip — the
+    carrier the lane reads the branch's tasks from (S-0099/D-2) — and the
+    stream record the leg still reads a landed sha from."""
 
     engine_event(
         root,
         "lane_landed",
         {"task": task_id, "unit": "document", "branch": BRANCH, "sha": sha, "mode": "ff"},
     )
+    _land_on(root, BRANCH, task_id, sha)
+
+
+def _land_on(root: Path, branch: str, task_id: str, sha: str) -> None:
+    """A landing file for *task_id* committed on *branch*'s tip, the branch cut
+    from the checkout's `main` when it does not exist yet."""
+    import subprocess
+
+    def g(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    probe = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "-q", f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    g("checkout", "-q", branch) if probe.returncode == 0 else g("checkout", "-q", "-b", branch)
+    rel = f".torve/specs/S-0084/execution/{task_id}-1-20261010T000000Z.yaml"
+    landing = root / rel
+    landing.parent.mkdir(parents=True, exist_ok=True)
+    landing.write_text(f"task: {task_id}\ncommit: {sha}\n", encoding="utf-8")
+    g("add", rel)
+
+    if g("diff", "--cached", "--name-only"):
+        g("commit", "-q", "--no-gpg-sign", "-m", f"torve({task_id}): landing of attempt 1")
+
+    # The branch is a document the pass reads back only where the remote has
+    # it (S-0099/D-3): the remote-tracking ref stands in for the fetch.
+    g("update-ref", f"refs/remotes/origin/{branch}", g("rev-parse", branch))
+    g("checkout", "-q", "main")
 
 
 # ....................... #
@@ -512,6 +546,30 @@ def test_a_finding_reraised_after_a_landed_reply_is_escalated_not_dispatched(see
     assert len(events(seeded.root, "lane_review_task")) == 1
     assert events(seeded.root, "lane_finding_reraised")
     assert RunState.load(naming.state_file(seeded.root, "T-0900")).state is TaskState.ESCALATED
+
+
+def test_a_finding_reraised_on_an_unchanged_head_writes_no_new_row(seeded):
+    """S-0099/D-9: a re-raise is news only when the head moved. On the head the
+    lane already recorded it, the second raise writes no row."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+
+    forge = StubForge(pr(thread("t1")))
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (minted,) = events(seeded.root, "lane_review_task")
+    task_id = minted["task"]
+    engine_event(seeded.root, "lane_landed", {"task": task_id, "sha": "cafe123", "unit": "task"})
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+
+    # The bot raises the same anchor again, on a new thread, at a new-for-it head.
+    forge.info = pr(thread("t9", line=13))
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+    assert len(events(seeded.root, "lane_finding_reraised")) == 1
+
+    # The same head again: no second row.
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+    assert len(events(seeded.root, "lane_finding_reraised")) == 1
 
 
 def test_the_records_are_read_only_when_the_sources_say_so(seeded):
@@ -861,7 +919,21 @@ def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
         RECORDED
     ]
 
-    engine_event(seeded.root, "lane_review_task", {"branch": BRANCH, "task": "T-0900"})
+    # T-0900's contract carries `round:` — the carrier the leg now reads the
+    # round from (S-0099/D-5), not a row on the host that minted it.
+    contract = seeded.root / ".torve" / "tasks" / "T-0900" / "contract.yaml"
+    contract.parent.mkdir(parents=True, exist_ok=True)
+    contract.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "id": "T-0900",
+                "decisions": [],
+                "round": {"branch": BRANCH, "pr": 0, "findings": [], "phases": [], "nonce": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     assert record_threads(seeded.root, BRANCH, events_all(seeded.root)) == ([], {})
 
@@ -921,15 +993,15 @@ def test_a_recorded_round_takes_the_scope_of_its_target_s_phase(seeded):
 
 
 def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
-    seeded.git("checkout", "-q", "-b", BRANCH)
+    # The landing makes the branch a document the pass reads back (S-0099/D-3).
+    open_document(seeded.root)
+    seeded.git("checkout", "-q", BRANCH)
     phased_document(seeded.root, ["src/**", "pages/**"])
     seeded.commit("the phase widened by amendment")
-    # The remote's copy, as the pass's fetch leaves it (S-0094/D-2).
-    seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", "HEAD")
-    seeded.git("checkout", "-q", "main")
-    seeded.git("branch", "-q", "-D", BRANCH)
-    phased_document(seeded.root, ["src/**"])
+    # The landing again, on the widened tip: the remote's copy of the branch
+    # carries both, as the pass's fetch leaves it (S-0094/D-2).
     open_document(seeded.root)
+    phased_document(seeded.root, ["src/**"])
     reviewed(seeded.root, ("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))
 
     review_thread_leg(seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False)

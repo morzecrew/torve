@@ -326,6 +326,86 @@ def test_the_broker_keeps_counts_and_metadata_never_bodies(upstream, monkeypatch
 
 
 # ....................... #
+# The meter, over recorded bodies (S-0099/D-7). A plain JSON body meters as
+# it always did; a streamed body is read for the usage its events carry.
+
+
+ANTHROPIC_STREAM = b"""\
+event: message_start
+data: {"type":"message_start","message":{"usage":{"input_tokens":25,"cache_creation_input_tokens":10,"cache_read_input_tokens":5,"output_tokens":1}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":200}}
+
+event: message_stop
+data: {"type":"message_stop"}
+"""
+
+OPENAI_STREAM = b"""\
+data: {"id":"1","choices":[{"delta":{"content":"hi"}}]}
+
+data: {"id":"1","choices":[],"usage":{"prompt_tokens":30,"completion_tokens":12,"total_tokens":42,"prompt_tokens_details":{"cached_tokens":8}}}
+
+data: [DONE]
+"""
+
+
+def test_an_anthropic_streamed_body_meters_its_real_counts():
+    from torve.adapters.broker.local import _meter
+
+    metered = _meter(ANTHROPIC_STREAM)
+
+    # input and cache come from `message_start`, output from `message_delta`.
+    assert (metered.input_tokens, metered.output_tokens) == (25, 200)
+    assert (metered.cache_read_tokens, metered.cache_write_tokens) == (5, 10)
+    # The total is input plus output; the cache counts ride beside it.
+    assert metered.tokens == 225
+    assert metered.cost_usd is None  # billed by plan: no price on the wire
+
+
+def test_an_openai_streamed_body_meters_its_real_counts():
+    from torve.adapters.broker.local import _meter
+
+    metered = _meter(OPENAI_STREAM)
+
+    # OpenAI folds a cache read into `prompt_tokens`; it is taken back out so
+    # `input` means a fresh token on both wires.
+    assert metered.input_tokens == 22
+    assert metered.output_tokens == 12
+    assert metered.cache_read_tokens == 8
+    assert metered.cache_write_tokens == 0
+    assert metered.tokens == 42
+
+
+def test_a_json_body_meters_as_before():
+    from torve.adapters.broker.local import _meter
+
+    metered = _meter(b'{"usage": {"total_tokens": 5}, "total_cost_usd": 0.01}')
+
+    assert metered.tokens == 5
+    assert metered.cost_usd == 0.01
+    assert (metered.input_tokens, metered.output_tokens) == (0, 0)
+
+
+def test_an_anthropic_json_body_keeps_cache_out_of_the_total():
+    """The broker's token budget sums `tokens`; a cache-heavy Anthropic body
+    counts input plus output there, as it did before the cache counts existed,
+    and reports the cache beside it."""
+    from torve.adapters.broker.local import _meter
+
+    metered = _meter(
+        b'{"usage": {"input_tokens": 10, "output_tokens": 4,'
+        b' "cache_read_input_tokens": 9000, "cache_creation_input_tokens": 300}}'
+    )
+
+    assert metered.tokens == 14
+    assert (metered.cache_read_tokens, metered.cache_write_tokens) == (9000, 300)
+
+
+# ....................... #
 # Remote endpoint mode (S-0041/D-6): `broker.bind` replaces the bridge-gateway
 # derivation, `broker.advertise` is the address the sandboxes are told, the
 # provider routes keep the run token across the hop, and the pass-through
@@ -1333,16 +1413,32 @@ def test_the_burn_sink_records_seat_consumed_events():
                 task_id="T-9500",
                 seat="executor",
             )
-            sink(BurnEvent(provider="test-vendor", tokens=5, cost_usd=0.01))
+            sink(
+                BurnEvent(
+                    provider="test-vendor",
+                    tokens=15,
+                    cost_usd=0.01,
+                    input_tokens=10,
+                    output_tokens=3,
+                    cache_read_tokens=2,
+                    cache_write_tokens=0,
+                )
+            )
             await asyncio.sleep(0.05)
 
             recorded = await log.history("T-9500")
 
             assert [event.kind for event in recorded] == [EventKind.SEAT_CONSUMED]
+            # S-0099/D-7: the four counts ride beside the total, so a
+            # plan-billed seat's response can still be priced per landing.
             assert recorded[0].typed_payload().model_dump() == {
                 "seat": "test-vendor",
-                "tokens": 5,
+                "tokens": 15,
                 "cost_usd": 0.01,
+                "input_tokens": 10,
+                "output_tokens": 3,
+                "cache_read_tokens": 2,
+                "cache_write_tokens": 0,
             }
 
     asyncio.run(scenario())

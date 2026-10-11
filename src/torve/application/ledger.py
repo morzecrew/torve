@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from torve.application.projections import shipped_ids, stream_rows
+from torve.application.projections import landed, stream_rows
 from torve.base.clock import parse
 from torve.config import layout
 
@@ -655,21 +655,21 @@ def ledger_report(root: Path, spec_dir: Path | None = None) -> dict[str, Any]:
     """
 
     rows, excluded = counted_rows(stream_rows(root))
-    landed = shipped_ids(root, spec_dir)
+    shipped = set(landed(root, spec_dir))
     seats = _fold_seats(rows)
     # The work-shaped denominators (S-0075/D-3), read from the diffs the
     # landings already commit — the same carrier S-0059/D-12 makes the one
     # reader of a landing, sized between the attempt's own base and head.
-    _attach_diff_lines(seats, _task_diffs(root, rows), rows, landed)
+    _attach_diff_lines(seats, _task_diffs(root, rows), rows, shipped)
 
     return {
         "schema_version": LEDGER_SCHEMA_VERSION,
         "attempts": len(rows),
-        "landed_tasks": len(landed),
+        "landed_tasks": len(shipped),
         "excluded": excluded,
         "contracts": _fold_contracts(root, rows),
         "seats": sorted(
-            (_seat_entry(seat, landed) for seat in seats.values()),
+            (_seat_entry(seat, shipped) for seat in seats.values()),
             key=lambda entry: (cast("str", entry["tier"]), cast("str", entry["image"])),
         ),
         "gates": _fold_gates(rows),

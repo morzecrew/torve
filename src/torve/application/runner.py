@@ -222,18 +222,25 @@ async def _attempt_loop(
     iterations: int | None,
     wallclock_minutes: int | None = None,
 ) -> RunState:
+    # S-0099/D-8: the state is seeded with every attempt the task has already
+    # had, so the number an attempt carries is the task's whole sequence. The
+    # ceiling and the budget bound what *this* dispatch makes, not the
+    # lifetime — a requeue continues the count without inheriting a spent
+    # budget.
+    start = state.attempts
+
     while True:
+        made = state.attempts - start
+
         # Poison ceiling is checked before dispatch, never after (S-0001/state-machine).
-        if state.attempts >= ceiling:
-            state.escalate(
-                EscalationReason.POISON_CEILING, f"{state.attempts} attempts, ceiling {ceiling}"
-            )
+        if made >= ceiling:
+            state.escalate(EscalationReason.POISON_CEILING, f"{made} attempts, ceiling {ceiling}")
 
             return state
 
-        if iterations is not None and state.attempts >= iterations:
+        if iterations is not None and made >= iterations:
             state.escalate(
-                EscalationReason.BUDGET_EXHAUSTED, f"{state.attempts} attempts, budget {iterations}"
+                EscalationReason.BUDGET_EXHAUSTED, f"{made} attempts, budget {iterations}"
             )
 
             return state
@@ -1447,7 +1454,14 @@ def check_dispatch_role(task: Task) -> None:
         )
 
 
-def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> RunState:
+def run_task(
+    root: Path,
+    task: Task,
+    config: RunnerConfig,
+    deps: RunDeps,
+    *,
+    attempt_base: int = 0,
+) -> RunState:
     # T-0183: review and draft reach this generic path only through a
     # bypass — each has a runner-minted path with a read-only workspace
     # (S-0005/D-2, S-0020/D-2), and this path mounts the workspace writable. Refuse
@@ -1458,6 +1472,11 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
 
     state_path = naming.state_file(root, task.id)
     resume = False
+    # S-0099/D-8: how many attempts the task has already had. The record's
+    # count is handed in; the host's own run record is the fallback when a
+    # dispatched run has no observer, and the larger wins so neither a
+    # surviving state file nor a reaped one can drop the sequence.
+    recorded = attempt_base
 
     if state_path.exists():
         previous = RunState.load(state_path)
@@ -1471,6 +1490,7 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
             )
 
         resume = _should_resume(previous)
+        recorded = max(recorded, previous.attempts)
 
     else:
         resume = _checkpointed_for_resume(root, task)
@@ -1490,7 +1510,7 @@ def run_task(root: Path, task: Task, config: RunnerConfig, deps: RunDeps) -> Run
 
         raise BlockedDispatch(f"blocked_by_overlap: {blocker} on {path}")
 
-    state = RunState(task_id=task.id, path=state_path)
+    state = RunState(task_id=task.id, path=state_path, attempts=recorded)
     fact = "torve run: single synchronous claim"
     state.transition(TaskState.CLAIMED, f"{fact} (continuation)" if resume else fact)
 

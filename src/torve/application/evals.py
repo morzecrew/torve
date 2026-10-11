@@ -220,11 +220,12 @@ def eligible_tasks(root: Path) -> dict[str, dict[str, Any]]:
     from the same read and cannot disagree. Keyed by task id, ascending.
     """
 
-    from torve.application.projections import shipped_landings
+    from torve.application.projections import landed
 
     found: dict[str, dict[str, Any]] = {
         task: {"commit": commit, "attempts": 0, "cost_usd": None}
-        for task, commit in sorted(shipped_landings(root).items())
+        for task, commit in sorted(landed(root).items())
+        if commit
     }
 
     telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"

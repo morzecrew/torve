@@ -482,14 +482,16 @@ def test_a_document_fully_landed_says_so_and_an_unreadable_one_names_no_phases(t
 
 
 def test_the_publisher_composes_a_document_branch_from_every_task_it_carries(tmp_path: Path):
-    # S-0083/D-8: the pull request the lane opens for a document branch is the
-    # document's — every task the records say the branch carries plus the
-    # one landing now, which is published before its own record is written.
-    # The observed failure: bloomery #136 carried two phases and wore the
-    # last task's title.
+    # S-0083/D-8, S-0099/D-2: the pull request the lane opens for a document
+    # branch is the document's — every task the branch's landing files carry,
+    # in landing order, plus the one landing now, which is published before its
+    # own record is written. The stream is empty: the branch is the only
+    # carrier. The observed failure: bloomery #136 carried two phases and wore
+    # the last task's title.
+    import subprocess
+
     import yaml
 
-    from torve.application.telemetry import engine_event
     from torve.cli.merge import _document_pr_text
 
     root = corpus_with_phasing(tmp_path)
@@ -503,11 +505,25 @@ def test_the_publisher_composes_a_document_branch_from_every_task_it_carries(tmp
         contract.parent.mkdir(parents=True)
         contract.write_text(yaml.safe_dump(task.model_dump(mode="json")), encoding="utf-8")
 
-    engine_event(
-        root,
-        "lane_landed",
-        {"task": "T-8401", "branch": branch, "unit": "document", "sha": "a" * 40},
-    )
+    def g(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    g("config", "user.name", "T")
+    g("config", "user.email", "t@example.invalid")
+    g("add", "-A")
+    g("commit", "-q", "--no-gpg-sign", "-m", "init")
+    # One landing file for the phase already on the branch, its sha the one the
+    # body names (S-0099/D-2).
+    landing = root / ".torve" / "specs" / "S-0090" / "execution" / "T-8401-1-20261010T000000Z.yaml"
+    landing.parent.mkdir(parents=True, exist_ok=True)
+    landing.write_text(f"task: T-8401\ncommit: {'a' * 40}\n", encoding="utf-8")
+    g("checkout", "-q", "-b", branch)
+    g("add", "-A")
+    g("commit", "-q", "--no-gpg-sign", "-m", "torve(T-8401): landing of attempt 1")
+    g("checkout", "-q", "main")
 
     title, body, complete = _document_pr_text(root, "T-8403", branch, tip="c" * 40)
 

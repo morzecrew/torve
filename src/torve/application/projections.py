@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import yaml
+from pydantic import ValidationError
 
 from torve.application.manager import IN_FLIGHT, Board, TaskView, current_shape, project
 from torve.application.planner import document_of
@@ -78,66 +79,141 @@ SPEC_DRIFT_FINDINGS_LIMIT = 10
 
 # S-0065/D-7: three readers counted landings and disagreed — the record's
 # `landing.recorded` events (263), the lane's `lane_landed` telemetry (49)
-# and the landing files in the tree (58). The landing files are the
-# carrier, and these two functions are how it is read. A landing file is
-# only in the tree at this base because the commit carrying it landed
-# here, so the file answers "did this task land" with no store, no
-# telemetry and no git; the record's events are already minted from these
-# same files by `decisions.landing_events`, and the lane's event is
-# reconciled against them at the landing rather than tallied beside them.
+# and the landing files in the tree (58). The landing file is the carrier
+# (S-0099/D-1): the commit that lands a task writes it, so it cannot disagree
+# with git, and `landed` below is the one reader of it. Every caller that
+# once asked "did this task land" through a telemetry row, a stream tally or
+# a git trailer asks here instead.
 
 
-def shipped_landings(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
-    """Task id to the commit that landed it, from the landings the tree
-    holds (S-0059/D-12) — newest winning.
+def landed(root: Path, spec_dir: Path | None = None) -> dict[str, str]:
+    """Task id to the commit that landed it, newest winning — the landing
+    files in the base tree (S-0059/D-12) beside those on the remote tip of
+    every `torve/S-*` document branch (S-0099/D-1).
 
-    A task with no run state is not necessarily unstarted: the engine did
-    not run it, but a landing records that someone did. This read the
-    commit history until the landing file carried the commit, and had to
-    know three spellings of a shipped task to do it (S-0007/D-26, retired
-    here); now it reads files, so a tree without git answers too.
-    """
+    A task is landed when a landing file for it is in the base tree or in a
+    document branch's remote tip, so a task the lane has landed but whose
+    document the base does not yet hold still reads landed, and a squash
+    merge — whose branch commits the base never holds — reads the same as a
+    fast-forward. The file carries the logical commit, not the branch sha,
+    so a rebase that renames every sha leaves the answer unchanged. A landing
+    with no commit is a landing still, present here with the empty string.
 
-    from torve.application.decisions import landed_by_task
+    Reads no store and no telemetry: a tree without git, or with a stream
+    another host emptied, answers too."""
 
-    return landed_by_task(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
+    from torve.application.decisions import landings
 
+    found: dict[str, tuple[str, str]] = {}
 
-def lane_landings(root: Path) -> dict[str, str]:
-    """Task id to the commit the lane landed it as, from this host's own
-    stream — the landings on a document branch that the base's tree does not
-    yet hold. A phase run by hand and landed by `torve merge` is a landing the
-    served manager would otherwise never hear of, and its dependents would
-    wait on the board forever (bloomery S-0008, 2026-09-19). Newest wins.
+    for one in landings(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR):
+        best = found.get(one.task)
+        candidate = (one.at, one.commit)
 
-    A document's landing is its tasks' landing (S-0085/D-3): the merge commit
-    the base holds stamps every task the branch carried, so ancestry answers
-    the same for a squash — whose branch commits the base never holds — as for
-    a fast-forward. `shipped_landings` and the tree's landing files are
-    unchanged."""
+        if best is None or candidate > best:
+            found[one.task] = candidate
 
-    landed: dict[str, str] = {}
+    for at, task, commit in _remote_landings(root, spec_dir):
+        best = found.get(task)
+        candidate = (at, commit)
 
-    for row in stream_rows(root):
-        event = row.get("event")
+        if best is None or candidate > best:
+            found[task] = candidate
 
-        if event == "lane_landed" and row.get("task") and row.get("sha"):
-            landed[str(row["task"])] = str(row["sha"])
-
-        elif event == "lane_document_landed" and row.get("sha"):
-            for task_id in row.get("tasks") or []:
-                landed[str(task_id)] = str(row["sha"])
-
-    return landed
+    return {task: commit for task, (_, commit) in found.items()}
 
 
-def shipped_ids(root: Path, spec_dir: Path | None = None) -> set[str]:
-    """Task ids the tree records as landed, with or without a commit — the
-    denominator every rate is divided by, whichever reader asks."""
+def _remote_landings(root: Path, spec_dir: Path | None = None) -> list[tuple[str, str, str]]:
+    """*(at, task, commit)* for every landing file on the remote tip of a
+    `torve/S-*` document branch, as the last fetch left it (S-0099/D-1). The
+    base tree holds a document's landings only once it merged; this is the
+    half a document branch carries until then. A tree that is no checkout, or
+    has no such branch, contributes nothing.
 
-    from torve.application.decisions import landed_task_ids
+    Each branch is read under its own document's execution directory only:
+    the other documents' landings a branch carries are the base's, which the
+    working tree already answers, and reading them again cost one `git show`
+    per landing in the corpus per branch."""
 
-    return landed_task_ids(root, spec_dir if spec_dir is not None else root / layout.SPECS_DIR)
+    import subprocess
+
+    from torve.domain.spec import EXECUTION_DIR, LANDING_FILE, Landing
+
+    refs = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/remotes/origin/torve/S-*",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if refs.returncode != 0:
+        return []
+
+    found: list[tuple[str, str, str]] = []
+
+    specs = spec_dir if spec_dir is not None else root / layout.SPECS_DIR
+
+    try:
+        specs_rel = specs.resolve().relative_to(root.resolve()).as_posix()
+
+    except ValueError:
+        specs_rel = layout.SPECS_DIR
+
+    for ref in refs.stdout.split():
+        document = ref.rsplit("/", 1)[-1]
+        tree = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-tree",
+                "-r",
+                "--name-only",
+                ref,
+                "--",
+                f"{specs_rel}/{document}/{EXECUTION_DIR}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if tree.returncode != 0:
+            continue
+
+        for path in tree.stdout.splitlines():
+            directory, _, name = path.rpartition("/")
+
+            if directory.rpartition("/")[2] != EXECUTION_DIR or not LANDING_FILE.match(name):
+                continue
+
+            body = subprocess.run(
+                ["git", "-C", str(root), "show", f"{ref}:{path}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if body.returncode != 0:
+                continue
+
+            try:
+                raw: Any = yaml.safe_load(body.stdout) or {}
+                landing = Landing.model_validate(raw)
+
+            except (yaml.YAMLError, ValidationError):
+                continue
+
+            found.append((landing.at, landing.task, landing.commit))
+
+    return found
 
 
 # ....................... #
@@ -212,7 +288,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
     if not tasks_dir.is_dir():
         return found
 
-    shipped = shipped_ids(root)
+    shipped = landed(root)
 
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")):
         record = _load_yaml_dict(contract)
@@ -372,7 +448,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
     if not telemetry.is_file():
         return []
 
-    landed = shipped_ids(root)
+    shipped = landed(root)
     contract_texts = _contract_texts(root)
     found: list[dict[str, Any]] = []
 
@@ -395,7 +471,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
         target = str(row.get("target") or "")
         findings = row.get("findings")
 
-        if not review_id or not target or target not in landed or not isinstance(findings, list):
+        if not review_id or not target or target not in shipped or not isinstance(findings, list):
             continue
 
         # Any contract text citing the review id is evidence a follow-up
@@ -900,7 +976,7 @@ def feedback_records(root: Path) -> dict[str, dict[str, Any]]:
     append-only and keyed by task id, latest wins at analysis time
     (S-0022/current-state). Public: `specquality.operator_attention` reads this
     corpus-wide, the same lazy-import-to-avoid-a-cycle shape as
-    `specquality._landed_task_ids` already uses for `shipped_ids`."""
+    `specquality._landed_task_ids` already uses for `landed`."""
 
     found: dict[str, dict[str, Any]] = {}
     path = layout.feedback_file(root)
@@ -1461,10 +1537,10 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
     if not runs:
         runs = [s.to_record() for s in RunState.load_all(root.resolve() / naming.WORKTREE_DIR)]
 
-    landed = landed_ids(root, board)
+    recorded = landed(root)
 
     for run in runs:
-        if run.get("state") == TaskState.READY.value and run.get("task_id") in landed:
+        if run.get("state") == TaskState.READY.value and run.get("task_id") in recorded:
             run["state"] = LANDED
 
     return {"schema_version": 1, "runs": runs}
@@ -1475,15 +1551,6 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
 # task that landed weeks ago read as waiting to land; the display says what the
 # record already knows, and the state machine is unchanged.
 LANDED = "landed"
-
-
-def landed_ids(root: Path, board: Board | None = None) -> set[str]:
-    """Every task whose landing is recorded: on the board, by the lane, or by
-    the tree's own trailers and landing files."""
-
-    landed = {view.task_id for view in board.tasks.values() if view.landed_sha} if board else set()
-
-    return landed | set(lane_landings(root)) | shipped_ids(root)
 
 
 # ....................... #
@@ -2176,3 +2243,163 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+# ....................... #
+# The lane's own event memory (S-0080/D-16), projected here so the lane, a
+# merge or a review leg asks a question of the record and never imports the
+# stream reader itself (S-0099/D-6): the ledger, the evals and the night
+# report are the stream's only readers (S-0099/D-10).
+
+# What the stream last recorded about a task's pull request, and the verdict a
+# candidate already carrying one reports on every later pass (S-0080/D-8, D-17).
+LANE_VERDICTS = {
+    "lane_pr_opened": "open",
+    "lane_landed": "landed",
+    "lane_pr_closed": "closed",
+    "lane_pr_unresolved": "unresolved",
+}
+
+
+def lane_verdicts(root: Path) -> dict[str, str]:
+    """Task id -> the last verdict the lane recorded for its pull request."""
+
+    ledger: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        verdict = LANE_VERDICTS.get(str(row.get("event", "")))
+        task = str(row.get("task", ""))
+
+        if verdict and task:
+            ledger[task] = verdict
+
+    return ledger
+
+
+def lane_battery_state(root: Path, document: str, tasks: set[str]) -> str:
+    """Where *document*'s one round for a red completion battery stands
+    (S-0093/D-4): "" before any, "pending" until the review leg answers its
+    finding, "answered" once the round landed or answered it without a
+    change. *tasks* are the document's landed tasks, which the caller reads
+    from the branch rather than from here (S-0099/D-2)."""
+
+    rows = stream_rows(root)
+    recorded = [
+        str(row.get("task_id") or "")
+        for row in rows
+        if row.get("kind") == "review"
+        and row.get("battery")
+        and row.get("branch") == document
+        and row.get("target") in tasks
+    ]
+
+    if not recorded:
+        return ""
+
+    answered = {
+        str(row.get("finding") or "")
+        for row in rows
+        if row.get("event") == "review_finding_answered"
+    }
+
+    return "answered" if f"record:{recorded[-1]}:0" in answered else "pending"
+
+
+def lane_resolved(root: Path) -> set[str]:
+    """The rounds a person resolved off the lane (S-0097/D-6): a round a
+    person abandoned and `reap --escalated` swept leaves no run state, so the
+    resolution is read here rather than off the host."""
+
+    return {
+        str(row.get("task") or "")
+        for row in stream_rows(root)
+        if row.get("event") == "manager_resolved" and row.get("resolution") != "requeued"
+    }
+
+
+def lane_conflict_bases(root: Path) -> dict[str, str]:
+    """Branch -> the base tip the lane last reported a conflict against, so
+    the same collision against the same base is not reported twice
+    (S-0083/D-13)."""
+
+    found: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        branch = str(row.get("branch") or "")
+
+        if branch and row.get("event") == "lane_document_conflict":
+            found[branch] = str(row.get("base_tip") or "")
+
+    return found
+
+
+def lane_carried(root: Path) -> dict[str, str]:
+    """Task id -> why a refresh leaves it alone for a lane landing
+    (S-0088/D-2): "landed", or "carried by the branch <branch>" for a
+    document-unit landing."""
+
+    held: dict[str, str] = {}
+
+    for row in stream_rows(root):
+        task_id = str(row.get("task") or "")
+
+        if row.get("event") != "lane_landed" or not task_id:
+            continue
+
+        held[task_id] = (
+            f"carried by the branch {row.get('branch')}"
+            if row.get("unit") == "document"
+            else "landed"
+        )
+
+    return held
+
+
+def lane_finding_reraised(root: Path) -> dict[tuple[str, str, int], str]:
+    """(branch, path, line) -> the head the lane last recorded a re-raise at
+    (S-0099/D-9): a finding raised again on that same head writes no new row."""
+
+    found: dict[tuple[str, str, int], str] = {}
+
+    for row in stream_rows(root):
+        if row.get("event") == "lane_finding_reraised":
+            key = (
+                str(row.get("branch") or ""),
+                str(row.get("path") or ""),
+                int(row.get("line") or 0),
+            )
+            found[key] = str(row.get("head") or "")
+
+    return found
+
+
+def round_already_requeued(root: Path, task_id: str) -> bool:
+    """Whether the review leg already widened this round to the whole phasing
+    (S-0092/D-4)."""
+
+    return any(
+        row.get("event") == "lane_round_requeued" and row.get("task") == task_id
+        for row in stream_rows(root)
+    )
+
+
+def attempted_tasks(root: Path) -> set[str]:
+    """Every task this host has a telemetry record of having run — the
+    companion of the run-state files, for a task whose state file a sweep
+    removed (S-0088/D-2)."""
+
+    return {str(row["task_id"]) for row in stream_rows(root) if row.get("task_id")}
+
+
+def attempt_rows(root: Path) -> list[dict[str, Any]]:
+    """The stream's attempt rows — the ones a pull request body is composed
+    from (S-0080/D-4), each carrying its gate `results`."""
+
+    return [row for row in stream_rows(root) if "results" in row]
+
+
+def recorded_rows(root: Path) -> list[dict[str, Any]]:
+    """The whole telemetry stream, for a review leg that reads only its own
+    vocabulary of events (S-0086/D-3)."""
+
+    return stream_rows(root)
