@@ -47,14 +47,14 @@ A skill a gate reads stays package data, versioned with the engine; `torve:` is 
 - Consequence: the two skills this engine ships cannot drift against the gate that parses what they teach
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0100/D-1 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+### S-0100/D-1 — `ASSUMED` (A session learns torve from the torve it runs)
 
 torve ships four skills, each for one audience named in the first words of its description: `torve` for a session operating torve, spec-writer for a session writing a document, and working-rules and flag-dont-flip for an agent executing a contract. ratchet-what-you-build and corpus-bootstrap leave package data, and ratchet-what-you-build is deleted rather than vendored.
 
 - Paths: `skills/**`
 - Consequence: a reader knows from a skill's first line whether it is for them
 
-### S-0100/D-5 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+### S-0100/D-5 — `ASSUMED` (A session learns torve from the torve it runs)
 
 A shipped skill cites no identifier, path or measurement of torve's own corpus; a rule that holds only in torve lives in torve's own instructions beside the code.
 

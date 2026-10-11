@@ -6,7 +6,7 @@ change:
   type: feat
   scope: skills
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0062, S-0095]
 informed_by: []
 supersedes: []

@@ -7,7 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `torve guide` prints a shipped skill, or one of its references, from the installed
+  package. `torve guide torve` is the operator's skill: writing and accepting documents,
+  serving a night, resolving escalations, landing a phase by hand, answering a pull
+  request's review and bringing torve to a new repository.
+
+- `torve init` writes a `torve` skill under `.claude/skills/` and `.agents/skills/` that
+  loads the operator's skill for the installed version, and `torve doctor` warns when it
+  is missing. `--starter` also writes role profiles that equip the shipped role skills, so
+  a fresh repository's agents get the skills their prompt names.
+
+- `seat.consumed` carries input, output, cache-read and cache-write tokens for every
+  attempt and review. The broker now meters streamed responses, which every seat on the
+  Claude Code harness sends and which used to read as zero tokens.
+
 ### Changed
+
+- **Breaking:** `promotion.unit: document` and `promotion.landing: pull_request` need the
+  Postgres store. `torve doctor` is red and the lane refuses to run on a mock store under
+  either, because the rounds and escalations a document's landing depends on would vanish
+  with the process.
+
+- A task counts as landed when its landing file is in the base tree or on its document
+  branch's remote tip, and a document's tasks are read from the landing files on its
+  branch. A host that only fetched decides as the host that landed them, and a killed
+  manager has nothing on its own disk to rebuild.
+
+- The completion battery's verdict is a `torve/completion` commit status on the tip it
+  judged, shown in the pull request's checks, and the draft flag reads it there.
+
+- An attempt's number continues across a requeue instead of starting again at 1.
+
+- A lane step that fails the same way backs off instead of repeating, and in a served
+  manager a candidate found red twice at the same base and head escalates instead of
+  being re-gated again.
+
+- The shipped skills say in their first words whom they are for and cite nothing of
+  torve's own specification, so every identifier they name resolves inside an adopting
+  repository. How to record a divergence is taught once, in `working-rules`.
 
 - A red completion battery publishes the document's last phase instead of withholding
   it: the branch carries every phase, and the pull request stays a draft while its tip
@@ -15,7 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to, works on the whole document, and a later green battery turns the pull request
   ready.
 
+### Removed
+
+- **Breaking:** the `ratchet-what-you-build` and `corpus-bootstrap` skills. A profile
+  that declares `torve:ratchet-what-you-build` is refused at load; drop that line.
+  corpus-bootstrap's guidance is now `torve guide torve adopting`, written for the YAML
+  corpus.
+
 ### Fixed
+
+- An agent equipped with no skills is no longer told that `working-rules` is its rules.
 
 - `torve manager serve --task X` claims only `X`. The name used to filter only the
   contracts a pass imports, so a pass named for one task could claim another.
