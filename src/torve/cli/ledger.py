@@ -17,7 +17,7 @@ from rich.text import Text
 
 from torve.adapters.agent.harness import parse_tool_calls
 from torve.application.ledger import contract_at, counted_rows, ledger_report
-from torve.application.projections import stream_rows
+from torve.application.streams import stream_rows
 from torve.application.telemetry import burn_population
 from torve.cli.console import (
     STYLE_DIM,

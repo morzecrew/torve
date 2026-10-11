@@ -38,7 +38,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from torve.application.projections import landed, stream_rows
+from torve.application.projections import landed
+from torve.application.streams import stream_rows
 from torve.base.clock import parse
 from torve.config import layout
 

@@ -32,6 +32,15 @@ from torve.application.manager import IN_FLIGHT, Board, TaskView, current_shape,
 from torve.application.planner import document_of
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
+from torve.application.streams import (
+    attempt_rows,
+    attempted_tasks,
+    lane_finding_reraised,
+    lane_verdicts,
+    recorded_rows,
+    round_already_requeued,
+    stream_rows,
+)
 from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
 from torve.base.clock import parse, stamp
@@ -47,6 +56,22 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Sequence
 
     from torve.domain.events import EventRecord
+
+# ....................... #
+
+# The stream readers are defined in `streams.py` (S-0101/D-10) and re-exported
+# here so the lane, the merge, the review leg and the manager keep importing a
+# fact from the module they already read it from — they are not this phase's to
+# rewire. `stream_rows` itself is used below; the rest are a re-export surface.
+__all__ = [
+    "attempt_rows",
+    "attempted_tasks",
+    "lane_finding_reraised",
+    "lane_verdicts",
+    "recorded_rows",
+    "round_already_requeued",
+    "stream_rows",
+]
 
 # ----------------------- #
 
@@ -443,27 +468,11 @@ def _findings(root: Path) -> list[dict[str, Any]]:
     evidence, never proof. The engine mints nothing from a finding; the
     operator triages this ledger in batch."""
 
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
-
-    if not telemetry.is_file():
-        return []
-
     shipped = landed(root)
     contract_texts = _contract_texts(root)
     found: list[dict[str, Any]] = []
 
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast("dict[str, Any]", record)
-
+    for row in stream_rows(root):
         if row.get("kind") != "review":
             continue
 
@@ -1568,33 +1577,6 @@ LANDED = "landed"
 _ATTEMPT_EXCLUDED_KINDS = _HARNESS_EXCLUDED_KINDS | {"review", "intake"}
 
 
-def stream_rows(root: Path) -> list[dict[str, Any]]:
-    """The telemetry stream, parsed — from the location the writer appends
-    to, which a repository may relocate by configuration. Unparseable and
-    non-object lines are skipped as everywhere else in this module: the
-    stream is append-only and a projection reader is not a repair shop."""
-
-    from torve.application.specquality import telemetry_file
-
-    found: list[dict[str, Any]] = []
-    telemetry = telemetry_file(root)
-
-    if not telemetry.is_file():
-        return found
-
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if isinstance(record, dict):
-            found.append(cast("dict[str, Any]", record))
-
-    return found
-
-
 def _is_attempt_row(row: dict[str, Any]) -> bool:
     """One attempt of this task as the engine recorded it: an agent block
     from a real adapter, not one of the measured or narrating kinds."""
@@ -2282,34 +2264,6 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 # ....................... #
-# The lane's own event memory (S-0080/D-16), projected here so the lane, a
-# merge or a review leg asks a question of the record and never imports the
-# stream reader itself (S-0099/D-6): the ledger, the evals and the night
-# report are the stream's only readers (S-0099/D-10).
-
-# What the stream last recorded about a task's pull request, and the verdict a
-# candidate already carrying one reports on every later pass (S-0080/D-8, D-17).
-LANE_VERDICTS = {
-    "lane_pr_opened": "open",
-    "lane_landed": "landed",
-    "lane_pr_closed": "closed",
-    "lane_pr_unresolved": "unresolved",
-}
-
-
-def lane_verdicts(root: Path) -> dict[str, str]:
-    """Task id -> the last verdict the lane recorded for its pull request."""
-
-    ledger: dict[str, str] = {}
-
-    for row in stream_rows(root):
-        verdict = LANE_VERDICTS.get(str(row.get("event", "")))
-        task = str(row.get("task", ""))
-
-        if verdict and task:
-            ledger[task] = verdict
-
-    return ledger
 
 
 def resolved_rounds(records: Iterable[EventRecord]) -> set[str]:
@@ -2326,75 +2280,3 @@ def resolved_rounds(records: Iterable[EventRecord]) -> set[str]:
         if record.kind is EventKind.ESCALATION_RESOLVED
         and str((record.payload or {}).get("resolution") or "") != "requeued"
     }
-
-
-def lane_carried(root: Path) -> dict[str, str]:
-    """Task id -> why a refresh leaves it alone for a lane landing
-    (S-0088/D-2): "landed", or "carried by the branch <branch>" for a
-    document-unit landing."""
-
-    held: dict[str, str] = {}
-
-    for row in stream_rows(root):
-        task_id = str(row.get("task") or "")
-
-        if row.get("event") != "lane_landed" or not task_id:
-            continue
-
-        held[task_id] = (
-            f"carried by the branch {row.get('branch')}"
-            if row.get("unit") == "document"
-            else "landed"
-        )
-
-    return held
-
-
-def lane_finding_reraised(root: Path) -> dict[tuple[str, str, int], str]:
-    """(branch, path, line) -> the head the lane last recorded a re-raise at
-    (S-0099/D-9): a finding raised again on that same head writes no new row."""
-
-    found: dict[tuple[str, str, int], str] = {}
-
-    for row in stream_rows(root):
-        if row.get("event") == "lane_finding_reraised":
-            key = (
-                str(row.get("branch") or ""),
-                str(row.get("path") or ""),
-                int(row.get("line") or 0),
-            )
-            found[key] = str(row.get("head") or "")
-
-    return found
-
-
-def round_already_requeued(root: Path, task_id: str) -> bool:
-    """Whether the review leg already widened this round to the whole phasing
-    (S-0092/D-4)."""
-
-    return any(
-        row.get("event") == "lane_round_requeued" and row.get("task") == task_id
-        for row in stream_rows(root)
-    )
-
-
-def attempted_tasks(root: Path) -> set[str]:
-    """Every task this host has a telemetry record of having run — the
-    companion of the run-state files, for a task whose state file a sweep
-    removed (S-0088/D-2)."""
-
-    return {str(row["task_id"]) for row in stream_rows(root) if row.get("task_id")}
-
-
-def attempt_rows(root: Path) -> list[dict[str, Any]]:
-    """The stream's attempt rows — the ones a pull request body is composed
-    from (S-0080/D-4), each carrying its gate `results`."""
-
-    return [row for row in stream_rows(root) if "results" in row]
-
-
-def recorded_rows(root: Path) -> list[dict[str, Any]]:
-    """The whole telemetry stream, for a review leg that reads only its own
-    vocabulary of events (S-0086/D-3)."""
-
-    return stream_rows(root)

@@ -21,8 +21,10 @@ the place that act already writes:
 
 What the record holds it holds once; what git, the forge or a contract holds
 it does not hold at all. `.torve/telemetry.jsonl` is not on the table — a
-diagnostic stream the ledger, the evals and the night report read
-(S-0099/D-10), and no decision should (S-0099/D-6). Five facts are still read from it until the follow-up to S-0099 gives each a carrier: a battery round's state, the rounds a person resolved, a document branch's last conflict base, the review tier's recorded findings, and the gate results a pull request body lists.
+diagnostic stream the ledger, the evals and the night report read, and no
+decision reads (S-0099/D-6). Every function that reads it lives in
+`application/streams.py`, and only the ledger, the evals, the night report and
+the read-only reports import it (S-0101/D-10).
 
 There is no update and no delete, in the service or in the port beneath it.
 A correction is another event, because a history that can be rewritten
@@ -187,7 +189,7 @@ contracts inherit from; the archive is what the record remembers.
 | --- | --- |
 | the board (`torve manager board`) | what each task's recorded facts add up to: state, attempts, who holds it, what it landed, what it has burned |
 | the divergence log (`.torve/tasks/<id>/log.yaml`) | the entries the record holds for a task, written into the worktree before each gate pass so the battery judges the record |
-| the telemetry stream | the attempt rows the ledger, the evals and the night report read — a diagnostic (S-0099/D-6); five lane facts still read it until the follow-up to S-0099 lands |
+| the telemetry stream | the attempt rows the ledger, the evals and the night report read — a diagnostic (S-0099/D-6, S-0101/D-10) |
 | the decision graph (`torve decisions`) | what is in force, what each decision used to say, and which decisions govern a set of paths |
 | the notification queue | escalations with no settled delivery recorded against them — the queue is the *absence* of a second event, so there is nothing to update and nothing to lose |
 | one task's history (`torve why --partition`) | every attempt with its verdict, cost and convictions, the events and reviews around them, and the totals |
