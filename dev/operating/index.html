@@ -428,6 +428,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Which carrier answers a report">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-each-fact-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where each fact lives
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1107,6 +1124,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Which carrier answers a report">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-each-fact-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where each fact lives
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1585,6 +1619,48 @@ empty record means <em>ask the files</em>, not <em>nothing ever ran</em>.</p>
 the JSON envelope carries a <code>sources</code> block. Read it before quoting a
 figure. On this repository the record holds 10 attempt rows where the files
 hold 636 — both true, and only one of them answers "what has this cost".</p>
+<h3 id="where-each-fact-lives">Where each fact lives<a class="headerlink" href="#where-each-fact-lives" title="Permanent link">&para;</a></h3>
+<p>Those reports answer from the record or from this host's files. The other
+facts an operator asks about live each in the one place the act that makes
+them true writes them:</p>
+<table>
+<thead>
+<tr>
+<th>You want to know</th>
+<th>Look at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>whether a task landed, and the sha it landed at</td>
+<td>its landing file, in the base tree or on the document branch's remote tip</td>
+</tr>
+<tr>
+<td>which tasks a document carries, in landing order</td>
+<td>the landing files on the document branch, or the pull request body they build</td>
+</tr>
+<tr>
+<td>whether a document's pull request is open, merged, closed or a draft</td>
+<td>the forge</td>
+</tr>
+<tr>
+<td>whether a tip passed the completion battery</td>
+<td>the <code>torve/completion</code> commit status on that tip, in the pull request's checks</td>
+</tr>
+<tr>
+<td>what a review round covers — branch, target, findings, phases</td>
+<td>the round's contract, under <code>round:</code>, on the board</td>
+</tr>
+<tr>
+<td>what each attempt did, what it cost, which gates failed, who holds a task, what escalated</td>
+<td>the record — the board, or a report run with <code>--partition</code></td>
+</tr>
+<tr>
+<td>attempt rows and engine health</td>
+<td><code>.torve/telemetry.jsonl</code>, a diagnostic stream (S-0099/D-10); five lane facts still read it until the follow-up to S-0099 lands</td>
+</tr>
+</tbody>
+</table>
 <p><code>torve serve</code> and <code>torve mcp</code> take the same two options and pass them into
 every reader, per request — so a dashboard left running shows the board as
 it is, not as it was at boot.</p>

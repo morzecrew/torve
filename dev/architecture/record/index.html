@@ -1116,6 +1116,61 @@
 S-0044/D-1). Every other view of engine state — the board, the projections, the
 telemetry stream — is rebuildable from it. Source code stays git's; only
 intent and record moved.</p>
+<p>The record is one carrier among several, not the only place a fact lives. A
+fact the lane decides from is written once, by the act that makes it true, in
+the place that act already writes:</p>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Carrier</th>
+<th>Written by</th>
+<th>Read by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A task landed</td>
+<td>its landing file, in the base tree or the document branch's remote tip</td>
+<td>the landing commit</td>
+<td><code>landed()</code></td>
+</tr>
+<tr>
+<td>Which tasks a document carries, in order</td>
+<td>the landing files on the document branch</td>
+<td>the lane's landing</td>
+<td>the pull request body, the battery, the wave</td>
+</tr>
+<tr>
+<td>A pull request's state</td>
+<td>the forge</td>
+<td>a person or the lane</td>
+<td>the lane, once per pass at most</td>
+</tr>
+<tr>
+<td>A completion battery's verdict</td>
+<td>a commit status <code>torve/completion</code> on the judged tip</td>
+<td>the lane</td>
+<td>the draft flag, the battery round</td>
+</tr>
+<tr>
+<td>A review round's document, target, findings and phases</td>
+<td><code>round:</code> in its own contract, carried by <code>task.minted</code></td>
+<td>the review leg</td>
+<td>the wave, the requeue's rescope, the morning report</td>
+</tr>
+<tr>
+<td>Escalations, resolutions, attempts, gates, seat consumption</td>
+<td>the record</td>
+<td>manager, worker, operator</td>
+<td>the board</td>
+</tr>
+</tbody>
+</table>
+<p>What the record holds it holds once; what git, the forge or a contract holds
+it does not hold at all. <code>.torve/telemetry.jsonl</code> is not on the table — a
+diagnostic stream the ledger, the evals and the night report read
+(S-0099/D-10), and no decision should (S-0099/D-6). Five facts are still read from it until the follow-up to S-0099 gives each a carrier: a battery round's state, the rounds a person resolved, a document branch's last conflict base, the review tier's recorded findings, and the gate results a pull request body lists.</p>
 <p>There is no update and no delete, in the service or in the port beneath it.
 A correction is another event, because a history that can be rewritten
 answers no question reliably.</p>
@@ -1297,10 +1352,11 @@ artifacts and the reconstruction disagreed.</p>
   record would be writing a summary that claims to be a history. Each
   attempt is recorded from where it happens, under the tier that actually
   ran it.</li>
-<li><strong>One record, two carriers.</strong> The attempt record is one object. The
-  telemetry row every projection reads is <em>rendered</em> from the event
-  payload, so a field added to one carrier and not the other is not
-  expressible.</li>
+<li><strong>One record, one row rendered from it.</strong> The attempt record is one
+  object, and it lives in the record. The telemetry row is <em>rendered</em> from
+  the same event payload — a diagnostic the ledger, the evals and the night
+  report read (S-0099/D-6) — so it is a view of the
+  record and not a second place the fact is written and can disagree.</li>
 </ul>
 <h2 id="the-intent-half-sources-and-decisions">The intent half: sources and decisions<a class="headerlink" href="#the-intent-half-sources-and-decisions" title="Permanent link">&para;</a></h2>
 <p>Everything above is execution — what an attempt did, what a gate found, what
@@ -1373,7 +1429,7 @@ contracts inherit from; the archive is what the record remembers.</p>
 </tr>
 <tr>
 <td>the telemetry stream</td>
-<td>the attempt rows the cost, regime and quality projections read</td>
+<td>the attempt rows the ledger, the evals and the night report read — a diagnostic (S-0099/D-6); five lane facts still read it until the follow-up to S-0099 lands</td>
 </tr>
 <tr>
 <td>the decision graph (<code>torve decisions</code>)</td>
