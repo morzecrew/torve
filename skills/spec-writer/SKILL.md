@@ -1,6 +1,6 @@
 ---
 name: spec-writer
-description: Writing a specification document as an executable input to torve plan — a directory of five YAML files split by who writes each, a typed anatomy, graded rows with paths on every one, mintable phasing with non-overlapping scope, and identifiers the divergence logs and the code cite forever.
+description: When writing a torve specification document — an executable input to torve plan, a directory of YAML files split by who writes each, a typed anatomy, graded rows with paths on every one, mintable phasing whose scope owns everything its acceptance can turn red, and identifiers the divergence logs and the code cite forever.
 roles: [author]
 gate: spec-valid
 ---
@@ -20,17 +20,18 @@ Write it as a document a machine derives work from and a human can refuse
 in a diff.
 
 The document is a directory, `.torve/specs/S-NNNN/`, holding four YAML
-files split by who writes each (S-0057, S-0057/D-1):
+files split by who writes each, and the landings beside them:
 
 | File | Writer | Holds |
 |---|---|---|
-| `document.yaml` | you | the header facts, the typed prose (`summary` … `risks`), the `design` list, the extras, `alternatives`, `questions` |
-| `phasing.yaml` | you; the planner reads it | `phasing`, `contract_example` |
+| `document.yaml` | you | the header facts (`change:` among them), the typed prose (`summary` … `risks`), the `design` list, the extras, `alternatives`, `questions` |
+| `phasing.yaml` | you; the planner reads it | `phasing`, `after`, `contract_example` |
 | `decisions.yaml` | you; the tool stamps it | `decisions`, `invariants`, `retired` |
 | `amendments.yaml` | `torve spec amend` and `spec fix` | `amendments`, `editorial` |
 | `execution/` | the landing | one file per landing — `<task>-<attempt>-<instant>.yaml` — what each task found, entry by entry |
 
-A file that is absent is an empty list; `spec new` writes the first two. Each
+A file that is absent is an empty list; `spec new` writes `document.yaml` and
+`decisions.yaml`. Each
 file's first line names its schema under `.torve/schemas/`, written by
 `torve init`, so an editor with a YAML language server validates every key
 as it is typed; `torve spec check` is the gate and reads the same model.
@@ -40,9 +41,16 @@ Prose lives in typed keys — `summary`, `motivation`, `current_state`,
 markdown string nothing parses, and a section's heading is its key. Everything else is a typed list, and an
 unknown key — or a key in the wrong file — is refused by name, never
 ignored. The mechanical half — numbering, the directory, the serializer,
-the checks — belongs to the package (S-0007/format-validation, S-0007/D-12); `torve spec`
-(`new` / `check` / `list` / `show` / `amend` / `fix` / `archive` / `render`)
-applies it. Anatomy, prose style and workflows live in `references/`.
+the checks — belongs to the package, and the `torve spec` verbs apply it
+(`torve spec --help` lists them). Anatomy, prose style and workflows live in
+`references/`.
+
+`change:` is a mapping of `type` and `scope` (`{type: feat, scope: lane}`):
+the document's pull request and its squash commit are titled from it, as
+`<gitmoji> <type>(<scope>): <title>`. `after:` in `phasing.yaml` names other
+documents, never phases, whose landed tree this document builds on; the
+planner makes each first phase wait on every task of each named document.
+It differs from the header's `depends_on`, which is decision inheritance.
 
 ## Decision grades
 
@@ -80,7 +88,7 @@ arrives first, invisibly.
 
    `check` is a command whose exit code judges the row; the runner appends
    it to the battery as a `decision:<id>` gate at shadow, and a row with a
-   check owes no divergence entry (S-0054). `check_state: blocking` needs a
+   check owes no divergence entry. `check_state: blocking` needs a
    `check_twin` — the test that proves the check can fail.
 
 2. **Phasing must be mintable.** A phase is an entry in the `phasing` list —
@@ -92,6 +100,17 @@ arrives first, invisibly.
 3. **Non-overlapping scope within a phase.** Entries with the same phase
    number must not share globs — overlapping tasks cannot run in parallel and
    the plan silently serialises. Say it while writing, when it is free to fix.
+
+3b. **A phase owns every file its acceptance can turn red.** A scope that is
+   too narrow is the most common reason an attempt halts. Before you write a
+   phase, grep for every caller of what it changes. The scope names the
+   modules and, beside each, its existing test file (the planner refuses a
+   contract that allows a module without its test), the tests that enumerate
+   artifacts, generated snapshots, docs pages a test compares against, the lock
+   file beside a manifest, and re-export modules. Acceptance commands judge
+   the tree: the tests the phase touches, the type checker, `torve spec
+   check`. A command that reads the host (a running service, a database, the
+   network, the installed CLI) is refused at planning.
 
 3a. **A decision's paths must fit inside one phase's scope.** A row whose
    paths span two phases mints a contract that contradicts itself: the
@@ -123,8 +142,8 @@ arrives first, invisibly.
 | `phasing` | phasing | `phase`, `title`, `intent`, `scope`, `acceptance`, `depends_on`, `tier_variant`, `character` | the mintable units |
 | `amendments` | amendments | `id`, `at`, `title`, `changes`, `md` | written by `torve spec amend`; the words are yours |
 
-`cites` resolves over the corpus and the archive in the one grammar
-(S-0058/D-1): a document `S-NNNN`, or an item of one — `S-NNNN/D-n`,
+`cites` resolves over the corpus and the archive in the one grammar: a
+document `S-NNNN`, or an item of one — `S-NNNN/D-n`,
 `S-NNNN/I-n`, `S-NNNN/Q-n`, `S-NNNN/A-n`, a phase `S-NNNN/P-n`, a prose
 section `S-NNNN/<key>`. Inside a document's own files its own items are
 written by the local half alone (`id: D-3`, `cites: [D-1, S-0002/D-4]`);
@@ -132,7 +151,7 @@ the loader qualifies them, and code and prose cite the global form. Type
 what was already a list; never
 fragment an argument into fields, and never restate a typed list as prose:
 a section carrying an `alternatives` fence, the decisions table or an
-amendment's words is a `check` problem (S-0057/D-2) — the list exists once.
+amendment's words is a `check` problem — the list exists once.
 
 ## Rows change through the tool, never by hand
 
@@ -163,8 +182,8 @@ ratchet's frontier, never a finding.
 A document that no longer stands leaves the corpus path through `torve
 spec archive NUMBER --superseded-by NNNN` into `.torve/archive/` beside it,
 directory name and identifiers kept, `status: superseded`. Nothing inherits
-from the archive; everything in it still resolves — `torve spec show
-S-0044/D-12` answers marked archived, a citation into it checks clean, and the
+from the archive; everything in it still resolves — `torve spec show` on an
+archived row answers marked archived, a citation into it checks clean, and the
 record holds every archived row as retired with the archive named.
 Document and amendment numbers derive over corpus and archive together, so
 a number is never reused.

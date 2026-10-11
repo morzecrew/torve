@@ -37,7 +37,6 @@ from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config.runconfig import (
-    ROLE_SKILLS,
     ReviewConfig,
     RunnerConfig,
     RuntimeConfig,
@@ -47,6 +46,13 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Task
+
+# The shipped role skills, as a repository's profiles would declare them.
+ROLE_SKILLS: dict[str, list[str]] = {
+    "implement": ["flag-dont-flip", "working-rules"],
+    "review": ["working-rules"],
+    "revert": ["flag-dont-flip", "working-rules"],
+}
 
 
 def reviewer_output(findings: list[dict[str, str]]) -> str:
@@ -1042,7 +1048,7 @@ def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
     assert "touched.json" in reviewer.seen["index.md"]
     # a replay: nothing model-authored, not even this task's own attempts
     assert "attempts.json" not in reviewer.seen
-    assert reviewer.seen["skills"] == "ratchet-what-you-build"
+    assert reviewer.seen["skills"] == "working-rules"
     # the pack died with the copy
     assert not (worktree / ".torve" / "context").exists()
 

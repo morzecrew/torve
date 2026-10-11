@@ -15,7 +15,6 @@ from pydantic import ValidationError
 from torve.application.telemetry import config_hash
 from torve.config import layout
 from torve.config.runconfig import (
-    ROLE_SKILLS,
     BrokerConfig,
     RunnerConfig,
     TierConfig,
@@ -445,12 +444,14 @@ def test_remote_broker_proxy_is_silent_for_sealed():
 
 
 def test_the_review_role_loads_a_shipped_skill_by_default() -> None:
-    # S-0054/D-14 as landed: the shipped skill declaring the role reaches it.
-    # `reading-isnt-proof` is vendored in this repository, not shipped, so
-    # a default naming it would refuse every adopter's review. The default is
-    # the profile `torve init` mints for the role now (S-0061/D-11), so the
-    # table it mints from is what carries the promise.
-    assert ROLE_SKILLS["review"] == ["ratchet-what-you-build"]
+    # The role's set is the profile `.torve/agents/review.yaml` (S-0061/D-11),
+    # so what that profile equips is the promise to hold: a name it declares
+    # that does not ship would refuse every adopter's review.
+    from torve.application.skills import available
+    from torve.config.agents import role_skills
+
+    declared = role_skills(Path(__file__).resolve().parents[1])["review"]
+    assert set(declared) & set(available()), "review equips no shipped skill"
 
 
 def test_the_corpus_path_defaults_beside_everything_else_under_torve() -> None:

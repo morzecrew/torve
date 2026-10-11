@@ -250,13 +250,13 @@ def test_one_merge_level_a_profile_naming_a_profile_is_refused(root: Path):
 def test_the_role_default_is_a_profile_that_declares_the_role(root: Path):
     # The filenames deliberately say nothing: the role is the declaration.
     write(agents_dir(root) / "house-build.yaml", ROLE_SKILL % ("implement", "flag-dont-flip"))
-    write(agents_dir(root) / "house-check.yaml", ROLE_SKILL % ("review", "ratchet-what-you-build"))
+    write(agents_dir(root) / "house-check.yaml", ROLE_SKILL % ("review", "spec-writer"))
 
     assert {
         role: [item.source for item in items] for role, items in role_equipment(root).items()
     } == {
         "implement": ["torve:flag-dont-flip"],
-        "review": ["torve:ratchet-what-you-build"],
+        "review": ["torve:spec-writer"],
     }
 
     config = load(root, "tiers:\n  executor:\n    harness: fake\n")
@@ -301,7 +301,7 @@ def test_editing_a_profile_changes_the_regime(root: Path):
     text = "tiers:\n  executor:\n    harness: fake\n    profile: shared\n"
 
     before = config_hash(root / ".torve" / "gates.yaml", root, load(root, text))
-    write(profile, SKILL % "ratchet-what-you-build")
+    write(profile, SKILL % "spec-writer")
     after = config_hash(root / ".torve" / "gates.yaml", root, load(root, text))
 
     assert before != after
@@ -353,7 +353,7 @@ def test_a_filename_that_reads_as_a_role_is_not_one(root: Path):
     dispatched into the role sets and into the regime hash, which is what made
     `torve eval` refuse a skill as being in no role set."""
 
-    write(agents_dir(root) / "review.yaml", SKILL % "ratchet-what-you-build")
+    write(agents_dir(root) / "review.yaml", SKILL % "spec-writer")
     write(agents_dir(root) / "careful.yaml", ROLE_SKILL % ("review", "flag-dont-flip"))
 
     assert {
@@ -373,7 +373,7 @@ def test_a_role_no_profile_declares_has_no_default(root: Path):
 
 def test_a_role_two_profiles_claim_is_refused_naming_both(root: Path):
     write(agents_dir(root) / "one.yaml", ROLE_SKILL % ("implement", "flag-dont-flip"))
-    write(agents_dir(root) / "two.yaml", ROLE_SKILL % ("implement", "ratchet-what-you-build"))
+    write(agents_dir(root) / "two.yaml", ROLE_SKILL % ("implement", "spec-writer"))
 
     with pytest.raises(AgentError, match="both declare role 'implement'") as excinfo:
         role_equipment(root)

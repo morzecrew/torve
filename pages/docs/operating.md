@@ -29,7 +29,10 @@ shell has not set is filled in.
 | `torve brief <contract>` | print what dispatch settles before an attempt starts — the lint, the size, the rows, the pack, the battery. Refuses nothing; see below |
 | `torve run <task>` | one task, synchronously, sandboxed — the exit code carries the outcome |
 | `torve manager serve <partition> --dsn …` | the resident manager: import contracts, claim one task at a time, execute, record |
-| `torve fleet serve` | the same, over every repository the manifest names, one attention budget across all of them |
+| `torve manager serve <partition> --night` | the same loop under the configuration's night terms: it imports first, refuses a board with nothing to start, and stops on a budget, the wall-clock end or a named escalation class |
+| `torve night show <partition>` | what one night did: what landed, what a gate convicted, what the engine ended, and what waits on a person |
+| `torve manager note <partition> <task> "…"` | say something to a running attempt; the agent reads it with `torve log notes`, nothing interrupts it |
+| `torve fleet status` | the partitions the fleet manifest names and where each stands |
 | `torve merge` | land ready candidates, serialized. Lands and stops — it never pushes the base; under `promotion.landing: pull_request` it publishes the candidate's branch and opens its pull request instead of moving the base at all |
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
 | `torve manager resolve <partition> <task>` | close an escalation and say how: `--resolution requeued` returns it to the board with its contract refreshed from its document's branch; `abandoned` takes it off and leaves the host state to read; `landed --sha` records a hand finish. See the escalation loop below |
@@ -40,7 +43,12 @@ shell has not set is filled in.
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
-| `torve spec check` / `list` / `amend`, `torve init` | the corpus surface |
+| `torve log divergence` / `owed` / `notes` / `land` | the task log: an attempt records its divergences and reads its notes; `land` writes a hand finish's landing file |
+| `torve review pr <number>` | review one pull request and post the findings back as a comment |
+| `torve spec check` / `list` / `show` / `amend` / `project` | the corpus surface; `project` renders the `AGENTS.md` sections beside the code, and belongs in every pull request that accepts or amends a document |
+| `torve equip [--check]` | fetch and verify the equipment the profiles declare |
+| `torve init`, `torve doctor`, `torve migrate` | set a repository up, check its configuration before a night spends an attempt finding out, and migrate the store |
+| `torve guide [skill] [reference]` | print a shipped skill from the installed package; `torve guide torve` is the operator's |
 
 **Retired, and not coming back by that name:** `torve tick` and
 `torve fleet tick`. The standing loop they drove is abandoned (S-0019
@@ -217,16 +225,17 @@ convict most often — live once, in `skills/working-rules/SKILL.md`
   and revert profiles under `.torve/agents/` name it, so it lands under
   `.torve/skills/` in the attempt's workspace — refusable at load and hashed
   into the regime, like any other piece of equipment.
-- A session reads the same directory through its own skill root. In this
-  repository that is a symlink into `skills/working-rules/`, so there is no
-  second text to drift from the first.
+- A session executing a contract by hand reads the same text with
+  `torve guide working-rules`. Interactive sessions do not carry it in their
+  skill roots: those hold what an operator or an author reads, and
+  `torve guide torve` is the operator's skill (S-0100/D-10).
 
-The prompt an attempt carries keeps the bullet that points at the skill
-(S-0067/D-4, LOCKED): your role's skills are under `.torve/skills/`, and
-every `SKILL.md` there is read before code is written. The pointer stays in
-the prompt because a skill nothing points at is a file; the rule bullets
-beside it summarize the skill, and neither the summary nor the skill
-outranks the contract.
+The prompt an attempt carries keeps one bullet that points at the skills
+(S-0067/D-4 as amended by S-0067/A-4): they are in system position, whole,
+and their files are under `.torve/skills/`. The bullet names `working-rules`
+only to a role equipped with it (S-0100/D-8). The skill's own text is not
+restated in the prompt (S-0073/D-1), and nothing in it outranks the
+contract.
 
 That one file is where the three rules live that most often explain a
 refusal a hand-minted contract collects: a scope naming a module names that

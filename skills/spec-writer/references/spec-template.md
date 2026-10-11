@@ -3,7 +3,7 @@
 `torve spec new "Title"` writes the smallest document that checks — the
 directory `S-NNNN/` under the next number, `document.yaml` with the header
 keys and a summary, `decisions.yaml` with an empty list. What follows is
-the filled shape to grow it into. The anatomy is typed (S-0058/D-4): an
+the filled shape to grow it into. The anatomy is typed: an
 accepted design says its `summary`, `motivation`, `current_state`,
 `goals`, `non_goals`, `tests` and `risks` and designs at least one thing;
 an accepted convention says its summary; `docs` and `out_of_scope` are

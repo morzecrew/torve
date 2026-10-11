@@ -270,6 +270,31 @@ def skills_handover(workspace: Path) -> str:
     )
 
 
+def equipped_working_rules(workspace: Path, task_id: str = "") -> bool:
+    """Whether the role's materialized skills carry the working rules
+    (S-0100/D-8): the prompt names `working-rules` only to a role equipped
+    with it.
+
+    Read from the worktree the engine materialised — `skills_handover`'s own
+    directory — because the role's set is resolved at dispatch and never
+    reaches the adapter. An empty set writes no directory, so a missing one
+    in a worktree the engine prepared (its contract is projected there just
+    before the skills) is a role equipped with nothing. A worktree with
+    neither is undetermined (a bare harness, a unit test) and keeps naming
+    it, which is the behaviour every attempt had before a role could be
+    equipped at all.
+    """
+
+    from torve.config import layout
+
+    try:
+        names = {path.name for path in (workspace / SKILLS_RELPATH).iterdir() if path.is_dir()}
+    except OSError:
+        return not (task_id and layout.task_file(workspace, task_id).is_file())
+
+    return "working-rules" in names
+
+
 def build_prompt(
     task: Task,
     revision: bool = False,
@@ -279,6 +304,7 @@ def build_prompt(
     conviction: dict[str, Any] | None = None,
     bare: bool = False,
     pack: str = "",
+    equipped: bool = True,
 ) -> str:
     if bare:
         # S-0074/D-2: the fourth mode, pointed the other way — the base arm's
@@ -410,7 +436,7 @@ def build_prompt(
     if pack:
         lines += ["", pack]
 
-    lines += ["", reading_advice(), "", working_rules(prompt_extras)]
+    lines += ["", reading_advice(), "", working_rules(prompt_extras, equipped=equipped)]
 
     return "\n".join(lines)
 
@@ -453,32 +479,40 @@ def reading_advice() -> str:
     )
 
 
-def working_rules(prompt_extras: str = "", skills: str = "") -> str:
+def working_rules(prompt_extras: str = "", skills: str = "", equipped: bool = True) -> str:
     """The rules section, built once and reached by both channels it travels
     (S-0073/D-2): the prompt this module composes, and the system file the
     image puts in system position. One producer, so the two cannot drift.
 
     `skills` is the bodies, and only the system file passes them (S-0067/A-4):
     the two channels are both re-sent with every request, so a text in both is
-    a text paid twice."""
+    a text paid twice. `equipped` is whether the role's set carries the working
+    rules (S-0100/D-8): the bullet names them only when it does, so a role
+    equipped with nothing is not told a skill it does not have is its rules in
+    full."""
+
+    # S-0067/D-4 as amended by S-0067/A-4: the bullet still points, so a skill
+    # is never a file nothing names — it points at the bodies in system position
+    # rather than at the files, because every attempt read the files and the
+    # reading was the only cost the hand-over removes.
+    bullet = (
+        "- The skills for your role are in system position, whole, and"
+        f" their files are under `{SKILLS_RELPATH}/`."
+    )
+
+    if equipped:
+        # It names `working-rules` — the one text of how work is done here
+        # (S-0067/D-3), which a role takes as a declared equipment item.
+        bullet += (
+            " `working-rules` is this repository's working rules in full;"
+            " nothing in it outranks the contract above."
+        )
 
     return "\n".join(
         [
             "## Working rules",
             "",
-            # S-0067/D-4 as amended by S-0067/A-4: the bullet still points, so a
-            # skill is never a file nothing names — it points at the bodies in
-            # system position rather than at the files, because every attempt
-            # read the files and the reading was the only cost the hand-over
-            # removes. It names `working-rules` — the one text of how work is
-            # done here (S-0067/D-3), which every role takes as a declared
-            # equipment item and a session reads through its own skill root.
-            (
-                "- The skills for your role are in system position, whole, and"
-                f" their files are under `{SKILLS_RELPATH}/`. `working-rules` is"
-                " this repository's working rules in full; nothing in it outranks"
-                " the contract above."
-            ),
+            bullet,
             # S-0073/D-1: the skill's own text is not restated here. The seven
             # bullets this bullet replaced were the skill inlined — the
             # divergence verbs, the owed check, the pack, the spec verbs, notes,
@@ -1847,6 +1881,7 @@ class HarnessAgent:
             ctx.broker.channel_url if ctx.broker is not None else "",
             ctx.broker.token if ctx.broker is not None else "",
         )
+        equipped = equipped_working_rules(ctx.workspace, ctx.task.id)
         prompt = (
             ctx.prompt
             if ctx.prompt is not None
@@ -1857,6 +1892,7 @@ class HarnessAgent:
                 prompt_extras=self.tier.prompt_extras,
                 asked=source_line(ctx.workspace, ctx.task),
                 pack=pack_handover(ctx.workspace),
+                equipped=equipped,
             )
         )
         (ctx.workspace / PROMPT_RELPATH).write_text(prompt, encoding="utf-8")
@@ -1867,7 +1903,7 @@ class HarnessAgent:
         (ctx.workspace / SYSTEM_RELPATH).write_text(
             ""
             if ctx.prompt is not None
-            else working_rules(self.tier.prompt_extras, skills_handover(ctx.workspace)),
+            else working_rules(self.tier.prompt_extras, skills_handover(ctx.workspace), equipped),
             encoding="utf-8",
         )
 

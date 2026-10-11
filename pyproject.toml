@@ -127,8 +127,11 @@ include = [
 # directory once, in sorted order: the dot directories came first, so
 # `skills/spec-writer`, `skills/flag-dont-flip` and `skills/working-rules`
 # were seen there, never under `skills/`, and the wheel built from the sdist
-# shipped without them.
-exclude = ["/.agents", "/.claude"]
+# shipped without them. `skills/**/AGENTS.md` is pruned here rather than at the
+# wheel: the projections are torve's corpus and never an adopter's (S-0100/D-7),
+# `force-include` copies a directory whole, and the wheel is built from this
+# sdist — so pruning here is what keeps them out of both.
+exclude = ["/.agents", "/.claude", "skills/**/AGENTS.md"]
 skip-excluded-dirs = true
 
 [tool.hatch.build.targets.wheel]

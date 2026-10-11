@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0502
+phase: 2
+base: ac4796bcfc2b0d65cc4e0036337e629712feb479
+commit: 2ed6882a567fd28e93c9ca37f3057ff6cdd9767f
+at: '2026-10-09T19:30:43Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-09T19:27:53Z'
+    claim: >-
+      D-8 does not settle what 'equipped' means when a role's set materialized nothing
+      at all. The resolved set never reaches the adapter (AgentContext carries no
+      skills and is out of scope), so the harness reads the worktree's .torve/skills;
+      when that directory is absent — a role equipped with nothing — it keeps naming
+      working-rules rather than suppressing it, which is what the existing prompt
+      tests outside this scope require.
+    evidence: >-
+      src/torve/adapters/agent/harness.py:287-288 — a missing skills directory returns
+      True (name it), so only a materialized set that lacks working-rules suppresses
+      the name
+    action: decided
+    proposal: >-
+      Say that 'equipped' is read from the worktree's materialized skill set and that
+      an absent set names working-rules; or have session create .torve/skills even
+      when empty, so an unequipped role is distinguishable from an unmaterialized
+      one.

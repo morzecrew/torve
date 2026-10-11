@@ -961,6 +961,27 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
     return checks
 
 
+def _stub_checks(root: Path) -> list[tuple[str, bool, str]]:
+    """S-0100/D-3: every skill root carries the stub skill `torve`, so a
+    session finds torve without anyone installing a skill. A missing stub is
+    a hint, not a red — a repository that never ran `init` has not yet had
+    the chance to write it, exactly as with the schemas above."""
+
+    from torve.cli.init import stub_paths
+
+    missing = [path.relative_to(root).as_posix() for path in stub_paths(root) if not path.is_file()]
+
+    if missing:
+        return [
+            ("stub", True, f"stub: {', '.join(missing)} not written yet — `torve init` writes it")
+        ]
+
+    return [("stub", True, "stub: every skill root carries the torve stub")]
+
+
+# ....................... #
+
+
 def doctor(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
@@ -986,6 +1007,7 @@ def doctor(
     checks += _equipment_checks(root, config_path)
     checks += _image_checks(root, config_path)
     checks += _init_checks(root, config_path)
+    checks += _stub_checks(root)
     checks += _standing_refusal_check(root)
     healthy = all(passed for _, passed, _ in checks)
 

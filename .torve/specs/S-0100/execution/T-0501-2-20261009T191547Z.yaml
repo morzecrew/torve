@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0501
+phase: 1
+attempt: 2
+base: f887ca838bd1611787949509a8d1b7607a428212
+commit: 9b144d1cf3dad107f8204b89f251bf0205f21ed8
+at: '2026-10-09T19:15:47Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-10-09T19:04:44Z'
+    claim: >-
+      deleting runconfig.ROLE_SKILLS as the contract requires leaves two out-of-scope
+      test modules importing it, so they error at collection; the contract neither
+      licenses nor anticipates touching them
+    evidence: >-
+      tests/test_evals.py:52 — from torve.config.runconfig import ROLE_SKILLS; tests/test_review_run.py:40
+      is the other
+    action: decided
+    proposal: >-
+      a row licensing tests/test_evals.py and tests/test_review_run.py, or an in-scope
+      replacement sample table, so the module deletion does not strand two test modules
+  - decision: D-9
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-09T19:11:20Z'
+    attempt: 2
+    claim: >-
+      Deleting runconfig.ROLE_SKILLS breaks two test modules outside this task's scope:
+      tests/test_review_run.py and tests/test_evals.py import it at module level,
+      so both fail collection and the full suite goes red. The constant stays until
+      those files are in scope; the vendored reading-isnt-proof deletion (the other
+      half of D-9) is unaffected.
+    evidence: >-
+      tests/test_review_run.py:40 — imports ROLE_SKILLS; tests/test_evals.py:52 is
+      the second importer; uv run pytest reports ImportError: cannot import name 'ROLE_SKILLS'
+      from 'torve.config.runconfig'
+    action: departed
+    notes: >-
+      The block's own comment already says it belongs in tests/conftest.py and moves
+      when those files are in scope; this task does not name them.

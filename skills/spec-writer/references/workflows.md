@@ -1,16 +1,15 @@
 # The four workflows, and the conventions they apply
 
-`torve spec` enforces most of what follows (S-0007/format-validation — the package owns
-the format, S-0007/D-12). This file is the procedure a human or an agent follows
+`torve spec` enforces most of what follows: the package owns the format. This file is the procedure a human or an agent follows
 around it.
 
 ## Directory
 
 **Location.** Documents live in `.torve/specs/` by default — configurable as
 `specs.path` in the runner's `.torve/config.yaml`, one path only, never a
-list or a glob (S-0016/D-23). Only `S-NNNN/` directories belong there, each
-holding only `document.yaml`, `decisions.yaml`, `amendments.yaml` and
-`execution.yaml`; a stray file, a leftover one-file document or a `schema/`
+list or a glob. Only `S-NNNN/` directories belong there, each holding only
+`document.yaml`, `phasing.yaml`, `decisions.yaml`, `amendments.yaml` and the
+`execution/` directory of landings; a stray file, a leftover one-file document or a `schema/`
 directory is a `torve spec check` problem naming what to do with it. The
 archive is `.torve/archive/` beside it, the same shape; the schemas are
 `.torve/schemas/` beside both.
@@ -36,15 +35,15 @@ Workflow B.
 
 - Numbers are 4-digit, zero-padded, monotonically increasing: `0001`, `0002`, …
 - To allocate: `torve spec new "Title"`. The next number is **derived** — the
-  maximum that exists in the corpus path and the archive beside it, plus one
-  (S-0016/D-24, S-0053/D-10). There is no counter file, and no way to pick a number by
+  maximum that exists in the corpus path and the archive beside it, plus one.
+  There is no counter file, and no way to pick a number by
   hand.
 - Directory: `S-NNNN/`, the identifier and nothing else — the title lives in
   `document.yaml` and `torve spec list` shows it. The `id` inside must match
   the number; the check reddens when it does not.
 - Never renumber existing documents. Numbers are identifiers, not an ordering
   to be tidied.
-- **Never delete a document, never reuse a number** (S-0016/D-26). A document
+- **Never delete a document, never reuse a number.** A document
   leaves the corpus path through `torve spec archive NUMBER --superseded-by
   NNNN` into `.torve/archive/`, keeping its directory and identifiers; gaps
   in the numbering are fine, filling one is refused.
