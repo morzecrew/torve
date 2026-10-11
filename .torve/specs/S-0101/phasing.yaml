@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A battery's round and a person's resolution are read from the record
+    intent: >-
+      Rounds that answer a battery carry `battery: true` and the target in `round:`;
+      the lane's battery state and wave read the round contracts, `landed()` and the
+      board's resolutions passed in by the caller; the stream wrappers for them are
+      deleted. Tests: a battery round minted on one host is pending on another until
+      it lands; a person's abandonment of a round releases the wave with an empty
+      stream. Settles D-1 and D-2.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/application/reviewleg.py
+      - src/torve/domain/task.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - src/torve/application/projections.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - tests/test_reviewleg.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - tests/test_task_records.py
+      - tests/test_cli.py
+      - tests/test_projections.py
+      - tests/test_taskstore.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_reviewleg.py
+        tests/test_manager.py tests/test_manager_e2e.py tests/test_task_records.py
+        tests/test_cli.py tests/test_projections.py tests/test_taskstore.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      A conflict, a red regate and a closed pull request are the forge's
+    intent: >-
+      The forge port writes and reads `torve/rebase` and `torve/regate` statuses and
+      finds a closed pull request by head name; the lane reports a conflict once per
+      tip and base, escalates a second red at the same base and head, and abandons
+      a closed document's candidates after its branch is gone. Tests: a second `torve
+      merge` process escalates the second red; a conflict is reported once across
+      two passes; a closed document's tasks stay abandoned after its branch is deleted.
+      Settles D-3, D-8 and D-9.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/cli/merge.py
+      - src/torve/application/projections.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - tests/test_forge.py
+      - tests/test_cli.py
+      - tests/test_projections.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_forge.py
+        tests/test_cli.py tests/test_projections.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      The reviewer's findings and the gate results are read from the record
+    intent: >-
+      `review.recorded` carries each finding; the review leg reads recorded findings
+      from the board and knows a handled thread from the forge; the pull request body
+      reads `gates.evaluated`; the planner's refresh reads `landed()`. Tests: a finding
+      recorded on one host is raised by the leg on another; a thread whose last comment
+      is the engine's is not raised again; the body lists gate results with an empty
+      stream; a refresh leaves a branch-carried task alone with an empty stream. Settles
+      D-4, D-5, D-6 and D-7.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/eventlog.py
+      - src/torve/application/review.py
+      - src/torve/application/reviewleg.py
+      - src/torve/cli/merge.py
+      - src/torve/application/planner.py
+      - src/torve/application/projections.py
+      - tests/test_events.py
+      - tests/test_eventlog.py
+      - tests/test_review_run.py
+      - tests/test_reviewleg.py
+      - tests/test_pr_review.py
+      - tests/test_cli.py
+      - tests/test_plan.py
+      - tests/test_projections.py
+      - tests/test_review_corpus.py
+      - tests/test_review_role.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_events.py tests/test_eventlog.py tests/test_review_run.py
+        tests/test_reviewleg.py tests/test_pr_review.py tests/test_cli.py tests/test_plan.py
+        tests/test_projections.py tests/test_review_corpus.py tests/test_review_role.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      Every stream reader lives in one module only the reports import
+    intent: >-
+      Move the remaining stream readers from `projections.py` into `application/streams.py`;
+      the ledger, the evals, the night report and `why`/`status`/`context` import
+      it; the boundary test refuses any other importer of the module; the architecture
+      pages drop the list of facts the stream still carried. Settles D-10.
+    scope:
+      - src/torve/application/streams.py
+      - src/torve/application/projections.py
+      - src/torve/application/ledger.py
+      - src/torve/application/evals.py
+      - src/torve/application/residency.py
+      - src/torve/cli/ledger.py
+      - src/torve/cli/night.py
+      - src/torve/cli/evals.py
+      - src/torve/cli/why.py
+      - src/torve/cli/status.py
+      - src/torve/cli/context.py
+      - tests/test_layout.py
+      - tests/test_projections.py
+      - tests/test_ledger.py
+      - tests/test_evals.py
+      - tests/test_residency.py
+      - pages/docs/architecture/state.md
+      - pages/docs/architecture/record.md
+      - pages/docs/operating.md
+      - tests/test_why_record.py
+      - tests/test_context.py
+      - tests/test_contextpack.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_layout.py tests/test_projections.py tests/test_ledger.py
+        tests/test_evals.py tests/test_residency.py tests/test_why_record.py tests/test_context.py
+        tests/test_contextpack.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 3
+    character: structural
