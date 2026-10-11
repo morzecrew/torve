@@ -504,21 +504,31 @@ class Scm(Protocol):
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str: ...
 
 
-# The context a completion battery's verdict is written under, and read back
-# by (S-0099/D-4): a commit status on the sha the tree was judged at, so a red
-# tip stays red for every host and a later green tip carries its own.
+# The contexts a status is written under, and read back by: a commit status on
+# the sha the judgement is about, so it stays for every host rather than in one
+# host's stream. `COMPLETION_CONTEXT` is the completion battery's verdict
+# (S-0099/D-4); `REBASE_CONTEXT` is a document branch that will not rebase onto
+# its base (S-0101/D-3); `REGATE_CONTEXT` is a candidate the lane keeps finding
+# red against a base (S-0101/D-8).
 COMPLETION_CONTEXT = "torve/completion"
+REBASE_CONTEXT = "torve/rebase"
+REGATE_CONTEXT = "torve/regate"
 
 
 # ....................... #
 
 
 class StatusScm(Protocol):
-    """The forge's commit statuses (S-0099/D-4): the lane writes the completion
-    battery's verdict on the tip it judged, and the draft flag and the battery
-    round read it back there rather than from a host's stream."""
+    """The forge's commit statuses (S-0099/D-4, S-0101/D-3, S-0101/D-8): the lane
+    writes a judgement on the sha it is about — the completion battery's verdict,
+    a conflicting rebase, a candidate red against a base — and reads it back
+    under its context rather than from a host's stream."""
 
-    def set_status(self, sha: str, state: str, description: str = "") -> None: ...
+    def set_status(
+        self, sha: str, state: str, description: str = "", context: str = COMPLETION_CONTEXT
+    ) -> None: ...
+
+    def status(self, sha: str, context: str = COMPLETION_CONTEXT) -> tuple[str, str] | None: ...
 
     def completion(self, sha: str) -> str | None: ...
 

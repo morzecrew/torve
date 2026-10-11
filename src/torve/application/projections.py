@@ -2292,22 +2292,6 @@ def resolved_rounds(records: Iterable[EventRecord]) -> set[str]:
     }
 
 
-def lane_conflict_bases(root: Path) -> dict[str, str]:
-    """Branch -> the base tip the lane last reported a conflict against, so
-    the same collision against the same base is not reported twice
-    (S-0083/D-13)."""
-
-    found: dict[str, str] = {}
-
-    for row in stream_rows(root):
-        branch = str(row.get("branch") or "")
-
-        if branch and row.get("event") == "lane_document_conflict":
-            found[branch] = str(row.get("base_tip") or "")
-
-    return found
-
-
 def lane_carried(root: Path) -> dict[str, str]:
     """Task id -> why a refresh leaves it alone for a lane landing
     (S-0088/D-2): "landed", or "carried by the branch <branch>" for a

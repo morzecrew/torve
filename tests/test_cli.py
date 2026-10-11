@@ -1486,3 +1486,20 @@ def test_guide_refuses_an_unknown_skill_and_an_unknown_reference():
 
     assert missing.exit_code == EXIT_CONFIG
     assert "no-such-reference" in missing.stderr
+
+
+def test_merge_reads_no_resolutions_from_an_unreachable_store(tmp_path, monkeypatch):
+    """S-0101/D-2: `torve merge` reads the board's resolutions for the wave, and
+    a configured store it cannot reach reads nothing rather than stopping the
+    lane before it runs."""
+
+    import torve.cli.options as options
+    from torve.cli.merge import _resolved
+    from torve.config.runconfig import RunnerConfig
+
+    monkeypatch.setattr(
+        options, "dsn_for", lambda root, override="": "postgresql://u:p@127.0.0.1:1/db"
+    )
+    config = RunnerConfig.model_validate({"scm": {"repo": "owner/name"}})
+
+    assert _resolved(tmp_path, config) == set()

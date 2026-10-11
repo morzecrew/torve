@@ -299,7 +299,15 @@ def _resolved(root: Path, config: RunnerConfig) -> set[str]:
     async def read(log: Any) -> set[str]:
         return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
 
-    return read_log(dsn_for(root), read)
+    try:
+        return read_log(dsn_for(root), read)
+
+    # An unreachable store is the promised "reads nothing": the wave then
+    # waits on rounds a person may have resolved, which costs a pass, where a
+    # crash here would cost the whole lane. forze raises its own base
+    # exception, not an OSError, for a database it cannot reach.
+    except Exception:
+        return set()
 
 
 # ....................... #
@@ -495,7 +503,7 @@ def merge_cmd(
             # The store the promotion unit and landing need (S-0099/D-11).
             store=config.store.adapter,
             # The board's resolutions, read by the caller (S-0101/D-2).
-            resolved=_resolved(root, config),
+            resolved=_resolved(root, config) if config.promotion.unit == "document" else set(),
         )
 
     except RuntimeError as exc:

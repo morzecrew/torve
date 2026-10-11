@@ -673,16 +673,18 @@ class GhScm:
 
     # ....................... #
 
-    def set_status(self, sha: str, state: str, description: str = "") -> None:
-        """Write the completion battery's verdict on *sha* (S-0099/D-4): a
-        commit status under `torve/completion` a person sees in the pull
-        request's checks and every host reads back keyed by the sha it judged."""
+    def set_status(
+        self, sha: str, state: str, description: str = "", context: str = COMPLETION_CONTEXT
+    ) -> None:
+        """Write a judgement on *sha* under *context* (S-0099/D-4): a commit
+        status a person sees in the pull request's checks and every host reads
+        back keyed by the sha and context it was written under."""
 
         if not self.repo:
             raise RuntimeError("scm.repo names no repository to write a status to")
 
         args = ["-X", "POST", f"repos/{self.repo}/statuses/{sha}", "-f", f"state={state}"]
-        args += ["-f", f"context={COMPLETION_CONTEXT}"]
+        args += ["-f", f"context={context}"]
 
         if description:
             args += ["-f", f"description={description[:140]}"]
@@ -691,10 +693,10 @@ class GhScm:
 
     # ....................... #
 
-    def completion(self, sha: str) -> str | None:
-        """The state of the newest `torve/completion` status on *sha*, or None
-        when the forge holds none — which the draft flag reads as not green
-        (S-0099/D-4)."""
+    def status(self, sha: str, context: str = COMPLETION_CONTEXT) -> tuple[str, str] | None:
+        """The newest status under *context* on *sha* — its state beside the
+        description that names what the judgement was about — or None when the
+        forge holds none."""
 
         if not self.repo or not sha:
             return None
@@ -702,10 +704,21 @@ class GhScm:
         raw = self._api(f"repos/{self.repo}/commits/{sha}/statuses")
 
         for one in cast("list[dict[str, Any]]", json.loads(raw or "[]")):
-            if str(one.get("context") or "") == COMPLETION_CONTEXT:
-                return str(one.get("state") or "") or None
+            if str(one.get("context") or "") == context:
+                return (str(one.get("state") or ""), str(one.get("description") or ""))
 
         return None
+
+    # ....................... #
+
+    def completion(self, sha: str) -> str | None:
+        """The state of the newest `torve/completion` status on *sha*, or None
+        when the forge holds none — which the draft flag reads as not green
+        (S-0099/D-4)."""
+
+        found = self.status(sha, COMPLETION_CONTEXT)
+
+        return found[0] or None if found else None
 
     # ....................... #
 
@@ -1226,7 +1239,12 @@ class NullScm:
     ) -> str:
         return ""
 
-    def set_status(self, sha: str, state: str, description: str = "") -> None:
+    def set_status(
+        self, sha: str, state: str, description: str = "", context: str = COMPLETION_CONTEXT
+    ) -> None:
+        return None
+
+    def status(self, sha: str, context: str = COMPLETION_CONTEXT) -> tuple[str, str] | None:
         return None
 
     def completion(self, sha: str) -> str | None:

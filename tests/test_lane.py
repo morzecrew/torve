@@ -16,6 +16,7 @@ from typer.testing import CliRunner
 from torve.adapters.vcs.git import GitLane
 from torve.application.feedback import feedback_file, threads_file
 from torve.application.lane import awaiting_landing, conflict_disposal, process_lane
+from torve.application.ports import COMPLETION_CONTEXT
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.cli.main import app
@@ -177,16 +178,18 @@ def test_a_red_rebase_puts_the_branch_back_so_the_next_pass_regates(lane_repo):
     # rather than read a rebased branch as an unmoved base.
     assert git(lane_repo, "rev-parse", naming.branch("T-7020")) == before
 
+    # The second pass regates the same red rather than fast-forwarding the
+    # branch the first pass would have left rebased (S-0101/D-8 escalates it).
     second = invoke_merge(lane_repo)
-    assert second.exit_code == 1, second.output
-    assert json.loads(second.stdout)["results"][0]["action"] == "gates red"
+    assert json.loads(second.stdout)["results"][0]["action"] == "stuck"
     assert (lane_repo / "twenty.py").exists() is False
 
 
-def test_a_third_red_at_the_same_base_and_head_escalates(lane_repo, monkeypatch):
-    """S-0099/D-9: a candidate the lane keeps finding red at the same base tip
-    and the same head is not regated for ever — the third red escalates the
-    run instead of rebasing it a third time."""
+def test_a_second_red_at_the_same_base_and_head_escalates(lane_repo, monkeypatch):
+    """S-0101/D-8: a candidate the lane keeps finding red at the same base tip
+    and the same head is not regated for ever — the second red escalates the
+    run instead of rebasing it again. In local landing mode the count is per
+    process."""
 
     import torve.application.lane as lane_module
 
@@ -215,17 +218,16 @@ def test_a_third_red_at_the_same_base_and_head_escalates(lane_repo, monkeypatch)
     git(lane_repo, "add", "-A")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a gate that refuses")
 
-    # The first two reds regate and leave the branch where it was.
-    for _ in range(2):
-        result = invoke_merge(lane_repo)
-        assert result.exit_code == 1, result.output
-        assert json.loads(result.stdout)["results"][0]["action"] == "gates red"
-        assert git(lane_repo, "rev-parse", naming.branch("T-7030")) == before
+    # The first red regates and leaves the branch where it was.
+    first = invoke_merge(lane_repo)
+    assert first.exit_code == 1, first.output
+    assert json.loads(first.stdout)["results"][0]["action"] == "gates red"
+    assert git(lane_repo, "rev-parse", naming.branch("T-7030")) == before
 
-    # The third red is a person's: escalated, not rebased again.
-    third = invoke_merge(lane_repo)
-    assert third.exit_code == 2, third.output
-    assert json.loads(third.stdout)["results"][0]["action"] == "stuck"
+    # The second red at the same pair is a person's: escalated, not rebased.
+    second = invoke_merge(lane_repo)
+    assert second.exit_code == 2, second.output
+    assert json.loads(second.stdout)["results"][0]["action"] == "stuck"
     assert RunState.load(naming.state_file(lane_repo, "T-7030")).state is TaskState.ESCALATED
 
 
@@ -1814,12 +1816,14 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
     moved = git(lane_repo, "rev-parse", "origin/main")
     asked: list[str] = []
 
+    status = _Status()
     results = process_lane(
         lane_repo,
         GitLane(),
         publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=23, state="open"), asked),
         unit="document",
+        status=status,
     )
 
     assert asked == [document]
@@ -1831,6 +1835,9 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
     assert git(lane_repo, "merge-base", "--is-ancestor", moved, tip) == ""
     assert git(lane_repo, "show", f"{document}:five.py")
     assert published[-1] == ("T-7305", document)
+    # A clean rebase writes the conflict's opposite (S-0101/D-3): a
+    # `torve/rebase` success on the tip it produced.
+    assert status.status(tip, "torve/rebase") == ("success", moved)
 
     # Rebased onto the tip it now sits on: the next pass has nothing to do.
     again = process_lane(
@@ -1906,6 +1913,9 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
     git(lane_repo, "push", "-q", "origin", "main")
     base_tip = git(lane_repo, "rev-parse", "origin/main")
     asked: list[str] = []
+    # The once-per-base-tip memory is the `torve/rebase` status the forge holds
+    # (S-0101/D-3), not a row on this host's disk.
+    status = _Status()
 
     results = process_lane(
         lane_repo,
@@ -1913,6 +1923,7 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
         publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=25, state="open"), asked),
         unit="document",
+        status=status,
     )
 
     assert [r.action for r in results] == ["conflict"]
@@ -1933,6 +1944,7 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
         publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=25, state="open"), asked),
         unit="document",
+        status=status,
     )
 
     # Bounded once per base tip: the same collision against the same base is
@@ -1941,6 +1953,99 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
     assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]) == 1
     assert git(lane_repo, "rev-parse", document) == tip
     assert len(published) == 1
+
+
+def test_a_document_conflict_is_a_status_reported_once_across_two_passes(lane_repo, tmp_path):
+    """S-0101/D-3: a document branch that conflicts with the base gets a
+    `torve/rebase` failure on its tip naming the base tip — the person sees it
+    in the pull request's checks — and the same tip against the same base is
+    reported once, however many passes look."""
+
+    published: list[tuple[str, str]] = []
+    # The phase and the base both write `app.py`, so no rebase onto the moved
+    # remote is clean.
+    document = _landed_document(lane_repo, tmp_path, "S-0919", {"T-7319": "app.py"}, published)
+    tip = git(lane_repo, "rev-parse", document)
+
+    (lane_repo / "app.py").write_text("base = 7\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves onto the same line")
+    git(lane_repo, "push", "-q", "origin", "main")
+    base_tip = git(lane_repo, "rev-parse", "origin/main")
+    asked: list[str] = []
+    status = _Status()
+
+    first = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=27, state="open"), asked),
+        unit="document",
+        status=status,
+    )
+
+    assert [r.action for r in first] == ["conflict"]
+    assert status.status(tip, "torve/rebase") == ("failure", base_tip)
+
+    again = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=27, state="open"), asked),
+        unit="document",
+        status=status,
+    )
+
+    # Reported once: the second pass reads the same collision off the same tip
+    # and base and writes no second record.
+    assert [r.action for r in again] == ["conflict"]
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]) == 1
+    assert status.status(tip, "torve/rebase") == ("failure", base_tip)
+    assert git(lane_repo, "rev-parse", document) == tip
+    assert len(published) == 1
+
+
+def test_a_closed_documents_tasks_stay_abandoned_after_its_branch_is_deleted(lane_repo, tmp_path):
+    """S-0101/D-9: the forge keeps the pull request after its branch goes, so a
+    person closing one and deleting the branch does not bring its tasks back.
+    The document is asked about at most once per pass and its closure recorded
+    once."""
+
+    published: list[tuple[str, str]] = []
+    document = _landed_document(
+        lane_repo, tmp_path, "S-0920", {"T-7320": "one.py", "T-7321": "two.py"}, published
+    )
+
+    # A person closed the pull request and deleted the branch: the remote
+    # no longer has it, and the fetch prunes the tracking ref.
+    git(lane_repo, "push", "-q", "origin", "--delete", document)
+    git(lane_repo, "fetch", "-q", "--prune", "origin")
+    tracking = git(lane_repo, "for-each-ref", "--format=%(refname)", "refs/remotes/origin/torve/*")
+    assert document not in tracking
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=28, state="closed"), asked),
+        unit="document",
+    )
+
+    # One question for the whole document, however many candidates name it.
+    assert asked == [document]
+    assert [r.action for r in results] == ["abandoned", "abandoned", "abandoned"]
+    assert "T-7320, T-7321" in results[0].detail
+    closed = [e for e in _events(lane_repo) if e.get("event") == "lane_document_closed"]
+    assert len(closed) == 1
+    assert closed[0]["tasks"] == ["T-7320", "T-7321"]
+    # A person declined the design: nothing is re-queued and nothing is
+    # offered a second pull request.
+    for task_id in ("T-7320", "T-7321"):
+        state = RunState.load(naming.state_file(lane_repo, task_id))
+        assert state.state is TaskState.READY
+        assert state.escalation is None
+    assert len(published) == 2
 
 
 def test_a_pass_holding_no_document_asks_the_forge_nothing(lane_repo, tmp_path):
@@ -2323,13 +2428,31 @@ def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
 
 class _Status:
     """A forge holding the completion battery's verdict per judged tip
-    (S-0099/D-4): the write the lane makes, and the read the draft flag makes."""
+    (S-0099/D-4): the write the lane makes, and the read the draft flag makes.
+    Any other context — a conflicting rebase, a candidate red against a base —
+    is held beside it (S-0101/D-3, S-0101/D-8)."""
 
     def __init__(self) -> None:
         self.by_sha: dict[str, str] = {}
+        self.by_context: dict[tuple[str, str], tuple[str, str]] = {}
 
-    def set_status(self, sha: str, state: str, description: str = "") -> None:
-        self.by_sha[sha] = state
+    def set_status(
+        self,
+        sha: str,
+        state: str,
+        description: str = "",
+        context: str = COMPLETION_CONTEXT,
+    ) -> None:
+        if context == COMPLETION_CONTEXT:
+            self.by_sha[sha] = state
+        else:
+            self.by_context[(context, sha)] = (state, description)
+
+    def status(self, sha: str, context: str = COMPLETION_CONTEXT) -> tuple[str, str] | None:
+        if context == COMPLETION_CONTEXT:
+            return (self.by_sha[sha], "") if sha in self.by_sha else None
+
+        return self.by_context.get((context, sha))
 
     def completion(self, sha: str) -> str | None:
         return self.by_sha.get(sha)
@@ -2406,15 +2529,46 @@ class _PushedOnlyStatus(_Status):
         self.root = root
         self.document = document
 
-    def set_status(self, sha: str, state: str, description: str = "") -> None:
+    def set_status(
+        self,
+        sha: str,
+        state: str,
+        description: str = "",
+        context: str = COMPLETION_CONTEXT,
+    ) -> None:
         remote = git(self.root, "rev-parse", f"origin/{self.document}")
         if remote != sha:
             raise RuntimeError(f"gh: No commit found for SHA: {sha} (HTTP 422)")
-        super().set_status(sha, state, description)
+        super().set_status(sha, state, description, context)
+
+
+class _UnpublishedStatus(_Status):
+    """A forge that never received the task branch, as under `promotion.unit:
+    document` where the branch stays local (S-0083/D-1): every status written
+    for a non-`torve/completion` context is refused, so a candidate's regate
+    count cannot live there and stays the process's (T-0528)."""
+
+    def set_status(
+        self,
+        sha: str,
+        state: str,
+        description: str = "",
+        context: str = COMPLETION_CONTEXT,
+    ) -> None:
+        if context != COMPLETION_CONTEXT:
+            raise RuntimeError(f"gh: No commit found for SHA: {sha} (HTTP 422)")
+
+        super().set_status(sha, state, description, context)
 
 
 class _RefusingStatus(_Status):
-    def set_status(self, sha: str, state: str, description: str = "") -> None:
+    def set_status(
+        self,
+        sha: str,
+        state: str,
+        description: str = "",
+        context: str = COMPLETION_CONTEXT,
+    ) -> None:
         raise RuntimeError("gh: HTTP 502")
 
 
@@ -2487,6 +2641,102 @@ def test_a_refused_verdict_leaves_the_landing_published(lane_repo, tmp_path, mon
     refused = [e for e in _events(lane_repo) if e.get("event") == "lane_status_refused"]
     assert [e["sha"] for e in refused] == [completing]
     assert lane.document_tip_red(lane_repo, document, completing, _RefusingStatus()) is True
+
+
+def test_a_second_merge_process_escalates_the_second_red(lane_repo, monkeypatch):
+    """S-0101/D-8: the red is written as a `torve/regate` failure on the head
+    naming the base tip, so a fresh `torve merge` — a new process with no
+    memory of the first — reads it back and escalates the second red instead
+    of regating for ever."""
+
+    import torve.application.lane as lane_module
+
+    monkeypatch.setattr(lane_module, "_RED_RUNS", {})
+
+    candidate(lane_repo, "T-7040", "forty.py", "forty = 40\n")
+    # Move the base under it, so landing needs a rebase and a re-gate.
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    head = git(lane_repo, "rev-parse", naming.branch("T-7040"))
+
+    # A gate that cannot pass, so every re-gate is red at the same pair.
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\n"
+        "gates:\n"
+        "  - name: refuses\n"
+        "    run: 'false'\n"
+        "    state: blocking\n"
+        "    origin: structural\n"
+        "    input: worktree\n"
+        "    timeout: 30\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a gate that refuses")
+    base_tip = git(lane_repo, "rev-parse", "main")
+
+    status = _Status()
+
+    first = process_lane(lane_repo, GitLane(), status=status)
+    assert [r.action for r in first] == ["gates red"]
+    # The red is the forge's to remember, keyed by the head it judged.
+    assert status.status(head, "torve/regate") == ("failure", base_tip)
+    assert git(lane_repo, "rev-parse", naming.branch("T-7040")) == head
+
+    # A fresh process: no in-memory count survives, only the status.
+    monkeypatch.setattr(lane_module, "_RED_RUNS", {})
+
+    second = process_lane(lane_repo, GitLane(), status=status)
+    assert [r.action for r in second] == ["stuck"]
+    assert RunState.load(naming.state_file(lane_repo, "T-7040")).state is TaskState.ESCALATED
+
+
+def test_a_local_branch_under_a_forge_still_escalates_the_second_red(lane_repo, monkeypatch):
+    """S-0101/D-8, T-0528: with `promotion.unit: document` the task branch is
+    never pushed (S-0083/D-1), so the forge holds no `torve/regate` status for
+    its head and never will. The count falls back to the process's, so the
+    second red still escalates instead of being regated for ever."""
+
+    import torve.application.lane as lane_module
+
+    monkeypatch.setattr(lane_module, "_RED_RUNS", {})
+
+    candidate(lane_repo, "T-7050", "fifty.py", "fifty = 50\n")
+    # Move the base under it, so landing needs a rebase and a re-gate.
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    head = git(lane_repo, "rev-parse", naming.branch("T-7050"))
+
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\n"
+        "gates:\n"
+        "  - name: refuses\n"
+        "    run: 'false'\n"
+        "    state: blocking\n"
+        "    origin: structural\n"
+        "    input: worktree\n"
+        "    timeout: 30\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a gate that refuses")
+
+    status = _UnpublishedStatus()
+
+    first = process_lane(lane_repo, GitLane(), status=status)
+    assert [r.action for r in first] == ["gates red"]
+    # The forge refused the status: the head it is about was never pushed.
+    assert status.status(head, "torve/regate") is None
+
+    # The same process's next pass has no status to read, and still escalates
+    # rather than regating the candidate a second time.
+    second = process_lane(lane_repo, GitLane(), status=status)
+    assert [r.action for r in second] == ["stuck"]
+    assert RunState.load(naming.state_file(lane_repo, "T-7050")).state is TaskState.ESCALATED
 
 
 def test_the_publisher_keeps_the_draft_while_the_tip_carries_a_recorded_red(
