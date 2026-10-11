@@ -427,6 +427,13 @@ No decision reads `.torve/telemetry.jsonl`: `stream_rows` is imported only by th
 - Paths: `src/torve/application/projections.py` `tests/test_layout.py`
 - Consequence: the file can be lost, rotated or absent and the engine decides the same
 
+### S-0101/D-10 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+Every function that reads the stream lives in `application/streams.py`; only the ledger, the evals, the night report and the read-only reports import it, and a test refuses any other importer.
+
+- Paths: `src/torve/application/streams.py` `src/torve/application/projections.py` `tests/test_layout.py`
+- Consequence: a decision cannot read the stream through a wrapper in another module
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

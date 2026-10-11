@@ -143,3 +143,16 @@ decisions:
       S-0099's test checked one function's name, and five wrappers in `projections.py`
       read the stream for decisions.
     cites: [S-0099/D-6]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `review.recorded` gains `items`, the list of the review's findings with severity,
+      path, line, claim and evidence, defaulting to empty: no stored row changes and
+      no migration runs.
+    paths: [src/torve/domain/events.py]
+    consequence: >-
+      rows recorded before the field read as a review with no findings, which is what
+      they hold
+    rationale: >-
+      The owner's answer to Q-1 (2026-10-11): an additive field with a default changes
+      no row already stored.

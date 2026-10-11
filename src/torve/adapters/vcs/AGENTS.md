@@ -73,4 +73,25 @@ A completion battery's verdict is a commit status `torve/completion` on the tip 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: a red tip stays red for every host and for the person reading the pull request's checks, and a later green tip carries its own verdict
 
+### S-0101/D-3 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A document branch that conflicts with the base gets a `torve/rebase` commit status of `failure` on its tip naming the base tip; the same tip against the same base is reported once, and a later clean rebase writes `success`.
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: a person sees the conflict in the pull request's checks, and no host reports it twice
+
+### S-0101/D-8 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A candidate the lane finds red against a base gets a `torve/regate` commit status of `failure` on its head naming the base tip; a second red at the same base and head escalates. In local landing mode, with no forge, the count stays per process.
+
+- Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: `torve merge` run once per pass escalates a candidate that stays red, instead of regating it forever
+
+### S-0101/D-9 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+
+A ready candidate whose document has a closed, unmerged pull request, found on the forge by its head branch name, is abandoned; the lane asks about a document at most once per pass and records its closure once.
+
+- Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py`
+- Consequence: deleting a closed document's branch does not bring its tasks back
+
 <!-- /torve:managed -->
