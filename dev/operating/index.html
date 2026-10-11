@@ -1319,8 +1319,20 @@ shell has not set is filled in.</p>
 <td>the resident manager: import contracts, claim one task at a time, execute, record</td>
 </tr>
 <tr>
-<td><code>torve fleet serve</code></td>
-<td>the same, over every repository the manifest names, one attention budget across all of them</td>
+<td><code>torve manager serve &lt;partition&gt; --night</code></td>
+<td>the same loop under the configuration's night terms: it imports first, refuses a board with nothing to start, and stops on a budget, the wall-clock end or a named escalation class</td>
+</tr>
+<tr>
+<td><code>torve night show &lt;partition&gt;</code></td>
+<td>what one night did: what landed, what a gate convicted, what the engine ended, and what waits on a person</td>
+</tr>
+<tr>
+<td><code>torve manager note &lt;partition&gt; &lt;task&gt; "…"</code></td>
+<td>say something to a running attempt; the agent reads it with <code>torve log notes</code>, nothing interrupts it</td>
+</tr>
+<tr>
+<td><code>torve fleet status</code></td>
+<td>the partitions the fleet manifest names and where each stands</td>
 </tr>
 <tr>
 <td><code>torve merge</code></td>
@@ -1363,8 +1375,28 @@ shell has not set is filled in.</p>
 <td>the battery, and the sabotage suite that proves a gate can fail</td>
 </tr>
 <tr>
-<td><code>torve spec check</code> / <code>list</code> / <code>amend</code>, <code>torve init</code></td>
-<td>the corpus surface</td>
+<td><code>torve log divergence</code> / <code>owed</code> / <code>notes</code> / <code>land</code></td>
+<td>the task log: an attempt records its divergences and reads its notes; <code>land</code> writes a hand finish's landing file</td>
+</tr>
+<tr>
+<td><code>torve review pr &lt;number&gt;</code></td>
+<td>review one pull request and post the findings back as a comment</td>
+</tr>
+<tr>
+<td><code>torve spec check</code> / <code>list</code> / <code>show</code> / <code>amend</code> / <code>project</code></td>
+<td>the corpus surface; <code>project</code> renders the <code>AGENTS.md</code> sections beside the code, and belongs in every pull request that accepts or amends a document</td>
+</tr>
+<tr>
+<td><code>torve equip [--check]</code></td>
+<td>fetch and verify the equipment the profiles declare</td>
+</tr>
+<tr>
+<td><code>torve init</code>, <code>torve doctor</code>, <code>torve migrate</code></td>
+<td>set a repository up, check its configuration before a night spends an attempt finding out, and migrate the store</td>
+</tr>
+<tr>
+<td><code>torve guide [skill] [reference]</code></td>
+<td>print a shipped skill from the installed package; <code>torve guide torve</code> is the operator's</td>
 </tr>
 </tbody>
 </table>
@@ -1519,16 +1551,17 @@ convict most often — live once, in <code>skills/working-rules/SKILL.md</code>
   and revert profiles under <code>.torve/agents/</code> name it, so it lands under
   <code>.torve/skills/</code> in the attempt's workspace — refusable at load and hashed
   into the regime, like any other piece of equipment.</li>
-<li>A session reads the same directory through its own skill root. In this
-  repository that is a symlink into <code>skills/working-rules/</code>, so there is no
-  second text to drift from the first.</li>
+<li>A session executing a contract by hand reads the same text with
+  <code>torve guide working-rules</code>. Interactive sessions do not carry it in their
+  skill roots: those hold what an operator or an author reads, and
+  <code>torve guide torve</code> is the operator's skill (S-0100/D-10).</li>
 </ul>
-<p>The prompt an attempt carries keeps the bullet that points at the skill
-(S-0067/D-4, LOCKED): your role's skills are under <code>.torve/skills/</code>, and
-every <code>SKILL.md</code> there is read before code is written. The pointer stays in
-the prompt because a skill nothing points at is a file; the rule bullets
-beside it summarize the skill, and neither the summary nor the skill
-outranks the contract.</p>
+<p>The prompt an attempt carries keeps one bullet that points at the skills
+(S-0067/D-4 as amended by S-0067/A-4): they are in system position, whole,
+and their files are under <code>.torve/skills/</code>. The bullet names <code>working-rules</code>
+only to a role equipped with it (S-0100/D-8). The skill's own text is not
+restated in the prompt (S-0073/D-1), and nothing in it outranks the
+contract.</p>
 <p>That one file is where the three rules live that most often explain a
 refusal a hand-minted contract collects: a scope naming a module names that
 module's test file (S-0067/D-6); a scope never names the changelog — the
