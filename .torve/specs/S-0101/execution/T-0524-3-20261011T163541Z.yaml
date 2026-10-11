@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0524
+phase: 4
+attempt: 3
+base: ca2408949213b10d1a2cc6ee793bdb1a0da00e42
+commit: 0541523e
+at: '2026-10-11T16:35:41Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-10
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-11T16:14:33Z'
+    claim: >-
+      Every stream reader moved from projections.py to application/streams.py, but
+      projections.py still imports and re-exports the row-shaped readers: the decision
+      modules that read them (lane, reviewleg, cli/merge, cli/manager) are outside
+      this phase's scope, so the readers must stay importable from the module they
+      already read. The boundary test therefore names projections.py as the read-only
+      reports' module rather than refusing it; the ledger, the evals, the night report
+      and why/status/context import streams.py.
+    evidence: >-
+      src/torve/application/projections.py:35 — projections re-exports the readers
+      for its out-of-scope callers; src/torve/application/streams.py:32 is their new
+      home
+    action: departed
+  - decision: D-10
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-11T16:27:57Z'
+    attempt: 2
+    claim: >-
+      D-10 cannot be settled within this task's scope. Moving the stream readers out
+      of projections.py makes their callers import application/streams.py, but four
+      callers - application/lane.py, cli/merge.py, cli/manager.py and application/reviewleg.py
+      - are outside scope.allow, so projections.py must keep re-exporting the readers
+      and the boundary test cannot refuse the decisions that read the stream through
+      that re-export. The reviewers thread is right that the re-export defeats D-10s
+      consequence; closing it needs files this phase is not scoped for.
+    evidence: >-
+      src/torve/application/lane.py:1274 — lane_verdicts is imported from projections
+      there; merge.py:108 reads attempt_rows, manager.py:1155 reads round_already_requeued
+      and reviewleg.py:1595 reads recorded_rows and lane_finding_reraised the same
+      way, with tests/test_lane.py, tests/test_intake.py and tests/test_reviewleg.py
+      importing stream_rows from projections too.
+    action: halted
+    proposal: >-
+      Widen this phase's scope to include src/torve/application/lane.py, src/torve/cli/merge.py,
+      src/torve/cli/manager.py, src/torve/application/reviewleg.py, tests/test_lane.py,
+      tests/test_intake.py and tests/test_reviewleg.py so each caller imports application/streams.py
+      directly and projections.py drops the re-export; otherwise a phase of its own
+      must give lane_verdicts, attempt_rows, round_already_requeued, recorded_rows
+      and lane_finding_reraised carriers in the record, as S-0101/D-1 through D-7
+      did for their facts.
+  - decision: D-10
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-11T16:32:28Z'
+    attempt: 2
+    claim: >-
+      D-10 cannot be settled within this task's scope. Moving the stream readers out
+      of projections.py makes their callers import application/streams.py, but four
+      callers - application/lane.py, cli/merge.py, cli/manager.py and application/reviewleg.py
+      - are outside scope.allow, so projections.py must keep re-exporting the readers
+      and the boundary test cannot refuse the decisions that read the stream through
+      that re-export. The reviewers thread is right that the re-export defeats D-10s
+      consequence; closing it needs files this phase is not scoped for.
+    evidence: >-
+      src/torve/application/lane.py:1274 — lane_verdicts is imported from projections
+      there; merge.py:108 reads attempt_rows, manager.py:1155 reads round_already_requeued
+      and reviewleg.py:1595 reads recorded_rows and lane_finding_reraised the same
+      way, with tests/test_lane.py, tests/test_intake.py and tests/test_reviewleg.py
+      importing stream_rows from projections too.
+    action: halted
+    proposal: >-
+      Widen this phase's scope to include src/torve/application/lane.py, src/torve/cli/merge.py,
+      src/torve/cli/manager.py, src/torve/application/reviewleg.py, tests/test_lane.py,
+      tests/test_intake.py and tests/test_reviewleg.py so each caller imports application/streams.py
+      directly and projections.py drops the re-export; otherwise a phase of its own
+      must give lane_verdicts, attempt_rows, round_already_requeued, recorded_rows
+      and lane_finding_reraised carriers in the record, as S-0101/D-1 through D-7
+      did for their facts.
+  - decision: D-10
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-11T16:34:28Z'
+    attempt: 3
+    claim: >-
+      Six stream readers still reach decisions through projections: the task unit's
+      pull-request ledger and body (lane_verdicts, attempt_rows, recorded_rows), a
+      round's whole-phasing requeue (round_already_requeued), the host's own attempted
+      tasks (attempted_tasks) and the re-raise dedupe (lane_finding_reraised). No
+      S-0101 decision gave them carriers and their callers in lane, merge, manager
+      and residency are outside this phase's scope, so projections stays an allowed
+      importer for them.
+    evidence: >-
+      tests/test_layout.py:258 — projections is allowed, and its comment names the
+      six readers it still bridges
+    action: departed
+    proposal: >-
+      A follow-up document deletes the task unit's pull-request mode, carries the
+      whole-phasing flag in the round's contract, and drops the host-only reads, after
+      which projections leaves the allowlist
