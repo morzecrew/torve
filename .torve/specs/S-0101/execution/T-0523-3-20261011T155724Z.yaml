@@ -1,0 +1,124 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0523
+phase: 3
+attempt: 3
+base: f619e8fa2abb463884f114dd32aa4b61e81cce71
+commit: 4d438e18
+at: '2026-10-11T15:57:24Z'
+agent: executor/deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-11T15:33:03Z'
+    attempt: 2
+    claim: >-
+      D-5 says a thread the engine refused is known from the forge, but a refusal
+      posts nothing to the forge (S-0084/D-9), so the forge cannot mark one. The leg
+      reads the forge's last comment only for an answered thread and falls back to
+      the stream row a refusal wrote, which is host-local, so D-5's 'on any host'
+      consequence holds only for answered threads.
+    evidence: >-
+      src/torve/application/reviewleg.py:1108-1111 — the forge branch covers a last
+      comment authored by the engine, and the fallback is the recorded refusal's comment
+      count.
+    action: departed
+    proposal: >-
+      D-5 should say the forge proves an answered thread handled, while a refused
+      thread is known from the row the refusal wrote, and a later comment past that
+      row's count re-opens it.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-11T15:33:03Z'
+    attempt: 2
+    claim: >-
+      D-4 names no caller, and the only production caller of the leg builds it with
+      no records, so the board's review findings reach the leg only when a caller
+      is wired to pass them. manager.py is outside this contract's scope.
+    evidence: >-
+      src/torve/cli/manager.py:282-287 — review_thread_leg is called with the root,
+      config, forge and a membership test, and no records argument.
+    action: decided
+    proposal: >-
+      A task should open the store in the manager pass and hand review_thread_leg
+      its review.recorded rows, as torve merge already hands _document_pr_text its
+      records.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-11T15:45:49Z'
+    attempt: 3
+    claim: >-
+      S-0101/D-4 cannot be finished inside this contract's scope: the leg takes the
+      board's review.recorded rows as a records argument, and the only production
+      caller builds that call in src/torve/cli/manager.py, which neither this task's
+      allow list nor D-4's own paths name. No in-scope edit can hand the leg the store's
+      rows, so a finding recorded on another host still never reaches the leg in production,
+      and the superseded attempt's own unlisted/decided entry saying so was correct
+      but is not a wiring.
+    evidence: >-
+      src/torve/cli/manager.py:282-287 — the pass calls review_thread_leg(root, config,
+      _ThreadForge(...), held.__contains__) with no records argument, leaving reviewleg.py:1603's
+      'if records:' branch dead in production; src/torve/application/reviewleg.py:1571
+      is the parameter the board would arrive on.
+    action: halted
+    proposal: >-
+      Add src/torve/cli/manager.py to phase 3's scope (and tests/test_residency.py
+      if the leg's signature moves): the manager pass reads the record's review.recorded
+      rows for the partition it already reads resolutions from and hands review_thread_leg
+      them, as torve merge hands _document_pr_text its records (S-0101/D-6), so D-4's
+      consequence — a host that did not run a review still reads what it found — holds
+      in production.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-11T15:53:40Z'
+    attempt: 3
+    claim: >-
+      S-0101/D-4 cannot be finished inside this contract's scope: the leg takes the
+      board's review.recorded rows as a records argument, and the only production
+      caller builds that call in src/torve/cli/manager.py, which neither this task's
+      allow list nor D-4's own paths name. No in-scope edit can hand the leg the store's
+      rows, so a finding recorded on another host still never reaches the leg in production,
+      and the superseded attempt's own unlisted/decided entry saying so was correct
+      but is not a wiring.
+    evidence: >-
+      src/torve/cli/manager.py:282-287 — the pass calls review_thread_leg(root, config,
+      _ThreadForge(...), held.__contains__) with no records argument, leaving reviewleg.py:1603's
+      'if records:' branch dead in production; src/torve/application/reviewleg.py:1571
+      is the parameter the board would arrive on.
+    action: halted
+    proposal: >-
+      Add src/torve/cli/manager.py to phase 3's scope (and tests/test_residency.py
+      if the leg's signature moves): the manager pass reads the record's review.recorded
+      rows for the partition it already reads resolutions from and hands review_thread_leg
+      them, as torve merge hands _document_pr_text its records (S-0101/D-6), so D-4's
+      consequence — a host that did not run a review still reads what it found — holds
+      in production.
