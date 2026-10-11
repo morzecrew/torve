@@ -106,7 +106,7 @@ A dependency change here is an image change: the pinned seat images are rebuilt 
 - Paths: `pages/docs/reference/stability.md` `README.md`
 - Consequence: an adopter reads one page to upgrade, and a release cannot move a format silently
 
-### S-0100/D-7 — `ASSUMED` (A session learns torve from the torve it runs) — implementation: none
+### S-0100/D-7 — `ASSUMED` (A session learns torve from the torve it runs)
 
 `skills/**/AGENTS.md` projections stay out of the wheel and out of the copy a sandbox receives.
 

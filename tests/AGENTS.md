@@ -420,7 +420,7 @@ When every thread a login in `threads.bots` opened on a head is resolved and the
 - Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_runconfig.py`
 - Consequence: the operator stops asking a bot for approval by hand
 
-### S-0099/D-6 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: none
+### S-0099/D-6 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
 
 No decision reads `.torve/telemetry.jsonl`: `stream_rows` is imported only by the ledger, the evals and the night report, and a test fails on any other import.
 
