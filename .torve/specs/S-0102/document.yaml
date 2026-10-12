@@ -6,7 +6,7 @@ kind: design
 change:
   type: refactor
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0099, S-0101]
 informed_by: []
@@ -66,12 +66,23 @@ design:
       The test refuses a module other than the ledger, the evals, the night report
       and `projections` that imports `streams`, and refuses any module that imports
       from `projections` a name `streams` defines.
-tests: ''
+tests: |-
+  - A task pull request a person merged reads merged with an empty stream; a pass with no task branch on the remote makes no forge call (D-1).
+  - A task pull request's body lists each gate's result with an empty stream (D-2).
+  - A leg given no board raises no record-sourced finding; one given the board raises what it holds (D-3).
+  - A round widened once carries `whole: true` in `round:`, and a requeue on another host does not widen it again (D-4).
+  - A task whose run-state file a reap swept is still kept off the board by its local task branch, with an empty stream (D-5).
+  - A re-raise on an unchanged head writes one row per process; a new head writes another (D-6).
+  - The boundary test fails on a planted module importing `streams`, and on one importing a `streams` name through `projections` (D-7).
+  - A contract naming no document still lands by the task unit under `landing: pull_request` (D-8).
 docs: ''
 out_of_scope: >-
   - A re-raise remembered across a restart: one diagnostic row may repeat after a
   manager restarts, which no decision reads.
-risks: ''
+risks: |-
+  - A manager restart may write one repeated re-raise row (D-6); the row is a diagnostic no decision reads.
+  - A task branch deleted by hand loses the ran-here guard for a task whose run-state file was also swept; the mint could then offer it again (D-5).
+  - The task unit asks the forge once per pass for each task branch the remote holds; a repository with many open task pull requests pays one call each.
 alternatives:
   - option: >-
       Delete the task unit under `landing: pull_request`, so only documents open pull
@@ -88,3 +99,5 @@ questions:
       that names no document there? It removes `_forge_verdict`, `_pr_ledger` and
       `_pr_text` outright, at the cost of S-0083/D-4's document-less contracts. Lean:
       no; give it carriers here and decide the deletion with the other simplifications.
+    status: settled
+    settled_by: D-8

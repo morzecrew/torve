@@ -673,6 +673,27 @@ The gate results a document pull request's body lists are read from the record's
 - Paths: `src/torve/cli/merge.py`
 - Consequence: the body is composed the same from any host
 
+### S-0102/D-2 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+A task pull request's body lists gate results from the record's `gates.evaluated` events.
+
+- Paths: `src/torve/cli/merge.py`
+- Consequence: the body is composed the same from any host
+
+### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+A round the review leg widens to the whole phasing carries `whole: true` in its contract's `round:`, and a requeue reads it there.
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/cli/manager.py` `src/torve/domain/task.py`
+- Consequence: a round is widened once, whichever host requeues it
+
+### S-0102/D-8 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+The task unit under `landing: pull_request` stays: a contract that names no document lands by it as S-0083/D-4 says, and its deletion is decided with the other simplifications, not here.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: hand-minted and standing contracts keep landing under pull-request landing
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

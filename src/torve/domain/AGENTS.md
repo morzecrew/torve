@@ -350,6 +350,13 @@ A round that answers a red completion battery carries `battery: true` and its ta
 - Paths: `src/torve/domain/events.py`
 - Consequence: rows recorded before the field read as a review with no findings, which is what they hold
 
+### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+A round the review leg widens to the whole phasing carries `whole: true` in its contract's `round:`, and a requeue reads it there.
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/cli/manager.py` `src/torve/domain/task.py`
+- Consequence: a round is widened once, whichever host requeues it
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

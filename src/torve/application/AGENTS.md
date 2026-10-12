@@ -1882,6 +1882,55 @@ Every function that reads the stream lives in `application/streams.py`; only the
 - Paths: `src/torve/application/streams.py` `src/torve/application/projections.py` `tests/test_layout.py`
 - Consequence: a decision cannot read the stream through a wrapper in another module
 
+### S-0102/D-1 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+Under the task unit, a candidate's pull request is read from the forge when its task branch is on the remote, at most once per pass; a pass with no task branch on the remote asks nothing.
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a task pull request a person merges or closes is seen by any host's next pass
+
+### S-0102/D-3 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+The review leg reads review findings from the board alone; a caller with no board passes none, and the leg raises none from the record source.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: no host raises a finding only it can see
+
+### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+A round the review leg widens to the whole phasing carries `whole: true` in its contract's `round:`, and a requeue reads it there.
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/cli/manager.py` `src/torve/domain/task.py`
+- Consequence: a round is widened once, whichever host requeues it
+
+### S-0102/D-5 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+A task ran on this host when its run-state file or its local `torve/T-NNNN` branch exists; the stream is not read.
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: the mint's guard against re-offering a task that ran here and never landed holds after a reap, with no telemetry
+
+### S-0102/D-6 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+The review leg remembers the head it last recorded a re-raise at for the life of its process; a restarted manager may record one re-raise again.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: the dedupe needs no stream, and a repeated row after a restart is a diagnostic no decision reads
+
+### S-0102/D-7 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+`projections` exports no stream reader: it calls `streams` by module name for the reports it hosts. A test refuses any module other than the ledger, the evals, the night report and `projections` that imports `streams`, and any module that imports from `projections` a name `streams` defines.
+
+- Paths: `src/torve/application/projections.py` `src/torve/application/streams.py` `tests/test_layout.py`
+- Consequence: S-0099/D-6 and S-0101/D-10 hold, and a wrapper cannot reopen the route
+
+### S-0102/D-8 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+The task unit under `landing: pull_request` stays: a contract that names no document lands by it as S-0083/D-4 says, and its deletion is decided with the other simplifications, not here.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: hand-minted and standing contracts keep landing under pull-request landing
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -434,6 +434,13 @@ Every function that reads the stream lives in `application/streams.py`; only the
 - Paths: `src/torve/application/streams.py` `src/torve/application/projections.py` `tests/test_layout.py`
 - Consequence: a decision cannot read the stream through a wrapper in another module
 
+### S-0102/D-7 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+
+`projections` exports no stream reader: it calls `streams` by module name for the reports it hosts. A test refuses any module other than the ledger, the evals, the night report and `projections` that imports `streams`, and any module that imports from `projections` a name `streams` defines.
+
+- Paths: `src/torve/application/projections.py` `src/torve/application/streams.py` `tests/test_layout.py`
+- Consequence: S-0099/D-6 and S-0101/D-10 hold, and a wrapper cannot reopen the route
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green
