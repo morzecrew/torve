@@ -1578,3 +1578,53 @@ def test_a_document_body_lists_gate_results_from_the_record_with_an_empty_stream
 
     assert "## T-8401 · phase 1" in body
     assert "gates: all 2 pass" in body
+
+
+def test_a_task_body_lists_gate_results_from_the_record_with_an_empty_stream(tmp_path):
+    """S-0102/D-2: the body's gate results are read from the record's
+    `gates.evaluated` events, so a host whose stream holds no attempt rows
+    composes the same body."""
+
+    import uuid
+    from datetime import UTC, datetime
+
+    import yaml
+    from test_forge import task_with_contract
+
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.cli.merge import _pr_text
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    root = tmp_path / "repo"
+    task = task_with_contract()
+    contract = root / ".torve" / "tasks" / task.id / "contract.yaml"
+    contract.parent.mkdir(parents=True)
+    contract.write_text(yaml.safe_dump(task.model_dump(mode="json")), encoding="utf-8")
+    RunState(task_id=task.id, path=naming.state_file(root, task.id)).save()
+
+    now = datetime.now(UTC)
+    gate = EventRecord(
+        id=uuid.uuid4().hex,
+        rev=1,
+        created_at=now,
+        last_update_at=now,
+        kind=EventKind.GATES_EVALUATED,
+        partition="torve/torve",
+        subject_type=SubjectType.TASK,
+        subject_id=task.id,
+        actor_kind=ActorKind.WORKER,
+        actor_id="worker-1",
+        payload={
+            "results": [
+                {"name": "scope", "outcome": "pass", "state": "blocking", "duration_s": 0.2},
+                {"name": "tests", "outcome": "pass", "state": "blocking", "duration_s": 1.0},
+            ]
+        },
+    )
+
+    assert not (root / ".torve" / "telemetry.jsonl").exists()
+
+    _title, body = _pr_text(root, task.id, [gate])
+
+    assert "all 2 pass" in body

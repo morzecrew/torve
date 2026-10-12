@@ -57,12 +57,6 @@ Publisher = Callable[[str, str], str]
 # request for that branch. Injected for the same reason `Publisher` is.
 Forge = Callable[[str], PrInfo | None]
 
-# The action a candidate already carrying a verdict reports on every later
-# pass. A verdict is terminal: the lane reads it back from the record
-# (`projections.lane_verdicts`, S-0099/D-6) and never asks the forge again, so
-# a closed pull request is never re-opened (S-0080/D-8, S-0080/D-17).
-_RECORDED = {"landed": "already landed", "closed": "abandoned", "unresolved": "pr unresolved"}
-
 # S-0101/D-8: a candidate the lane keeps finding red at the same base tip and
 # the same head is not regated for ever — the second red escalates. With a forge
 # the count is the `torve/regate` status it holds for the head; when the forge
@@ -778,6 +772,32 @@ def _keep_ref(root: Path, ref: str, sha: str) -> None:
         raise RuntimeError(proc.stderr.strip() or f"could not keep {ref}")
 
 
+def _ref_sha(root: Path, ref: str) -> str | None:
+    """The sha *ref* holds, or None when the ref is not there. Read through
+    subprocess for the same reason `_keep_ref` writes through it."""
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return proc.stdout.strip() or None
+
+
+def _drop_ref(root: Path, ref: str) -> None:
+    """Forget *ref* — a verdict a person has since undone is not a verdict. A
+    ref that is not there is nothing to forget."""
+
+    subprocess.run(
+        ["git", "-C", str(root), "update-ref", "-d", ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 # ....................... #
 
 
@@ -1265,15 +1285,66 @@ def _write_verdict(root: Path, status: StatusScm | None, tip: str, red: str | No
 # ....................... #
 
 
-def _pr_ledger(root: Path) -> dict[str, str]:
-    """What the stream last recorded about each task's pull request. The
-    lane's own events are the memory of what it has open, so a pass holding
-    nothing open asks the forge nothing at all (S-0080/D-16) — no ledger of its
-    own, and no call per idle candidate."""
+# The verdicts a task's pull request can be given, in the order one supersedes
+# another. `open` is not one: a pull request still open is a person's turn, not
+# a verdict, and a person who reopens one clears what was recorded.
+_PR_VERDICTS = ("landed", "closed")
 
-    from torve.application.projections import lane_verdicts as _lane_verdicts
 
-    return _lane_verdicts(root)
+def _verdict_ref(task_id: str, verdict: str) -> str:
+    return f"refs/torve/pr-{verdict}/{task_id}"
+
+
+def _recorded_verdict(root: Path, task_id: str) -> tuple[str, str] | None:
+    """*(verdict, sha)* this checkout last read for the task's pull request, or
+    None when it read none.
+
+    A fact of the checkout's own git, never of a host's stream (S-0102/D-1):
+    the forge is still what a host reads first, and this only keeps a verdict a
+    pull request was already given — so one closed and its branch deleted is
+    not quietly published again (S-0080/D-8, S-0080/D-17), and one a pass has
+    already recorded is not recorded a second time."""
+
+    for verdict in _PR_VERDICTS:
+        sha = _ref_sha(root, _verdict_ref(task_id, verdict))
+
+        if sha is not None:
+            return verdict, sha
+
+    return None
+
+
+def _record_verdict(root: Path, task_id: str, verdict: str, sha: str) -> None:
+    """Record *verdict* as this checkout's answer for the task's pull request,
+    at the branch tip it was read against, dropping any verdict held before: a
+    person who reopens a pull request shows the new one on the next pass."""
+
+    for other in _PR_VERDICTS:
+        if other != verdict:
+            _drop_ref(root, _verdict_ref(task_id, other))
+
+    _keep_ref(root, _verdict_ref(task_id, verdict), sha)
+
+
+def _clear_verdict(root: Path, task_id: str) -> None:
+    """Forget the recorded verdict: the forge reports the pull request open, so
+    whatever was recorded no longer stands (S-0080/D-8)."""
+
+    for verdict in _PR_VERDICTS:
+        _drop_ref(root, _verdict_ref(task_id, verdict))
+
+
+def _recorded_result(task_id: str, branch: str, verdict: str, sha: str) -> LaneResult:
+    """What a verdict this checkout already holds reads as when the branch it
+    was read against is no longer on the remote (S-0080/D-8, S-0080/D-17), so a
+    deletion republishes nothing."""
+
+    if verdict == "landed":
+        return LaneResult(task_id, branch, "already landed", "the landing is recorded", sha)
+
+    return LaneResult(
+        task_id, branch, "abandoned", "the pull request was closed without merging", sha
+    )
 
 
 # ....................... #
@@ -1283,17 +1354,29 @@ def _forge_verdict(
     root: Path,
     vcs: LaneVcs,
     forge: Forge,
-    ledger: dict[str, str],
     task_id: str,
     base: str,
     branch: str,
     branch_tip: str,
     approver: str,
     results: list[LaneResult],
+    recorded: tuple[str, str] | None = None,
 ) -> bool:
     """The later pass's read-back (S-0080/the-landing-arrives-as-an-answer): the engine does not
-    watch for the merge, it asks about the candidates it has open and
-    answers each of the three verdicts a person can give.
+    watch for the merge, it asks about the candidates whose task branch the
+    remote holds (S-0102/D-1) and answers each of the three verdicts a person
+    can give.
+
+    The state is read from the forge on every pass, at most once per pass,
+    with no ledger of the lane's own (S-0099/D-3 made the document unit read
+    this way): a merge, a close or a reopen a person makes is seen by any
+    host's next pass, and a pass holding no task branch on the remote asks
+    the forge nothing at all (S-0080/D-16).
+
+    A verdict is recorded once, in the checkout's own git (S-0102/D-1): *recorded*
+    is what this checkout last read for the task, so the same verdict read
+    again is reported and not written a second time, and the branch it was
+    read against going missing publishes nothing (S-0080/D-8, S-0080/D-17).
 
     **Merged** is the landing (S-0080/D-7): recorded with the merge commit as
     the landed sha and the mode named, in the `lane_landed` shape the local
@@ -1315,40 +1398,31 @@ def _forge_verdict(
     True when the candidate is done for this pass.
     """
 
-    record = ledger.get(task_id)
-
-    if record is None:
-        return False
-
-    if record != "open":
-        results.append(
-            LaneResult(task_id, branch, _RECORDED[record], f"recorded {record}", sha=branch_tip)
-        )
-
-        return True
-
     info = forge(branch)
 
     if info is None:
-        # The forge can no longer resolve the branch — deleted on merge, or
-        # renamed (S-0080/D-17). A stated gap in the record, and the ledger entry
-        # above keeps the next pass from quietly opening a second pull
-        # request for the same work.
-        engine_event(root, "lane_pr_unresolved", {"task": task_id, "branch": branch})
-        results.append(
-            LaneResult(
-                task_id,
-                branch,
-                "pr unresolved",
-                "the forge knows no pull request for the branch; not re-opened",
-                branch_tip,
-            )
-        )
-
-        return True
+        # The remote holds the branch and the forge knows no pull request for
+        # it: a publication that pushed and then failed to open one, since the
+        # publisher pushes before it opens. With no ledger to say a pull
+        # request was ever opened, the candidate is published again rather
+        # than given a verdict nobody can clear (S-0102/D-1).
+        return False
 
     if info.state == "merged":
         sha = info.merge_commit or info.head_sha
+
+        if recorded is not None and recorded[0] == "landed":
+            results.append(
+                LaneResult(
+                    task_id,
+                    branch,
+                    "already landed",
+                    f"pull request #{info.number} merged",
+                    recorded[1],
+                )
+            )
+
+            return True
 
         engine_event(
             root,
@@ -1365,6 +1439,7 @@ def _forge_verdict(
                 "observed": True,
             },
         )
+        _record_verdict(root, task_id, "landed", branch_tip)
 
         results.append(
             LaneResult(task_id, branch, "landed", f"pull request #{info.number} merged", sha)
@@ -1373,9 +1448,23 @@ def _forge_verdict(
         return True
 
     if info.state == "closed":
+        if recorded is not None and recorded[0] == "closed":
+            results.append(
+                LaneResult(
+                    task_id,
+                    branch,
+                    "abandoned",
+                    f"pull request #{info.number} was closed without merging",
+                    recorded[1],
+                )
+            )
+
+            return True
+
         engine_event(
             root, "lane_pr_closed", {"task": task_id, "pr": info.number, "sha": branch_tip}
         )
+        _record_verdict(root, task_id, "closed", branch_tip)
         results.append(
             LaneResult(
                 task_id,
@@ -1387,6 +1476,10 @@ def _forge_verdict(
         )
 
         return True
+
+    # Open: a person reopened what a verdict was recorded for, or the pull
+    # request is simply still open, and either way nothing recorded stands.
+    _clear_verdict(root, task_id)
 
     if vcs.is_ancestor(root, vcs.tip(root, base) or base, branch_tip):
         results.append(
@@ -2343,10 +2436,12 @@ def process_lane(
     question of whether a remote exists.
 
     A `forge` is the same mode's read-back: on a later pass each candidate
-    with a pull request open is asked about, and the verdict is recorded
-    (S-0080/the-landing-arrives-as-an-answer) — at the document unit once per
-    open document rather than once per task (S-0083/D-12). A dry run asks
-    nothing, as it publishes nothing.
+    whose task branch the remote holds is asked about, and the verdict is
+    recorded (S-0080/the-landing-arrives-as-an-answer, S-0102/D-1) — at the
+    document unit once per open document rather than once per task
+    (S-0083/D-12). A verdict this checkout recorded stands in for a branch the
+    remote no longer holds, so a closed pull request is not published again
+    (S-0080/D-8, S-0080/D-17). A dry run asks nothing, as it publishes nothing.
 
     `unit` is the landing unit (S-0083/D-1), a term of the same configuration:
     `document` lands every phase of a document onto the document's own branch
@@ -2384,9 +2479,6 @@ def process_lane(
 
     approver = vcs.approver(root)
     results: list[LaneResult] = []
-    # Read once for the pass, not once per candidate: the stream is the
-    # lane's record of what it has open (S-0080/D-16).
-    ledger = _pr_ledger(root) if forge is not None and not dry_run else {}
 
     carried: dict[str, tuple[str, str]] = {}
     merged_documents: set[str] = set()
@@ -2455,14 +2547,34 @@ def process_lane(
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
             continue
 
-        if (
-            forge is not None
-            and ledger
-            and _forge_verdict(
-                root, vcs, forge, ledger, task_id, target, branch, branch_tip, approver, results
-            )
-        ):
-            continue
+        # A candidate whose task branch the remote holds is asked about
+        # (S-0102/D-1): the state is the forge's, read on every pass. A branch
+        # the remote does not hold is not a pull request to read back, and the
+        # verdict this checkout recorded stands in for it — a pull request a
+        # person closed is not published again when its branch goes
+        # (S-0080/D-8, S-0080/D-17).
+        if forge is not None and not dry_run:
+            recorded = _recorded_verdict(root, task_id)
+
+            if vcs.remote_tip(root, branch) is None:
+                if recorded is not None:
+                    results.append(_recorded_result(task_id, branch, *recorded))
+
+                    continue
+
+            elif _forge_verdict(
+                root,
+                vcs,
+                forge,
+                task_id,
+                target,
+                branch,
+                branch_tip,
+                approver,
+                results,
+                recorded,
+            ):
+                continue
 
         review_result = _review_missing(root, state, require_review, dry_run, branch, branch_tip)
 

@@ -1152,7 +1152,6 @@ def resolve_cmd(
     )
 
     if resolution == "requeued":
-        from torve.application.projections import round_already_requeued
         from torve.application.reviewleg import rescope
         from torve.config import layout
         from torve.gates.context import load_task
@@ -1177,10 +1176,10 @@ def resolve_cmd(
         _fetch(root)
         # A review round takes its document's phasing as the branch holds it
         # now (S-0092/D-4); one the leg already widened to the whole phasing
-        # keeps the whole of it.
-        if round_task is not None:
-            whole = round_already_requeued(root, task_id)
-            rescope(root, round_task, whole=whole)
+        # keeps the whole of it, read from the round's own contract so any
+        # host reads the same fact (S-0102/D-4).
+        if round_task is not None and round_task.round is not None:
+            rescope(root, round_task, whole=round_task.round.whole)
         else:
             _refresh_phase(root, task_id, fmt)
 

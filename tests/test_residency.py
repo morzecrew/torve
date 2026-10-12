@@ -1257,6 +1257,25 @@ def run_state(root: Path, task_id: str):
     return RunState.load(naming.state_file(root, task_id))
 
 
+def test_a_task_is_ran_here_from_its_state_file_or_its_branch(tmp_path):
+    """S-0102/D-5: a reap sweeps the run-state file but keeps the local task
+    branch the runner cut for the attempt, so the branch is what holds the
+    guard after one. The telemetry stream is not read: a host's run record is
+    its files and branches, not a diagnostic file."""
+    from torve.application.residency import ran_here
+    from torve.base import naming
+
+    repo = landing_repo(tmp_path)
+    (repo / naming.WORKTREE_DIR).mkdir(exist_ok=True)
+    (repo / naming.WORKTREE_DIR / "T-7102.state.json").write_text("{}", encoding="utf-8")
+    git(repo, "branch", naming.branch("T-7101"))
+
+    # A stream row for a task with neither file nor branch proves nothing.
+    (repo / ".torve" / "telemetry.jsonl").write_text('{"task_id": "T-9999"}\n', encoding="utf-8")
+
+    assert ran_here(repo) == {"T-7101", "T-7102"}
+
+
 def engine_events(root: Path, event: str) -> list[dict]:
     import json
 

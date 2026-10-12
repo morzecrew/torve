@@ -109,6 +109,14 @@ ENGINE_WRITTEN_REPLY = (
     "a fix belongs in that task or those rows, not in a comment on this pull request."
 )
 
+# S-0102/D-6: (repository, branch, path, line) -> the head the leg last
+# recorded a re-raise at, for the life of the process. A served manager is one
+# process across a night's passes, so the dedupe needs no stream; a restarted
+# manager may record one re-raise again, which is a diagnostic no decision
+# reads. Keyed by repository so one process serving several checkouts does not
+# mix their heads.
+RERAISED: dict[tuple[str, str, str, int], str] = {}
+
 
 class FenceRefused(ValueError):
     """A composition whose text could close its own fence — refused and
@@ -768,6 +776,12 @@ def rescope(root: Path, task: Any, *, whole: bool = False) -> list[str]:
 
     document: dict[str, Any] = yaml.safe_load(contract.read_text(encoding="utf-8"))
     document["scope"]["allow"] = [*allow, f"{layout.TORVE_DIR}/tasks/{task_id}/**"]
+
+    if whole:
+        # S-0102/D-4: the widening is a fact about the round, so it rides the
+        # round's own contract and a requeue on another host reads it there.
+        document.setdefault("round", {})["whole"] = True
+
     contract.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
     return list(document["scope"]["allow"])
@@ -776,19 +790,23 @@ def rescope(root: Path, task: Any, *, whole: bool = False) -> list[str]:
 # ....................... #
 
 
-def requeue_underspecified(root: Path, rows: Sequence[dict[str, Any]], branch: str) -> list[str]:
+def requeue_underspecified(root: Path, branch: str) -> list[str]:
     """The rounds of *branch* escalated `underspecified` for the first time,
     re-scoped to the whole document's phasing and queued again (S-0092/D-1).
-    Once per round: a round the leg already requeued stays with the person its
-    second halt reached."""
+    Once per round: a round the leg already widened carries `whole: true` in
+    its own contract, so any host reads the same fact and none widens it twice
+    (S-0102/D-4); a second halt on a spec gap stays with the person it
+    reached."""
 
-    done = {str(row.get("task") or "") for row in rows if row.get("event") == "lane_round_requeued"}
     requeued: list[str] = []
 
     for task_id, task in round_tasks(root, branch):
         path = naming.state_file(root, task_id)
 
-        if task_id in done or not path.is_file():
+        if task.round is not None and task.round.whole:
+            continue
+
+        if not path.is_file():
             continue
 
         state = RunState.load(path)
@@ -1579,7 +1597,7 @@ def review_thread_leg(
     escalated rather than dispatched again (S-0084/D-14).
 
     The findings come from whichever sources `threads.sources` names: the
-    pull request's own threads, the record's task-gated review findings, or
+    pull request's own threads, the board's task-gated review findings, or
     both (S-0086/D-3). They are one list from the grouping on, so a bot and
     the tier flagging one line are one finding and one round.
 
@@ -1587,25 +1605,26 @@ def review_thread_leg(
     findings are raised from `review.recorded` events, so a host that did not
     run a review still raises what it found. The caller that holds the store
     reads it, as the manager pass hands the lane its resolutions (S-0101/D-2).
+    The reviewer's findings come from the board alone (S-0102/D-3): a caller
+    that passes no board raises none, whatever the stream holds.
     """
 
     if not config.threads.enabled:
         return "review-thread leg is off", False
 
-    from torve.application.projections import (
-        lane_finding_reraised,
-        recorded_review_rows,
-        recorded_rows,
-    )
+    from torve.application import projections, streams
 
-    rows = recorded_rows(root)
-
-    if records:
-        # S-0101/D-4: the record's findings replace the stream's review rows —
-        # the lane-fact rows (refusals, landings) still come off the stream.
-        rows = [row for row in rows if row.get("kind") != "review"]
-        rows += recorded_review_rows(records)
-    reraises = lane_finding_reraised(root)
+    # S-0102/D-3: the reviewer's findings come off the board alone — a caller
+    # with no board raises none. The lane's own facts (a refusal, an answer, a
+    # landing, the red completion battery it recorded) are still read off the
+    # stream beside them: the one decision read of it left, named in the
+    # boundary test, until those facts have carriers (S-0102/D-7 departure).
+    rows = [
+        row
+        for row in streams.stream_rows(root)
+        if row.get("kind") != "review" or row.get("battery")
+    ]
+    rows += projections.recorded_review_rows(records)
     minted: list[str] = []
     answered = 0
     refused: list[str] = []
@@ -1636,7 +1655,7 @@ def review_thread_leg(
 
             answered += answer_round(root, config, forge, branch, row, open_threads, rows)
 
-        requeued += requeue_underspecified(root, rows, branch)
+        requeued += requeue_underspecified(root, branch)
 
         # S-0097/D-7: the wave is behind the head, so the operator no longer
         # asks a bot for its approval by hand. The forge's keyed comment makes
@@ -1683,10 +1702,14 @@ def review_thread_leg(
                 continue
 
             if any(_same_anchor(finding, row) for row in replies):
-                # S-0099/D-9: only a re-raise on a moved head is news — a
-                # finding raised again on the head the lane already recorded
-                # writes no row and does not escalate twice.
-                if reraises.get((branch, finding.path, finding.line or 0)) != info.head_sha:
+                # S-0099/D-9, S-0102/D-6: only a re-raise on a moved head is
+                # news — a finding raised again on the head the lane already
+                # recorded writes no row and does not escalate twice. The head
+                # the leg last recorded one at lives for the life of the
+                # process, so the dedupe needs no stream.
+                key = (str(root), branch, finding.path, finding.line or 0)
+
+                if RERAISED.get(key) != info.head_sha:
                     detail = f"{finding.path} was raised again after a landed reply answered it"
                     engine_event(
                         root,
@@ -1700,7 +1723,7 @@ def review_thread_leg(
                             "head": info.head_sha,
                         },
                     )
-                    reraises[(branch, finding.path, finding.line or 0)] = info.head_sha
+                    RERAISED[key] = info.head_sha
                     _escalate(root, branch, detail)
                     escalated.append(finding.path)
                 continue

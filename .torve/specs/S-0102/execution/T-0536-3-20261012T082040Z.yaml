@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0536
+phase: 3
+attempt: 3
+base: 7d8b04ce5ba0d711d2eedd13bf941d54e97e4d2e
+commit: b423d43b
+at: '2026-10-12T08:20:40Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-12T07:57:52Z'
+    claim: >-
+      D-7 says projections exports no stream reader and calls streams by module name,
+      but review_thread_leg reads the lane's own stream rows through projections.stream_rows;
+      reviewleg.py is outside this task's scope, so deleting the re-export would break
+      a module the scope gate forbids changing.
+    evidence: >-
+      src/torve/application/reviewleg.py:1623 — review_thread_leg reads the lane's
+      own stream rows through projections.stream_rows, so the re-export D-7 deletes
+      is still needed.
+    action: departed
+    proposal: >-
+      Move the review leg's lane-facts read behind a projections report function and
+      add src/torve/application/reviewleg.py to the scope that deletes the stream-name
+      re-export, so D-7 can hold in full.
+  - decision: D-7
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-12T08:09:20Z'
+    attempt: 2
+    claim: >-
+      D-7 cannot be settled within this task's scope. Removing the stream reader from
+      projections.py makes reviewleg.py — a decision module outside scope.allow —
+      break: review_thread_leg reads the lane's own rows through projections.stream_rows,
+      kept by phase 2's D-3 departure because the lane's red-completion battery row
+      has no board carrier. The boundary test cannot be tightened to refuse the route
+      without naming reviewleg, so the route D-7 closes stays open.
+    evidence: >-
+      src/torve/application/reviewleg.py:1623 — review_thread_leg reads the lane's
+      own rows, the battery row included, through projections.stream_rows, so the
+      export D-7 deletes is still needed by a file this phase is not scoped for.
+    action: halted
+    proposal: >-
+      Widen this phase's scope to include src/torve/application/reviewleg.py and tests/test_reviewleg.py
+      so the leg reads the lane's own rows from application/streams.py directly —
+      or give the lane's red-completion battery row a board carrier (S-0093/D-3) —
+      after which projections.py drops the stream-name export and the boundary test
+      refuses the route for every module.
+    notes: >-
+      Phase 2's D-3 departure (T-0535) keeps the lane's battery row on the stream;
+      that read, plus the lane's other own facts, is what makes D-7 unsatisfiable
+      from outside the leg.
+  - decision: D-7
+    grade: ASSUMED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-12T08:12:50Z'
+    attempt: 2
+    claim: >-
+      D-7 cannot be settled within this task's scope. Removing the stream reader from
+      projections.py makes reviewleg.py — a decision module outside scope.allow —
+      break: review_thread_leg reads the lane's own rows through projections.stream_rows,
+      kept by phase 2's D-3 departure because the lane's red-completion battery row
+      has no board carrier. The boundary test cannot be tightened to refuse the route
+      without naming reviewleg, so the route D-7 closes stays open.
+    evidence: >-
+      src/torve/application/reviewleg.py:1623 — review_thread_leg reads the lane's
+      own rows, the battery row included, through projections.stream_rows, so the
+      export D-7 deletes is still needed by a file this phase is not scoped for.
+    action: halted
+    proposal: >-
+      Widen this phase's scope to include src/torve/application/reviewleg.py and tests/test_reviewleg.py
+      so the leg reads the lane's own rows from application/streams.py directly —
+      or give the lane's red-completion battery row a board carrier (S-0093/D-3) —
+      after which projections.py drops the stream-name export and the boundary test
+      refuses the route for every module.
+    notes: >-
+      Phase 2's D-3 departure (T-0535) keeps the lane's battery row on the stream;
+      that read, plus the lane's other own facts, is what makes D-7 unsatisfiable
+      from outside the leg.
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-12T08:16:42Z'
+    attempt: 3
+    claim: >-
+      The review leg still reads three of its own lane facts off the stream: the red
+      completion battery's finding, the threads it refused or answered, and the landings
+      it answers from. None has a carrier yet, and the leg is outside this phase's
+      scope, so it is the one decision module the boundary test allows, by name, while
+      every other route (import, package import, projections attribute) is refused.
+    evidence: >-
+      tests/test_layout.py:273 — the review leg is the one decision module allowed
+      to import streams, with the three facts named beside it
+    action: departed
+    proposal: >-
+      Give the battery's finding the torve/completion status description as its carrier,
+      read handled threads from the forge, and read landings through landed(); then
+      the leg leaves the allowlist

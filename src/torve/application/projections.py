@@ -28,19 +28,11 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 from pydantic import ValidationError
 
+from torve.application import streams
 from torve.application.manager import IN_FLIGHT, Board, TaskView, current_shape, project
 from torve.application.planner import document_of
 from torve.application.runstate import RunState
 from torve.application.specquality import operator_attention, read_tasks, render_operator_attention
-from torve.application.streams import (
-    attempt_rows,
-    attempted_tasks,
-    lane_finding_reraised,
-    lane_verdicts,
-    recorded_rows,
-    round_already_requeued,
-    stream_rows,
-)
 from torve.application.telemetry import TOKEN_FIELDS, record_row
 from torve.base import naming
 from torve.base.clock import parse, stamp
@@ -59,19 +51,8 @@ if TYPE_CHECKING:
 
 # ....................... #
 
-# The stream readers are defined in `streams.py` (S-0101/D-10) and re-exported
-# here so the lane, the merge, the review leg and the manager keep importing a
-# fact from the module they already read it from — they are not this phase's to
-# rewire. `stream_rows` itself is used below; the rest are a re-export surface.
-__all__ = [
-    "attempt_rows",
-    "attempted_tasks",
-    "lane_finding_reraised",
-    "lane_verdicts",
-    "recorded_rows",
-    "round_already_requeued",
-    "stream_rows",
-]
+# The stream reads are defined in `streams.py` (S-0101/D-10); this module calls
+# them by module name for the reports it hosts and exports none (S-0102/D-7).
 
 # ----------------------- #
 
@@ -472,7 +453,7 @@ def _findings(root: Path) -> list[dict[str, Any]]:
     contract_texts = _contract_texts(root)
     found: list[dict[str, Any]] = []
 
-    for row in stream_rows(root):
+    for row in streams.stream_rows(root):
         if row.get("kind") != "review":
             continue
 
@@ -764,7 +745,7 @@ def harness_populations(
         for name in sorted(config.tiers)
     }
 
-    for row in rows if rows is not None else stream_rows(root):
+    for row in rows if rows is not None else streams.stream_rows(root):
         if str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
             continue
 
@@ -1405,7 +1386,7 @@ def context_report(
     # fallback the task block takes and for the same reason: a record with
     # no attempt in it is a record that was not watching, not a repository
     # where nothing ran.
-    rows = (rows_from_events(recorded) if recorded else []) or stream_rows(root)
+    rows = (rows_from_events(recorded) if recorded else []) or streams.stream_rows(root)
     logs = (divergences_from_events(recorded) if recorded else {}) or _stream_divergences(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
 
@@ -2025,7 +2006,9 @@ def why_report(
     if contract is None:
         return {"schema_version": 1, "task": task_id, "found": False}
 
-    rows = rows_from_events(recorded) if minted is not None and recorded else stream_rows(root)
+    rows = (
+        rows_from_events(recorded) if minted is not None and recorded else streams.stream_rows(root)
+    )
     task_rows = [row for row in rows if row.get("task_id") == task_id and _is_attempt_row(row)]
     attempts = _group_attempts(task_rows, root)
     events = _why_events(rows, task_id)

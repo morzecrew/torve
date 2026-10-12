@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0534
+phase: 1
+attempt: 3
+base: 1fece94433c695fe9f8355d205c84d4041bdc58e
+commit: da9d321a
+at: '2026-10-12T07:19:41Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-12T07:08:18Z'
+    attempt: 2
+    claim: >-
+      S-0102/D-1 settles that a task pull request is read from the forge when its
+      branch is on the remote and that a pass with no task branch on the remote asks
+      nothing, but it does not say what a candidate whose branch the remote no longer
+      holds is, nor whether a verdict already read is written again. Read literally
+      it re-opens a task pull request a person closed as soon as its branch is deleted,
+      and re-emits lane_landed on every pass for a squash merge whose branch stays
+      on the remote — the two defects the review of the previous attempt found. A
+      carrier is needed for the verdict the checkout has already read.
+    evidence: >-
+      src/torve/application/lane.py:1298-1347 — _recorded_verdict, _record_verdict,
+      _clear_verdict and _recorded_result record the verdict a task's pull request
+      was given under refs/torve/pr-<verdict>/<task>, so a branch the remote no longer
+      holds reads the recorded verdict and a verdict read again is reported and not
+      written a second time
+    action: decided
+    proposal: >-
+      Add a row to S-0102: a task pull request's verdict is recorded in the checkout
+      under refs/torve/pr-<verdict>/<task> at the branch tip it was read against;
+      the forge is read on every pass for a task branch the remote holds, a verdict
+      already recorded is reported and not recorded again, and the recorded verdict
+      stands in for a branch the remote no longer holds, so a closed pull request
+      is never re-published and a merge is recorded once.
+    notes: >-
+      S-0080/D-16 put this on the stream and S-0102/D-1 removes the stream; the checkout's
+      own git is the carrier the document unit's D-17 already uses for a retired branch.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-12T07:16:16Z'
+    attempt: 2
+    claim: >-
+      S-0102/D-1 settles that a task pull request is read from the forge when its
+      branch is on the remote and that a pass with no task branch on the remote asks
+      nothing, but it does not say what a candidate whose branch the remote no longer
+      holds is, nor whether a verdict already read is written again. Read literally
+      it re-opens a task pull request a person closed as soon as its branch is deleted,
+      and re-emits lane_landed on every pass for a squash merge whose branch stays
+      on the remote — the two defects the review of the previous attempt found. A
+      carrier is needed for the verdict the checkout has already read.
+    evidence: >-
+      src/torve/application/lane.py:1298-1347 — _recorded_verdict, _record_verdict,
+      _clear_verdict and _recorded_result record the verdict a task's pull request
+      was given under refs/torve/pr-<verdict>/<task>, so a branch the remote no longer
+      holds reads the recorded verdict and a verdict read again is reported and not
+      written a second time
+    action: decided
+    proposal: >-
+      Add a row to S-0102: a task pull request's verdict is recorded in the checkout
+      under refs/torve/pr-<verdict>/<task> at the branch tip it was read against;
+      the forge is read on every pass for a task branch the remote holds, a verdict
+      already recorded is reported and not recorded again, and the recorded verdict
+      stands in for a branch the remote no longer holds, so a closed pull request
+      is never re-published and a merge is recorded once.
+    notes: >-
+      S-0080/D-16 put this on the stream and S-0102/D-1 removes the stream; the checkout's
+      own git is the carrier the document unit's D-17 already uses for a retired branch.

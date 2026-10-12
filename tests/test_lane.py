@@ -1114,23 +1114,27 @@ def _forge(answer, asked: list[str]):
     return ask
 
 
-def _opened(root: Path, task_id: str, filename: str, content: str, published: list) -> None:
-    """A candidate the lane has already published: the pass that opened the
-    pull request is the record the later pass reads."""
+def _remote_candidate(
+    root: Path, tmp_path: Path, task_id: str, filename: str, content: str
+) -> None:
+    """A candidate whose task branch the remote holds — what the forge is read
+    for (S-0102/D-1). No row of the lane's own is written: the branch on the
+    remote is the whole of what a later pass reads."""
+    _origin(root, tmp_path)
     candidate(root, task_id, filename, content)
-    process_lane(root, GitLane(), only=task_id, publish=_recording_publisher(published))
+    git(root, "push", "-q", "origin", naming.branch(task_id))
 
 
-def test_a_merged_pull_request_is_recorded_as_the_landing_with_the_merge_commit(lane_repo):
-    published: list[tuple[str, str]] = []
-    _opened(lane_repo, "T-7110", "ten.py", "ten = 10\n", published)
+def test_a_merged_task_pull_request_is_read_with_an_empty_stream(lane_repo, tmp_path):
+    _remote_candidate(lane_repo, tmp_path, "T-7110", "ten.py", "ten = 10\n")
     base_before = git(lane_repo, "rev-parse", "main")
+    assert _events(lane_repo) == []
     asked: list[str] = []
 
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher([]),
         forge=_forge(_pr(number=11, state="merged", merge_commit="a" * 40), asked),
     )
 
@@ -1138,38 +1142,54 @@ def test_a_merged_pull_request_is_recorded_as_the_landing_with_the_merge_commit(
     assert results[0].action == "landed"
     assert results[0].sha == "a" * 40
     # The engine recorded a landing; it performed none — the local base is
-    # untouched and nothing was pushed a second time.
+    # untouched and nothing was pushed.
     assert git(lane_repo, "rev-parse", "main") == base_before
-    assert len(published) == 1
 
     landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
     assert landed and landed[0]["mode"] == "pull-request"
     assert landed[0]["sha"] == "a" * 40
     assert landed[0]["pr"] == 11
-    # S-0080/D-12: the branch is kept, so the attempt's commits stay reachable.
+    # S-0080/D-12: the local branch is kept, so the attempt's commits stay
+    # reachable.
     assert git(lane_repo, "rev-parse", naming.branch("T-7110"))
 
-    # A later pass reads its own record back rather than the forge's.
+    # The state is read from the forge on every pass, at most once per pass
+    # (S-0102/D-1): the branch is still on the remote, so it is asked about
+    # again — and the verdict already read is reported, not recorded again.
     again = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
-        forge=_forge(_pr(state="merged", merge_commit="a" * 40), asked),
+        publish=_recording_publisher([]),
+        forge=_forge(_pr(number=11, state="merged", merge_commit="a" * 40), asked),
     )
     assert again[0].action == "already landed"
-    assert asked == [naming.branch("T-7110")]
-    assert len(published) == 1
+    assert asked == [naming.branch("T-7110")] * 2
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_landed"]) == 1
+
+    # A branch a person deletes after the merge is not published again: the
+    # verdict the checkout recorded stands in for it (S-0080/D-17).
+    git(lane_repo, "push", "-q", "origin", "--delete", naming.branch("T-7110"))
+    git(lane_repo, "fetch", "-q", "--prune", "origin")
+    gone = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher([]),
+        forge=_forge(_pr(number=11, state="merged", merge_commit="a" * 40), asked),
+    )
+    assert gone[0].action == "already landed"
+    # No task branch on the remote, so the forge is asked nothing (S-0102/D-1).
+    assert asked == [naming.branch("T-7110")] * 2
 
 
-def test_a_closed_pull_request_is_an_abandonment_and_is_never_re_opened(lane_repo):
+def test_a_closed_task_pull_request_is_an_abandonment_and_is_never_re_opened(lane_repo, tmp_path):
+    _remote_candidate(lane_repo, tmp_path, "T-7111", "eleven.py", "eleven = 11\n")
     published: list[tuple[str, str]] = []
-    _opened(lane_repo, "T-7111", "eleven.py", "eleven = 11\n", published)
     asked: list[str] = []
 
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=12, state="closed"), asked),
     )
 
@@ -1181,34 +1201,53 @@ def test_a_closed_pull_request_is_an_abandonment_and_is_never_re_opened(lane_rep
     state = RunState.load(naming.state_file(lane_repo, "T-7111"))
     assert state.state is TaskState.READY
     assert state.escalation is None
-    assert len(published) == 1
+    # A closed pull request is never re-opened: nothing was published.
+    assert published == []
 
     again = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=12, state="closed"), asked),
     )
     assert again[0].action == "abandoned"
-    # The verdict is terminal: no second forge call and no second pull request.
-    assert asked == [naming.branch("T-7111")]
-    assert len(published) == 1
+    assert asked == [naming.branch("T-7111")] * 2
+    assert published == []
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_pr_closed"]) == 1
+
+    # A person deletes the branch of the pull request they closed: the verdict
+    # this checkout recorded stands in for it, and nothing is published again
+    # (S-0080/D-8, S-0080/D-17).
+    git(lane_repo, "push", "-q", "origin", "--delete", naming.branch("T-7111"))
+    git(lane_repo, "fetch", "-q", "--prune", "origin")
+    gone = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=12, state="closed"), asked),
+    )
+    assert gone[0].action == "abandoned"
+    assert published == []
+    # No task branch on the remote, so the forge is asked nothing (S-0102/D-1).
+    assert asked == [naming.branch("T-7111")] * 2
 
 
-def test_an_open_pull_request_on_a_moved_base_rebases_regates_and_republishes(lane_repo):
-    published: list[tuple[str, str]] = []
-    _opened(lane_repo, "T-7112", "twelve.py", "twelve = 12\n", published)
+def test_an_open_task_pull_request_on_a_moved_base_rebases_regates_and_republishes(
+    lane_repo, tmp_path
+):
+    _remote_candidate(lane_repo, tmp_path, "T-7112", "twelve.py", "twelve = 12\n")
 
     (lane_repo / "app.py").write_text("base = 12\n", encoding="utf-8")
     git(lane_repo, "add", "-A")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
     moved = git(lane_repo, "rev-parse", "main")
+    published: list[tuple[str, str]] = []
     asked: list[str] = []
 
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(state="open"), asked),
     )
 
@@ -1218,28 +1257,30 @@ def test_an_open_pull_request_on_a_moved_base_rebases_regates_and_republishes(la
     branch_tip = git(lane_repo, "rev-parse", naming.branch("T-7112"))
     assert results[0].sha == branch_tip
     assert git(lane_repo, "merge-base", "--is-ancestor", moved, branch_tip) == ""
-    assert len(published) == 2
 
 
-def test_an_open_pull_request_on_an_unmoved_base_spends_no_push(lane_repo):
+def test_an_open_task_pull_request_on_an_unmoved_base_spends_no_push(lane_repo, tmp_path):
+    _remote_candidate(lane_repo, tmp_path, "T-7113", "thirteen.py", "thirteen = 13\n")
     published: list[tuple[str, str]] = []
-    _opened(lane_repo, "T-7113", "thirteen.py", "thirteen = 13\n", published)
     asked: list[str] = []
 
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(number=13, state="open"), asked),
     )
 
     assert asked == [naming.branch("T-7113")]
     assert results[0].action == "pull request open"
     assert "#13" in results[0].detail
-    assert len(published) == 1
+    assert published == []
 
 
-def test_a_pass_with_nothing_open_asks_the_forge_nothing(lane_repo):
+def test_a_pass_with_nothing_open_asks_the_forge_nothing(lane_repo, tmp_path):
+    # S-0102/D-1, S-0080/D-16: the forge is asked for a task branch the remote
+    # holds; a candidate the remote does not hold spends no call at all.
+    _origin(lane_repo, tmp_path)
     candidate(lane_repo, "T-7114", "fourteen.py", "fourteen = 14\n")
     published: list[tuple[str, str]] = []
     asked: list[str] = []
@@ -1247,47 +1288,50 @@ def test_a_pass_with_nothing_open_asks_the_forge_nothing(lane_repo):
     results = process_lane(
         lane_repo,
         GitLane(),
-        publish=_recording_publisher(published),
+        publish=_recording_publisher(published, root=lane_repo),
         forge=_forge(_pr(state="merged", merge_commit="b" * 40), asked),
     )
 
-    # S-0080/D-16: nothing is open, so the credential is not spent at all.
     assert asked == []
     assert results[0].action == "pull request"
     assert len(published) == 1
 
 
-def test_a_branch_the_forge_cannot_resolve_is_recorded_and_not_re_opened(lane_repo):
+def test_a_branch_the_forge_knows_no_pull_request_for_is_published_again(lane_repo, tmp_path):
+    """S-0102/D-1: a task branch the remote holds with no pull request on the
+    forge is a publication that pushed and then failed to open one, since the
+    publisher pushes first. With no ledger to say a pull request was ever
+    opened, the next pass publishes it again rather than recording a verdict
+    nobody can clear."""
+
+    _remote_candidate(lane_repo, tmp_path, "T-7115", "fifteen.py", "fifteen = 15\n")
     published: list[tuple[str, str]] = []
-    _opened(lane_repo, "T-7115", "fifteen.py", "fifteen = 15\n", published)
     asked: list[str] = []
 
     results = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), forge=_forge(None, asked)
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(None, asked),
     )
 
-    assert results[0].action == "pr unresolved"
-    assert any(e.get("event") == "lane_pr_unresolved" for e in _events(lane_repo))
-    assert len(published) == 1
-
-    again = process_lane(
-        lane_repo, GitLane(), publish=_recording_publisher(published), forge=_forge(None, asked)
-    )
-    assert again[0].action == "pr unresolved"
     assert asked == [naming.branch("T-7115")]
-    assert len(published) == 1
+    assert results[0].action == "pull request"
+    assert published == [("T-7115", naming.branch("T-7115"))]
+    assert not any(e.get("event") == "lane_pr_unresolved" for e in _events(lane_repo))
 
 
-def test_a_dry_run_asks_the_forge_nothing(lane_repo):
-    published: list[tuple[str, str]] = []
-    _opened(lane_repo, "T-7116", "sixteen.py", "sixteen = 16\n", published)
+def test_a_dry_run_asks_the_forge_nothing(lane_repo, tmp_path):
+    # A task branch the remote holds, so the only thing keeping the forge
+    # unasked is the dry run (S-0102/D-1).
+    _remote_candidate(lane_repo, tmp_path, "T-7116", "sixteen.py", "sixteen = 16\n")
     asked: list[str] = []
 
     results = process_lane(
         lane_repo,
         GitLane(),
         dry_run=True,
-        publish=_recording_publisher(published),
+        publish=_recording_publisher([]),
         forge=_forge(_pr(state="merged", merge_commit="c" * 40), asked),
     )
 
@@ -2821,7 +2865,7 @@ def _red_completion(lane_repo, tmp_path, monkeypatch, verdicts: list[int]) -> li
 
 
 def _battery_findings(root: Path) -> list[dict]:
-    from torve.application.projections import stream_rows
+    from torve.application.streams import stream_rows
 
     return [r for r in stream_rows(root) if r.get("kind") == "review" and r.get("battery")]
 

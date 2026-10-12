@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0535
+phase: 2
+base: fb1e9cbfa5d5fcb134b7ed12f02810d0ba02fdf5
+commit: f8ed93aaa50089d35b3d081eb2bd2fdfa1c40711
+at: '2026-10-12T07:43:07Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-12T07:37:25Z'
+    claim: >-
+      S-0102/D-3 says the leg raises none from the record source, but the lane's red
+      completion battery is written there as a kind: review row and the leg is its
+      only raiser (S-0093/D-3); dropping it would leave the battery round unraised,
+      and the lane that writes it is outside this task's scope.
+    evidence: >-
+      src/torve/application/lane.py:918-931 — record_battery_red appends a kind: review,
+      battery: true row to the stream that review_thread_leg turns into a round
+    action: departed
+    proposal: >-
+      S-0102/D-3 amended: the review leg's findings come from the board alone, except
+      the lane's own red-completion battery row, which stays on the stream until S-0093/D-3's
+      finding gets a board carrier.
+    notes: >-
+      Only the lane's battery row is kept; every other kind: review row on the stream
+      is dropped in favour of the board.

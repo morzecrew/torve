@@ -156,3 +156,19 @@ def test_the_four_old_landing_readers_are_gone():
 
     for name in ("lane_landings", "shipped_landings", "shipped_ids", "landed_ids"):
         assert not hasattr(projections, name)
+
+
+def test_the_stream_re_exports_are_gone():
+    """S-0102/D-2, D-3, D-4, D-5, D-6: the readers whose decisions got carriers
+    are deleted from `projections` — the review leg's three, the merge's
+    attempt rows and the host's attempted tasks."""
+    from torve.application import projections
+
+    for name in (
+        "recorded_rows",
+        "round_already_requeued",
+        "lane_finding_reraised",
+        "attempt_rows",
+        "attempted_tasks",
+    ):
+        assert not hasattr(projections, name)

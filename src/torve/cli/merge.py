@@ -98,14 +98,18 @@ def _resolve_ci(config: RunnerConfig) -> CiStatus | None:
 # ....................... #
 
 
-def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
+def _pr_text(root: Path, task_id: str, records: Sequence[EventRecord] = ()) -> tuple[str, str]:
     """The pull request's title and body, composed from the landing record
     alone (S-0080/D-4): the contract, the rows it carried, the gates of the
-    attempt the stream last recorded, and the divergence entries. Nothing
-    the agent wrote as prose reaches it."""
+    attempt the record last judged, and the divergence entries. Nothing the
+    agent wrote as prose reaches it.
+
+    The gate results are read from the record's `gates.evaluated` events
+    (S-0102/D-2), the board the caller opened: the body is composed the same
+    from any host, and a host whose stream is empty lists the same results."""
 
     from torve.application.forge import compose_pr
-    from torve.application.projections import attempt_rows
+    from torve.application.projections import rows_from_events
     from torve.application.runstate import RunState
     from torve.base import naming
     from torve.config import layout
@@ -115,7 +119,7 @@ def _pr_text(root: Path, task_id: str) -> tuple[str, str]:
     task = load_task(layout.task_file(root, task_id))
     state = RunState.load(naming.state_file(root, task_id))
 
-    rows = [r for r in attempt_rows(root) if r.get("task_id") == task_id]
+    rows = [r for r in rows_from_events(records) if r.get("task_id") == task_id and "results" in r]
     row: dict[str, Any] = rows[-1] if rows else {}
     recorded: list[Any] = row.get("results") or []
 
@@ -220,6 +224,17 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
         if not vcs.republish_branch(root, branch, token):
             raise RuntimeError(f"no origin to publish {branch!r} to")
 
+        # S-0101/D-6, S-0102/D-2: a body's gate results come from the record,
+        # so a host whose stream is empty composes the same body. No
+        # partition, or no reachable store, reads nothing — the same promise
+        # `_resolved` makes, for the same reason.
+        from torve.cli.options import dsn_for, task_events
+
+        try:
+            records = task_events(dsn_for(root), config.scm.repo or "") or []
+        except Exception:
+            records = []
+
         # A document branch's pull request is the document's, composed from
         # every task it carries (S-0083/D-8); a task branch's is the task's.
         if branch == naming.document_branch(branch.rsplit("/", 1)[-1]):
@@ -230,17 +245,8 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
             # (S-0093/D-2, S-0098/D-4), and a later green battery at a later
             # tip publishes it ready.
             from torve.application.lane import document_tip_red
-            from torve.cli.options import dsn_for, task_events
 
             tip = lane.tip(root, branch)
-            # S-0101/D-6: the body's gate results come from the record, so a
-            # host whose stream is empty composes the same body. No partition,
-            # or no reachable store, reads nothing — the same promise
-            # `_resolved` makes, for the same reason.
-            try:
-                records = task_events(dsn_for(root), config.scm.repo or "") or []
-            except Exception:
-                records = []
             title, body, complete = _document_pr_text(
                 root, task_id, branch, tip=tip, records=records
             )
@@ -256,7 +262,7 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
                 draft=not complete or document_tip_red(root, branch, tip or "", scm),
             )
 
-        title, body = _pr_text(root, task_id)
+        title, body = _pr_text(root, task_id, records)
 
         return scm.open_pr(root, branch, title, body)
 
@@ -270,10 +276,10 @@ def _forge(config: RunnerConfig) -> Forge | None:
     """The later pass's read-back, or None in `local` mode — the same term of
     configuration the publisher is built from (S-0080/D-1).
 
-    What the forge holds for a branch, asked once per pull request the lane's
-    own records say it has open: merged is the landing, closed is a person
-    declining the work, and still open against a moved base is rebased,
-    re-measured and republished."""
+    What the forge holds for a branch, asked once per pass for each task
+    branch the remote holds (S-0102/D-1): merged is the landing, closed is a
+    person declining the work, and still open against a moved base is
+    rebased, re-measured and republished."""
 
     if config.promotion.landing != "pull_request":
         return None
