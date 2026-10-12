@@ -581,7 +581,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 escalation=state.escalation.reason,
             )
 
-        elif (halt := _halt_reason(worktree, task.id)) is not None:
+        elif (halt := _halt_reason(worktree, task.id, state.attempts)) is not None:
             # The halted divergence entry (S-0001/state-machine): terminal by
             # design, and today it ends the attempt silently.
             record = attempt_row(
@@ -769,11 +769,17 @@ async def _prepare(
 # ....................... #
 
 
-def _halt_reason(worktree: Path, task_id: str) -> EscalationReason | None:
+def _halt_reason(worktree: Path, task_id: str, attempt: int) -> EscalationReason | None:
     """The escalation a halted divergence entry asks for (S-0096/D-1,
     amending S-0092/D-3): one citing a LOCKED row is `locked_conflict`; every
     other halt, whatever its class, is `underspecified`. A LOCKED row wins in
-    the same log — the owner is asked first."""
+    the same log — the owner is asked first.
+
+    Only *attempt*'s own entries count. The log is append-only, so a task
+    requeued after a halt still carries that halt, and reading it again
+    escalated every later attempt of the task the moment it stopped, its
+    gates never run (T-0547, 2026-10-12). An entry with no attempt is read
+    as this one's."""
 
     log = layout.log_file(worktree, task_id)
 
@@ -797,7 +803,9 @@ def _halt_reason(worktree: Path, task_id: str) -> EscalationReason | None:
     halts = [
         cast(dict[str, Any], e)
         for e in cast(list[object], entries)
-        if isinstance(e, dict) and str(cast(dict[str, Any], e).get("action", "")) == "halted"
+        if isinstance(e, dict)
+        and str(cast(dict[str, Any], e).get("action", "")) == "halted"
+        and int(cast(dict[str, Any], e).get("attempt") or attempt) == attempt
     ]
 
     if not halts:
@@ -812,13 +820,13 @@ def _halt_reason(worktree: Path, task_id: str) -> EscalationReason | None:
 # ....................... #
 
 
-def halted(run: Dispatch) -> EscalationReason | None:
+def halted(run: Dispatch, attempt: int) -> EscalationReason | None:
     """A halt is written to the log as a halted entry; the loop reads the
     fact from the file, so the agent cannot cause the transition directly.
     The S-0001/A-1 YAML log is parsed, not pattern-matched. Returns the
     escalation the halt asks for, or None when nothing halted."""
 
-    return _halt_reason(run.worktree, run.task.id)
+    return _halt_reason(run.worktree, run.task.id, attempt)
 
 
 # ....................... #

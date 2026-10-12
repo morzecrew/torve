@@ -119,7 +119,7 @@ class World:
                 record_event("landed", run=run_key)
             return "sim landed"
 
-        hooks = AttemptHooks(attempt=attempt, halted=lambda: False, gates=gates, land=land)
+        hooks = AttemptHooks(attempt=attempt, halted=lambda _attempt: False, gates=gates, land=land)
         try:
             final = await drive_attempts(state, task, config, hooks)
         except asyncio.CancelledError:

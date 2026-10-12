@@ -101,7 +101,7 @@ class AttemptHooks:
     attempt: Callable[[RunState], Awaitable[AgentResult]]
     # After an attempt: the escalation a halted divergence entry asks for
     # (S-0092/D-3), or None when nothing halted.
-    halted: Callable[[], EscalationReason | None]
+    halted: Callable[[int], EscalationReason | None]
     gates: Callable[[RunState], Awaitable[tuple[int, str, str]]]  # exit, summary, config hash
     land: Callable[[RunState, str], Awaitable[str]]  # returns the recorded fact
     # After green gates, before landing (S-0005, S-0005/D-11): returns the fact
@@ -274,7 +274,7 @@ async def _attempt_loop(
 
             return state
 
-        if halt := hooks.halted():
+        if halt := hooks.halted(state.attempts):
             # Terminal by design, not an error: the one case where a task
             # stops on working code (S-0001/state-machine). The entry picks
             # the escalation — a LOCKED row or, otherwise, underspecified

@@ -535,10 +535,27 @@ def test_a_halted_entry_picks_its_escalation(tmp_path, entries, expected):
 
     _halt_log(tmp_path, *entries)
 
-    assert _halt_reason(tmp_path, TASK_ID) == expected
+    assert _halt_reason(tmp_path, TASK_ID, 1) == expected
 
 
 def test_no_log_means_no_halt(tmp_path):
     from torve.application.session import _halt_reason
 
-    assert _halt_reason(tmp_path, TASK_ID) is None
+    assert _halt_reason(tmp_path, TASK_ID, 1) is None
+
+
+def test_an_earlier_attempt_s_halt_does_not_halt_this_one(tmp_path):
+    """A task requeued after a halt keeps that halt in its append-only log;
+    only the attempt's own entries decide whether it halted, so a later
+    attempt that stops is judged by its gates rather than escalated on the
+    old entry (T-0547, 2026-10-12)."""
+    from torve.application.session import _halt_reason
+
+    _halt_log(
+        tmp_path,
+        {"grade": "UNLISTED", "class": "spec-gap", "action": "halted", "attempt": 1},
+        {"grade": "ASSUMED", "class": "discovery", "action": "decided", "attempt": 2},
+    )
+
+    assert _halt_reason(tmp_path, TASK_ID, 1) == "underspecified"
+    assert _halt_reason(tmp_path, TASK_ID, 4) is None
