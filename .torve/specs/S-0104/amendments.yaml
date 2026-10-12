@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-12T13:58:13Z'
+    title: Phase 3 owns the record's authority table
+    md: >-
+      T-0547 halted on a spec gap: the new `scope.promoted` event kind is mirrored
+      row for row in the authority table of `pages/docs/architecture/record.md`, which
+      `tests/test_docs.py` compares with the enum, so phase 3 cannot leave the suite
+      green without the page. Phase 3 now owns that page and runs that test. The halt
+      is the class this document fixes; the night ran the engine before it.
