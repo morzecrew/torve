@@ -77,13 +77,14 @@ def pr(
     reviewers: tuple[str, ...] = (),
     checks: str = "",
     pushed: datetime | None = None,
+    head: str = "deadbeef",
 ) -> PrInfo:
     return PrInfo(
         number=number,
         title="S-0084",
         author="torve",
         draft=draft,
-        head_sha="deadbeef",
+        head_sha=head,
         base_ref="main",
         changed_files=1,
         state=state,
@@ -102,8 +103,9 @@ class StubForge:
     this stub exists for: it carries no merge, no push and no dismiss, so a
     leg that wanted one would not compile against it."""
 
-    def __init__(self, info: PrInfo | None) -> None:
+    def __init__(self, info: PrInfo | None, completion: tuple[str, str] | None = None) -> None:
         self.info = info
+        self.completion_status = completion
         self.asked: list[str] = []
         self.replied: list[tuple[str, str]] = []
         self.resolved: list[str] = []
@@ -119,6 +121,9 @@ class StubForge:
 
     def resolve_thread(self, thread_id: str) -> None:
         self.resolved.append(thread_id)
+
+    def completion(self, sha: str) -> tuple[str, str] | None:
+        return self.completion_status
 
     def comment(self, number: int, body: str, key: str) -> str:
         # The forge lands a keyed comment once (GhScm's marker-keyed dedupe,
@@ -1022,18 +1027,15 @@ def test_a_command_evidence_finding_anchors_to_what_its_target_touched(seeded):
     assert "tests/test_app.py" in contract["scope"]["allow"]
 
 
-def test_a_red_completion_battery_becomes_a_round_on_its_target(seeded):
-    """S-0093/D-3: the lane's record of a red battery is a finding the leg
-    mints a round for, anchored to what the last landed task touched. It is
-    the lane's own row, so it stands beside the board's findings (S-0102/D-3)."""
-
-    from torve.application.lane import record_battery_red
+def test_a_red_completion_status_becomes_a_round_on_its_target(seeded):
+    """S-0103/D-4: the leg reads the `torve/completion` failure status on the
+    branch tip and mints the battery's finding from it, naming its red gates,
+    anchored to what the last landed task touched."""
 
     seeded.write("src/app.py", "print('hello again')\n")
     seeded.commit("the target's work")
     open_document(seeded.root, sha=head(seeded.root))
-    record_battery_red(seeded.root, BRANCH, "T-0900", "0123456789abcdef", "lint=pass, tests=fail")
-    forge = StubForge(pr())
+    forge = StubForge(pr(head="0123456789abcdef"), completion=("failure", "lint=pass, tests=fail"))
 
     review_thread_leg(seeded.root, config(sources=["record"]), forge, landings_of(seeded.root))
 
@@ -1041,6 +1043,62 @@ def test_a_red_completion_battery_becomes_a_round_on_its_target(seeded):
 
     assert (row["path"], row["line"]) == ("src/app.py", None)
     assert row["threads"] == ["record:T-0900-battery-0123456789ab:0"]
+    # The status's description names the red gates, and the finding's claim
+    # carries exactly those.
+    contract = yaml.safe_load(
+        layout.task_file(seeded.root, row["task"]).read_text(encoding="utf-8")
+    )
+    assert (
+        "the whole-suite battery is red over the complete document: tests=fail"
+        in contract["intent"]
+    )
+
+
+def test_a_green_completion_status_mints_nothing(seeded):
+    """S-0103/D-4: a green verdict on the tip raises no battery finding, and
+    the leg reads no row `record_battery_red` wrote either — nothing else here
+    would anchor a round."""
+
+    from torve.application.lane import record_battery_red
+
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work")
+    open_document(seeded.root, sha=head(seeded.root))
+    # The row the battery writes is beside the status and is not read.
+    record_battery_red(seeded.root, BRANCH, "T-0900", "0123456789abcdef", "lint=pass, tests=fail")
+    forge = StubForge(pr(head="0123456789abcdef"), completion=("success", "the battery passed"))
+
+    review_thread_leg(seeded.root, config(sources=["record"]), forge, landings_of(seeded.root))
+
+    assert events(seeded.root, "lane_review_task") == []
+
+
+def test_a_red_rerun_after_the_battery_round_answered_mints_no_second_round(seeded):
+    """S-0093/D-3, S-0093/D-4, S-0103/D-4: one round per completion. The lane
+    writes the `torve/completion` failure status on every red completion — the
+    red rerun it escalates to a person once the round answered included — so
+    the leg raises the battery's finding only where the document carries no
+    battery round yet, the guard `record_battery_red`'s caller applied, read
+    here from the round's own contract."""
+
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work")
+    open_document(seeded.root, sha=head(seeded.root))
+    forge = StubForge(pr(head="aaaa"), completion=("failure", "lint=pass, tests=fail"))
+    review_thread_leg(seeded.root, config(sources=["record"]), forge, landings_of(seeded.root))
+    (row,) = events(seeded.root, "lane_review_task")
+    seeded.commit("the minted round")
+    # The round lands on the document branch, which is the document's ledger
+    # however the leg reads it.
+    _land_on(seeded.root, BRANCH, row["task"], "beef")
+
+    # The red rerun at the round's landing carries its own failure status, and
+    # the leg raises nothing from it: the lane escalates the red rerun.
+    rerun = StubForge(pr(head="cccc"), completion=("failure", "lint=pass, tests=fail"))
+    review_thread_leg(seeded.root, config(sources=["record"]), rerun, landings_of(seeded.root))
+
+    assert len(events(seeded.root, "lane_review_task")) == 1
+    assert events(seeded.root, "lane_finding_reraised") == []
 
 
 def test_a_recorded_finding_outside_the_phasing_scope_mints_nothing(seeded):
@@ -1106,6 +1164,58 @@ def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge
     assert len(events(seeded.root, "lane_review_task")) == 1
     assert len(events(seeded.root, "review_finding_answered")) == 1
     assert len(forge.commented) == 1
+
+
+def test_a_recorded_finding_with_a_landed_round_opens_no_second_round_with_an_empty_stream(seeded):
+    """S-0103/D-2: the answer is the round that lists the finding, read from
+    its contract and its landing file — a second host holding no stream mints
+    no second round, because nothing on a stream said the finding was
+    answered."""
+
+    from torve.application.specquality import telemetry_file
+
+    open_document(seeded.root)
+    records = [recorded(("the value is never checked", "src/app.py:12 — the caller passes None"))]
+    forge = StubForge(pr())
+    terms = config(sources=["record"])
+
+    review_thread_leg(seeded.root, terms, forge, lambda _t: False, records=records)
+    (row,) = events(seeded.root, "lane_review_task")
+    task_id = row["task"]
+    landing_file(seeded.root, task_id, "cafe123", spec="0084")
+    found = landings_of(seeded.root)
+    # The stream a second host would not hold: no `review_finding_answered`
+    # row, no `lane_review_task` row.
+    telemetry_file(seeded.root).write_text("", encoding="utf-8")
+    # The fix moved the code, so the same finding cites a line far from the
+    # round's anchor: nothing but the round's own contract says it is answered.
+    moved = [recorded(("the value is never checked", "src/app.py:900 — the caller passes None"))]
+
+    review_thread_leg(seeded.root, terms, forge, found, records=moved)
+
+    assert events(seeded.root, "lane_review_task") == []
+
+
+def test_a_recorded_finding_a_person_resolved_opens_no_second_round(seeded):
+    """S-0103/D-2: a round a person resolved off the board answers the finding
+    it was about, though it never landed — read from the board the caller
+    passes, not a row on the host that resolved it."""
+
+    from torve.application import projections
+
+    open_document(seeded.root)
+    records = [recorded(("the value is never checked", "src/app.py:12 — the caller passes None"))]
+    forge = StubForge(pr())
+
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
+    )
+    (row,) = events(seeded.root, "lane_review_task")
+    rows = projections.recorded_review_rows(records)
+
+    assert record_threads(seeded.root, BRANCH, rows, lambda _t: None, {row["task"]}) == ([], {})
+    # Without the resolution the same finding is raised.
+    assert record_threads(seeded.root, BRANCH, rows, lambda _t: None)[0]
 
 
 def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(seeded):

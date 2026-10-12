@@ -180,13 +180,21 @@ class Claim:
 class ThreadForge(Protocol):
     """The leg's forge surface. Reading a branch's pull request is the call the
     lane already makes; replying and resolving are the only writes, and there
-    is deliberately no merge, no push and no dismiss on it (S-0084/D-10)."""
+    is deliberately no merge, no push and no dismiss on it (S-0084/D-10).
+
+    `completion` is the red completion battery's verdict on a tip as the lane
+    wrote it (S-0099/D-4, S-0103/D-4): the state beside the description that
+    names the red gates, or None when the forge holds no status. It is read
+    rather than any row the battery wrote, so the leg raises the finding from
+    the same verdict a person sees in the checks."""
 
     def pr_for_branch(self, branch: str) -> PrInfo | None: ...
 
     def reply_thread(self, thread_id: str, body: str) -> None: ...
 
     def resolve_thread(self, thread_id: str) -> None: ...
+
+    def completion(self, sha: str) -> tuple[str, str] | None: ...
 
 
 @runtime_checkable
@@ -1083,6 +1091,49 @@ def _rounds(root: Path, branch: str) -> list[dict[str, Any]]:
 # ....................... #
 
 
+def _battery_row(root: Path, branch: str, tip: str, summary: str) -> dict[str, Any] | None:
+    """A red completion battery's finding, read from the `torve/completion`
+    failure status on the branch tip (S-0103/D-4) — the shape `record_threads`
+    already turns into a round, so the battery's finding and the reviewer's
+    are one path from here on.
+
+    The summary is the status's own description, and its red gates are what the
+    finding names; the round anchors to what the last landed task touched and
+    takes that target's phase's scope. None when the document carries no landed
+    task a round could be about."""
+
+    from torve.application.lane import _battery_target
+
+    target = _battery_target(root, branch)
+
+    if target is None:
+        return None
+
+    failing = [part for part in summary.split(", ") if not part.endswith(("=pass", "=skipped"))]
+
+    return {
+        "kind": "review",
+        "task_id": f"{target}-battery-{tip[:12]}",
+        "target": target,
+        "trigger": "task_gated",
+        "battery": True,
+        "branch": branch,
+        "findings": [
+            {
+                "severity": "major",
+                "claim": (
+                    "the whole-suite battery is red over the complete document: "
+                    + ", ".join(failing)
+                ),
+                "evidence": f"`torve gates run` on {branch} at {tip[:12]} — {summary}",
+            }
+        ],
+    }
+
+
+# ....................... #
+
+
 def _already_handled(thread: ReviewThread, engine: str) -> bool:
     """Whether the leg has already answered or refused this thread.
 
@@ -1170,7 +1221,11 @@ def _touched(root: Path, landed: Callable[[str], str | None], task_id: str) -> l
 
 
 def record_threads(
-    root: Path, branch: str, rows: Sequence[dict[str, Any]], landed: Callable[[str], str | None]
+    root: Path,
+    branch: str,
+    rows: Sequence[dict[str, Any]],
+    landed: Callable[[str], str | None],
+    resolved: Collection[str] = (),
 ) -> tuple[list[ReviewThread], dict[str, list[str]]]:
     """The leg's second source (S-0086/D-3): the stream's task-gated review
     findings for the tasks this open document branch carries, each in the
@@ -1183,8 +1238,10 @@ def record_threads(
     (S-0086/D-4). Returned beside those files, keyed by thread, because a
     round about them needs them in its scope.
 
-    A finding the stream already says was answered is not returned: one
-    finding, one round, and never a round again (S-0086/D-5).
+    A recorded finding its round already answered is not returned: one finding,
+    one round, and never a round again (S-0103/D-2). The round that lists it in
+    `round.findings` answers it once it lands, or a person resolves it — read
+    from the round's own contract, so a leg on any host reads the same answer.
     """
 
     from torve.application.lane import document_tasks
@@ -1194,11 +1251,15 @@ def record_threads(
     # blocker still holds the round's landing, but nothing it finds opens a
     # further round (S-0090/D-1).
     rounds = {task_id for task_id, _task in round_tasks(root, branch)}
-    answered = {
-        str(row.get("finding") or "")
-        for row in rows
-        if row.get("event") == "review_finding_answered"
-    }
+    answered: set[str] = set()
+
+    for task_id, task in round_tasks(root, branch):
+        if not (landed(task_id) or task_id in resolved):
+            continue
+
+        for finding in task.round.findings:
+            answered.update(finding.threads)
+
     threads: list[ReviewThread] = []
     files: dict[str, list[str]] = {}
 
@@ -1609,18 +1670,17 @@ def review_thread_leg(
         return "review-thread leg is off", False
 
     from torve.application import projections, streams
+    from torve.application.lane import _battery_round
 
     # S-0102/D-3: the reviewer's findings come off the board alone — a caller
-    # with no board raises none. The lane's own facts (a refusal, an answer, a
-    # landing, the red completion battery it recorded) are still read off the
+    # with no board raises none. The lane's own facts are still read off the
     # stream beside them: the one decision read of it left, named in the
-    # boundary test, until those facts have carriers (S-0102/D-7 departure).
-    rows = [
-        row
-        for row in streams.stream_rows(root)
-        if row.get("kind") != "review" or row.get("battery")
-    ]
+    # boundary test, until its last facts have carriers (S-0102/D-7 departure).
+    rows = [row for row in streams.stream_rows(root) if row.get("kind") != "review"]
     rows += projections.recorded_review_rows(records)
+    # S-0103/D-2: a person's resolution of a round, read off the board the
+    # caller passes, answers the finding that round was about.
+    resolved = projections.resolved_rounds(records) if records else set()
     minted: list[str] = []
     answered = 0
     refused: list[str] = []
@@ -1633,10 +1693,34 @@ def review_thread_leg(
         if info is None or info.state != "open":
             continue
 
+        # S-0103/D-4: a red completion battery's finding is raised from the
+        # `torve/completion` failure status on the branch tip — the verdict a
+        # person sees in the checks — never from a row the battery wrote. Only
+        # where the document carries no battery round yet: the lane writes the
+        # failure status on every red completion, the red rerun it escalates to
+        # a person included, so one round per completion is read from the
+        # round's own contract (S-0093/D-3, S-0093/D-4) — the guard
+        # `record_battery_red`'s caller applies, applied here where the status
+        # is read instead.
+        branch_rows = list(rows)
+        completion = forge.completion(info.head_sha)
+
+        if (
+            completion is not None
+            and completion[0] == "failure"
+            and _battery_round(root, branch, resolved) == ""
+        ):
+            red = _battery_row(root, branch, info.head_sha, completion[1])
+
+            if red is not None:
+                branch_rows.append(red)
+
         open_threads = {thread.id: thread for thread in info.threads}
         sources = config.threads.sources
         recorded, touched = (
-            record_threads(root, branch, rows, landed) if "record" in sources else ([], {})
+            record_threads(root, branch, branch_rows, landed, resolved)
+            if "record" in sources
+            else ([], {})
         )
         raised = [*(info.threads if "forge" in sources else ()), *recorded]
         # A thread whose last comment is the engine's was already answered or
@@ -1762,14 +1846,14 @@ def review_thread_leg(
             targets = sorted(
                 {
                     str(row.get("target") or "")
-                    for row in rows
+                    for row in branch_rows
                     if row.get("kind") == "review" and row.get("task_id") in reviews
                 }
                 - {""}
             )
             battery = any(
                 bool(row.get("battery"))
-                for row in rows
+                for row in branch_rows
                 if row.get("kind") == "review" and row.get("task_id") in reviews
             )
             claims.append(

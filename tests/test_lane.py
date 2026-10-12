@@ -2685,6 +2685,12 @@ def test_a_refused_verdict_leaves_the_landing_published(lane_repo, tmp_path, mon
     refused = [e for e in _events(lane_repo) if e.get("event") == "lane_status_refused"]
     assert [e["sha"] for e in refused] == [completing]
     assert lane.document_tip_red(lane_repo, document, completing, _RefusingStatus()) is True
+    # S-0103/D-4: the leg raises the battery's round from that status alone, so
+    # a red the forge refused reaches a person instead of being dropped.
+    assert results[-1].action == "gates red"
+    assert results[-1].detail.startswith("escalated:")
+    state = RunState.load(naming.state_file(lane_repo, "T-7343"))
+    assert state.state is TaskState.ESCALATED
 
 
 def test_a_second_merge_process_escalates_the_second_red(lane_repo, monkeypatch):
@@ -2875,7 +2881,9 @@ def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
 
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    # The round path reads the red off the forge's status (S-0103/D-4).
+    status = _Status()
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status)
 
     (record,) = _battery_findings(lane_repo)
     (finding,) = record["findings"]
@@ -2888,7 +2896,9 @@ def test_a_red_battery_is_a_major_finding_on_the_last_landed_task(lane_repo, tmp
     assert finding["evidence"].startswith("`torve gates run`")
 
     # While the round is outstanding the battery does not run again.
-    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    again = process_lane(
+        lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status
+    )
     assert [r.action for r in again] == ["already landed", "already landed"]
     assert calls == [None]
     assert len(_battery_findings(lane_repo)) == 1
@@ -2931,11 +2941,15 @@ def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp
     calls = _red_completion(lane_repo, tmp_path, monkeypatch, [1, 1])
     published: list[tuple[str, str]] = []
     publish = _recording_publisher(published, root=lane_repo)
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    # The round path reads the red off the forge's status (S-0103/D-4).
+    status = _Status()
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status)
     document = naming.document_branch("S-0930")
     _round(lane_repo, "T-7308", document, "S-0930", "fix.py", "# T-7308\n", battery=True)
 
-    again = process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    again = process_lane(
+        lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status
+    )
 
     assert calls == [None, None]
     # The round landed, and the second red battery escalated it (S-0093/D-4).
@@ -2947,7 +2961,7 @@ def test_a_second_red_battery_escalates_instead_of_a_second_round(lane_repo, tmp
     assert len(published) == 3
 
     # Escalated, the round leaves the lane: no third battery.
-    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", rounds=True, status=status)
     assert calls == [None, None]
 
 
