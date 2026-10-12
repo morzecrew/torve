@@ -36,7 +36,6 @@ from torve.application.streams import (
     attempt_rows,
     attempted_tasks,
     lane_finding_reraised,
-    lane_verdicts,
     recorded_rows,
     round_already_requeued,
     stream_rows,
@@ -60,14 +59,14 @@ if TYPE_CHECKING:
 # ....................... #
 
 # The stream readers are defined in `streams.py` (S-0101/D-10) and re-exported
-# here so the lane, the merge, the review leg and the manager keep importing a
-# fact from the module they already read it from — they are not this phase's to
-# rewire. `stream_rows` itself is used below; the rest are a re-export surface.
+# here so the merge, the review leg and the manager keep importing a fact from
+# the module they already read it from — they are not this phase's to rewire.
+# `stream_rows` itself is used below; the rest are a re-export surface, the
+# lane's own having left with its pull-request ledger (S-0102/D-1).
 __all__ = [
     "attempt_rows",
     "attempted_tasks",
     "lane_finding_reraised",
-    "lane_verdicts",
     "recorded_rows",
     "round_already_requeued",
     "stream_rows",
