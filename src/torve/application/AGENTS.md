@@ -1931,6 +1931,55 @@ The task unit under `landing: pull_request` stays: a contract that names no docu
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
 - Consequence: hand-minted and standing contracts keep landing under pull-request landing
 
+### S-0103/D-1 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+A landed round is answered once, read from the forge: the leg replies only to a thread whose last comment is not the engine's, and its keyed pull-request comment lands once per key; it reads no `lane_thread_resolved` or `review_finding_answered` row.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a second host does not answer a round the first already answered
+
+### S-0103/D-2 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+A recorded finding is answered when a round whose contract lists it in `round.findings` has landed or a person resolved it off the board.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a recorded finding opens one round whichever host reads it
+
+### S-0103/D-3 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+The leg replies on a thread it refuses with the refusal's reason, so a later pass reads it as handled from the thread's last comment; it reads no `lane_thread_refused` or `lane_engine_thread` row.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a refused thread is not raised again on any host until someone comments after the refusal
+
+### S-0103/D-4 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+The red completion battery's finding is read from the `torve/completion` failure status on the document branch's tip, its description naming the red gates; the leg's forge reads the status and the battery writes no row the leg reads.
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/cli/manager.py`
+- Consequence: the battery's round is raised from the verdict a person also sees in the checks
+
+### S-0103/D-5 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+A task's landing sha in the leg is read through `landed()`.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: the reply to a round names the same landing on any host
+
+### S-0103/D-6 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+The review leg imports no stream reader, and the boundary test allows only the ledger, the evals, the night report and `projections` to import `streams`.
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_layout.py`
+- Consequence: no decision module reads the telemetry stream
+
+### S-0103/D-7 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+The refusal's reply goes on every thread the leg refuses, a person's included; a person's thread is still never resolved.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: whoever reads a refused thread sees why the engine left it
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
