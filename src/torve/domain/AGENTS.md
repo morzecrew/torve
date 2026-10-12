@@ -357,6 +357,20 @@ A round the review leg widens to the whole phasing carries `whole: true` in its 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/cli/manager.py` `src/torve/domain/task.py`
 - Consequence: a round is widened once, whichever host requeues it
 
+### S-0104/D-1 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A contract carries `scope.contingent`, literal paths the planner derives at mint and at refresh: the importers, in source and tests, one hop, of the files the phase's globs match; the first-party modules those files import; their tests paired at any depth under `tests/`; their packages' `__init__`; and the paths the document's other phases' scopes match.
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/neighbours.py` `src/torve/application/planner.py`
+- Consequence: the files a change most often reaches beyond its phase are known to the attempt before it starts
+
+### S-0104/D-2 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A contingent path is promoted on its first write when no in-flight task's `allow` or promoted paths hold it: the board records `scope.promoted`, and the path joins the task's fence for every overlap check after.
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `.torve/agents/hooks/implement/scope_guard.py`
+- Consequence: an attempt that needs a neighbour writes it and carries on, and no other task writes it at the same time
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

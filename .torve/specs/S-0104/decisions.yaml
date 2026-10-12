@@ -58,7 +58,7 @@ decisions:
       order
     rationale: >-
       13 of the 21 tasks on record needed a path another phase of their own document
-      owned.
+      owned. The owner confirmed it (Q-1, 2026-10-12).
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -138,3 +138,13 @@ decisions:
     rationale: >-
       A per-language import graph is a later document; the test adapter of the third
       move is where languages are named.
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      This document changes torve's own copy of the pre-write hook; an adopter's copy
+      is refreshed from torve's when it upgrades, and shipping the hook as package
+      equipment is a document of its own.
+    paths: [.torve/agents/hooks/implement/scope_guard.py]
+    consequence: >-
+      the change stays inside torve's tree, and an adopter's hook follows its upgrade
+    rationale: The owner's answer to Q-2 (2026-10-12).

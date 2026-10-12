@@ -1980,6 +1980,76 @@ The refusal's reply goes on every thread the leg refuses, a person's included; a
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: whoever reads a refused thread sees why the engine left it
 
+### S-0104/D-1 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A contract carries `scope.contingent`, literal paths the planner derives at mint and at refresh: the importers, in source and tests, one hop, of the files the phase's globs match; the first-party modules those files import; their tests paired at any depth under `tests/`; their packages' `__init__`; and the paths the document's other phases' scopes match.
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/neighbours.py` `src/torve/application/planner.py`
+- Consequence: the files a change most often reaches beyond its phase are known to the attempt before it starts
+
+### S-0104/D-2 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A contingent path is promoted on its first write when no in-flight task's `allow` or promoted paths hold it: the board records `scope.promoted`, and the path joins the task's fence for every overlap check after.
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `.torve/agents/hooks/implement/scope_guard.py`
+- Consequence: an attempt that needs a neighbour writes it and carries on, and no other task writes it at the same time
+
+### S-0104/D-3 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A contingent path an in-flight task holds is refused with the holder's id, and the attempt returns to the queue as a `blocked_by_overlap` dispatch does, not to a person.
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: a collision costs a wait, not an escalation
+
+### S-0104/D-4 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A contingent path that only a later, undispatched phase of the same document holds may be promoted, and that phase's dispatch then waits on the promoting task.
+
+- Paths: `src/torve/application/manager.py`
+- Consequence: a phase can finish work that another phase of its document owns on paper, in order
+
+### S-0104/D-5 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+The gate manifest's `scope.derived` map names files that ride with a source, in both directions (a lock file with its manifest, a golden with its producer, a generated schema with its model); a derived path is contingent wherever its source is in scope. The map replaces the hard-coded lock-file table, and its default is that table.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/scope.py` `src/torve/application/neighbours.py`
+- Consequence: a repository names its own generated files once, and the import graph's blind spot is covered where it is named
+
+### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+The attempt's prompt lists its contingent paths beside its scope, the scope gate reports every promoted path, and the reviewer is shown the promotions.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/gates/scope.py` `src/torve/application/review.py`
+- Consequence: a widening is read by the agent, the gate and the reviewer, never made silently
+
+### S-0104/D-8 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+A review round's contingent paths are its anchor's neighbours by the same rules.
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a round that needs its anchor's caller or test promotes it instead of halting
+
+### S-0104/D-9 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+Test pairing finds a module's tests at any depth under `tests/`; the planner warns on a phase missing them and keeps refusing only the flat layout's miss.
+
+- Paths: `src/torve/application/intake.py`
+- Consequence: a nested test layout is paired without refusing plans that were valid yesterday
+
+### S-0104/D-10 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+The spec quality report counts promotions per phase and per document.
+
+- Paths: `src/torve/application/specquality.py`
+- Consequence: an author sees which phases were drawn too narrow, from the record
+
+### S-0104/D-11 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+The import-graph rules read Python; in a repository with no Python the contingent set is the pairing, the document union and the derived map.
+
+- Paths: `src/torve/application/neighbours.py`
+- Consequence: an adopter in another language still gets the rules that are not language-bound
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

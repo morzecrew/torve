@@ -663,6 +663,13 @@ The default review skill set is `[working-rules]`, amending S-0054/D-14, and tor
 - Paths: `src/torve/config/runconfig.py` `.torve/agents/review.yaml`
 - Consequence: the review role reads a skill that ships, and the row says what the profile does
 
+### S-0104/D-5 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+The gate manifest's `scope.derived` map names files that ride with a source, in both directions (a lock file with its manifest, a golden with its producer, a generated schema with its model); a derived path is contingent wherever its source is in scope. The map replaces the hard-coded lock-file table, and its default is that table.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/scope.py` `src/torve/application/neighbours.py`
+- Consequence: a repository names its own generated files once, and the import graph's blind spot is covered where it is named
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

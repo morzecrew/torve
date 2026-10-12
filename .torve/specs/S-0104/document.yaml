@@ -6,7 +6,7 @@ kind: design
 change:
   type: feat
   scope: scope
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0098, S-0099]
 informed_by: []
@@ -67,12 +67,29 @@ design:
       passes promoted paths and lists them; the reviewer's prompt lists them; the
       spec quality report counts them per phase, which tells the author where a scope
       was too narrow.
-tests: ''
+tests: |-
+  - On a fixture tree, the derivation returns the scoped files' importers in source and tests, their first-party imports, their tests at any depth, their packages' `__init__` and the document's other phases' paths, and nothing else; a refresh rewrites it (D-1).
+  - A write to a contingent path no in-flight task holds is promoted: the board records `scope.promoted`, the scope gate lists it, and a second task naming it is fenced (D-2, D-7).
+  - A write to a contingent path another in-flight task holds is refused naming the holder, and the attempt returns to the queue with no escalation (D-3).
+  - A path only a later, undispatched phase of the same document holds is promoted, and that phase is not dispatched until the promoting task lands (D-4).
+  - A golden named in `scope.derived` rides with its producer in both directions, and a lock file still rides with its manifest by the default map (D-5).
+  - A managed `AGENTS.md` beside a scoped path passes the gate and the hook (D-6).
+  - The prompt names the contingent paths and the review prompt lists the promotions (D-7).
+  - A round anchored on a module gets the module's importers and tests as contingent paths (D-8).
+  - A nested-layout test miss warns at planning and a flat-layout miss still refuses (D-9).
+  - The spec quality report counts a phase's promotions (D-10).
+  - A repository with no Python files derives pairing, the document union and the derived map only (D-11).
+  - The sabotage suite convicts a write to a contingent path another task holds.
 docs: ''
 out_of_scope: |-
   - Import graphs for Go, TypeScript or any language but Python: a repository without Python gets the pairing, the document union and the derived map only (D-11).
   - Shipping the pre-write hook as package equipment instead of each repository's copy (Q-2).
-risks: ''
+risks: |-
+  - Contingent sets are large (a median of 55 to 68 paths per phase) and precision is low; a promotion is still a reviewed, recorded write, and the fence keeps two tasks off one file.
+  - An agent may reach for a contingent path it did not need; the reviewer sees every promotion, and the quality report counts them per phase.
+  - The ten generated-artifact misses on record are covered only where `scope.derived` names them; a repository that names none keeps those halts.
+  - An adopter's copy of the pre-write hook (bloomery's) refuses contingent writes until it is refreshed from torve's on upgrade (D-12); until then the gate allows what the hook refused, so an attempt halts as today rather than writing out of scope.
+  - Allowing a later phase's path (D-4) reorders a document's work; the later phase waits for the promoting task, so nothing is written twice at once.
 alternatives:
   - option: Add the derived neighbours to `allow` at mint.
     rejected_because: >-
@@ -90,9 +107,13 @@ questions:
       dispatched: promote it and make that phase wait on the promoting task (D-4),
       or refuse it and keep the later phase's ownership? Lean: promote; 13 of the
       21 tasks on record needed a path another phase of their document owned.
+    status: settled
+    settled_by: D-4
   - id: Q-2
     text: >-
       The pre-write hook is a file each repository carries (bloomery's is a copy of
       torve's), and this document changes it. Change both copies here and leave the
       distribution as it is, or ship the hook as package equipment so an adopter never
       copies it? Lean: change the copies here; ship it as equipment in its own document.
+    status: settled
+    settled_by: D-12
