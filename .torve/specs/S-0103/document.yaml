@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0103
+title: The review leg reads no stream
+kind: design
+change:
+  type: refactor
+  scope: reviewleg
+status: draft
+implementation: none
+depends_on: [S-0099, S-0101, S-0102]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: >-
+  The review leg is the last decision module that reads `.torve/telemetry.jsonl`,
+  named in the boundary test under S-0102's logged departure from S-0102/D-7. It reads
+  three of its own lane facts there: whether a round or a recorded finding was already
+  answered, which threads it refused or answered as engine-written, and the red completion
+  battery's finding, plus each task's landing sha. Each has a carrier the leg's act
+  already writes or reads. GitHub's threads and keyed comments say what was answered.
+  A refusal is answered on its thread, so a later pass reads it as handled. A recorded
+  finding is answered once the round that lists it lands or a person resolves it.
+  The battery's finding is the `torve/completion` status on the document's tip. A
+  landing is `landed()`. The leg then imports no stream reader and leaves the boundary
+  test's allowlist, so no decision in the engine reads telemetry.
+motivation: >-
+  The owner chose this follow-up on 2026-10-12, before moving on to the second of
+  five moves, so that "every fact has one carrier" ends with no named exception.
+current_state: >-
+  `reviewleg.review_thread_leg` reads the stream for every row except non-battery
+  review rows. `_answered` reads `lane_thread_resolved` and `review_finding_answered`
+  rows, `_handled` reads `lane_thread_refused` and `lane_engine_thread` rows with
+  their comment counts, `record_threads` reads the battery rows `lane.record_battery_red`
+  appends and the `review_finding_answered` rows, and `_landing_sha` reads `lane_landed`
+  rows. `_refuse` records a refusal on the stream and escalates it, and posts nothing
+  on the thread. `answer_round` replies to a landed round's threads and posts one
+  keyed comment, which the forge already lands once per key. S-0101/D-5's `_already_handled`
+  reads the forge's last comment beside `_handled`'s counts. `tests/test_layout.py`
+  allows `reviewleg.py` to import `streams` by name.
+goals: |-
+  - No module the engine decides from reads `.torve/telemetry.jsonl`; the boundary test allows only the ledger, the evals, the night report and `projections`' reports.
+  - A second host's review leg answers, refuses and raises exactly what the first would.
+  - S-0099, S-0101, S-0102 and S-0103 can be marked complete.
+non_goals: |-
+  - Changing what the leg answers or refuses; only where it reads that it already did.
+  - The night report's counts of threads answered or refused, which read the stream as a report (S-0099/D-10).
+design:
+  - key: the-carriers
+    md: |-
+      | Reader today | Fact | Carrier |
+      |---|---|---|
+      | `_answered`, `spoken` | a landed round's threads were answered | the forge: a thread whose last comment is the engine's is skipped, and the keyed comment lands once per key |
+      | `_handled` | a thread was refused or answered as engine-written | the forge: the refusal's reply on the thread (new), read by S-0101/D-5's last-comment rule |
+      | `record_threads` answered set | a recorded finding was answered | the round that lists it in `round.findings` has landed (`landed()`) or a person resolved it (the board) |
+      | battery rows | the red completion battery's finding | the `torve/completion` failure status on the document's tip, its description naming the red gates |
+      | `_landing_sha` | a task's landing sha | `landed()` |
+tests: ''
+docs: ''
+out_of_scope: >-
+  - Deleting the stream rows the leg writes (`lane_thread_refused` and the rest);
+  they stay diagnostics the night report counts.
+risks: ''
+alternatives:
+  - option: >-
+      Keep the review leg as the one named stream reader and stop here.
+    rejected_because: >-
+      The owner chose to finish the move with no exception; the three facts each have
+      a carrier already, so the change is a read moving, not a new store.
+questions:
+  - id: Q-1
+    text: >-
+      D-3 makes the leg reply on a thread it refuses, with the refusal's reason, so
+      the forge records that it was handled. That adds a reply a person sees on a
+      bot's thread or their own. Reply on every refused thread, or only on bot threads
+      and keep a person's refusal on the escalation alone? Lean: every thread; the
+      reason is useful to whoever reads it, and a person's thread is still never resolved.

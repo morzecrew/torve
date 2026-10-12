@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      Answers, refusals and landings are read from the forge and the tree
+    intent: >-
+      `answer_round` skips a thread whose last comment is the engine's; `_refuse`
+      replies on the thread with its reason; `_answered` and `_handled` are deleted;
+      `_landing_sha` reads `landed()`. Tests: a landed round answered on one host
+      is not answered again on another with an empty stream; a refused thread is not
+      raised again until a comment follows the refusal; the round's reply names the
+      landing from its landing file. Settles D-1, D-3 and D-5.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/cli/manager.py
+      - tests/test_reviewleg.py
+      - tests/test_pr_review.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reviewleg.py tests/test_pr_review.py tests/test_manager.py
+        tests/test_manager_e2e.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      A recorded finding's answer and the battery's finding come from the round and
+      the status
+    intent: >-
+      A recorded finding is answered when a round listing it in `round.findings` has
+      landed or been resolved; the battery's finding is raised from the `torve/completion`
+      failure status on the document's tip, which the thread forge now reads; `record_battery_red`
+      writes no row the leg reads. Tests: a recorded finding with a landed round opens
+      no second round with an empty stream; a failing completion status on the tip
+      raises the battery's finding naming its red gates; a green status raises none.
+      Settles D-2 and D-4.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/lane.py
+      - src/torve/application/ports.py
+      - src/torve/cli/manager.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/application/projections.py
+      - tests/test_reviewleg.py
+      - tests/test_pr_review.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - tests/test_projections.py
+      - tests/test_forge.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reviewleg.py tests/test_pr_review.py tests/test_lane.py
+        tests/test_lane_prevention.py tests/test_manager.py tests/test_manager_e2e.py
+        tests/test_projections.py tests/test_forge.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The leg leaves the boundary's allowlist
+    intent: >-
+      `reviewleg.py` imports no stream reader; the boundary test's allowlist is the
+      ledger, the evals, the night report and `projections`; the architecture pages
+      say no decision reads the stream. Tests: the boundary test passes with the leg
+      off the allowlist and fails on a planted reader in the leg. Settles D-6.
+    scope:
+      - src/torve/application/reviewleg.py
+      - tests/test_layout.py
+      - tests/test_reviewleg.py
+      - pages/docs/architecture/state.md
+      - pages/docs/architecture/record.md
+      - pages/docs/operating.md
+    acceptance:
+      - >-
+        uv run pytest tests/test_layout.py tests/test_reviewleg.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 2
+    character: routine
