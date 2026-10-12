@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import partial
@@ -54,6 +54,7 @@ from torve.application.dispatch import (
     review_gated,
 )
 from torve.application.forge import compose_pr
+from torve.application.manager import in_flight_fences, project
 from torve.application.ports import (
     AgentResult,
     Runtime,
@@ -82,12 +83,13 @@ from torve.application.telemetry import (
 from torve.base import naming
 from torve.base.clock import parse
 from torve.config import layout
-from torve.config.manifest import UNLABELED_AXIS, Gate, load_manifest
+from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.domain.attempt import GateResult
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import GateContext, GitError, build_context, git, resolve_base
+from torve.gates.contract import spec
 from torve.gates.runner import RunReport, run_gates
 
 # ----------------------- #
@@ -309,6 +311,13 @@ async def _attempt_loop(
         try:
             exit_code, summary, digest = await hooks.gates(state)
 
+        except BlockedDispatch:
+            # A contingent write an in-flight run holds (S-0104/D-3): the
+            # attempt goes back to the queue, never to a person, so the
+            # refusal propagates to whoever claimed it rather than becoming
+            # an infrastructure escalation.
+            raise
+
         except asyncio.CancelledError:
             raise
 
@@ -429,6 +438,184 @@ def _write_attempt_record(run: Dispatch, record: dict[str, Any], attempt: int) -
 # ....................... #
 
 
+def _promoted_paths(task: Task, manifest: Manifest, paths: list[str]) -> list[str]:
+    """The changed paths the task was right to reach beyond its declared
+    globs (S-0104/D-1, D-5): a literal in the contract's `contingent` block,
+    and a file riding with an in-scope source through the manifest's
+    `scope.derived` map, applied both directions. A path the declared globs
+    already admit is not promoted — nothing was widened.
+
+    An empty allow-set is unconstrained (S-0002/scope-in-detail): every path is already in
+    scope, so nothing is named."""
+
+    if not task.scope.allow:
+        return []
+
+    allow = spec(task.scope.allow)
+    contingent = set(task.scope.contingent)
+
+    def in_scope(path: str) -> bool:
+        return allow.match_file(path) or path in contingent
+
+    beyond = set(contingent)
+
+    for source, riders in manifest.scope.derived.items():
+        if in_scope(source):
+            beyond.update(riders)
+
+        if any(in_scope(rider) for rider in riders):
+            beyond.add(source)
+
+    return sorted(
+        {path for path in paths if path and not allow.match_file(path) and path in beyond}
+    )
+
+
+def _recorded_promotions(state: RunState) -> list[str]:
+    """The contingent paths a run has promoted, read off its own history —
+    the host-local half of the fence the board folds from `scope.promoted`
+    (S-0104/D-2). A run whose history holds none reads as none."""
+
+    marker = "promoted "
+
+    return [
+        str(row.get("fact", ""))[len(marker) :]
+        for row in state.history
+        if str(row.get("fact", "")).startswith(marker)
+    ]
+
+
+def _in_flight(root: Path, skip_id: str) -> Iterator[tuple[str, list[str], list[str]]]:
+    """(task id, declared allow, promoted paths) for every run in flight on
+    this host — the fence `_blocking_overlap` and the write-time refusal
+    read. A review claims no fence (S-0005/D-2): it writes nothing by
+    construction, so its empty allow-set is never "unconstrained". A run
+    whose contract the host does not hold is skipped rather than assumed
+    disjoint, exactly as the scan has always read it."""
+
+    from torve.gates.context import load_task
+
+    active = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
+
+    for state in RunState.load_all(root / naming.WORKTREE_DIR):
+        if state.task_id == skip_id or state.state not in active:
+            continue
+
+        contract = root / layout.TORVE_DIR / "tasks" / state.task_id / "contract.yaml"
+
+        if not contract.is_file():
+            continue
+
+        other = load_task(contract)
+
+        if other.role == "review":
+            continue
+
+        yield state.task_id, list(other.scope.allow), _recorded_promotions(state)
+
+
+def _held_contingent(
+    root: Path, task: Task, paths: list[str], fences: Mapping[str, list[str]] | None = None
+) -> tuple[str, str] | None:
+    """The first of *paths* an in-flight task holds, with the holder's id
+    (S-0104/D-2, D-3). The fence is read from both halves: the run states on
+    this host, which the dispatch scan also reads, and the board — every
+    in-flight task of the partition, wherever it is running, so a task
+    another host claimed is a holder here too. A fence is the task's declared
+    allow plus every contingent path it promoted; an unconstrained task holds
+    everything."""
+
+    held: dict[str, tuple[list[str], list[str]]] = {
+        holder: (allow, promoted) for holder, allow, promoted in _in_flight(root, task.id)
+    }
+
+    for holder, fence in (fences or {}).items():
+        if holder != task.id and holder not in held:
+            held[holder] = (fence, [])
+
+    for holder, (allow, promoted) in held.items():
+        if not allow:
+            return holder, paths[0]
+
+        for path in paths:
+            if _scope_overlap([path], [*allow, *promoted]) is not None:
+                return holder, path
+
+    return None
+
+
+def _board_fences(run: Dispatch) -> dict[str, list[str]]:
+    """S-0104/D-2: the board's in-flight fence as the run reads it at the
+    write — every active task's declared allow plus the paths it promoted,
+    wherever the task is running. The channel is the run's own route into the
+    record; without one — a hand dispatch, a test — the fence is host-local,
+    exactly as before."""
+
+    from torve.application.eventlog import RunLogChannel
+
+    channel = run.deps.channel
+
+    if not isinstance(channel, RunLogChannel):
+        return {}
+
+    events = asyncio.run_coroutine_threadsafe(
+        channel.log.since(partition=channel.partition), channel.loop
+    ).result(channel.timeout_s)
+
+    return in_flight_fences(project(events))
+
+
+def _record_promotions(run: Dispatch, state: RunState, ctx: GateContext) -> None:
+    """S-0104/D-2: a contingent path this attempt actually wrote joins the
+    task's fence. Recorded from the diff, so the widening is read off what
+    the tree holds rather than believed from the plan — and recorded on the
+    board, so a task sharing the path waits on this one instead of writing
+    it at the same time.
+
+    S-0104/D-3: a written contingent path an in-flight run holds is refused
+    at the write, with the holder's id. The attempt goes back to the queue
+    the way a `blocked_by_overlap` dispatch does — its run state is dropped
+    so the next pass may claim it again, and nothing escalates, because a
+    collision costs a wait and not a person."""
+
+    if run.shadow or ctx.task is None:
+        return
+
+    written = [entry.path for entry in ctx.diff if entry.path]
+    promoted = _promoted_paths(ctx.task, ctx.manifest, written)
+
+    if not promoted:
+        return
+
+    held = _held_contingent(run.root, ctx.task, promoted, _board_fences(run))
+
+    if held is not None:
+        holder, path = held
+
+        engine_event(
+            run.root, "blocked_dispatch", {"task": run.task.id, "blocked_by": holder, "path": path}
+        )
+        state.path.unlink(missing_ok=True)
+
+        raise BlockedDispatch(f"blocked_by_overlap: {holder} on {path}")
+
+    for path in promoted:
+        emit(run, "scope_promoted", state.attempts, path=path)
+        state.history.append(
+            {
+                "at": state.heartbeat,
+                "from": str(state.state),
+                "to": str(state.state),
+                "fact": f"promoted {path}",
+            }
+        )
+
+    state.save()
+
+
+# ....................... #
+
+
 def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
     the patch feed the review's input when one is configured. Raises on
@@ -520,6 +707,11 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             _write_attempt_record(run, record, state.attempts)
 
             return 1, summary, digest, [refusal], ctx.patch
+
+        # Before the battery: a written contingent path an in-flight run
+        # holds refuses the attempt here (S-0104/D-3), and judging a tree
+        # about to be handed back to the queue buys nothing.
+        _record_promotions(run, state, ctx)
 
         report = run_gates(ctx)
 
@@ -693,6 +885,14 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
         exit_code, summary, digest, results, patch = await asyncio.to_thread(
             run_gate_pass, run, state
         )
+
+    except BlockedDispatch:
+        # S-0104/D-3: a contingent write an in-flight task holds is a wait,
+        # not a failure — the attempt returns to the queue and nothing
+        # escalates. The catch-all below would record
+        # GATE_INFRASTRUCTURE_FAILURE for a refusal the task says escalates
+        # nothing, so the refusal passes through untouched.
+        raise
 
     except Exception:
         # S-0038/D-1: the gates step raising is an attempt ending with no gate
@@ -1315,42 +1515,28 @@ def _scope_overlap(mine: list[str], theirs: list[str]) -> str | None:
 
 
 def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
-    """(blocking task id, contended path) when an active run's allow-set
-    intersects this task's; an empty allow-set is unconstrained and
+    """(blocking task id, contended path) when an active run's fence holds
+    this task's declared scope; an empty allow-set is unconstrained and
     contends with everything. An active review claims no fence — it
     writes nothing by construction (S-0005/D-2), so no dispatch is refused
     against it. A review dispatch never reaches the fence at all: the
     front door refuses it (T-0183), so the exemption's assumption holds
-    by construction."""
+    by construction.
 
-    from torve.gates.context import load_task
+    An in-flight run's fence is its declared allow plus every contingent
+    path it promoted (S-0104/D-2), so a task declaring a path another run
+    widened into is refused here too. A task's own contingent paths are not
+    a claim at dispatch (S-0104/D-3): they are refused at the write, where
+    the attempt's diff shows one was actually made."""
 
-    active = {TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED}
+    for holder, allow, promoted in _in_flight(root, task.id):
+        if not task.scope.allow or not allow:
+            return holder, "unconstrained scope"
 
-    for state in RunState.load_all(root / naming.WORKTREE_DIR):
-        if state.task_id == task.id or state.state not in active:
-            continue
-
-        contract = root / layout.TORVE_DIR / "tasks" / state.task_id / "contract.yaml"
-
-        if not contract.is_file():
-            continue
-
-        other = load_task(contract)
-
-        # An active review claims no fence (S-0005/D-2): its empty allow-set is
-        # never "unconstrained", or an unrelated dispatch is refused by a
-        # task that will write nothing.
-        if other.role == "review":
-            continue
-
-        if not task.scope.allow or not other.scope.allow:
-            return state.task_id, "unconstrained scope"
-
-        overlap = _scope_overlap(task.scope.allow, other.scope.allow)
+        overlap = _scope_overlap(task.scope.allow, [*allow, *promoted])
 
         if overlap is not None:
-            return state.task_id, overlap
+            return holder, overlap
 
     return None
 

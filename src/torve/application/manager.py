@@ -77,6 +77,10 @@ class TaskView:
     # read as "the record does not hold this task's contract", which is
     # undispatchable and visible rather than an error (S-0049/D-5, S-0049/D-6).
     contract: Task | None = None
+    # S-0104/D-2: the contingent paths this task actually wrote, folded from
+    # `scope.promoted` facts. They join the task's fence, so a task sharing
+    # one is held off until this one lands (S-0104/D-4).
+    promoted: list[str] = field(default_factory=list)
 
 
 # ....................... #
@@ -213,6 +217,14 @@ def project(events: Iterable[EventRecord]) -> Board:
             view = replace(view, claimed_by=None, claimed_at=None, landed_sha=None)
         elif event.kind is EventKind.ATTEMPT_STARTED:
             view = replace(view, attempts=int(payload.get("attempt") or view.attempts + 1))
+        elif event.kind is EventKind.SCOPE_PROMOTED:
+            # S-0104/D-2: a path the attempt wrote beyond its declared globs.
+            # Append-only and deduped, so a re-recorded promotion (a retry
+            # writing the same neighbour again) leaves the fence as it was.
+            path = str(payload.get("path") or "")
+
+            if path and path not in view.promoted:
+                view = replace(view, promoted=[*view.promoted, path])
         elif event.kind is EventKind.LANDING_RECORDED:
             view = replace(view, landed_sha=str(payload.get("sha") or ""), claimed_by=None)
         elif event.kind is EventKind.ESCALATION_RAISED:
@@ -278,7 +290,12 @@ def overlaps(task: Task, board: Board) -> list[str]:
     The scopes come off the board's own contracts (S-0049/D-1). A task in flight
     whose contract the record does not hold is skipped rather than assumed
     disjoint — the same silence the scan produced when it could not read a
-    contract file."""
+    contract file.
+
+    A task's fence is its declared allow plus every path it promoted
+    (S-0104/D-2): a contingent neighbour the attempt wrote is as much a claim
+    on the file as one its globs named, so a later phase holding that path
+    waits on the promoting task until it lands (S-0104/D-4)."""
 
     shared: list[str] = []
 
@@ -286,10 +303,44 @@ def overlaps(task: Task, board: Board) -> list[str]:
         if view.task_id == task.id or view.contract is None:
             continue
 
-        if scopes_clash(task.scope.allow, view.contract.scope.allow):
+        # Unconstrained on either side holds everything (S-0002/scope-in-detail).
+        if not task.scope.allow or not view.contract.scope.allow:
+            shared.append(view.task_id)
+            continue
+
+        # The queued task claims what it declared; the in-flight task holds
+        # what it declared plus every contingent path it promoted
+        # (S-0104/D-2). A contingent path is not a claim at dispatch: it is
+        # promoted on its first write, and refused there if an in-flight
+        # task holds it (S-0104/D-3) — holding the task off for a neighbour
+        # its attempt may never write refuses far more than the document
+        # allows, since the contingent set names every importer and every
+        # sibling phase.
+        fence = [*view.contract.scope.allow, *view.promoted]
+
+        if scopes_clash(task.scope.allow, fence):
             shared.append(view.task_id)
 
     return sorted(shared)
+
+
+# ....................... #
+
+
+def in_flight_fences(board: Board) -> dict[str, list[str]]:
+    """Every in-flight task's fence, by task id: its declared allow plus the
+    contingent paths it promoted (S-0104/D-2).
+
+    This is the board half of the write-time refusal — the host that did not
+    run the task still reads what it holds. A review claims no fence
+    (S-0005/D-2), and a task whose contract the record does not hold is
+    skipped, exactly as `overlaps` skips it."""
+
+    return {
+        view.task_id: [*view.contract.scope.allow, *view.promoted]
+        for view in board.in_flight()
+        if view.contract is not None and view.contract.role != "review"
+    }
 
 
 # ....................... #

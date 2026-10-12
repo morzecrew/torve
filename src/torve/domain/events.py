@@ -91,6 +91,7 @@ class EventKind(StrEnum):
     ATTEMPT_STARTED = "attempt.started"
     ATTEMPT_FINISHED = "attempt.finished"
     GATES_EVALUATED = "gates.evaluated"
+    SCOPE_PROMOTED = "scope.promoted"
     DIVERGENCE_RECORDED = "divergence.recorded"
     REVIEW_RECORDED = "review.recorded"
     BLOCKER_RAISED = "blocker.raised"
@@ -128,6 +129,9 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.ATTEMPT_STARTED: frozenset({ActorKind.WORKER}),
     EventKind.ATTEMPT_FINISHED: frozenset({ActorKind.WORKER}),
     EventKind.GATES_EVALUATED: frozenset({ActorKind.WORKER}),
+    # S-0104/D-2: the runner watches the attempt's diff and records the
+    # widening, exactly as a worker records the attempt it paid for.
+    EventKind.SCOPE_PROMOTED: frozenset({ActorKind.WORKER}),
     EventKind.DIVERGENCE_RECORDED: frozenset({ActorKind.AGENT}),
     EventKind.REVIEW_RECORDED: frozenset({ActorKind.WORKER}),
     EventKind.BLOCKER_RAISED: frozenset({ActorKind.WORKER}),
@@ -396,6 +400,26 @@ class DivergenceRecorded(BaseModel):
 # ....................... #
 
 
+class ScopePromoted(BaseModel):
+    """S-0104/D-2: a contingent path the attempt actually wrote. The board
+    folds it onto the task (S-0104/D-3), so the path joins the task's fence —
+    a task sharing it is held off until the promoting task lands (S-0104/D-4).
+
+    One event per path: the path is the deciding fact, and a batch shape would
+    have the fold undo a path nobody could name in the log.
+    """
+
+    model_config = STRICT
+
+    path: str
+    # The attempt that wrote it, when the record has one — an operator's
+    # hand entry into the log carries the events without an attempt beside it.
+    attempt: int | None = None
+
+
+# ....................... #
+
+
 class ReviewItem(BaseModel):
     """One finding a review recorded (S-0101/D-4): its severity, the anchor
     it cites and the claim and evidence that locate it, so a host that did
@@ -627,6 +651,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.ATTEMPT_STARTED: AttemptStarted,
     EventKind.ATTEMPT_FINISHED: AttemptFinished,
     EventKind.GATES_EVALUATED: GatesEvaluated,
+    EventKind.SCOPE_PROMOTED: ScopePromoted,
     EventKind.DIVERGENCE_RECORDED: DivergenceRecorded,
     EventKind.REVIEW_RECORDED: ReviewRecorded,
     EventKind.BLOCKER_RAISED: BlockerRaised,

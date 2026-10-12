@@ -27,6 +27,7 @@ from torve.application.manager import (
     documents,
     expired,
     night_report,
+    overlaps,
     project,
     pull_requests,
     review_threads,
@@ -116,6 +117,38 @@ async def land(log, task_id, *, partition=PARTITION):
         actor_kind=ActorKind.MANAGER,
         actor_id="manager-1",
         payload={"sha": "a" * 40, "attempt": 1},
+    )
+
+
+async def minted(log, contract: Task) -> None:
+    """One mint carrying a contract with whatever scope and document this
+    case needs — `mint` above fixes the allow-set and names no document."""
+
+    await log.record(
+        EventKind.TASK_MINTED,
+        partition=PARTITION,
+        subject_type=SubjectType.TASK,
+        subject_id=contract.id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id="manager-1",
+        payload={
+            "title": contract.id,
+            "source_id": "0104",
+            "depends_on": contract.depends_on,
+            "contract": contract.model_dump(mode="json"),
+        },
+    )
+
+
+async def promote(log, task_id, path, *, partition=PARTITION) -> None:
+    await log.record(
+        EventKind.SCOPE_PROMOTED,
+        partition=partition,
+        subject_type=SubjectType.TASK,
+        subject_id=task_id,
+        actor_kind=ActorKind.WORKER,
+        actor_id="w-1",
+        payload={"path": path, "attempt": 1},
     )
 
 
@@ -318,6 +351,70 @@ def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
         await mint(log, "T-2", allow=["web/**"])
 
         assert dispatchable(project(await log.since()), PARTITION) == ["T-2"]
+
+    run(scenario)
+
+
+def test_a_promoted_contingent_path_is_on_the_board_and_fences_a_second_task():
+    """S-0104/D-2: a contingent path the attempt wrote is folded onto the
+    board's own task and joins that task's fence. A second task whose scope
+    shares the path is held off until the promoting task lands."""
+
+    async def scenario(log):
+        await minted(log, Task(id="T-1", decisions=[], scope=Scope(allow=["src/a.py"], deny=[])))
+        await minted(
+            log, Task(id="T-2", decisions=[], scope=Scope(allow=["docs/notes.md"], deny=[]))
+        )
+        await claim(log, "T-1")
+
+        # Before the write the two are disjoint and T-2 is dispatchable.
+        assert dispatchable(project(await log.since(partition=PARTITION)), PARTITION) == ["T-2"]
+
+        await promote(log, "T-1", "docs/notes.md")
+
+        board = project(await log.since(partition=PARTITION))
+
+        assert board.tasks["T-1"].promoted == ["docs/notes.md"]
+        assert overlaps(board.tasks["T-2"].contract, board) == ["T-1"]
+        assert dispatchable(board, PARTITION) == []
+
+    run(scenario)
+
+
+def test_a_later_phase_holding_a_promoted_path_waits_until_the_promoter_lands():
+    """S-0104/D-4: a later, undispatched phase of the same document may hold
+    the path on paper. The promoting task's fence keeps that phase out of the
+    dispatch order until the promotion lands, then releases it."""
+
+    async def scenario(log):
+        await minted(
+            log,
+            Task(
+                id="T-1",
+                spec="S-0104",
+                phase=1,
+                decisions=[],
+                scope=Scope(allow=["src/a.py"], deny=[]),
+            ),
+        )
+        await minted(
+            log,
+            Task(
+                id="T-2",
+                spec="S-0104",
+                phase=2,
+                decisions=[],
+                scope=Scope(allow=["docs/notes.md"], deny=[]),
+            ),
+        )
+        await claim(log, "T-1")
+        await promote(log, "T-1", "docs/notes.md")
+
+        assert "T-2" not in dispatchable(project(await log.since(partition=PARTITION)), PARTITION)
+
+        await land(log, "T-1")
+
+        assert "T-2" in dispatchable(project(await log.since(partition=PARTITION)), PARTITION)
 
     run(scenario)
 
