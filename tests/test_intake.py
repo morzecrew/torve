@@ -1040,7 +1040,7 @@ def test_adopt_in_a_repository_that_ignores_its_tasks_directory_commits_nothing(
     `.torve/tasks/`; adoption writes the file for the importer and commits
     nothing, instead of dying on git refusing an ignored path (the first live
     review round on bloomery)."""
-    from torve.application.projections import stream_rows
+    from torve.application.streams import stream_rows
 
     source = adopted_ready_run(seeded)
     ignore = seeded.root / ".torve" / ".gitignore"

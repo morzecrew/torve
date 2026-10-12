@@ -2865,7 +2865,7 @@ def _red_completion(lane_repo, tmp_path, monkeypatch, verdicts: list[int]) -> li
 
 
 def _battery_findings(root: Path) -> list[dict]:
-    from torve.application.projections import stream_rows
+    from torve.application.streams import stream_rows
 
     return [r for r in stream_rows(root) if r.get("kind") == "review" and r.get("battery")]
 

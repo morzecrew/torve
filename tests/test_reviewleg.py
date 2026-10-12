@@ -334,7 +334,7 @@ def ready(root: Path, task_id: str) -> None:
 
 
 def events(root: Path, name: str) -> list[dict[str, Any]]:
-    from torve.application.projections import stream_rows
+    from torve.application.streams import stream_rows
 
     return [row for row in stream_rows(root) if row.get("event") == name]
 
@@ -712,7 +712,7 @@ def test_a_finding_recorded_on_one_host_is_raised_by_the_leg_on_another(seeded):
     host that never ran the review still raises its round. The stream here
     holds no review at all."""
 
-    from torve.application.projections import stream_rows
+    from torve.application.streams import stream_rows
 
     open_document(seeded.root)
     forge = StubForge(pr())
@@ -1099,7 +1099,7 @@ def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
 
 
 def events_all(root: Path) -> list[dict[str, Any]]:
-    from torve.application.projections import stream_rows
+    from torve.application.streams import stream_rows
 
     return list(stream_rows(root))
 

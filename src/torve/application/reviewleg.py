@@ -1612,15 +1612,16 @@ def review_thread_leg(
     if not config.threads.enabled:
         return "review-thread leg is off", False
 
-    from torve.application import projections
+    from torve.application import projections, streams
 
     # S-0102/D-3: the reviewer's findings come off the board alone — a caller
     # with no board raises none. The lane's own facts (a refusal, an answer, a
-    # landing, the red completion battery it recorded) are read off the stream
-    # beside them, a row of the lane's own vocabulary.
+    # landing, the red completion battery it recorded) are still read off the
+    # stream beside them: the one decision read of it left, named in the
+    # boundary test, until those facts have carriers (S-0102/D-7 departure).
     rows = [
         row
-        for row in projections.stream_rows(root)
+        for row in streams.stream_rows(root)
         if row.get("kind") != "review" or row.get("battery")
     ]
     rows += projections.recorded_review_rows(records)

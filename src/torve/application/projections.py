@@ -52,12 +52,7 @@ if TYPE_CHECKING:
 # ....................... #
 
 # The stream reads are defined in `streams.py` (S-0101/D-10); this module calls
-# them by module name for the reports it hosts. `stream_rows` stays importable
-# from here for the review leg alone, the one decision module the boundary test
-# names (S-0102/D-7 departure).
-from torve.application.streams import stream_rows
-
-__all__ = ["stream_rows"]
+# them by module name for the reports it hosts and exports none (S-0102/D-7).
 
 # ----------------------- #
 
