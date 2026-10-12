@@ -207,6 +207,13 @@ A seat whose failure no retry can change escalates at once as `seat_refused` wit
 - Paths: `src/torve/cli/init.py` `src/torve/adapters/agent/harness.py`
 - Consequence: a fresh adopter's agent gets the skills its prompt names
 
+### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+
+The attempt's prompt lists its contingent paths beside its scope, the scope gate reports every promoted path, and the reviewer is shown the promotions.
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/gates/scope.py` `src/torve/application/review.py`
+- Consequence: a widening is read by the agent, the gate and the reviewer, never made silently
+
 ## Invariants holding over `src/torve/adapters/agent/`
 
 - **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
