@@ -694,6 +694,13 @@ The task unit under `landing: pull_request` stays: a contract that names no docu
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
 - Consequence: hand-minted and standing contracts keep landing under pull-request landing
 
+### S-0103/D-4 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+The red completion battery's finding is read from the `torve/completion` failure status on the document branch's tip, its description naming the red gates; the leg's forge reads the status and the battery writes no row the leg reads.
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/cli/manager.py`
+- Consequence: the battery's round is raised from the verdict a person also sees in the checks
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

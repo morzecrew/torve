@@ -441,6 +441,13 @@ Every function that reads the stream lives in `application/streams.py`; only the
 - Paths: `src/torve/application/projections.py` `src/torve/application/streams.py` `tests/test_layout.py`
 - Consequence: S-0099/D-6 and S-0101/D-10 hold, and a wrapper cannot reopen the route
 
+### S-0103/D-6 — `ASSUMED` (The review leg reads no stream) — implementation: none
+
+The review leg imports no stream reader, and the boundary test allows only the ledger, the evals, the night report and `projections` to import `streams`.
+
+- Paths: `src/torve/application/reviewleg.py` `tests/test_layout.py`
+- Consequence: no decision module reads the telemetry stream
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

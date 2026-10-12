@@ -5,7 +5,7 @@ kind: design
 change:
   type: refactor
   scope: reviewleg
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0099, S-0101, S-0102]
 informed_by: []
@@ -56,12 +56,21 @@ design:
       | `record_threads` answered set | a recorded finding was answered | the round that lists it in `round.findings` has landed (`landed()`) or a person resolved it (the board) |
       | battery rows | the red completion battery's finding | the `torve/completion` failure status on the document's tip, its description naming the red gates |
       | `_landing_sha` | a task's landing sha | `landed()` |
-tests: ''
+tests: |-
+  - A landed round answered on one host is not answered again by a leg on another host with an empty stream; a thread with a person's comment after the engine's reply is answered again (D-1).
+  - A recorded finding whose round has landed, or whose round a person resolved, opens no second round with an empty stream (D-2).
+  - A refused thread gets one reply naming the reason, and is not raised again until a comment follows that reply; a person's thread is replied to and never resolved (D-3, D-7).
+  - A failing `torve/completion` status on the document's tip raises the battery's finding naming its red gates; a green or absent status raises none (D-4).
+  - The reply to a round names the landing sha its landing file carries (D-5).
+  - The boundary test passes with `reviewleg.py` off the allowlist and fails on a planted stream reader in it (D-6).
 docs: ''
 out_of_scope: >-
   - Deleting the stream rows the leg writes (`lane_thread_refused` and the rest);
   they stay diagnostics the night report counts.
-risks: ''
+risks: |-
+  - Every refused thread now gets a reply from the operator's `gh` identity, a person's own thread included (D-7); one reply per refusal, and a thread is never resolved for a person.
+  - A completion status a person deletes, or a forge that loses it, leaves the battery's finding unraised; the pull request stays a draft because the tip has no green verdict (S-0099/D-4).
+  - Rounds minted before this document land carry their findings in `round.findings` already (S-0099/D-5), so no migration is needed; a round minted before S-0099 has none and its finding may be raised once more.
 alternatives:
   - option: >-
       Keep the review leg as the one named stream reader and stop here.
@@ -76,3 +85,5 @@ questions:
       bot's thread or their own. Reply on every refused thread, or only on bot threads
       and keep a person's refusal on the escalation alone? Lean: every thread; the
       reason is useful to whoever reads it, and a person's thread is still never resolved.
+    status: settled
+    settled_by: D-7

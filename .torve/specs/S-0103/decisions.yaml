@@ -76,3 +76,13 @@ decisions:
     rationale: >-
       It closes S-0102's departure from S-0102/D-7, the last exception.
     cites: [S-0099/D-6, S-0102/D-7]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The refusal's reply goes on every thread the leg refuses, a person's included;
+      a person's thread is still never resolved.
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      whoever reads a refused thread sees why the engine left it
+    rationale: The owner's answer to Q-1 (2026-10-12).
+    cites: [S-0084/D-9]
