@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schemas/sources.json
+id: operator/a-hand-landing-is-not-republished
+kind: operator
+ref: 'torve #54, #59 (2026-10-10, 2026-10-11)'
+title: A phase landed by hand onto a document branch never reaches its pull request
+at: '2026-10-12T05:59:54Z'
+summary: >-
+  The lane republishes a document's pull request only when it lands a served candidate
+  onto the branch. A phase finished by hand (work commit, `torve log land`, a fast-forward
+  push, `manager resolve --resolution landed`) puts its landing file on the remote branch,
+  and S-0099's readers count it, but nothing recomposes the pull request: S-0100's #54
+  read "2/5 phases" as a draft and S-0101's #59 "1/4 phases" after every phase had
+  landed, until an operator recomposed them with `cli/merge._document_pr_text` and `gh
+  pr edit`. A pass could republish an open document whose remote tip carries landing
+  files its pull request body does not list, or `manager resolve --resolution landed`
+  could republish the document it lands onto.
