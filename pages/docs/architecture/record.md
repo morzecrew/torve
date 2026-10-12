@@ -24,7 +24,7 @@ it does not hold at all. `.torve/telemetry.jsonl` is not on the table — a
 diagnostic stream the ledger, the evals and the night report read, and no
 decision reads (S-0099/D-6). Every function that reads it lives in
 `application/streams.py`, and only the ledger, the evals, the night report and
-the read-only reports import it (S-0101/D-10).
+`projections` import it (S-0101/D-10, S-0103/D-6).
 
 There is no update and no delete, in the service or in the port beneath it.
 A correction is another event, because a history that can be rewritten

@@ -138,7 +138,7 @@ def _lane_leg(
         # the manager unable to reclaim, mint or dispatch (T-0284).
         from torve.adapters.vcs.git import GitLane
         from torve.application.lane import conflict_disposal, process_lane
-        from torve.cli.merge import _forge, _publisher, _resolve_ci
+        from torve.cli.merge import _forge, _publisher, _resolve_ci, _status
 
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
@@ -168,8 +168,11 @@ def _lane_leg(
             unit=config.promotion.unit,
             # A red completion battery is minted as a round only where the
             # review leg reads recorded findings (S-0096/D-2); elsewhere it
-            # escalates the completing task at once.
+            # escalates the completing task at once. The verdict is the
+            # `torve/completion` status on the tip the leg reads back
+            # (S-0099/D-4, S-0103/D-4), written here as the manual verb writes it.
             rounds=config.threads.enabled and "record" in config.threads.sources,
+            status=_status(config),
             # The store the promotion unit and landing need (S-0099/D-11).
             store=config.store.adapter,
             # The board's resolutions, read by the caller (S-0101/D-2).
@@ -251,6 +254,14 @@ class _ThreadForge:
         # answered on the stream and posted nothing (bloomery #160).
         return self.scm.comment(number, body, key)
 
+    def completion(self, sha: str) -> tuple[str, str] | None:
+        # The red completion battery's verdict is the status the lane wrote on
+        # the tip it judged (S-0099/D-4, S-0103/D-4): the leg raises the
+        # battery's finding from it rather than from a row the battery wrote.
+        from torve.application.ports import COMPLETION_CONTEXT
+
+        return self.scm.status(sha, COMPLETION_CONTEXT)
+
 
 # ....................... #
 
@@ -292,7 +303,7 @@ def _thread_leg(
             root,
             config,
             _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
-            held.__contains__,
+            held.get,
             records=board,
         )
 

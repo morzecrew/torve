@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0543
+phase: 2
+attempt: 3
+base: f4123b457156e8355b4ef68191c436e3723abd47
+commit: eacbe98c
+at: '2026-10-12T12:36:29Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-12T12:25:39Z'
+    claim: >-
+      The contract's D-4 reads the red completion battery's finding from the torve/completion
+      status but is silent on the one-round-per-completion guard record_battery_red's
+      round_ == "" used to enforce. The leg now reads the status only where _battery_round(root,
+      branch, resolved) is empty, so a red rerun after the battery round answered
+      raises no second round — the inherited S-0093/D-3 and S-0093/D-4 rule the row
+      does not name.
+    evidence: >-
+      src/torve/application/reviewleg.py:1711 — the status read is guarded by _battery_round(root,
+      branch, resolved) == ""; the lane writes the failure status on every red completion
+      at src/torve/application/lane.py:1101
+    action: decided
+    proposal: >-
+      S-0103/D-4 gains: the leg raises the completion battery's finding from the torve/completion
+      status only where the document branch carries no battery round yet — one round
+      per completion, and a red rerun is a person's (S-0093/D-3, S-0093/D-4).
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-12T12:31:55Z'
+    claim: >-
+      The contract's D-4 reads the red completion battery's finding from the torve/completion
+      status but is silent on the one-round-per-completion guard record_battery_red's
+      round_ == "" used to enforce. The leg now reads the status only where _battery_round(root,
+      branch, resolved) is empty, so a red rerun after the battery round answered
+      raises no second round — the inherited S-0093/D-3 and S-0093/D-4 rule the row
+      does not name.
+    evidence: >-
+      src/torve/application/reviewleg.py:1711 — the status read is guarded by _battery_round(root,
+      branch, resolved) == ""; the lane writes the failure status on every red completion
+      at src/torve/application/lane.py:1101
+    action: decided
+    proposal: >-
+      S-0103/D-4 gains: the leg raises the completion battery's finding from the torve/completion
+      status only where the document branch carries no battery round yet — one round
+      per completion, and a red rerun is a person's (S-0093/D-3, S-0093/D-4).

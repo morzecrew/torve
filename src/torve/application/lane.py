@@ -1098,7 +1098,9 @@ def _land_document(
 
             return
 
-        _write_verdict(root, status, tip, red)
+        # The leg raises the battery's round from this status alone (S-0103/D-4),
+        # so a red the forge did not take is a red no round will answer.
+        written = _write_verdict(root, status, tip, red)
         engine_event(
             root,
             "lane_landed",
@@ -1119,8 +1121,10 @@ def _land_document(
         # One round per completion (S-0093/D-3, S-0093/D-4); a red rerun, or a
         # document with no landed task a round could be about, is a person's.
         # A lane whose caller mints no rounds (S-0096/D-2) escalates here too,
-        # records no finding, and reaches a person on every repository.
-        if rounds and round_ == "" and target is not None:
+        # records no finding, and reaches a person on every repository. So does
+        # a red whose status the forge refused or that no forge received: the
+        # leg reads the round's finding from that status and would see none.
+        if rounds and round_ == "" and target is not None and written:
             record_battery_red(root, document, target, tip, red)
             results.append(LaneResult(task_id, document, "gates red", red, tip))
 

@@ -37,7 +37,7 @@ and the night report read, and that no decision reads (S-0099/D-6): a file a
 decision reads is a decision that depends on one host's disk, which is what
 these carriers replace. Every function that reads it lives in
 `application/streams.py`, and only the ledger, the evals, the night report and
-the read-only reports import it (S-0101/D-10).
+`projections` import it (S-0101/D-10, S-0103/D-6).
 
 The record is one carrier among several, not the sink of all of them: what
 git, the forge or a contract holds it does not hold, and what it does hold

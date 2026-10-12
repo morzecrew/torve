@@ -180,13 +180,21 @@ class Claim:
 class ThreadForge(Protocol):
     """The leg's forge surface. Reading a branch's pull request is the call the
     lane already makes; replying and resolving are the only writes, and there
-    is deliberately no merge, no push and no dismiss on it (S-0084/D-10)."""
+    is deliberately no merge, no push and no dismiss on it (S-0084/D-10).
+
+    `completion` is the red completion battery's verdict on a tip as the lane
+    wrote it (S-0099/D-4, S-0103/D-4): the state beside the description that
+    names the red gates, or None when the forge holds no status. It is read
+    rather than any row the battery wrote, so the leg raises the finding from
+    the same verdict a person sees in the checks."""
 
     def pr_for_branch(self, branch: str) -> PrInfo | None: ...
 
     def reply_thread(self, thread_id: str, body: str) -> None: ...
 
     def resolve_thread(self, thread_id: str) -> None: ...
+
+    def completion(self, sha: str) -> tuple[str, str] | None: ...
 
 
 @runtime_checkable
@@ -413,7 +421,9 @@ def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
 # ....................... #
 
 
-def _target_phases(root: Path, rows: Sequence[dict[str, Any]], targets: Sequence[str]) -> set[int]:
+def _target_phases(
+    root: Path, landed: Callable[[str], str | None], targets: Sequence[str]
+) -> set[int]:
     """The phases the target tasks were minted from, read from each contract
     on disk or, when the tree no longer holds it, at the task's landing."""
 
@@ -422,7 +432,7 @@ def _target_phases(root: Path, rows: Sequence[dict[str, Any]], targets: Sequence
     for task_id in targets:
         path = layout.task_file(root, task_id)
         text: str | None = path.read_text(encoding="utf-8") if path.is_file() else None
-        sha = _landing_sha(rows, task_id)
+        sha = _landing_sha(landed, task_id)
 
         if text is None and sha:
             proc = subprocess.run(
@@ -888,9 +898,20 @@ def _refuse(
     finding: Finding,
     reason: str,
     detail: str,
+    forge: ThreadForge,
 ) -> None:
     """One finding refused, recorded by its thread ids and escalated by name
-    (S-0084/D-9, S-0097/D-3)."""
+    (S-0084/D-9, S-0097/D-3).
+
+    The reason goes on every thread the finding named that the forge carries —
+    a person's included (S-0103/D-3, S-0103/D-7) — so a later pass on any host
+    reads it as handled from the thread's last comment. A recorded finding's
+    synthetic thread was never on the forge and gets no reply, and no thread is
+    resolved: a refusal stays where whoever reads it can see why."""
+
+    for thread in finding.threads:
+        if not thread.id.startswith(RECORD):
+            forge.reply_thread(thread.id, reason)
 
     engine_event(
         root,
@@ -1070,63 +1091,73 @@ def _rounds(root: Path, branch: str) -> list[dict[str, Any]]:
 # ....................... #
 
 
-def _answered(rows: Sequence[dict[str, Any]], branch: str) -> list[dict[str, Any]]:
-    """Every finding this branch has already been answered about — a thread
-    resolved on the forge, or a recorded finding answered on the stream
-    (S-0086/D-5). One list: both say a round of that anchor is done with."""
+def _battery_row(root: Path, branch: str, tip: str, summary: str) -> dict[str, Any] | None:
+    """A red completion battery's finding, read from the `torve/completion`
+    failure status on the branch tip (S-0103/D-4) — the shape `record_threads`
+    already turns into a round, so the battery's finding and the reviewer's
+    are one path from here on.
 
-    return [
-        row
-        for row in rows
-        if row.get("event") in ("lane_thread_resolved", "review_finding_answered")
-        and row.get("branch") == branch
-    ]
+    The summary is the status's own description, and its red gates are what the
+    finding names; the round anchors to what the last landed task touched and
+    takes that target's phase's scope. None when the document carries no landed
+    task a round could be about."""
+
+    from torve.application.lane import _battery_target
+
+    target = _battery_target(root, branch)
+
+    if target is None:
+        return None
+
+    failing = [part for part in summary.split(", ") if not part.endswith(("=pass", "=skipped"))]
+
+    return {
+        "kind": "review",
+        "task_id": f"{target}-battery-{tip[:12]}",
+        "target": target,
+        "trigger": "task_gated",
+        "battery": True,
+        "branch": branch,
+        "findings": [
+            {
+                "severity": "major",
+                "claim": (
+                    "the whole-suite battery is red over the complete document: "
+                    + ", ".join(failing)
+                ),
+                "evidence": f"`torve gates run` on {branch} at {tip[:12]} — {summary}",
+            }
+        ],
+    }
 
 
 # ....................... #
 
 
-def _handled(rows: Sequence[dict[str, Any]], branch: str) -> dict[str, int]:
-    """thread id -> the comment count it carried when this branch last refused
-    it or answered it as engine-written (S-0097/D-3). A later pass leaves such
-    a thread alone unless it gained a comment since."""
+def _already_handled(thread: ReviewThread, engine: str) -> bool:
+    """Whether the leg has already answered or refused this thread.
 
-    seen: dict[str, int] = {}
+    The forge carries the answer (S-0101/D-5, S-0103/D-1): a thread whose last
+    comment is the engine's was already replied to — an answer, a refusal or
+    the engine-written reply — and a comment after it, by a person or a bot, is
+    new, so the thread is raised again. `engine` is the login the pull
+    request's own act was made under (its author), the name the engine's
+    replies carry."""
 
-    for row in rows:
-        if row.get("branch") != branch:
-            continue
-
-        if row.get("event") not in ("lane_thread_refused", "lane_engine_thread"):
-            continue
-
-        counts = row.get("comments")
-        counts = counts if isinstance(counts, dict) else {}
-
-        for ident in row.get("threads") or []:
-            seen[str(ident)] = int(counts.get(str(ident), 0))
-
-    return seen
+    return bool(engine and thread.comments and thread.comments[-1].author == engine)
 
 
-def _already_handled(thread: ReviewThread, engine: str, seen: dict[str, int]) -> bool:
-    """Whether the leg has already handled this thread.
+# ....................... #
 
-    The forge carries the answer (S-0101/D-5): a thread whose last comment is
-    the engine's was already replied to, and a comment after it — by a person
-    or a bot — is new, so the thread is raised again. `engine` is the login the
-    pull request's own act was made under (its author), the name the engine's
-    replies carry.
 
-    A thread the leg *refused* was answered nowhere the engine's name reaches —
-    a refusal posts nothing to the forge, by S-0084/D-9's design — so the
-    stream row that recorded the refusal, and the comment count it held, stay
-    the second answer. A later comment past that count re-opens it."""
+def _engine_replied(thread: ReviewThread, engine: str) -> bool:
+    """Whether the engine has commented on this thread at all (S-0103/D-1) —
+    the round's answer, a refusal or the engine-written reply. A landed round
+    is answered once per thread, so one already carrying an engine comment is
+    not answered again: a comment after that reply is a re-raise, judged by the
+    leg, never the same reply posted a second time (S-0084/D-14)."""
 
-    if engine and thread.comments and thread.comments[-1].author == engine:
-        return True
-
-    return thread.id in seen and len(thread.comments) <= seen[thread.id]
+    return bool(engine and any(comment.author == engine for comment in thread.comments))
 
 
 # ....................... #
@@ -1153,7 +1184,7 @@ def _citation(evidence: str) -> tuple[str, int] | None:
 # ....................... #
 
 
-def _touched(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[str]:
+def _touched(root: Path, landed: Callable[[str], str | None], task_id: str) -> list[str]:
     """The files the target task's landing commit touched (S-0086/D-4) — what
     a finding whose evidence is a command anchors to, since it names no line.
 
@@ -1162,7 +1193,7 @@ def _touched(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[s
     this task's to widen.
     """
 
-    sha = _landing_sha(rows, task_id)
+    sha = _landing_sha(landed, task_id)
 
     if not sha:
         return []
@@ -1190,9 +1221,13 @@ def _touched(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[s
 
 
 def record_threads(
-    root: Path, branch: str, rows: Sequence[dict[str, Any]]
+    root: Path,
+    branch: str,
+    rows: Sequence[dict[str, Any]],
+    landed: Callable[[str], str | None],
+    resolved: Collection[str] = (),
 ) -> tuple[list[ReviewThread], dict[str, list[str]]]:
-    """The leg's second source (S-0086/D-3): the stream's task-gated review
+    """The leg's second source (S-0086/D-3): the board's task-gated review
     findings for the tasks this open document branch carries, each in the
     shape the forge's own threads arrive in, so the grouping rule and
     everything after it are the one path.
@@ -1203,8 +1238,10 @@ def record_threads(
     (S-0086/D-4). Returned beside those files, keyed by thread, because a
     round about them needs them in its scope.
 
-    A finding the stream already says was answered is not returned: one
-    finding, one round, and never a round again (S-0086/D-5).
+    A recorded finding its round already answered is not returned: one finding,
+    one round, and never a round again (S-0103/D-2). The round that lists it in
+    `round.findings` answers it once it lands, or a person resolves it — read
+    from the round's own contract, so a leg on any host reads the same answer.
     """
 
     from torve.application.lane import document_tasks
@@ -1214,11 +1251,15 @@ def record_threads(
     # blocker still holds the round's landing, but nothing it finds opens a
     # further round (S-0090/D-1).
     rounds = {task_id for task_id, _task in round_tasks(root, branch)}
-    answered = {
-        str(row.get("finding") or "")
-        for row in rows
-        if row.get("event") == "review_finding_answered"
-    }
+    answered: set[str] = set()
+
+    for task_id, task in round_tasks(root, branch):
+        if not (landed(task_id) or task_id in resolved):
+            continue
+
+        for finding in task.round.findings:
+            answered.update(finding.threads)
+
     threads: list[ReviewThread] = []
     files: dict[str, list[str]] = {}
 
@@ -1260,7 +1301,7 @@ def record_threads(
                 )
                 continue
 
-            touched = _touched(root, rows, target)
+            touched = _touched(root, landed, target)
 
             if not touched:
                 continue
@@ -1334,18 +1375,18 @@ def _same_anchor(finding: Finding, row: dict[str, Any]) -> bool:
 # ....................... #
 
 
-def _landing_sha(rows: Sequence[dict[str, Any]], task_id: str) -> str:
-    for row in rows:
-        if row.get("event") == "lane_landed" and row.get("task") == task_id:
-            return str(row.get("sha") or "")
+def _landing_sha(landed: Callable[[str], str | None], task_id: str) -> str:
+    """The sha a task's landing file carries (S-0103/D-5), read through
+    `landed()` — the landing file is the landing (S-0099/D-1), so the reply
+    names the same commit on every host."""
 
-    return ""
+    return str(landed(task_id) or "")
 
 
 # ....................... #
 
 
-def _landed_entries(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[Any]:
+def _landed_entries(root: Path, landed: Callable[[str], str | None], task_id: str) -> list[Any]:
     """The round's log entries as its landing carried them: the execution
     record the landing commit wrote under the document's `execution/`. A
     repository that keeps its contracts on the record has no root log for a
@@ -1353,7 +1394,7 @@ def _landed_entries(root: Path, rows: Sequence[dict[str, Any]], task_id: str) ->
     by the time the answer is composed — the landing is where the entries
     survive."""
 
-    sha = _landing_sha(rows, task_id)
+    sha = _landing_sha(landed, task_id)
 
     if not sha:
         return []
@@ -1391,7 +1432,7 @@ def _landed_entries(root: Path, rows: Sequence[dict[str, Any]], task_id: str) ->
     return []
 
 
-def _rejections(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> list[str]:
+def _rejections(root: Path, landed: Callable[[str], str | None], task_id: str) -> list[str]:
     """What the round's attempt said about the claims it did not apply
     (S-0084/D-13): the divergence entries under `unlisted` it recorded as
     contradicted, as their own checked `claim` and `evidence`. Prose an agent
@@ -1402,7 +1443,7 @@ def _rejections(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> lis
     from torve.application.divergence import open_log
 
     reasons: list[str] = []
-    entries = open_log(root, task_id).get("entries", []) or _landed_entries(root, rows, task_id)
+    entries = open_log(root, task_id).get("entries", []) or _landed_entries(root, landed, task_id)
 
     for entry in entries:
         if not isinstance(entry, dict):
@@ -1421,14 +1462,14 @@ def _rejections(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> lis
 # ....................... #
 
 
-def reply_body(root: Path, rows: Sequence[dict[str, Any]], task_id: str) -> str:
+def reply_body(root: Path, landed: Callable[[str], str | None], task_id: str) -> str:
     """The reply a landed round earns, or "" when the record supports neither
     half of what a reply may say (S-0084/D-12): the commit the fix landed in,
     or the reason the finding was not applied."""
 
     parts: list[str] = []
-    sha = _landing_sha(rows, task_id)
-    reasons = _rejections(root, rows, task_id)
+    sha = _landing_sha(landed, task_id)
+    reasons = _rejections(root, landed, task_id)
 
     if sha and not reasons:
         parts.append(f"Fixed in {sha}.")
@@ -1448,24 +1489,25 @@ def answer_round(
     branch: str,
     row: dict[str, Any],
     open_threads: dict[str, ReviewThread],
-    rows: Sequence[dict[str, Any]],
-) -> int:
+    landed: Callable[[str], str | None],
+    engine: str,
+) -> set[str]:
     """One landed round answered (S-0084/D-11, S-0084/D-12): every thread of
     the finding replied to, and only a bot's then resolved. A thread a reviewer
-    has already closed is not on the pull request any more and is left alone.
+    has already closed is not on the pull request any more and is left alone,
+    and a thread already carrying an engine comment was answered by an earlier
+    pass on some host, so it is left alone too (S-0103/D-1). The identifiers it
+    handled are returned, so the leg does not read the round's own threads as a
+    re-raise of what it just answered.
     """
 
     task_id = str(row.get("task") or "")
-    body = reply_body(root, rows, task_id)
+    body = reply_body(root, landed, task_id)
 
     if not body:
-        return 0
+        return set()
 
-    answered = 0
-    # Once per round, not once per recorded finding it grouped (S-0086/D-5):
-    # three findings on one line earned three identical comments on
-    # bloomery #160.
-    commented = False
+    answered: set[str] = set()
     # Each thread is answered against the finding that raised it (S-0097/D-5):
     # a round carries a wave, and the anchor on the answer's record is the
     # thread's own.
@@ -1475,13 +1517,29 @@ def answer_round(
         for ident in one.get("threads") or []:
             anchors[str(ident)] = (one.get("path"), one.get("line"), one.get("end_line"))
 
+    # A recorded finding was never on the forge, so it is said once as a keyed
+    # comment on the pull request (S-0086/D-5) — once per round, not once per
+    # recorded finding it grouped, so three findings on one line do not earn
+    # three identical comments (bloomery #160). The forge lands that comment
+    # once per key (S-0103/D-1), so when it is already there an earlier pass —
+    # on this host or another — answered the round, and this one says nothing.
+    records = [
+        str(thread_id) for thread_id in row.get("threads", []) if str(thread_id).startswith(RECORD)
+    ]
+    fresh = True
+
+    if records and isinstance(forge, CommentingForge):
+        fresh = bool(forge.comment(int(row.get("pr") or 0), body, task_id))
+
     for thread_id in row.get("threads", []):
         path, line, end_line = anchors.get(
             str(thread_id), (row.get("path"), row.get("line"), row.get("end_line"))
         )
-        # A recorded finding was never on the forge, so it is answered on the
-        # stream and said once as a comment on the pull request (S-0086/D-5).
+
         if str(thread_id).startswith(RECORD):
+            if not fresh:
+                continue
+
             engine_event(
                 root,
                 "review_finding_answered",
@@ -1492,21 +1550,16 @@ def answer_round(
                     "path": path,
                     "line": line,
                     "end_line": end_line,
-                    "sha": _landing_sha(rows, task_id),
+                    "sha": _landing_sha(landed, task_id),
                     "body": body,
                 },
             )
-
-            if isinstance(forge, CommentingForge) and not commented:
-                forge.comment(int(row.get("pr") or 0), body, task_id)
-                commented = True
-
-            answered += 1
+            answered.add(str(thread_id))
             continue
 
         thread = open_threads.get(str(thread_id))
 
-        if thread is None:
+        if thread is None or _engine_replied(thread, engine):
             continue
 
         forge.reply_thread(thread.id, body)
@@ -1531,7 +1584,7 @@ def answer_round(
                 "resolved": bot,
             },
         )
-        answered += 1
+        answered.add(str(thread_id))
 
     return answered
 
@@ -1585,11 +1638,15 @@ def review_thread_leg(
     root: Path,
     config: RunnerConfig,
     forge: ThreadForge,
-    landed: Callable[[str], bool],
+    landed: Callable[[str], str | None],
     records: Sequence[EventRecord] = (),
 ) -> tuple[str, bool]:
     """The pass's review-thread leg: answer what landed, then mint what is new,
     bounded by `threads.rounds_per_pass` (S-0084/D-16's term, spent here).
+
+    `landed` is `landed()`'s mapping: a task id to the sha its landing file
+    carries (S-0103/D-5), or "" when it has not landed. It is the caller's, so
+    a round's landing is read from the tree a second host reads too.
 
     Off unless the configuration says otherwise. Nothing is merged and nothing
     is pushed: a round reaches the forge as a landing by the lane's own act
@@ -1605,26 +1662,23 @@ def review_thread_leg(
     findings are raised from `review.recorded` events, so a host that did not
     run a review still raises what it found. The caller that holds the store
     reads it, as the manager pass hands the lane its resolutions (S-0101/D-2).
-    The reviewer's findings come from the board alone (S-0102/D-3): a caller
-    that passes no board raises none, whatever the stream holds.
+    The reviewer's findings come from the board alone (S-0102/D-3, S-0103/D-6):
+    a caller that passes no board raises none, and the leg reads no stream.
     """
 
     if not config.threads.enabled:
         return "review-thread leg is off", False
 
-    from torve.application import projections, streams
+    from torve.application import projections
+    from torve.application.lane import _battery_round
 
-    # S-0102/D-3: the reviewer's findings come off the board alone — a caller
-    # with no board raises none. The lane's own facts (a refusal, an answer, a
-    # landing, the red completion battery it recorded) are still read off the
-    # stream beside them: the one decision read of it left, named in the
-    # boundary test, until those facts have carriers (S-0102/D-7 departure).
-    rows = [
-        row
-        for row in streams.stream_rows(root)
-        if row.get("kind") != "review" or row.get("battery")
-    ]
-    rows += projections.recorded_review_rows(records)
+    # S-0102/D-3, S-0103/D-6: the reviewer's findings come off the board alone —
+    # a caller with no board raises none. The leg reads no stream: every fact it
+    # decides from has a carrier the act that made it true wrote.
+    rows = projections.recorded_review_rows(records)
+    # S-0103/D-2: a person's resolution of a round, read off the board the
+    # caller passes, answers the finding that round was about.
+    resolved = projections.resolved_rounds(records) if records else set()
     minted: list[str] = []
     answered = 0
     refused: list[str] = []
@@ -1637,23 +1691,56 @@ def review_thread_leg(
         if info is None or info.state != "open":
             continue
 
+        # S-0103/D-4: a red completion battery's finding is raised from the
+        # `torve/completion` failure status on the branch tip — the verdict a
+        # person sees in the checks — never from a row the battery wrote. Only
+        # where the document carries no battery round yet: the lane writes the
+        # failure status on every red completion, the red rerun it escalates to
+        # a person included, so one round per completion is read from the
+        # round's own contract (S-0093/D-3, S-0093/D-4) — the guard
+        # `record_battery_red`'s caller applies, applied here where the status
+        # is read instead.
+        branch_rows = list(rows)
+        completion = forge.completion(info.head_sha)
+
+        if (
+            completion is not None
+            and completion[0] == "failure"
+            and _battery_round(root, branch, resolved) == ""
+        ):
+            red = _battery_row(root, branch, info.head_sha, completion[1])
+
+            if red is not None:
+                branch_rows.append(red)
+
         open_threads = {thread.id: thread for thread in info.threads}
         sources = config.threads.sources
-        recorded, touched = record_threads(root, branch, rows) if "record" in sources else ([], {})
+        recorded, touched = (
+            record_threads(root, branch, branch_rows, landed, resolved)
+            if "record" in sources
+            else ([], {})
+        )
         raised = [*(info.threads if "forge" in sources else ()), *recorded]
-        # A thread this branch already refused or answered as engine-written is
-        # left alone unless it gained a comment since (S-0097/D-3).
-        handled = _handled(rows, branch)
-        raised = [thread for thread in raised if not _already_handled(thread, info.author, handled)]
+        # A thread whose last comment is the engine's was already answered or
+        # refused — on this host or another — so it is left alone until a
+        # comment follows that reply (S-0103/D-1, S-0103/D-3).
+        raised = [thread for thread in raised if not _already_handled(thread, info.author)]
         prior = _rounds(root, branch)
-        replies = _answered(rows, branch)
-        spoken = {str(row.get("task") or "") for row in replies}
+        # A round is answered once it has landed, read from the landing files
+        # every host reads (S-0103/D-1, S-0103/D-5) — not from a stream row
+        # this host may not hold.
+        replied = [row for row in prior if landed(str(row.get("task") or ""))]
 
-        for row in prior:
-            if str(row.get("task") or "") in spoken or not landed(str(row.get("task") or "")):
-                continue
+        handled: set[str] = set()
 
-            answered += answer_round(root, config, forge, branch, row, open_threads, rows)
+        for row in replied:
+            done = answer_round(root, config, forge, branch, row, open_threads, landed, info.author)
+            handled |= done
+            answered += len(done)
+
+        # What this pass just answered is not a re-raise of itself: the round's
+        # own threads are dropped before the findings are judged (S-0084/D-14).
+        raised = [thread for thread in raised if thread.id not in handled]
 
         requeued += requeue_underspecified(root, branch)
 
@@ -1697,11 +1784,12 @@ def review_thread_leg(
                     finding,
                     reason,
                     f"a recorded review finding was not composable: {reason}",
+                    forge,
                 )
                 refused.append(reason)
                 continue
 
-            if any(_same_anchor(finding, row) for row in replies):
+            if any(_same_anchor(finding, row) for row in replied):
                 # S-0099/D-9, S-0102/D-6: only a re-raise on a moved head is
                 # news — a finding raised again on the head the lane already
                 # recorded writes no row and does not escalate twice. The head
@@ -1746,6 +1834,7 @@ def review_thread_leg(
                     finding,
                     reason,
                     f"a review thread was refused as injection: {reason}",
+                    forge,
                 )
                 refused.append(reason)
                 continue
@@ -1755,21 +1844,21 @@ def review_thread_leg(
             targets = sorted(
                 {
                     str(row.get("target") or "")
-                    for row in rows
+                    for row in branch_rows
                     if row.get("kind") == "review" and row.get("task_id") in reviews
                 }
                 - {""}
             )
             battery = any(
                 bool(row.get("battery"))
-                for row in rows
+                for row in branch_rows
                 if row.get("kind") == "review" and row.get("task_id") in reviews
             )
             claims.append(
                 Claim(
                     finding,
                     tuple(files),
-                    tuple(_target_phases(root, rows, targets)),
+                    tuple(_target_phases(root, landed, targets)),
                     targets[0] if len(targets) == 1 else "",
                     battery,
                 )
@@ -1803,6 +1892,7 @@ def review_thread_leg(
                             claim.finding,
                             str(one),
                             f"a review thread could close its own fence: {one}",
+                            forge,
                         )
                         refused.append(str(one))
 
