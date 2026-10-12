@@ -597,8 +597,9 @@ def test_a_finding_reraised_after_a_landed_reply_is_escalated_not_dispatched(see
 
 
 def test_a_finding_reraised_on_an_unchanged_head_writes_no_new_row(seeded):
-    """S-0099/D-9: a re-raise is news only when the head moved. On the head the
-    lane already recorded it, the second raise writes no row."""
+    """S-0099/D-9, S-0102/D-6: a re-raise is news only when the head moved. The
+    head the leg last recorded one at lives for the life of the process, so on
+    that head the second raise writes no row and the stream is not read."""
 
     open_document(seeded.root)
     ready(seeded.root, "T-0900")
@@ -618,6 +619,14 @@ def test_a_finding_reraised_on_an_unchanged_head_writes_no_new_row(seeded):
     # The same head again: no second row.
     review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
     assert len(events(seeded.root, "lane_finding_reraised")) == 1
+
+    # A restarted leg has forgotten the head, so it records one more: the
+    # memory is the process's, not the stream's.
+    from torve.application import reviewleg
+
+    reviewleg.RERAISED.clear()
+    review_thread_leg(seeded.root, config(), forge, {task_id}.__contains__)
+    assert len(events(seeded.root, "lane_finding_reraised")) == 2
 
 
 def test_the_records_are_read_only_when_the_sources_say_so(seeded):
@@ -647,10 +656,9 @@ def test_a_pull_request_triggered_review_is_not_the_legs_source(seeded):
     assert events(seeded.root, "lane_review_task") == []
 
 
-def test_a_recorded_finding_becomes_a_round_anchored_at_its_citation(seeded):
-    """S-0086/D-3: the record's finding is the leg's own shape — anchored by
-    the evidence's leading citation, with the claim and the evidence as the
-    one thread under it."""
+def test_a_leg_given_no_board_raises_no_record_finding(seeded):
+    """S-0102/D-3: the reviewer's findings come from the board alone, so a
+    review row the caller does not pass as a board raises nothing."""
 
     open_document(seeded.root)
     reviewed(seeded.root, ("the value is never checked", "src/app.py:12 — the caller passes None"))
@@ -658,6 +666,28 @@ def test_a_recorded_finding_becomes_a_round_anchored_at_its_citation(seeded):
 
     _detail, minted = review_thread_leg(
         seeded.root, config(sources=["record"]), forge, lambda _t: False
+    )
+
+    assert minted is False
+    assert events(seeded.root, "lane_review_task") == []
+
+
+def test_a_recorded_finding_becomes_a_round_anchored_at_its_citation(seeded):
+    """S-0086/D-3: the board's finding is the leg's own shape — anchored by
+    the evidence's leading citation, with the claim and the evidence as the
+    one thread under it."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr())
+
+    _detail, minted = review_thread_leg(
+        seeded.root,
+        config(sources=["record"]),
+        forge,
+        lambda _t: False,
+        records=[
+            recorded(("the value is never checked", "src/app.py:12 — the caller passes None"))
+        ],
     )
 
     assert minted is True
@@ -751,7 +781,13 @@ def test_a_recorded_finding_and_a_thread_on_one_line_are_one_round(seeded):
     reviewed(seeded.root, ("the same line", "src/app.py:14 — two lines down"))
     forge = StubForge(pr(thread("t1")))
 
-    review_thread_leg(seeded.root, config(sources=["forge", "record"]), forge, lambda _t: False)
+    review_thread_leg(
+        seeded.root,
+        config(sources=["forge", "record"]),
+        forge,
+        lambda _t: False,
+        records=[recorded(("the same line", "src/app.py:14 — two lines down"))],
+    )
 
     (row,) = events(seeded.root, "lane_review_task")
 
@@ -767,16 +803,19 @@ def test_a_citation_into_the_engine_s_records_is_no_anchor(seeded):
     seeded.write("src/app.py", "print('hello again')\n")
     seeded.commit("the target's work")
     open_document(seeded.root, sha=head(seeded.root))
-    reviewed(
-        seeded.root,
-        (
-            "nothing tests the new field",
-            ".torve/specs/S-0084/execution/T-0901-1-20260919T000000Z.yaml:3 — the record",
-        ),
-    )
+    records = [
+        recorded(
+            (
+                "nothing tests the new field",
+                ".torve/specs/S-0084/execution/T-0901-1-20260919T000000Z.yaml:3 — the record",
+            )
+        )
+    ]
     forge = StubForge(pr())
 
-    review_thread_leg(seeded.root, config(sources=["record"]), forge, lambda _t: False)
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
+    )
 
     (row,) = events(seeded.root, "lane_review_task")
 
@@ -813,10 +852,12 @@ def test_the_target_s_touched_files_leave_the_engine_s_records_out(seeded):
     seeded.write("src/app.py", "print('hello again')\n")
     seeded.commit("the target's work, with its record")
     open_document(seeded.root, sha=head(seeded.root))
-    reviewed(seeded.root, ("the suite is red", "`uv run pytest` — 3 failed"))
+    records = [recorded(("the suite is red", "`uv run pytest` — 3 failed"))]
     forge = StubForge(pr())
 
-    review_thread_leg(seeded.root, config(sources=["record"]), forge, lambda _t: False)
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
+    )
 
     (row,) = events(seeded.root, "lane_review_task")
 
@@ -831,14 +872,17 @@ def test_a_command_evidence_finding_anchors_to_what_its_target_touched(seeded):
     seeded.write("src/app.py", "print('hello again')\n")
     seeded.commit("the target's work")
     open_document(seeded.root, sha=head(seeded.root))
-    reviewed(
-        seeded.root,
-        ("the suite is red", "`uv run pytest` — 3 failed"),
-        ("and the coverage fell", "`uv run diff-cover` — 62%"),
-    )
+    records = [
+        recorded(
+            ("the suite is red", "`uv run pytest` — 3 failed"),
+            ("and the coverage fell", "`uv run diff-cover` — 62%"),
+        )
+    ]
     forge = StubForge(pr())
 
-    review_thread_leg(seeded.root, config(sources=["record"]), forge, lambda _t: False)
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
+    )
 
     (row,) = events(seeded.root, "lane_review_task")
 
@@ -854,8 +898,9 @@ def test_a_command_evidence_finding_anchors_to_what_its_target_touched(seeded):
 
 
 def test_a_red_completion_battery_becomes_a_round_on_its_target(seeded):
-    """S-0093/D-3: the lane's record of a red battery is a finding the record
-    source mints a round for, anchored to what the last landed task touched."""
+    """S-0093/D-3: the lane's record of a red battery is a finding the leg
+    mints a round for, anchored to what the last landed task touched. It is
+    the lane's own row, so it stands beside the board's findings (S-0102/D-3)."""
 
     from torve.application.lane import record_battery_red
 
@@ -888,11 +933,11 @@ def test_a_recorded_finding_outside_the_phasing_scope_mints_nothing(seeded):
     )
     open_document(seeded.root)
     ready(seeded.root, "T-0900")
-    reviewed(seeded.root, ("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))
+    records = [recorded(("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))]
     forge = StubForge(pr())
 
     detail, minted = review_thread_leg(
-        seeded.root, config(sources=["record"]), forge, lambda _t: False
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
     )
 
     assert minted is False
@@ -907,16 +952,16 @@ def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge
     comment, and the finding is never a round again."""
 
     open_document(seeded.root)
-    reviewed(seeded.root, ("the value is never checked", "src/app.py:12 — the caller passes None"))
+    records = [recorded(("the value is never checked", "src/app.py:12 — the caller passes None"))]
     forge = StubForge(pr())
     terms = config(sources=["record"])
 
-    review_thread_leg(seeded.root, terms, forge, lambda _t: False)
+    review_thread_leg(seeded.root, terms, forge, lambda _t: False, records=records)
     (row,) = events(seeded.root, "lane_review_task")
     task_id = row["task"]
     engine_event(seeded.root, "lane_landed", {"task": task_id, "sha": "cafe123", "unit": "task"})
 
-    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__)
+    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__, records=records)
 
     (answer,) = events(seeded.root, "review_finding_answered")
 
@@ -928,7 +973,7 @@ def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge
     assert forge.replied == [] and forge.resolved == []
 
     # A later pass says nothing twice and mints nothing again.
-    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__)
+    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__, records=records)
 
     assert len(events(seeded.root, "lane_review_task")) == 1
     assert len(events(seeded.root, "review_finding_answered")) == 1
@@ -942,11 +987,11 @@ def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(see
     #160's first round was answered as fixed for a claim it contradicted)."""
 
     open_document(seeded.root)
-    reviewed(seeded.root, ("the value is never checked", "src/app.py:12 — the caller passes None"))
+    records = [recorded(("the value is never checked", "src/app.py:12 — the caller passes None"))]
     forge = StubForge(pr())
     terms = config(sources=["record"])
 
-    review_thread_leg(seeded.root, terms, forge, lambda _t: False)
+    review_thread_leg(seeded.root, terms, forge, lambda _t: False, records=records)
     (row,) = events(seeded.root, "lane_review_task")
     task_id = row["task"]
     seeded.write(
@@ -969,7 +1014,7 @@ def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(see
         seeded.root, "lane_landed", {"task": task_id, "sha": head(seeded.root), "unit": "task"}
     )
 
-    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__)
+    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__, records=records)
 
     (answer,) = events(seeded.root, "review_finding_answered")
 
@@ -986,20 +1031,21 @@ def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seede
     seeded.write("src/app.py", "print('hello again')\n")
     seeded.commit("the target's work")
     open_document(seeded.root, sha=head(seeded.root))
-    reviewed(
-        seeded.root,
-        ("the suite is red", "`uv run pytest` — 3 failed"),
-        ("and the coverage fell", "`uv run diff-cover` — 62%"),
-    )
+    records = [
+        recorded(
+            ("the suite is red", "`uv run pytest` — 3 failed"),
+            ("and the coverage fell", "`uv run diff-cover` — 62%"),
+        )
+    ]
     forge = StubForge(pr())
     terms = config(sources=["record"])
 
-    review_thread_leg(seeded.root, terms, forge, lambda _t: False)
+    review_thread_leg(seeded.root, terms, forge, lambda _t: False, records=records)
     (row,) = events(seeded.root, "lane_review_task")
     task_id = row["task"]
     engine_event(seeded.root, "lane_landed", {"task": task_id, "sha": "cafe123", "unit": "task"})
 
-    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__)
+    review_thread_leg(seeded.root, terms, forge, {task_id}.__contains__, records=records)
 
     assert len(events(seeded.root, "review_finding_answered")) == 2
     assert len(forge.commented) == 1
@@ -1093,9 +1139,11 @@ def test_a_recorded_round_takes_the_scope_of_its_target_s_phase(seeded):
         yaml.safe_dump({"id": "T-0900", "phase": 2}),
     )
     open_document(seeded.root)
-    reviewed(seeded.root, ("wrong", "src/app.py:1 — it says otherwise"))
+    records = [recorded(("wrong", "src/app.py:1 — it says otherwise"))]
 
-    review_thread_leg(seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False)
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
 
     (row,) = events(seeded.root, "lane_review_task")
     contract = yaml.safe_load(
@@ -1116,9 +1164,11 @@ def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
     # carries both, as the pass's fetch leaves it (S-0094/D-2).
     open_document(seeded.root)
     phased_document(seeded.root, ["src/**"])
-    reviewed(seeded.root, ("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))
+    records = [recorded(("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))]
 
-    review_thread_leg(seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False)
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
 
     assert events(seeded.root, "lane_thread_refused") == []
     (row,) = events(seeded.root, "lane_review_task")
@@ -1159,8 +1209,12 @@ def test_a_round_escalated_underspecified_is_requeued_once_with_the_whole_phasin
     ]
     (requeued,) = events(seeded.root, "lane_round_requeued")
     assert requeued["task"] == task_id
+    # S-0102/D-4: the widening is a fact the round's own contract carries, so
+    # a requeue on another host reads it there and none widens the round twice.
+    assert yaml.safe_load(contract.read_text(encoding="utf-8"))["round"]["whole"] is True
 
-    # A second halt on a spec gap stays with the person it reached.
+    # A second halt on a spec gap stays with the person it reached — read from
+    # the contract, not a stream row on this host.
     escalated(seeded.root, task_id, EscalationReason.UNDERSPECIFIED)
     review_thread_leg(seeded.root, config(), forge, lambda _t: False)
 

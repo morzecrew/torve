@@ -142,6 +142,10 @@ class RoundRecord(BaseModel):
     """Whether this round answers a red completion battery (S-0101/D-1) — the
     fact the lane reads from the contract rather than the stream row beside
     it."""
+    whole: bool = False
+    """Whether the leg widened this round to the document's whole phasing
+    (S-0102/D-4): the fact a requeue reads from the contract, so a round is
+    widened once whichever host requeues it."""
 
 
 # ....................... #
