@@ -44,7 +44,7 @@ from torve.cli.options import (
 from torve.domain.states import EXIT_CONFIG, EXIT_OK, TaskState
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 
     from forze.application.execution import ExecutionRuntime
 
@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
     from torve.config.runconfig import RunnerConfig
+    from torve.domain.events import EventRecord
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -104,7 +105,13 @@ async def _board(dsn: str | None, partition: str) -> Board:
 # ....................... #
 
 
-def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | None:
+def _lane_leg(
+    root: Path,
+    config: RunnerConfig,
+    *,
+    only: str | None,
+    resolved: Callable[[], Awaitable[set[str]]] | None = None,
+) -> Lane | None:
     """The pass's landing leg, or None when the switch is off.
 
     Off, a pass behaves exactly as it did before the leg existed: the
@@ -113,6 +120,11 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
     the operator calls, with the same CI, approvals, review and quiet
     window arguments this configuration feeds the verb — it adds a caller,
     not a policy, so no refusal changes and nothing is gated twice.
+
+    `resolved` is the board's resolutions, read by the caller that already
+    holds the store (S-0101/D-2): a round a person abandoned releases the
+    wave on every host because the resolution rides the log, not a row on
+    the host that minted the round.
     """
 
     if not config.promotion.auto_merge:
@@ -160,6 +172,8 @@ def _lane_leg(root: Path, config: RunnerConfig, *, only: str | None) -> Lane | N
             rounds=config.threads.enabled and "record" in config.threads.sources,
             # The store the promotion unit and landing need (S-0099/D-11).
             store=config.store.adapter,
+            # The board's resolutions, read by the caller (S-0101/D-2).
+            resolved=set(await resolved()) if resolved is not None else set(),
         )
 
         return [result.task for result in results if result.landed]
@@ -241,7 +255,11 @@ class _ThreadForge:
 # ....................... #
 
 
-def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
+def _thread_leg(
+    root: Path,
+    config: RunnerConfig,
+    records: Callable[[], Awaitable[Sequence[EventRecord]]] | None = None,
+) -> Threads | None:
     """The pass's review-thread leg, or None when the switch is off.
 
     Off by default, and the configuration refuses to load with it on under
@@ -254,7 +272,7 @@ def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
     if not config.threads.enabled:
         return None
 
-    def threads() -> tuple[str, bool]:
+    async def threads() -> tuple[str, bool]:
         # Built inside the leg for S-0044/A-11's reason, as the lane's is: `_leg`
         # protects the call, so anything raised while building one would
         # otherwise take the whole pass down. The landings are read per pass
@@ -265,12 +283,17 @@ def _thread_leg(root: Path, config: RunnerConfig) -> Threads | None:
         from torve.application.reviewleg import review_thread_leg
 
         held = landed(root)
+        # The board the pass already reads (S-0101/D-4): the task-gated
+        # findings are raised from `review.recorded`, so a host that did not
+        # run a review still raises what it found.
+        board = list(await records()) if records is not None else []
 
         return review_thread_leg(
             root,
             config,
             _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
             held.__contains__,
+            records=board,
         )
 
     return threads
@@ -451,14 +474,28 @@ async def _serve(
 
         return standing_leg(root, config, runtime_for(config, None), landings.__contains__)
 
+    async def resolutions() -> set[str]:
+        """The rounds a person resolved off the board (S-0101/D-2): the lane's
+        caller opens the store it already holds and hands the lane the fact, so
+        a round abandoned on one host releases the wave on every host. Built
+        here, beside the pass's other log reads, rather than inside the leg."""
+
+        from torve.application.projections import resolved_rounds
+
+        return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
-    lane_leg = _lane_leg(root, config, only=only)
+    lane_leg = _lane_leg(root, config, only=only, resolved=resolutions)
 
     if lane_leg is not None:
         lane_leg = _refreshing(lane_leg, landings, root)
+
     # None unless the review-thread switch is on, for the same reason.
-    thread_leg = _thread_leg(root, config)
+    async def board_records() -> list[EventRecord]:
+        return list(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
+    thread_leg = _thread_leg(root, config, records=board_records)
 
     def lane_owes() -> bool:
         """Whether a ready candidate is still off the base it lands onto — a
@@ -1113,13 +1150,6 @@ def resolve_cmd(
     asyncio.run(
         _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
     )
-
-    from torve.application.telemetry import engine_event
-
-    # The board holds the resolution; the stream gets it too, because the lane
-    # reads the host and the stream and a swept abandonment leaves no run
-    # state to read (S-0097/D-6).
-    engine_event(root.resolve(), "manager_resolved", {"task": task_id, "resolution": resolution})
 
     if resolution == "requeued":
         from torve.application.projections import round_already_requeued

@@ -775,12 +775,15 @@ def test_refresh_rewrites_the_amended_phases_and_keeps_id_edges_and_minted_by(pl
 
 
 def test_refresh_leaves_a_running_landed_or_branch_carried_task_alone_and_names_it(plan_repo):
+    """S-0101/D-7: the three reasons come from git — a run-state file, a
+    landing the base holds, and one a document branch carries — with the
+    stream empty, so a refresh on any host leaves the same tasks alone."""
+
     from test_decisions import landed
     from test_residency import engine_events
 
     from torve.application.planner import refresh_contracts, refresh_document
     from torve.application.runstate import RunState
-    from torve.application.telemetry import engine_event
     from torve.base import naming
     from torve.domain.states import TaskState
 
@@ -788,20 +791,26 @@ def test_refresh_leaves_a_running_landed_or_branch_carried_task_alone_and_names_
     minted(root)
     amend(root, write_doc, git, intent="Build the widget core, counted.")
 
+    # T-0003 rides the document branch, whose landing the base does not hold —
+    # the branch is cut before T-0002 lands on main, so it carries T-0003 only.
+    git("checkout", "-q", "-b", "torve/S-0090")
+    landed(root, "T-0003", spec="0090")
+    git("add", "-A")
+    git("commit", "-qm", "carried")
+    git("checkout", "-q", "-")
     running = RunState(task_id="T-0001", path=naming.state_file(root, "T-0001"))
     running.state = TaskState.RUNNING
     running.save()
     landed(root, "T-0002", spec="0090")
     git("add", "-A")
     git("commit", "-qm", "landing")  # a landing lives in the document's directory
-    engine_event(root, "lane_landed", {"task": "T-0003", "unit": "document", "branch": "S-0090"})
 
     report = refresh_document(root, root / ".torve" / "specs", "0090")
 
     assert [one.held for one in report.tasks] == [
         "running (running)",
         "landed",
-        "carried by the branch S-0090",
+        "carried by the branch torve/S-0090",
     ]
     assert report.rewritten == []
     assert refresh_contracts(root, report) == []

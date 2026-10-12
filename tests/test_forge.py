@@ -264,6 +264,37 @@ def test_a_closed_branch_is_read_again_before_it_is_believed(monkeypatch):
 
 
 # ....................... #
+# Commit statuses (S-0099/D-4, S-0101/D-3, S-0101/D-8): written and read under a
+# named context, so a conflict, a red regate and a completion verdict each have
+# their own check on the sha they judge.
+
+
+def test_a_status_is_written_and_read_under_its_own_context(monkeypatch):
+    scm = GhScm(repo="example/lab")
+    calls: list[tuple[str, ...]] = []
+
+    def fake_api(*args: str) -> str:
+        calls.append(args)
+        return json.dumps(
+            [
+                {"context": "torve/completion", "state": "success", "description": "j"},
+                {"context": "torve/regate", "state": "failure", "description": "base-tip"},
+            ]
+        )
+
+    monkeypatch.setattr(GhScm, "_api", lambda self, *args: fake_api(*args))
+
+    scm.set_status("cafe", "failure", "base-tip", context="torve/regate")
+    assert "context=torve/regate" in calls[-1]
+
+    # The read answers the newest status under the context asked about, and
+    # nothing under a context the forge holds none of.
+    assert scm.status("cafe", "torve/regate") == ("failure", "base-tip")
+    assert scm.status("cafe", "torve/rebase") is None
+    assert scm.completion("cafe") == "success"
+
+
+# ....................... #
 # GhCi (S-0006/promotion): the lightweight runs endpoint, polled with backoff,
 # settling to one word — the rate budget is shared with the agents.
 

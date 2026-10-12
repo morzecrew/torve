@@ -36,7 +36,7 @@ from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import yaml
 
@@ -48,6 +48,9 @@ from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.domain.states import EscalationReason, TaskState
+
+if TYPE_CHECKING:
+    from torve.domain.events import EventRecord
 
 # ----------------------- #
 
@@ -137,6 +140,7 @@ class Round:
     acceptance: list[str]
     phases: tuple[int, ...] = ()
     target: str = ""
+    battery: bool = False
 
     @property
     def title(self) -> str:
@@ -159,6 +163,7 @@ class Claim:
     files: tuple[str, ...] = ()
     phases: tuple[int, ...] = ()
     target: str = ""
+    battery: bool = False
 
 
 # ....................... #
@@ -569,6 +574,7 @@ def compose_wave(
         acceptance=_acceptance(root),
         phases=tuple(phases),
         target=next((claim.target for claim in claims if claim.target), ""),
+        battery=any(claim.battery for claim in claims),
     )
 
 
@@ -691,6 +697,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
         ],
         "phases": list(round_.phases),
         "nonce": round_.nonce,
+        "battery": round_.battery,
     }
     contract.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
 
@@ -1084,7 +1091,23 @@ def _handled(rows: Sequence[dict[str, Any]], branch: str) -> dict[str, int]:
     return seen
 
 
-def _already_handled(thread: ReviewThread, seen: dict[str, int]) -> bool:
+def _already_handled(thread: ReviewThread, engine: str, seen: dict[str, int]) -> bool:
+    """Whether the leg has already handled this thread.
+
+    The forge carries the answer (S-0101/D-5): a thread whose last comment is
+    the engine's was already replied to, and a comment after it — by a person
+    or a bot — is new, so the thread is raised again. `engine` is the login the
+    pull request's own act was made under (its author), the name the engine's
+    replies carry.
+
+    A thread the leg *refused* was answered nowhere the engine's name reaches —
+    a refusal posts nothing to the forge, by S-0084/D-9's design — so the
+    stream row that recorded the refusal, and the comment count it held, stay
+    the second answer. A later comment past that count re-opens it."""
+
+    if engine and thread.comments and thread.comments[-1].author == engine:
+        return True
+
     return thread.id in seen and len(thread.comments) <= seen[thread.id]
 
 
@@ -1545,6 +1568,7 @@ def review_thread_leg(
     config: RunnerConfig,
     forge: ThreadForge,
     landed: Callable[[str], bool],
+    records: Sequence[EventRecord] = (),
 ) -> tuple[str, bool]:
     """The pass's review-thread leg: answer what landed, then mint what is new,
     bounded by `threads.rounds_per_pass` (S-0084/D-16's term, spent here).
@@ -1555,17 +1579,32 @@ def review_thread_leg(
     escalated rather than dispatched again (S-0084/D-14).
 
     The findings come from whichever sources `threads.sources` names: the
-    pull request's own threads, the stream's task-gated review records, or
+    pull request's own threads, the record's task-gated review findings, or
     both (S-0086/D-3). They are one list from the grouping on, so a bot and
     the tier flagging one line are one finding and one round.
+
+    `records` is the board the caller read (S-0101/D-4): the task-gated review
+    findings are raised from `review.recorded` events, so a host that did not
+    run a review still raises what it found. The caller that holds the store
+    reads it, as the manager pass hands the lane its resolutions (S-0101/D-2).
     """
 
     if not config.threads.enabled:
         return "review-thread leg is off", False
 
-    from torve.application.projections import lane_finding_reraised, recorded_rows
+    from torve.application.projections import (
+        lane_finding_reraised,
+        recorded_review_rows,
+        recorded_rows,
+    )
 
     rows = recorded_rows(root)
+
+    if records:
+        # S-0101/D-4: the record's findings replace the stream's review rows —
+        # the lane-fact rows (refusals, landings) still come off the stream.
+        rows = [row for row in rows if row.get("kind") != "review"]
+        rows += recorded_review_rows(records)
     reraises = lane_finding_reraised(root)
     minted: list[str] = []
     answered = 0
@@ -1586,7 +1625,7 @@ def review_thread_leg(
         # A thread this branch already refused or answered as engine-written is
         # left alone unless it gained a comment since (S-0097/D-3).
         handled = _handled(rows, branch)
-        raised = [thread for thread in raised if not _already_handled(thread, handled)]
+        raised = [thread for thread in raised if not _already_handled(thread, info.author, handled)]
         prior = _rounds(root, branch)
         replies = _answered(rows, branch)
         spoken = {str(row.get("task") or "") for row in replies}
@@ -1698,12 +1737,18 @@ def review_thread_leg(
                 }
                 - {""}
             )
+            battery = any(
+                bool(row.get("battery"))
+                for row in rows
+                if row.get("kind") == "review" and row.get("task_id") in reviews
+            )
             claims.append(
                 Claim(
                     finding,
                     tuple(files),
                     tuple(_target_phases(root, rows, targets)),
                     targets[0] if len(targets) == 1 else "",
+                    battery,
                 )
             )
 

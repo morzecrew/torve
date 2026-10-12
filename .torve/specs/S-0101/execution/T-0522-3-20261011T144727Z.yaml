@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0522
+phase: 2
+attempt: 3
+base: 19acde03040ee52e02367b8df078f9dfed444dc0
+commit: 652155c3
+at: '2026-10-11T14:47:27Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+entries:
+  - decision: D-8
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-10-11T14:38:38Z'
+    attempt: 2
+    claim: >-
+      D-8 gives the second red's count to the forge's torve/regate status, leaving
+      the no-forge case per process; it is silent about a forge that is configured
+      but cannot hold the status, which is exactly promotion.unit: document, where
+      the task branch stays local (S-0083/D-1). Added a per-process fallback whenever
+      the forge holds no such status.
+    evidence: >-
+      src/torve/application/lane.py:1241-1246 — _red_again reads the status and falls
+      back to _note_red when it names no failure at this base; tests/test_lane.py:2691
+      covers a refusing forge under the document unit
+    action: departed
+    proposal: >-
+      Amend D-8 to say the per-process count governs whenever the forge holds no torve/regate
+      status for the head, not only when no forge is configured.
+  - decision: D-8
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-10-11T14:41:31Z'
+    attempt: 2
+    claim: >-
+      D-8 gives the second red's count to the forge's torve/regate status, leaving
+      the no-forge case per process; it is silent about a forge that is configured
+      but cannot hold the status, which is exactly promotion.unit: document, where
+      the task branch stays local (S-0083/D-1). Added a per-process fallback whenever
+      the forge holds no such status.
+    evidence: >-
+      src/torve/application/lane.py:1241-1246 — _red_again reads the status and falls
+      back to _note_red when it names no failure at this base; tests/test_lane.py:2691
+      covers a refusing forge under the document unit
+    action: departed
+    proposal: >-
+      Amend D-8 to say the per-process count governs whenever the forge holds no torve/regate
+      status for the head, not only when no forge is configured.
+  - decision: D-9
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-11T14:46:08Z'
+    attempt: 3
+    claim: >-
+      Asking the forge about every ready candidate's document, held or not, makes
+      a pass that holds nothing open ask the forge about every first landing, which
+      S-0080/D-16 refuses and two tests pin; the closure lookup by head name runs
+      for documents whose branch this host holds, so a host that never held a closed
+      document's branch can still re-cut it.
+    evidence: >-
+      src/torve/application/lane.py:2412 — a document branch is named for the forge
+      only when this checkout holds it
+    action: departed
+    proposal: >-
+      D-9 holds for a host that held the branch; a host that never held it learns
+      of the closure from the record once a closed document's abandonment is recorded
+      there (a later document)

@@ -138,6 +138,10 @@ class RoundRecord(BaseModel):
     nonce: str = ""
     """The per-composition fence nonce, so the answering half can recognise
     its own intent."""
+    battery: bool = False
+    """Whether this round answers a red completion battery (S-0101/D-1) — the
+    fact the lane reads from the contract rather than the stream row beside
+    it."""
 
 
 # ....................... #

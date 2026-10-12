@@ -221,6 +221,7 @@ def eligible_tasks(root: Path) -> dict[str, dict[str, Any]]:
     """
 
     from torve.application.projections import landed
+    from torve.application.streams import stream_rows
 
     found: dict[str, dict[str, Any]] = {
         task: {"commit": commit, "attempts": 0, "cost_usd": None}
@@ -228,20 +229,7 @@ def eligible_tasks(root: Path) -> dict[str, dict[str, Any]]:
         if commit
     }
 
-    telemetry = root / layout.TORVE_DIR / "telemetry.jsonl"
-
-    if not telemetry.is_file():
-        return found
-
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
+    for record in stream_rows(root):
         agent: Any = record.get("agent")
         row = found.get(str(record.get("task_id") or ""))
 

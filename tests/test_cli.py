@@ -1486,3 +1486,95 @@ def test_guide_refuses_an_unknown_skill_and_an_unknown_reference():
 
     assert missing.exit_code == EXIT_CONFIG
     assert "no-such-reference" in missing.stderr
+
+
+def test_merge_reads_no_resolutions_from_an_unreachable_store(tmp_path, monkeypatch):
+    """S-0101/D-2: `torve merge` reads the board's resolutions for the wave, and
+    a configured store it cannot reach reads nothing rather than stopping the
+    lane before it runs."""
+
+    import torve.cli.options as options
+    from torve.cli.merge import _resolved
+    from torve.config.runconfig import RunnerConfig
+
+    monkeypatch.setattr(
+        options, "dsn_for", lambda root, override="": "postgresql://u:p@127.0.0.1:1/db"
+    )
+    config = RunnerConfig.model_validate({"scm": {"repo": "owner/name"}})
+
+    assert _resolved(tmp_path, config) == set()
+
+
+def test_a_document_body_lists_gate_results_from_the_record_with_an_empty_stream(tmp_path):
+    """S-0101/D-6: the body's gate results are read from the record's
+    `gates.evaluated` events, so a host whose stream holds no attempt rows
+    composes the same body."""
+
+    import uuid
+    from datetime import UTC, datetime
+
+    import yaml
+    from test_forge import phase_task
+
+    from torve.cli.merge import _document_pr_text
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    root = tmp_path / "repo"
+    branch = "torve/S-0090"
+
+    def g(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    root.mkdir()
+    for task in (
+        phase_task("T-8401", 1, "the unit is a term"),
+        phase_task("T-8403", 2, "the lane lands onto it"),
+    ):
+        contract = root / ".torve" / "tasks" / task.id / "contract.yaml"
+        contract.parent.mkdir(parents=True)
+        contract.write_text(yaml.safe_dump(task.model_dump(mode="json")), encoding="utf-8")
+
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    g("config", "user.name", "T")
+    g("config", "user.email", "t@example.invalid")
+    g("add", "-A")
+    g("commit", "-q", "--no-gpg-sign", "-m", "init")
+
+    landing = root / ".torve" / "specs" / "S-0090" / "execution" / "T-8401-1-20261010T000000Z.yaml"
+    landing.parent.mkdir(parents=True, exist_ok=True)
+    landing.write_text(f"task: T-8401\ncommit: {'a' * 40}\n", encoding="utf-8")
+    g("checkout", "-q", "-b", branch)
+    g("add", "-A")
+    g("commit", "-q", "--no-gpg-sign", "-m", "torve(T-8401): landing of attempt 1")
+    g("checkout", "-q", "main")
+
+    now = datetime.now(UTC)
+    gate = EventRecord(
+        id=uuid.uuid4().hex,
+        rev=1,
+        created_at=now,
+        last_update_at=now,
+        kind=EventKind.GATES_EVALUATED,
+        partition="torve/torve",
+        subject_type=SubjectType.TASK,
+        subject_id="T-8401",
+        actor_kind=ActorKind.WORKER,
+        actor_id="worker-1",
+        payload={
+            "results": [
+                {"name": "scope", "outcome": "pass", "state": "blocking", "duration_s": 0.2},
+                {"name": "tests", "outcome": "pass", "state": "blocking", "duration_s": 1.0},
+            ]
+        },
+    )
+
+    assert not (root / ".torve" / "telemetry.jsonl").exists()
+
+    _title, body, _complete = _document_pr_text(
+        root, "T-8403", branch, tip="c" * 40, records=[gate]
+    )
+
+    assert "## T-8401 · phase 1" in body
+    assert "gates: all 2 pass" in body

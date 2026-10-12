@@ -96,7 +96,8 @@ Standing = Callable[[], tuple[str, bool]]
 # and answering threads is the forge, and this module decides only *when*.
 # Bounded per pass by its own configured term, and stopped by a pause for the
 # lane's reason: a round it mints is work somebody has to triage.
-Threads = Callable[[], tuple[str, bool]]
+# Awaitable since S-0101/D-4: the served leg reads the board before it runs.
+Threads = Callable[[], tuple[str, bool] | Awaitable[tuple[str, bool]]]
 
 # Whether a term of the night has been reached, asked once at the top of a
 # pass and never inside one. Returns the reason to stop, or None to go round

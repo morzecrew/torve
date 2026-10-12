@@ -26,7 +26,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from torve.application.feedback import capture_feedback
-from torve.application.ports import CiStatus, LaneVcs, PrInfo, StatusScm
+from torve.application.ports import (
+    COMPLETION_CONTEXT,
+    REBASE_CONTEXT,
+    REGATE_CONTEXT,
+    CiStatus,
+    LaneVcs,
+    PrInfo,
+    StatusScm,
+)
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
 from torve.application.threads import group_findings
@@ -55,9 +63,12 @@ Forge = Callable[[str], PrInfo | None]
 # a closed pull request is never re-opened (S-0080/D-8, S-0080/D-17).
 _RECORDED = {"landed": "already landed", "closed": "abandoned", "unresolved": "pr unresolved"}
 
-# S-0099/D-9: a candidate the lane keeps finding red at the same base tip and
-# the same head is not regated for ever — the third red escalates instead. The
-# count lives in the process that observed it, beside the pass that acts on it.
+# S-0101/D-8: a candidate the lane keeps finding red at the same base tip and
+# the same head is not regated for ever — the second red escalates. With a forge
+# the count is the `torve/regate` status it holds for the head; when the forge
+# holds none — no forge, or a head it was never given, as under the document
+# unit where the task branch stays local — it lives in the process that observed
+# it, so the ceiling survives the mode the branch is published in (T-0528).
 _RED_RUNS: dict[tuple[str, str, str, str], int] = {}
 
 
@@ -900,15 +911,27 @@ def record_battery_red(root: Path, document: str, target: str, tip: str, summary
     )
 
 
-def _battery_round(root: Path, document: str) -> str:
+def _battery_round(root: Path, document: str, resolved: Collection[str] = ()) -> str:
     """Where this document's one round for a red completion battery stands
-    (S-0093/D-4): "" before any, "pending" until the review leg answers its
-    finding, "answered" once the round landed or answered it without a
-    change — the rerun that a second red escalates on."""
+    (S-0093/D-4, S-0101/D-1): "" before any, "pending" until the round lands
+    or a person resolves it, "answered" after — the rerun that a second red
+    escalates on.
 
-    from torve.application.projections import lane_battery_state
+    The round is read from its own contract, so it is recognised on any host
+    from the record that minted it; whether it landed is the document's
+    ledger and whether a person resolved it the board's resolutions the
+    caller passes in."""
 
-    return lane_battery_state(root, document, set(document_tasks(root, document)))
+    from torve.application.reviewleg import round_tasks
+
+    rounds = [task for task, contract in round_tasks(root, document) if contract.round.battery]
+
+    if not rounds:
+        return ""
+
+    landed = set(document_tasks(root, document))
+
+    return "answered" if any(task in landed or task in resolved for task in rounds) else "pending"
 
 
 def _battery_target(root: Path, document: str) -> str | None:
@@ -942,7 +965,7 @@ def document_tip_red(root: Path, branch: str, tip: str, status: StatusScm | None
     return status.completion(tip) != "success"
 
 
-def _wave_outstanding(root: Path, document: str) -> set[str]:
+def _wave_outstanding(root: Path, document: str, resolved: Collection[str] = ()) -> set[str]:
     """The rounds a review leg minted for *document* that have not yet landed
     on its branch (S-0097/D-6): queued, running or waiting to land. A round
     that landed is in the branch's ledger, and one that escalated or that a
@@ -951,14 +974,12 @@ def _wave_outstanding(root: Path, document: str) -> set[str]:
     A round with no run state is one no worker has claimed yet, which is
     queued and outstanding: the runner writes the state at dispatch, not at
     the mint. A round a person abandoned and `reap --escalated` swept also
-    has none, so the resolution is read off the stream rather than the
-    host."""
+    has none, so the resolutions come from the board, passed in by the
+    caller (S-0101/D-2)."""
 
-    from torve.application.projections import lane_resolved
     from torve.application.reviewleg import round_tasks
 
     landed = set(document_tasks(root, document))
-    resolved = lane_resolved(root)
     outstanding: set[str] = set()
 
     for task, _contract in round_tasks(root, document):
@@ -993,6 +1014,7 @@ def _land_document(
     results: list[LaneResult],
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
 
@@ -1020,7 +1042,7 @@ def _land_document(
     before = vcs.tip(root, document)
     vcs.reset_branch(root, document, tip)
     complete = _completes(root, task_id, document)
-    round_ = _battery_round(root, document) if complete and rounds else ""
+    round_ = _battery_round(root, document, resolved) if complete and rounds else ""
 
     # The battery reruns once the round answers, not on every pass while it
     # is outstanding (S-0093/D-4).
@@ -1099,7 +1121,7 @@ def _land_document(
 
         return
 
-    outstanding = _wave_outstanding(root, document) - {task_id}
+    outstanding = _wave_outstanding(root, document, resolved) - {task_id}
 
     if outstanding:
         # A wave costs one push (S-0097/D-6): the landing is on the branch as
@@ -1166,27 +1188,78 @@ def _land_document(
     results.append(LaneResult(task_id, document, "landed", f"{mode} onto {document}", tip))
 
 
-def _write_verdict(root: Path, status: StatusScm | None, tip: str, red: str | None) -> bool:
-    """Write the completion battery's verdict as the `torve/completion` commit
-    status on *tip* (S-0099/D-4), after the push that put *tip* on the forge:
-    the forge refuses a status on a commit it does not hold. A refusal is a
-    diagnostic, never the pass's end — the tip then has no verdict, which the
-    draft flag reads as not green. Whether a status was written."""
+def _write_status(
+    root: Path, status: StatusScm | None, sha: str, context: str, state: str, description: str
+) -> bool:
+    """Write a judgement on *sha* under *context*, after the push that put
+    *sha* on the forge: the forge refuses a status on a commit it does not
+    hold. A refusal is a diagnostic, never the pass's end. Whether a status was
+    written (S-0101/D-3, S-0101/D-8)."""
 
     if status is None:
         return False
 
     try:
-        status.set_status(
-            tip, "failure" if red else "success", red or "the completion battery passed"
-        )
+        status.set_status(sha, state, description, context)
 
     except (RuntimeError, OSError) as exc:
-        engine_event(root, "lane_status_refused", {"sha": tip, "detail": str(exc)})
+        engine_event(
+            root, "lane_status_refused", {"sha": sha, "context": context, "detail": str(exc)}
+        )
 
         return False
 
     return True
+
+
+def _status_at(status: StatusScm | None, sha: str, context: str) -> tuple[str, str] | None:
+    """The forge's newest status under *context* on *sha*, or None. A forge that
+    refuses the read is the same as one holding no status: the caller falls back
+    to what it can observe for itself."""
+
+    if status is None or not sha:
+        return None
+
+    try:
+        return status.status(sha, context)
+
+    except (RuntimeError, OSError):
+        return None
+
+
+def _red_again(
+    root: Path, status: StatusScm | None, task_id: str, base_tip: str, head: str
+) -> bool:
+    """Whether this is the second red at the same base tip and head
+    (S-0101/D-8). With a forge the count is the `torve/regate` status it holds
+    for the head — a failure naming the same base tip means the last pass was
+    red here too, however many processes ago that was. A forge holding no such
+    status is the same as none at all, and the count falls back to the process's
+    — a task branch the forge was never given, as under the document unit
+    (S-0083/D-1), would otherwise be regated for ever (T-0528)."""
+
+    found = _status_at(status, head, REGATE_CONTEXT)
+
+    if found is not None and found[0] == "failure" and found[1] == base_tip:
+        return True
+
+    return _note_red(root, task_id, base_tip, head) >= 2
+
+
+def _write_verdict(root: Path, status: StatusScm | None, tip: str, red: str | None) -> bool:
+    """Write the completion battery's verdict as the `torve/completion` commit
+    status on *tip* (S-0099/D-4): a refusal is a diagnostic, never the pass's
+    end — the tip then has no verdict, which the draft flag reads as not green.
+    Whether a status was written."""
+
+    return _write_status(
+        root,
+        status,
+        tip,
+        COMPLETION_CONTEXT,
+        "failure" if red else "success",
+        red or "the completion battery passed",
+    )
 
 
 # ....................... #
@@ -1403,18 +1476,6 @@ def _landing_paths(root: Path, ref: str) -> set[str]:
     return found
 
 
-def _document_conflicts(root: Path) -> dict[str, str]:
-    """Branch to the base tip the lane last reported a conflict against, so
-    the same collision against the same base is not reported a second time
-    (S-0083/D-13). The lane's own `lane_document_conflict` rows are the memory
-    of it; which branches are read back at all comes from the remote
-    (S-0099/D-3)."""
-
-    from torve.application.projections import lane_conflict_bases
-
-    return lane_conflict_bases(root)
-
-
 def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
     """Whether this checkout's copy of *branch* carries landings the remote
     does not have yet — a wave's held landing (S-0097/D-6). The branch is kept
@@ -1594,9 +1655,10 @@ def _rebase_document(
     publish: Publisher,
     document: str,
     branch: str,
-    conflict_base: str,
     number: int,
     results: list[LaneResult],
+    resolved: Collection[str] = (),
+    status: StatusScm | None = None,
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
     already shows the tree the battery judged and it is a person's turn. A
@@ -1606,7 +1668,10 @@ def _rebase_document(
     branch against a moving `main` cannot rebase itself in a loop.
 
     A conflict aborts and escalates for a person; the lane never resolves
-    one, and the branch is left exactly as it was (S-0083/D-14)."""
+    one, and the branch is left exactly as it was (S-0083/D-14). The conflict
+    is also written as a `torve/rebase` failure on the branch tip naming the
+    base tip (S-0101/D-3), so a person sees it in the pull request's checks
+    however many hosts look; a later clean rebase writes `success`."""
 
     from torve.gates.context import resolve_base
 
@@ -1621,7 +1686,7 @@ def _rebase_document(
     remote = vcs.remote_tip(root, branch)
 
     if (remote is not None and _unpublished(root, vcs, branch, remote)) or _wave_outstanding(
-        root, branch
+        root, branch, resolved
     ):
         # The wave has not finished: a head's rounds are still queued or
         # running, so nothing here resets or republishes the branch, and any
@@ -1663,9 +1728,13 @@ def _rebase_document(
 
         return
 
-    if conflict_base == base_tip:
-        # Once per base tip (S-0006/D-12): the same conflict against the same
-        # base is the person's, and re-running it buys no new signal.
+    reported = _status_at(status, branch_tip, REBASE_CONTEXT)
+
+    if reported is not None and reported == ("failure", base_tip):
+        # Once per base tip (S-0006/D-12, S-0101/D-3): the forge already holds
+        # this tip's conflict against this base, written by whichever host
+        # found it, so the collision is the person's and re-running it buys no
+        # new signal — nor a second status.
         results.append(
             LaneResult(
                 document,
@@ -1681,6 +1750,9 @@ def _rebase_document(
     workdir = root / naming.WORKTREE_DIR / f"lane-{document}"
 
     if not vcs.rebase_in_worktree(root, branch, base, workdir):
+        # S-0101/D-3: the conflict is a judgement about a commit the forge
+        # holds, so it is a status keyed by that commit, seen in the checks.
+        _write_status(root, status, branch_tip, REBASE_CONTEXT, "failure", base_tip)
         engine_event(
             root,
             "lane_document_conflict",
@@ -1729,6 +1801,9 @@ def _rebase_document(
         vcs.reset_branch(root, branch, branch_tip)
         return
 
+    # S-0101/D-3: a later clean rebase at a new tip carries its own `success`,
+    # superseding the failure the conflict wrote.
+    _write_status(root, status, rebased, REBASE_CONTEXT, "success", base_tip)
     engine_event(
         root,
         "lane_document_rebased",
@@ -1748,6 +1823,9 @@ def _document_verdicts(
     forge: Forge,
     publish: Publisher,
     results: list[LaneResult],
+    resolved: Collection[str] = (),
+    named: dict[str, list[str]] | None = None,
+    status: StatusScm | None = None,
 ) -> tuple[dict[str, tuple[str, str]], set[str]]:
     """The later pass's read-back at the document unit (S-0083/P-3, S-0099/D-3).
 
@@ -1756,6 +1834,13 @@ def _document_verdicts(
     holding none (S-0083/D-12) — a document of six phases costs one call per
     pass rather than six, because the question is now per document, and a
     branch whose landings the base holds is not asked about at all.
+
+    A document branch the remote no longer has but a ready candidate still
+    names is asked about too (S-0101/D-9): the forge keeps the pull request
+    after its branch goes, so a person closing one and deleting the branch
+    must not bring its tasks back. Only a closure is acted on there — no pull
+    request yet is simply a branch not cut — and the document is asked about
+    once per pass however many candidates name it.
 
     **Merged** is the document's landing (S-0083/D-10): one record naming the
     squash commit and every task the branch carried, and not a second landing
@@ -1784,12 +1869,38 @@ def _document_verdicts(
     # The once-per-base-tip bound on a rebase (S-0083/D-13) is the one fact
     # this read-back keeps in the lane's own records; which branches it reads
     # back at all comes from the remote (S-0099/D-3).
-    conflicts = _document_conflicts(root)
+    named = named or {}
+    open_branches = open_documents(root)
+    on_remote = set(open_branches)
 
-    for branch in open_documents(root):
-        tasks = document_tasks(root, branch)
+    for branch in [*open_branches, *(b for b in named if b not in on_remote)]:
         document = branch.rsplit("/", 1)[-1]
         info = forge(branch)
+
+        if branch not in on_remote:
+            # The remote never had it, or no longer does: a candidate names a
+            # document whose pull request only the forge still knows about.
+            if info is not None and info.state == "closed":
+                tasks = named.get(branch, [])
+                engine_event(
+                    root,
+                    "lane_document_closed",
+                    {"branch": branch, "pr": info.number, "tasks": tasks},
+                )
+                results.append(
+                    LaneResult(
+                        document,
+                        branch,
+                        "abandoned",
+                        f"pull request #{info.number} was closed without merging, "
+                        f"abandoning {', '.join(tasks)}",
+                    )
+                )
+                carried.update(dict.fromkeys(tasks, ("abandoned", branch)))
+
+            continue
+
+        tasks = document_tasks(root, branch)
 
         if info is None:
             engine_event(root, "lane_pr_unresolved", {"branch": branch, "tasks": tasks})
@@ -1853,9 +1964,10 @@ def _document_verdicts(
                 publish,
                 document,
                 branch,
-                conflicts.get(branch, ""),
                 info.number,
                 results,
+                resolved,
+                status,
             )
 
         carried.update(
@@ -1886,6 +1998,7 @@ def _land_fast_forward(
     document: str | None = None,
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -1913,6 +2026,7 @@ def _land_fast_forward(
                 results,
                 rounds,
                 status,
+                resolved,
             )
         else:
             _open_pull_request(
@@ -2002,6 +2116,7 @@ def _land_rebased(
     document: str | None = None,
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -2036,11 +2151,10 @@ def _land_rebased(
 
     if exit_code != 0:
         vcs.reset_branch(root, branch, before_rebase)
-        reds = _note_red(root, task_id, base_tip, branch_tip)
 
-        if reds >= 3:
-            # S-0099/D-9: the same candidate red at the same base and head for
-            # the third time is a person's to look at, not another rebase's.
+        if _red_again(root, status, task_id, base_tip, branch_tip):
+            # S-0101/D-8: the same candidate red at the same base and head a
+            # second time is a person's to look at, not another rebase's.
             engine_event(
                 root,
                 "lane_candidate_stuck",
@@ -2048,7 +2162,6 @@ def _land_rebased(
                     "task": task_id,
                     "base": base_tip,
                     "head": branch_tip,
-                    "reds": reds,
                     "gates": summary,
                 },
             )
@@ -2056,7 +2169,7 @@ def _land_rebased(
             if state.state is TaskState.READY:
                 state.escalate(
                     EscalationReason.POISON_CEILING,
-                    f"red {reds} times at the same base and head: {summary}",
+                    f"red again at the same base and head: {summary}",
                 )
 
             results.append(
@@ -2064,12 +2177,16 @@ def _land_rebased(
                     task_id,
                     branch,
                     "stuck",
-                    f"red {reds} times at the same base and head — escalated",
+                    "red again at the same base and head — escalated",
                 )
             )
 
             return
 
+        # The red is the forge's to remember (S-0101/D-8): a status on the head
+        # naming the base tip, so a later `torve merge` reads it back rather
+        # than starting its count at zero.
+        _write_status(root, status, branch_tip, REGATE_CONTEXT, "failure", base_tip)
         engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
         results.append(LaneResult(task_id, branch, "gates red", summary))
         return
@@ -2093,6 +2210,7 @@ def _land_rebased(
                 results,
                 rounds,
                 status,
+                resolved,
             )
         else:
             _open_pull_request(
@@ -2138,6 +2256,7 @@ def _land_candidate(
     document: str | None = None,
     rounds: bool = False,
     status: StatusScm | None = None,
+    resolved: Collection[str] = (),
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -2157,6 +2276,7 @@ def _land_candidate(
             document,
             rounds,
             status,
+            resolved,
         )
         return
 
@@ -2183,6 +2303,7 @@ def _land_candidate(
         document,
         rounds,
         status,
+        resolved,
     )
 
 
@@ -2213,6 +2334,7 @@ def process_lane(
     rounds: bool = False,
     status: StatusScm | None = None,
     store: str = "",
+    resolved: Collection[str] = (),
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -2274,7 +2396,25 @@ def process_lane(
         # evening is recorded before anything lands onto its branch again.
         # Asked per document rather than per task, from the lane's own
         # records, so a pass holding none asks nothing (S-0083/D-12).
-        carried, merged_documents = _document_verdicts(root, vcs, forge, publish, results)
+        named: dict[str, list[str]] = {}
+
+        if unit == "document":
+            # A document branch the remote no longer has is still named by a
+            # ready candidate whose contract names it, when this checkout
+            # holds the branch a previous pass cut (S-0101/D-9): the forge
+            # keeps the pull request after the branch goes, so a closure must
+            # outlive the deletion. A document this host never held is not
+            # asked about, so a pass holding nothing open asks the forge
+            # nothing (S-0080/D-16).
+            for state in ready_candidates(root):
+                document_branch = _document_branch(root, vcs, state.task_id, dry_run=True)
+
+                if document_branch is not None and vcs.tip(root, document_branch) is not None:
+                    named.setdefault(document_branch, []).append(state.task_id)
+
+        carried, merged_documents = _document_verdicts(
+            root, vcs, forge, publish, results, resolved, named, status
+        )
 
     for state in ready_candidates(root):
         if only is not None and state.task_id != only:
@@ -2374,6 +2514,7 @@ def process_lane(
             document,
             rounds,
             status,
+            resolved,
         )
 
     return results

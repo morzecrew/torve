@@ -90,8 +90,8 @@ def night_show(
     from torve.application.projections import (
         cross_document_waits,
         landed,
-        stream_rows,
     )
+    from torve.application.streams import stream_rows
 
     report = night_report(
         read_log(dsn_for(root, dsn), lambda log: log.since(partition=partition)), night_id=night

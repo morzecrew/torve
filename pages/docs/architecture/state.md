@@ -33,9 +33,11 @@ two, so nothing reconciles them and no two of them can disagree:
 
 `.torve/telemetry.jsonl` is not on this table. It is a diagnostic stream —
 one row per attempt, and the engine-health rows — that the ledger, the evals
-and the night report read (S-0099/D-10), and that no decision should read
-(S-0099/D-6): a file a decision reads is a decision that depends on one
-host's disk, which is what these carriers replace. Five lane facts are still read from it until the follow-up to S-0099 gives each a carrier: a battery round's state, the rounds a person resolved, a document branch's last conflict base, the review tier's recorded findings, and the gate results a pull request body lists.
+and the night report read, and that no decision reads (S-0099/D-6): a file a
+decision reads is a decision that depends on one host's disk, which is what
+these carriers replace. Every function that reads it lives in
+`application/streams.py`, and only the ledger, the evals, the night report and
+the read-only reports import it (S-0101/D-10).
 
 The record is one carrier among several, not the sink of all of them: what
 git, the forge or a contract holds it does not hold, and what it does hold

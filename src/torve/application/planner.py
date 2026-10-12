@@ -745,11 +745,17 @@ def minted_contracts(root: Path, document: str, board: Board | None = None) -> d
 def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
     """Task id -> why a refresh leaves it alone, for everything a landing
     proves (S-0088/D-2): a landing file under the document's `execution/` or the
-    document-less one, a lane landing on the stream, or a document branch
-    carrying the task's landing commit. A landed phase's terms are the ones
-    its landing was judged by."""
+    document-less one, a task the base already carries, or one the document
+    branch carries whose landing the base does not yet hold (S-0101/D-7). A
+    landed phase's terms are the ones its landing was judged by.
 
-    from torve.application.projections import lane_carried
+    The two git carriers — `landed()` and the document branch's landing files —
+    are read rather than a stream row, so a refresh on any host leaves the same
+    tasks alone, whatever host minted their lane rows."""
+
+    from torve.application.lane import document_tasks
+    from torve.application.projections import landed
+    from torve.base import naming
     from torve.domain.spec import LANDING_FILE
 
     directory = spec.document_dir(rfc_dir, document)
@@ -757,7 +763,12 @@ def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
     files += spec.landing_files(directory) if directory is not None else []
     held = {found.group(1): "landed" for path in files if (found := LANDING_FILE.match(path.name))}
 
-    held.update(lane_carried(root))
+    branch = naming.document_branch(document)
+    held.update(dict.fromkeys(landed(root), "landed"))
+    # The branch's own landings override the base read: a task held on a
+    # document branch names the branch it is waiting on, which is what the
+    # refresh says (S-0088/D-2's two reasons).
+    held.update(dict.fromkeys(document_tasks(root, branch), f"carried by the branch {branch}"))
 
     return held
 

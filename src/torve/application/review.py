@@ -27,7 +27,7 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from torve.application.dispatch import Dispatch, run_routing
+from torve.application.dispatch import Dispatch, emit, run_routing
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -590,6 +590,34 @@ def blocker_threads(blockers: list[Finding], review_id: str) -> list[dict[str, A
         threads.append(thread)
 
     return threads
+
+
+# ....................... #
+
+
+def review_items(findings: list[Finding]) -> list[dict[str, Any]]:
+    """The review's findings as the record carries them (S-0101/D-4): severity,
+    claim and evidence as the reviewer gave them, beside the path and line the
+    evidence's leading citation names — empty for evidence that is a backticked
+    command. The citation is read by the same expression the gates and the
+    review leg read it with, so the three cannot disagree about where a finding
+    is anchored."""
+
+    items: list[dict[str, Any]] = []
+
+    for finding in findings:
+        citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
+        items.append(
+            {
+                "severity": finding.severity,
+                "path": citation.group("path") if citation else "",
+                "line": int(citation.group("start")) if citation else None,
+                "claim": finding.claim,
+                "evidence": finding.evidence,
+            }
+        )
+
+    return items
 
 
 # ....................... #
@@ -1198,6 +1226,21 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         run.last_pass.digest,
         broker=run.deps.broker,
         broker_handle=run.broker_handle,
+    )
+
+    # S-0101/D-4: the findings ride the record, not only this host's stream, so
+    # a host that did not run the review reads them from the board. Emitted
+    # before the branches below so a refusal or an unreadable verdict is
+    # recorded as the review it was — with no findings, which is what it holds.
+    emit(
+        run,
+        "review_recorded",
+        1,
+        review_id=outcome.review_id,
+        findings=len(outcome.kept),
+        blockers=len(outcome.blockers),
+        items=review_items(outcome.kept),
+        trigger="task_gated",
     )
 
     # The reviewer spends the same run budget: a refusal there is the

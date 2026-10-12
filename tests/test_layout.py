@@ -240,15 +240,24 @@ def test_every_reference_to_an_uncommitted_path_carries_a_verdict() -> None:
 
 
 # ....................... #
-# The import boundary (S-0099/D-6): no decision reads `.torve/telemetry.jsonl`,
-# so only the ledger, the evals and the night report import the stream reader.
+# The import boundary (S-0099/D-6, S-0101/D-10): every function that reads the
+# telemetry stream lives in one module, and only the ledger, the evals, the
+# night report and the read-only reports import it — a decision reads its fact
+# from the carrier the act that made it true wrote, never through a wrapper.
 
 
-def test_no_module_outside_the_streams_three_readers_imports_stream_rows() -> None:
-    # projections defines the reader; the ledger, the evals and the night
-    # report are its only consumers (S-0099/D-6, D-10).
+def test_no_module_outside_the_reports_imports_the_stream() -> None:
+    # `streams.py` defines every reader; the ledger, the evals and the night
+    # report read it (S-0099/D-6, S-0101/D-10). `projections` still bridges six
+    # of its readers to decisions S-0101 gave no carrier — the task unit's
+    # pull-request ledger and body, a round's whole-phasing requeue, the host's
+    # own attempted tasks and the re-raise dedupe — and is allowed until they
+    # leave. Offending is importing the module anywhere else, or importing
+    # `stream_rows` by name anywhere else.
     allowed = {
+        "src/torve/application/projections.py",
         "src/torve/application/ledger.py",
+        "src/torve/application/evals.py",
         "src/torve/cli/ledger.py",
         "src/torve/cli/evals.py",
         "src/torve/cli/night.py",
@@ -258,22 +267,42 @@ def test_no_module_outside_the_streams_three_readers_imports_stream_rows() -> No
     for path in sorted((_REPO_ROOT / "src").rglob("*.py")):
         name = path.relative_to(_REPO_ROOT).as_posix()
 
-        if name in allowed or name == "src/torve/application/projections.py":
+        if name in allowed or name == "src/torve/application/streams.py":
             continue
 
         tree = ast.parse(path.read_text(encoding="utf-8"))
 
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and any(
-                alias.name == "stream_rows" for alias in node.names
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+
+                if module == "torve.application.streams" or any(
+                    alias.name == "stream_rows" for alias in node.names
+                ):
+                    offenders.add(name)
+                    break
+
+            if isinstance(node, ast.Import) and any(
+                alias.name == "torve.application.streams" for alias in node.names
             ):
                 offenders.add(name)
                 break
 
     assert not offenders, (
-        "these import the telemetry stream reader outside the ledger, the evals "
-        f"and the night report; read the fact from its carrier instead: {sorted(offenders)}"
+        "these read the telemetry stream outside the ledger, the evals, the "
+        "night report and the read-only reports; read the fact from its "
+        f"carrier instead: {sorted(offenders)}"
     )
+
+
+def test_the_stream_reader_lives_in_its_own_module() -> None:
+    """S-0101/D-10: `projections.py` holds no stream reader — the reader and
+    the row-shaped reads over it live in `application/streams.py`, and
+    `projections` only re-exports them for the reports it hosts."""
+    from torve.application import projections, streams
+
+    assert streams.stream_rows.__module__ == "torve.application.streams"
+    assert projections.stream_rows is streams.stream_rows
 
 
 def test_the_sweep_names_a_reintroduced_dependency(tmp_path: Path) -> None:

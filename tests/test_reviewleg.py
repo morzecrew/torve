@@ -36,6 +36,7 @@ from torve.application.threads import group_findings
 from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import PromotionConfig, RunnerConfig, ThreadsConfig
+from torve.domain.events import EventRecord
 from torve.domain.states import EscalationReason, TaskState
 
 # ----------------------- #
@@ -244,6 +245,53 @@ def reviewed(
                 {"severity": "major", "claim": claim, "evidence": evidence}
                 for claim, evidence in findings
             ],
+        },
+    )
+
+
+# ....................... #
+
+
+def recorded(
+    *findings: tuple[str, str],
+    target: str = "T-0900",
+    review: str = "T-0901",
+    trigger: str = "task_gated",
+) -> EventRecord:
+    """One review on the board, as the review stage writes it (S-0101/D-4):
+    the leg's second source, on whichever host reads the record rather than a
+    stream only the reviewing host holds."""
+
+    import uuid
+
+    from torve.application.review import review_items
+    from torve.domain.attempt import Finding as ReviewFinding
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    now = datetime.now(UTC)
+
+    return EventRecord(
+        id=uuid.uuid4().hex,
+        rev=1,
+        created_at=now,
+        last_update_at=now,
+        kind=EventKind.REVIEW_RECORDED,
+        partition="torve/torve",
+        subject_type=SubjectType.TASK,
+        subject_id=target,
+        actor_kind=ActorKind.WORKER,
+        actor_id="worker-1",
+        payload={
+            "review_id": review,
+            "trigger": trigger,
+            "findings": len(findings),
+            "blockers": 0,
+            "items": review_items(
+                [
+                    ReviewFinding(severity="major", claim=claim, evidence=evidence)
+                    for claim, evidence in findings
+                ]
+            ),
         },
     )
 
@@ -627,6 +675,72 @@ def test_a_recorded_finding_becomes_a_round_anchored_at_its_citation(seeded):
     assert "src/app.py" in contract["scope"]["allow"]
     # Nothing reached the forge: a recorded finding was never a thread on it.
     assert forge.replied == [] and forge.resolved == [] and forge.commented == []
+
+
+def test_a_finding_recorded_on_one_host_is_raised_by_the_leg_on_another(seeded):
+    """S-0101/D-4: the review's findings ride the record, not the stream, so a
+    host that never ran the review still raises its round. The stream here
+    holds no review at all."""
+
+    from torve.application.projections import stream_rows
+
+    open_document(seeded.root)
+    forge = StubForge(pr())
+    records = [
+        recorded(("the value is never checked", "src/app.py:12 — the caller passes None")),
+    ]
+
+    _detail, minted = review_thread_leg(
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
+    )
+
+    assert minted is True
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert row["threads"] == [RECORDED]
+    assert (row["path"], row["line"]) == ("src/app.py", 12)
+    # Nothing on this host's stream recorded a review.
+    assert [r for r in stream_rows(seeded.root) if r.get("kind") == "review"] == []
+
+
+def test_a_thread_the_engine_answered_last_is_not_raised_again(seeded):
+    """S-0101/D-5: a thread whose last comment is the engine's was already
+    answered, and the forge says so on any host; a comment after it re-opens
+    the thread."""
+
+    open_document(seeded.root)
+    forge = StubForge(
+        pr(
+            # The engine replied last: nothing follows it, so it is handled.
+            ReviewThread(
+                id="t1",
+                path="src/app.py",
+                line=12,
+                comments=(
+                    ThreadComment(author=BOT, body="this dereference has no null check"),
+                    ThreadComment(author="torve", body="fixed in cafe123"),
+                ),
+            ),
+            # The engine replied, then a person commented: new, so it is raised.
+            ReviewThread(
+                id="t2",
+                path="src/app.py",
+                line=40,
+                comments=(
+                    ThreadComment(author=BOT, body="this dereference has no null check"),
+                    ThreadComment(author="torve", body="fixed in cafe123"),
+                    ThreadComment(author=HUMAN, body="still wrong"),
+                ),
+            ),
+        )
+    )
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert row["threads"] == ["t2"]
 
 
 def test_a_recorded_finding_and_a_thread_on_one_line_are_one_round(seeded):
