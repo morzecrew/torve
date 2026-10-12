@@ -177,11 +177,6 @@ def _lane_leg(
             store=config.store.adapter,
             # The board's resolutions, read by the caller (S-0101/D-2).
             resolved=set(await resolved()) if resolved is not None else set(),
-            # The forge the completion verdict is written to (S-0099/D-4), as
-            # the manual verb is handed it: without it a served night writes
-            # no verdict, every completed document's pull request stays a
-            # draft, and the leg never sees a red battery to answer.
-            status=_status(config),
         )
 
         return [result.task for result in results if result.landed]
