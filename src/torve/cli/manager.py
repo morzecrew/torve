@@ -292,7 +292,7 @@ def _thread_leg(
             root,
             config,
             _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
-            held.__contains__,
+            held.get,
             records=board,
         )
 
