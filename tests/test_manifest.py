@@ -389,3 +389,27 @@ def test_no_shape_borrows_another_shape_s_version():
         FleetManifest().schema_version,
     )
     assert all(isinstance(v, int) and v >= 1 for v in declared)
+
+
+def test_the_manifest_scope_names_derived_files_and_defaults_to_the_lock_table(tmp_path):
+    """S-0104/D-5: `scope.derived` names the files that ride with a source;
+    a manifest that names none keeps the lock-file table the gate used to
+    hard-code."""
+    from torve.config.manifest import DEFAULT_DERIVED
+
+    manifest = load_manifest(write_manifest(tmp_path, BASE_MANIFEST))
+
+    assert set(manifest.scope.derived) == set(DEFAULT_DERIVED)
+    assert manifest.scope.derived["pyproject.toml"] == ["uv.lock", "poetry.lock", "pdm.lock"]
+
+    named = dict(
+        BASE_MANIFEST,
+        scope={
+            "allow": [],
+            "deny": [],
+            "derived": {"src/model.py": ["tests/golden/model.json"]},
+        },
+    )
+    manifest = load_manifest(write_manifest(tmp_path, named))
+
+    assert manifest.scope.derived == {"src/model.py": ["tests/golden/model.json"]}

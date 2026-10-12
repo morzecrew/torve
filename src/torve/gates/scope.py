@@ -4,9 +4,20 @@ deny wins over allow; an empty allow means unconstrained. The task's scope
 governs when a task exists; the manifest's scope otherwise. The task's own
 contract and log files are implicitly in scope — other gates require the log
 to exist, so a scope that forbids writing it would deadlock the task.
+
+Three rules admit a path the declared globs do not, each reported as
+*promoted* (S-0104/D-7): a task's contingent neighbours (S-0104/D-1), a file
+the manifest's `scope.derived` map pairs with an in-scope source (S-0104/D-5),
+and a managed `AGENTS.md` beside a path in scope (S-0104/D-6), which `torve
+spec project` writes. Nothing is widened silently: the gate names every path
+it let through.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+
+import pathspec
 
 from torve.config import layout
 from torve.config.manifest import Gate
@@ -15,15 +26,32 @@ from torve.gates.contract import BuiltinOutcome, spec
 
 # ----------------------- #
 
+#: The managed projection beside a directory's code (S-0054/D-7); allowed
+#: beside any path in scope (S-0104/D-6).
+AGENTS_FILE = "AGENTS.md"
 
-#: The lock files a manifest's change rewrites, by manifest.
-LOCKS_OF: dict[str, tuple[str, ...]] = {
-    "pyproject.toml": ("uv.lock", "poetry.lock", "pdm.lock"),
-    "Pipfile": ("Pipfile.lock",),
-    "package.json": ("package-lock.json", "pnpm-lock.yaml", "yarn.lock"),
-    "Cargo.toml": ("Cargo.lock",),
-    "go.mod": ("go.sum",),
-}
+
+def _derived_allowed(
+    derived: dict[str, list[str]],
+    in_declared: pathspec.GitIgnoreSpec | None,
+    contingent: set[str],
+) -> set[str]:
+    """The derived map applied both ways (S-0104/D-5): the riders of an
+    in-scope source, and the source of an in-scope rider."""
+
+    def held(path: str) -> bool:
+        return (in_declared is not None and in_declared.match_file(path)) or path in contingent
+
+    found: set[str] = set()
+
+    for source, riders in derived.items():
+        if held(source):
+            found.update(riders)
+
+        if any(held(rider) for rider in riders):
+            found.add(source)
+
+    return found
 
 
 def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
@@ -55,35 +83,68 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     allow = spec(scope.allow) if scope.allow else None
     deny = spec(scope.deny) if scope.deny else None
 
-    # A lock file rides with its manifest: a scope that admits `pyproject.toml`
-    # admits the `uv.lock` a dependency change rewrites, because refusing the
-    # lock refuses the change the scope allowed (bloomery T-0008, 2026-09-19:
-    # 24 minutes of work convicted on `outside allow: uv.lock`).
-    if allow is not None:
-        for manifest, locks in LOCKS_OF.items():
-            if allow.match_file(manifest):
-                implicit.update(locks)
+    contingent = set(scope.contingent)
+    # S-0104/D-5: the derived map lives on the manifest, applied against
+    # whichever scope governs this run.
+    derived_allowed = _derived_allowed(ctx.manifest.scope.derived, allow, contingent)
 
+    # A managed `AGENTS.md` beside a scoped path (S-0104/D-6): the projection
+    # sits in the same directory as the code it governs.
+    scoped_dirs = {
+        Path(entry.path).parent.as_posix()
+        for entry in ctx.diff
+        if entry.path
+        and Path(entry.path).name != AGENTS_FILE
+        and (
+            (allow is not None and allow.match_file(entry.path))
+            or entry.path in contingent
+            or entry.path in derived_allowed
+        )
+    }
+
+    def implicit_or_prefix(path: str) -> bool:
+        return path in implicit or any(path.startswith(prefix) for prefix in prefixes)
+
+    promoted: set[str] = set()
     denied: list[str] = []
     outside: list[str] = []
 
     for entry in ctx.diff:
         for path in filter(None, (entry.path, entry.old_path)):
-            if path in implicit or any(path.startswith(prefix) for prefix in prefixes):
+            if implicit_or_prefix(path):
                 continue
 
             if deny is not None and deny.match_file(path):
                 denied.append(path)
-            elif allow is not None and not allow.match_file(path):
+                continue
+
+            if allow is None or allow.match_file(path):
+                continue  # unconstrained, or admitted by the declared globs
+
+            held_beyond = path in contingent or path in derived_allowed
+            projected = (
+                Path(path).name == AGENTS_FILE and Path(path).parent.as_posix() in scoped_dirs
+            )
+
+            if held_beyond or projected:
+                promoted.add(path)
+            else:
                 outside.append(path)
 
     if not denied and not outside:
         source = "task scope" if ctx.task is not None else "manifest scope"
         constraint = "unconstrained" if not scope.allow and not scope.deny else "clean"
+        note = f"{len(ctx.diff)} changed path(s), {constraint} ({source})"
 
-        return BuiltinOutcome("pass", f"{len(ctx.diff)} changed path(s), {constraint} ({source})")
+        if promoted:
+            note += f"; promoted: {', '.join(sorted(promoted))}"
+
+        return BuiltinOutcome("pass", note)
 
     lines = [f"denied path: {p}" for p in sorted(set(denied))]
     lines += [f"outside allow: {p}" for p in sorted(set(outside))]
+
+    if promoted:
+        lines.append(f"promoted: {', '.join(sorted(promoted))}")
 
     return BuiltinOutcome("fail", "\n".join(lines))

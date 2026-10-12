@@ -94,3 +94,20 @@ def test_a_repository_with_no_python_still_gets_the_document_union(tmp_path: Pat
     found = contingent_paths(root, ["docs/one.md"], document=doc, phase=1)
 
     assert found == ["docs/two.md"]
+
+
+def test_a_derived_file_rides_with_its_source_both_ways(tmp_path: Path) -> None:
+    """S-0104/D-5: the manifest's derived map adds a golden when its producer
+    is scoped, and the producer when the golden is — one hop, both ways."""
+
+    root = tree(tmp_path)
+    golden = root / "tests" / "golden" / "core.json"
+    golden.parent.mkdir(parents=True)
+    golden.write_text("{}\n", encoding="utf-8")
+    derived = {"src/pkg/core.py": ["tests/golden/core.json"]}
+
+    forward = contingent_paths(root, ["src/pkg/core.py"], derived=derived)
+    assert "tests/golden/core.json" in forward
+
+    backward = contingent_paths(root, ["tests/golden/core.json"], derived=derived)
+    assert "src/pkg/core.py" in backward

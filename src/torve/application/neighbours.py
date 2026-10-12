@@ -147,12 +147,16 @@ def contingent_paths(
     *,
     document: Document | None = None,
     phase: int | None = None,
+    derived: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """The literal paths a phase's change is likely to reach beyond its scope
     (S-0104/D-1), sorted. *tree* is the repository root the globs are read
     over; *document* and *phase* contribute the document union — every path the
-    document's other phases' scopes match. Paths the phase's own globs already
-    match are never contingent: they are the scope, not beyond it."""
+    document's other phases' scopes match. *derived* is the manifest's
+    `scope.derived` map (S-0104/D-5), applied both ways: a rider joins when its
+    source is matched, a source when one of its riders is. Paths the phase's own
+    globs already match are never contingent: they are the scope, not beyond
+    it."""
 
     files = _tree_files(tree)
     own = {p.as_posix() for p in files if _matched(p, scope)}
@@ -186,6 +190,14 @@ def contingent_paths(
     for path in matched:
         if path.suffix == ".py":
             found.update(paired_test_files(path.stem, tests))
+
+    # S-0104/D-5, D-11: the derived map is not language-bound, so it applies
+    # even in a repository with no Python — a golden rides with its producer.
+    if derived:
+        for source, riders in derived.items():
+            if source in own or any(rider in own for rider in riders):
+                found.update(riders)
+                found.add(source)
 
     if document is not None:
         for entry in document.phasing:

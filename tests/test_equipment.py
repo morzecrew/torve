@@ -1447,3 +1447,57 @@ def test_a_role_equipped_with_nothing_is_not_told_of_working_rules(tmp_path: Pat
 
     assert equipped_working_rules(workspace, "T-1") is False
     assert equipped_working_rules(workspace) is True
+
+
+def test_the_pre_write_hook_admits_contingent_and_projected_paths_only(tmp_path: Path) -> None:
+    """S-0104/D-1, D-6: the hook reads the contract's contingent block beside
+    its allow globs, and admits the managed `AGENTS.md` beside a scoped
+    directory. A path in neither is refused before the bytes land."""
+
+    guard = _hook_script("scope_guard")
+    contract = tmp_path / "contract.yaml"
+    contract.write_text(
+        "scope:\n  allow:\n  - src/**\n  deny: []\n  contingent:\n  - docs/notes.md\n",
+        encoding="utf-8",
+    )
+
+    allow = guard.allow_patterns(contract)
+    deny = guard.deny_patterns(contract)
+    contingent = guard.contingent_patterns(contract)
+
+    assert contingent == ["docs/notes.md"]
+    assert guard.is_allowed("docs/notes.md", allow, deny, contingent)
+    assert guard.is_allowed("src/torve/gates/AGENTS.md", allow, deny, contingent)
+    assert not guard.is_allowed("other/notes.md", allow, deny, contingent)
+
+
+def test_the_pre_write_hook_falls_back_to_the_default_lock_table(tmp_path: Path) -> None:
+    """S-0104/D-5: a manifest that names no `derived:` block — this repo's own
+    — leaves the hook on the default lock table the scope gate applies, so a
+    scope that allows `pyproject.toml` admits the `uv.lock` beside it rather
+    than refusing what the gate would pass. The hook's copy of the table is
+    its own, so it is pinned to the engine's."""
+
+    from torve.config.manifest import DEFAULT_DERIVED
+
+    guard = _hook_script("scope_guard")
+
+    assert {k: list(v) for k, v in DEFAULT_DERIVED.items()} == guard.DEFAULT_DERIVED
+
+    contract = tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
+    contract.parent.mkdir(parents=True)
+    contract.write_text("scope:\n  allow:\n  - pyproject.toml\n  deny: []\n", encoding="utf-8")
+    (tmp_path / ".torve" / "gates.yaml").write_text("gates: []\n", encoding="utf-8")
+
+    assert guard.derived_map(tmp_path) == guard.DEFAULT_DERIVED
+
+    payload = json.dumps({"tool_input": {"file_path": str(tmp_path / "uv.lock")}})
+    done = subprocess.run(
+        [sys.executable, str(HOOK_DIR / "scope_guard.py")],
+        input=payload,
+        text=True,
+        capture_output=True,
+        cwd=tmp_path,
+    )
+
+    assert done.returncode == 0, done.stderr

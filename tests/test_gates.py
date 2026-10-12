@@ -7,7 +7,7 @@ from conftest import context_for
 
 from torve.config.manifest import Gate
 from torve.gates.decisions_reported import check_decisions_reported, parse_log
-from torve.gates.sabotage import TASK_ID, base_task, entry, log_document
+from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, entry, log_document
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 
@@ -841,3 +841,97 @@ def test_scope_admits_the_lock_file_of_a_manifest_it_admits(repo):
     repo.commit("the lock alone")
     result = check_scope(GATE, context_for(repo))
     assert result.outcome == "fail" and "uv.lock" in result.output
+
+
+def test_a_contingent_write_passes_the_gate_and_is_listed_as_promoted(repo):
+    """S-0104/D-7: a contingent path the change was always going to reach
+    passes the scope gate, and the gate names it as promoted so the widening
+    is read rather than made silently."""
+    repo.seed()
+    task = base_task(allow=["src/**"])
+    task["scope"]["contingent"] = ["docs/notes.md"]
+    repo.task(task, log_document())
+    repo.write("docs/notes.md", "notes\n")
+    repo.commit("reaches a contingent path")
+
+    result = check_scope(GATE, context_for(repo))
+
+    assert result.outcome == "pass", result.output
+    assert "promoted" in result.output
+    assert "docs/notes.md" in result.output
+
+
+def test_a_derived_golden_rides_with_its_producer_both_ways(repo):
+    """S-0104/D-5: the manifest's `scope.derived` map names a golden with its
+    producer; a scope that admits either admits the other, and the gate names
+    the admitted one as promoted."""
+    manifest = dict(
+        BASE_MANIFEST,
+        scope={
+            "allow": [],
+            "deny": [],
+            "derived": {"src/model.py": ["tests/golden/model.json"]},
+        },
+    )
+    repo.seed(manifest)
+    repo.task(base_task(allow=["src/model.py"]), log_document())
+    repo.write("src/model.py", "MODEL = 1\n")
+    repo.write("tests/golden/model.json", "{}\n")
+    repo.commit("a producer and its golden")
+
+    result = check_scope(GATE, context_for(repo))
+    assert result.outcome == "pass", result.output
+    assert "tests/golden/model.json" in result.output  # promoted, not in allow
+
+    repo.task(base_task(allow=["tests/golden/model.json"]), log_document())
+    repo.write("src/model.py", "MODEL = 2\n")
+    repo.commit("the golden's producer")
+
+    result = check_scope(GATE, context_for(repo))
+    assert result.outcome == "pass", result.output
+    assert "src/model.py" in result.output  # promoted through the rider
+
+
+def test_a_managed_agents_md_beside_a_scoped_path_passes(repo):
+    """S-0104/D-6: a phase that changes governed code regenerates the managed
+    projection beside it; the gate allows the `AGENTS.md` as it allows a lock,
+    and names it as promoted."""
+    repo.seed()
+    repo.task(base_task(allow=["src/torve/gates/scope.py"]), log_document())
+    repo.write("src/torve/gates/scope.py", "x = 1\n")
+    repo.write("src/torve/gates/AGENTS.md", "# managed\n")
+    repo.commit("the code and its projection")
+
+    result = check_scope(GATE, context_for(repo))
+
+    assert result.outcome == "pass", result.output
+    assert "src/torve/gates/AGENTS.md" in result.output
+
+
+def test_a_managed_agents_md_with_no_scoped_neighbour_is_outside(repo):
+    """S-0104/D-6: *beside a path in scope*. A projection in a directory the
+    contract does not reach is refused like any other out-of-scope file."""
+    repo.seed()
+    repo.task(base_task(allow=["src/other.py"]), log_document())
+    repo.write("src/other.py", "y = 1\n")
+    repo.write("src/torve/gates/AGENTS.md", "# drifted\n")
+    repo.commit("a projection nothing governs")
+
+    result = check_scope(GATE, context_for(repo))
+
+    assert result.outcome == "fail", result.output
+    assert "src/torve/gates/AGENTS.md" in result.output
+
+
+def test_an_empty_allow_is_unconstrained_and_promotes_nothing(repo):
+    """S-0002: an empty allow means unconstrained — every path passes, and
+    nothing is named as promoted, because nothing needed a rule beyond the
+    (absent) declared globs."""
+    repo.seed()
+    repo.write("anything/at/all.txt", "x\n")
+    repo.commit("no task, no scope")
+
+    result = check_scope(GATE, context_for(repo))
+
+    assert result.outcome == "pass", result.output
+    assert "promoted" not in result.output
