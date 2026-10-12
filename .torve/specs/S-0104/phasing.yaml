@@ -1,0 +1,159 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      Contracts carry the paths their change is likely to reach
+    intent: >-
+      `Scope.contingent`; `application/neighbours.py` derives it by D-1's rules (and
+      the derived map once phase 2 adds it); the planner fills it at mint and refresh
+      and ignores it for disjointness and sizing; pairing at any depth warns; the
+      plan table shows the contingent count; the schemas follow the model. Tests:
+      the derivation on a fixture tree returns importers, callees, nested tests, `__init__`
+      and the document union and nothing else; a refresh rewrites it; same-phase disjointness
+      ignores it; a nested-layout miss warns and a flat-layout miss still refuses.
+      Settles D-1, D-9 and D-11.
+    scope:
+      - src/torve/domain/task.py
+      - src/torve/application/neighbours.py
+      - src/torve/application/planner.py
+      - src/torve/application/intake.py
+      - src/torve/application/sizing.py
+      - src/torve/cli/plan.py
+      - .torve/schemas/**
+      - tests/test_neighbours.py
+      - tests/test_task_records.py
+      - tests/test_taskstore.py
+      - tests/test_plan.py
+      - tests/test_intake.py
+      - tests/test_sizing.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_neighbours.py tests/test_task_records.py tests/test_taskstore.py
+        tests/test_plan.py tests/test_intake.py tests/test_sizing.py tests/test_cli.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      The gate and the hook allow contingent, derived and projected paths
+    intent: >-
+      The manifest's `scope.derived` map replaces `LOCKS_OF`; the scope gate passes
+      contingent and derived paths and managed `AGENTS.md`, reporting each promoted
+      path; the pre-write hook allows contingent paths and the derived and projected
+      ones; bloomery's hook copy is not this phase's. Tests: a contingent write passes
+      the gate and is listed as promoted; a derived golden rides with its producer
+      both ways; a lock file still rides with its manifest by the default map; the
+      hook refuses a path in neither allow nor contingent. Settles D-5 and D-6.
+    scope:
+      - src/torve/config/manifest.py
+      - src/torve/gates/scope.py
+      - src/torve/application/neighbours.py
+      - .torve/agents/hooks/implement/scope_guard.py
+      - .torve/gates.yaml
+      - tests/test_gates.py
+      - tests/test_manifest.py
+      - tests/test_equipment.py
+      - tests/test_sandbox_defs.py
+      - tests/test_neighbours.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_gates.py tests/test_manifest.py tests/test_equipment.py
+        tests/test_sandbox_defs.py tests/test_neighbours.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      A promotion is fenced and recorded, and a collision waits
+    intent: >-
+      The runner checks a contingent write against the in-flight fence, records `scope.promoted`
+      on the board, and returns a held path's attempt to the queue as an overlap;
+      the board's fence and the manager's overlap read promoted paths; a later undispatched
+      phase holding the path waits on the promoting task. Tests: a promotion is on
+      the board and fences a second task; a held path requeues the attempt with the
+      holder named and escalates nothing; a later phase holding a promoted path is
+      not dispatched until the promoting task lands. Settles D-2, D-3 and D-4.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/manager.py
+      - src/torve/domain/events.py
+      - src/torve/application/eventlog.py
+      - src/torve/application/projections.py
+      - tests/test_runner.py
+      - tests/test_run_loop.py
+      - tests/test_run_integration.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - tests/test_events.py
+      - tests/test_eventlog.py
+      - tests/test_projections.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_run_loop.py tests/test_run_integration.py
+        tests/test_manager.py tests/test_manager_e2e.py tests/test_events.py tests/test_eventlog.py
+        tests/test_projections.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      The agent, the reviewer and the author see where a scope bent
+    intent: >-
+      The prompt lists contingent paths; the reviewer is shown the promotions; a review
+      round's contingent paths are its anchor's neighbours; the spec quality report
+      counts promotions per phase; the context pack's scope and tests include contingent
+      paths. Tests: the prompt names a contingent path; the review prompt lists a
+      promotion; a round anchored on a module gets its importers as contingent; the
+      report counts a phase's promotions. Settles D-7, D-8 and D-10.
+    scope:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/review.py
+      - src/torve/application/reviewleg.py
+      - src/torve/application/specquality.py
+      - src/torve/application/contextpack.py
+      - src/torve/application/telemetry.py
+      - tests/test_runner.py
+      - tests/test_tiering.py
+      - tests/test_review_run.py
+      - tests/test_review_role.py
+      - tests/test_review_corpus.py
+      - tests/test_reviewleg.py
+      - tests/test_pr_review.py
+      - tests/test_specquality.py
+      - tests/test_contextpack.py
+      - tests/test_context.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_tiering.py tests/test_review_run.py
+        tests/test_review_role.py tests/test_review_corpus.py tests/test_reviewleg.py
+        tests/test_pr_review.py tests/test_specquality.py tests/test_contextpack.py
+        tests/test_context.py
+      - uv run mypy src
+    depends_on:
+      - 3
+    character: structural
+  - phase: 5
+    title: >-
+      The sabotage suite convicts a held contingent path, and the pages say how scope
+      bends
+    intent: >-
+      A sabotage case where a write to a contingent path another task holds is convicted;
+      `pages/docs/operating.md` and the spec-writer skill describe contingent scope,
+      promotion and the derived map; the operator skill's escalations reference says
+      a scope halt is now rare and what to look at first. Settles the documentation
+      of D-1 to D-7.
+    scope:
+      - src/torve/gates/sabotage.py
+      - tests/test_sabotage.py
+      - pages/docs/operating.md
+      - skills/spec-writer/**
+      - skills/torve/**
+    acceptance:
+      - >-
+        uv run pytest tests/test_sabotage.py tests/test_skills.py
+      - uv run torve spec check
+    depends_on:
+      - 4
+    character: routine
