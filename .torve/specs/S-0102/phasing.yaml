@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      The task unit reads its pull requests like the document unit
+    intent: >-
+      The lane reads a task pull request's state from the forge for task branches
+      the remote holds; `torve merge`'s task body takes gate results from `gates.evaluated`;
+      `_pr_ledger` and the `lane_verdicts` re-export are deleted. Tests: a merged
+      task pull request is seen with an empty stream; an idle pass asks the forge
+      nothing; the task body lists gate results with an empty stream. Settles D-1
+      and D-2.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/application/projections.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - tests/test_cli.py
+      - tests/test_forge.py
+      - tests/test_projections.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_cli.py
+        tests/test_forge.py tests/test_projections.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The review leg and the requeue read no stream
+    intent: >-
+      The leg reads findings from the board alone and keeps its re-raise memory in
+      the process; a widened round carries `whole: true` in `round:` and the requeue
+      reads it; the `recorded_rows`, `round_already_requeued` and `lane_finding_reraised`
+      re-exports are deleted. Tests: a leg given no board raises no record finding;
+      a re-raise on an unchanged head writes one row per process; a round widened
+      once is not widened again by a requeue on another host. Settles D-3, D-4 and
+      D-6.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/cli/manager.py
+      - src/torve/domain/task.py
+      - src/torve/application/projections.py
+      - tests/test_reviewleg.py
+      - tests/test_pr_review.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - tests/test_task_records.py
+      - tests/test_taskstore.py
+      - tests/test_projections.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_reviewleg.py tests/test_pr_review.py tests/test_manager.py
+        tests/test_manager_e2e.py tests/test_task_records.py tests/test_taskstore.py
+        tests/test_projections.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      The host's own runs come from git, and no decision can reach the stream
+    intent: >-
+      `ran_here` reads run-state files and local task branches; `projections` calls
+      `streams` by module name and exports no stream reader; `cli/context.py` and
+      the other reports import what they need from `streams` or `projections`' report
+      functions; the boundary test refuses a decision module reaching a stream reader.
+      Tests: a task whose run-state file a reap swept is still guarded by its branch;
+      the boundary test fails on a planted import of a stream reader through `projections`.
+      Settles D-5 and D-7.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/application/projections.py
+      - src/torve/application/streams.py
+      - src/torve/cli/context.py
+      - src/torve/cli/why.py
+      - src/torve/cli/status.py
+      - src/torve/cli/fleet.py
+      - tests/test_residency.py
+      - tests/test_layout.py
+      - tests/test_projections.py
+      - tests/test_context.py
+      - tests/test_contextpack.py
+      - tests/test_why_record.py
+      - tests/test_fleet.py
+      - tests/test_fleet_cli.py
+      - tests/test_fleet_config.py
+      - tests/test_fleet_serve.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_residency.py tests/test_layout.py tests/test_projections.py
+        tests/test_context.py tests/test_contextpack.py tests/test_why_record.py tests/test_fleet.py
+        tests/test_fleet_cli.py tests/test_fleet_config.py tests/test_fleet_serve.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural

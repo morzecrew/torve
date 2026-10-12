@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0102
+title: >-
+  The task unit and the review leg stop reading the stream
+kind: design
+change:
+  type: refactor
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0099, S-0101]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: >-
+  S-0101 left six telemetry readers feeding decisions through `projections`, logged
+  as a departure from S-0101/D-10: the task unit's pull-request ledger and body, the
+  review leg's fallback to the stream's review rows, a round's whole-phasing requeue,
+  the host's own attempted tasks, and the re-raise dedupe. Each gets a carrier its
+  act already writes, the way S-0099 and S-0101 did for the document unit. A task's
+  pull request is read from the forge when its branch is on the remote. Its body takes
+  gate results from `gates.evaluated`. A widened round says so in its own contract.
+  A task that ran on this host has a local task branch. A re-raise is remembered for
+  the life of the process. `projections` then re-exports no stream reader, and the
+  boundary test refuses a decision module that imports one, which completes S-0099/D-6
+  and S-0101/D-10.
+motivation: >-
+  The owner asked for this follow-up on 2026-10-12 after S-0101's night, whose reviewer
+  flagged the re-exports as major twice on T-0524. It is the last step of the first
+  of five moves ("every fact has one carrier").
+current_state: >-
+  `lane._pr_ledger` folds `lane_pr_opened`, `lane_landed`, `lane_pr_closed` and `lane_pr_unresolved`
+  stream rows into the task unit's verdicts (S-0080/D-16). `cli/merge._pr_text` composes
+  a task pull request's body from the stream's attempt rows. `reviewleg.review_thread_leg`
+  reads the stream's review rows when the caller passes no board, and dedupes re-raises
+  from `lane_finding_reraised` rows. `cli/manager.resolve_cmd` reads `lane_round_requeued`
+  rows to tell whether a round was already widened to the whole phasing. `residency.ran_here`
+  unions the run-state files with every task id in the stream. All six reach `streams.py`
+  through names `projections.py` re-exports, and `tests/test_layout.py` allows `projections`
+  to import the module. The task branches the runner cuts (`torve/T-NNNN`) stay in
+  the repository after `torve reap`; 199 are on this host today.
+goals: |-
+  - No decision module reads `.torve/telemetry.jsonl`, directly or through `projections`.
+  - The task unit's pull requests are read the way the document unit's are.
+  - S-0099 and S-0101 can be marked complete.
+non_goals: |-
+  - Deleting the task unit under `landing: pull_request` (Q-1).
+  - Moving the ledger's, the evals' or the reports' attempt metrics out of the stream (S-0099/D-10).
+design:
+  - key: the-carriers
+    md: |-
+      | Reader today | Fact | Carrier |
+      |---|---|---|
+      | `lane_verdicts` | a task pull request's state | the forge, asked for task branches the remote holds |
+      | `attempt_rows` in `torve merge` | a task pull request's gate results | `gates.evaluated` |
+      | `recorded_rows` in the review leg | the reviewer's findings | the board only (S-0101/D-4) |
+      | `round_already_requeued` | a round was widened to the whole phasing | `whole: true` in the round's contract |
+      | `attempted_tasks` | a task ran on this host | its run-state file or its local `torve/T-NNNN` branch |
+      | `lane_finding_reraised` | a finding was re-raised at this head | the leg's memory for the life of the process |
+  - key: the-boundary
+    md: >-
+      `projections` keeps the report functions that read the stream (`why`, `status`,
+      `context`) and calls `streams` by its module name, so it exports no stream reader.
+      The test refuses a module other than the ledger, the evals, the night report
+      and `projections` that imports `streams`, and refuses any module that imports
+      from `projections` a name `streams` defines.
+tests: ''
+docs: ''
+out_of_scope: >-
+  - A re-raise remembered across a restart: one diagnostic row may repeat after a
+  manager restarts, which no decision reads.
+risks: ''
+alternatives:
+  - option: >-
+      Delete the task unit under `landing: pull_request`, so only documents open pull
+      requests (the research's proposed deletion).
+    rejected_because: >-
+      A contract that names no document lands by the task unit whatever the unit says
+      (S-0083/D-4), so deleting it refuses hand-minted and standing contracts under
+      pull-request landing; giving the task unit the document unit's carriers is the
+      smaller change (Q-1).
+questions:
+  - id: Q-1
+    text: >-
+      Delete the task unit under `landing: pull_request` instead, refusing a contract
+      that names no document there? It removes `_forge_verdict`, `_pr_ledger` and
+      `_pr_text` outright, at the cost of S-0083/D-4's document-less contracts. Lean:
+      no; give it carriers here and decide the deletion with the other simplifications.

@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Under the task unit, a candidate's pull request is read from the forge when
+      its task branch is on the remote, at most once per pass; a pass with no task
+      branch on the remote asks nothing.
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a task pull request a person merges or closes is seen by any host's next pass
+    rationale: >-
+      The document unit reads its pull requests this way since S-0099/D-3; the task
+      unit's ledger was the stream's.
+    cites: [S-0080/D-16, S-0099/D-3]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A task pull request's body lists gate results from the record's `gates.evaluated`
+      events.
+    paths: [src/torve/cli/merge.py]
+    consequence: the body is composed the same from any host
+    rationale: >-
+      S-0101/D-6 did this for the document's body; the task's was left on the stream.
+    cites: [S-0080/D-4, S-0101/D-6]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The review leg reads review findings from the board alone; a caller with no
+      board passes none, and the leg raises none from the record source.
+    paths: [src/torve/application/reviewleg.py]
+    consequence: no host raises a finding only it can see
+    rationale: >-
+      S-0101/D-4 made the board the source and left the stream as a fallback a served
+      leg never needs.
+    cites: [S-0101/D-4]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A round the review leg widens to the whole phasing carries `whole: true` in
+      its contract's `round:`, and a requeue reads it there.
+    paths:
+      - src/torve/application/reviewleg.py
+      - src/torve/cli/manager.py
+      - src/torve/domain/task.py
+    consequence: >-
+      a round is widened once, whichever host requeues it
+    rationale: >-
+      The widening is a fact about the round; its contract already carries the round's
+      other facts (S-0099/D-5).
+    cites: [S-0092/D-4, S-0099/D-5]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A task ran on this host when its run-state file or its local `torve/T-NNNN`
+      branch exists; the stream is not read.
+    paths: [src/torve/application/residency.py]
+    consequence: >-
+      the mint's guard against re-offering a task that ran here and never landed holds
+      after a reap, with no telemetry
+    rationale: >-
+      The runner cuts the task branch for every attempt and a reap keeps it; the stream
+      was the record of the runs a reap swept.
+    cites: [S-0049/A-1]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The review leg remembers the head it last recorded a re-raise at for the life
+      of its process; a restarted manager may record one re-raise again.
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      the dedupe needs no stream, and a repeated row after a restart is a diagnostic
+      no decision reads
+    rationale: >-
+      A served manager is one process across a night's passes; what S-0099/D-9 bounded
+      was a storm inside one.
+    cites: [S-0099/D-9]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `projections` exports no stream reader: it calls `streams` by module name for
+      the reports it hosts. A test refuses any module other than the ledger, the evals,
+      the night report and `projections` that imports `streams`, and any module that
+      imports from `projections` a name `streams` defines.
+    paths:
+      - src/torve/application/projections.py
+      - src/torve/application/streams.py
+      - tests/test_layout.py
+    consequence: >-
+      S-0099/D-6 and S-0101/D-10 hold, and a wrapper cannot reopen the route
+    rationale: >-
+      The re-exports were how the decisions still reached the stream after S-0101.
+    cites: [S-0099/D-6, S-0101/D-10]
