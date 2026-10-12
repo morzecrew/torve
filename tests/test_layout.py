@@ -266,11 +266,6 @@ def _stream_import_offenders(root: Path) -> set[str]:
         "src/torve/cli/ledger.py",
         "src/torve/cli/evals.py",
         "src/torve/cli/night.py",
-        # The one decision module still reading the stream, by name (S-0102/D-7
-        # departure): the review leg's own lane facts — the red completion
-        # battery's finding, the threads it refused or answered, the landings
-        # it answers from — have no carrier yet.
-        "src/torve/application/reviewleg.py",
     }
     offenders: set[str] = set()
 
@@ -321,8 +316,9 @@ def _stream_import_offenders(root: Path) -> set[str]:
 
 
 def test_no_module_outside_the_reports_reads_the_stream() -> None:
-    """S-0099/D-6, S-0101/D-10, S-0102/D-7: `streams.py` defines every reader;
-    only the ledger, the evals, the night report and `projections` import it,
+    """S-0099/D-6, S-0101/D-10, S-0102/D-7, S-0103/D-6: `streams.py` defines
+    every reader; only the ledger, the evals, the night report and
+    `projections` import it,
     and no module reaches a stream reader by importing a `streams` name from
     `projections` — the wrapper route is closed."""
     offenders = _stream_import_offenders(_REPO_ROOT)
@@ -358,6 +354,18 @@ def test_the_boundary_refuses_a_stream_reader_reached_as_an_attribute(tmp_path: 
     )
 
     assert _stream_import_offenders(tmp_path) == {"src/attribute.py", "src/package.py"}
+
+
+def test_the_boundary_refuses_a_stream_reader_in_the_review_leg(tmp_path: Path) -> None:
+    """S-0103/D-6: the allowlist is the ledger, the evals, the night report and
+    `projections` — the review leg reads no stream, so a planted reader there is
+    the violation the boundary names."""
+    (tmp_path / "src" / "torve" / "application").mkdir(parents=True)
+    (tmp_path / "src" / "torve" / "application" / "reviewleg.py").write_text(
+        "from torve.application import streams\n", encoding="utf-8"
+    )
+
+    assert _stream_import_offenders(tmp_path) == {"src/torve/application/reviewleg.py"}
 
 
 def test_the_stream_reader_lives_in_its_own_module() -> None:

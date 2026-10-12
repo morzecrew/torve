@@ -1227,7 +1227,7 @@ def record_threads(
     landed: Callable[[str], str | None],
     resolved: Collection[str] = (),
 ) -> tuple[list[ReviewThread], dict[str, list[str]]]:
-    """The leg's second source (S-0086/D-3): the stream's task-gated review
+    """The leg's second source (S-0086/D-3): the board's task-gated review
     findings for the tasks this open document branch carries, each in the
     shape the forge's own threads arrive in, so the grouping rule and
     everything after it are the one path.
@@ -1662,22 +1662,20 @@ def review_thread_leg(
     findings are raised from `review.recorded` events, so a host that did not
     run a review still raises what it found. The caller that holds the store
     reads it, as the manager pass hands the lane its resolutions (S-0101/D-2).
-    The reviewer's findings come from the board alone (S-0102/D-3): a caller
-    that passes no board raises none, whatever the stream holds.
+    The reviewer's findings come from the board alone (S-0102/D-3, S-0103/D-6):
+    a caller that passes no board raises none, and the leg reads no stream.
     """
 
     if not config.threads.enabled:
         return "review-thread leg is off", False
 
-    from torve.application import projections, streams
+    from torve.application import projections
     from torve.application.lane import _battery_round
 
-    # S-0102/D-3: the reviewer's findings come off the board alone — a caller
-    # with no board raises none. The lane's own facts are still read off the
-    # stream beside them: the one decision read of it left, named in the
-    # boundary test, until its last facts have carriers (S-0102/D-7 departure).
-    rows = [row for row in streams.stream_rows(root) if row.get("kind") != "review"]
-    rows += projections.recorded_review_rows(records)
+    # S-0102/D-3, S-0103/D-6: the reviewer's findings come off the board alone —
+    # a caller with no board raises none. The leg reads no stream: every fact it
+    # decides from has a carrier the act that made it true wrote.
+    rows = projections.recorded_review_rows(records)
     # S-0103/D-2: a person's resolution of a round, read off the board the
     # caller passes, answers the finding that round was about.
     resolved = projections.resolved_rounds(records) if records else set()
