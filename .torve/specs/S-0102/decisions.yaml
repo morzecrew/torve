@@ -91,3 +91,14 @@ decisions:
     rationale: >-
       The re-exports were how the decisions still reached the stream after S-0101.
     cites: [S-0099/D-6, S-0101/D-10]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The task unit under `landing: pull_request` stays: a contract that names no
+      document lands by it as S-0083/D-4 says, and its deletion is decided with the
+      other simplifications, not here.
+    paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
+    consequence: >-
+      hand-minted and standing contracts keep landing under pull-request landing
+    rationale: The owner's answer to Q-1 (2026-10-12).
+    cites: [S-0083/D-4]
