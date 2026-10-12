@@ -1922,3 +1922,41 @@ def test_the_served_thread_leg_reads_the_board_s_review_records(tmp_path, monkey
 
     assert asyncio.run(threads()) == ("ok", False)
     assert seen == [[sentinel]]
+
+
+def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monkeypatch):
+    """S-0099/D-4: the served lane writes the completion verdict as `torve
+    merge` does. Without the status forge a served night left every completed
+    document's pull request a draft."""
+
+    import torve.application.lane as lane_module
+    import torve.cli.merge as merge_module
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import RunnerConfig
+
+    seen: dict[str, object] = {}
+    sentinel = object()
+
+    def fake_process_lane(root, vcs, **kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    monkeypatch.setattr(merge_module, "_status", lambda config: sentinel)
+    monkeypatch.setattr(merge_module, "_publisher", lambda root, config: None)
+    monkeypatch.setattr(merge_module, "_forge", lambda config: None)
+    monkeypatch.setattr(merge_module, "_resolve_ci", lambda config: None)
+    config = RunnerConfig.model_validate(
+        {
+            "promotion": {"landing": "pull_request", "unit": "document", "auto_merge": True},
+            "scm": {"repo": "owner/name", "open_pr": True},
+            "store": {"adapter": "postgres"},
+        }
+    )
+
+    leg = _lane_leg(tmp_path, config, only=None)
+    assert leg is not None
+
+    asyncio.run(leg())
+
+    assert seen["status"] is sentinel
