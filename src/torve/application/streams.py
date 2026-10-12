@@ -8,9 +8,9 @@ place rather than a wrapper in another module. The ledger, the evals, the night
 report and the read-only reports import these; a boundary test refuses any
 other importer.
 
-`projections` re-exports the row-shaped readers below for its own callers, and
-the reports it hosts (`why`, `status`, `context`) read the stream through this
-module and no other.
+`projections` calls these by module name for the reports it hosts (`why`,
+`status`, `context`); `stream_rows` stays importable there for the review
+leg's read of the lane's own facts (S-0102/D-3).
 """
 
 from __future__ import annotations
@@ -97,21 +97,6 @@ def round_already_requeued(root: Path, task_id: str) -> bool:
         row.get("event") == "lane_round_requeued" and row.get("task") == task_id
         for row in stream_rows(root)
     )
-
-
-def attempted_tasks(root: Path) -> set[str]:
-    """Every task this host has a telemetry record of having run — the
-    companion of the run-state files, for a task whose state file a sweep
-    removed (S-0088/D-2)."""
-
-    return {str(row["task_id"]) for row in stream_rows(root) if row.get("task_id")}
-
-
-def attempt_rows(root: Path) -> list[dict[str, Any]]:
-    """The stream's attempt rows — the ones a pull request body is composed
-    from (S-0080/D-4), each carrying its gate `results`."""
-
-    return [row for row in stream_rows(root) if "results" in row]
 
 
 def recorded_rows(root: Path) -> list[dict[str, Any]]:

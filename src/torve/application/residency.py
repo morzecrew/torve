@@ -17,6 +17,7 @@ mint exists no manager owns the task and no worker may claim it.
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -54,8 +55,8 @@ if TYPE_CHECKING:
 Landed = Callable[[str], str | None]
 
 # Whether the host already has a record of this task having run — a
-# run-state file or a telemetry row. Asked by the composition root for the
-# same reason as `Landed`: it reads files, and this module decides.
+# run-state file or a local task branch. Asked by the composition root for
+# the same reason as `Landed`: it reads files, and this module decides.
 Ran = Callable[[str], bool]
 
 # Every seat a queued task can reach at the open — its own, its retry rungs,
@@ -130,22 +131,41 @@ NIGHT_SUBJECT = getattr(SubjectType, "NIGHT", None)
 
 def ran_here(root: Path) -> set[str]:
     """Every task this host has a record of having run: a run-state file, or
-    a telemetry row.
+    the local `torve/T-NNNN` branch the runner cut for an attempt
+    (S-0102/D-5).
 
-    Built once per pass rather than asked per task. The scan asked it one
-    contract at a time and re-read the whole stream for each, which on a
-    repository with history is the same file parsed hundreds of times to
-    answer one question about it.
+    Built once per pass rather than asked per task. The stream is not read:
+    a reap sweeps a run's state file but keeps its branch, so the branch is
+    what the guard holds after one.
     """
-
-    from torve.application.projections import attempted_tasks
 
     found = {
         path.name.removesuffix(".state.json")
         for path in (root / naming.WORKTREE_DIR).glob("*.state.json")
     }
 
-    return found | attempted_tasks(root)
+    branches = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "refs/heads/torve/T-*",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if branches.returncode == 0:
+        found |= {
+            ref.removeprefix("torve/")
+            for ref in branches.stdout.split()
+            if ref.startswith("torve/T-")
+        }
+
+    return found
 
 
 # ....................... #
