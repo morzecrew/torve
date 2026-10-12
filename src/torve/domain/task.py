@@ -42,6 +42,11 @@ class Scope(BaseModel):
     """Globs of what the task may touch, gitwildmatch; empty means unconstrained."""
     deny: list[str] = Field(default_factory=list)
     """Globs the task may not touch; deny wins over allow."""
+    contingent: list[str] = Field(default_factory=list)
+    """Literal paths the change is likely to reach beyond its phase — importers,
+    imported first-party modules, paired tests, package `__init__` and the
+    document's other phases' matches (S-0104/D-1). Derived at mint and refresh;
+    never counted for disjointness or sizing."""
 
 
 # ....................... #

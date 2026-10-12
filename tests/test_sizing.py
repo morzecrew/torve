@@ -76,6 +76,18 @@ def test_estimate_scope_too_small_on_nothing_declared():
     assert verdict.size == "too_small"
 
 
+def test_the_contingent_set_is_not_sized():
+    """S-0104/D-1: `contingent` is what the change may reach, never what it
+    declares — so it is not a module, an allow glob or an acceptance count."""
+
+    scope = Scope(
+        allow=["src/a.py"],
+        contingent=["src/b.py", "src/c.py", "tests/test_a.py"],
+    )
+    verdict = sizing.estimate_scope(scope, [])
+    assert verdict.size == "ok"
+
+
 def _write_contract(root: Path, task_id: str, parent: str | None = None) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True)

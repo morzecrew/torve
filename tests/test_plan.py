@@ -952,3 +952,102 @@ def test_refresh_reads_the_checkout_when_the_remote_has_no_branch(plan_repo):
     report = refresh_document(root, root / ".torve" / "specs", "0090", remote_branch="torve/S-0090")
 
     assert report.tasks[0].changed == ["intent", "decisions"]
+
+
+# ....................... #
+# S-0104/D-1: the planner fills `scope.contingent` at mint and refresh, and
+# ignores it for same-phase disjointness and sizing.
+
+
+def test_minting_derives_the_contingent_neighbours(plan_repo):
+    root, _, git = plan_repo
+    core = root / "src" / "widget" / "core.py"
+    core.parent.mkdir(parents=True)
+    (core.parent / "__init__.py").write_text("", encoding="utf-8")
+    core.write_text("def core():\n    return 1\n", encoding="utf-8")
+    (root / "src" / "frob" / "thing.py").parent.mkdir(parents=True)
+    (root / "src" / "frob" / "thing.py").write_text("thing = 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "source")
+
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+    frob = report.tasks[1].task
+
+    # src/frob/** imports nothing, but its sibling phase's scope names src/app.py
+    # (nothing yet) and its own `__init__` — the union is what the tree can show.
+    assert frob.scope.contingent == []
+    assert report.tasks[0].task.scope.allow == ["src/widget/**", "tests/widget/**"]
+
+
+def test_same_phase_disjointness_ignores_the_contingent_set(plan_repo):
+    root, _, git = plan_repo
+    for relative in ("src/widget/__init__.py", "src/frob/__init__.py"):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+    (root / "src" / "widget" / "core.py").write_text(
+        "def core():\n    return 1\n", encoding="utf-8"
+    )
+    (root / "src" / "frob" / "thing.py").write_text("thing = 1\n", encoding="utf-8")
+    # One file reaches both phases — their contingent sets now overlap.
+    (root / "src" / "shared.py").write_text(
+        "import widget.core\nimport frob.thing\n", encoding="utf-8"
+    )
+    git("add", "-A")
+    git("commit", "-qm", "source")
+
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+
+    widget, frob = report.tasks[0].task, report.tasks[1].task
+    assert "src/shared.py" in widget.scope.contingent
+    assert "src/shared.py" in frob.scope.contingent
+    # The overlap is contingent, not allowed, so the same-phase pair still mints.
+    assert not set(widget.scope.allow) & set(frob.scope.allow)
+
+
+def test_refresh_rewrites_the_contingent_set(plan_repo):
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, _, git = plan_repo
+    core = root / "src" / "widget" / "core.py"
+    core.parent.mkdir(parents=True)
+    (core.parent / "__init__.py").write_text("", encoding="utf-8")
+    core.write_text("def core():\n    return 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "source")
+    minted(root)
+
+    assert contract_of(root, "T-0001").scope.contingent == []
+
+    # A new importer arrives outside the phase's scope, so the next derivation
+    # reaches further than the mint did.
+    (root / "src" / "consumer.py").write_text(
+        "import widget.core\n\nconsumer = 1\n", encoding="utf-8"
+    )
+    git("add", "src/consumer.py")
+    git("commit", "-qm", "consumer")
+
+    report = refresh_document(root, root / ".torve" / "specs", "0090")
+
+    assert report.tasks[0].changed == ["scope"]
+    assert "src/consumer.py" in report.tasks[0].task.scope.contingent
+
+    refresh_contracts(root, report)
+
+    assert "src/consumer.py" in contract_of(root, "T-0001").scope.contingent
+
+
+def test_the_plan_table_shows_the_contingent_count(plan_repo):
+    root, _, git = plan_repo
+    core = root / "src" / "widget" / "core.py"
+    core.parent.mkdir(parents=True)
+    (core.parent / "__init__.py").write_text("", encoding="utf-8")
+    core.write_text("def core():\n    return 1\n", encoding="utf-8")
+    (root / "src" / "consumer.py").write_text("import widget.core\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "source")
+
+    result = CliRunner().invoke(app, ["plan", "0090", "--root", str(root)], env={"COLUMNS": "300"})
+
+    assert result.exit_code == 0, result.output
+    assert "contingent" in result.output

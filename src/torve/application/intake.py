@@ -297,9 +297,10 @@ def _matched(path: Path, globs: list[str]) -> bool:
 
 
 def paired_test_files(stem: str, names: Iterable[str]) -> list[str]:
-    """The T-0113 rule's pairing (S-0096/D-4): an existing module `<stem>.py`
-    brings `tests/test_<stem>.py` and every existing `tests/test_<stem>_*.py`.
-    `names` are the file names sitting directly in `tests/`."""
+    """The T-0113 rule's pairing (S-0096/D-4, S-0104/D-9): an existing module
+    `<stem>.py` brings `test_<stem>.py` and every existing `test_<stem>_*.py`
+    at any depth under `tests/`. `names` are the tests' names or paths, matched
+    by their last component and returned as given."""
 
     exact = f"test_{stem}.py"
     prefix = f"test_{stem}_"
@@ -307,7 +308,7 @@ def paired_test_files(stem: str, names: Iterable[str]) -> list[str]:
     return sorted(
         name
         for name in names
-        if name == exact or (name.startswith(prefix) and name.endswith(".py"))
+        if (base := Path(name).name) == exact or (base.startswith(prefix) and base.endswith(".py"))
     )
 
 
@@ -321,6 +322,7 @@ def lint_drafts(
     *,
     allow_dependency_order: bool = False,
     planning: bool = False,
+    warnings: list[str] | None = None,
 ) -> list[str]:
     """Every mechanical check a human should never have to make (S-0020/D-3).
     The T-0113 rule is the first learned rule: a draft touching an existing
@@ -340,13 +342,17 @@ def lint_drafts(
     decomposition batch (S-0026 S-0026/D-3): two drafts may overlap when an
     explicit `depends_on` edge orders them, instead of requiring every pair
     disjoint the way an ordinary intake batch — dispatched in parallel —
-    must."""
+    must.
+
+    `warnings`, when given, collects the advisories that are not refusals
+    (S-0104/D-9): a module whose paired test sits in a nested layout and is not
+    allowed warns, where the flat layout's miss still refuses."""
 
     from torve.application.planner import globs_intersect
 
     errors: list[str] = []
     tree_paths = _tree_paths(tree)
-    test_names = [p.name for p in tree_paths if p.parent == Path("tests")]
+    test_paths = [p.as_posix() for p in tree_paths if p.parts and p.parts[0] == "tests"]
     drafts = document.drafts
 
     if not drafts:
@@ -431,13 +437,21 @@ def lint_drafts(
                 and "tests" not in path.parts
                 and _matched(path, draft.scope.allow)
             ):
-                for name in paired_test_files(path.stem, test_names):
-                    test_file = Path("tests") / name
+                for name in paired_test_files(path.stem, test_paths):
+                    test_file = Path(name)
 
-                    if not _matched(test_file, draft.scope.allow):
+                    if _matched(test_file, draft.scope.allow):
+                        continue
+
+                    if test_file.parent == Path("tests"):
                         errors.append(
                             f"{ref}: allows existing module {path} but not its "
                             f"existing test file {test_file} — the T-0113 rule"
+                        )
+                    elif warnings is not None:
+                        warnings.append(
+                            f"{ref}: allows existing module {path} but not its "
+                            f"nested test file {test_file} — pair it or widen the scope"
                         )
 
     for i, one in enumerate(drafts):
@@ -692,7 +706,14 @@ def lint_contract(tree: Path, contract: Path, max_drafts: int = 1) -> list[str]:
 # ....................... #
 
 
-def lint_task(tree: Path, task: Task, max_drafts: int = 1, *, planning: bool = False) -> list[str]:
+def lint_task(
+    tree: Path,
+    task: Task,
+    max_drafts: int = 1,
+    *,
+    planning: bool = False,
+    warnings: list[str] | None = None,
+) -> list[str]:
     """The same protection for a Task already in hand — what `lint_contract`
     does once the file is parsed, and what `torve plan` runs over every
     contract it is about to mint (S-0052/A-3). A review or draft role carries no
@@ -707,10 +728,17 @@ def lint_task(tree: Path, task: Task, max_drafts: int = 1, *, planning: bool = F
         ]
     )
 
-    return [
+    nested: list[str] = []
+
+    errors = [
         e.replace("DRAFT-1", task.id)
-        for e in lint_drafts(tree, document, max_drafts, planning=planning)
+        for e in lint_drafts(tree, document, max_drafts, planning=planning, warnings=nested)
     ]
+
+    if warnings is not None:
+        warnings.extend(e.replace("DRAFT-1", task.id) for e in nested)
+
+    return errors
 
 
 # ....................... #
