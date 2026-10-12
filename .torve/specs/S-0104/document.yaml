@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0104
+title: >-
+  A phase's scope bends to the files its change reaches
+kind: design
+change:
+  type: feat
+  scope: scope
+status: draft
+implementation: none
+depends_on: [S-0098, S-0099]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A contract's scope is a fixed list of globs a person wrote before any code existed, and it is the commonest reason an attempt stops: 28 of bloomery's 29 halts since 2026-09-18 were a phase that did not own a file its change had to touch, and the agent was right every time. Torve's own S-0099 to S-0102 repeated it. Measured over the 21 tasks and 44 missing paths on record, the misses are callers and importers of the changed code, tests that import it, the module's own test in a nested layout, a package's `__init__`, a file another phase of the same document already owns, and generated files that ride with their source.
+
+  Each phase's contract now carries a contingent scope. The planner derives it at mint and at refresh from the import graph, the test pairing at any depth, the package files and the document's other phases. On rules measured against that record, it covers 34 of the 44 paths and every path of 16 of the 21 tasks. A contingent path is promoted on its first write when no task in flight holds it: the board records the promotion, the scope gate reports it, the reviewer sees it, and the path joins the task's fence. A path another task in flight holds sends the attempt back to the queue, as an overlap does, rather than to a person. A manifest map of derived files (lock files, goldens, schemas) replaces the hard-coded lock-file table and covers the generated-file links the import graph cannot see.
+motivation: >-
+  The second of the five moves the owner chose on 2026-10-09 ("scope that bends"),
+  after the research "Where the Night Leaks" and the scope study of 2026-10-12 (scratchpad
+  research-scope/, 88 missing paths classified). The owner asked to go to it once
+  the review leg read no stream.
+current_state: >-
+  `domain/task.Scope` holds `allow` and `deny`; `planner.plan_document` mints `allow`
+  from the phase's globs and never `deny`. Same-phase scopes that intersect refuse
+  the plan, and `planner.scopes_clash` fences the board's in-flight tasks and the
+  host's run states against each other. `intake.paired_test_files` pairs a module
+  only with `tests/test_<stem>*.py` directly under `tests/`, so it flags none of bloomery's
+  86 phases, whose tests are nested. `gates/scope.check_scope` allows the task's own
+  contract, log and its document's execution directory, and pairs a manifest with
+  its lock file through the hard-coded `LOCKS_OF`. The implement profile's pre-write
+  hook `scope_guard.py` refuses a Write or Edit outside `allow` and knows neither
+  the lock pairs nor the implicit paths. A halt that cites no LOCKED row escalates
+  as `underspecified`, and a person widens the phase by amendment, refreshes the contract,
+  reaps and requeues. Review rounds take their anchor's phase scope; eight of bloomery's
+  eleven scope-halt tasks were rounds.
+goals: |-
+  - A phase whose change reaches a neighbour of its scope finishes without a halt, a person, or an amendment.
+  - Every widening is visible: recorded on the board, reported by the gate, shown to the reviewer, counted per phase.
+  - Two tasks never write one file at once: a promotion respects the same fence an overlap does.
+non_goals: |-
+  - Adding the neighbours to `allow` at mint: rule C's neighbours average 55 to 161 paths per phase, which would trip sizing, break same-phase disjointness in about 7% of torve's phases and drop the guard against drive-by edits.
+  - Co-change history as a rule: on the record it caught nothing the import graph and the document union did not.
+  - Import graphs for languages other than Python (out of scope).
+design:
+  - key: the-rules
+    md: |-
+      | Rule | Paths caught of 44 | Tasks fully of 21 | Extra paths per phase, median (bloomery / torve) |
+      |---|---|---|---|
+      | importers of the scoped files, source and tests, one hop | 19 | 8 | 1 / 14 |
+      | first-party modules the scoped files import | 7 | 5 | 3 / 18 |
+      | tests paired at any depth, package `__init__`, managed `AGENTS.md`, lock files | 7 | 4 | 8 / 7 |
+      | the document's other phases' scope | 24 | 11 | 35.5 / 13 |
+      | **all of the above (rule C)** | **34** | **16** | 68.5 / 55 |
+
+      The ten paths no rule catches are generated-artifact links: goldens, schemas, a golden's producers, a docs listing a test compares, a two-hop registry. The manifest's `scope.derived` map covers those it names, in both directions.
+  - key: promotion
+    md: >-
+      The pre-write hook allows a write to a contingent path, the runner checks the
+      path against the in-flight fence (every in-flight task's `allow` and promoted
+      paths, `planner.scopes_clash`'s rule) and records `scope.promoted` on the board
+      before the attempt goes on. A held path refuses the write with the holder's
+      id and the attempt returns to the queue as `blocked_by_overlap`. The scope gate
+      passes promoted paths and lists them; the reviewer's prompt lists them; the
+      spec quality report counts them per phase, which tells the author where a scope
+      was too narrow.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - Import graphs for Go, TypeScript or any language but Python: a repository without Python gets the pairing, the document union and the derived map only (D-11).
+  - Shipping the pre-write hook as package equipment instead of each repository's copy (Q-2).
+risks: ''
+alternatives:
+  - option: Add the derived neighbours to `allow` at mint.
+    rejected_because: >-
+      Precision is 1 to 4%: dozens of extra paths per phase, sizing and disjointness
+      broken, and no guard left against edits nobody needed.
+  - option: >-
+      Warn at `torve spec check` and leave the scope to the author.
+    rejected_because: >-
+      The warning fires on almost every phase, and acting on it costs an amendment
+      cycle, which is what the halts already cost.
+questions:
+  - id: Q-1
+    text: >-
+      A contingent path that only a later phase of the same document holds, not yet
+      dispatched: promote it and make that phase wait on the promoting task (D-4),
+      or refuse it and keep the later phase's ownership? Lean: promote; 13 of the
+      21 tasks on record needed a path another phase of their document owned.
+  - id: Q-2
+    text: >-
+      The pre-write hook is a file each repository carries (bloomery's is a copy of
+      torve's), and this document changes it. Change both copies here and leave the
+      distribution as it is, or ship the hook as package equipment so an adopter never
+      copies it? Lean: change the copies here; ship it as equipment in its own document.
