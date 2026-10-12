@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0545
+phase: 1
+base: f285d3994c7750a02d05558f3e5f18382358eeab
+commit: 2db4dde67c60f4b47d85f8d8cceb911c3e8c128b
+at: '2026-10-12T11:46:29Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-12T11:43:03Z'
+    claim: >-
+      D-1's document union says 'the document's other phases' scopes' without settling
+      whether a same-numbered sibling entry counts as another phase, and it does not
+      say whether a path the phase's own globs match is contingent. The derivation
+      reads 'other phases' as every phase number but the one being minted, so same-phase
+      siblings are excluded, and it subtracts the phase's own matches — a path the
+      scope already allows is the scope, not a neighbour beyond it.
+    evidence: >-
+      src/torve/application/neighbours.py:190-197 — the union skips entries whose
+      phase equals the minted phase and the result subtracts `own`
+    action: decided
+    proposal: >-
+      D-1 should say whether the union is over 'every phase but this one' (my reading)
+      or 'every entry whose phase differs from every entry being minted', and should
+      state that scope-matched paths are never contingent.
