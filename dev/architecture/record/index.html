@@ -1169,8 +1169,10 @@ the place that act already writes:</p>
 </table>
 <p>What the record holds it holds once; what git, the forge or a contract holds
 it does not hold at all. <code>.torve/telemetry.jsonl</code> is not on the table — a
-diagnostic stream the ledger, the evals and the night report read
-(S-0099/D-10), and no decision should (S-0099/D-6). Five facts are still read from it until the follow-up to S-0099 gives each a carrier: a battery round's state, the rounds a person resolved, a document branch's last conflict base, the review tier's recorded findings, and the gate results a pull request body lists.</p>
+diagnostic stream the ledger, the evals and the night report read, and no
+decision reads (S-0099/D-6). Every function that reads it lives in
+<code>application/streams.py</code>, and only the ledger, the evals, the night report and
+the read-only reports import it (S-0101/D-10).</p>
 <p>There is no update and no delete, in the service or in the port beneath it.
 A correction is another event, because a history that can be rewritten
 answers no question reliably.</p>
@@ -1429,7 +1431,7 @@ contracts inherit from; the archive is what the record remembers.</p>
 </tr>
 <tr>
 <td>the telemetry stream</td>
-<td>the attempt rows the ledger, the evals and the night report read — a diagnostic (S-0099/D-6); five lane facts still read it until the follow-up to S-0099 lands</td>
+<td>the attempt rows the ledger, the evals and the night report read — a diagnostic (S-0099/D-6, S-0101/D-10)</td>
 </tr>
 <tr>
 <td>the decision graph (<code>torve decisions</code>)</td>
