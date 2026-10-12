@@ -39,7 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # 0.x: a minor may break the SDK the adapter imports.
-opensandbox = ["opensandbox>=0.1.15,<0.2"]
+opensandbox = ["opensandbox>=0.1.15,<1.2"]
 postgres = ["forze[postgres]==0.10.0"]
 # Applied in production, absent from a gates-only CI install.
 migrate = ["yoyo-migrations>=9"]
