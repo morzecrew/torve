@@ -242,6 +242,24 @@ def _scope_clean(repo: Repo) -> None:
 # ....................... #
 
 
+def _scope_contingent_promoted(repo: Repo) -> None:
+    # S-0104/D-2, D-7: a path the contract names as a contingent neighbour is
+    # a plausible reach, not a conviction — the gate promotes it and says so.
+    # The holder half of the rule (a path an in-flight task owns is refused)
+    # is the runner's write-time fence, not the gate's: the gate judges one
+    # contract and reads no other task, so it lives in tests/test_sabotage.py
+    # where the runner is reachable (gates may not import `application`).
+    repo.seed()
+    task = base_task(allow=["src/**"])
+    task["scope"]["contingent"] = ["docs/notes.md"]
+    repo.task(task, log_document())
+    repo.write("docs/notes.md", "the neighbour the scope reaches\n")
+    repo.commit("reaches a contingent neighbour")
+
+
+# ....................... #
+
+
 def _acceptance_bad(repo: Repo) -> None:
     manifest = dict(BASE_MANIFEST)
 
@@ -627,6 +645,12 @@ def _coverage_legacy_unconvicted(repo: Repo) -> None:
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
+    Case(
+        "scope: contingent neighbour is promoted",
+        "scope",
+        "pass",
+        _scope_contingent_promoted,
+    ),
     Case("acceptance: red command", "acceptance", "fail", _acceptance_bad),
     Case("acceptance: clean twin", "acceptance", "pass", _acceptance_clean),
     Case("acceptance: flake is flaky, not fail", "acceptance", "flaky", _acceptance_flaky),

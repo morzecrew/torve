@@ -74,11 +74,13 @@ name in the store, for example `org/repo`.
 
 ## Habits that prevent most repairs
 
-- A phase owns every file its acceptance can turn red. That includes the
-  tests that enumerate artifacts, generated snapshots, docs pages a test
-  compares against, the lock file beside a manifest, and re-export modules.
-  Before accepting a phase, grep for every caller of what it changes. A scope
-  that is too narrow is the most common reason an attempt halts.
+- A phase owns every file its acceptance can turn red — the tests that
+  enumerate artifacts, generated snapshots, docs pages a test compares
+  against, and re-export modules. Grep for every caller of what it changes
+  before accepting a phase. A scope too narrow still costs an attempt: the
+  planner derives a contingent set and the gate promotes a path on its first
+  write instead of halting, but a generated file no rule reaches is named
+  once, in the manifest's `scope.derived` map.
 - Run `torve spec project` in every pull request that accepts or amends a
   document. Stale `AGENTS.md` projections fail every later phase on scope.
 - Run checks unpiped, or with `set -o pipefail`. `cmd | tail` hides a red exit.

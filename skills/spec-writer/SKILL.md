@@ -117,6 +117,20 @@ arrives first, invisibly.
    executor inherits a decision it cannot satisfy without leaving
    scope.allow. Split the row into per-surface decisions at authoring.
 
+3c. **The scope's neighbours are derived, not listed.** Do not pad a phase's
+   `scope` with every caller, importer or paired test it might touch: the
+   planner derives each contract a **contingent** set at mint and at refresh —
+   the scoped files' importers in source and tests, their first-party imports,
+   their tests paired at any depth, their packages' `__init__`, and the paths
+   the document's other phases match. A contingent path is promoted on its
+   first write, recorded and reported, and fenced against tasks in flight; one
+   another task holds requeues the attempt rather than halting it. The globs
+   still name what the phase *owns* — a contingent path is a likely reach, not
+   a claim, and is never counted for disjointness or sizing. What the import
+   graph cannot see is a generated file, and that you do name: the manifest's
+   `scope.derived` map pairs each such file — a golden, a schema, a docs
+   listing a test compares — with its source, in both directions.
+
 4. **Decision identifiers are permanent.** Divergence logs and code comments
    cite `S-0003/D-1` forever; renumbering orphans every one of them. Append new
    rows; never renumber, never reuse an identifier — a retired one is

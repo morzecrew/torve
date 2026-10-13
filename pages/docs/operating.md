@@ -246,6 +246,40 @@ the only one on the machine — what it creates on a shared daemon it finds by
 its own name or root, never a literal another test also uses (S-0067/D-8),
 which is a correctness rule once the suite runs in parallel, not a courtesy.
 
+## How a scope bends
+
+A phase's `scope` names what it *owns*, but a change from inside it routinely
+reaches a file the globs did not name: a caller that imports it, a first-party
+module it imports, a test that exercises it, a package `__init__`, a path
+another phase of the document owns. The planner derives that set at mint and at
+refresh into the contract's **contingent** scope — literal paths the attempt
+knows before it starts (S-0104/D-1). It is deliberately not counted for
+disjointness or sizing: a contingent path is a likely reach, never a claim.
+
+A contingent path is **promoted** on its first write, when no task in flight
+already holds it (S-0104/D-2). The attempt writes the neighbour and carries on,
+and the widening is read rather than made silently (S-0104/D-7): the attempt's
+prompt lists its contingent neighbours beside its scope, the scope gate lists
+every promoted path, and the reviewer is shown the promotions. The promoted
+path joins the task's fence, so a second task naming it waits. A contingent
+path an in-flight task holds is refused with the holder's id, and the attempt
+returns to the queue as a `blocked_by_overlap` dispatch does — a wait, not a
+person (S-0104/D-3). A path only a later, undispatched phase of the same
+document holds may be promoted, and that phase's dispatch then waits on the
+promoting task (S-0104/D-4).
+
+The import graph cannot see every generated file, so the gate manifest's
+`scope.derived` map names the files that ride with a source, in both directions
+— a lock file with its manifest, a golden with its producer, a generated
+schema with its model — and a derived path is contingent wherever its source is
+in scope; its default is the lock-file table it replaced (S-0104/D-5). A
+managed `AGENTS.md` beside a path in scope is writable the same way: `torve
+spec project` writes it and the gate allows it, so a phase that changes
+governed code regenerates its projection without halting (S-0104/D-6). The
+effect is that the scope halt this page once treated as routine is now rare —
+the common misses are already contingent, and the ones that remain are a link
+the manifest has not named or a phase drawn genuinely too narrow.
+
 ## Which carrier answers a report
 
 `why`, `status` and `context` read either the record or this host's files,
