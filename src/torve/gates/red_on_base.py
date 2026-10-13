@@ -24,21 +24,32 @@ from __future__ import annotations
 
 import ast
 import shlex
+from pathlib import Path
 
 import pathspec
 
 from torve.base.shell import run_command
-from torve.config.manifest import Gate
+from torve.config.manifest import DEFAULT_TEST_RUN, Gate
 from torve.gates.context import GateContext, GitError, git
 from torve.gates.contract import BuiltinOutcome, spec
 
 # ----------------------- #
 
 # How the qualifying files are run, on the base tree and on the attempt's own.
-# A module constant rather than a manifest field: the entry that names this
-# gate carries no place to put a command, and a repository whose suite needs a
-# different launcher patches this one line (S-0081/D-5).
+# The engine's default, and the seam a test points at its own interpreter; a
+# manifest naming its own `tests.run` wins (S-0106/D-7).
 TEST_COMMAND = "python3 -m pytest -q -p no:cacheprovider"
+
+
+def _command(ctx: GateContext) -> str:
+    """The launcher a changed test file is appended to: the manifest's
+    `tests.run` (S-0106/D-7), or the module's `TEST_COMMAND` when the manifest
+    leaves it at the engine default."""
+
+    declared = ctx.manifest.tests.run
+
+    return TEST_COMMAND if declared == DEFAULT_TEST_RUN else declared
+
 
 # The base tree is a `git archive` extracted into a directory outside the
 # repository, with the attempt's own qualifying test files copied over it. No
@@ -58,15 +69,18 @@ cd "$work"
 # ....................... #
 
 
-def _test_functions(source: str) -> dict[str, str]:
+def _test_functions(source: str) -> dict[str, str] | None:
     """Every test function in a module, by qualified name, mapped to its parsed
-    shape — formatting, comments and everything around it stripped."""
+    shape — formatting, comments and everything around it stripped. None when
+    the source does not parse at all, which a file with no test functions does
+    not: the gate distinguishes a suite it cannot read from one that names no
+    test."""
 
     try:
         tree = ast.parse(source)
 
     except SyntaxError:
-        return {}
+        return None
 
     functions: dict[str, str] = {}
 
@@ -106,6 +120,7 @@ def _qualifying(ctx: GateContext, tests: pathspec.GitIgnoreSpec) -> list[str]:
     the base tree's, or that the base tree does not have at all."""
 
     qualifying: list[str] = []
+    sources = ctx.manifest.tests.source_suffixes()
 
     for entry in ctx.diff:
         if entry.status == "D" or not tests.match_file(entry.path):
@@ -117,9 +132,27 @@ def _qualifying(ctx: GateContext, tests: pathspec.GitIgnoreSpec) -> list[str]:
             continue
 
         now = _test_functions(candidate.read_text(encoding="utf-8", errors="replace"))
+
+        # A changed test file the gate cannot parse into functions — a
+        # non-Python suite, a syntax error — qualifies whole (S-0106/D-7):
+        # there is no per-function shape to compare, so the file is run as it
+        # stands rather than silently ignored. Only a suffix the manifest's
+        # `pair` templates name is a test source at all, so a data file under
+        # `tests/` the patterns happen to match is never run and never read as
+        # a healthy red. A file that parses but names no test is skipped:
+        # `tests/**` matches `conftest.py` and a golden alike.
+        if now is None:
+            if Path(entry.path).suffix in sources:
+                qualifying.append(entry.path)
+
+            continue
+
+        if not now:
+            continue
+
         # A rename is judged against where the file came from, so moving a
         # suite qualifies none of it.
-        before = _test_functions(_at_base(ctx, entry.old_path or entry.path))
+        before = _test_functions(_at_base(ctx, entry.old_path or entry.path)) or {}
 
         if any(before.get(name) != shape for name, shape in now.items()):
             qualifying.append(entry.path)
@@ -160,7 +193,7 @@ def _checks(ctx: GateContext) -> list[str]:
 # ....................... #
 
 
-def _steps(files: list[str], checks: list[str]) -> list[str]:
+def _steps(files: list[str], checks: list[str], command: str) -> list[str]:
     """What a tree is asked to run at the end of the scratch script: the
     changed test files, then every inherited check. One list, so the base tree
     and this attempt's own are asked the same question (S-0106/D-6)."""
@@ -168,7 +201,7 @@ def _steps(files: list[str], checks: list[str]) -> list[str]:
     steps: list[str] = []
 
     if files:
-        steps.append(f"{TEST_COMMAND} {' '.join(shlex.quote(path) for path in files)}")
+        steps.append(f"{command} {' '.join(shlex.quote(path) for path in files)}")
 
     steps.extend(checks)
 
@@ -178,7 +211,7 @@ def _steps(files: list[str], checks: list[str]) -> list[str]:
 # ....................... #
 
 
-def _script(ctx: GateContext, files: list[str], checks: list[str]) -> str:
+def _script(ctx: GateContext, files: list[str], checks: list[str], command: str) -> str:
     copies = "\n".join(
         f'mkdir -p "$work"/{shlex.quote(str(parent))} && cp {shlex.quote(path)} '
         f'"$work"/{shlex.quote(path)}'
@@ -189,7 +222,7 @@ def _script(ctx: GateContext, files: list[str], checks: list[str]) -> str:
     return SCRIPT.format(
         base=ctx.merge_base,
         copies=copies,
-        steps="\n".join(_steps(files, checks)),
+        steps="\n".join(_steps(files, checks, command)),
     )
 
 
@@ -208,14 +241,19 @@ def _held(gate: Gate, ctx: GateContext, files: list[str], checks: list[str]) -> 
         )
 
     timeout = gate.timeout or 600.0
+    command = _command(ctx)
     named = ", ".join(files) if files else "the inherited checks"
     # Neither side's red is the flaky case here; a re-run would only buy two
     # more trees to compare.
     base = run_command(
-        _script(ctx, files, checks), ctx.root, timeout, retry_flaky=False, execute=ctx.execute
+        _script(ctx, files, checks, command),
+        ctx.root,
+        timeout,
+        retry_flaky=False,
+        execute=ctx.execute,
     )
     candidate = run_command(
-        " && ".join(_steps(files, checks)),
+        " && ".join(_steps(files, checks, command)),
         ctx.root,
         timeout,
         retry_flaky=False,
@@ -285,11 +323,12 @@ def check_red_on_base(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return BuiltinOutcome("skipped", "no test function differs from its base version")
 
     timeout = gate.timeout or 600.0
+    command = _command(ctx)
     named = ", ".join(files)
     # A red here is the healthy case, so the flaky re-run would double the
     # cost of every passing attempt.
     base = run_command(
-        _script(ctx, files, []), ctx.root, timeout, retry_flaky=False, execute=ctx.execute
+        _script(ctx, files, [], command), ctx.root, timeout, retry_flaky=False, execute=ctx.execute
     )
 
     if base.exit_code != 0:
@@ -300,7 +339,11 @@ def check_red_on_base(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         )
 
     candidate = run_command(
-        " && ".join(_steps(files, [])), ctx.root, timeout, retry_flaky=False, execute=ctx.execute
+        " && ".join(_steps(files, [], command)),
+        ctx.root,
+        timeout,
+        retry_flaky=False,
+        execute=ctx.execute,
     )
 
     if candidate.exit_code != 0:

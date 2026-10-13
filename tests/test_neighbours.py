@@ -111,3 +111,18 @@ def test_a_derived_file_rides_with_its_source_both_ways(tmp_path: Path) -> None:
 
     backward = contingent_paths(root, ["tests/golden/core.json"], derived=derived)
     assert "src/pkg/core.py" in backward
+
+
+def test_the_neighbour_derivation_pairs_a_go_test_by_the_manifest(tmp_path: Path) -> None:
+    """S-0106/D-7: a Go module brings the `_test.go` beside it, by the
+    manifest's `pair` templates — the same pairing the intake and the pack
+    read."""
+
+    root = tmp_path / "repo"
+    (root / "src" / "foo").mkdir(parents=True)
+    (root / "src" / "foo" / "bar.go").write_text("package foo\n", encoding="utf-8")
+    (root / "src" / "foo" / "bar_test.go").write_text("package foo\n", encoding="utf-8")
+
+    found = contingent_paths(root, ["src/foo/bar.go"], pair=["{dir}/{stem}_test.go"])
+
+    assert found == ["src/foo/bar_test.go"]

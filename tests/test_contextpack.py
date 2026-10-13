@@ -596,3 +596,19 @@ def test_an_unconstrained_scope_inlines_no_repository(tmp_path: Path) -> None:
     unconstrained = Task(id="T-0501", decisions=[])
 
     assert scope_file(tmp_path, unconstrained, {"named_tests": []}) == ""
+
+
+def test_the_pack_pairs_a_go_test_by_the_manifest(tmp_path: Path) -> None:
+    """S-0106/D-7: the pack's named tests read the manifest's `pair` templates,
+    so a Go module names the `_test.go` beside it."""
+
+    from torve.config.manifest import TestsConfig
+
+    (tmp_path / "src" / "foo").mkdir(parents=True)
+    (tmp_path / "src" / "foo" / "bar.go").write_text("package foo\n", encoding="utf-8")
+    (tmp_path / "src" / "foo" / "bar_test.go").write_text("package foo\n", encoding="utf-8")
+    task = Task(id="T-0500", decisions=[], scope={"allow": ["src/foo/bar.go"], "deny": []})  # type: ignore[arg-type]
+
+    payload = tests_file(tmp_path, task, TestsConfig(pair=["{dir}/{stem}_test.go"]))
+
+    assert {"module": "src/foo/bar.go", "test": "src/foo/bar_test.go"} in payload["named_tests"]

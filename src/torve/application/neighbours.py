@@ -148,6 +148,7 @@ def contingent_paths(
     document: Document | None = None,
     phase: int | None = None,
     derived: dict[str, list[str]] | None = None,
+    pair: list[str] | None = None,
 ) -> list[str]:
     """The literal paths a phase's change is likely to reach beyond its scope
     (S-0104/D-1), sorted. *tree* is the repository root the globs are read
@@ -185,11 +186,12 @@ def contingent_paths(
 
             found.update(init.as_posix() for init in _inits(path, known))
 
-    tests = [p.as_posix() for p in files if p.parts and p.parts[0] == "tests"]
+    # S-0106/D-7: the pairing reads the manifest's `pair` templates, so a Go
+    # module brings the `_test.go` beside it, not only a `tests/` file.
+    all_names = [p.as_posix() for p in files]
 
     for path in matched:
-        if path.suffix == ".py":
-            found.update(paired_test_files(path.stem, tests))
+        found.update(paired_test_files(path.as_posix(), all_names, pair))
 
     # S-0104/D-5, D-11: the derived map is not language-bound, so it applies
     # even in a repository with no Python — a golden rides with its producer.

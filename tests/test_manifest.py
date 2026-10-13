@@ -391,6 +391,52 @@ def test_no_shape_borrows_another_shape_s_version():
     assert all(isinstance(v, int) and v >= 1 for v in declared)
 
 
+def test_the_manifest_adapter_takes_a_run_and_a_pairing(tmp_path):
+    """S-0106/D-7: `tests.run` is the command a list of test files is appended
+    to, and `tests.pair` the templates from a module to its tests over `{dir}`
+    and `{stem}`. The defaults are today's Python launcher and the Python
+    pairing at any depth under `tests/`."""
+    from torve.config.manifest import DEFAULT_TEST_PAIRS, DEFAULT_TEST_RUN, TestsConfig
+
+    default = TestsConfig()
+    assert default.run == DEFAULT_TEST_RUN == "python3 -m pytest -q -p no:cacheprovider"
+    assert default.pair == DEFAULT_TEST_PAIRS
+    assert default.paired(
+        "src/a/thing.py",
+        ["tests/test_thing.py", "tests/unit/test_thing.py", "tests/test_thingish.py"],
+    ) == ["tests/test_thing.py", "tests/unit/test_thing.py"]
+
+    manifest = load_manifest(
+        write_manifest(
+            tmp_path,
+            dict(BASE_MANIFEST, tests={"run": "go test ./...", "pair": ["{dir}/{stem}_test.go"]}),
+        )
+    )
+
+    assert manifest.tests.run == "go test ./..."
+    assert manifest.tests.paired(
+        "src/foo/bar.go", ["src/foo/bar_test.go", "src/foo/baz_test.go"]
+    ) == ["src/foo/bar_test.go"]
+
+
+def test_the_pairing_refuses_a_module_the_templates_do_not_name():
+    """S-0106/D-7 with the defaults: a template names a test source's suffix,
+    so a module the templates do not name pairs with nothing — a schema or a
+    document never becomes its own `tests/test_<stem>.py`. A Go template names
+    `.go`, so a `.py` module does not pair through it and the Go module does."""
+    from torve.config.manifest import TestsConfig
+
+    default = TestsConfig()
+    assert default.source_suffixes() == {".py"}
+    assert default.paired(".torve/schemas/gates.json", ["tests/test_gates.py"]) == []
+    assert default.paired("docs/intake.md", ["tests/test_intake.py"]) == []
+
+    go = TestsConfig(pair=["{dir}/{stem}_test.go"])
+    assert go.source_suffixes() == {".go"}
+    assert go.paired("src/foo/bar.go", ["src/foo/bar_test.go"]) == ["src/foo/bar_test.go"]
+    assert go.paired("src/foo/bar.py", ["src/foo/bar_test.go"]) == []
+
+
 def test_the_manifest_scope_names_derived_files_and_defaults_to_the_lock_table(tmp_path):
     """S-0104/D-5: `scope.derived` names the files that ride with a source;
     a manifest that names none keeps the lock-file table the gate used to

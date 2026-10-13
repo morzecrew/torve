@@ -1865,3 +1865,26 @@ def test_a_persons_unresolved_thread_does_not_hold_the_approve_comment(seeded):
     review_thread_leg(seeded.root, config(rounds=0, approve=APPROVE), forge, lambda _t: False)
 
     assert forge.commented == [(7, APPROVE, "deadbeef")]
+
+
+def test_the_review_fallback_scope_reads_the_manifest_pairing(seeded):
+    """S-0106/D-7: the fallback scope pairs a file's tests by the manifest's
+    `pair` templates, not `tests/test_<stem>.py` hard-coded."""
+
+    from torve.application.reviewleg import _allow
+
+    seeded.write("src/foo/bar.go", "package foo\n")
+    seeded.write("src/foo/bar_test.go", "package foo\n")
+    seeded.write(
+        ".torve/gates.yaml",
+        yaml.safe_dump(
+            {"schema_version": 1, "tests": {"pair": ["{dir}/{stem}_test.go"]}, "gates": []},
+            sort_keys=False,
+        ),
+    )
+    seeded.commit("a go pairing")
+
+    allow = _allow(seeded.root, BRANCH, "src/foo/bar.go")
+
+    assert "src/foo/bar.go" in allow
+    assert "src/foo/bar_test.go" in allow

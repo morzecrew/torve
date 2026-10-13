@@ -29,6 +29,7 @@ from torve.application.intake import (
     lint_drafts,
     mint_decomposition_task,
     mint_intake_task,
+    paired_test_files,
     parse_drafts,
     run_intake,
     standing_warnings,
@@ -1628,3 +1629,51 @@ def test_a_nested_test_the_scope_allows_is_no_warning(tmp_path: Path):
     )
 
     assert errors == [] and warnings == []
+
+
+# ....................... #
+# S-0106/D-7: the intake's pairing reads the manifest's `pair` templates — a
+# Go module brings the `_test.go` beside it, not only `tests/test_<stem>.py`.
+
+
+def test_the_manifest_adapter_pairs_a_go_file_in_the_intake():
+    names = ["src/foo/bar_test.go", "src/foo/baz_test.go", "tests/test_bar.py"]
+
+    assert paired_test_files("src/foo/bar.go", names, ["{dir}/{stem}_test.go"]) == [
+        "src/foo/bar_test.go"
+    ]
+    # Without a manifest the default Python pairing stands.
+    assert paired_test_files("src/a/thing.py", ["tests/test_thing.py"]) == ["tests/test_thing.py"]
+
+
+def test_the_intake_lint_pairs_by_the_manifest_templates(tmp_path: Path):
+    (tmp_path / "src" / "foo").mkdir(parents=True)
+    (tmp_path / "src" / "foo" / "bar.go").write_text("package foo\n", encoding="utf-8")
+    (tmp_path / "src" / "foo" / "bar_test.go").write_text("package foo\n", encoding="utf-8")
+
+    errors = lint_drafts(
+        tmp_path,
+        document(draft_dict(allow=["src/foo/bar.go"])),
+        4,
+        pair=["{dir}/{stem}_test.go"],
+    )
+
+    assert any("existing test file src/foo/bar_test.go" in e for e in errors)
+
+
+def test_the_default_pairing_leaves_a_non_python_module_alone(tmp_path: Path):
+    """S-0106/D-7 with the defaults: the Python reading is unchanged. A draft
+    that allows a non-Python file does not bring a `tests/test_<stem>.py` it
+    never had, so no spurious T-0113 refusal and no spurious neighbour."""
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "intake.md").write_text("the docs\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_intake.py").write_text("def test(): pass\n", encoding="utf-8")
+
+    errors = lint_drafts(tmp_path, document(draft_dict(allow=["docs/intake.md"])), 4)
+
+    assert errors == []
+
+    from torve.application.neighbours import contingent_paths
+
+    assert "tests/test_intake.py" not in contingent_paths(tmp_path, ["docs/intake.md"])

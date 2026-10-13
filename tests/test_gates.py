@@ -1216,3 +1216,68 @@ def test_an_empty_allow_is_unconstrained_and_promotes_nothing(repo):
 
     assert result.outcome == "pass", result.output
     assert "promoted" not in result.output
+
+
+# S-0106/D-7: red-on-base runs a changed test file with the manifest's
+# `tests.run`, and a file the gate cannot parse into functions qualifies whole.
+
+
+def test_red_on_base_adapter_runs_the_manifest_command_and_qualifies_whole(repo):
+    from torve.gates.red_on_base import check_red_on_base
+
+    manifest = dict(
+        BASE_MANIFEST,
+        tests={
+            "patterns": ["src/**/*_test.go"],
+            "run": "sh -c 'echo ADAPTER-RAN; exit 1'",
+            "pair": ["{dir}/{stem}_test.go"],
+        },
+    )
+    repo.seed(manifest)
+    repo.write("src/foo/bar.go", "package foo\n\nfunc Bar() int { return 1 }\n")
+    repo.write("src/foo/bar_test.go", "package foo\n\nfunc TestBar(t *testing.T) {}\n")
+    repo.commit("the attempt")
+
+    outcome = check_red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    # The Go file has no Python functions to parse, so it qualifies whole and
+    # is run — with the manifest's command, whose marker reaches the output.
+    assert outcome.outcome == "pass", outcome.output
+    assert "src/foo/bar_test.go" in outcome.output
+    assert "ADAPTER-RAN" in outcome.output
+
+
+def test_red_on_base_ignores_a_data_file_under_the_test_patterns(repo, red_on_base):
+    """S-0106/D-7 with the defaults: the Python reading is unchanged. The
+    `tests/**` pattern matches a golden and a fixture beside the test, but
+    neither is a test source — the golden parses into no test function, and the
+    fixture the gate cannot parse is not a suffix the pairing names — so
+    neither qualifies whole, and a trivially-true test beside them is still
+    convicted rather than their collection error reading as the healthy red."""
+    repo.seed()
+    repo.write("src/pkg/core.py", "def core():\n    return 1\n")
+    repo.write("tests/test_core.py", "def test_trivial():\n    assert True\n")
+    repo.write("tests/golden/core.json", '[\n  {"n": 1},\n  {"n": 2}\n]\n')
+    repo.write("tests/fixtures/runbook.md", "# notes\n\nsee [the runbook\n")
+    repo.commit("the attempt")
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "fail", outcome.output
+    assert "tests/test_core.py" in outcome.output
+    assert "tests/golden/core.json" not in outcome.output
+    assert "tests/fixtures/runbook.md" not in outcome.output
+
+
+def test_red_on_base_qualifies_an_unparseable_test_source_whole(repo, red_on_base):
+    """S-0106/D-7: a `.py` test file the gate cannot parse is a test source it
+    runs whole, so a suite that will not parse is not silently skipped."""
+    repo.seed()
+    repo.write("src/pkg/core.py", "def core():\n    return 1\n")
+    repo.write("tests/test_core.py", "def test_core(:\n")
+    repo.commit("the attempt")
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "pass", outcome.output
+    assert "tests/test_core.py" in outcome.output

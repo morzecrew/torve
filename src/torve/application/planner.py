@@ -557,6 +557,11 @@ def plan_document(
                         root, document, {predecessor}, board
                     )
 
+    # S-0106/D-7: the manifest's `pair` templates drive the neighbour pairing.
+    from torve.application.intake import test_pairs
+
+    pairs = test_pairs(root)
+
     for offset, entry in enumerate(ordered):
         # A task with an in-document predecessor waits through it; one with
         # none is where the other document's landing has to be waited on.
@@ -571,7 +576,7 @@ def plan_document(
             scope=Scope(
                 allow=list(entry.scope),
                 contingent=neighbours.contingent_paths(
-                    root, entry.scope, document=doc, phase=entry.phase
+                    root, entry.scope, document=doc, phase=entry.phase, pair=pairs
                 ),
             ),
             acceptance=list(entry.acceptance),
