@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: scope
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0104]
 informed_by: []
@@ -35,10 +35,10 @@ current_state: >-
   decision inheritance by path (`planner`, `decisions.for_paths`, `standing_decisions`),
   `specquality` and `intake`'s parent/child scope rule; `config/spec._reaches_uncommitted`
   repeats its heuristic by hand, because the config layer may not import the application.
-  Four readers use their own grammar: `intake._matched` (`Path.match` or `fnmatch`),
-  telemetry's `in_scope_read` class (`fnmatch`), a gate's `paths` filter in `gates/runner._judges_anything`
-  (`fnmatch` or a prefix) and `config/spec.check_backlinks`' LOCKED-row paths (`fnmatch`
-  or `startswith`).
+  Five readers use their own grammar: `intake._matched` (`Path.match` or `fnmatch`)
+  and S-0104's verbatim copy of it, `neighbours._matched`, telemetry's `in_scope_read`
+  class (`fnmatch`), a gate's `paths` filter in `gates/runner._judges_anything` (`fnmatch`
+  or a prefix) and `config/spec.check_backlinks`' LOCKED-row paths (`fnmatch` or `startswith`).
 goals: |-
   - The hook never refuses a write the gate would pass, and never passes one the gate would convict.
   - The fence never calls two overlapping scopes disjoint.
@@ -71,12 +71,24 @@ design:
       must equal `GitIgnoreSpec.match_file` on every pair. `overlap` must equal "some
       enumerated path matches both" on every pair of patterns. The four false negatives
       and the four hook-versus-gate cases on record are named examples beside it.
-tests: ''
+tests: |-
+  - `matches` equals `GitIgnoreSpec.match_file` on every pattern of up to three segments and every path of up to four over the test's alphabets, with and without a leading or trailing `/` (D-1, D-5).
+  - `overlap` equals "some enumerated path matches both" on every pair of enumerated patterns (D-2, D-5).
+  - The four pairs `globs_intersect` called disjoint overlap: `**/AGENTS.md` and `src/torve/cli/**`, `src/**/*.py` and `src/a/*.py`, `**/test_*.py` and `tests/**`, `*.md` and `docs/**` (D-2).
+  - Two in-flight tasks whose scopes are `**/AGENTS.md` and `src/torve/cli/**` fence each other (D-2).
+  - The hook's copy of the module is byte-identical to the source (D-3).
+  - The hook passes `src/x.py` under `src`, `docs/x.md` under `docs/` and `src/x.py` under `/src/x.py`, and refuses `src/a/b.py` under `src/*.py`; it agrees with the scope gate on every enumerated pattern and path (D-3).
+  - A gate whose `paths` is `src/**` judges a change under `src/`; `a/*.py` no longer matches `x/a/b.py` in the intake or the neighbour derivation; a LOCKED row whose paths are `src/torve/run` governs no `src/torve/runner.py`; a read inside a scope glob classifies as `in_scope_read` (D-4).
 docs: ''
 out_of_scope: |-
   - bloomery's copy of the pre-write hook: it changes when bloomery re-copies torve's hooks, as S-0104/Q-2 settled.
   - The board fold's ESCALATED to READY step missing from `TRANSITIONS`, found by the same research: a separate fix.
-risks: ''
+risks: |-
+  - A correct overlap makes phases inherit decision rows their paths reach and the old heuristic missed, so contracts grow; the rows were always theirs, and `torve plan` shows the new counts at mint.
+  - Same-phase disjointness and the fence may now refuse or serialise scopes that really intersect and used to pass; that is the fix, and a phase that hits it splits or names one owner.
+  - The hook's copy can drift from the source in an adopting repository that refreshes torve without re-copying its hooks; torve's own copy is pinned by a test, and an adopter's drifts only until its upgrade refreshes the hooks (S-0104/D-12).
+  - The enumerated grammar leaves bracket classes out; `overlap` reads a class as any one character, so it can only over-report, and the pathspec reference keeps `matches` honest inside the grammar.
+  - Readers that move onto `matches` (D-4) change what they match: `Path.match` was right-anchored and the prefix tests matched part of a file name, so a glob that relied on either matches less.
 alternatives:
   - option: >-
       Keep `fnmatch` in the hook and add a test that compares it against pathspec.

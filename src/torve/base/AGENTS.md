@@ -32,4 +32,12 @@ Every model torve reads from YAML checks `schema_version` through one shared fie
 - Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
 - Consequence: a file written for another torve stops the command that reads it, instead of being read as current
 
+### S-0105/D-1 — `ASSUMED` (One reading of a scope glob) — implementation: none
+
+`src/torve/base/globs.py`, standard library only, holds the reading of a scope glob: `matches(path, globs)` and `overlap(left, right)`, both decided by one segment-wise meet of two patterns, with gitignore's semantics as the scope gate reads them through pathspec. A pattern with no inner `/` matches at any depth, a leading `/` anchors it, a trailing `/` means a directory, what is under a matched path matches too, `**` spans segments, `*` and `?` stay within one, and a bracket class reads as any one character.
+
+- Paths: `src/torve/base/globs.py`
+- Consequence: the hook and the engine can share one function, because nothing it needs is outside the standard library
+- Check: `uv run pytest tests/test_globs.py -q` (shadow; runs as `decision:S-0105/D-1`, no log entry owed)
+
 <!-- /torve:managed -->

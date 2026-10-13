@@ -278,6 +278,45 @@ The attempt's prompt lists its contingent paths beside its scope, the scope gate
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/gates/scope.py` `src/torve/application/review.py`
 - Consequence: a widening is read by the agent, the gate and the reviewer, never made silently
 
+### S-0105/D-4 — `ASSUMED` (One reading of a scope glob) — implementation: none
+
+The other readers of a path glob read through `matches`: `intake._matched` and `neighbours._matched`, telemetry's `in_scope_read` class, a gate's `paths` filter (`gates/runner._judges_anything`) and `config/spec.check_backlinks`' LOCKED-row paths. Their prefix fallbacks go, since gitignore already matches what is under a matched directory.
+
+- Paths: `src/torve/application/intake.py` `src/torve/application/neighbours.py` `src/torve/application/telemetry.py` `src/torve/gates/runner.py` `src/torve/config/spec.py`
+- Consequence: a glob written once means one set of paths wherever torve reads it
+
+### S-0106/D-1 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+A decision gate whose command selects no test fails as vacuous: pytest's exit 5, or the "no tests ran" reading `acceptance` already makes, is `fail` with "the check selected nothing", under the row's state. `decisions-reported` owes an entry for a LOCKED row whose check did not pass, instead of skipping every row that has a check.
+
+- Paths: `src/torve/gates/runner.py` `src/torve/gates/acceptance.py` `src/torve/gates/decisions_reported.py`
+- Consequence: a `-k` filter that matches nothing is seen the first time it runs, and a LOCKED row whose check fails gets a word in the log
+- Check: `uv run pytest tests/test_gates.py -q -k vacuous` (shadow; runs as `decision:S-0106/D-1`, no log entry owed)
+
+### S-0106/D-2 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+The completion battery and the document-branch regate run the `decision:<id>` gates of every row the document's phases inherited, and an `invariant:<id>` gate for every standing invariant whose paths the document's diff reaches. A decision gate keeps its row's state; an invariant gate is shadow.
+
+- Paths: `src/torve/application/lane.py` `src/torve/gates/runner.py` `src/torve/gates/context.py`
+- Consequence: a check runs on the whole document before its pull request turns ready, not only on the attempt that inherited it
+- Check: `uv run pytest tests/test_lane.py -q -k completion_runs_checks` (shadow; runs as `decision:S-0106/D-2`, no log entry owed)
+
+### S-0106/D-6 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+Under a document whose `change.type` is `refactor`, `red-on-base` runs the changed test files and the inherited decision checks on the base tree and on the candidate. Green on both passes; green on one and red on the other fails as "behaviour changed under a refactor". Outside a refactor the gate is unchanged.
+
+- Paths: `src/torve/gates/red_on_base.py`
+- Consequence: a refactor is judged by whether behaviour held, and S-0081's named risk, a refactor convicted for changing nothing, is closed
+- Check: `uv run pytest tests/test_gates.py -q -k refactor` (shadow; runs as `decision:S-0106/D-6`, no log entry owed)
+
+### S-0106/D-7 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+The manifest's `tests:` block gains `run`, the command a list of test files is appended to (default `python3 -m pytest -q -p no:cacheprovider`), and `pair`, templates from a module to its tests over `{dir}` and `{stem}` (default the Python pairing at any depth under `tests/`). `red-on-base`, the intake's pairing, the neighbour derivation, the context pack's named tests and the review leg's fallback scope read them. A changed test file the gate cannot parse into functions qualifies whole.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/red_on_base.py` `src/torve/application/intake.py` `src/torve/application/neighbours.py` `src/torve/application/contextpack.py` `src/torve/application/reviewleg.py`
+- Consequence: a repository whose tests are `*_test.go` or `*.spec.ts` gets red-on-base and pairing by naming them, not by a change to torve
+- Check: `uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py -q -k adapter` (shadow; runs as `decision:S-0106/D-7`, no log entry owed)
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail

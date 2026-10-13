@@ -107,12 +107,14 @@ decisions:
       is appended to (default `python3 -m pytest -q -p no:cacheprovider`), and `pair`,
       templates from a module to its tests over `{dir}` and `{stem}` (default the
       Python pairing at any depth under `tests/`). `red-on-base`, the intake's pairing,
-      the context pack's named tests and the review leg's fallback scope read them.
-      A changed test file the gate cannot parse into functions qualifies whole.
+      the neighbour derivation, the context pack's named tests and the review leg's
+      fallback scope read them. A changed test file the gate cannot parse into functions
+      qualifies whole.
     paths:
       - src/torve/config/manifest.py
       - src/torve/gates/red_on_base.py
       - src/torve/application/intake.py
+      - src/torve/application/neighbours.py
       - src/torve/application/contextpack.py
       - src/torve/application/reviewleg.py
     consequence: >-

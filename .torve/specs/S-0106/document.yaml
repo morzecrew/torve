@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: gates
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0054, S-0081]
 informed_by: []
@@ -79,13 +79,27 @@ design:
       test files and the inherited decision checks on the base tree and on the candidate.
       Both green passes; a test or check green on one and red on the other convicts
       as "behaviour changed under a refactor". Outside a refactor the gate is unchanged.
-tests: ''
+tests: |-
+  - A decision check whose `-k` selects nothing fails as vacuous, with its own sentence; a check that runs and passes still covers its row (D-1).
+  - A LOCKED row whose shadow check failed is owed by `decisions-reported`; one whose check passed is not (D-1).
+  - The completion battery of a document whose phase inherited a checked row runs `decision:<id>`; an invariant whose paths the document's diff reaches runs as `invariant:<id>`, and one it does not reach does not; the attempt battery is unchanged (D-2).
+  - `torve gates check` fails on a twin that exits non-zero and passes on one that exits 0; `torve spec check` refuses a blocking row without a twin (D-3).
+  - The spec-writer skill names properties, example tests and twins, and `hypothesis` is a direct dev dependency (D-4).
+  - The review prompt names each checked row's check, twin and the two audit questions, and lists an unchecked row without them; the pack's `decisions.json` carries `check_twin` (D-5).
+  - Under `change.type: refactor`, red-on-base passes when the changed tests pass on both trees and fails with "behaviour changed under a refactor" when one turns red; a feature document is judged as before (D-6).
+  - A manifest pairing `{dir}/{stem}_test.go` pairs a Go file in the intake, the neighbour derivation and the pack, and red-on-base runs `tests.run` on it; with no `tests:` block the Python behaviour is unchanged (D-7).
 docs: ''
 out_of_scope: |-
   - bloomery's manifest: turning `red-on-base` on there, and naming its `tests:` block, are bloomery's changes once it upgrades.
   - Test-output parsers for runners other than pytest.
   - S-0081's open questions on tests-only diffs and on retiring `coverage-delta`.
-risks: ''
+risks: |-
+  - The completion battery grows by every inherited check and every reached invariant; most are a filtered pytest run or a `grep`, but `torve gates check` as an invariant runs the sabotage suite, and the battery's timeout must hold it.
+  - Making exit 5 a failure turns today's silent `-k` misses red under shadow; the three S-0084 checks passed on two of three attempts, so a miss is a real filter bug, and shadow keeps it a record, not a block.
+  - Owing an entry for a failing shadow check (D-1, Q-2) costs an attempt one log entry per such LOCKED row; a check that fails for its environment rather than its row will cost that entry until the check is fixed.
+  - The reviewer's audit is a judgement, not a proof; it can pass a weak property. Twins and, later, mutation scores are the mechanical answers.
+  - Refactor mode trusts the document's change type; a refactor document that changes behaviour on purpose is mislabelled and convicts, which is the label's fault and the gate's point.
+  - The adapter covers finding, pairing and running tests; a non-Python repository still gets pytest-shaped parsing in `acceptance` and the pack until a later document replaces it.
 alternatives:
   - option: >-
       Prove decisions in Lean or Dafny and run the proofs as gates.
