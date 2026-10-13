@@ -23,10 +23,13 @@ nothing.
 
 from __future__ import annotations
 
-import fnmatch
 import json
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import globs  # the sibling copy of the engine's reading of a scope glob (D-3)
 
 # Tool calls that name a single target file. Anything else (Bash included) is
 # not a declared write and this hook has no claim on it.
@@ -182,18 +185,18 @@ def is_allowed(
     scope gate.
 
     Beyond the globs, a managed `AGENTS.md` beside a scoped directory passes
-    too (S-0104/D-6). `fnmatch` is path-blind: its `*` crosses `/`, so
-    `.torve/agents/**` reaches every depth, which is the meaning the scope
-    gate gives it.
+    too (S-0104/D-6). The globs are read through the sibling copy of the
+    engine's reading (D-3): gitignore's semantics, the same ones the scope
+    gate itself applies, so the two never disagree about a path.
     """
 
-    if any(fnmatch.fnmatch(rel, pattern) for pattern in deny):
+    if globs.matches(rel, deny):
         return False
 
-    if any(fnmatch.fnmatch(rel, pattern) for pattern in contingent):
+    if globs.matches(rel, contingent):
         return True
 
-    if not patterns or any(fnmatch.fnmatch(rel, pattern) for pattern in patterns):
+    if not patterns or globs.matches(rel, patterns):
         return True
 
     return _beside_scoped(rel, patterns)
@@ -205,7 +208,7 @@ def refusal(
     deny: list[str] | tuple[str, ...] = (),
     contingent: list[str] | tuple[str, ...] = (),
 ) -> str:
-    if any(fnmatch.fnmatch(target, pattern) for pattern in deny):
+    if globs.matches(target, deny):
         return (
             f"refused: {target} is inside this task's scope.deny ({', '.join(deny)}). "
             "The scope gate will convict on it. Work outside the denied paths, "

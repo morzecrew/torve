@@ -1501,3 +1501,34 @@ def test_the_pre_write_hook_falls_back_to_the_default_lock_table(tmp_path: Path)
     )
 
     assert done.returncode == 0, done.stderr
+
+
+def test_the_pre_write_hook_reads_its_globs_through_the_engine_s_own() -> None:
+    """S-0105/D-3: the hook's reading of a scope glob is a byte-identical copy
+    of the engine's, imported as a sibling, so a write the hook refuses is one
+    the scope gate would convict, and the other way round. `fnmatch` leaves the
+    hook for the copy's gitignore reading, and that reading is pinned here to
+    the gate's own over the whole bounded grammar."""
+
+    from pathspec import GitIgnoreSpec
+    from test_globs import PATHS, PATTERNS
+
+    assert (HOOK_DIR / "globs.py").read_bytes() == (
+        Path(__file__).resolve().parent.parent / "src" / "torve" / "base" / "globs.py"
+    ).read_bytes()
+
+    guard = _hook_script("scope_guard")
+
+    # The reading the copy has to get right: a pattern with no inner slash
+    # matches at any depth, a trailing slash names a directory, a leading slash
+    # anchors to the root, and `*` stays within one segment.
+    assert guard.is_allowed("src/x.py", ["src"])
+    assert guard.is_allowed("docs/x.md", ["docs/"])
+    assert guard.is_allowed("src/x.py", ["/src/x.py"])
+    assert not guard.is_allowed("src/a/b.py", ["src/*.py"])
+
+    for pattern in PATTERNS:
+        spec = GitIgnoreSpec.from_lines([pattern])
+
+        for path in PATHS:
+            assert guard.is_allowed(path, [pattern]) == spec.match_file(path), (pattern, path)
