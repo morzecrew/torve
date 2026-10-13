@@ -207,6 +207,10 @@ def tests_file(root: Path, task: Task) -> dict[str, Any]:
     contexts the battery does not record yet; what it does record is here."""
 
     allow = GitIgnoreSpec.from_lines(task.scope.allow or ["**"])
+    # S-0104/D-7: a contingent literal is part of what covers the scope, so its
+    # coverage and its paired test are read here too, not only the declared
+    # globs' — the attempt sees what it may reach already measured.
+    contingent = set(task.scope.contingent)
     covered: list[dict[str, Any]] = []
     report = root / "coverage.xml"
 
@@ -221,7 +225,7 @@ def tests_file(root: Path, task: Task) -> dict[str, Any]:
                 filename = cls.get("filename") or ""
                 path = filename if filename.startswith("src/") else f"src/{filename}"
 
-                if not allow.match_file(path):
+                if not (allow.match_file(path) or path in contingent):
                     continue
 
                 lines = list(cls.iter("line"))
@@ -233,13 +237,20 @@ def tests_file(root: Path, task: Task) -> dict[str, Any]:
     named: list[dict[str, str]] = []
     tests_dir = root / "tests"
     test_names = [p.name for p in tests_dir.iterdir()] if tests_dir.is_dir() else []
+    modules = [
+        glob
+        for glob in task.scope.allow
+        if "*" not in glob and glob.endswith(".py") and not glob.startswith("tests/")
+    ]
+    modules += [
+        path
+        for path in task.scope.contingent
+        if path.endswith(".py") and not path.startswith("tests/")
+    ]
 
-    for glob in task.scope.allow:
-        if "*" in glob or not glob.endswith(".py") or glob.startswith("tests/"):
-            continue
-
-        for name in paired_test_files(Path(glob).stem, test_names):
-            named.append({"module": glob, "test": f"tests/{name}"})
+    for module in dict.fromkeys(modules):
+        for name in paired_test_files(Path(module).stem, test_names):
+            named.append({"module": module, "test": f"tests/{name}"})
 
     return {"schema_version": 1, "coverage": covered, "named_tests": named}
 
@@ -679,13 +690,16 @@ def scope_file(
 
 def _in_scope(root: Path, task: Task, tests: dict[str, Any]) -> list[str]:
     """The paths under `scope.allow` and not under `scope.deny`, plus the tests
-    `tests_file` named for them. An empty allow list means unconstrained, which
-    is every file in the tree — so it contributes nothing here and the named
-    tests stand alone: a pack is not the place to inline a repository."""
+    `tests_file` named for them, plus the contract's `scope.contingent` literals
+    (S-0104/D-7): the neighbours a change is likely to reach ride with the scope
+    so the attempt reads them as one. An empty allow list means unconstrained,
+    which is every file in the tree — so it contributes nothing here and the
+    named tests stand alone: a pack is not the place to inline a repository."""
 
     allow = GitIgnoreSpec.from_lines(task.scope.allow) if task.scope.allow else None
     deny = GitIgnoreSpec.from_lines(task.scope.deny) if task.scope.deny else None
     named = {str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])}
+    contingent = set(task.scope.contingent)
     found: set[str] = set()
 
     for parent, dirs, names in root.walk():
@@ -695,8 +709,7 @@ def _in_scope(root: Path, task: Task, tests: dict[str, Any]) -> list[str]:
             rel = (parent / name).relative_to(root).as_posix()
 
             if rel in named or (
-                allow is not None
-                and allow.match_file(rel)
+                (rel in contingent or (allow is not None and allow.match_file(rel)))
                 and not (deny is not None and deny.match_file(rel))
             ):
                 found.add(rel)

@@ -1566,3 +1566,53 @@ def test_a_glob_over_a_directory_the_phase_creates_is_not_a_wildcard_that_never_
     assert _glob_errors("T-1", tree, ["fuzz/**"], "allow") == []
     refused = _glob_errors("T-1", tree, ["src/*.md"], "allow")
     assert len(refused) == 1 and "matches nothing" in refused[0]
+
+
+# ....................... #
+# S-0104/D-9: pairing finds a module's tests at any depth under `tests/` — a
+# nested-layout miss warns, the flat layout's miss still refuses.
+
+
+def test_lint_warns_on_a_nested_test_miss_but_refuses_the_flat_one(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests" / "unit").mkdir(parents=True)
+    (tmp_path / "src" / "app.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "test_app.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "unit" / "test_app.py").write_text("", encoding="utf-8")
+
+    warnings: list[str] = []
+    errors = lint_drafts(tmp_path, document(draft_dict(allow=["src/app.py"])), 4, warnings=warnings)
+
+    assert any("existing test file tests/test_app.py" in e for e in errors)
+    assert not any("tests/unit" in e for e in errors)
+    assert any("nested test file tests/unit/test_app.py" in w for w in warnings)
+
+
+def test_lint_warns_only_when_the_miss_is_nested(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests" / "unit").mkdir(parents=True)
+    (tmp_path / "src" / "app.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "unit" / "test_app.py").write_text("", encoding="utf-8")
+
+    warnings: list[str] = []
+    errors = lint_drafts(tmp_path, document(draft_dict(allow=["src/app.py"])), 4, warnings=warnings)
+
+    assert errors == []
+    assert any("nested test file tests/unit/test_app.py" in w for w in warnings)
+
+
+def test_a_nested_test_the_scope_allows_is_no_warning(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests" / "unit").mkdir(parents=True)
+    (tmp_path / "src" / "app.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "unit" / "test_app.py").write_text("", encoding="utf-8")
+
+    warnings: list[str] = []
+    errors = lint_drafts(
+        tmp_path,
+        document(draft_dict(allow=["src/app.py", "tests/unit/test_app.py"])),
+        4,
+        warnings=warnings,
+    )
+
+    assert errors == [] and warnings == []

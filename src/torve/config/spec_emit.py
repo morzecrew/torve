@@ -122,7 +122,13 @@ def _value(doc: Document, name: str) -> Any:
         return None
 
     if name == "contract_example":
-        return value.model_dump(mode="json", exclude_none=True)
+        example = value.model_dump(mode="json", exclude_none=True)
+        # An empty contingent set is the planner's to derive (S-0104/D-1), never
+        # an author's to write, so an example written before it existed keeps
+        # its canonical form.
+        if not example.get("scope", {}).get("contingent"):
+            example.get("scope", {}).pop("contingent", None)
+        return example
 
     # A header object such as `change` (S-0087/D-1): only what its author set,
     # the way a row carries only what differs from the model's default.

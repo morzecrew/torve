@@ -301,6 +301,8 @@ ATTEMPT_KINDS: Mapping[str, EventKind] = {
     "attempt_started": EventKind.ATTEMPT_STARTED,
     "attempt_finished": EventKind.ATTEMPT_FINISHED,
     "gates_evaluated": EventKind.GATES_EVALUATED,
+    # S-0104/D-2: a contingent path the runner watched the attempt write.
+    "scope_promoted": EventKind.SCOPE_PROMOTED,
     # S-0101/D-4: the reviewer's findings ride the record too, so a host that
     # did not run the review reads them. Not an attempt fact — its payload
     # carries no `attempt` — so the sink below records it without one.

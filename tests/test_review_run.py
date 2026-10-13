@@ -45,7 +45,7 @@ from torve.config.runconfig import (
 )
 from torve.domain.attempt import Finding
 from torve.domain.states import TaskState
-from torve.domain.task import InheritedDecision, Task
+from torve.domain.task import InheritedDecision, Scope, Task
 
 # The shipped role skills, as a repository's profiles would declare them.
 ROLE_SKILLS: dict[str, list[str]] = {
@@ -754,6 +754,34 @@ def test_the_degraded_prompt_forbids_invented_specifications():
     prompt = build_review_prompt(target, "diff --git", [], degraded=True)
     assert "degraded" in prompt
     assert "invent" in prompt
+
+
+def test_the_review_prompt_lists_a_promotion():
+    """S-0104/D-7: the reviewer is shown the contingent paths the diff
+    actually widened, read from the diff the way the scope gate reads it —
+    so a widening is reviewed, not discovered after the fact."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[],
+        scope=Scope(allow=["src/app/**"], contingent=["docs/notes.md", "src/app/kept.py"]),
+    )
+    diff = (
+        "diff --git a/docs/notes.md b/docs/notes.md\n"
+        "--- a/docs/notes.md\n+++ b/docs/notes.md\n@@ -1 +1 @@\n-a\n+b\n"
+        "diff --git a/src/app/kept.py b/src/app/kept.py\n"
+        "--- a/src/app/kept.py\n+++ b/src/app/kept.py\n@@ -1 +1 @@\n-a\n+b\n"
+    )
+    prompt = build_review_prompt(target, diff, [])
+
+    assert "contingent paths this change widened beyond its task's scope:" in prompt
+    assert "- docs/notes.md" in prompt
+    # A path the declared globs already admit is the scope, not a widening.
+    assert "- src/app/kept.py" not in prompt
+
+    # A diff that widened nothing says nothing about promotions.
+    assert "widened beyond" not in build_review_prompt(target, "diff --git a/x b/x", [])
 
 
 def test_parse_findings_takes_the_last_document():

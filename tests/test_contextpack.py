@@ -22,10 +22,11 @@ from torve.application.contextpack import (
     gates_file,
     materialize,
     render_index,
+    scope_file,
     tests_file,
 )
 from torve.config.spec import load_corpus
-from torve.domain.task import InheritedDecision, Task
+from torve.domain.task import InheritedDecision, Scope, Task
 
 # ----------------------- #
 
@@ -225,6 +226,28 @@ def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
         {"module": "src/a/thing.py", "test": "tests/test_thing.py"},
         {"module": "src/a/thing.py", "test": "tests/test_thing_config.py"},
     ]
+
+
+def test_the_pack_scope_and_named_tests_include_contingent_paths(tmp_path: Path) -> None:
+    """S-0104/D-7: a contingent path rides with the scope — the pack inlines
+    the neighbour and pairs its test, so the attempt reads what it may widen
+    to without opening each by hand."""
+
+    _seed(tmp_path)
+    (tmp_path / "src" / "b.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "tests" / "test_b.py").write_text("", encoding="utf-8")
+
+    task = Task(
+        id="T-0500",
+        spec="S-0001",
+        decisions=[],
+        scope=Scope(allow=["src/a/**"], contingent=["src/b.py"]),
+    )
+
+    payload = tests_file(tmp_path, task)
+    assert {"module": "src/b.py", "test": "tests/test_b.py"} in payload["named_tests"]
+
+    assert "## `src/b.py`" in scope_file(tmp_path, task, payload)
 
 
 def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:

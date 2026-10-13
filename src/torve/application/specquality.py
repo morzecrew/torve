@@ -130,6 +130,24 @@ class TaskFacts:
     # ....................... #
 
     @property
+    def promotions(self) -> list[str]:
+        """The contingent paths this phase wrote beyond its declared globs
+        (S-0104/D-10), read from the run state's own history the way the
+        runner's host-local fence reads them. A phase that never promoted
+        reads as empty — the report names exactly the phases whose scope was
+        drawn too narrow, from the record."""
+
+        marker = "promoted "
+
+        return [
+            str(entry.get("fact", ""))[len(marker) :]
+            for entry in self.history
+            if str(entry.get("fact", "")).startswith(marker)
+        ]
+
+    # ....................... #
+
+    @property
     def size(self) -> str:
         """The size verdict this task would receive today (S-0002/task-size),
         recomputed from the same two contract fields `torve.application.
@@ -579,6 +597,37 @@ def _finish(bucket: dict[str, Any], floor: int, amended_ids: set[str]) -> dict[s
 # ....................... #
 
 
+def promotion_counts(tasks: list[TaskFacts]) -> dict[str, Any]:
+    """Promotions per phase and per document (S-0104/D-10): every contingent
+    path a phase wrote beyond its declared globs, counted against the phase's
+    task and summed against its document. A phase that promoted nothing is
+    absent, so the report is exactly the phases whose scope was drawn too
+    narrow — the signal that used to arrive as a halt and an amendment."""
+
+    by_phase: dict[str, int] = {}
+    by_document: dict[str, int] = {}
+
+    for task in tasks:
+        count = len(task.promotions)
+
+        if not count:
+            continue
+
+        by_phase[task.id] = count
+
+        if task.spec:
+            by_document[task.spec] = by_document.get(task.spec, 0) + count
+
+    return {
+        "total": sum(by_phase.values()),
+        "by_phase": dict(sorted(by_phase.items())),
+        "by_document": dict(sorted(by_document.items())),
+    }
+
+
+# ....................... #
+
+
 def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
     """The whole of S-0022/decision-level-report: one population per decision identifier
     inherited anywhere in `.torve/tasks`, each carrying its raw counts always
@@ -652,6 +701,7 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
         "schema_version": 1,
         "floor": floor,
         "populations": populations,
+        "promotions": promotion_counts(tasks),
         **corpus_shape(root, rfc_dir),
     }
 

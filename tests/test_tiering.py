@@ -512,6 +512,24 @@ def test_prompt_states_explicit_emptiness():
     assert "unconstrained" in prompt
 
 
+def test_the_prompt_names_a_contingent_path():
+    """S-0104/D-7: the attempt reads the neighbours it may widen to beside its
+    scope, so a widening is done knowingly, never discovered against the gate."""
+
+    task = Task(
+        id="T-1",
+        decisions=[],
+        scope=Scope(allow=["src/app/**"], contingent=["docs/notes.md", "src/shared.py"]),
+    )
+    prompt = build_prompt(task)
+
+    assert "- contingent: docs/notes.md, src/shared.py" in prompt
+
+    # A task whose contract carries none states none: the line is absent, not
+    # an empty allowance.
+    assert "- contingent:" not in build_prompt(Task(id="T-2", decisions=[]))
+
+
 def test_prompt_never_asks_for_a_pin_the_sandbox_cannot_resolve():
     """S-0001/D-36, S-0044/D-10: the agent states an entry and the engine
     writes the log, so nothing asks it for the base commit it cannot see."""

@@ -367,3 +367,26 @@ def test_a_contract_whose_file_vanished_keeps_its_history_and_stops_dispatching(
         assert board.tasks["T-0001"].state is TaskState.QUEUED
 
     run(scenario)
+
+
+def test_a_contracts_contingent_set_reads_back_off_the_board(tmp_path):
+    """S-0104/D-1: `scope.contingent` is part of the contract the board holds,
+    carried through the record as faithfully as `allow`."""
+
+    task_dir = tmp_path / ".torve" / "tasks" / "T-0001"
+    task_dir.mkdir(parents=True)
+    (task_dir / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0001\nrole: implement\nintent: work here\n"
+        "scope: {allow: ['src/a/**'], contingent: ['src/b.py', 'tests/test_a.py']}\n"
+        "acceptance: []\ndecisions: []\n",
+        encoding="utf-8",
+    )
+
+    async def scenario(log):
+        await sync(log, tmp_path)
+        view = (await board_of(log)).tasks["T-0001"]
+
+        assert view.contract is not None
+        assert view.contract.scope.contingent == ["src/b.py", "tests/test_a.py"]
+
+    run(scenario)

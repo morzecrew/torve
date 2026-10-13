@@ -26,6 +26,20 @@ SCHEMA_VERSION = 1
 # costs money, never correctness.
 UNLABELED_AXIS: GateAxis = "functional"
 
+# The files that ride with a source out of the box (S-0104/D-5): a scope that
+# admits a manifest admits the lock file a dependency change rewrites, because
+# refusing the lock refuses the change the scope allowed (bloomery T-0008,
+# 2026-09-19: 24 minutes of work convicted on `outside allow: uv.lock`). The
+# map is the default `ManifestScope.derived`, so a repository that names its
+# own generated files replaces it rather than editing a table in the engine.
+DEFAULT_DERIVED: dict[str, tuple[str, ...]] = {
+    "pyproject.toml": ("uv.lock", "poetry.lock", "pdm.lock"),
+    "Pipfile": ("Pipfile.lock",),
+    "package.json": ("package-lock.json", "pnpm-lock.yaml", "yarn.lock"),
+    "Cargo.toml": ("Cargo.lock",),
+    "go.mod": ("go.sum",),
+}
+
 
 class Gate(BaseModel):
     """One entry in gates.yaml (S-0002/the-gate-contract, lifecycle §7 per S-0002/A-2).
@@ -225,13 +239,35 @@ class SecretsConfig(BaseModel):
 # ....................... #
 
 
+class ManifestScope(Scope):
+    """The manifest's scope (S-0104/D-5): the task scope's `allow`, `deny` and
+    `contingent`, plus `derived` — the files that ride with a source, in both
+    directions. A lock file rides with its manifest, a golden with its
+    producer, a generated schema with its model; a derived path is allowed
+    wherever its source is, and its source wherever a derived path is. The
+    default is the lock-file table the scope gate used to hard-code
+    (`DEFAULT_DERIVED`)."""
+
+    model_config = STRICT
+
+    derived: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            manifest: list(locks) for manifest, locks in DEFAULT_DERIVED.items()
+        }
+    )
+    """Source path -> the files that ride with it; applied both directions."""
+
+
+# ....................... #
+
+
 class Manifest(BaseModel):
     model_config = STRICT
     schema_version: Annotated[int, SchemaVersion(SCHEMA_VERSION)] = SCHEMA_VERSION
     """The engine's shape version this manifest is read under."""
-    scope: Scope = Field(default_factory=Scope)
+    scope: ManifestScope = Field(default_factory=ManifestScope)
     """The repository-wide scope the scope gate judges a diff against when the run carries
-    no task file of its own."""
+    no task file of its own, with the `derived` map the gate reads."""
     tests: TestsConfig = Field(default_factory=TestsConfig)
     """Which files count as tests, for the no-test-tampering gate."""
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)

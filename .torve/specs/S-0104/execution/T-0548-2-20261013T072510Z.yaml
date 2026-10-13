@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0548
+phase: 4
+attempt: 2
+base: c63bd3e28b58c4f21cd4a7d55698526758ff5f3b
+commit: 71f9b0cf27aaa7c876b087cac876d80eaefba191
+at: '2026-10-13T07:25:10Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-10-13T07:24:01Z'
+    claim: >-
+      The review prompt lists the contract's contingent literals the diff wrote; a
+      scope.derived rider is not listed because the review holds no manifest, and
+      the scope gate's note names it.
+    evidence: >-
+      src/torve/application/review.py:407 — promoted_paths reads the contract's contingent
+      literals and no manifest.
+    action: departed
+    proposal: >-
+      D-7: the reviewer is shown the contract's contingent literals the change wrote;
+      derived riders are named by the scope gate.

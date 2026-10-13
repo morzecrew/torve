@@ -497,6 +497,24 @@ def test_a_round_brings_the_anchored_modules_test_file(seeded):
     assert round_.acceptance  # the repository's own acceptance fallback
 
 
+def test_a_round_anchored_on_a_module_gets_its_importers_as_contingent(seeded):
+    """S-0104/D-8: a round that needs its anchor's caller promotes it rather
+    than halting on scope — the anchor's neighbours ride as
+    `scope.contingent`, derived by the same rules a phase gets (D-1)."""
+
+    seeded.write("src/consumer.py", "from app import thing\n")
+    finding = group_findings([thread("t1")])[0]
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+    task_id = mint_round(seeded.root, config(), round_)
+
+    contract = yaml.safe_load(layout.task_file(seeded.root, task_id).read_text(encoding="utf-8"))
+
+    # The importer of the anchor is contingent; the anchor's own test is
+    # already in `allow`, so it is the scope, not beyond it.
+    assert contract["scope"]["contingent"] == ["src/consumer.py"]
+    assert "tests/test_app.py" not in contract["scope"]["contingent"]
+
+
 # ----------------------- #
 # The rails (S-0084/D-10, S-0084/D-11, S-0084/D-12).
 

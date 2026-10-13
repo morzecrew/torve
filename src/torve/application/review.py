@@ -131,6 +131,18 @@ def build_review_prompt(
     diff_head = "\n".join(head_lines)
     diff_head_lines = len(head_lines)
 
+    # S-0104/D-7: the contingent paths this diff actually wrote beyond the
+    # declared globs. Shown to the reviewer so a widening is read, never
+    # discovered after the fact. A `scope.derived` rider is not listed: the
+    # review holds no manifest, and the scope gate's note still names it.
+    promotions = promoted_paths(target, diff_text)
+    promotions_block = (
+        "\n\ncontingent paths this change widened beyond its task's scope:\n"
+        + "\n".join(f"- {path}" for path in promotions)
+        if promotions
+        else ""
+    )
+
     spec_block = (
         "No task contract exists for this change: you are reviewing in "
         "degraded mode. You have no scope and no inherited decisions — do "
@@ -139,7 +151,7 @@ def build_review_prompt(
         if degraded
         else f"## The task under review\n\nintent:\n{target.intent}\n\n"
         f"acceptance commands, yours to run in this copy:\n{acceptance}\n\n"
-        f"inherited decisions:\n{decisions}"
+        f"inherited decisions:\n{decisions}{promotions_block}"
     )
 
     return f"""# Review
@@ -390,6 +402,27 @@ def _changed_lines(diff_text: str) -> dict[str, set[int]]:
                 changed[path].update(range(start, start + count))
 
     return changed
+
+
+def promoted_paths(target: Task, diff_text: str) -> list[str]:
+    """The contract's contingent literals *diff_text* wrote beyond the task's
+    declared globs (S-0104/D-7), sorted. Read from the diff, so the reviewer is
+    shown what the change actually widened rather than what the plan wished;
+    an unconstrained scope widens nothing, so the answer is empty."""
+
+    if not target.scope.allow:
+        return []
+
+    from pathspec import GitIgnoreSpec
+
+    allow = GitIgnoreSpec.from_lines(target.scope.allow)
+    contingent = set(target.scope.contingent)
+
+    return sorted(
+        path
+        for path in set(_changed_lines(diff_text))
+        if path in contingent and not allow.match_file(path)
+    )
 
 
 def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:

@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 from pathspec import GitIgnoreSpec
 
-from torve.application import sizing
+from torve.application import neighbours, sizing
 from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
 from torve.domain.spec import Corpus, Document, Phase, document_id, number_of
@@ -569,7 +569,12 @@ def plan_document(
             role="implement",  # review tasks are minted by the runner at `gated` (§3)
             intent=entry.intent.strip(),
             depends_on=within or list(after_tasks),
-            scope=Scope(allow=list(entry.scope)),
+            scope=Scope(
+                allow=list(entry.scope),
+                contingent=neighbours.contingent_paths(
+                    root, entry.scope, document=doc, phase=entry.phase
+                ),
+            ),
             acceptance=list(entry.acceptance),
             decisions=decisions,
             tier_variant=entry.tier_variant or None,

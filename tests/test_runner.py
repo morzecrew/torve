@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -2921,3 +2922,297 @@ def test_a_spec_gap_halt_escalates_underspecified(repo, monkeypatch):
     assert final.escalation is not None and final.escalation.reason == "underspecified"
     assert [r["verdict"] for r in rows] == ["halted"]
     assert rows[0]["escalation"] == "underspecified"
+
+
+# The contingent-write fence (S-0104/D-2, D-3, D-5). The runner reads the
+# widening off the attempt's own diff and refuses a path an in-flight run
+# holds; the board half of the same rule is exercised in test_manager.py.
+
+
+def _fenced_dispatch(root, *, facts=None):
+    """A dispatch rooted where the in-flight fence is seeded, with whatever
+    fact sink the test wants to read."""
+
+    run = _gate_dispatch(root=root, worktree=root)
+    run.deps.facts = facts
+
+    return run
+
+
+def _in_flight_run(root, task_id: str, allow: list[str]):
+    """Seed a run in flight on this host: the contract `_in_flight` reads
+    and the state file that places it in flight."""
+
+    from torve.application.runstate import RunState
+    from torve.domain.states import TaskState
+
+    contract_dir = root / ".torve" / "tasks" / task_id
+    contract_dir.mkdir(parents=True, exist_ok=True)
+    (contract_dir / "contract.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "id": task_id,
+                "role": "implement",
+                "scope": {"allow": allow, "deny": []},
+                "acceptance": [],
+                "decisions": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.transition(TaskState.CLAIMED, "seeded in-flight run")
+    state.transition(TaskState.RUNNING, "seeded in-flight run")
+    state.save()
+
+    return state
+
+
+def _promotion_context(root, task, *paths):
+    from torve.config.manifest import Manifest
+    from torve.gates.context import DiffEntry, GateContext
+
+    return GateContext(
+        root=root,
+        manifest=Manifest(),
+        head_sha="0" * 40,
+        base=None,
+        merge_base=None,
+        diff=[DiffEntry(status="A", path=path) for path in paths],
+        task=task,
+    )
+
+
+def test_promoted_paths_are_the_contingent_neighbours_and_the_derived_riders():
+    """S-0104/D-1, D-5: a path the declared globs already admit is no
+    widening; a contingent literal is, and so is a file riding with an
+    in-scope source through the manifest's derived map. An unconstrained
+    task reaches everything already, so it widens nothing."""
+
+    from torve.application.runner import _promoted_paths
+    from torve.config.manifest import Manifest
+
+    manifest = Manifest()
+    task = Task(
+        id="T-8002",
+        decisions=[],
+        scope=Scope(allow=["src/app/**", "package.json"], contingent=["docs/notes.md"]),
+    )
+
+    assert _promoted_paths(
+        task,
+        manifest,
+        ["src/app/mod.py", "docs/notes.md", "package-lock.json", "tests/test_app.py"],
+    ) == ["docs/notes.md", "package-lock.json"]
+
+    free = Task(id="T-8003", decisions=[], scope=Scope(allow=[], contingent=["docs/notes.md"]))
+    assert _promoted_paths(free, manifest, ["docs/notes.md"]) == []
+
+
+def test_a_written_contingent_path_is_recorded_on_the_board_and_in_the_fence(tmp_path):
+    """S-0104/D-2: the promotion is read off the diff rather than believed
+    from the plan. It goes to the board through the fact sink, and to the
+    run's own history, which is the fence a later write is checked against
+    — an in-flight run holding other paths refuses nothing here."""
+
+    from torve.application.runner import _record_promotions, _recorded_promotions
+    from torve.application.runstate import RunState
+
+    _in_flight_run(tmp_path, "T-8001", ["src/other/**"])
+
+    seen = []
+    run = _fenced_dispatch(tmp_path, facts=seen.append)
+    state = RunState(task_id="T-8002", path=naming.state_file(tmp_path, "T-8002"))
+    task = Task(
+        id="T-8002",
+        decisions=[],
+        scope=Scope(allow=["src/app/**"], contingent=["docs/notes.md"]),
+    )
+
+    _record_promotions(run, state, _promotion_context(tmp_path, task, "docs/notes.md"))
+
+    assert [(fact.kind, fact.payload["path"]) for fact in seen] == [
+        ("scope_promoted", "docs/notes.md")
+    ]
+    assert _recorded_promotions(state) == ["docs/notes.md"]
+
+
+def test_a_contingent_write_an_in_flight_run_holds_requeues_with_the_holder(tmp_path):
+    """S-0104/D-3: the refusal is at the write and names the holder. The
+    run state is dropped so the next pass may claim the task again, and
+    nothing is promoted or escalated — a collision costs a wait, not a
+    person."""
+
+    from torve.application.runner import _record_promotions
+    from torve.application.runstate import RunState
+    from torve.domain.states import BlockedDispatch
+
+    _in_flight_run(tmp_path, "T-8001", ["docs/notes.md"])
+
+    seen = []
+    run = _fenced_dispatch(tmp_path, facts=seen.append)
+    state = RunState(task_id="T-8002", path=naming.state_file(tmp_path, "T-8002"))
+    state.save()
+    task = Task(
+        id="T-8002",
+        decisions=[],
+        scope=Scope(allow=["src/app/**"], contingent=["docs/notes.md"]),
+    )
+
+    with pytest.raises(BlockedDispatch, match=r"blocked_by_overlap: T-8001 on docs/notes\.md"):
+        _record_promotions(run, state, _promotion_context(tmp_path, task, "docs/notes.md"))
+
+    assert seen == []
+    assert not naming.state_file(tmp_path, "T-8002").exists()
+
+
+def test_a_derived_rider_an_in_flight_run_holds_refuses_the_write(tmp_path):
+    """S-0104/D-5: the derived map applies both directions, and its rider is
+    as much a fence as a contingent literal — a task declaring the manifest
+    is refused when another run holds the lock file that rides with it."""
+
+    from torve.application.runner import _record_promotions
+    from torve.application.runstate import RunState
+    from torve.domain.states import BlockedDispatch
+
+    _in_flight_run(tmp_path, "T-8001", ["package-lock.json"])
+
+    run = _fenced_dispatch(tmp_path)
+    state = RunState(task_id="T-8002", path=naming.state_file(tmp_path, "T-8002"))
+    task = Task(
+        id="T-8002",
+        decisions=[],
+        scope=Scope(allow=["package.json"]),
+    )
+
+    with pytest.raises(BlockedDispatch, match=r"blocked_by_overlap: T-8001 on package-lock\.json"):
+        _record_promotions(run, state, _promotion_context(tmp_path, task, "package-lock.json"))
+
+
+def test_a_dispatch_is_refused_against_a_promoted_path_an_in_flight_run_holds(tmp_path):
+    """S-0104/D-2: a promoted path joins the promoting run's fence for every
+    overlap check after, the dispatch scan included — a task declaring it is
+    refused with the promoting task's id."""
+
+    from torve.application.runner import _blocking_overlap
+
+    state = _in_flight_run(tmp_path, "T-8001", ["src/app/**"])
+    state.history.append(
+        {
+            "at": state.heartbeat,
+            "from": str(state.state),
+            "to": str(state.state),
+            "fact": "promoted docs/notes.md",
+        }
+    )
+    state.save()
+
+    task = Task(id="T-8002", decisions=[], scope=Scope(allow=["docs/notes.md"]))
+
+    assert _blocking_overlap(tmp_path, task) == ("T-8001", "docs/notes.md")
+
+
+def test_a_contingent_write_a_task_another_host_holds_requeues_with_the_holder(tmp_path):
+    """S-0104/D-2, D-3: the write-time fence is the board's in-flight set as
+    well as this host's run states. A task another host claimed holds the
+    path; the refusal names it and the run state is dropped, so the attempt
+    returns to the queue rather than writing a file another task owns."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _record_promotions
+    from torve.application.runstate import RunState
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+    from torve.domain.states import BlockedDispatch
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            holder = Task(id="T-9001", decisions=[], scope=Scope(allow=["docs/notes.md"]))
+
+            await log.record(
+                EventKind.TASK_MINTED,
+                partition="morzecrew/torve",
+                subject_type=SubjectType.TASK,
+                subject_id=holder.id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id="manager-1",
+                payload={
+                    "title": holder.id,
+                    "source_id": "0104",
+                    "depends_on": [],
+                    "contract": holder.model_dump(mode="json"),
+                },
+            )
+            await log.record(
+                EventKind.TASK_CLAIMED,
+                partition="morzecrew/torve",
+                subject_type=SubjectType.TASK,
+                subject_id=holder.id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id="w-other",
+                payload={"worker": "w-other", "lease_seconds": 900},
+            )
+
+            run = _fenced_dispatch(tmp_path)
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition="morzecrew/torve",
+                task_id="T-9002",
+                seat="w-1",
+            )
+            state = RunState(task_id="T-9002", path=naming.state_file(tmp_path, "T-9002"))
+            state.save()
+            task = Task(
+                id="T-9002",
+                decisions=[],
+                scope=Scope(allow=["src/app/**"], contingent=["docs/notes.md"]),
+            )
+
+            with pytest.raises(
+                BlockedDispatch, match=r"blocked_by_overlap: T-9001 on docs/notes\.md"
+            ):
+                await asyncio.to_thread(
+                    _record_promotions,
+                    run,
+                    state,
+                    _promotion_context(tmp_path, task, "docs/notes.md"),
+                )
+
+            assert not naming.state_file(tmp_path, "T-9002").exists()
+
+    asyncio.run(main())
+
+
+def test_a_held_contingent_write_is_not_a_gate_infrastructure_escalation(tmp_path, monkeypatch):
+    """S-0104/D-3: `judge`'s catch-all must not turn the write-time refusal
+    into GATE_INFRASTRUCTURE_FAILURE. The block is a wait — the task says it
+    escalates nothing — so the refusal passes through with no attempt row."""
+
+    from torve.application import runner as runner_module
+    from torve.application.dispatch import telemetry_target
+    from torve.application.runstate import RunState
+    from torve.domain.states import BlockedDispatch
+
+    def refuse(_run, _state):
+        raise BlockedDispatch("blocked_by_overlap: T-8001 on docs/notes.md")
+
+    monkeypatch.setattr(runner_module, "run_gate_pass", refuse)
+
+    run = _fenced_dispatch(tmp_path)
+    state = RunState(task_id="T-8002", path=naming.state_file(tmp_path, "T-8002"))
+
+    with pytest.raises(BlockedDispatch):
+        asyncio.run(runner_module.judge(run, state))
+
+    target = telemetry_target(run)
+
+    assert not target.exists() or "gate_infrastructure" not in target.read_text(encoding="utf-8")

@@ -28,12 +28,19 @@ A requeue on top of a leftover escalated worktree fails as
 
 ## By reason
 
-**`underspecified`, or a halt on scope.** The agent found that the change
-needs a file the phase does not own, and its divergence entry names the file.
-Check the claim. If it holds, widen the phase's scope in the document and
-refresh the minted contract with `torve plan S-NNNN --refresh` (or edit the
-contract to match), then reap and requeue. If a test or document already
-proves the scope right, requeue with a note that says so.
+**`underspecified`, or a halt on scope.** A scope halt is now rare. Each
+contract carries a contingent set — the change's importers and first-party
+imports, its paired tests, its package files and the document's other phases —
+and one of those is promoted on its first write instead of halting, while a
+path another task in flight holds sends the attempt back to the queue rather
+than to you. So read the divergence entry first, not only the file it names: a
+halt that survives means the change needs a path no rule reached — usually a
+generated file the manifest's `scope.derived` map does not yet pair with its
+source, or a phase drawn genuinely too narrow. Check the claim. If it holds,
+name the link in `scope.derived`, or widen the phase's scope in the document,
+and refresh the minted contract with `torve plan S-NNNN --refresh` (or edit the
+contract to match), then reap and requeue. If a test or document already proves
+the scope right, requeue with a note that says so.
 
 **`locked_conflict`.** The work contradicts a `LOCKED` row. That is the
 owner's decision: amend the row (`torve spec amend`) or change the phase.

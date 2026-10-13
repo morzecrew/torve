@@ -654,6 +654,22 @@ def test_an_empty_allow_on_a_writing_role_is_still_unconstrained(rig):
         run_task(repo.root, task, RunnerConfig(), deps)
 
 
+def test_a_contingent_path_alone_does_not_refuse_a_dispatch(rig):
+    """S-0104/D-2, D-3: a contingent path is not a claim at dispatch — the
+    attempt may never write it — so an in-flight run declaring it does not
+    hold a task off. The refusal is at the write, where the diff shows the
+    claim was actually made (test_runner.py)."""
+    repo, deps, _runtime, _vcs, _ = rig
+    _active_run(repo.root, "T-8001", role="implement", allow=["docs/notes.md"])
+    task = Task(
+        id="T-8002",
+        scope=Scope(allow=["src/app/**"], contingent=["docs/notes.md"]),
+        decisions=[],
+    )
+    state = run_task(repo.root, task, RunnerConfig(), deps)
+    assert state.state is TaskState.READY
+
+
 def test_a_review_dispatch_is_refused_at_the_door(rig):
     """T-0183: the generic attempt path mounts the workspace writable, so a
     review-role task is never dispatched through it — the front door

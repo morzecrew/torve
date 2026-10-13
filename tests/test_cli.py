@@ -1628,3 +1628,14 @@ def test_a_task_body_lists_gate_results_from_the_record_with_an_empty_stream(tmp
     _title, body = _pr_text(root, task.id, [gate])
 
     assert "all 2 pass" in body
+
+
+def test_the_contract_schema_follows_the_model():
+    # S-0104: `Scope` gains `contingent`; the schema tracks the model.
+    from torve.domain.task import Task
+
+    path = Path(__file__).resolve().parent.parent / ".torve" / "schemas" / "contract.json"
+    schema = json.loads(path.read_text(encoding="utf-8"))
+
+    assert schema == Task.model_json_schema()
+    assert "contingent" in schema["$defs"]["Scope"]["properties"]

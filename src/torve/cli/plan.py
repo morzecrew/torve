@@ -137,8 +137,11 @@ def plan_cmd(
     # poison ceiling to discover. A reviewed document is not a linted one.
     from torve.application.intake import lint_task
 
+    warnings: list[str] = []
     refusals = [
-        error for planned in report.tasks for error in lint_task(root, planned.task, planning=True)
+        error
+        for planned in report.tasks
+        for error in lint_task(root, planned.task, planning=True, warnings=warnings)
     ]
 
     if refusals:
@@ -185,7 +188,9 @@ def plan_cmd(
     else:
         console = out(fmt)
         header(console, "plan", f"{report.document} · {len(report.tasks)} task(s)")
-        table = make_table("task", "phase", "title", "size", "decisions", "scope", "after")
+        table = make_table(
+            "task", "phase", "title", "size", "decisions", "scope", "contingent", "after"
+        )
 
         for planned in report.tasks:
             task = planned.task
@@ -197,10 +202,14 @@ def plan_cmd(
                 Text(planned.size.size, "" if planned.size.size == "ok" else STYLE_WARN),
                 str(len(task.decisions)),
                 str(len(task.scope.allow)),
+                str(len(task.scope.contingent)),
                 Text(", ".join(task.depends_on), STYLE_DIM),
             )
 
         console.print(table)
+
+        for warning in warnings:
+            console.print(Text(f"warning: {warning}", STYLE_WARN))
 
         if dry_run:
             closing(console, "dry run — nothing written; pass --no-dry-run to mint", STYLE_DIM)
@@ -255,8 +264,11 @@ def _refresh(
 
     # As the mint lints what it would write (S-0052/A-3): a rewrite that cannot be
     # satisfied is a contract nobody can execute, whoever derived it.
+    warnings: list[str] = []
     refusals = [
-        error for _one, task in report.rewritten for error in lint_task(root, task, planning=True)
+        error
+        for _one, task in report.rewritten
+        for error in lint_task(root, task, planning=True, warnings=warnings)
     ]
 
     if refusals:
@@ -321,6 +333,9 @@ def _refresh(
             )
 
         console.print(table)
+
+        for warning in warnings:
+            console.print(Text(f"warning: {warning}", STYLE_WARN))
 
         left = f"left alone: {', '.join(one.task_id for one in held) if held else 'none'}"
 

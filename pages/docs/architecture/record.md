@@ -73,6 +73,7 @@ executable intent without a human signature.**
 | `attempt.started` | worker |
 | `attempt.finished` | worker |
 | `gates.evaluated` | worker |
+| `scope.promoted` | worker |
 | `divergence.recorded` | agent |
 | `review.recorded` | worker |
 | `blocker.raised` | worker |
