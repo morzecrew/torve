@@ -105,6 +105,8 @@ questions:
       Refactor mode keys on the document's `change.type: refactor`. Is that the right
       trigger, or should a phase be able to mark itself a refactor inside a feature
       document? Lean: the document type; a document that is half refactor is two documents.
+    status: settled
+    settled_by: D-6
   - id: Q-2
     text: >-
       `decisions-reported` skips a LOCKED row that has a check. After D-1 it owes
@@ -112,3 +114,5 @@ questions:
       the attempt one log entry. Accept that cost, or leave `decisions-reported` as
       it is until rows go blocking? Lean: accept; a LOCKED row whose check fails is
       exactly the row that needs a word.
+    status: settled
+    settled_by: D-1
