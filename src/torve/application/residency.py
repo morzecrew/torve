@@ -82,8 +82,11 @@ Relay = Callable[[], Awaitable[list[str]]]
 
 # One pass of the serialized lane (S-0052/the-leg-and-where-it-sits), returning the task ids
 # it landed. Wired by the composition root because landing is git, and
-# this module decides only *when*. Unlike the relay, a pause stops it:
-# landing advances the repository rather than delivering what is owed.
+# this module decides only *when*. Under a local landing a pause stops it,
+# because landing advances the repository rather than delivering what is
+# owed; under a pull-request landing it runs through the pause, because a
+# green candidate landing on its own branch advances nothing a person has
+# to triage (S-0108/D-1), and whether it does is the caller's `lane_through_pause`.
 Lane = Callable[[], Awaitable[list[str]]]
 
 # One evaluation of every committed standing job (S-0023/bounds-because-this-is-the-leg-that-can-grow), returning
@@ -516,6 +519,7 @@ async def once(
     standing: Standing | None = None,
     relay: Relay | None = None,
     lane: Lane | None = None,
+    lane_through_pause: bool = False,
     threads: Threads | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
@@ -538,9 +542,15 @@ async def once(
 
     The relay runs whatever `paused` says, for the reason in S-0051/D-5: it
     delivers what is already owed rather than creating anything. The lane
-    does not, for the reason in S-0052/D-3: landing is not delivering what is
-    owed but advancing the repository, and a pause says nobody has capacity
-    to look at what advancing produces.
+    does not under a local landing, for the reason in S-0052/D-3: landing is
+    not delivering what is owed but advancing the repository, and a pause
+    says nobody has capacity to look at what advancing produces. Under a
+    pull-request landing it does, for the reason in S-0108/D-1: a green
+    candidate landing on its own branch and republishing its pull request
+    advances nothing a person has to triage, so one escalation no longer
+    holds every green sibling and the phases behind them. Whether the lane
+    runs through a pause is the caller's `lane_through_pause`, set from
+    `promotion.landing`.
 
     `paused` skips the legs that can grow the queue or advance the
     repository, and nothing else (S-0048/D-4, S-0023/D-6): the queue may drain
@@ -559,14 +569,17 @@ async def once(
         # draining.
         await _leg(root, "relay", relay)
 
-    if lane is not None and not paused:
+    if lane is not None and (lane_through_pause or not paused):
         # S-0052/the-leg-and-where-it-sits (S-0052/D-3): after the relay, before the mint. The same
         # argument one leg further: a candidate that went green an hour ago
         # is owed its landing more than a contract nobody has minted is owed
         # its board row — and landing first means the mint that follows sees
         # a base that already moved, which is the state the dependency rule
-        # reads. The pause stops it where the relay's does not: landing is
-        # advancing the repository, not delivering what is already owed.
+        # reads. Under a local landing the pause stops it where the relay's
+        # does not, because landing advances the repository rather than
+        # delivering what is already owed; under a pull-request landing it
+        # runs through the pause, because a candidate landing on its own
+        # branch advances nothing a person has to triage (S-0108/D-1).
         await _leg(root, "lane", lane)
 
     if threads is not None and not paused:
@@ -625,6 +638,7 @@ async def serve(
     standing: Standing | None = None,
     relay: Relay | None = None,
     lane: Lane | None = None,
+    lane_through_pause: bool = False,
     threads: Threads | None = None,
     stop: Stop | None = None,
 ) -> int:
@@ -639,6 +653,10 @@ async def serve(
     `paused` may be a callable, and for a resident process it must be: the
     escalation queue changes while the manager runs, and a pause decided
     once at startup stops meaning anything an hour later (S-0048/A-1).
+
+    `lane_through_pause` is the landing mode's one effect on the pause
+    (S-0108/D-1): true under a pull-request landing, where a paused pass
+    still runs the lane, false under a local one, where the pause stops it.
 
     `stop` is asked at the top of each pass and nowhere else. A term reached
     mid-pass is honoured at the next one, which is what makes every bound a
@@ -669,6 +687,7 @@ async def serve(
             standing=standing,
             relay=relay,
             lane=lane,
+            lane_through_pause=lane_through_pause,
             threads=threads,
         )
 
