@@ -112,3 +112,46 @@ def test_a_bracket_class_can_only_over_report_an_overlap():
     assert matches("src/a.py", ["src/[abc].py"])
     assert overlap(["src/[abc].py"], ["src/a.py"])
     assert overlap(["src/[abc].py"], ["src/x.py"])
+
+
+# Two literals and a part-segment wildcard (the review's minor finding on
+# T-0563): segments can now disagree, and `a*` exercises the meet one
+# character at a time. Disagreeing segments push the shortest shared path
+# deeper, so paths run to six segments over `a`, `b` and `ab`; at five the
+# bounded search misses shared paths the exact `overlap` finds.
+WIDE_SEGMENTS = ("a", "b", "*", "**", "a*")
+WIDE_PATH_SEGMENTS = ("a", "b", "ab")
+
+
+def _wide_patterns() -> list[str]:
+    return sorted(
+        lead + "/".join(combo) + trail
+        for length in (1, 2, 3)
+        for combo in itertools.product(WIDE_SEGMENTS, repeat=length)
+        for lead in ("", "/")
+        for trail in ("", "/")
+    )
+
+
+def _wide_paths() -> list[str]:
+    return sorted(
+        "/".join(combo)
+        for length in range(1, 7)
+        for combo in itertools.product(WIDE_PATH_SEGMENTS, repeat=length)
+    )
+
+
+def test_two_literals_and_a_part_segment_wildcard_agree_with_the_gate():
+    paths = _wide_paths()
+    hit: dict[str, set[str]] = {}
+
+    for pattern in _wide_patterns():
+        spec = GitIgnoreSpec.from_lines([pattern])
+        hit[pattern] = {path for path in paths if spec.match_file(path)}
+
+        for path in paths:
+            assert matches(path, [pattern]) == (path in hit[pattern]), (pattern, path)
+
+    for left in hit:
+        for right in hit:
+            assert overlap([left], [right]) == bool(hit[left] & hit[right]), (left, right)
