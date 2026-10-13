@@ -32,6 +32,19 @@ goals: |-
 non_goals: |-
   - Changing what counts toward a pause, or its threshold.
   - Running the thread leg through a pause: a round is new work.
+design:
+  - key: what-a-pause-stops
+    md: |-
+      | Leg | Unpaused | Paused, `landing: pull_request` | Paused, `landing: local` |
+      |---|---|---|---|
+      | relay | runs | runs | runs |
+      | lane | runs | **runs** (was: stops) | stops |
+      | review threads | runs | stops | stops |
+      | standing | runs | stops | stops |
+      | mint | runs | stops | stops |
+      | claim and dispatch of board tasks | runs | runs | runs |
+
+      The manager knows the landing mode and passes whether the lane runs through a pause to `serve`, which hands it to each pass; `residency` reads no configuration.
 tests: |-
   - Under `promotion.landing: pull_request`, a paused pass runs the lane and still skips the mint, standing and thread legs.
   - Under `promotion.landing: local`, a paused pass skips the lane as before.
