@@ -67,7 +67,7 @@ tests: |-
   - Tests that pin every changed line score 1; tests that assert nothing score 0 and list every survivor as `path:line — edit` (D-2, D-5).
   - A change with no Python source lines, or no paired tests, skips with the reason; the worktree under judgment is byte-identical after the gate (D-2).
   - A mutant that outruns twice the baseline run is reported as timed out, not killed (D-2).
-  - The spec quality report gives a phase's score and `torve why` shows it (D-3).
+  - The spec quality report gives a phase's score and its document's, and `torve why` shows the score (D-3).
   - The review prompt names a survivor and the decision rows whose paths cover its line; a run with no mutation result adds nothing to the prompt (D-4).
 docs: ''
 out_of_scope: |-

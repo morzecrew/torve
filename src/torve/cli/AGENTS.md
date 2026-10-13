@@ -711,7 +711,7 @@ The red completion battery's finding is read from the `torve/completion` failure
 
 ### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
 
-The gate's score and survivors ride the record's `gates.evaluated`, so `torve why`, the night report and the spec quality report read them; the quality report gives the score per phase and per document.
+The gate's score and survivors ride the record's `gates.evaluated`, so `torve why` and the spec quality report read them; the quality report gives the score per phase and per document.
 
 - Paths: `src/torve/application/specquality.py` `src/torve/cli/why.py`
 - Consequence: an author sees which phases' tests notice their own changes going wrong

@@ -2091,7 +2091,7 @@ The manifest's `tests:` block gains `run`, the command a list of test files is a
 
 ### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
 
-The gate's score and survivors ride the record's `gates.evaluated`, so `torve why`, the night report and the spec quality report read them; the quality report gives the score per phase and per document.
+The gate's score and survivors ride the record's `gates.evaluated`, so `torve why` and the spec quality report read them; the quality report gives the score per phase and per document.
 
 - Paths: `src/torve/application/specquality.py` `src/torve/cli/why.py`
 - Consequence: an author sees which phases' tests notice their own changes going wrong
@@ -2118,7 +2118,7 @@ Under `promotion.landing: pull_request` a paused pass runs the lane leg: green c
 A pause still stops the mint, the standing leg and the review-thread leg under every landing mode, and the relay still runs through it.
 
 - Paths: `src/torve/application/residency.py`
-- Consequence: a pause still means the queue cannot grow
+- Consequence: the mint, standing and review-thread legs add no work during a pause
 - Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-2`, no log entry owed)
 
 ## Invariants holding over `src/torve/application/`
