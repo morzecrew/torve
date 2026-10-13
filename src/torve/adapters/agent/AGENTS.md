@@ -207,7 +207,7 @@ A seat whose failure no retry can change escalates at once as `seat_refused` wit
 - Paths: `src/torve/cli/init.py` `src/torve/adapters/agent/harness.py`
 - Consequence: a fresh adopter's agent gets the skills its prompt names
 
-### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches)
 
 The attempt's prompt lists its contingent paths beside its scope, the scope gate reports every promoted path, and the reviewer is shown the promotions.
 

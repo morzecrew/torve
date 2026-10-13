@@ -663,14 +663,14 @@ The default review skill set is `[working-rules]`, amending S-0054/D-14, and tor
 - Paths: `src/torve/config/runconfig.py` `.torve/agents/review.yaml`
 - Consequence: the review role reads a skill that ships, and the row says what the profile does
 
-### S-0104/D-5 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+### S-0104/D-5 — `ASSUMED` (A phase's scope bends to the files its change reaches)
 
 The gate manifest's `scope.derived` map names files that ride with a source, in both directions (a lock file with its manifest, a golden with its producer, a generated schema with its model); a derived path is contingent wherever its source is in scope. The map replaces the hard-coded lock-file table, and its default is that table.
 
 - Paths: `src/torve/config/manifest.py` `src/torve/gates/scope.py` `src/torve/application/neighbours.py`
 - Consequence: a repository names its own generated files once, and the import graph's blind spot is covered where it is named
 
-### S-0105/D-2 — `ASSUMED` (One reading of a scope glob) — implementation: none
+### S-0105/D-2 — `ASSUMED` (One reading of a scope glob)
 
 `overlap` replaces `planner.globs_intersect`, which is deleted. Every caller reads through `overlap`: `scopes_clash`, the runner's `_scope_overlap`, the plan's same-phase disjointness, decision inheritance by path, `decisions.for_paths` and `standing_decisions`, `specquality`, `intake`'s parent/child scope rule and `config/spec._reaches_uncommitted`, the config layer's hand copy of the same heuristic. It is exact on the grammar; a bracket class can only make it report an overlap that is not there.
 
@@ -678,7 +678,7 @@ The gate manifest's `scope.derived` map names files that ride with a source, in 
 - Consequence: the fence never runs two tasks that can write one file, and a phase inherits every decision row whose paths its scope reaches
 - Check: `uv run pytest tests/test_globs.py -q` (shadow; runs as `decision:S-0105/D-2`, no log entry owed)
 
-### S-0105/D-4 — `ASSUMED` (One reading of a scope glob) — implementation: none
+### S-0105/D-4 — `ASSUMED` (One reading of a scope glob)
 
 The other readers of a path glob read through `matches`: `intake._matched` and `neighbours._matched`, telemetry's `in_scope_read` class, a gate's `paths` filter (`gates/runner._judges_anything`) and `config/spec.check_backlinks`' LOCKED-row paths. Their prefix fallbacks go, since gitignore already matches what is under a matched directory.
 
