@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A paused pass lands through pull requests and creates nothing
+    intent: >-
+      `residency.once` and `serve` take whether the lane runs through a pause; the
+      manager sets it from `promotion.landing`; the operating page, the operator skill's
+      night and escalations references say what a pause stops and what it does not.
+      Tests: under pull-request landing a paused pass runs the lane and skips the
+      mint, standing and thread legs; under local landing it skips the lane; the relay
+      runs either way. Settles D-1 and D-2.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/cli/manager.py
+      - tests/test_residency.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - pages/docs/operating.md
+      - skills/torve/**
+    acceptance:
+      - >-
+        uv run pytest tests/test_residency.py tests/test_manager.py tests/test_manager_e2e.py
+        tests/test_skills.py tests/test_docs.py
+      - uv run mypy src
+    character: routine
