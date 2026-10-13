@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0572
+phase: 4
+base: f936baaa73f844a5bbb7be6b47c1545df188e1df
+commit: 3d15f15330b2aace93b2e639a76311fe2c4da5b8
+at: '2026-10-13T11:18:48Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
