@@ -6,7 +6,7 @@ change:
   type: refactor
   scope: reviewleg
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0099, S-0101, S-0102]
 informed_by: []
 supersedes: []

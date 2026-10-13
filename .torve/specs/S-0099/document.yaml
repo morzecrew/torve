@@ -7,7 +7,7 @@ change:
   type: refactor
   scope: lane
 status: accepted
-implementation: partial
+implementation: complete
 depends_on: [S-0065, S-0085, S-0093, S-0097, S-0098]
 informed_by: []
 supersedes: []

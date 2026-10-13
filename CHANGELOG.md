@@ -54,6 +54,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to, works on the whole document, and a later green battery turns the pull request
   ready.
 
+- A rebase conflict and a red re-gate are commit statuses, `torve/rebase` and
+  `torve/regate`, on the tip they judged. A manager restarted mid-night, or `torve merge`
+  run once per pass, still knows a candidate it already found red at the same base and
+  head.
+
+- A pull request a person closed keeps its tasks out of the queue after its branch is
+  deleted: the forge finds it by its head branch name.
+
+- Under `promotion.unit: task`, a task's pull request is read from the forge, and its
+  body lists gate results from the record.
+
+- The review leg answers a thread it refuses on that thread, and reads what it already
+  answered from the pull request's threads and comments.
+
+- No engine decision reads `.torve/telemetry.jsonl`. The stream feeds the reports
+  (`torve why`, the night report, evals) and nothing else, so deleting it changes no
+  decision torve makes.
+
 ### Removed
 
 - **Breaking:** the `ratchet-what-you-build` and `corpus-bootstrap` skills. A profile

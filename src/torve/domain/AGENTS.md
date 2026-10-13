@@ -315,42 +315,42 @@ Every model torve reads from YAML checks `schema_version` through one shared fie
 - Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
 - Consequence: a file written for another torve stops the command that reads it, instead of being read as current
 
-### S-0099/D-5 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-5 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A review round's branch, pull request, target, findings and phases ride in its own contract under `round:`, which `task.minted` carries; the wave, the requeue's rescope and the morning report read the board.
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/application/manager.py` `src/torve/domain/task.py`
 - Consequence: a round is described by the record that minted it, not by a row on the host that minted it
 
-### S-0099/D-7 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-7 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 The broker meters streamed responses, and `seat.consumed` carries input, output, cache-read and cache-write tokens beside the total for every attempt and review.
 
 - Paths: `src/torve/adapters/broker/local.py` `src/torve/application/eventlog.py` `src/torve/application/ports.py` `src/torve/domain/events.py`
 - Consequence: cost per landing is a query for every seat, including plan-billed ones
 
-### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream)
 
 A round that answers a red completion battery carries `battery: true` and its target in its contract's `round:`; the battery's round state is pending until that round lands or a person resolves it, and answered after.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `src/torve/domain/task.py`
 - Consequence: a battery's round is recognised on any host from the record that minted it
 
-### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream)
 
 `review.recorded` carries each finding (severity, path, line, claim, evidence), and the review leg reads recorded findings from the board.
 
 - Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py` `src/torve/application/review.py` `src/torve/application/reviewleg.py`
 - Consequence: a host that did not run a review still reads what it found
 
-### S-0101/D-11 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-11 — `ASSUMED` (The last lane facts leave the stream)
 
 `review.recorded` gains `items`, the list of the review's findings with severity, path, line, claim and evidence, defaulting to empty: no stored row changes and no migration runs.
 
 - Paths: `src/torve/domain/events.py`
 - Consequence: rows recorded before the field read as a review with no findings, which is what they hold
 
-### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 A round the review leg widens to the whole phasing carries `whole: true` in its contract's `round:`, and a requeue reads it there.
 
