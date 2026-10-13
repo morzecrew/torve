@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0571
+phase: 3
+base: b81c555ae8d02f8717464f7192282243c818ce47
+commit: a7f2179277f882bdddcc5eed8a31d1e310d8da9d
+at: '2026-10-13T10:49:27Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-13T10:44:35Z'
+    claim: >-
+      D-3 says gates check runs a row's check_twin but not what a twin is or how it
+      runs. The corpus stores a twin as a bare test path while a row's check is a
+      shell command; I ran the twin as a shell command under the repository root and
+      failed on a non-zero exit.
+    evidence: >-
+      src/torve/cli/gates.py:322 — subprocess.run(row.check_twin, shell=True, cwd=root)
+      is the execution the decision left unstated
+    action: decided
+    proposal: >-
+      D-3 should say a row's check_twin is a command gates check runs under the repository
+      root, failing on a non-zero exit — the sabotage suite's clean twin in command
+      form.
