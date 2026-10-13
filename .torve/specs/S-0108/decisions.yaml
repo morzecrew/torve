@@ -29,3 +29,20 @@ decisions:
       S-0048/D-4's reason stands for the legs that create work.
     check: >-
       uv run pytest tests/test_residency.py -q -k pause
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A night's drain check counts a ready candidate as owed when the document branch
+      it would land onto does not exist yet: the first landing creates that branch,
+      so until then the candidate is measured against the base. `lane.awaiting_landing`
+      skipped such a candidate, so a document's only or first ready task let the night
+      close before the lane landed it.
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a night stays open until it has landed its last green candidate, a document's
+      first included
+    rationale: >-
+      S-0108's own night closed as drained with T-0585 ready and unlanded; earlier
+      documents always had a sibling still queued, which hid it.
+    check: >-
+      uv run pytest tests/test_lane.py -q -k first_candidate
