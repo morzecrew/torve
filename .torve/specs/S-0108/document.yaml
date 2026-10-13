@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0108
+title: >-
+  A pause stops new work, not a landing that waits for a review
+kind: design
+change:
+  type: feat
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0079, S-0094]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A night pauses when its escalation queue holds `loop.pause_escalations` tasks, one by default. A paused pass stops the legs that grow the queue (the mint, standing jobs, the review-thread leg) and also the lane, because S-0052/D-3 counted a landing as advancing the repository while nobody had the capacity to look at what it produced. Since S-0083 and S-0099, a night that lands through pull requests advances nothing: a green candidate lands on its document's branch, and the owner's merge of the pull request is what reaches the base. On S-0106's night one escalated phase held two green, reviewed siblings unlanded until a person resolved it.
+
+  Under `promotion.landing: pull_request` a paused pass now runs the lane: green candidates land on their branches, the completion battery runs, and the pull request is republished. The pause still stops everything that creates work. Under `promotion.landing: local`, where the lane writes the base itself, the pause stops the lane as before.
+motivation: >-
+  The owner on 2026-10-13, after S-0106's night: "definitely keep landing, otherwise
+  number of pauses would be too big".
+current_state: >-
+  `residency.once` runs the lane leg only when the pass is not paused (S-0052/D-3);
+  the relay runs through a pause (S-0048/D-4, S-0094/D-4), and the mint, standing
+  and thread legs stop. `cli/manager._serve` passes the lane leg for every landing
+  mode. `tests/test_residency.py` pins "a pause stops the lane and not the relay".
+goals: |-
+  - An escalation stops new work, not the landing of work that already passed its gates and review.
+  - A night that lands through pull requests finishes every phase that does not depend on the escalated one.
+non_goals: |-
+  - Changing what counts toward a pause, or its threshold.
+  - Running the thread leg through a pause: a round is new work.
+tests: |-
+  - Under `promotion.landing: pull_request`, a paused pass runs the lane and still skips the mint, standing and thread legs.
+  - Under `promotion.landing: local`, a paused pass skips the lane as before.
+  - The relay still runs through a pause either way.
+docs: ''
+out_of_scope: >-
+  - A per-document pause, where only the escalated task's document stops.
+risks: |-
+  - A landing during a pause can move a document branch an operator is about to hand-finish; the hand-finish path already works on the remote tip and fast-forwards, so a moved tip refuses the push rather than losing anything.
+  - The completion battery can turn a pull request ready while an escalation of another document is open; readiness is the battery's verdict on that document alone, and the owner still merges.
+alternatives:
+  - option: >-
+      Raise `loop.pause_escalations` in the night configuration.
+    rejected_because: >-
+      It lets the queue grow too, which is the one thing a pause exists to stop, and
+      every repository would have to choose the number.

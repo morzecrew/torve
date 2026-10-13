@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Under `promotion.landing: pull_request` a paused pass runs the lane leg: green
+      candidates land on their branches, the completion battery runs, and the pull
+      request is republished. Under `promotion.landing: local` the pause stops the
+      lane, as S-0052/D-3 says. The landing mode is the manager's to pass to the pass;
+      `residency` does not read configuration.
+    paths: [src/torve/application/residency.py, src/torve/cli/manager.py]
+    consequence: >-
+      one escalation no longer holds every green sibling and the phases behind them
+      until a person answers it
+    rationale: >-
+      A pull-request landing advances nothing the owner has not yet to merge; the
+      pause exists so the queue does not grow while nobody can triage it.
+    check: >-
+      uv run pytest tests/test_residency.py -q -k pause
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A pause still stops the mint, the standing leg and the review-thread leg under
+      every landing mode, and the relay still runs through it.
+    paths: [src/torve/application/residency.py]
+    consequence: a pause still means the queue cannot grow
+    rationale: >-
+      S-0048/D-4's reason stands for the legs that create work.
+    check: >-
+      uv run pytest tests/test_residency.py -q -k pause
