@@ -36,9 +36,13 @@ phasing:
       - src/torve/gates/context.py
       - tests/test_lane.py
       - tests/test_gates.py
+      - tests/test_runner.py
+      - tests/test_context.py
+      - tests/test_lane_prevention.py
     acceptance:
       - >-
-        uv run pytest tests/test_lane.py tests/test_gates.py
+        uv run pytest tests/test_lane.py tests/test_gates.py tests/test_runner.py
+        tests/test_context.py tests/test_lane_prevention.py
       - uv run mypy src
     depends_on:
       - 1
@@ -55,9 +59,13 @@ phasing:
       - src/torve/config/spec.py
       - tests/test_cli.py
       - tests/test_rfc_check.py
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+      - tests/test_gates.py
     acceptance:
       - >-
-        uv run pytest tests/test_cli.py tests/test_rfc_check.py
+        uv run pytest tests/test_cli.py tests/test_rfc_check.py tests/test_spec.py
+        tests/test_spec_load.py tests/test_gates.py
       - uv run mypy src
       - uv run torve spec check
     character: routine
@@ -74,9 +82,11 @@ phasing:
       - tests/test_review_run.py
       - tests/test_review_role.py
       - tests/test_contextpack.py
+      - tests/test_review_corpus.py
     acceptance:
       - >-
         uv run pytest tests/test_review_run.py tests/test_review_role.py tests/test_contextpack.py
+        tests/test_review_corpus.py
       - uv run mypy src
     character: routine
   - phase: 5
@@ -92,8 +102,10 @@ phasing:
       - src/torve/gates/red_on_base.py
       - src/torve/gates/context.py
       - tests/test_gates.py
+      - tests/test_context.py
     acceptance:
-      - uv run pytest tests/test_gates.py
+      - >-
+        uv run pytest tests/test_gates.py tests/test_context.py
       - uv run mypy src
     depends_on:
       - 2

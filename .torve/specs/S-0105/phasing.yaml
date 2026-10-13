@@ -31,11 +31,13 @@ phasing:
       - tests/test_intake.py
       - tests/test_spec.py
       - tests/test_spec_load.py
+      - tests/test_manager_e2e.py
     acceptance:
       - >-
         uv run pytest tests/test_globs.py tests/test_plan.py tests/test_runner.py
         tests/test_manager.py tests/test_decisions.py tests/test_decisions_record.py
         tests/test_specquality.py tests/test_intake.py tests/test_spec.py tests/test_spec_load.py
+        tests/test_manager_e2e.py
       - uv run mypy src
       - uv run torve spec check
     character: structural
@@ -85,11 +87,12 @@ phasing:
       - tests/test_tiering.py
       - tests/test_spec.py
       - tests/test_cli_spec.py
+      - tests/test_spec_load.py
     acceptance:
       - >-
         uv run pytest tests/test_intake.py tests/test_neighbours.py tests/test_gates.py
         tests/test_runner.py tests/test_attempt_record.py tests/test_tiering.py tests/test_spec.py
-        tests/test_cli_spec.py
+        tests/test_cli_spec.py tests/test_spec_load.py
       - uv run mypy src
       - uv run torve spec check
     depends_on:
