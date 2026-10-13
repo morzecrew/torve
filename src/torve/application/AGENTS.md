@@ -1728,77 +1728,77 @@ A red completion battery publishes the completing landing with the document's pu
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
 - Consequence: the round or the person that answers a red battery works on the whole document, and a draft is never merged as complete on a red suite
 
-### S-0099/D-1 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-1 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A task is landed when a landing file for it is in the base tree or in the remote tip of its document branch, and one function, `landed`, answers that for every caller; `lane_landings`, `shipped_landings`, `shipped_ids` and `landed_ids` are deleted.
 
 - Paths: `src/torve/application/projections.py` `src/torve/application/decisions.py` `src/torve/cli/manager.py` `src/torve/application/residency.py` `src/torve/application/planner.py` `src/torve/cli/night.py`
 - Consequence: every reader agrees on what landed, on every host, after any kill or rebase
 
-### S-0099/D-2 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-2 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 The tasks a document carries, in landing order, are the landing files on its remote branch tip; the lane keeps no ledger of them.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
 - Consequence: the pull request body, the completion battery and the wave count the same list, whichever host asks
 
-### S-0099/D-3 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-3 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A document pull request's state is read from the forge when the lane needs it, at most once per pass; the open documents are the remote `torve/S-*` branches carrying a landing file the base does not.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py`
 - Consequence: a merge, a close or a reopen a person makes is seen by the next pass of any host
 
-### S-0099/D-4 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-4 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A completion battery's verdict is a commit status `torve/completion` on the tip it judged, written to the forge; the draft flag and the battery round read it there.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: a red tip stays red for every host and for the person reading the pull request's checks, and a later green tip carries its own verdict
 
-### S-0099/D-5 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-5 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A review round's branch, pull request, target, findings and phases ride in its own contract under `round:`, which `task.minted` carries; the wave, the requeue's rescope and the morning report read the board.
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/application/manager.py` `src/torve/domain/task.py`
 - Consequence: a round is described by the record that minted it, not by a row on the host that minted it
 
-### S-0099/D-6 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-6 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 No decision reads `.torve/telemetry.jsonl`: `stream_rows` is imported only by the ledger, the evals and the night report, and a test fails on any other import.
 
 - Paths: `src/torve/application/projections.py` `tests/test_layout.py`
 - Consequence: the file can be lost, rotated or absent and the engine decides the same
 
-### S-0099/D-7 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-7 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 The broker meters streamed responses, and `seat.consumed` carries input, output, cache-read and cache-write tokens beside the total for every attempt and review.
 
 - Paths: `src/torve/adapters/broker/local.py` `src/torve/application/eventlog.py` `src/torve/application/ports.py` `src/torve/domain/events.py`
 - Consequence: cost per landing is a query for every seat, including plan-billed ones
 
-### S-0099/D-8 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-8 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 An attempt's number counts every attempt the task has had, read from the record, so a requeue continues the count instead of restarting it.
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/runstate.py`
 - Consequence: a task's attempts are one sequence, and no two attempts share a number
 
-### S-0099/D-9 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-9 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A leg that fails with the same error on the same branch backs off, doubling its wait up to an hour and recording the failure once per wait; a finding re-raised on an unchanged head is not recorded again; a candidate the lane finds red twice at the same base tip and head escalates instead of regating again.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/application/reviewleg.py`
 - Consequence: a fault costs one record and one escalation, not a storm
 
-### S-0099/D-10 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-10 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 `.torve/telemetry.jsonl` keeps the attempt rows and engine-health rows it carries today, read by the ledger, the evals and the night report only; whether attempt metrics move into the record is decided after a month of `seat.consumed` carrying real token counts.
 
 - Paths: `src/torve/application/telemetry.py` `src/torve/application/ledger.py`
 - Consequence: the ledger and the evals keep working through the change, and no decision depends on the file
 
-### S-0099/D-11 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-11 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 `promotion.unit: document` and `promotion.landing: pull_request` require the Postgres store: `torve doctor` is red and the lane refuses to run on a mock store under either.
 
@@ -1819,161 +1819,161 @@ A leg that fails with the same error on the same branch backs off, doubling its 
 - Paths: `pyproject.toml` `src/torve/application/skills.py`
 - Consequence: an adopter's sandbox carries no row of torve's corpus
 
-### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream)
 
 A round that answers a red completion battery carries `battery: true` and its target in its contract's `round:`; the battery's round state is pending until that round lands or a person resolves it, and answered after.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `src/torve/domain/task.py`
 - Consequence: a battery's round is recognised on any host from the record that minted it
 
-### S-0101/D-2 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-2 — `ASSUMED` (The last lane facts leave the stream)
 
 The rounds a person resolved are read from the board's `escalation.resolved` events, which the lane's caller passes in; the manager pass and `torve merge` both open the store.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: a round abandoned on one host releases the wave on every host
 
-### S-0101/D-3 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-3 — `ASSUMED` (The last lane facts leave the stream)
 
 A document branch that conflicts with the base gets a `torve/rebase` commit status of `failure` on its tip naming the base tip; the same tip against the same base is reported once, and a later clean rebase writes `success`.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: a person sees the conflict in the pull request's checks, and no host reports it twice
 
-### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream)
 
 `review.recorded` carries each finding (severity, path, line, claim, evidence), and the review leg reads recorded findings from the board.
 
 - Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py` `src/torve/application/review.py` `src/torve/application/reviewleg.py`
 - Consequence: a host that did not run a review still reads what it found
 
-### S-0101/D-5 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-5 — `ASSUMED` (The last lane facts leave the stream)
 
 A forge thread the engine already answered or refused is known from the forge: its last comment is the engine's and no comment follows it.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: the leg does not re-raise a thread it already handled, on any host
 
-### S-0101/D-7 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-7 — `ASSUMED` (The last lane facts leave the stream)
 
 The planner's refresh reads `landed()` and the document branch's carried tasks to say why it leaves a task alone.
 
 - Paths: `src/torve/application/planner.py`
 - Consequence: a refresh on any host leaves the same tasks alone
 
-### S-0101/D-8 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-8 — `ASSUMED` (The last lane facts leave the stream)
 
 A candidate the lane finds red against a base gets a `torve/regate` commit status of `failure` on its head naming the base tip; a second red at the same base and head escalates. In local landing mode, with no forge, the count stays per process.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: `torve merge` run once per pass escalates a candidate that stays red, instead of regating it forever
 
-### S-0101/D-9 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-9 — `ASSUMED` (The last lane facts leave the stream)
 
 A ready candidate whose document has a closed, unmerged pull request, found on the forge by its head branch name, is abandoned; the lane asks about a document at most once per pass and records its closure once.
 
 - Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py`
 - Consequence: deleting a closed document's branch does not bring its tasks back
 
-### S-0101/D-10 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-10 — `ASSUMED` (The last lane facts leave the stream)
 
 Every function that reads the stream lives in `application/streams.py`; only the ledger, the evals, the night report and the read-only reports import it, and a test refuses any other importer.
 
 - Paths: `src/torve/application/streams.py` `src/torve/application/projections.py` `tests/test_layout.py`
 - Consequence: a decision cannot read the stream through a wrapper in another module
 
-### S-0102/D-1 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-1 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 Under the task unit, a candidate's pull request is read from the forge when its task branch is on the remote, at most once per pass; a pass with no task branch on the remote asks nothing.
 
 - Paths: `src/torve/application/lane.py`
 - Consequence: a task pull request a person merges or closes is seen by any host's next pass
 
-### S-0102/D-3 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-3 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 The review leg reads review findings from the board alone; a caller with no board passes none, and the leg raises none from the record source.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: no host raises a finding only it can see
 
-### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 A round the review leg widens to the whole phasing carries `whole: true` in its contract's `round:`, and a requeue reads it there.
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/cli/manager.py` `src/torve/domain/task.py`
 - Consequence: a round is widened once, whichever host requeues it
 
-### S-0102/D-5 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-5 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 A task ran on this host when its run-state file or its local `torve/T-NNNN` branch exists; the stream is not read.
 
 - Paths: `src/torve/application/residency.py`
 - Consequence: the mint's guard against re-offering a task that ran here and never landed holds after a reap, with no telemetry
 
-### S-0102/D-6 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-6 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 The review leg remembers the head it last recorded a re-raise at for the life of its process; a restarted manager may record one re-raise again.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: the dedupe needs no stream, and a repeated row after a restart is a diagnostic no decision reads
 
-### S-0102/D-7 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-7 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 `projections` exports no stream reader: it calls `streams` by module name for the reports it hosts. A test refuses any module other than the ledger, the evals, the night report and `projections` that imports `streams`, and any module that imports from `projections` a name `streams` defines.
 
 - Paths: `src/torve/application/projections.py` `src/torve/application/streams.py` `tests/test_layout.py`
 - Consequence: S-0099/D-6 and S-0101/D-10 hold, and a wrapper cannot reopen the route
 
-### S-0102/D-8 — `ASSUMED` (The task unit and the review leg stop reading the stream) — implementation: none
+### S-0102/D-8 — `ASSUMED` (The task unit and the review leg stop reading the stream)
 
 The task unit under `landing: pull_request` stays: a contract that names no document lands by it as S-0083/D-4 says, and its deletion is decided with the other simplifications, not here.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
 - Consequence: hand-minted and standing contracts keep landing under pull-request landing
 
-### S-0103/D-1 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-1 — `ASSUMED` (The review leg reads no stream)
 
 A landed round is answered once, read from the forge: the leg replies only to a thread whose last comment is not the engine's, and its keyed pull-request comment lands once per key; it reads no `lane_thread_resolved` or `review_finding_answered` row.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: a second host does not answer a round the first already answered
 
-### S-0103/D-2 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-2 — `ASSUMED` (The review leg reads no stream)
 
 A recorded finding is answered when a round whose contract lists it in `round.findings` has landed or a person resolved it off the board.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: a recorded finding opens one round whichever host reads it
 
-### S-0103/D-3 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-3 — `ASSUMED` (The review leg reads no stream)
 
 The leg replies on a thread it refuses with the refusal's reason, so a later pass reads it as handled from the thread's last comment; it reads no `lane_thread_refused` or `lane_engine_thread` row.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: a refused thread is not raised again on any host until someone comments after the refusal
 
-### S-0103/D-4 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-4 — `ASSUMED` (The review leg reads no stream)
 
 The red completion battery's finding is read from the `torve/completion` failure status on the document branch's tip, its description naming the red gates; the leg's forge reads the status and the battery writes no row the leg reads.
 
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/cli/manager.py`
 - Consequence: the battery's round is raised from the verdict a person also sees in the checks
 
-### S-0103/D-5 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-5 — `ASSUMED` (The review leg reads no stream)
 
 A task's landing sha in the leg is read through `landed()`.
 
 - Paths: `src/torve/application/reviewleg.py`
 - Consequence: the reply to a round names the same landing on any host
 
-### S-0103/D-6 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-6 — `ASSUMED` (The review leg reads no stream)
 
 The review leg imports no stream reader, and the boundary test allows only the ledger, the evals, the night report and `projections` to import `streams`.
 
 - Paths: `src/torve/application/reviewleg.py` `tests/test_layout.py`
 - Consequence: no decision module reads the telemetry stream
 
-### S-0103/D-7 — `ASSUMED` (The review leg reads no stream) — implementation: none
+### S-0103/D-7 — `ASSUMED` (The review leg reads no stream)
 
 The refusal's reply goes on every thread the leg refuses, a person's included; a person's thread is still never resolved.
 

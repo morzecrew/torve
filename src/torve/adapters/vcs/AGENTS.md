@@ -66,28 +66,28 @@ A night whose lane published a document pull request out of draft is not drained
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py` `src/torve/cli/manager.py` `src/torve/config/runconfig.py` `tests/test_reviewleg.py` `tests/test_manager.py` `tests/test_runconfig.py` `tests/test_forge.py`
 - Consequence: the leg sees the review wave the night produced instead of a drained night leaving it to a person
 
-### S-0099/D-4 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry) — implementation: partial
+### S-0099/D-4 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
 
 A completion battery's verdict is a commit status `torve/completion` on the tip it judged, written to the forge; the draft flag and the battery round read it there.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: a red tip stays red for every host and for the person reading the pull request's checks, and a later green tip carries its own verdict
 
-### S-0101/D-3 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-3 — `ASSUMED` (The last lane facts leave the stream)
 
 A document branch that conflicts with the base gets a `torve/rebase` commit status of `failure` on its tip naming the base tip; the same tip against the same base is reported once, and a later clean rebase writes `success`.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: a person sees the conflict in the pull request's checks, and no host reports it twice
 
-### S-0101/D-8 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-8 — `ASSUMED` (The last lane facts leave the stream)
 
 A candidate the lane finds red against a base gets a `torve/regate` commit status of `failure` on its head naming the base tip; a second red at the same base and head escalates. In local landing mode, with no forge, the count stays per process.
 
 - Paths: `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
 - Consequence: `torve merge` run once per pass escalates a candidate that stays red, instead of regating it forever
 
-### S-0101/D-9 — `ASSUMED` (The last lane facts leave the stream) — implementation: none
+### S-0101/D-9 — `ASSUMED` (The last lane facts leave the stream)
 
 A ready candidate whose document has a closed, unmerged pull request, found on the forge by its head branch name, is abandoned; the lane asks about a document at most once per pass and records its closure once.
 

@@ -6,7 +6,7 @@ change:
   type: refactor
   scope: lane
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0099]
 informed_by: []
 supersedes: []
