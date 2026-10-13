@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0107
+title: >-
+  A change's tests are scored by the mutants they kill
+kind: design
+change:
+  type: feat
+  scope: gates
+status: draft
+implementation: none
+depends_on: [S-0081, S-0106]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A green battery says the tests pass; it does not say they would fail if the change were wrong. `red-on-base` asks that of changed test functions (they must fail on the base), coverage asks whether the changed lines ran, and S-0106 asks the reviewer whether a decision's check could fail. None of them changes the code and watches the tests. A test that executes a line and asserts nothing about it passes all three.
+
+  This document adds a `mutation` gate, shadow, on the attempt battery. It makes small, named edits to the candidate's changed source lines only (a comparison flipped, a boolean operator swapped, an arithmetic operator swapped, a constant moved by one, a condition negated, a return replaced by `None`), runs the task's paired tests against each mutant in a scratch copy, and reports the score: mutants killed, survived and timed out, with every survivor as `path:line — edit`. A deterministic budget bounds the cost. Survivors reach the reviewer beside S-0106's check audit, and the spec quality report gives the score per phase and per document.
+motivation: >-
+  Queued by the owner on 2026-10-13 from the research "Should Torve Prove Its Code?"
+  (artifact WV2nKgN5QSy78B7SUod3o5) as "report mutation scores on changed lines",
+  after S-0106 made decision checks run. A twin proves one check can fail once; a
+  mutant score says how much of a change its tests would notice going wrong.
+current_state: >-
+  `gates/red_on_base.py` extracts the base with `git archive` into a temporary directory
+  and runs changed test files there and in the worktree, with `manifest.tests.run`
+  and `tests.pair` naming the command and the pairing (S-0106/D-7). `coverage-delta`
+  (shadow) measures changed-line coverage with diff-cover. The reviewer audits each
+  inherited check's faithfulness and whether it can fail (S-0106/D-5), from the prompt
+  alone. No gate edits code to test the tests, and no mutation tool is a dependency.
+goals: |-
+  - Every attempt that changes Python source reports how many of its changed-line mutants its paired tests kill, and which survive.
+  - The cost is bounded and predictable: a fixed mutant budget and per-mutant timeout, deterministic for a given diff.
+  - A survivor is evidence the reviewer and the author can act on, not a number on its own.
+non_goals: |-
+  - Blocking on a score: the gate is shadow until a soak says what score is honest.
+  - Mutating unchanged code or the whole repository.
+  - Languages other than Python: a non-Python changed file is named and skipped; the test command and pairing are already the manifest's (S-0106/D-7).
+  - Running on the completion battery: a document's changed lines are its phases' changed lines, already scored.
+design:
+  - key: the-operators
+    md: |-
+      One mutant is one edit to one node on one changed line:
+
+      | Operator | Edit |
+      |---|---|
+      | comparison | `<`↔`<=`, `>`↔`>=`, `==`↔`!=`, `in`↔`not in`, `is`↔`is not` |
+      | boolean | `and`↔`or`, `not x`→`x` |
+      | arithmetic | `+`↔`-`, `*`↔`/`, `//`→`/` |
+      | constant | an int `n`→`n + 1`, `True`↔`False` |
+      | condition | an `if`/`while` test `c`→`not c` |
+      | return | `return x`→`return None` |
+
+      The set is small on purpose: each edit is one a reader recognises, and each survivor names the edit that went unnoticed.
+  - key: the-budget
+    md: >-
+      Mutants are enumerated over the changed lines in path and line order, then sampled
+      to at most `budget` (default 30) with a seed derived from the diff, so the same
+      change yields the same mutants. Each mutant runs the task's paired tests with
+      a timeout of twice their baseline time; a timeout is reported, not killed. The
+      gate's own timeout bounds the whole run.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - Promoting the gate to blocking, and choosing its threshold: after a soak on torve and bloomery.
+  - Using `mutmut`, `cosmic-ray` or another tool (see alternatives).
+risks: ''
+alternatives:
+  - option: >-
+      Adopt `mutmut` (3.x) or `cosmic-ray` as a dependency.
+    rejected_because: >-
+      Both mutate whole modules and have no native changed-lines filter in their current
+      versions, carry operator sets much larger than a survivor report can explain,
+      and add a dependency for what an AST walk over a handful of lines does. Q-1
+      asks the owner.
+  - option: >-
+      Score the whole document on the completion battery instead of each attempt.
+    rejected_because: >-
+      The attempt is where a survivor can still be answered by the executor or the
+      reviewer; on completion it can only be reported.
+questions:
+  - id: Q-1
+    text: >-
+      An in-house AST mutator over changed lines (the design here, about 200 lines,
+      no dependency, six named operators), or `mutmut` 3 with a wrapper that limits
+      it to changed lines? Lean: in-house; the gate needs a small, explainable operator
+      set on a few lines, and a survivor report is only useful if every edit is one
+      a reader recognises.
+  - id: Q-2
+    text: >-
+      Should a survivor on a line governed by a decision row that has a check become
+      a reviewer finding (S-0106/D-5's "could a plausible wrong implementation pass?"
+      answered by a real wrong implementation), or stay in the gate's report? Lean:
+      shown to the reviewer as evidence, graded by the reviewer, never a finding by
+      itself.
