@@ -467,7 +467,7 @@ def test_the_record_answers_the_paths_question_the_corpus_answers(tmp_path):
     """The parity that says the import read the corpus correctly, over this
     repository's own corpus rather than a fixture.
 
-    `for_paths` and `standing_decisions` call the same `globs_intersect`, so
+    `for_paths` and `standing_decisions` call the same `overlap`, so
     a difference here is a difference in what was imported, never in how the
     rule is applied — which is exactly what this is meant to catch.
     """

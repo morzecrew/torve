@@ -15,12 +15,12 @@ from typer.testing import CliRunner
 
 from torve.application.planner import (
     PlanError,
-    globs_intersect,
     inherit_decisions,
     plan_document,
     standing_decisions,
     write_contracts,
 )
+from torve.base.globs import overlap
 from torve.cli import app
 from torve.config.spec import SpecError, load_document
 from torve.domain.spec import Document
@@ -384,11 +384,11 @@ def test_after_naming_no_document_is_refused_by_name(plan_repo):
         plan_document(root, root / ".torve" / "specs", "0092")
 
 
-def test_globs_intersect_is_conservative():
-    assert globs_intersect(["src/widget/**"], ["src/widget/core.py"])
-    assert globs_intersect(["src/a/**"], ["src/a/**"])
-    assert not globs_intersect(["src/a/**"], ["src/b/**"])
-    assert not globs_intersect(["tests/**"], ["src/**"])
+def test_scope_overlap_is_exact():
+    assert overlap(["src/widget/**"], ["src/widget/core.py"])
+    assert overlap(["src/a/**"], ["src/a/**"])
+    assert not overlap(["src/a/**"], ["src/b/**"])
+    assert not overlap(["tests/**"], ["src/**"])
 
 
 # ....................... #

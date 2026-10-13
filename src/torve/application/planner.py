@@ -38,9 +38,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import yaml
-from pathspec import GitIgnoreSpec
 
 from torve.application import neighbours, sizing
+from torve.base.globs import overlap
 from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
 from torve.domain.spec import Corpus, Document, Phase, document_id, number_of
@@ -191,7 +191,7 @@ def scopes_clash(left: list[str], right: list[str]) -> bool:
     An empty allow-set is unconstrained (S-0002/scope-in-detail), and a task that may
     touch anything can prove itself disjoint from nothing — so it clashes
     with every other task, including another unconstrained one. Everything
-    else is `globs_intersect`'s conservative overlap.
+    else is `globs.overlap`'s exact reading (S-0105/D-2).
 
     One rule with two callers: the standing loop asks it of the run-state
     files it can see, the manager asks it of the board it folds, and the
@@ -201,38 +201,7 @@ def scopes_clash(left: list[str], right: list[str]) -> bool:
     if not left or not right:
         return True
 
-    return globs_intersect(left, right)
-
-
-# ....................... #
-
-
-def globs_intersect(left: list[str], right: list[str]) -> bool:
-    """Conservative overlap between two allow-sets: identical globs, or one
-    set's glob matching another's glob read as a literal path (with its own
-    wildcard tail stripped). Definite overlaps only — this refuses what is
-    provably shared, not what is cleverly disjoint."""
-
-    if set(left) & set(right):
-        return True
-
-    def literals(globs: list[str]) -> list[str]:
-        found: list[str] = []
-
-        for glob in globs:
-            stripped = glob.split("*", 1)[0].rstrip("/")
-
-            if stripped:
-                found.append(stripped)
-
-        return found
-
-    left_spec = GitIgnoreSpec.from_lines(left)
-    right_spec = GitIgnoreSpec.from_lines(right)
-
-    return any(right_spec.match_file(lit) for lit in literals(left)) or any(
-        left_spec.match_file(lit) for lit in literals(right)
-    )
+    return overlap(left, right)
 
 
 # ....................... #
@@ -390,7 +359,7 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
     """The document-less lane's inheritance (S-0030/standing-inheritance): every accepted
     document's rows are read through the same one reader `inherit_decisions`
     is (S-0007/A-3), and a row is inherited when any of its declared paths
-    intersects `scope_allow` (`globs_intersect`, conservative — a false
+    intersects `scope_allow` (`globs.overlap`, exact — a false
     inclusion costs a few contract lines, a false exclusion costs the
     silence check). Rows without declared paths are never standing — they
     govern their own document's work only (S-0030/D-1). Draft, superseded and
@@ -404,7 +373,7 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
             continue
 
         for row in inherit_decisions(doc):
-            if row.paths and globs_intersect(row.paths, scope_allow):
+            if row.paths and overlap(row.paths, scope_allow):
                 standing.append(row)
 
     return standing
@@ -482,7 +451,7 @@ def plan_document(
     for phase, siblings in sorted(by_phase.items()):
         for i, one in enumerate(siblings):
             for other in siblings[i + 1 :]:
-                if globs_intersect(one.scope, other.scope):
+                if overlap(one.scope, other.scope):
                     raise PlanError(
                         f"phase {phase}: scopes of {one.title!r} and {other.title!r} "
                         "intersect — same-phase tasks must be disjoint (§3)"

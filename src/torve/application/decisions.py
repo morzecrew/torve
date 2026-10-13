@@ -38,7 +38,8 @@ import yaml
 from pathspec import GitIgnoreSpec
 from pydantic import ValidationError
 
-from torve.application.planner import PlanError, globs_intersect
+from torve.application.planner import PlanError
+from torve.base.globs import overlap
 from torve.config import layout, spec
 from torve.config.sources import load_sources as filed_sources
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
@@ -135,15 +136,13 @@ class Graph:
     def for_paths(self, globs: list[str]) -> list[DecisionState]:
         """The decisions in force whose declared paths cross `globs` — the
         standing-inheritance rule (S-0030/standing-inheritance), from the same
-        `globs_intersect` that rule calls.
+        `overlap` that rule calls (S-0105/D-2).
 
         Rows without declared paths are never standing: they govern their
-        own document's work only (S-0030/D-1). Conservative on purpose — a false
-        inclusion costs a few contract lines, a false exclusion costs the
-        silence check.
+        own document's work only (S-0030/D-1). Exact on the gitignore grammar.
         """
 
-        return [one for one in self.current() if one.paths and globs_intersect(one.paths, globs)]
+        return [one for one in self.current() if one.paths and overlap(one.paths, globs)]
 
     # ....................... #
 
@@ -503,7 +502,7 @@ def _governs(globs: list[str], path: str) -> bool:
     if GitIgnoreSpec.from_lines(globs).match_file(path):
         return True
 
-    return globs_intersect(globs, [path.rstrip("/") + "/**" if not path.endswith("**") else path])
+    return overlap(globs, [path.rstrip("/") + "/**" if not path.endswith("**") else path])
 
 
 # ....................... #
@@ -614,7 +613,7 @@ def path_rot(corpus: Corpus, root: Path) -> list[RottedRow]:
             if any(_matches(root, pattern) for pattern in row.paths):
                 continue
 
-            if uncommitted and globs_intersect(row.paths, uncommitted):
+            if uncommitted and overlap(row.paths, uncommitted):
                 continue
 
             rotted.append(

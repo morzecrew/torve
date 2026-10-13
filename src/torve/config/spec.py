@@ -21,9 +21,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from pathspec import GitIgnoreSpec
 from pydantic import ValidationError
 
+from torve.base.globs import matches, overlap
 from torve.config.layout import TORVE_DIR
 from torve.domain.spec import (
     AMENDMENTS_FILE,
@@ -795,29 +795,6 @@ def _uncommitted_globs(root: Path) -> list[str]:
     return globs
 
 
-def _reaches_uncommitted(pattern: str, globs: list[str]) -> bool:
-    """Whether *pattern* reaches into an area *globs* claims — the same
-    conservative overlap `torve.application.planner.globs_intersect` applies
-    (identical globs, or one read as a literal path with its wildcard tail
-    stripped), asked one pattern at a time because this layer may not import
-    the application (S-0055/D-23)."""
-
-    if pattern in globs:
-        return True
-
-    def literal(glob: str) -> str:
-        return glob.split("*", 1)[0].rstrip("/")
-
-    head = literal(pattern)
-
-    if head and GitIgnoreSpec.from_lines(globs).match_file(head):
-        return True
-
-    own = GitIgnoreSpec.from_lines([pattern])
-
-    return any(literal(glob) and own.match_file(literal(glob)) for glob in globs)
-
-
 def check_directory(spec_dir: Path) -> list[str]:
     """Only documents live in the corpus path and the archive (S-0016/D-24,
     S-0057/I-1): one directory per number, holding only the four file names."""
@@ -1089,7 +1066,7 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
             if _glob_matches(root, pattern):
                 continue
 
-            if uncommitted and _reaches_uncommitted(pattern, uncommitted):
+            if uncommitted and overlap([pattern], uncommitted):
                 deliberate.append(f"{row.id} -> {pattern}")
                 continue
 
@@ -1228,8 +1205,6 @@ def check_backlinks(
     an agent deleted is heard; a row over files the scan never reads is
     silent, having nowhere to be cited from."""
 
-    from fnmatch import fnmatch
-
     scanned = tracked_files(root)
     citing: dict[str, set[str]] = {}
 
@@ -1247,13 +1222,7 @@ def check_backlinks(
             if row.grade != "LOCKED":
                 continue
 
-            governed = {
-                name
-                for name in scanned
-                if any(
-                    fnmatch(name, glob) or name.startswith(glob.rstrip("*")) for glob in row.paths
-                )
-            }
+            governed = {name for name in scanned if matches(name, row.paths)}
 
             if governed and not (governed & citing.get(row.id, set())):
                 warnings.append(

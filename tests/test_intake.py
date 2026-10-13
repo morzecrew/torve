@@ -306,6 +306,18 @@ def test_lint_refuses_escaping_and_dead_globs(tree: Path):
     assert any("matches nothing" in e for e in errors)
 
 
+def test_a_glob_with_an_inner_slash_is_anchored_not_right_anchored():
+    """S-0105/D-4: `a/*.py` has a slash before its last segment, so the
+    reading anchors it to the root and `x/a/b.py` is not under it — where
+    `Path.match` read the same pattern right-anchored and matched the nested
+    file, admitting a scope the contract never wrote."""
+
+    from torve.application.intake import _matched
+
+    assert not _matched(Path("x/a/b.py"), ["a/*.py"])
+    assert _matched(Path("a/b.py"), ["a/*.py"])
+
+
 def test_lint_refuses_a_scope_glob_that_names_a_directory(tree: Path):
     """T-0409 declared `.torve/harnesses` and could not write under it: the
     scope gate matches a wildcard-free pattern against files, so a directory
