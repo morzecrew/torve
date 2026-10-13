@@ -153,6 +153,20 @@ def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
     assert [s["id"] for s in payload["standing_over_scope"]] == ["S-0002/D-1"]
 
 
+def test_the_pack_carries_a_checked_rows_twin(tmp_path: Path) -> None:
+    """S-0106/D-5: the reviewer audits a check that can fail, so the pack
+    carries the twin beside the check, not only the check."""
+
+    rfc_dir = _seed(tmp_path)
+    task = _task()
+    task.decisions[0].check_twin = "tests/test_a_sabotage.py"
+
+    (row,) = decisions_file(task, load_corpus(rfc_dir), rfc_dir)["inherited"]
+
+    assert row["check"] == "pytest tests/test_a.py"
+    assert row["check_twin"] == "tests/test_a_sabotage.py"
+
+
 def test_a_rows_history_carries_no_fingerprint_stamp(tmp_path: Path) -> None:
     """A fingerprint is how `spec check` catches a hand edit. To an agent reading
     why a rule says what it says it is two hashes where a rule should be, and a

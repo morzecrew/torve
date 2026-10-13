@@ -88,6 +88,7 @@ def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str
             "consequence": decision.consequence,
             "check": decision.check,
             "check_state": decision.check_state,
+            "check_twin": decision.check_twin,
         }
         hit = by_id.get(decision.id)
 
