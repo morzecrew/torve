@@ -322,8 +322,17 @@ def _check_bypasses(document: dict[str, Any]) -> list[str]:
 # ....................... #
 
 
+#: A check's verdicts that cover its row: a green run, a flaky one whose
+#: re-run passed, or a bypass a human signed. Anything else — a fail, an
+#: error, a check that selected nothing — leaves the row owed (S-0106/D-1).
+PASSING = frozenset({"pass", "flaky", "bypassed"})
+
+
 def owed(
-    decisions: Iterable[InheritedDecision], changed: Iterable[str], logged: Iterable[str]
+    decisions: Iterable[InheritedDecision],
+    changed: Iterable[str],
+    logged: Iterable[str],
+    checks: dict[str, str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """(problems, skipped) — the silence check, over inputs rather than over
     a gate context.
@@ -332,6 +341,12 @@ def owed(
     verb asks it of the files an attempt says it touched, before the battery
     ever runs. One implementation, because a pre-check that disagrees with
     the conviction is worse than no pre-check at all.
+
+    `checks` maps a row id to its `decision:<id>` gate's verdict. A row whose
+    check ran and passed is covered (S-0054/D-3); one whose check failed — or
+    selected nothing — is owed an entry, whatever its paths (S-0106/D-1).
+    `None` means no verdicts are in hand (the pre-check, or a pass that ran
+    without the checks), and a check stands for its row as before.
     """
 
     problems: list[str] = []
@@ -343,11 +358,28 @@ def owed(
         if decision.grade != "LOCKED":
             continue
 
-        # S-0054/D-3: a row with a check is proven by the battery in the same
-        # pass — green or red, the gate's verdict is the finding, and an
-        # attestation would be prose restating an exit code.
+        # An entry may name the row as the contract spells it (`S-0012/D-2`)
+        # or as the document's own prose does (`D-2`): the log is the task's,
+        # so a bare id in it is local to the task's document (bloomery
+        # T-0007, convicted for entries it had written).
+        local = decision.id.rsplit("/", 1)[-1]
+
         if decision.check:
-            skipped.append(f"{decision.id}: covered by its check, which runs as a gate")
+            outcome = None if checks is None else checks.get(decision.id)
+
+            if checks is None or outcome is None:
+                skipped.append(f"{decision.id}: covered by its check, which runs as a gate")
+                continue
+
+            if outcome in PASSING:
+                skipped.append(f"{decision.id}: covered by its check, which passed")
+                continue
+
+            if decision.id not in cited and local not in cited:
+                problems.append(
+                    f"decision {decision.id}: LOCKED, its check did not pass ({outcome}), "
+                    "with no entry in the log naming it"
+                )
             continue
 
         if not decision.paths:
@@ -356,11 +388,6 @@ def owed(
 
         area = spec(decision.paths)
         hits = [path for path in touched if area.match_file(path)]
-        # An entry may name the row as the contract spells it (`S-0012/D-2`)
-        # or as the document's own prose does (`D-2`): the log is the task's,
-        # so a bare id in it is local to the task's document (bloomery
-        # T-0007, convicted for entries it had written).
-        local = decision.id.rsplit("/", 1)[-1]
 
         if hits and decision.id not in cited and local not in cited:
             shown = ", ".join(sorted(hits)[:3]) + ("…" if len(hits) > 3 else "")
@@ -376,13 +403,16 @@ def owed(
 # ....................... #
 
 
-def _check_silence(ctx: GateContext, document: dict[str, Any]) -> tuple[list[str], list[str]]:
+def _check_silence(
+    ctx: GateContext, document: dict[str, Any], checks: dict[str, str] | None = None
+) -> tuple[list[str], list[str]]:
     assert ctx.task is not None
 
     return owed(
         ctx.task.decisions,
         ctx.changed_paths,
         [_norm(entry.get("decision")) for entry in document["entries"]],
+        checks,
     )
 
 
@@ -425,7 +455,9 @@ def check_pin(document: dict[str, Any]) -> list[str]:
 # ....................... #
 
 
-def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
+def check_decisions_reported(
+    gate: Gate, ctx: GateContext, checks: dict[str, str] | None = None
+) -> BuiltinOutcome:
     if ctx.task is None:
         return NO_TASK
 
@@ -441,7 +473,7 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             "entries": [],
         }
 
-        silence_problems, _skipped = _check_silence(ctx, empty)
+        silence_problems, _skipped = _check_silence(ctx, empty, checks)
 
         if silence_problems:
             header = (
@@ -474,7 +506,7 @@ def check_decisions_reported(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
     problems += _check_drift(document)
     problems += _check_bypasses(document)
-    silence_problems, skipped = _check_silence(ctx, document)
+    silence_problems, skipped = _check_silence(ctx, document, checks)
     problems += silence_problems
 
     if problems:

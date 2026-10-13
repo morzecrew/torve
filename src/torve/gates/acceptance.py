@@ -91,6 +91,25 @@ def _suite_note(output: str) -> tuple[int, int | None, str]:
     )
 
 
+def selected_nothing(exit_code: int | None, output: str) -> bool:
+    """Whether a command selected no test at all: pytest's exit 5 (nothing
+    collected), or a summary that counts no test as having run — the reading
+    `acceptance` already makes of an empty suite (S-0089/D-4).
+
+    Shared with the decision gates so a `-k` filter that matches nothing
+    reads the same in both (S-0106/D-1): a check that selected nothing proved
+    nothing about its row.
+    """
+
+    if exit_code == 5:
+        return True
+
+    return _suite_note(output)[1] == 0
+
+
+# ....................... #
+
+
 def check_acceptance(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     if ctx.task is not None and ctx.task.role == "review":
         # Skipped, never passed with an empty list: a review's output is

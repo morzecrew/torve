@@ -452,7 +452,8 @@ def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():
 
 # ----------------------- #
 # S-0054 phase 1: a decision with a check is a gate (S-0054/D-2, S-0054/D-4), and
-# a row a gate covers owes no attestation (S-0054/D-3).
+# a row a gate covers owes no attestation (S-0054/D-3) — as narrowed by S-0106/D-1:
+# a check that passed covers its row, and one that failed leaves it owed.
 
 
 def _checked(check: str, state: str = "shadow", twin: str | None = None) -> list[dict]:
@@ -469,7 +470,10 @@ def _checked(check: str, state: str = "shadow", twin: str | None = None) -> list
     ]
 
 
-def test_a_checkable_row_runs_as_a_shadow_gate_and_convicts_nothing(repo):
+def test_a_failing_shadow_check_leaves_its_locked_row_owed(repo):
+    """D-1: the check convicts nothing under its shadow state, but the LOCKED
+    row it judges is still owed a word — the battery's red verdict is the
+    finding, and the log has to carry it. The old pin had this row covered."""
     from torve.gates.runner import run_gates
 
     repo.seed()
@@ -482,8 +486,94 @@ def test_a_checkable_row_runs_as_a_shadow_gate_and_convicts_nothing(repo):
 
     assert by_name["decision:S-0009/D-1"].outcome == "fail"
     assert by_name["decision:S-0009/D-1"].state == "shadow"
-    assert by_name["decisions-reported"].outcome == "pass"  # covered by its check, no entry owed
+    assert by_name["decisions-reported"].outcome == "fail"
+    assert "S-0009/D-1" in by_name["decisions-reported"].output
+    assert report.exit_code == 1  # decisions-reported is blocking
+
+
+def test_a_passing_check_covers_its_row(repo):
+    """D-1: a check that runs and passes stands for its row — no entry owed."""
+    from torve.gates.runner import run_gates
+
+    repo.seed()
+    repo.task(base_task(allow=["src/**"], decisions=_checked("true")), log_document())
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    report = run_gates(context_for(repo))
+    by_name = {r.name: r for r in report.results}
+
+    assert by_name["decision:S-0009/D-1"].outcome == "pass"
+    assert by_name["decisions-reported"].outcome == "pass"
     assert report.exit_code == 0
+
+
+def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
+    """D-1: a `-k` filter that matched nothing is not a pass. pytest exits 5
+    with "no tests ran", and the gate fails by its own name — still under the
+    row's shadow state, so it records rather than blocks."""
+    from torve.config.manifest import Manifest
+    from torve.domain.task import InheritedDecision, Task
+    from torve.gates.context import GateContext
+    from torve.gates.runner import run_gates
+
+    row = InheritedDecision(
+        id="S-0009/D-1",
+        grade="LOCKED",
+        text="the check decides",
+        paths=["src/**"],
+        check="uv run pytest -k nothing",
+    )
+    task = Task(id="T-0001", role="implement", decisions=[row], acceptance=[])
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[]),
+        head_sha="",
+        base=None,
+        merge_base=None,
+        task=task,
+        execute=lambda command, timeout: (5, "no tests ran in 0.01s\n"),
+    )
+
+    report = run_gates(ctx)
+    gate = next(r for r in report.results if r.name == "decision:S-0009/D-1")
+
+    assert gate.outcome == "fail"
+    assert "the check selected nothing" in gate.output
+    assert gate.state == "shadow"
+    assert report.exit_code == 0  # shadow still convicts nothing by itself
+
+
+def test_the_no_tests_ran_reading_is_vacuous_too():
+    """D-1: the second reading — a summary that ran no test — is vacuous as
+    well, whether or not the command exited non-zero."""
+    from torve.gates.acceptance import selected_nothing
+
+    assert selected_nothing(5, "no tests ran in 0.01s\n")
+    assert selected_nothing(0, "no tests ran in 0.01s\n")
+    assert not selected_nothing(0, "12 passed in 0.30s\n")
+    assert not selected_nothing(0, "Resolved 150 packages in 1.02s\n")
+
+
+def test_a_failing_check_is_owed_and_a_passing_one_is_not():
+    """D-1: with verdicts in hand, `owed` convicts a row whose check failed
+    and covers one whose check passed; an entry naming the row answers it."""
+    from torve.domain.task import InheritedDecision
+    from torve.gates.decisions_reported import owed
+
+    checked = InheritedDecision(
+        id="S-0009/D-1", grade="LOCKED", text="x", paths=["src/**"], check="pytest tests/test_x.py"
+    )
+
+    failed, nothing = owed([checked], ["src/app.py"], [], {"S-0009/D-1": "fail"})
+    assert failed and "S-0009/D-1" in failed[0] and not nothing
+
+    passed, covered = owed([checked], ["src/app.py"], [], {"S-0009/D-1": "pass"})
+    assert not passed and covered == ["S-0009/D-1: covered by its check, which passed"]
+
+    # The entry is what the row is owed; one naming it answers the gate.
+    answered, _ = owed([checked], ["src/app.py"], ["S-0009/D-1"], {"S-0009/D-1": "fail"})
+    assert not answered
 
 
 def test_a_promoted_checkable_row_blocks_when_its_check_is_red(repo):

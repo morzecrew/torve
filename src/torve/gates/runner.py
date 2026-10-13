@@ -24,10 +24,16 @@ from torve.domain.attempt import BypassRecord, GateResult
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateOutcome
 from torve.gates import BUILTINS
+from torve.gates.acceptance import selected_nothing
 from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome
+from torve.gates.decisions_reported import check_decisions_reported
 
 # ----------------------- #
+
+#: Every contract-borne gate's name carries this prefix (`decision:<id>`), so
+#: the runner tells a row's check from a manifest entry by name alone.
+DECISION_PREFIX = "decision:"
 
 
 @dataclass
@@ -104,7 +110,7 @@ def decision_gates(task: Task | None) -> list[Gate]:
 
         gates.append(
             Gate(
-                name=f"decision:{row.id}",
+                name=f"{DECISION_PREFIX}{row.id}",
                 run=row.check,
                 state=row.check_state,
                 origin=row.id,  # the row is the gate's origin (S-0059/D-4)
@@ -121,14 +127,30 @@ def decision_gates(task: Task | None) -> list[Gate]:
 # ....................... #
 
 
-def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
+def _execute(gate: Gate, ctx: GateContext, checks: dict[str, str] | None = None) -> BuiltinOutcome:
     builtin = gate.builtin
+
+    if builtin == "decisions-reported":
+        # The silence check reads a checked row's verdict from this pass's own
+        # decision gates, so a failing check leaves its row owed (S-0106/D-1).
+        return check_decisions_reported(gate, ctx, checks=checks)
 
     if builtin is not None:
         return BUILTINS[builtin](gate, ctx)
 
     command = _substitute_base(gate, ctx)
     result = run_command(command, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
+
+    # A decision gate whose command selects no test proves nothing about its
+    # row: pytest's exit 5, or a summary reporting no test ran — the reading
+    # `acceptance` makes — is a failure by its own name, under the row's own
+    # state (S-0106/D-1). Any other shell gate keeps the plain exit-code verdict.
+    if gate.name.startswith(DECISION_PREFIX) and selected_nothing(result.exit_code, result.output):
+        return BuiltinOutcome(
+            "fail",
+            f"the check selected nothing\n\n{result.output}",
+            exit_code=result.exit_code,
+        )
 
     if result.exit_code == 0:
         outcome: GateOutcome = "flaky" if result.flaky else "pass"
@@ -231,12 +253,18 @@ def run_gates(
 
         gates = [g for g in gates if g.name in only]
 
-    # Cheapest first, by declared timeout as the cost proxy; manifest order
-    # breaks ties, so ordering stays deterministic and reviewable.
-    ordered = sorted(enumerate(gates), key=lambda pair: (pair[1].timeout or 0.0, pair[0]))
+    # The contract's decision gates run first, because `decisions-reported`
+    # reads their verdicts to know whether a checked row is covered (S-0106/D-1):
+    # a check that has not run yet cannot license a row's silence. The manifest's
+    # own gates then run cheapest-first, by declared timeout as the cost proxy;
+    # manifest order breaks ties, so ordering stays deterministic and reviewable.
+    decision = [g for g in gates if g.name.startswith(DECISION_PREFIX)]
+    rest = [g for g in gates if not g.name.startswith(DECISION_PREFIX)]
+    ordered = [*decision, *sorted(rest, key=lambda g: g.timeout or 0.0)]
 
     report = RunReport()
     blocking_failed = False
+    checks: dict[str, str] = {}
 
     # Every gate runs, including after a blocking one has failed (T-0234).
     # Short-circuiting there made the severity ladder inert: with the
@@ -246,7 +274,7 @@ def run_gates(
     # under a lighter gate. Nothing new can block — the exit code is already
     # 1 — so what this buys is the axes, at the price a green attempt
     # already pays for the same battery.
-    for _, gate in ordered:
+    for gate in ordered:
         if gate.paths and not _judges_anything(gate, ctx):
             # Reported, not omitted (S-0071/D-6): a gate that did not run is a
             # fact about the attempt, and a record that shows a pass would say
@@ -273,7 +301,7 @@ def run_gates(
         started = time.monotonic()
 
         try:
-            outcome = _execute(gate, ctx)
+            outcome = _execute(gate, ctx, checks)
 
         except Exception as exc:
             outcome = BuiltinOutcome("error", f"gate infrastructure failure: {exc!r}")
@@ -305,6 +333,9 @@ def run_gates(
             _log_bypass(ctx, bypass)
 
         report.results.append(result)
+
+        if gate.name.startswith(DECISION_PREFIX):
+            checks[gate.name[len(DECISION_PREFIX) :]] = result.outcome
 
         if result.outcome in ("fail", "error") and gate.state == "blocking":
             blocking_failed = True
