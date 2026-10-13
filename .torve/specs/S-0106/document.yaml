@@ -6,7 +6,7 @@ change:
   type: feat
   scope: gates
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0054, S-0081]
 informed_by: []
 supersedes: []

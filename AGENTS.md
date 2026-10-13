@@ -113,7 +113,7 @@ A dependency change here is an image change: the pinned seat images are rebuilt 
 - Paths: `pyproject.toml` `src/torve/application/skills.py`
 - Consequence: an adopter's sandbox carries no row of torve's corpus
 
-### S-0106/D-4 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+### S-0106/D-4 — `ASSUMED` (A decision is judged before the pull request)
 
 A row's `check` may name a property test: a Hypothesis test stating the decision over generated inputs. `hypothesis` becomes a direct dev dependency. The spec-writer skill says when a row gets a property (a rule over inputs: parsers, matchers, state transitions, round trips), when an example test is the honest check, and that the phase settling the row writes it.
 
