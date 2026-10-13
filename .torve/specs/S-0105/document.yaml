@@ -99,3 +99,5 @@ questions:
       the prefix tests match `src/torve/run` against `runner.py`. Fold them in, or
       keep this document to the hook, the gate and the fence? Lean: fold them in;
       `_judges_anything`'s own docstring says "one idea has one grammar".
+    status: settled
+    settled_by: D-4
