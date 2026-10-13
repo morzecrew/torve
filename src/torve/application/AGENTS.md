@@ -2065,7 +2065,7 @@ The other readers of a path glob read through `matches`: `intake._matched` and `
 - Paths: `src/torve/application/intake.py` `src/torve/application/neighbours.py` `src/torve/application/telemetry.py` `src/torve/gates/runner.py` `src/torve/config/spec.py`
 - Consequence: a glob written once means one set of paths wherever torve reads it
 
-### S-0106/D-2 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+### S-0106/D-2 — `ASSUMED` (A decision is judged before the pull request)
 
 The completion battery and the document-branch regate run the `decision:<id>` gates of every row the document's phases inherited, and an `invariant:<id>` gate for every standing invariant whose paths the document's diff reaches. A decision gate keeps its row's state; an invariant gate is shadow.
 
@@ -2073,7 +2073,7 @@ The completion battery and the document-branch regate run the `decision:<id>` ga
 - Consequence: a check runs on the whole document before its pull request turns ready, not only on the attempt that inherited it
 - Check: `uv run pytest tests/test_lane.py -q -k completion_runs_checks` (shadow; runs as `decision:S-0106/D-2`, no log entry owed)
 
-### S-0106/D-5 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+### S-0106/D-5 — `ASSUMED` (A decision is judged before the pull request)
 
 The review prompt lists each inherited row's `check` and `check_twin` beside its text and asks, for each row with a check: does the check test what the row says, and would a plausible wrong implementation make it fail? A check that fails either question is a finding at `major`. A row with no check draws no finding for lacking one.
 
@@ -2081,7 +2081,7 @@ The review prompt lists each inherited row's `check` and `check_twin` beside its
 - Consequence: a vacuous or unfaithful property is caught by the strong seat before the pull request, where `blocks_at: major` stops it
 - Check: `uv run pytest tests/test_review_run.py -q -k audit` (shadow; runs as `decision:S-0106/D-5`, no log entry owed)
 
-### S-0106/D-7 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+### S-0106/D-7 — `ASSUMED` (A decision is judged before the pull request)
 
 The manifest's `tests:` block gains `run`, the command a list of test files is appended to (default `python3 -m pytest -q -p no:cacheprovider`), and `pair`, templates from a module to its tests over `{dir}` and `{stem}` (default the Python pairing at any depth under `tests/`). `red-on-base`, the intake's pairing, the neighbour derivation, the context pack's named tests and the review leg's fallback scope read them. A changed test file the gate cannot parse into functions qualifies whole.
 

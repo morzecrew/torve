@@ -685,7 +685,7 @@ The other readers of a path glob read through `matches`: `intake._matched` and `
 - Paths: `src/torve/application/intake.py` `src/torve/application/neighbours.py` `src/torve/application/telemetry.py` `src/torve/gates/runner.py` `src/torve/config/spec.py`
 - Consequence: a glob written once means one set of paths wherever torve reads it
 
-### S-0106/D-3 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+### S-0106/D-3 — `ASSUMED` (A decision is judged before the pull request)
 
 `torve gates check` runs the `check_twin` of every standing decision row that names one, after the sabotage CASES, and fails when a twin exits non-zero. `torve spec check` refuses a `blocking` row without a twin, as the planner already does at mint.
 
@@ -693,7 +693,7 @@ The other readers of a path glob read through `matches`: `intake._matched` and `
 - Consequence: a row is never blocking on a check nobody has shown can fail
 - Check: `uv run pytest tests/test_cli.py tests/test_rfc_check.py -q -k twin` (shadow; runs as `decision:S-0106/D-3`, no log entry owed)
 
-### S-0106/D-7 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+### S-0106/D-7 — `ASSUMED` (A decision is judged before the pull request)
 
 The manifest's `tests:` block gains `run`, the command a list of test files is appended to (default `python3 -m pytest -q -p no:cacheprovider`), and `pair`, templates from a module to its tests over `{dir}` and `{stem}` (default the Python pairing at any depth under `tests/`). `red-on-base`, the intake's pairing, the neighbour derivation, the context pack's named tests and the review leg's fallback scope read them. A changed test file the gate cannot parse into functions qualifies whole.
 

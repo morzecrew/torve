@@ -35,6 +35,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directions, such as lock files, goldens and generated schemas. Its default is the
   lock-file table the scope gate used to hard-code.
 
+- The completion battery runs the checks of every decision row a document's phases
+  inherited, as `decision:<id>` gates under each row's state, and the check of every
+  standing invariant whose paths the document's diff reaches, as a shadow
+  `invariant:<id>` gate. A check used to run only on an attempt that inherited its row.
+
+- `torve gates check` runs the `check_twin` of every standing decision row that names
+  one and fails when a twin exits non-zero. `torve spec check` refuses a `blocking` row
+  without a twin.
+
+- The reviewer is shown each inherited row's check and twin and asks whether the check
+  tests what the row says and whether a plausible wrong implementation would fail it.
+  A check that fails either question is a finding at `major`.
+
+- Under a document whose change type is `refactor`, `red-on-base` runs the changed test
+  files and the inherited checks on the base tree and on the candidate, and convicts a
+  test or check that is green on one and red on the other. A run that times out
+  compares nothing and skips.
+
+- The manifest's `tests:` block takes `run`, the command a list of test files is
+  appended to, and `pair`, templates from a module to its tests. `red-on-base`, test
+  pairing in planning and in the contingent scope, the context pack and the review leg
+  read them, so a repository whose tests are not `tests/test_<stem>.py` under pytest
+  can name its own. The defaults are unchanged.
+
+- A decision row's `check` may name a Hypothesis property test. `hypothesis` is a direct
+  dev dependency, and the spec-writer skill says when a row gets a property, when an
+  example test is the honest check, and what a twin is.
+
 ### Changed
 
 - **Breaking:** `promotion.unit: document` and `promotion.landing: pull_request` need the
@@ -92,6 +120,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `torve.base.globs` beside it. A repository that carries its own copy of
   `.torve/agents/hooks/implement/` should copy the whole directory again, or the hook
   keeps refusing contingent writes the scope gate passes.
+
+- A decision check that selects no test fails as vacuous, saying the check selected
+  nothing; pytest's exit 5 used to read as an ordinary failure and change nothing under
+  shadow. `decisions-reported` now owes an entry for a LOCKED row whose check did not
+  pass, instead of skipping every row that has a check.
 
 ### Removed
 
