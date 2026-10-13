@@ -183,6 +183,51 @@ def test_populations_are_keyed_by_identifier_not_document(tmp_path):
 
 
 # ....................... #
+# promotions per phase and per document (S-0104/D-10)
+
+
+def promotions_state(root, task_id: str, *paths: str) -> None:
+    """A run state whose history records *paths* promoted — the same fact the
+    runner appends when a contingent path joins the fence (S-0104/D-2)."""
+
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+
+    for path in paths:
+        state.history.append(
+            {
+                "at": "2026-08-22T10:00:00Z",
+                "from": "running",
+                "to": "running",
+                "fact": f"promoted {path}",
+            }
+        )
+
+    state.save()
+
+
+def test_the_report_counts_a_phase_s_promotions(tmp_path):
+    """S-0104/D-10: the report counts a phase's promotions against the task
+    that wrote them and sums them per document — the signal that a scope was
+    drawn too narrow, read from the record rather than a halt and an amendment.
+    A phase that promoted nothing is absent."""
+
+    write_contract(tmp_path, "T-0001", spec="S-0104")
+    write_contract(tmp_path, "T-0002", spec="S-0104")
+    write_contract(tmp_path, "T-0003", spec="S-0110")
+    promotions_state(tmp_path, "T-0001", "docs/a.md", "src/b.py")
+    promotions_state(tmp_path, "T-0003", "docs/c.md")
+
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
+
+    assert report["promotions"] == {
+        "total": 3,
+        "by_phase": {"T-0001": 2, "T-0003": 1},
+        "by_document": {"S-0104": 2, "S-0110": 1},
+    }
+    assert "T-0002" not in report["promotions"]["by_phase"]
+
+
+# ....................... #
 # touched: the declared scope.allow intersecting the decision's declared paths
 
 

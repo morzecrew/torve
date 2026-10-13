@@ -39,7 +39,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import yaml
+from pathspec import GitIgnoreSpec
 
+from torve.application.neighbours import contingent_paths
 from torve.application.ports import PrInfo, ReviewThread, ThreadComment
 from torve.application.runstate import RunState
 from torve.application.telemetry import engine_event
@@ -697,6 +699,19 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
     document["title"] = round_.title
     document["character"] = "structural"
     document["scope"]["allow"] = [*round_.allow, f"{layout.TORVE_DIR}/tasks/{task_id}/**"]
+    # S-0104/D-8: a round's contingent set is its anchor's neighbours by the
+    # same rules the planner applies to a phase (D-1), so a round that needs
+    # its anchor's caller or test promotes it rather than halting on scope.
+    # A neighbour the round's allow already matches is the scope, not beyond it.
+    allowed = GitIgnoreSpec.from_lines(round_.allow)
+    document["scope"]["contingent"] = sorted(
+        {
+            path
+            for finding in round_.findings
+            for path in contingent_paths(root, [finding.path])
+            if not allowed.match_file(path)
+        }
+    )
     # The round's own description (S-0099/D-5): carried by `task.minted`, so
     # the wave, the requeue's rescope and the morning report read the board
     # rather than a row on the host that minted it.

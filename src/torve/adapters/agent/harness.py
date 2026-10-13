@@ -427,6 +427,12 @@ def build_prompt(
     if task.scope.deny:
         lines.append(f"- deny: {', '.join(task.scope.deny)}")
 
+    if task.scope.contingent:
+        # S-0104/D-7: the neighbours the planner knows this change may reach
+        # ride beside the scope, so the attempt reads what it may widen to
+        # rather than discovering it against the gate.
+        lines.append(f"- contingent: {', '.join(task.scope.contingent)}")
+
     lines += ["", "## Acceptance", ""]
     lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
 
