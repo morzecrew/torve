@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -238,16 +239,29 @@ def gates_list(
 # ....................... #
 
 
-def gates_check(fmt: FormatOption = Format.TEXT) -> None:
+def gates_check(
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
     """Sabotage suite: a gate that cannot be shown to fail is not a
     check. Applies one deliberately bad diff per gate and asserts red, plus a
-    clean twin per gate asserting green."""
+    clean twin per gate asserting green. Then runs every standing decision
+    row's `check_twin`: a row is never blocking on a check nobody has shown
+    can fail."""
 
+    root = root.resolve()
     outcomes = sabotage.run_all()
-    failed = [o for o in outcomes if not o.ok]
+    twins = _twin_outcomes(root)
+    failed = [o for o in outcomes if not o.ok] + [t for t in twins if not t.ok]
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "cases": [o.__dict__ for o in outcomes]})
+        emit_json(
+            {
+                "schema_version": 1,
+                "cases": [o.__dict__ for o in outcomes],
+                "twins": [t.__dict__ for t in twins],
+            }
+        )
     else:
         console = out(fmt)
 
@@ -261,7 +275,66 @@ def gates_check(fmt: FormatOption = Format.TEXT) -> None:
 
         console.print(f"{len(outcomes) - len(failed)}/{len(outcomes)} sabotage cases behaved")
 
+        for t in twins:
+            verdict = mark("pass" if t.ok else "fail")
+            console.print(verdict + Text(f" {t.name:<40} expected {t.expected:<8} got {t.got}", ""))
+
+            if not t.ok and t.detail:
+                for line in t.detail.splitlines()[:12]:
+                    console.print(f"      {line}")
+
+        if twins:
+            console.print(
+                f"{len(twins) - len([t for t in twins if not t.ok])}/{len(twins)} row twins behaved"
+            )
+
     raise typer.Exit(EXIT_GATES_RED if failed else EXIT_OK)
+
+
+# ....................... #
+
+
+def _twin_outcomes(root: Path) -> list[sabotage.CaseOutcome]:
+    """Every standing decision row's `check_twin`, run as a command under the
+    repository root (S-0054/D-4, S-0106/D-3). A row naming none is no case, and
+    a corpus that does not load is left to `torve spec check` rather than
+    convicting here."""
+
+    spec_dir = root / layout.SPECS_DIR
+
+    if not spec_dir.is_dir():
+        return []
+
+    from torve.config.spec import SpecError, load_corpus
+
+    try:
+        corpus = load_corpus(spec_dir)
+    except SpecError:
+        return []
+
+    outcomes: list[sabotage.CaseOutcome] = []
+
+    for doc in corpus.standing():
+        for row in doc.decisions:
+            if not row.check_twin:
+                continue
+
+            proc = subprocess.run(
+                row.check_twin, shell=True, cwd=root, capture_output=True, text=True
+            )
+            ok = proc.returncode == 0
+            outcomes.append(
+                sabotage.CaseOutcome(
+                    name=f"twin: {row.id}",
+                    gate=f"decision:{row.id}",
+                    expected="pass",
+                    got="pass" if ok else "fail",
+                    ok=ok,
+                    detail="" if ok else f"{proc.stdout}{proc.stderr}".strip(),
+                )
+            )
+
+    return outcomes
 
 
 # ....................... #
