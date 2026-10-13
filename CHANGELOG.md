@@ -65,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An agent equipped with no skills is no longer told that `working-rules` is its rules.
 
+- A task requeued after a halt is no longer escalated as `underspecified` on that old
+  halt after its next attempt: a halt ends only the attempt that recorded it.
+
 - `torve manager serve --task X` claims only `X`. The name used to filter only the
   contracts a pass imports, so a pass named for one task could claim another.
 
