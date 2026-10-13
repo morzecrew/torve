@@ -47,6 +47,35 @@ def test_every_shipped_skill_carries_the_specialisation_header_and_a_gate():
         assert "do not reconcile" in text, f"{name}: missing the no-reconcile rule"
 
 
+def test_the_spec_writer_teaches_when_a_row_gets_a_property():
+    """S-0106/D-4: the skill says which check a row gets — a property when the
+    rule is quantified over inputs, an example when it is a statement about one
+    case — and that a blocking row's twin proves the check can fail. The three
+    sentences are the ones only this text carries."""
+
+    raw = (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
+    text = " ".join(raw.split())
+
+    assert "A rule over inputs gets a property" in text
+    assert "Where no input rule exists, an example test is the honest check" in text
+    assert "The phase that settles the row writes its check" in text
+    assert "check_twin" in text
+    assert "proves the check can fail" in text
+
+
+def test_hypothesis_is_a_direct_dev_dependency():
+    """S-0106/D-4: a row's property imports Hypothesis without a fixture, so the
+    dependency is named in the dev group rather than reached transitively
+    through another package's extra."""
+
+    import tomllib
+
+    root = Path(__file__).resolve().parents[1]
+    data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert any(spec.startswith("hypothesis") for spec in data["dependency-groups"]["dev"])
+
+
 def test_the_working_rules_ship_as_one_skill_carrying_the_three_new_rules():
     """S-0067/D-3: the working rules live once, at `skills/working-rules/`, so a
     sandbox takes them as equipment and a session reads them through its skill

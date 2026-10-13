@@ -70,6 +70,22 @@ def test_the_operating_guide_documents_the_review_thread_leg_as_the_code_runs_it
         assert key in guide, f"the operating guide does not name threads.{key}"
 
 
+def test_the_operating_guide_documents_checks_twins_invariants_and_refactors():
+    """S-0106/D-1..D-7: the page an operator reads names a row's check and its
+    vacuous failure, the twin that proves a blocking check can fail, the
+    invariants the document battery runs, and the refactor mode of
+    `red-on-base` — the four things this document turned on."""
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+
+    assert "decision:<id>" in guide
+    assert "selects nothing" in guide
+    assert "check_twin" in guide
+    assert "invariant:<id>" in guide
+    assert "behaviour changed under a refactor" in guide
+    assert "change.type" in guide
+
+
 def test_no_page_claims_the_retired_truth_boundary():
     # The site taught "git holds what SHOULD be, the store holds what
     # HAPPENED" as the organising rule until S-0044/D-1 inverted it. The pages
