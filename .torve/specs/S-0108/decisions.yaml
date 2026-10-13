@@ -39,8 +39,8 @@ decisions:
       close before the lane landed it.
     paths: [src/torve/application/lane.py]
     consequence: >-
-      a night stays open until it has landed its last green candidate, a document's
-      first included
+      a night stays open until it has landed its last green candidate, including a
+      document's first ready candidate
     rationale: >-
       S-0108's own night closed as drained with T-0585 ready and unlanded; earlier
       documents always had a sibling still queued, which hid it.

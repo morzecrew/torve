@@ -2126,7 +2126,7 @@ A pause still stops the mint, the standing leg and the review-thread leg under e
 A night's drain check counts a ready candidate as owed when the document branch it would land onto does not exist yet: the first landing creates that branch, so until then the candidate is measured against the base. `lane.awaiting_landing` skipped such a candidate, so a document's only or first ready task let the night close before the lane landed it.
 
 - Paths: `src/torve/application/lane.py`
-- Consequence: a night stays open until it has landed its last green candidate, a document's first included
+- Consequence: a night stays open until it has landed its last green candidate, including a document's first ready candidate
 - Check: `uv run pytest tests/test_lane.py -q -k first_candidate` (shadow; runs as `decision:S-0108/D-3`, no log entry owed)
 
 ## Invariants holding over `src/torve/application/`
