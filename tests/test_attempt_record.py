@@ -662,6 +662,27 @@ def test_the_classifier_measures_bytes_and_latency_by_class():
     assert "init_plugins" not in profile
 
 
+def test_a_read_is_in_scope_only_under_the_scope_globs():
+    """S-0105/D-4: the class reads the allow globs through the same match the
+    gate does, so `src/app.py` is an in-scope read while `docs/notes.md` is
+    not, and a `*` staying within one segment means `src/a/b.py` is not under
+    `src/*.py` — where fnmatch's `*` crossed the slash and claimed it was."""
+
+    inside = classify_tool_calls(
+        [{"name": "Read", "input": {"file_path": "src/app.py"}}], scope=["src/*.py"]
+    )
+    outside = classify_tool_calls(
+        [{"name": "Read", "input": {"file_path": "docs/notes.md"}}], scope=["src/*.py"]
+    )
+    nested = classify_tool_calls(
+        [{"name": "Read", "input": {"file_path": "src/a/b.py"}}], scope=["src/*.py"]
+    )
+
+    assert inside["classes"] == {"in_scope_read": 1}
+    assert outside["classes"] == {"orientation": 1}
+    assert nested["classes"] == {"orientation": 1}
+
+
 def test_a_call_stream_with_no_calls_produces_no_profile():
     # No stream, no block (S-0039/D-4): an init line with no calls behind it is
     # not a burn profile, and a line that names no call contributes nothing.

@@ -9,7 +9,6 @@ import `application` (S-0015/permitted-imports).
 
 from __future__ import annotations
 
-import fnmatch
 import hashlib
 import json
 import re
@@ -22,6 +21,7 @@ from typing import Any, cast
 import torve
 from torve.application.ports import AgentResult, BrokerUsage, SandboxSpec
 from torve.base.clock import stamp
+from torve.base.globs import matches
 from torve.base.naming import WORKTREE_DIR, shadow_id
 from torve.config import layout
 from torve.config.providers import Price
@@ -610,9 +610,7 @@ def _classify_call(
         if any(target.startswith(_PACK_ROOT) for target in targets):
             return "pack_read"
 
-        if scope and any(
-            fnmatch.fnmatch(target, pattern) for target in targets for pattern in scope
-        ):
+        if scope and any(matches(target, scope) for target in targets):
             return "in_scope_read"
 
         return "orientation"

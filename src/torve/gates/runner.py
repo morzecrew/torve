@@ -14,10 +14,10 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from fnmatch import fnmatch
 from typing import Any, cast
 
 from torve.base.clock import stamp
+from torve.base.globs import matches
 from torve.base.shell import run_command
 from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
 from torve.domain.attempt import BypassRecord, GateResult
@@ -205,18 +205,14 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
 def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
     """Does the attempt's diff touch what this gate judges (S-0071/D-6)?
 
-    A glob matches a path directly, or as a directory prefix — `src/**` is the
-    spelling a contract's scope uses for everything under a directory, and a
-    gate's paths are read the same way so one idea has one grammar.
+    A gate's paths are read through the same glob reading a contract's scope
+    is (S-0105/D-4), so one idea has one grammar: `src/**` is everything under
+    a directory, and what is under a matched path matches with it.
     """
 
     changed = [*ctx.changed_paths, *ctx.untracked]
 
-    return any(
-        fnmatch(path, glob) or path.startswith(glob.rstrip("*/") + "/")
-        for glob in gate.paths
-        for path in changed
-    )
+    return any(matches(path, gate.paths) for path in changed)
 
 
 # ....................... #

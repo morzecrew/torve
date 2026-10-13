@@ -17,7 +17,6 @@ import shlex
 import subprocess
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -42,6 +41,7 @@ from torve.application.runstate import RunState
 from torve.application.telemetry import RECORD_SCHEMA_VERSION, broker_block, engine_event
 from torve.base import naming
 from torve.base.clock import stamp
+from torve.base.globs import matches
 from torve.base.model import STRICT
 from torve.config import layout
 from torve.config.runconfig import (
@@ -287,10 +287,9 @@ def _tree_paths(tree: Path) -> list[Path]:
 
 
 def _matched(path: Path, globs: list[str]) -> bool:
-    # fnmatch treats ** and * alike over the whole string, so "src/**"
-    # covers depth the right-anchored Path.match cannot; both run because
-    # each catches shapes the other misses.
-    return any(path.match(g) or fnmatch(str(path), g) for g in globs)
+    # One reading of a scope glob everywhere the engine reads it (S-0105/D-4):
+    # gitignore's, which `Path.match` and `fnmatch` each got partly wrong.
+    return matches(path.as_posix(), globs)
 
 
 # ....................... #

@@ -23,7 +23,7 @@ from typing import Any, cast
 import yaml
 from pydantic import ValidationError
 
-from torve.base.globs import overlap
+from torve.base.globs import matches, overlap
 from torve.config.layout import TORVE_DIR
 from torve.domain.spec import (
     AMENDMENTS_FILE,
@@ -1205,8 +1205,6 @@ def check_backlinks(
     an agent deleted is heard; a row over files the scan never reads is
     silent, having nowhere to be cited from."""
 
-    from fnmatch import fnmatch
-
     scanned = tracked_files(root)
     citing: dict[str, set[str]] = {}
 
@@ -1224,13 +1222,7 @@ def check_backlinks(
             if row.grade != "LOCKED":
                 continue
 
-            governed = {
-                name
-                for name in scanned
-                if any(
-                    fnmatch(name, glob) or name.startswith(glob.rstrip("*")) for glob in row.paths
-                )
-            }
+            governed = {name for name in scanned if matches(name, row.paths)}
 
             if governed and not (governed & citing.get(row.id, set())):
                 warnings.append(

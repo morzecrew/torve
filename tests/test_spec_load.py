@@ -292,3 +292,41 @@ def test_the_execution_file_loads_as_landings_and_belongs_to_no_other_file(tmp_p
     # a landing is a file of its own under execution/ (S-0058/D-6), never a key
     with pytest.raises(SpecError, match=r"landings: no file carries it"):
         load_document(rfc_dir / "S-0001")
+
+
+# ----------------------- #
+# the backlink a LOCKED row demands over the files it governs (S-0058/D-8)
+
+
+def test_a_locked_literal_path_does_not_govern_a_sibling_by_prefix(tmp_path: Path) -> None:
+    """S-0105/D-4: a LOCKED row's `src/torve/run` names that path and what is
+    under it, never `src/torve/runner.py` — the prefix fallback read every
+    sibling whose name began with the pattern as governed and demanded a
+    silent backlink for a file the row never declared."""
+
+    import subprocess
+
+    (tmp_path / "src" / "torve").mkdir(parents=True)
+    (tmp_path / "src" / "torve" / "runner.py").write_text("", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+
+    spec_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001", [("S-0001/D-1", "LOCKED", "A literal path.", "`src/torve/run`")]
+            ),
+            "0002": document(
+                "0002", [("S-0002/D-1", "LOCKED", "What is under it.", "`src/torve/**`")]
+            ),
+        },
+    )
+
+    warnings = spec.check_backlinks(tmp_path, load_corpus(spec_dir), [])
+
+    # Only the row whose glob actually reaches the file is silent; the literal
+    # sibling prefix is not one of the files it governs.
+    assert len(warnings) == 1
+    assert "S-0002/D-1" in warnings[0]
+    assert "S-0001/D-1" not in warnings[0]

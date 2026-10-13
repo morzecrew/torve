@@ -13,11 +13,11 @@ once phase 2 adds it, the gate manifest's `scope.derived` map.
 from __future__ import annotations
 
 import ast
-from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from torve.application.intake import NOT_THE_TREE, paired_test_files
+from torve.base.globs import matches
 
 if TYPE_CHECKING:
     from torve.domain.spec import Document
@@ -37,10 +37,10 @@ def _tree_files(tree: Path) -> list[Path]:
 
 
 def _matched(path: Path, globs: list[str]) -> bool:
-    """intake's rule, verbatim: `Path.match` and `fnmatch` each catch shapes
-    the other misses."""
+    """The intake's rule, verbatim (S-0105/D-4): one reading of a scope glob
+    for both, so a neighbour is the same set of paths wherever it is asked."""
 
-    return any(path.match(g) or fnmatch(str(path), g) for g in globs)
+    return matches(path.as_posix(), globs)
 
 
 def _module_names(files: list[Path]) -> dict[str, Path]:
