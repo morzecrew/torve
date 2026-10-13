@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A check that selects nothing fails, and a failing check is owed a word
+    intent: >-
+      Decision gates read pytest's exit 5 and the "no tests ran" summary as a vacuous
+      failure with its own sentence; `decisions-reported` owes an entry for a LOCKED
+      row whose check did not pass. Tests: a check whose `-k` selects nothing fails
+      as vacuous; a passing check still covers its row; a failing shadow check leaves
+      its LOCKED row owed. Settles D-1.
+    scope:
+      - src/torve/gates/runner.py
+      - src/torve/gates/acceptance.py
+      - src/torve/gates/decisions_reported.py
+      - tests/test_gates.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_gates.py tests/test_runner.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: >-
+      The completion battery runs the document's checks and the invariants it reaches
+    intent: >-
+      The completion battery and the document-branch regate build `decision:<id>`
+      gates from the rows the document's phases inherited and `invariant:<id>` gates
+      (shadow) from the standing invariants whose paths the document's diff reaches.
+      Tests: a document whose phase inherited a checked row runs that check on completion;
+      an invariant whose paths the diff reaches runs and one it does not reach does
+      not; a task's attempt battery is unchanged. Settles D-2.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/gates/runner.py
+      - src/torve/gates/context.py
+      - tests/test_lane.py
+      - tests/test_gates.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_gates.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: Twins run, and a blocking row needs one
+    intent: >-
+      `torve gates check` runs every standing row's `check_twin` after the sabotage
+      CASES; `torve spec check` refuses a blocking row without a twin. Tests: a twin
+      that exits non-zero fails `gates check`; a passing twin passes; a blocking row
+      with no twin is a spec-check problem. Settles D-3.
+    scope:
+      - src/torve/cli/gates.py
+      - src/torve/config/spec.py
+      - tests/test_cli.py
+      - tests/test_rfc_check.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_cli.py tests/test_rfc_check.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: routine
+  - phase: 4
+    title: The reviewer audits each check
+    intent: >-
+      The review prompt lists each inherited row's check and twin and asks the faithfulness
+      and can-it-fail questions; the pack's `decisions.json` carries `check_twin`.
+      Tests: the prompt names a row's check and twin and the two questions; a row
+      without a check is listed without them; the pack carries the twin. Settles D-5.
+    scope:
+      - src/torve/application/review.py
+      - src/torve/application/contextpack.py
+      - tests/test_review_run.py
+      - tests/test_review_role.py
+      - tests/test_contextpack.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_review_run.py tests/test_review_role.py tests/test_contextpack.py
+      - uv run mypy src
+    character: routine
+  - phase: 5
+    title: >-
+      Under a refactor, red-on-base asks that behaviour held
+    intent: >-
+      `red-on-base` reads the document's change type; under `refactor` it runs the
+      changed tests and inherited checks on both trees and convicts a difference.
+      Tests: a refactor whose tests pass on both passes; one that turns a test red
+      fails with "behaviour changed under a refactor"; a feature document is judged
+      as before. Settles D-6.
+    scope:
+      - src/torve/gates/red_on_base.py
+      - src/torve/gates/context.py
+      - tests/test_gates.py
+    acceptance:
+      - uv run pytest tests/test_gates.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 6
+    title: >-
+      The manifest names how a repository's tests are found, paired and run
+    intent: >-
+      `tests.run` and `tests.pair` in the manifest model and schema; `red-on-base`,
+      the intake's pairing, the context pack's named tests and the review leg's fallback
+      scope read them; a changed test file the gate cannot parse qualifies whole.
+      Tests: a manifest pairing `{dir}/{stem}_test.go` pairs a Go file and red-on-base
+      runs its `run` on it; the defaults reproduce today's Python behaviour. Settles
+      D-7.
+    scope:
+      - src/torve/config/manifest.py
+      - .torve/schemas/gates.json
+      - src/torve/gates/red_on_base.py
+      - src/torve/application/intake.py
+      - src/torve/application/contextpack.py
+      - src/torve/application/reviewleg.py
+      - tests/test_manifest.py
+      - tests/test_gates.py
+      - tests/test_intake.py
+      - tests/test_contextpack.py
+      - tests/test_reviewleg.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py
+        tests/test_contextpack.py tests/test_reviewleg.py
+      - uv run mypy src
+    depends_on:
+      - 5
+    character: structural
+  - phase: 7
+    title: >-
+      A row may name a property, and the skill says when
+    intent: >-
+      `hypothesis` is a direct dev dependency; the spec-writer skill teaches properties
+      in `check`, example tests where no rule over inputs exists, and twins; `pages/docs/operating.md`
+      describes checks, twins, invariants in the battery and refactor mode. Settles
+      D-4 and the documentation of D-1 to D-7.
+    scope:
+      - pyproject.toml
+      - uv.lock
+      - skills/spec-writer/**
+      - pages/docs/operating.md
+      - tests/test_skills.py
+      - tests/test_docs.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_skills.py tests/test_docs.py
+      - uv run torve spec check
+    character: routine

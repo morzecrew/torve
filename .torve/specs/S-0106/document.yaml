@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0106
+title: A decision is judged before the pull request
+kind: design
+change:
+  type: feat
+  scope: gates
+status: draft
+implementation: none
+depends_on: [S-0054, S-0081]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A decision row can name the command that judges it (`check`), whether a failure blocks (`check_state`), and the test that proves the check can fail (`check_twin`). S-0054 built the fields, and almost nothing uses them. 3 of 500 decision rows carry a check, none is blocking, and none names a twin. A check runs only as a shadow gate on an attempt, never on the completion battery, because the battery judges the document branch under no task. The 23 invariants' checks never run anywhere. Nothing runs a `check_twin`, though S-0054/D-4 is LOCKED on `torve gates check` running them. The only decision-gate runs on record show the failure this invites: on T-0448 all three checks exited 5, "no tests ran", because their `-k` filters selected nothing, and the attempt stayed green.
+
+  This document makes the checks real and asks for better ones. A check that selects nothing fails. The completion battery runs the checks of the rows a document inherited and of the invariants its diff reaches. `torve gates check` runs every twin. A row may name a Hypothesis property as its check, stating the decision over generated inputs instead of one example. The strong reviewer audits each check: does it test what the row says, and would a plausible wrong implementation fail it. Under a refactor, red-on-base turns around: the changed tests and checks must pass on the base and on the candidate. And `red-on-base`, test pairing and the context pack read their test conventions from the manifest's `tests:` block, so a repository that is not Python gets them too.
+motivation: >-
+  The third of the five moves the owner chose on 2026-10-09 ("judge before the pull
+  request"), which absorbs the verdict of the research "Should Torve Prove Its Code?"
+  (artifact WV2nKgN5QSy78B7SUod3o5, 2026-10-12): properties, not proofs. Lean and
+  Dafny proofs are not adopted; a property in the existing `check` field, a reviewer
+  that audits it, and twins and invariants that actually run are. The owner queued
+  it on 2026-10-13, after the scope-matcher document.
+current_state: >-
+  `gates/runner.decision_gates` builds a shell gate `decision:<id>` for every inherited
+  row with a check, under the row's `check_state` (default shadow) and with `check_twin`
+  as its `sabotage`. Any non-zero exit is `fail`, so pytest's exit 5 for an empty
+  selection reads like a real failure under shadow and changes nothing. The gates
+  come from the task's contract, so the attempt battery and the per-task rebase regate
+  run them; the completion battery and the document-branch regate run `_regate` with
+  no task and do not. `decisions-reported` skips every LOCKED row that has a check,
+  whether the check passed or not. The planner refuses a blocking row without a twin;
+  nothing else reads `check_twin`, and `torve gates check` runs only the sabotage
+  CASES. Invariant checks are displayed by `spec paths`, `spec tests` and the projections
+  and never run. The review prompt lists inherited rows as id, grade and text; the
+  checks reach the reviewer only through the pack's `decisions.json` and `gates.json`.
+  `red-on-base` (shadow; 105 runs, 0 convictions) runs `python3 -m pytest` on changed
+  test functions found by `ast`, and a refactor that changes no behaviour is a risk
+  S-0081 named and left. The manifest's `tests:` block holds only globs; pairing (`intake.paired_test_files`),
+  the context pack's named tests and the review leg's fallback scope assume `tests/test_<stem>.py`.
+  The executor is deepseek-v4.1-flash and the reviewer claude-opus-5-5 at `blocks_at:
+  major`, so the review is already cross-family; bot threads are already batched per
+  head after the review wait.
+goals: |-
+  - A check that cannot fail does not pass: an empty selection fails, a twin proves the check can fail, and the reviewer says when a check tests something other than its row.
+  - Every check a document's rows and invariants name runs before its pull request turns ready, not only on the attempt that happened to inherit it.
+  - A refactor is judged by whether behaviour held, not convicted for holding it.
+  - A repository whose tests are not `tests/test_<stem>.py` under pytest gets red-on-base and test pairing from its manifest.
+non_goals: |-
+  - Machine-checked proofs (Lean, Dafny, Verus): on the vericoding record a model close to the executor proves 0% of Lean tasks, and a proved spec is only as good as its translation.
+  - Promoting any existing row to `blocking`: rows are promoted one at a time after this lands and a twin exists.
+  - Mutation testing and a differential SQL reference for bloomery: queued after this document.
+  - Replacing the pytest readers that parse output (`acceptance`'s summary, the pack's failed-test ids, `coverage.xml`): the adapter covers finding, pairing and running tests, not parsing a runner's report.
+design:
+  - key: a-check-that-can-fail
+    md: |-
+      | Question | Today | After |
+      |---|---|---|
+      | Does the check select anything? | exit 5 reads as an ordinary failure, and under shadow nothing happens | an empty selection fails as vacuous, by name |
+      | Can the check fail at all? | `check_twin` carried, never run | `torve gates check` runs every twin |
+      | Does it test what the row says? | nobody asks | the reviewer audits it, at `major` |
+      | Does it run before the pull request? | only on an attempt that inherited the row | the completion battery runs every row and every reached invariant |
+  - key: properties
+    md: >-
+      A property states the decision over generated inputs: a matcher agrees with
+      its reference on every path, a fold of events reaches only states the transition
+      table allows, a round trip returns its input. Hypothesis already ships in the
+      lock through forze's `dst` extra; it becomes a direct dev dependency. The row
+      names the property test as its `check`; the phase that settles the row writes
+      it, and the contract already shows the check to the attempt. Where the decision
+      has no rule over inputs, an example test is the honest check and the skill says
+      so.
+  - key: refactor-mode
+    md: >-
+      Under a document whose change type is `refactor`, `red-on-base` runs the changed
+      test files and the inherited decision checks on the base tree and on the candidate.
+      Both green passes; a test or check green on one and red on the other convicts
+      as "behaviour changed under a refactor". Outside a refactor the gate is unchanged.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - bloomery's manifest: turning `red-on-base` on there, and naming its `tests:` block, are bloomery's changes once it upgrades.
+  - Test-output parsers for runners other than pytest.
+  - S-0081's open questions on tests-only diffs and on retiring `coverage-delta`.
+risks: ''
+alternatives:
+  - option: >-
+      Prove decisions in Lean or Dafny and run the proofs as gates.
+    rejected_because: >-
+      The research found the best single model proves 17.9% of Lean tasks and a deepseek
+      model 0%; about one in four "verified" results had a spec too weak or mistranslated.
+      A property in the check field catches the same class of error at a cost the
+      night can pay.
+  - option: >-
+      Mutate the code a check covers and require the check to fail on each mutant.
+    rejected_because: >-
+      Stronger than a twin and a reviewer audit, and slower by the mutant count; it
+      is queued as its own document, reporting scores on changed lines first.
+questions:
+  - id: Q-1
+    text: >-
+      Refactor mode keys on the document's `change.type: refactor`. Is that the right
+      trigger, or should a phase be able to mark itself a refactor inside a feature
+      document? Lean: the document type; a document that is half refactor is two documents.
+  - id: Q-2
+    text: >-
+      `decisions-reported` skips a LOCKED row that has a check. After D-1 it owes
+      an entry for a row whose check did not pass, so a failing shadow check costs
+      the attempt one log entry. Accept that cost, or leave `decisions-reported` as
+      it is until rows go blocking? Lean: accept; a LOCKED row whose check fails is
+      exactly the row that needs a word.
