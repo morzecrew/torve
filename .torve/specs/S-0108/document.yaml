@@ -44,7 +44,7 @@ design:
       | mint | runs | stops | stops |
       | claim and dispatch of board tasks | runs | runs | runs |
 
-      The manager knows the landing mode and passes whether the lane runs through a pause to `serve`, which hands it to each pass; `residency` reads no configuration.
+      `serve` and `once` take a `lane_through_pause` flag beside `paused`. `once` runs the lane leg when the pass is unpaused or the flag is set; the review-thread, standing and mint legs keep gating on `paused` alone. The manager sets the flag from `promotion.landing` (true for `pull_request`, false for `local`); `residency` reads no configuration.
 tests: |-
   - Under `promotion.landing: pull_request`, a paused pass runs the lane and still skips the mint, standing and thread legs.
   - Under `promotion.landing: local`, a paused pass skips the lane as before.
