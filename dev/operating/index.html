@@ -409,6 +409,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A row's check, its twin, and the invariants the battery runs
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A row&#x27;s check, its twin, and the invariants the battery runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#under-a-refactor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Under a refactor
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-working-rules-live" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1116,6 +1144,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A row's check, its twin, and the invariants the battery runs
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A row&#x27;s check, its twin, and the invariants the battery runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#under-a-refactor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Under a refactor
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-working-rules-live" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1597,6 +1653,61 @@ The mode and the pack function that fills it are both built; no dispatch
 path passes a conviction to the prompt yet, so a repair attempt today is an
 ordinary prompt run against the convicted tree with the convicting gate's
 command in its acceptance.</p>
+<h2 id="a-rows-check-its-twin-and-the-invariants-the-battery-runs">A row's check, its twin, and the invariants the battery runs<a class="headerlink" href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" title="Permanent link">&para;</a></h2>
+<p>A decision row may carry a <code>check</code> — a command whose exit code judges the
+row — and the battery runs each as a <code>decision:&lt;id&gt;</code> gate under the row's
+<code>check_state</code>: shadow until an amendment promotes it on soak evidence, then
+blocking. A check that <strong>selects nothing</strong> — pytest's exit 5, or the "no
+tests ran" summary <code>acceptance</code> already reads — fails as vacuous under the
+row's state (S-0106/D-1): a <code>-k</code> filter matching no test has judged nothing,
+and it is seen the first time it runs rather than left as a quiet green. The
+<code>decision:&lt;id&gt;</code> gates run first, before <code>decisions-reported</code>, because that
+gate reads their verdicts to know whether a checked row is covered
+(S-0106/D-1).</p>
+<p>A check stands for its row in the silence check, and what changed is the
+failure side. A row whose check ran and passed owes no divergence entry,
+whatever its paths — the check is its evidence. A <code>LOCKED</code> row whose check
+<em>did not</em> pass — a fail, an error, a check that selected nothing — is owed
+an entry like any other touched locked area, instead of the old rule that
+skipped every row carrying a check (S-0106/D-1).</p>
+<p>A <code>check_state: blocking</code> row also names a <code>check_twin</code>: the test that
+proves the check <em>can</em> fail — a plausible wrong implementation of the row,
+run against the check, which must turn it red. <code>torve gates check</code> runs
+every standing row's twin after the sabotage CASES and fails when one exits
+non-zero, and <code>torve spec check</code> refuses a blocking row that names no twin,
+as the planner already refuses one at mint (S-0106/D-3). A row is never
+blocking on a check nobody has shown can fail.</p>
+<p>The same battery carries the document's <strong>invariants</strong>. A standing
+invariant — an <code>I-n</code> with a <code>statement</code>, <code>paths</code> and a <code>check</code> — enters as
+an <code>invariant:&lt;id&gt;</code> gate, always shadow: an invariant is a statement to read,
+not a wall, until an operator promotes a decision from it. The completion
+battery and the document-branch regate run the <code>decision:&lt;id&gt;</code> gates of
+every row the document's phases inherited, and an <code>invariant:&lt;id&gt;</code> gate for
+every invariant whose declared paths the diff reaches; an invariant the diff
+never touches is reported skipped rather than run for nothing (S-0106/D-2).
+One reader fills both batteries, so a row is judged the same way on an
+attempt and on the whole document, and a task's own attempt battery is
+otherwise unchanged.</p>
+<h3 id="under-a-refactor">Under a refactor<a class="headerlink" href="#under-a-refactor" title="Permanent link">&para;</a></h3>
+<p><code>red-on-base</code> asks whether a changed test fails on the base tree, because a
+test green before the change proves nothing about it. A <strong>refactor inverts
+the question</strong>. When the document's <code>change.type</code> is <code>refactor</code>, the gate
+runs the changed test files <em>and the inherited decision checks</em> on both the
+base tree and the candidate: green on both passes, and a green on one tree
+turning red on the other fails as "behaviour changed under a refactor"
+(S-0106/D-6). A refactor is judged by whether behaviour held, not by whether
+a test moved under it, which closes the risk the gate was built around — a
+refactor convicted for changing nothing. Outside a refactor the gate is
+unchanged: the base red is still the healthy case.</p>
+<p>A repository whose tests are not Python says how they are found, paired and
+run through the manifest's <code>tests:</code> block: <code>run</code>, the command a list of test
+files is appended to, and <code>pair</code>, the templates from a module to its tests
+over <code>{dir}</code> and <code>{stem}</code> (S-0106/D-7). <code>red-on-base</code>, the intake's pairing,
+the neighbour derivation, the context pack's named tests and the review
+leg's fallback scope read them; the defaults reproduce the Python pairing at
+any depth under <code>tests/</code> and <code>python3 -m pytest -q -p no:cacheprovider</code>. A
+changed test file the gate cannot parse into functions qualifies whole
+rather than silently not qualifying.</p>
 <h2 id="where-the-working-rules-live">Where the working rules live<a class="headerlink" href="#where-the-working-rules-live" title="Permanent link">&para;</a></h2>
 <p>The rules an attempt works by — where the engine's facts are, which verbs
 read and write them, what a scope names, the two rules about tests that
