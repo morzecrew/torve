@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-13T19:00:00Z'
+    title: >-
+      Phase 2: a document's first candidate keeps the night open
+    md: >-
+      S-0108's own night closed as drained at 15:13Z with T-0585 green, reviewed and
+      unlanded, and a lane-only pass landed it at 18:15Z. `lane.awaiting_landing`
+      looks up the document branch a candidate lands onto and skips the candidate
+      when that branch has no tip; a document's first landing is what creates the
+      branch, so its first ready task was never owed. D-3 and phase 2 fix it here
+      because S-0108 is the document about what a night still owes the lane while
+      it runs, and because phase 2's served landing re-runs the completion battery
+      that went red, not reproducibly, on phase 1.

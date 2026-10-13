@@ -2121,6 +2121,14 @@ A pause still stops the mint, the standing leg and the review-thread leg under e
 - Consequence: the mint, standing and review-thread legs add no work during a pause
 - Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-2`, no log entry owed)
 
+### S-0108/D-3 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+
+A night's drain check counts a ready candidate as owed when the document branch it would land onto does not exist yet: the first landing creates that branch, so until then the candidate is measured against the base, when the base has a tip. `lane.awaiting_landing` skipped such a candidate, because `_document_branch(..., dry_run=True)` names the branch whether or not it exists, so a document's only or first ready task could let the night close before the lane landed it.
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a night stays open until it has landed its last green candidate, including a document's first ready candidate
+- Check: `uv run pytest tests/test_lane.py -q -k first_candidate` (shadow; runs as `decision:S-0108/D-3`, no log entry owed)
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

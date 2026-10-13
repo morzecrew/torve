@@ -24,3 +24,23 @@ phasing:
         tests/test_skills.py tests/test_docs.py
       - uv run mypy src
     character: routine
+  - phase: 2
+    title: >-
+      A document's first candidate keeps the night open
+    intent: >-
+      `awaiting_landing` measures a ready candidate against the base when its document
+      branch does not exist yet, instead of skipping it (D-3). Tests: `test_a_document_s_first_candidate_is_owed_before_its_branch_exists`
+      (the name D-3's check selects) — a document's first ready task, before its branch
+      exists, is owed; once its landing file is on the document branch it is owed
+      nothing; a task-unit candidate is unchanged. Settles D-3.
+    scope:
+      - src/torve/application/lane.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: routine
