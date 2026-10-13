@@ -88,6 +88,8 @@ questions:
       it to changed lines? Lean: in-house; the gate needs a small, explainable operator
       set on a few lines, and a survivor report is only useful if every edit is one
       a reader recognises.
+    status: settled
+    settled_by: D-1
   - id: Q-2
     text: >-
       Should a survivor on a line governed by a decision row that has a check become
@@ -95,3 +97,5 @@ questions:
       answered by a real wrong implementation), or stay in the gate's report? Lean:
       shown to the reviewer as evidence, graded by the reviewer, never a finding by
       itself.
+    status: settled
+    settled_by: D-4

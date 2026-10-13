@@ -11,8 +11,9 @@ decisions:
     consequence: >-
       every mutant is a recognisable edit to code this change wrote
     rationale: >-
-      A small operator set is what makes a survivor report readable; changed lines
-      are what the attempt is accountable for.
+      Settles Q-1 (owner, 2026-10-13: in-house). A small operator set is what makes
+      a survivor report readable; changed lines are what the attempt is accountable
+      for.
     check: >-
       uv run pytest tests/test_mutation.py -q -k operator
   - id: D-2
@@ -61,7 +62,7 @@ decisions:
       the reviewer's "could a wrong implementation pass?" is answered by real wrong
       implementations that did
     rationale: >-
-      Q-2 asks the owner, and this is the lean: the reviewer already reads the checks
+      Settles Q-2 (owner, 2026-10-13: evidence). The reviewer already reads the checks
       and is the seat that can tell a harmless survivor from a missing assertion.
     check: >-
       uv run pytest tests/test_review_run.py -q -k survivor
