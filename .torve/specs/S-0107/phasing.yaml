@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: Mutants are enumerated over a change's own lines
+    intent: >-
+      The mutator in `gates/mutation.py`: changed Python lines from the diff, the
+      six operators, one edit per mutant, a seeded sample to the budget (D-1). Tests:
+      each operator produces its edit on a fixture; an unchanged line and a test file
+      are never mutated; the same diff samples the same mutants. Settles D-1.
+    scope: [src/torve/gates/mutation.py, tests/test_mutation.py]
+    acceptance:
+      - uv run pytest tests/test_mutation.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The mutation gate scores a change's tests
+    intent: >-
+      The `mutation` builtin: a scratch copy per run, paired tests through `tests.run`,
+      the baseline and per-mutant timeouts, the report; registered, with its default
+      input and timeout, and a shadow entry in `.torve/gates.yaml`; the sabotage case
+      (D-2, D-5). Tests: tests that pin every line score 1; tests that assert nothing
+      score 0 and list every survivor; a change with no Python source skips; the worktree
+      is byte-identical after the gate. Settles D-2 and D-5.
+    scope:
+      - src/torve/gates/mutation.py
+      - src/torve/gates/__init__.py
+      - src/torve/config/manifest.py
+      - src/torve/gates/sabotage.py
+      - .torve/gates.yaml
+      - tests/test_mutation.py
+      - tests/test_gates.py
+      - tests/test_manifest.py
+      - tests/test_sabotage.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_mutation.py tests/test_gates.py tests/test_manifest.py
+        tests/test_sabotage.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      The score reaches the record, the report and the reviewer
+    intent: >-
+      Score and survivors in `gates.evaluated`; the spec quality report per phase
+      and document; `torve why` shows the score; the review prompt lists survivors
+      with the rows covering their lines (D-3, D-4). Tests: the report gives a phase's
+      score; the prompt names a survivor and its covering row; a run with no mutation
+      result shows nothing.
+    scope:
+      - src/torve/application/specquality.py
+      - src/torve/cli/why.py
+      - src/torve/application/review.py
+      - tests/test_specquality.py
+      - tests/test_review_run.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_specquality.py tests/test_review_run.py tests/test_cli.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: routine
+  - phase: 4
+    title: The pages say what a survivor means
+    intent: >-
+      `pages/docs/operating.md` describes the gate, its budget and how to read a survivor;
+      the spec-writer skill says a check that leaves survivors on its row's lines
+      is a weak check. Settles the documentation of D-1 to D-5.
+    scope:
+      - pages/docs/operating.md
+      - skills/spec-writer/**
+      - tests/test_docs.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+    depends_on:
+      - 3
+    character: routine

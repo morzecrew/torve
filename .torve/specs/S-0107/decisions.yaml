@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `src/torve/gates/mutation.py` enumerates mutants over the candidate's changed
+      Python source lines only, one edit to one AST node per mutant, from six operators:
+      comparison, boolean, arithmetic, constant, condition and return. A line the
+      diff did not add or change is never mutated, and a test file is never mutated.
+    paths: [src/torve/gates/mutation.py]
+    consequence: >-
+      every mutant is a recognisable edit to code this change wrote
+    rationale: >-
+      Settles Q-1 (owner, 2026-10-13: in-house). A small operator set is what makes
+      a survivor report readable; changed lines are what the attempt is accountable
+      for.
+    check: >-
+      uv run pytest tests/test_mutation.py -q -k operator
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The `mutation` builtin gate (shadow, attempt battery) samples at most `budget`
+      mutants (default 30) with a seed derived from the diff, applies each in a scratch
+      copy of the worktree, and runs the task's paired tests through `tests.run` with
+      a timeout of twice their baseline run. It reports killed, survived and timed-out
+      counts, the score, and every survivor as `path:line — edit`. A change with no
+      Python source lines, or no paired tests, is skipped with the reason.
+    paths:
+      - src/torve/gates/mutation.py
+      - src/torve/gates/__init__.py
+      - src/torve/config/manifest.py
+      - .torve/gates.yaml
+    consequence: >-
+      the score costs a bounded, repeatable amount and never touches the worktree
+      under judgment
+    rationale: >-
+      Red-on-base already shows a scratch tree is cheap and safe; a seeded sample
+      makes two runs of one diff comparable.
+    check: >-
+      uv run pytest tests/test_mutation.py tests/test_gates.py -q -k mutation
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The gate's score and survivors ride the record's `gates.evaluated`, so `torve
+      why`, the night report and the spec quality report read them; the quality report
+      gives the score per phase and per document.
+    paths: [src/torve/application/specquality.py, src/torve/cli/why.py]
+    consequence: >-
+      an author sees which phases' tests notice their own changes going wrong
+    rationale: >-
+      A score only in a gate log is read once; per phase it says where tests are thin.
+    check: >-
+      uv run pytest tests/test_specquality.py -q -k mutation
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The review prompt lists the gate's survivors, each with the decision rows whose
+      paths cover its line, as evidence for S-0106/D-5's audit. A survivor is never
+      a finding by itself; the reviewer grades it.
+    paths: [src/torve/application/review.py]
+    consequence: >-
+      the reviewer's "could a wrong implementation pass?" is answered by real wrong
+      implementations that did
+    rationale: >-
+      Settles Q-2 (owner, 2026-10-13: evidence). The reviewer already reads the checks
+      and is the seat that can tell a harmless survivor from a missing assertion.
+    check: >-
+      uv run pytest tests/test_review_run.py -q -k survivor
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The sabotage suite carries a mutation case: a change whose tests assert nothing
+      scores 0 with every mutant a survivor, and a change whose tests pin each line
+      scores 1.
+    paths: [src/torve/gates/sabotage.py]
+    consequence: >-
+      the gate is shown to tell a weak test from a strong one, as every gate must
+    rationale: >-
+      Every gate's ability to convict is proven by a sabotage case (S-0036/D-3).
+    check: uv run pytest tests/test_sabotage.py -q
