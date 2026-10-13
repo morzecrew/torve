@@ -2089,6 +2089,38 @@ The manifest's `tests:` block gains `run`, the command a list of test files is a
 - Consequence: a repository whose tests are `*_test.go` or `*.spec.ts` gets red-on-base and pairing by naming them, not by a change to torve
 - Check: `uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py -q -k adapter` (shadow; runs as `decision:S-0106/D-7`, no log entry owed)
 
+### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+
+The gate's score and survivors ride the record's `gates.evaluated`, so `torve why` and the spec quality report read them; the quality report gives the score per phase and per document.
+
+- Paths: `src/torve/application/specquality.py` `src/torve/cli/why.py`
+- Consequence: an author sees which phases' tests notice their own changes going wrong
+- Check: `uv run pytest tests/test_specquality.py -q -k mutation` (shadow; runs as `decision:S-0107/D-3`, no log entry owed)
+
+### S-0107/D-4 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+
+The review prompt lists the gate's survivors, each with the decision rows whose paths cover its line, as evidence for S-0106/D-5's audit. A survivor is never a finding by itself; the reviewer grades it.
+
+- Paths: `src/torve/application/review.py`
+- Consequence: the reviewer's "could a wrong implementation pass?" is answered by real wrong implementations that did
+- Check: `uv run pytest tests/test_review_run.py -q -k survivor` (shadow; runs as `decision:S-0107/D-4`, no log entry owed)
+
+### S-0108/D-1 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+
+Under `promotion.landing: pull_request` a paused pass runs the lane leg: green candidates land on their branches, the completion battery runs, and the pull request is republished. Under `promotion.landing: local` the pause stops the lane, as S-0052/D-3 says. The landing mode is the manager's to pass to the pass; `residency` does not read configuration.
+
+- Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
+- Consequence: one escalation no longer holds every green sibling and the phases behind them until a person answers it
+- Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-1`, no log entry owed)
+
+### S-0108/D-2 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+
+A pause still stops the mint, the standing leg and the review-thread leg under every landing mode, and the relay still runs through it.
+
+- Paths: `src/torve/application/residency.py`
+- Consequence: the mint, standing and review-thread legs add no work during a pause
+- Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-2`, no log entry owed)
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

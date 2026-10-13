@@ -6,7 +6,7 @@ kind: design
 change:
   type: feat
   scope: gates
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0081, S-0106]
 informed_by: []
@@ -61,12 +61,23 @@ design:
       change yields the same mutants. Each mutant runs the task's paired tests with
       a timeout of twice their baseline time; a timeout is reported, not killed. The
       gate's own timeout bounds the whole run.
-tests: ''
+tests: |-
+  - Each of the six operators produces its edit on a fixture line, and only on a line the diff added or changed; a test file is never mutated (D-1).
+  - The same diff samples the same mutants under the budget (D-1, D-2).
+  - Tests that pin every changed line score 1; tests that assert nothing score 0 and list every survivor as `path:line — edit` (D-2, D-5).
+  - A change with no Python source lines, or no paired tests, skips with the reason; the worktree under judgment is byte-identical after the gate (D-2).
+  - A mutant that outruns twice the baseline run is reported as timed out, not killed (D-2).
+  - The spec quality report gives a phase's score and its document's, and `torve why` shows the score (D-3).
+  - The review prompt names a survivor and the decision rows whose paths cover its line; a run with no mutation result adds nothing to the prompt (D-4).
 docs: ''
 out_of_scope: |-
   - Promoting the gate to blocking, and choosing its threshold: after a soak on torve and bloomery.
   - Using `mutmut`, `cosmic-ray` or another tool (see alternatives).
-risks: ''
+risks: |-
+  - A survivor can be an equivalent mutant (an edit that changes no behaviour, such as `x >= 0` against `x > 0` where zero cannot occur); the reviewer grades survivors as evidence and never as findings, so an equivalent mutant costs a sentence, not a revision.
+  - The budget samples 30 mutants, so a large change's score is an estimate; the seed makes it a stable one, and the report names how many were sampled of how many enumerated.
+  - Each mutant reruns the paired tests, so a slow suite multiplies; the per-mutant timeout and the gate's own timeout bound it, and the gate is shadow, so a slow run never blocks.
+  - The scratch copy duplicates the worktree per run; it is removed whichever way the gate ends, as red-on-base's is.
 alternatives:
   - option: >-
       Adopt `mutmut` (3.x) or `cosmic-ray` as a dependency.

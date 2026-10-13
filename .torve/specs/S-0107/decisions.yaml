@@ -9,7 +9,7 @@ decisions:
       diff did not add or change is never mutated, and a test file is never mutated.
     paths: [src/torve/gates/mutation.py]
     consequence: >-
-      every mutant is a recognisable edit to code this change wrote
+      every mutant is a recognisable edit to code on a changed line
     rationale: >-
       Settles Q-1 (owner, 2026-10-13: in-house). A small operator set is what makes
       a survivor report readable; changed lines are what the attempt is accountable
@@ -42,8 +42,8 @@ decisions:
     grade: ASSUMED
     text: >-
       The gate's score and survivors ride the record's `gates.evaluated`, so `torve
-      why`, the night report and the spec quality report read them; the quality report
-      gives the score per phase and per document.
+      why` and the spec quality report read them; the quality report gives the score
+      per phase and per document.
     paths: [src/torve/application/specquality.py, src/torve/cli/why.py]
     consequence: >-
       an author sees which phases' tests notice their own changes going wrong

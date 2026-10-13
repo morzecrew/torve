@@ -6,7 +6,7 @@ kind: design
 change:
   type: feat
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0079, S-0094]
 informed_by: []
@@ -32,6 +32,19 @@ goals: |-
 non_goals: |-
   - Changing what counts toward a pause, or its threshold.
   - Running the thread leg through a pause: a round is new work.
+design:
+  - key: what-a-pause-stops
+    md: |-
+      | Leg | Unpaused | Paused, `landing: pull_request` | Paused, `landing: local` |
+      |---|---|---|---|
+      | relay | runs | runs | runs |
+      | lane | runs | **runs** (was: stops) | stops |
+      | review threads | runs | stops | stops |
+      | standing | runs | stops | stops |
+      | mint | runs | stops | stops |
+      | claim and dispatch of board tasks | runs | runs | runs |
+
+      `serve` and `once` take a `lane_through_pause` flag beside `paused`. `once` runs the lane leg when the pass is unpaused or the flag is set; the review-thread, standing and mint legs keep gating on `paused` alone. The manager sets the flag from `promotion.landing` (true for `pull_request`, false for `local`); `residency` reads no configuration.
 tests: |-
   - Under `promotion.landing: pull_request`, a paused pass runs the lane and still skips the mint, standing and thread legs.
   - Under `promotion.landing: local`, a paused pass skips the lane as before.

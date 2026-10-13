@@ -55,9 +55,13 @@ phasing:
       - tests/test_specquality.py
       - tests/test_review_run.py
       - tests/test_cli.py
+      - tests/test_why_record.py
+      - tests/test_review_corpus.py
+      - tests/test_review_role.py
     acceptance:
       - >-
         uv run pytest tests/test_specquality.py tests/test_review_run.py tests/test_cli.py
+        tests/test_why_record.py tests/test_review_corpus.py tests/test_review_role.py
       - uv run mypy src
     depends_on:
       - 2

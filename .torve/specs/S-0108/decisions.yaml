@@ -23,7 +23,8 @@ decisions:
       A pause still stops the mint, the standing leg and the review-thread leg under
       every landing mode, and the relay still runs through it.
     paths: [src/torve/application/residency.py]
-    consequence: a pause still means the queue cannot grow
+    consequence: >-
+      the mint, standing and review-thread legs add no work during a pause
     rationale: >-
       S-0048/D-4's reason stands for the legs that create work.
     check: >-
