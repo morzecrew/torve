@@ -12,7 +12,7 @@ from exit codes and prepared inputs, never reported by a model.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -21,7 +21,8 @@ from torve.base.globs import matches
 from torve.base.shell import run_command
 from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
 from torve.domain.attempt import BypassRecord, GateResult
-from torve.domain.task import Task
+from torve.domain.spec import Invariant
+from torve.domain.task import InheritedDecision, Task
 from torve.domain.vocabulary import GateOutcome
 from torve.gates import BUILTINS
 from torve.gates.acceptance import selected_nothing
@@ -34,6 +35,9 @@ from torve.gates.decisions_reported import check_decisions_reported
 #: Every contract-borne gate's name carries this prefix (`decision:<id>`), so
 #: the runner tells a row's check from a manifest entry by name alone.
 DECISION_PREFIX = "decision:"
+#: A standing invariant's check as a gate (`invariant:<id>`), likewise told
+#: from a manifest entry by name alone (S-0106/D-2).
+INVARIANT_PREFIX = "invariant:"
 
 
 @dataclass
@@ -88,23 +92,17 @@ def _substitute_base(gate: Gate, ctx: GateContext) -> str:
 # ....................... #
 
 
-def decision_gates(task: Task | None) -> list[Gate]:
-    """The contract's checkable rows as gates (S-0054 S-0054/D-2): one
-    `decision:<id>` shell gate per inherited row with a `check`, under the
-    compliance axis, at the row's `check_state` — `shadow` until an
-    amendment promotes it (S-0054/D-4) — with the row's twin as its sabotage
-    reference. Contract-borne: never written into the manifest, and gone
-    with the contract. Read from the contract alone, never the corpus
-    (S-0007/D-18). Takes the contract rather than the run context: the same
-    list answers `torve gates list`, which has no repository to build a
-    context against."""
-
-    if task is None:
-        return []
+def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
+    """Inherited rows as `decision:<id>` gates (S-0054/D-2): one shell gate per
+    row with a `check`, under the compliance axis, at the row's `check_state`
+    — `shadow` until an amendment promotes it (S-0054/D-4) — with the row's
+    twin as its sabotage reference. One reader for a task's contract rows and
+    a document's inherited ones (S-0106/D-2), so the two batteries judge a row
+    the same way."""
 
     gates: list[Gate] = []
 
-    for row in task.decisions:
+    for row in rows:
         if not row.check:
             continue
 
@@ -122,6 +120,42 @@ def decision_gates(task: Task | None) -> list[Gate]:
         )
 
     return gates
+
+
+def decision_gates(task: Task | None) -> list[Gate]:
+    """The contract's checkable rows as gates (S-0054 S-0054/D-2).
+
+    Contract-borne: never written into the manifest, and gone with the
+    contract. Read from the contract alone, never the corpus (S-0007/D-18).
+    Takes the contract rather than the run context: the same list answers
+    `torve gates list`, which has no repository to build a context against."""
+
+    if task is None:
+        return []
+
+    return row_gates(task.decisions)
+
+
+def invariant_gates(invariants: Iterable[Invariant]) -> list[Gate]:
+    """Standing invariants as gates (S-0106/D-2): one `invariant:<id>` shell
+    gate per invariant, always `shadow` — an invariant is a statement with a
+    check, never a grade to block under. Its paths are the gate's, so an
+    invariant the diff does not reach is reported skipped rather than run for
+    nothing."""
+
+    return [
+        Gate(
+            name=f"{INVARIANT_PREFIX}{invariant.id}",
+            run=invariant.check,
+            state="shadow",
+            origin=invariant.id,
+            axis="compliance",
+            input="worktree",
+            timeout=SHELL_GATE_TIMEOUT,
+            paths=list(invariant.paths),
+        )
+        for invariant in invariants
+    ]
 
 
 # ....................... #
@@ -243,7 +277,12 @@ def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
 def run_gates(
     ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
 ) -> RunReport:
-    gates = [*ctx.manifest.resolved_gates(), *decision_gates(ctx.task)]
+    gates = [
+        *ctx.manifest.resolved_gates(),
+        *decision_gates(ctx.task),
+        *row_gates(ctx.inherited),
+        *invariant_gates(ctx.invariants),
+    ]
 
     if only is not None:
         unknown = only - {g.name for g in gates}

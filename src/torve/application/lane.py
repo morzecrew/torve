@@ -24,6 +24,7 @@ import subprocess
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from torve.application.feedback import capture_feedback
 from torve.application.ports import (
@@ -43,7 +44,15 @@ from torve.base.clock import stamp
 from torve.config import layout
 from torve.domain.states import EscalationReason, TaskState
 
+if TYPE_CHECKING:
+    from torve.gates.context import GateContext
+
 # ----------------------- #
+
+#: A document branch (S-0083/D-3): the one name under which a battery judges a
+#: document's whole tree under no task's contract, and so owes the document's
+#: own rows and invariants (S-0106/D-2).
+DOCUMENT_BRANCH = re.compile(r"^torve/(S-\d+)$")
 
 
 # `pull_request` mode's landing act (S-0080/D-3), injected because the push and
@@ -204,10 +213,77 @@ def _regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str
     if landed and task_path is not None:
         ctx.task = load_task(task_path)
 
+    if task_id is None:
+        _document_inputs(ctx)
+
     report = run_gates(ctx)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary
+
+
+def _document_inputs(ctx: GateContext) -> None:
+    """What a document-branch battery judges beside the manifest (S-0106/D-2):
+    the rows of the document the branch names — the table every phase inherits
+    whole — and the standing invariants whose paths the branch's diff reaches.
+    One reader, so the completion battery and the document-branch regate run
+    the same checks (S-0106/D-2).
+
+    Read at the worktree the battery judges: the document branch carries the
+    corpus, and the diff is the one the battery sees. A branch naming no
+    document, a document the corpus does not hold, or a corpus the loader
+    refuses contributes nothing — a corpus error is `spec check`'s to report,
+    never the battery's to die on."""
+
+    from torve.base.globs import matches
+    from torve.config import spec
+    from torve.domain.task import InheritedDecision
+
+    proc = subprocess.run(
+        ["git", "-C", str(ctx.root), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    match = DOCUMENT_BRANCH.match(proc.stdout.strip()) if proc.returncode == 0 else None
+
+    if match is None:
+        return
+
+    try:
+        corpus = spec.load_corpus(ctx.root / ctx.specs)
+
+    except (spec.SpecError, OSError):
+        return
+
+    document = corpus.document(match.group(1))
+
+    if document is None:
+        return
+
+    ctx.inherited = [
+        InheritedDecision(
+            id=row.id,
+            grade=row.grade,
+            text=row.text.strip(),
+            paths=list(row.paths),
+            consequence=row.consequence.strip(),
+            check=row.check,
+            check_state=row.check_state,
+            check_twin=row.check_twin,
+        )
+        for row in document.decisions
+    ]
+
+    reached = [*ctx.changed_paths, *ctx.untracked]
+
+    ctx.invariants = [
+        invariant
+        for doc in corpus.standing()
+        if not doc.superseded_by
+        for invariant in doc.invariants
+        if any(matches(path, invariant.paths) for path in reached)
+    ]
 
 
 # ....................... #

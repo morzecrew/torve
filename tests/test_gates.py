@@ -616,6 +616,28 @@ def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
     assert gate.sabotage == "tests/test_x.py" and gate.input == "worktree"
 
 
+def test_a_tasks_battery_carries_no_document_rows_or_invariants(repo):
+    """S-0106/D-2: only a document-branch battery runs the document's rows and
+    the standing invariants; a task's own attempt battery reads its contract
+    alone."""
+
+    from torve.gates.runner import decision_gates
+
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=_checked("true", twin="tests/test_x.py")),
+        log_document(),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    ctx = context_for(repo)
+
+    assert ctx.task is not None
+    assert ctx.inherited == [] and ctx.invariants == []
+    assert [gate.name for gate in decision_gates(ctx.task)] == ["decision:S-0009/D-1"]
+
+
 def test_a_row_with_a_check_is_covered_and_owes_no_entry():
     from torve.domain.task import InheritedDecision
     from torve.gates.decisions_reported import owed

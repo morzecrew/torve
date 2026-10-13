@@ -18,7 +18,8 @@ from torve.base.shell import ExecuteOnce
 from torve.config import layout
 from torve.config.manifest import Manifest
 from torve.domain.attempt import BypassRecord
-from torve.domain.task import Task
+from torve.domain.spec import Invariant
+from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
 
@@ -83,6 +84,13 @@ class GateContext:
     # sandbox in that context); `torve run` injects a fresh-sandbox executor
     # so no gate command ever runs where the agent could have staged a shim.
     execute: ExecuteOnce | None = None
+
+    # S-0106/D-2: what a document-branch battery judges beside the manifest —
+    # the rows the document's phases inherited and the standing invariants the
+    # branch's diff reaches. Empty for a task's own battery, which reads its
+    # rows from the contract alone.
+    inherited: list[InheritedDecision] = field(default_factory=list)
+    invariants: list[Invariant] = field(default_factory=list)
 
     # ....................... #
 
