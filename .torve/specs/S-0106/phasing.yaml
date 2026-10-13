@@ -103,27 +103,29 @@ phasing:
       The manifest names how a repository's tests are found, paired and run
     intent: >-
       `tests.run` and `tests.pair` in the manifest model and schema; `red-on-base`,
-      the intake's pairing, the context pack's named tests and the review leg's fallback
-      scope read them; a changed test file the gate cannot parse qualifies whole.
-      Tests: a manifest pairing `{dir}/{stem}_test.go` pairs a Go file and red-on-base
-      runs its `run` on it; the defaults reproduce today's Python behaviour. Settles
-      D-7.
+      the intake's pairing, the neighbour derivation, the context pack's named tests
+      and the review leg's fallback scope read them; a changed test file the gate
+      cannot parse qualifies whole. Tests: a manifest pairing `{dir}/{stem}_test.go`
+      pairs a Go file and red-on-base runs its `run` on it; the defaults reproduce
+      today's Python behaviour. Settles D-7.
     scope:
       - src/torve/config/manifest.py
       - .torve/schemas/gates.json
       - src/torve/gates/red_on_base.py
       - src/torve/application/intake.py
+      - src/torve/application/neighbours.py
       - src/torve/application/contextpack.py
       - src/torve/application/reviewleg.py
       - tests/test_manifest.py
       - tests/test_gates.py
       - tests/test_intake.py
+      - tests/test_neighbours.py
       - tests/test_contextpack.py
       - tests/test_reviewleg.py
     acceptance:
       - >-
         uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py
-        tests/test_contextpack.py tests/test_reviewleg.py
+        tests/test_neighbours.py tests/test_contextpack.py tests/test_reviewleg.py
       - uv run mypy src
     depends_on:
       - 5

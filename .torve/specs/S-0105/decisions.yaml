@@ -64,12 +64,14 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      The other readers of a path glob read through `matches`: `intake._matched`,
-      telemetry's `in_scope_read` class, a gate's `paths` filter (`gates/runner._judges_anything`)
-      and `config/spec.check_backlinks`' LOCKED-row paths. Their prefix fallbacks
-      go, since gitignore already matches what is under a matched directory.
+      The other readers of a path glob read through `matches`: `intake._matched` and
+      `neighbours._matched`, telemetry's `in_scope_read` class, a gate's `paths` filter
+      (`gates/runner._judges_anything`) and `config/spec.check_backlinks`' LOCKED-row
+      paths. Their prefix fallbacks go, since gitignore already matches what is under
+      a matched directory.
     paths:
       - src/torve/application/intake.py
+      - src/torve/application/neighbours.py
       - src/torve/application/telemetry.py
       - src/torve/gates/runner.py
       - src/torve/config/spec.py

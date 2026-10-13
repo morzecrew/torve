@@ -113,6 +113,13 @@ A dependency change here is an image change: the pinned seat images are rebuilt 
 - Paths: `pyproject.toml` `src/torve/application/skills.py`
 - Consequence: an adopter's sandbox carries no row of torve's corpus
 
+### S-0106/D-4 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+A row's `check` may name a property test: a Hypothesis test stating the decision over generated inputs. `hypothesis` becomes a direct dev dependency. The spec-writer skill says when a row gets a property (a rule over inputs: parsers, matchers, state transitions, round trips), when an example test is the honest check, and that the phase settling the row writes it.
+
+- Paths: `pyproject.toml` `skills/spec-writer/SKILL.md`
+- Consequence: a decision is checked over the inputs it governs, not over the one example its author thought of
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -145,7 +152,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `sandboxes/mimo/toolkit/` — 2 decision(s)
 - `skills/` — 8 decision(s)
 - `skills/flag-dont-flip/` — 1 decision(s)
-- `skills/spec-writer/` — 1 decision(s)
+- `skills/spec-writer/` — 2 decision(s)
 - `skills/torve/` — 2 decision(s)
 - `skills/working-rules/` — 8 decision(s)
 - `src/` — 1 decision(s)
@@ -158,13 +165,13 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/runtime/` — 4 decision(s)
 - `src/torve/adapters/vcs/` — 13 decision(s)
 - `src/torve/adapters/workspace/` — 3 decision(s)
-- `src/torve/application/` — 284 decision(s)
-- `src/torve/base/` — 4 decision(s)
-- `src/torve/cli/` — 96 decision(s)
-- `src/torve/config/` — 89 decision(s)
+- `src/torve/application/` — 289 decision(s)
+- `src/torve/base/` — 5 decision(s)
+- `src/torve/cli/` — 97 decision(s)
+- `src/torve/config/` — 93 decision(s)
 - `src/torve/domain/` — 49 decision(s)
-- `src/torve/gates/` — 37 decision(s)
-- `tests/` — 63 decision(s)
+- `src/torve/gates/` — 42 decision(s)
+- `tests/` — 64 decision(s)
 - `tests/fixtures/` — 0 decision(s)
 - `web/` — 1 decision(s)
 - `web/src/` — 1 decision(s)

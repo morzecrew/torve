@@ -448,6 +448,13 @@ The review leg imports no stream reader, and the boundary test allows only the l
 - Paths: `src/torve/application/reviewleg.py` `tests/test_layout.py`
 - Consequence: no decision module reads the telemetry stream
 
+### S-0105/D-5 — `ASSUMED` (One reading of a scope glob) — implementation: none
+
+The check is exhaustive over a bounded grammar: every pattern of up to three segments over a small alphabet of literal and wildcard segments, with and without a leading or trailing `/`, against every path of up to four segments over the matching literal alphabet. `matches` equals `GitIgnoreSpec.match_file` on every pair, and `overlap` equals "some enumerated path matches both" on every pair of patterns. The test needs no dependency beyond the suite's own.
+
+- Paths: `tests/test_globs.py`
+- Consequence: a change to the reading that disagrees with the gate anywhere in the grammar fails the suite, rather than a night
+
 ## Invariants holding over `tests/`
 
 - **S-0055/I-5**: The suite is green

@@ -701,6 +701,14 @@ The red completion battery's finding is read from the `torve/completion` failure
 - Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/application/ports.py` `src/torve/cli/manager.py`
 - Consequence: the battery's round is raised from the verdict a person also sees in the checks
 
+### S-0106/D-3 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+`torve gates check` runs the `check_twin` of every standing decision row that names one, after the sabotage CASES, and fails when a twin exits non-zero. `torve spec check` refuses a `blocking` row without a twin, as the planner already does at mint.
+
+- Paths: `src/torve/cli/gates.py` `src/torve/config/spec.py`
+- Consequence: a row is never blocking on a check nobody has shown can fail
+- Check: `uv run pytest tests/test_cli.py tests/test_rfc_check.py -q -k twin` (shadow; runs as `decision:S-0106/D-3`, no log entry owed)
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

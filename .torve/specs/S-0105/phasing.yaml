@@ -64,19 +64,21 @@ phasing:
     title: >-
       Every other reader of a path glob reads the same way
     intent: >-
-      `intake._matched`, telemetry's `in_scope_read` class, `gates/runner._judges_anything`
-      and `config/spec.check_backlinks` read through `globs.matches`, and their prefix
-      fallbacks go (D-4). Tests: a gate whose `paths` is `src/**` judges a change
-      under `src/`; `a/*.py` no longer matches `x/a/b.py` in the intake; a LOCKED
-      row whose paths are `src/torve/run` governs no `src/torve/runner.py`; a read
-      inside a scope glob classifies as `in_scope_read` and one outside does not.
-      Settles D-4.
+      `intake._matched`, `neighbours._matched`, telemetry's `in_scope_read` class,
+      `gates/runner._judges_anything` and `config/spec.check_backlinks` read through
+      `globs.matches`, and their prefix fallbacks go (D-4). Tests: a gate whose `paths`
+      is `src/**` judges a change under `src/`; `a/*.py` no longer matches `x/a/b.py`
+      in the intake; a LOCKED row whose paths are `src/torve/run` governs no `src/torve/runner.py`;
+      a read inside a scope glob classifies as `in_scope_read` and one outside does
+      not. Settles D-4.
     scope:
       - src/torve/application/intake.py
+      - src/torve/application/neighbours.py
       - src/torve/application/telemetry.py
       - src/torve/gates/runner.py
       - src/torve/config/spec.py
       - tests/test_intake.py
+      - tests/test_neighbours.py
       - tests/test_gates.py
       - tests/test_runner.py
       - tests/test_attempt_record.py
@@ -85,8 +87,9 @@ phasing:
       - tests/test_cli_spec.py
     acceptance:
       - >-
-        uv run pytest tests/test_intake.py tests/test_gates.py tests/test_runner.py
-        tests/test_attempt_record.py tests/test_tiering.py tests/test_spec.py tests/test_cli_spec.py
+        uv run pytest tests/test_intake.py tests/test_neighbours.py tests/test_gates.py
+        tests/test_runner.py tests/test_attempt_record.py tests/test_tiering.py tests/test_spec.py
+        tests/test_cli_spec.py
       - uv run mypy src
       - uv run torve spec check
     depends_on:

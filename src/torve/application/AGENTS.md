@@ -2050,6 +2050,45 @@ The import-graph rules read Python; in a repository with no Python the contingen
 - Paths: `src/torve/application/neighbours.py`
 - Consequence: an adopter in another language still gets the rules that are not language-bound
 
+### S-0105/D-2 — `ASSUMED` (One reading of a scope glob) — implementation: none
+
+`overlap` replaces `planner.globs_intersect`, which is deleted. Every caller reads through `overlap`: `scopes_clash`, the runner's `_scope_overlap`, the plan's same-phase disjointness, decision inheritance by path, `decisions.for_paths` and `standing_decisions`, `specquality`, `intake`'s parent/child scope rule and `config/spec._reaches_uncommitted`, the config layer's hand copy of the same heuristic. It is exact on the grammar; a bracket class can only make it report an overlap that is not there.
+
+- Paths: `src/torve/application/planner.py` `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/application/decisions.py` `src/torve/application/specquality.py` `src/torve/application/intake.py` `src/torve/config/spec.py`
+- Consequence: the fence never runs two tasks that can write one file, and a phase inherits every decision row whose paths its scope reaches
+- Check: `uv run pytest tests/test_globs.py -q` (shadow; runs as `decision:S-0105/D-2`, no log entry owed)
+
+### S-0105/D-4 — `ASSUMED` (One reading of a scope glob) — implementation: none
+
+The other readers of a path glob read through `matches`: `intake._matched` and `neighbours._matched`, telemetry's `in_scope_read` class, a gate's `paths` filter (`gates/runner._judges_anything`) and `config/spec.check_backlinks`' LOCKED-row paths. Their prefix fallbacks go, since gitignore already matches what is under a matched directory.
+
+- Paths: `src/torve/application/intake.py` `src/torve/application/neighbours.py` `src/torve/application/telemetry.py` `src/torve/gates/runner.py` `src/torve/config/spec.py`
+- Consequence: a glob written once means one set of paths wherever torve reads it
+
+### S-0106/D-2 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+The completion battery and the document-branch regate run the `decision:<id>` gates of every row the document's phases inherited, and an `invariant:<id>` gate for every standing invariant whose paths the document's diff reaches. A decision gate keeps its row's state; an invariant gate is shadow.
+
+- Paths: `src/torve/application/lane.py` `src/torve/gates/runner.py` `src/torve/gates/context.py`
+- Consequence: a check runs on the whole document before its pull request turns ready, not only on the attempt that inherited it
+- Check: `uv run pytest tests/test_lane.py -q -k completion_runs_checks` (shadow; runs as `decision:S-0106/D-2`, no log entry owed)
+
+### S-0106/D-5 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+The review prompt lists each inherited row's `check` and `check_twin` beside its text and asks, for each row with a check: does the check test what the row says, and would a plausible wrong implementation make it fail? A check that fails either question is a finding at `major`. A row with no check draws no finding for lacking one.
+
+- Paths: `src/torve/application/review.py` `src/torve/application/contextpack.py`
+- Consequence: a vacuous or unfaithful property is caught by the strong seat before the pull request, where `blocks_at: major` stops it
+- Check: `uv run pytest tests/test_review_run.py -q -k audit` (shadow; runs as `decision:S-0106/D-5`, no log entry owed)
+
+### S-0106/D-7 — `ASSUMED` (A decision is judged before the pull request) — implementation: none
+
+The manifest's `tests:` block gains `run`, the command a list of test files is appended to (default `python3 -m pytest -q -p no:cacheprovider`), and `pair`, templates from a module to its tests over `{dir}` and `{stem}` (default the Python pairing at any depth under `tests/`). `red-on-base`, the intake's pairing, the neighbour derivation, the context pack's named tests and the review leg's fallback scope read them. A changed test file the gate cannot parse into functions qualifies whole.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/red_on_base.py` `src/torve/application/intake.py` `src/torve/application/neighbours.py` `src/torve/application/contextpack.py` `src/torve/application/reviewleg.py`
+- Consequence: a repository whose tests are `*_test.go` or `*.spec.ts` gets red-on-base and pairing by naming them, not by a change to torve
+- Check: `uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py -q -k adapter` (shadow; runs as `decision:S-0106/D-7`, no log entry owed)
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
