@@ -300,10 +300,10 @@ def elide_diff_bulk(diff_text: str) -> str:
 # ....................... #
 
 
-def transient_api_failure(output: str) -> bool:
-    """A harness result that is a provider-side 5xx and nothing else — the
-    envelope says is_error and the result text names an API Error in the 500s.
-    Judged from the recorded output alone so the retry is auditable."""
+def seat_api_error(output: str) -> str | None:
+    """The provider's error when the seat's last envelope is one and nothing
+    else — is_error, with an API Error as its result — else None. Judged from
+    the recorded output alone, so what the escalation says is auditable."""
 
     for line in reversed(output.strip().splitlines()):
         try:
@@ -313,15 +313,23 @@ def transient_api_failure(output: str) -> bool:
             continue
 
         if not isinstance(document, dict):
-            return False
+            return None
 
         envelope = cast("dict[str, Any]", document)
+        result = str(envelope.get("result", ""))
 
-        return bool(envelope.get("is_error")) and bool(
-            re.search(r"API Error: 5\d\d", str(envelope.get("result", "")))
-        )
+        return result if envelope.get("is_error") and "API Error" in result else None
 
-    return False
+    return None
+
+
+def transient_api_failure(output: str) -> bool:
+    """A seat error that waiting can change: a provider-side 5xx, or a 429
+    rate limit. A 4xx otherwise is the same refusal every time."""
+
+    # The status sits after the colon ("API Error: 529 ...") or in brackets
+    # ("API Error: Request rejected (429) ..."), depending on the harness.
+    return bool(re.search(r"API Error:.*\b(429|5\d\d)\b", seat_api_error(output) or ""))
 
 
 # ....................... #
@@ -607,6 +615,10 @@ class ReviewOutcome:
     # unreadable. False is the ordinary case, and a readable verdict is never
     # re-asked.
     second_ask: bool = False
+    # The provider's error when the seat itself failed and gave no verdict
+    # (an unparseable outcome whose cause is known): a 429 at a usage limit
+    # clears on its own, and whoever reads the escalation should know that.
+    seat_error: str | None = None
 
 
 # ....................... #
@@ -801,8 +813,8 @@ def run_review(
     review_clock = _time.monotonic()
 
     try:
-        # A transient provider failure (500/529 through the gateway) is not
-        # a verdict: two green-gated runs died as gate_infrastructure_failure
+        # A transient provider failure (500/529 through the gateway, or a 429
+        # rate limit) is not a verdict: two green-gated runs died as gate_infrastructure_failure
         # over upstream blips, each costing the whole task a restart. One
         # in-run retry absorbs the blip; a second failure escalates as before.
         context = AgentContext(
@@ -902,6 +914,9 @@ def run_review(
     # same reviewer there (S-0086/D-1); what is left here is what it produced.
     second_ask = len(asks) > 1
     unparseable = findings is None and refusal is None
+    # No verdict because the seat itself failed: the record and the escalation
+    # name the provider's error, not an unreadable answer nobody gave.
+    seat_error = seat_api_error(result.output) if unparseable else None
     kept: list[Finding] = []
     discarded: list[str] = []
 
@@ -923,6 +938,8 @@ def run_review(
 
     if refusal is not None:
         fact = f"review output refused: {refusal}"
+    elif seat_error is not None:
+        fact = f"the reviewer's seat gave no verdict: {seat_error}"
     elif unparseable:
         fact = "review output unparseable — no findings recorded"
     elif blockers:
@@ -1007,6 +1024,7 @@ def run_review(
         unparseable=unparseable,
         refusal=refusal,
         second_ask=second_ask,
+        seat_error=seat_error,
     )
 
 
@@ -1339,7 +1357,11 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         # carrying two blockers straight to ready.
         state.escalate(
             EscalationReason.GATE_INFRASTRUCTURE_FAILURE,
-            f"{outcome.review_id}: review output unparseable — an "
+            f"{outcome.review_id}: the reviewer's seat gave no verdict "
+            f"({outcome.seat_error}) — requeue once the seat answers; no verdict "
+            "is never a clean review"
+            if outcome.seat_error
+            else f"{outcome.review_id}: review output unparseable — an "
             "unreadable verdict is a review infrastructure failure, "
             "never a clean review",
         )
