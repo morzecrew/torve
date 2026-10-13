@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      One meet decides a match and an overlap, and the fence reads it
+    intent: >-
+      `src/torve/base/globs.py` with `matches` and `overlap` over one segment-wise
+      meet (D-1); `planner.globs_intersect` and `config/spec._reaches_uncommitted`
+      are deleted and every caller reads `overlap` (D-2); the exhaustive test (D-5).
+      Tests: `matches` equals `GitIgnoreSpec.match_file` on every enumerated pattern
+      and path; `overlap` equals the brute-force search on every enumerated pair;
+      the four pairs `globs_intersect` called disjoint overlap; two in-flight tasks
+      whose scopes are `**/AGENTS.md` and `src/torve/cli/**` fence each other. Settles
+      D-1, D-2 and D-5.
+    scope:
+      - src/torve/base/globs.py
+      - src/torve/application/planner.py
+      - src/torve/application/runner.py
+      - src/torve/application/manager.py
+      - src/torve/application/decisions.py
+      - src/torve/application/specquality.py
+      - src/torve/application/intake.py
+      - src/torve/config/spec.py
+      - tests/test_globs.py
+      - tests/test_plan.py
+      - tests/test_runner.py
+      - tests/test_manager.py
+      - tests/test_decisions.py
+      - tests/test_decisions_record.py
+      - tests/test_specquality.py
+      - tests/test_intake.py
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_globs.py tests/test_plan.py tests/test_runner.py
+        tests/test_manager.py tests/test_decisions.py tests/test_decisions_record.py
+        tests/test_specquality.py tests/test_intake.py tests/test_spec.py tests/test_spec_load.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: structural
+  - phase: 2
+    title: >-
+      The pre-write hook reads through a pinned copy of the module
+    intent: >-
+      `.torve/agents/hooks/implement/globs.py` is a byte-identical copy of `src/torve/base/globs.py`;
+      `scope_guard` imports it as a sibling and drops `fnmatch`, so `read_guard` and
+      `finish_check` read the same way (D-3). Tests: the copy equals the source byte
+      for byte; the hook passes `src/x.py` under `src`, `docs/x.md` under `docs/`
+      and `src/x.py` under `/src/x.py`, and refuses `src/a/b.py` under `src/*.py`;
+      the hook and the scope gate agree on every enumerated pattern and path. Settles
+      D-3.
+    scope:
+      - .torve/agents/hooks/implement/globs.py
+      - .torve/agents/hooks/implement/scope_guard.py
+      - tests/test_equipment.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_equipment.py tests/test_globs.py
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: >-
+      Every other reader of a path glob reads the same way
+    intent: >-
+      `intake._matched`, telemetry's `in_scope_read` class, `gates/runner._judges_anything`
+      and `config/spec.check_backlinks` read through `globs.matches`, and their prefix
+      fallbacks go (D-4). Tests: a gate whose `paths` is `src/**` judges a change
+      under `src/`; `a/*.py` no longer matches `x/a/b.py` in the intake; a LOCKED
+      row whose paths are `src/torve/run` governs no `src/torve/runner.py`; a read
+      inside a scope glob classifies as `in_scope_read` and one outside does not.
+      Settles D-4.
+    scope:
+      - src/torve/application/intake.py
+      - src/torve/application/telemetry.py
+      - src/torve/gates/runner.py
+      - src/torve/config/spec.py
+      - tests/test_intake.py
+      - tests/test_gates.py
+      - tests/test_runner.py
+      - tests/test_attempt_record.py
+      - tests/test_tiering.py
+      - tests/test_spec.py
+      - tests/test_cli_spec.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_intake.py tests/test_gates.py tests/test_runner.py
+        tests/test_attempt_record.py tests/test_tiering.py tests/test_spec.py tests/test_cli_spec.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine

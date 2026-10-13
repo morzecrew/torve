@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `src/torve/base/globs.py`, standard library only, holds the reading of a scope
+      glob: `matches(path, globs)` and `overlap(left, right)`, both decided by one
+      segment-wise meet of two patterns, with gitignore's semantics as the scope gate
+      reads them through pathspec. A pattern with no inner `/` matches at any depth,
+      a leading `/` anchors it, a trailing `/` means a directory, what is under a
+      matched path matches too, `**` spans segments, `*` and `?` stay within one,
+      and a bracket class reads as any one character.
+    paths: [src/torve/base/globs.py]
+    consequence: >-
+      the hook and the engine can share one function, because nothing it needs is
+      outside the standard library
+    rationale: >-
+      The hook cannot import pathspec or the engine; pathspec stays the reference
+      the test pins this module to.
+    check: uv run pytest tests/test_globs.py -q
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `overlap` replaces `planner.globs_intersect`, which is deleted. Every caller
+      reads through `overlap`: `scopes_clash`, the runner's `_scope_overlap`, the
+      plan's same-phase disjointness, decision inheritance by path, `decisions.for_paths`
+      and `standing_decisions`, `specquality`, `intake`'s parent/child scope rule
+      and `config/spec._reaches_uncommitted`, the config layer's hand copy of the
+      same heuristic. It is exact on the grammar; a bracket class can only make it
+      report an overlap that is not there.
+    paths:
+      - src/torve/application/planner.py
+      - src/torve/application/runner.py
+      - src/torve/application/manager.py
+      - src/torve/application/decisions.py
+      - src/torve/application/specquality.py
+      - src/torve/application/intake.py
+      - src/torve/config/spec.py
+    consequence: >-
+      the fence never runs two tasks that can write one file, and a phase inherits
+      every decision row whose paths its scope reaches
+    rationale: >-
+      `globs_intersect` misses `**/AGENTS.md` against `src/torve/cli/**`, `src/**/*.py`
+      against `src/a/*.py`, `**/test_*.py` against `tests/**` and `*.md` against `docs/**`;
+      S-0104's promotion fence (D-2 there) inherits every miss.
+    check: uv run pytest tests/test_globs.py -q
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The pre-write hook reads its globs through a byte-identical copy of the module,
+      `.torve/agents/hooks/implement/globs.py`, imported as a sibling the way `read_guard`
+      imports `scope_guard`. `fnmatch` leaves the hook, and `read_guard` and `finish_check`
+      take the same reading through `scope_guard.is_allowed`. A test fails when the
+      copy and the source differ.
+    paths:
+      - .torve/agents/hooks/implement/globs.py
+      - .torve/agents/hooks/implement/scope_guard.py
+    consequence: >-
+      a write the hook refuses is a write the gate would convict, and the other way
+      round
+    rationale: >-
+      The hook is a file each repository carries; a pinned copy is the one way it
+      reads what the engine reads without importing it.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The other readers of a path glob read through `matches`: `intake._matched`,
+      telemetry's `in_scope_read` class, a gate's `paths` filter (`gates/runner._judges_anything`)
+      and `config/spec.check_backlinks`' LOCKED-row paths. Their prefix fallbacks
+      go, since gitignore already matches what is under a matched directory.
+    paths:
+      - src/torve/application/intake.py
+      - src/torve/application/telemetry.py
+      - src/torve/gates/runner.py
+      - src/torve/config/spec.py
+    consequence: >-
+      a glob written once means one set of paths wherever torve reads it
+    rationale: >-
+      Settled by Q-1. Each change is one line; `Path.match` is right-anchored and
+      the `startswith` prefix matches part of a file name.
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The check is exhaustive over a bounded grammar: every pattern of up to three
+      segments over a small alphabet of literal and wildcard segments, with and without
+      a leading or trailing `/`, against every path of up to four segments over the
+      matching literal alphabet. `matches` equals `GitIgnoreSpec.match_file` on every
+      pair, and `overlap` equals "some enumerated path matches both" on every pair
+      of patterns. The test needs no dependency beyond the suite's own.
+    paths: [tests/test_globs.py]
+    consequence: >-
+      a change to the reading that disagrees with the gate anywhere in the grammar
+      fails the suite, rather than a night
+    rationale: >-
+      The grammar is small enough to enumerate in seconds, and an enumeration cannot
+      miss a case in its range the way a sample can.

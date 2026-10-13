@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0105
+title: One reading of a scope glob
+kind: design
+change:
+  type: fix
+  scope: scope
+status: draft
+implementation: none
+depends_on: [S-0104]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  Torve reads a scope glob in several different ways. The scope gate reads it as gitignore does, through pathspec. The pre-write hook reads it with `fnmatch`, whose `*` crosses `/`. The overlap check behind the in-flight fence, `planner.globs_intersect`, strips each glob to a literal and matches that against the other side. Four more readers mix `fnmatch`, `Path.match` and a prefix test. The readings disagree. On main, `globs_intersect` calls four overlapping pairs disjoint, among them `**/AGENTS.md` against `src/torve/cli/**` and `src/**/*.py` against `src/a/*.py`. The hook and the gate also disagree on four cases: the hook lets `src/*.py` write `src/a/b.py`, which the gate convicts, and it refuses `src/x.py` under `src`, `docs/x.md` under `docs/` and `src/x.py` under `/src/x.py`, all of which the gate passes. S-0104's promotion fence stands on that overlap check, and S-0104's own review met the hook-versus-gate drift three times.
+
+  One standard-library module now holds the reading: `matches` and `overlap`, both decided by one segment-wise meet of two patterns. The engine calls it, and the hook carries a byte-identical copy beside it. The test behind it is exhaustive over a bounded grammar rather than sampled: `matches` must equal pathspec's reading on every pattern and path in that grammar, and `overlap` must equal a brute-force search for a path both sides match.
+motivation: >-
+  The first item the owner queued on 2026-10-13 from the research "Should Torve Prove
+  Its Code?" (artifact WV2nKgN5QSy78B7SUod3o5): the scope matcher goes right after
+  S-0104 because S-0104's promotion fence relies on it, and because it is small and
+  well bounded. The rest of that research (properties in the decision `check` field,
+  a reviewer that audits them, invariants and twins that actually run) belongs to
+  the move-3 document drafted after this one.
+current_state: >-
+  `gates/scope.check_scope` reads `scope.allow` and `scope.deny` through `gates/contract.spec`,
+  a pathspec `GitIgnoreSpec`; most of the engine's other path readers (`contextpack`,
+  `review`, `decisions`, `session`, `red_on_base`) do the same. `.torve/agents/hooks/implement/scope_guard.py`
+  cannot import pathspec or the engine, so it reads with `fnmatch.fnmatch`, and `read_guard.py`
+  and `finish_check.py` reuse its `is_allowed`. `planner.globs_intersect` decides
+  overlap for `scopes_clash` (the manager's in-flight fence), the runner's `_scope_overlap`
+  (the dispatch and promotion fence, S-0104/D-2), the plan's same-phase disjointness,
+  decision inheritance by path (`planner`, `decisions.for_paths`, `standing_decisions`),
+  `specquality` and `intake`'s parent/child scope rule; `config/spec._reaches_uncommitted`
+  repeats its heuristic by hand, because the config layer may not import the application.
+  Four readers use their own grammar: `intake._matched` (`Path.match` or `fnmatch`),
+  telemetry's `in_scope_read` class (`fnmatch`), a gate's `paths` filter in `gates/runner._judges_anything`
+  (`fnmatch` or a prefix) and `config/spec.check_backlinks`' LOCKED-row paths (`fnmatch`
+  or `startswith`).
+goals: |-
+  - The hook never refuses a write the gate would pass, and never passes one the gate would convict.
+  - The fence never calls two overlapping scopes disjoint.
+  - One function decides both questions, and a test that enumerates the grammar keeps it equal to the gate's reading.
+non_goals: |-
+  - Replacing pathspec where the engine already reads through it: it stays the reference, and the exhaustive test pins the new module to it.
+  - Property tests with Hypothesis: they arrive with the move-3 document; this test is exhaustive and needs no new dependency.
+  - Glob negation (`!pattern`): no scope on record uses it.
+design:
+  - key: the-meet
+    md: |-
+      A pattern is normalised the way gitignore reads it, then split into segments:
+
+      | Spelling | Read as |
+      |---|---|
+      | no `/` before the last segment (`*.md`, `AGENTS.md`) | `**/` in front: any depth |
+      | leading `/` | anchored at the root, `/` dropped |
+      | trailing `/` | a directory: something under it |
+      | any match | also what is under the matched path (`/**` behind) |
+      | `**` as a whole segment | zero or more segments |
+      | `*`, `?` inside a segment | within one segment |
+      | `[...]` | any one character (it can only report an overlap that is not there) |
+
+      `meet(a, b)` asks whether some path matches both segment lists: `**` on either side may consume nothing or one more segment of the other, and two plain segments meet when some string matches both, by the same rule one character at a time. `matches(path, globs)` is a meet against the literal path; `overlap(left, right)` is a meet between any glob of each side.
+  - key: the-check
+    md: >-
+      The test enumerates every pattern of up to three segments over a small alphabet
+      of literal and wildcard segments, with and without a leading or trailing `/`,
+      and every path of up to four segments over the matching literal alphabet. `matches`
+      must equal `GitIgnoreSpec.match_file` on every pair. `overlap` must equal "some
+      enumerated path matches both" on every pair of patterns. The four false negatives
+      and the four hook-versus-gate cases on record are named examples beside it.
+tests: ''
+docs: ''
+out_of_scope: |-
+  - bloomery's copy of the pre-write hook: it changes when bloomery re-copies torve's hooks, as S-0104/Q-2 settled.
+  - The board fold's ESCALATED to READY step missing from `TRANSITIONS`, found by the same research: a separate fix.
+risks: ''
+alternatives:
+  - option: >-
+      Keep `fnmatch` in the hook and add a test that compares it against pathspec.
+    rejected_because: >-
+      The test would fail at once: `fnmatch` is path-blind, and no test makes it read
+      `src/*.py` the way gitignore does.
+  - option: >-
+      Make `globs_intersect` conservative: overlap unless the fixed directory prefixes
+      diverge.
+    rejected_because: >-
+      It is sound but over-reports every literal file against a wildcard glob in the
+      same directory, which serialises tasks the fence has no reason to hold. The
+      meet is about forty lines, and it is exact.
+questions:
+  - id: Q-1
+    text: >-
+      Phase 3 moves the four other readers (intake, telemetry's read class, a gate's
+      `paths` filter, `check_backlinks`) onto `matches`. Each change is one line,
+      but each changes what that reader matches: `Path.match` is right-anchored, and
+      the prefix tests match `src/torve/run` against `runner.py`. Fold them in, or
+      keep this document to the hook, the gate and the fence? Lean: fold them in;
+      `_judges_anything`'s own docstring says "one idea has one grammar".
