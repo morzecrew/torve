@@ -6,7 +6,7 @@ kind: design
 change:
   type: feat
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0079, S-0094]
 informed_by: []

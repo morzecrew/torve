@@ -709,6 +709,22 @@ The red completion battery's finding is read from the `torve/completion` failure
 - Consequence: a row is never blocking on a check nobody has shown can fail
 - Check: `uv run pytest tests/test_cli.py tests/test_rfc_check.py -q -k twin` (shadow; runs as `decision:S-0106/D-3`, no log entry owed)
 
+### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+
+The gate's score and survivors ride the record's `gates.evaluated`, so `torve why`, the night report and the spec quality report read them; the quality report gives the score per phase and per document.
+
+- Paths: `src/torve/application/specquality.py` `src/torve/cli/why.py`
+- Consequence: an author sees which phases' tests notice their own changes going wrong
+- Check: `uv run pytest tests/test_specquality.py -q -k mutation` (shadow; runs as `decision:S-0107/D-3`, no log entry owed)
+
+### S-0108/D-1 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+
+Under `promotion.landing: pull_request` a paused pass runs the lane leg: green candidates land on their branches, the completion battery runs, and the pull request is republished. Under `promotion.landing: local` the pause stops the lane, as S-0052/D-3 says. The landing mode is the manager's to pass to the pass; `residency` does not read configuration.
+
+- Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
+- Consequence: one escalation no longer holds every green sibling and the phases behind them until a person answers it
+- Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-1`, no log entry owed)
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's
