@@ -348,7 +348,7 @@ def lint_drafts(
     (S-0104/D-9): a module whose paired test sits in a nested layout and is not
     allowed warns, where the flat layout's miss still refuses."""
 
-    from torve.application.planner import globs_intersect
+    from torve.base.globs import overlap
 
     errors: list[str] = []
     tree_paths = _tree_paths(tree)
@@ -456,7 +456,7 @@ def lint_drafts(
 
     for i, one in enumerate(drafts):
         for other in drafts[i + 1 :]:
-            if not globs_intersect(one.scope.allow, other.scope.allow):
+            if not overlap(one.scope.allow, other.scope.allow):
                 continue
 
             if allow_dependency_order and (

@@ -1501,11 +1501,11 @@ def _scope_overlap(mine: list[str], theirs: list[str]) -> str | None:
     the nested loop used — which contended path gets reported must not
     change."""
 
-    from torve.application.planner import globs_intersect
+    from torve.base.globs import overlap
 
     for mine_glob in mine:
         for their_glob in theirs:
-            if globs_intersect([mine_glob], [their_glob]):
+            if overlap([mine_glob], [their_glob]):
                 return their_glob
 
     return None

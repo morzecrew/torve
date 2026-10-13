@@ -355,6 +355,24 @@ def test_tasks_in_flight_hold_their_scope_against_new_dispatch():
     run(scenario)
 
 
+def test_two_wildcard_scopes_that_share_a_path_fence_each_other():
+    """S-0105/D-2: `**/AGENTS.md` and `src/torve/cli/**` share
+    `src/torve/cli/AGENTS.md`, which the deleted `globs_intersect` missed.
+    The second task is held off the first's fence."""
+
+    async def scenario(log):
+        await mint(log, "T-1", allow=["**/AGENTS.md"])
+        await mint(log, "T-2", allow=["src/torve/cli/**"])
+        await claim(log, "T-1")
+
+        board = project(await log.since())
+
+        assert overlaps(board.tasks["T-2"].contract, board) == ["T-1"]
+        assert dispatchable(board, PARTITION) == []
+
+    run(scenario)
+
+
 def test_a_promoted_contingent_path_is_on_the_board_and_fences_a_second_task():
     """S-0104/D-2: a contingent path the attempt wrote is folded onto the
     board's own task and joins that task's fence. A second task whose scope

@@ -14,9 +14,9 @@ corpus stands today (S-0022/D-2) — that is why every population is built from
 amendment later cited the identifier, never for its current grade or paths.
 
 `touched` is read from the contract's own declared `scope.allow` intersecting
-the decision's declared paths (`torve.application.planner.globs_intersect`,
-the same primitive that already answers "do two glob sets overlap" for
-same-phase scopes) rather than a literal post-hoc `git diff` of historical
+the decision's declared paths (`torve.base.globs.overlap`, the same primitive
+that already answers "do two glob sets overlap" for same-phase scopes) rather
+than a literal post-hoc `git diff` of historical
 shas. Two considered reasons, logged as a departure from S-0022/D-4/D-22.5's
 literal "diff intersected" wording under T-0099: the scope gate already
 refuses a landed diff that leaves `scope.allow` (`torve.gates.scope`), so the
@@ -61,11 +61,11 @@ from typing import Any, cast
 
 import yaml
 
-from torve.application.planner import globs_intersect
 from torve.application.runstate import RunState
 from torve.application.sizing import estimate_scope
 from torve.base import naming
 from torve.base.clock import parse
+from torve.base.globs import overlap
 from torve.config import layout, spec
 from torve.domain.spec import Corpus, qualify
 from torve.domain.states import TaskState
@@ -511,7 +511,7 @@ def _touched(task: TaskFacts, paths: list[str]) -> bool:
     if not task.scope_allow:
         return True
 
-    return globs_intersect(task.scope_allow, paths)
+    return overlap(task.scope_allow, paths)
 
 
 # ....................... #
