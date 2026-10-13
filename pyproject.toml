@@ -69,6 +69,11 @@ dev = [
     "mypy[faster-cache]>=1.19",
     "pytest>=8.0",
     "pytest-timeout>=2.3",
+    # Backs a decision row's property check (S-0106/D-4): a row may name a
+    # Hypothesis test stating the decision over generated inputs, so the dev
+    # environment imports it without a fixture. Dev-only, like pytest itself:
+    # a check is the repository's own evidence, no concern of a consumer.
+    "hypothesis>=6",
     # Backs the worker count in `addopts` below (S-0071/D-1). Dev-only like
     # pytest-timeout: how this repository runs its own tests is no concern of
     # a consumer.

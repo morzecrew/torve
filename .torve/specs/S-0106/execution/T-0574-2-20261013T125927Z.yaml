@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0574
+phase: 6
+attempt: 2
+base: 8e1758443ac59e6c655988448167e1f92bc0e26c
+commit: 839fd3a0c1ea1ad8761c9d3c702fce3d3eb0eb05
+at: '2026-10-13T12:59:27Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-13T12:53:11Z'
+    attempt: 2
+    claim: >-
+      A `tests/**` pattern matches more than test sources: a golden JSON beside the
+      tests, a fixture, `conftest.py` (which parses into no test function). Treating
+      every matched file the gate cannot parse into functions as 'qualifies whole'
+      made its pytest collection error the healthy red, so a trivially-true test passed
+      once a fixture was touched beside it, and a non-Python file paired as `tests/test_<stem>.py`.
+      'Qualifies whole' is narrowed to a suffix the manifest's `tests.pair` templates
+      name as a test source, and a file that parses but names no test function is
+      skipped; `paired` refuses a module whose suffix the templates do not name. Under
+      the default templates only `.py` qualifies, so the defaults reproduce today's
+      Python behaviour.
+    evidence: >-
+      src/torve/gates/red_on_base.py:123-151 — the whole-file branch reads `ctx.manifest.tests.source_suffixes()`
+      and fires only when `_test_functions` returned None (a parse failure) and the
+      file's suffix is named; src/torve/config/manifest.py:270-298 derives the suffix
+      set from the pair templates and refuses a module the templates do not name.
+    action: departed
+    proposal: >-
+      D-7 should read: a changed file the manifest's `tests.pair` templates name as
+      a test source, which the gate cannot parse into functions, qualifies whole;
+      a matched file that parses into no test function does not; a module whose suffix
+      the templates do not name pairs with nothing.
+    notes: >-
+      Two review threads on the previous attempt's red_on_base and intake/neighbours
+      changes. Both are ASSUMED departures from the terse D-7 text, not halts.

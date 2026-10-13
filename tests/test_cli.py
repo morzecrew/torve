@@ -136,6 +136,65 @@ def test_gates_check_json_is_schema_versioned():
     assert result.exit_code == 0, document["cases"]
 
 
+def _one_row_corpus(tmp_path, twin: str):
+    from test_decisions import corpus, document, place
+
+    specs = corpus(tmp_path)
+    place(
+        specs,
+        "0001",
+        document(
+            "0001",
+            [("S-0001/D-1", "ASSUMED", "A rule.", "`src/a.py`")],
+            details={
+                "S-0001/D-1": {
+                    "check": "true",
+                    "check_state": "blocking",
+                    "check_twin": twin,
+                }
+            },
+        ),
+    )
+    return specs
+
+
+def test_gates_check_fails_a_twin_that_exits_non_zero(tmp_path, monkeypatch):
+    """S-0106/D-3: every standing row's check_twin runs after the sabotage
+    CASES, and one that exits non-zero fails the verb."""
+
+    from torve.cli import gates as gates_cli
+
+    monkeypatch.setattr(gates_cli.sabotage, "run_all", list)
+    _one_row_corpus(tmp_path, "sh -c 'exit 1'")
+
+    result = CliRunner().invoke(
+        app, ["gates", "check", "--root", str(tmp_path), "--format", "json"]
+    )
+    document = json.loads(result.stdout)
+
+    assert result.exit_code != 0
+    assert [t["ok"] for t in document["twins"]] == [False]
+    assert document["twins"][0]["name"] == "twin: S-0001/D-1"
+
+
+def test_gates_check_passes_a_twin_that_exits_zero(tmp_path, monkeypatch):
+    """S-0106/D-3: the twin proves the check can fail; one that does not
+    exit non-zero is a case that behaved."""
+
+    from torve.cli import gates as gates_cli
+
+    monkeypatch.setattr(gates_cli.sabotage, "run_all", list)
+    _one_row_corpus(tmp_path, "true")
+
+    result = CliRunner().invoke(
+        app, ["gates", "check", "--root", str(tmp_path), "--format", "json"]
+    )
+    document = json.loads(result.stdout)
+
+    assert result.exit_code == 0, document
+    assert [t["ok"] for t in document["twins"]] == [True]
+
+
 def test_size_json(tmp_path):
     task_file = tmp_path / "task.yaml"
     import yaml

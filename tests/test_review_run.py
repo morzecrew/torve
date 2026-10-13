@@ -784,6 +784,53 @@ def test_the_review_prompt_lists_a_promotion():
     assert "widened beyond" not in build_review_prompt(target, "diff --git a/x b/x", [])
 
 
+def test_the_audit_lists_a_checked_rows_check_and_twin_with_the_two_questions():
+    """S-0106/D-5: the reviewer is told each checked row's check and the twin
+    that proves it can fail, and asked the faithfulness and can-it-fail
+    questions, a failure of either being a `major` finding."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[
+            InheritedDecision(
+                id="S-0001/D-1",
+                grade="LOCKED",
+                text="the parser round-trips",
+                check="uv run pytest tests/test_parser.py -q -k roundtrip",
+                check_twin="tests/test_parser_sabotage.py",
+            ),
+            InheritedDecision(id="S-0001/D-2", grade="ASSUMED", text="a rule with no check"),
+        ],
+    )
+    prompt = build_review_prompt(target, "diff --git", [])
+
+    assert "uv run pytest tests/test_parser.py -q -k roundtrip" in prompt
+    assert "tests/test_parser_sabotage.py" in prompt
+    assert "does the check test what the row says" in prompt
+    assert "would a plausible wrong implementation make it fail" in prompt
+    assert "finding at `major`" in prompt
+
+
+def test_the_audit_lists_an_unchecked_row_without_a_check_or_the_questions():
+    """S-0106/D-5: a row with no check is listed without one and draws no
+    finding for lacking one, so the audit questions are not asked of it."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[
+            InheritedDecision(id="S-0001/D-1", grade="ASSUMED", text="a rule with no check")
+        ],
+    )
+    prompt = build_review_prompt(target, "diff --git", [])
+
+    assert "- S-0001/D-1 [ASSUMED] a rule with no check" in prompt
+    assert "check:" not in prompt
+    assert "check_twin:" not in prompt
+    assert "does the check test what the row says" not in prompt
+
+
 def test_parse_findings_takes_the_last_document():
     output = 'thinking...\n{"findings": []}'
     assert parse_findings(output) == []

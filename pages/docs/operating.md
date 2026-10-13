@@ -214,6 +214,69 @@ path passes a conviction to the prompt yet, so a repair attempt today is an
 ordinary prompt run against the convicted tree with the convicting gate's
 command in its acceptance.
 
+## A row's check, its twin, and the invariants the battery runs
+
+A decision row may carry a `check` — a command whose exit code judges the
+row — and the battery runs each as a `decision:<id>` gate under the row's
+`check_state`: shadow until an amendment promotes it on soak evidence, then
+blocking. A check that **selects nothing** — pytest's exit 5, or the "no
+tests ran" summary `acceptance` already reads — fails as vacuous under the
+row's state (S-0106/D-1): a `-k` filter matching no test has judged nothing,
+and it is seen the first time it runs rather than left as a quiet green. The
+`decision:<id>` gates run first, before `decisions-reported`, because that
+gate reads their verdicts to know whether a checked row is covered
+(S-0106/D-1).
+
+A check stands for its row in the silence check, and what changed is the
+failure side. A row whose check ran and passed owes no divergence entry,
+whatever its paths — the check is its evidence. A `LOCKED` row whose check
+*did not* pass — a fail, an error, a check that selected nothing — is owed
+an entry like any other touched locked area, instead of the old rule that
+skipped every row carrying a check (S-0106/D-1).
+
+A `check_state: blocking` row also names a `check_twin`: the test that
+proves the check *can* fail — a plausible wrong implementation of the row,
+run against the check, which must turn it red. `torve gates check` runs
+every standing row's twin after the sabotage CASES and fails when one exits
+non-zero, and `torve spec check` refuses a blocking row that names no twin,
+as the planner already refuses one at mint (S-0106/D-3). A row is never
+blocking on a check nobody has shown can fail.
+
+The same battery carries the document's **invariants**. A standing
+invariant — an `I-n` with a `statement`, `paths` and a `check` — enters as
+an `invariant:<id>` gate, always shadow: an invariant is a statement to read,
+not a wall, until an operator promotes a decision from it. The completion
+battery and the document-branch regate run the `decision:<id>` gates of
+every row the document's phases inherited, and an `invariant:<id>` gate for
+every invariant whose declared paths the diff reaches; an invariant the diff
+never touches is reported skipped rather than run for nothing (S-0106/D-2).
+One reader fills both batteries, so a row is judged the same way on an
+attempt and on the whole document, and a task's own attempt battery is
+otherwise unchanged.
+
+### Under a refactor
+
+`red-on-base` asks whether a changed test fails on the base tree, because a
+test green before the change proves nothing about it. A **refactor inverts
+the question**. When the document's `change.type` is `refactor`, the gate
+runs the changed test files *and the inherited decision checks* on both the
+base tree and the candidate: green on both passes, and a green on one tree
+turning red on the other fails as "behaviour changed under a refactor"
+(S-0106/D-6). A refactor is judged by whether behaviour held, not by whether
+a test moved under it, which closes the risk the gate was built around — a
+refactor convicted for changing nothing. Outside a refactor the gate is
+unchanged: the base red is still the healthy case.
+
+A repository whose tests are not Python says how they are found, paired and
+run through the manifest's `tests:` block: `run`, the command a list of test
+files is appended to, and `pair`, the templates from a module to its tests
+over `{dir}` and `{stem}` (S-0106/D-7). `red-on-base`, the intake's pairing,
+the neighbour derivation, the context pack's named tests and the review
+leg's fallback scope read them; the defaults reproduce the Python pairing at
+any depth under `tests/` and `python3 -m pytest -q -p no:cacheprovider`. A
+changed test file the gate cannot parse into functions qualifies whole
+rather than silently not qualifying.
+
 ## Where the working rules live
 
 The rules an attempt works by — where the engine's facts are, which verbs

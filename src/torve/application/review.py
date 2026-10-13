@@ -55,7 +55,7 @@ from torve.config.runconfig import (
 )
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
-from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, Task
+from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
 from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
@@ -98,6 +98,36 @@ def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Tas
 # ....................... #
 
 
+def _inherited_decisions(decisions: list[InheritedDecision]) -> str:
+    """Each inherited row beside its `check` and `check_twin` (S-0106/D-5), then
+    the two audit questions when any row carries a check. A row without a check
+    is listed without either and draws no finding for lacking one."""
+
+    lines: list[str] = []
+    checked = False
+
+    for row in decisions:
+        lines.append(f"- {row.id} [{row.grade}] {row.text}")
+        if row.check:
+            checked = True
+            lines.append(f"  check: {row.check}")
+            lines.append(f"  check_twin: {row.check_twin or 'none'}")
+
+    if not lines:
+        return "- none"
+
+    if checked:
+        lines.append("")
+        lines.append(
+            "For each row above that carries a check, ask two questions: does the "
+            "check test what the row says, and would a plausible wrong "
+            "implementation make it fail? A check that fails either question is a "
+            "finding at `major`. A row with no check draws no finding for lacking one."
+        )
+
+    return "\n".join(lines)
+
+
 def build_review_prompt(
     target: Task,
     diff_text: str,
@@ -117,7 +147,7 @@ def build_review_prompt(
         "\n".join(f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
     )
 
-    decisions = "\n".join(f"- {d.id} [{d.grade}] {d.text}" for d in target.decisions) or "- none"
+    decisions = _inherited_decisions(target.decisions)
 
     # The battery by name: told what the change was judged green on, the
     # reviewer can run that same battery rather than guess at it (S-0005/D-16).

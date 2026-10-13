@@ -123,6 +123,9 @@ decisions:
     rationale: <why, in one or two sentences>
     cites: []           # what this row descends from: D-n of this document, or S-NNNN/D-n, S-NNNN/A-n, S-NNNN
     check: pytest tests/test_example.py   # optional: a command whose exit code judges the row
+                                          #   a rule over inputs -> a Hypothesis property; no input
+                                          #   rule -> the example; a blocking row also names a
+                                          #   check_twin, the test that proves the check can fail
   - id: D-2
     grade: OPEN
     text: <a decision deliberately delegated to implementation — still a row, never an absence>
@@ -154,6 +157,12 @@ written by hand. Every time the engine writes is the instant
   already lives in the task's log and reaches the document as an appended
   row citing its entry; restating the log's narrative here guarantees the two
   disagree later.
+- **What a row's `check` is.** A rule quantified over inputs (a parser, a
+  matcher, a state transition, a round trip) gets a Hypothesis property that
+  generates them and asserts the rule; a row about one case gets the example
+  test, and a property over it proves no more. A `check_state: blocking` row
+  names a `check_twin` too — the test that proves the check can fail — and
+  the task whose phase settles the row writes the check, beside the code.
 - **No comments but the first line.** A comment is meaning outside the
   model; `torve spec check` refuses it. The comments in this template are for
   reading the template, not for a document.

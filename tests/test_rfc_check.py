@@ -104,6 +104,40 @@ def test_a_locked_row_without_paths_reddens(tmp_path: Path) -> None:
     assert "declares no paths" in result.output
 
 
+def test_a_blocking_check_without_a_twin_reddens(tmp_path: Path) -> None:
+    """S-0054/D-4, S-0106/D-3: a row is never blocking on a check nobody has
+    shown can fail — the planner refuses it at mint, `spec check` here."""
+
+    doc = rfc_text(
+        "0001",
+        "Widget",
+        rows=[("D-1", "ASSUMED", "Something is decided", "`src/a.py`")],
+        details={"D-1": {"check": "true", "check_state": "blocking"}},
+    )
+    seed(tmp_path, ("0001", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == EXIT_CONFIG
+    assert "check_twin" in result.output
+
+
+def test_a_blocking_check_with_a_twin_checks(tmp_path: Path) -> None:
+    doc = rfc_text(
+        "0001",
+        "Widget",
+        rows=[("D-1", "ASSUMED", "Something is decided", "`src/a.py`")],
+        details={
+            "D-1": {
+                "check": "true",
+                "check_state": "blocking",
+                "check_twin": "tests/test_x.py",
+            }
+        },
+    )
+    seed(tmp_path, ("0001", doc))
+    result = invoke(tmp_path, "check")
+    assert result.exit_code == 0, result.output
+
+
 def test_a_duplicate_identifier_reddens(tmp_path: Path) -> None:
     seed(
         tmp_path,

@@ -15,7 +15,7 @@ import json
 import re
 import shlex
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -295,20 +295,21 @@ def _matched(path: Path, globs: list[str]) -> bool:
 # ....................... #
 
 
-def paired_test_files(stem: str, names: Iterable[str]) -> list[str]:
-    """The T-0113 rule's pairing (S-0096/D-4, S-0104/D-9): an existing module
-    `<stem>.py` brings `test_<stem>.py` and every existing `test_<stem>_*.py`
-    at any depth under `tests/`. `names` are the tests' names or paths, matched
-    by their last component and returned as given."""
+def paired_test_files(
+    module: str, names: Iterable[str], pair: Sequence[str] | None = None
+) -> list[str]:
+    """The T-0113 rule's pairing (S-0096/D-4, S-0104/D-9, S-0106/D-7): an
+    existing module brings its existing tests, by the manifest's `pair`
+    templates over `{dir}` and `{stem}`. `names` are the tests' names or paths,
+    returned as given. Without *pair*, the default Python pairing:
+    `test_<stem>.py` and every existing `test_<stem>_*.py` at any depth under
+    `tests/`."""
 
-    exact = f"test_{stem}.py"
-    prefix = f"test_{stem}_"
+    from torve.config.manifest import TestsConfig
 
-    return sorted(
-        name
-        for name in names
-        if (base := Path(name).name) == exact or (base.startswith(prefix) and base.endswith(".py"))
-    )
+    config = TestsConfig(pair=list(pair)) if pair is not None else TestsConfig()
+
+    return config.paired(module, names)
 
 
 # ....................... #
@@ -322,6 +323,7 @@ def lint_drafts(
     allow_dependency_order: bool = False,
     planning: bool = False,
     warnings: list[str] | None = None,
+    pair: Sequence[str] | None = None,
 ) -> list[str]:
     """Every mechanical check a human should never have to make (S-0020/D-3).
     The T-0113 rule is the first learned rule: a draft touching an existing
@@ -345,13 +347,16 @@ def lint_drafts(
 
     `warnings`, when given, collects the advisories that are not refusals
     (S-0104/D-9): a module whose paired test sits in a nested layout and is not
-    allowed warns, where the flat layout's miss still refuses."""
+    allowed warns, where the flat layout's miss still refuses.
+
+    `pair` is the manifest's `tests.pair` templates (S-0106/D-7); without it
+    the default Python pairing applies."""
 
     from torve.base.globs import overlap
 
     errors: list[str] = []
     tree_paths = _tree_paths(tree)
-    test_paths = [p.as_posix() for p in tree_paths if p.parts and p.parts[0] == "tests"]
+    all_paths = [p.as_posix() for p in tree_paths]
     drafts = document.drafts
 
     if not drafts:
@@ -429,29 +434,32 @@ def lint_drafts(
             elif dep not in refs:
                 errors.append(f"{ref}: depends on unknown draft {dep!r}")
 
-        # The T-0113 rule: existing modules bring their existing tests.
+        # The T-0113 rule: existing modules bring their existing tests, by the
+        # manifest's `pair` templates (S-0106/D-7).
         for path in tree_paths:
-            if (
-                path.suffix == ".py"
-                and "tests" not in path.parts
-                and _matched(path, draft.scope.allow)
-            ):
-                for name in paired_test_files(path.stem, test_paths):
-                    test_file = Path(name)
+            if "tests" in path.parts or not _matched(path, draft.scope.allow):
+                continue
 
-                    if _matched(test_file, draft.scope.allow):
-                        continue
+            for name in paired_test_files(path.as_posix(), all_paths, pair):
+                test_file = Path(name)
 
-                    if test_file.parent == Path("tests"):
-                        errors.append(
-                            f"{ref}: allows existing module {path} but not its "
-                            f"existing test file {test_file} — the T-0113 rule"
-                        )
-                    elif warnings is not None:
-                        warnings.append(
-                            f"{ref}: allows existing module {path} but not its "
-                            f"nested test file {test_file} — pair it or widen the scope"
-                        )
+                if _matched(test_file, draft.scope.allow):
+                    continue
+
+                # A sibling is the module's own test, wherever the templates
+                # put it (a Go `_test.go` beside its source); a flat `tests/`
+                # file is the Python convention. Either is a refusal — only a
+                # nested miss, a guess, warns (S-0104/D-9).
+                if test_file.parent in (path.parent, Path("tests")):
+                    errors.append(
+                        f"{ref}: allows existing module {path} but not its "
+                        f"existing test file {test_file} — the T-0113 rule"
+                    )
+                elif warnings is not None:
+                    warnings.append(
+                        f"{ref}: allows existing module {path} but not its "
+                        f"nested test file {test_file} — pair it or widen the scope"
+                    )
 
     for i, one in enumerate(drafts):
         for other in drafts[i + 1 :]:
@@ -497,8 +505,34 @@ def _escapes_parent_scope(
 # ....................... #
 
 
+def test_pairs(tree: Path) -> list[str] | None:
+    """The manifest's `tests.pair` templates when the tree carries a manifest
+    (S-0106/D-7); None leaves the default Python pairing in force."""
+
+    from torve.config.manifest import load_manifest
+
+    path = layout.gates_file(tree)
+
+    if not path.is_file():
+        return None
+
+    try:
+        return list(load_manifest(path).tests.pair)
+
+    except ValueError:
+        return None
+
+
+# ....................... #
+
+
 def lint_decomposition(
-    tree: Path, document: DraftsDocument, parent: Task, max_drafts: int
+    tree: Path,
+    document: DraftsDocument,
+    parent: Task,
+    max_drafts: int,
+    *,
+    pair: Sequence[str] | None = None,
 ) -> list[str]:
     """The decomposition batch's own four rules (S-0026/the-decomposition-run), layered on
     the ordinary contract lint: S-0026/D-2 (a child never escapes the parent's
@@ -509,7 +543,7 @@ def lint_decomposition(
     decomposition that yields an oversized child has not decomposed. The
     depth bound (S-0026/D-12) is enforced earlier, at the drafting run's mint."""
 
-    errors = lint_drafts(tree, document, max_drafts, allow_dependency_order=True)
+    errors = lint_drafts(tree, document, max_drafts, allow_dependency_order=True, pair=pair)
     drafts = document.drafts
 
     if not drafts:
@@ -731,7 +765,14 @@ def lint_task(
 
     errors = [
         e.replace("DRAFT-1", task.id)
-        for e in lint_drafts(tree, document, max_drafts, planning=planning, warnings=nested)
+        for e in lint_drafts(
+            tree,
+            document,
+            max_drafts,
+            planning=planning,
+            warnings=nested,
+            pair=test_pairs(tree),
+        )
     ]
 
     if warnings is not None:
@@ -1534,10 +1575,12 @@ def _lint_intake_batch(
     change lint layered on top — each a no-op unless its own condition
     fires, so this costs an ordinary drafting run nothing."""
 
+    pair = test_pairs(worktree)
+
     lint_errors = (
-        lint_decomposition(worktree, document, parent, config.intake.max_drafts)
+        lint_decomposition(worktree, document, parent, config.intake.max_drafts, pair=pair)
         if parent is not None
-        else lint_drafts(worktree, document, config.intake.max_drafts)
+        else lint_drafts(worktree, document, config.intake.max_drafts, pair=pair)
     )
 
     if not lint_errors:

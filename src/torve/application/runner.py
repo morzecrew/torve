@@ -55,6 +55,7 @@ from torve.application.dispatch import (
 )
 from torve.application.forge import compose_pr
 from torve.application.manager import in_flight_fences, project
+from torve.application.planner import change_type_of
 from torve.application.ports import (
     AgentResult,
     Runtime,
@@ -676,6 +677,10 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         )
 
         ctx.execute = executor
+        # S-0106/D-6: a phase of a refactor document is judged by whether
+        # behaviour held, so the battery is told the type `red-on-base` re-aims
+        # on. Read here, not in the gate: the corpus is the planner's (S-0015/A-1).
+        ctx.change_type = change_type_of(run.worktree / run.config.specs.path, run.task)
 
         if _is_empty_implement_diff(ctx, run.root):
             # T-0172: an implement attempt that changed nothing against the

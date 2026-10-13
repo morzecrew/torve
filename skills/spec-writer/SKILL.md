@@ -87,9 +87,36 @@ arrives first, invisibly.
    ```
 
    `check` is a command whose exit code judges the row; the runner appends
-   it to the battery as a `decision:<id>` gate at shadow, and a row with a
-   check owes no divergence entry. `check_state: blocking` needs a
-   `check_twin` — the test that proves the check can fail.
+   it to the battery as a `decision:<id>` gate under the row's
+   `check_state` (`shadow` until an amendment promotes it, naming the soak
+   evidence), and a row whose check passed owes no divergence entry. Which
+   check is honest is a fact about the rule, not about what is easy to write:
+
+   - **A rule over inputs gets a property.** When the row governs a parser,
+     a matcher, a state transition or a round trip — anything quantified
+     over inputs — the check is a Hypothesis test that generates them and
+     asserts the rule holds. `hypothesis` is a direct dev dependency, so the
+     test imports it without a fixture. Assert the rule, never the one input
+     the author pictured: a property that enumerates the cases an example
+     would is an example wearing a generator, and a reviewer reads every
+     check for exactly that.
+   - **Where no input rule exists, an example test is the honest check.** A
+     row about a fixed spelling, a wire format or a migration's one-shot
+     effect is a statement about one case; a property over it asserts nothing
+     an example does not, and leaves a reader no way to say what a wrong
+     implementation would violate. Write the example.
+   - **The phase that settles the row writes its check.** A check belongs
+     beside the code it judges, in the task whose phase delivers the row —
+     never invented by the planner, never deferred. A check with no phase to
+     run it selects nothing, which the battery now reads as a vacuous
+     failure rather than a quiet green.
+
+   `check_state: blocking` needs a `check_twin` — the test that proves the
+   check can fail: a plausible wrong implementation of the row, run against
+   the check, which must turn it red. `torve gates check` runs every standing
+   row's twin after the sabotage CASES, and `torve spec check` refuses a
+   blocking row that names none. A row is never blocking on a check nobody
+   has shown can fail.
 
 2. **Phasing must be mintable.** A phase is an entry in the `phasing` list —
    number, title, one-paragraph intent, the file globs it will touch, its

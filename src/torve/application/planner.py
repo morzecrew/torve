@@ -43,7 +43,7 @@ from torve.application import neighbours, sizing
 from torve.base.globs import overlap
 from torve.config import layout, spec
 from torve.domain.attempt import SizeVerdict
-from torve.domain.spec import Corpus, Document, Phase, document_id, number_of
+from torve.domain.spec import ChangeType, Corpus, Document, Phase, document_id, number_of
 from torve.domain.task import InheritedDecision, Scope, Task
 from torve.domain.vocabulary import GRADES
 
@@ -243,6 +243,36 @@ def document_of(reference: str) -> str:
         return document_id(reference)
     except ValueError:
         return ""
+
+
+# ....................... #
+
+
+def change_type_of(spec_dir: Path, task: Task | None) -> ChangeType | None:
+    """The change type of the document a contract names (S-0106/D-6): the one
+    fact `red-on-base` re-aims its verdict on, read here because a gate never
+    parses a specification document (S-0015/A-1).
+
+    None when the contract names no document, the corpus does not hold it, or
+    it declares no change — the feature reading is the default. A corpus the
+    loader refuses is `spec check`'s to report, never the battery's to die
+    on, so every refusal is the same answer."""
+
+    if task is None or not task.spec:
+        return None
+
+    directory = spec.document_dir(spec_dir, task.spec)
+
+    if directory is None:
+        return None
+
+    try:
+        document = spec.load_document(directory)
+
+    except spec.SpecError:
+        return None
+
+    return document.change.type if document.change else None
 
 
 def _already_minted(
@@ -527,6 +557,11 @@ def plan_document(
                         root, document, {predecessor}, board
                     )
 
+    # S-0106/D-7: the manifest's `pair` templates drive the neighbour pairing.
+    from torve.application.intake import test_pairs
+
+    pairs = test_pairs(root)
+
     for offset, entry in enumerate(ordered):
         # A task with an in-document predecessor waits through it; one with
         # none is where the other document's landing has to be waited on.
@@ -541,7 +576,7 @@ def plan_document(
             scope=Scope(
                 allow=list(entry.scope),
                 contingent=neighbours.contingent_paths(
-                    root, entry.scope, document=doc, phase=entry.phase
+                    root, entry.scope, document=doc, phase=entry.phase, pair=pairs
                 ),
             ),
             acceptance=list(entry.acceptance),

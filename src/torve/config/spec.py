@@ -1049,6 +1049,15 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
         if row.grade not in GRADES:
             problems.append(f"{where}: row {row.id!r} has grade {row.grade!r}")
 
+        # S-0054/D-4, S-0106/D-3: a blocking check nobody has shown can fail is
+        # not a check — the planner refuses it at mint, and here so the corpus
+        # never carries one.
+        if row.check_state == "blocking" and not row.check_twin:
+            problems.append(
+                f"{where}: row {row.id!r} has a blocking check and no check_twin — "
+                "a check nobody has shown can fail is not a check (S-0054/D-4)"
+            )
+
         if row.grade != "LOCKED":
             continue
 

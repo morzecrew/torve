@@ -508,14 +508,34 @@ def _allow(
     if allow:
         return allow
 
-    for path in [anchor, *files]:
-        test = f"tests/test_{Path(path).stem}.py"
+    # S-0106/D-7: the tests a file brings are its manifest `pair` matches, the
+    # same reading the intake and the pack use — not `tests/test_<stem>.py`
+    # hard-coded.
+    from contextlib import suppress
 
+    from torve.application.intake import NOT_THE_TREE
+    from torve.config.manifest import TestsConfig, load_manifest
+
+    config = TestsConfig()
+    manifest_path = layout.gates_file(root)
+
+    if manifest_path.is_file():
+        with suppress(ValueError):
+            config = load_manifest(manifest_path).tests
+
+    candidates = [
+        p.relative_to(root).as_posix()
+        for p in root.rglob("*")
+        if p.is_file() and NOT_THE_TREE.isdisjoint(p.relative_to(root).parts)
+    ]
+
+    for path in [anchor, *files]:
         if path not in allow:
             allow.append(path)
 
-        if (root / test).is_file() and test not in allow:
-            allow.append(test)
+        for test in config.paired(path, candidates):
+            if test not in allow:
+                allow.append(test)
 
     return allow
 
@@ -704,11 +724,16 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
     # its anchor's caller or test promotes it rather than halting on scope.
     # A neighbour the round's allow already matches is the scope, not beyond it.
     allowed = GitIgnoreSpec.from_lines(round_.allow)
+
+    from torve.application.intake import test_pairs
+
+    pairs = test_pairs(root)
+
     document["scope"]["contingent"] = sorted(
         {
             path
             for finding in round_.findings
-            for path in contingent_paths(root, [finding.path])
+            for path in contingent_paths(root, [finding.path], pair=pairs)
             if not allowed.match_file(path)
         }
     )

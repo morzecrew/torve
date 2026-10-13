@@ -1388,7 +1388,10 @@ def _carry_landing(root: Path, task_id: str, spec: str) -> None:
     rel = f".torve/specs/{spec}/execution/{task_id}-1-20261010T000000Z.yaml"
     landing = root / rel
     landing.parent.mkdir(parents=True, exist_ok=True)
-    landing.write_text(f"task: {task_id}\ncommit: {work}\n", encoding="utf-8")
+    landing.write_text(
+        f"task: {task_id}\ncommit: {work}\nat: '2026-10-10T00:00:00Z'\n",
+        encoding="utf-8",
+    )
     git(root, "add", rel)
 
     if git(root, "diff", "--cached", "--name-only"):
@@ -2358,6 +2361,43 @@ def _phase_contract(root: Path, task_id: str, phase: int) -> None:
     _carry_landing(root, task_id, "S-0930")
 
 
+def _checked_phased(root: Path) -> None:
+    """S-0106/D-2: a document whose one row carries a shadow check, with two
+    invariants — one over a file its phases touch, one over a file no phase
+    reaches — committed so the lane reads a clean tree."""
+    from test_decisions import document, place
+
+    place(
+        root / ".torve" / "specs",
+        "0930",
+        document(
+            "0930",
+            rows=[("S-0930/D-1", "ASSUMED", "a term", "one.py", "cheap to revisit")],
+            details={"S-0930/D-1": {"check": "true", "check_state": "shadow"}},
+            invariants=[
+                {
+                    "id": "S-0930/I-1",
+                    "statement": "one holds",
+                    "paths": ["one.py"],
+                    "check": "true",
+                },
+                {
+                    "id": "S-0930/I-2",
+                    "statement": "two holds",
+                    "paths": ["nowhere.py"],
+                    "check": "false",
+                },
+            ],
+            phasing=[
+                {"phase": 1, "title": "one", "intent": "One.", "scope": ["one.py"]},
+                {"phase": 2, "title": "two", "intent": "Two.", "scope": ["two.py"]},
+            ],
+        ),
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "the document")
+
+
 def _counting_regate(monkeypatch) -> list[str | None]:
     import torve.application.lane as lane
 
@@ -2426,6 +2466,55 @@ def test_a_last_phase_that_fast_forwards_is_regated_once_and_published(
     assert not [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
 
 
+def test_completion_runs_checks_the_document_inherited_and_the_reached_invariants(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0106/D-2: the completion battery judges the document branch under no
+    task's contract, so it runs the decision check of the row the document's
+    phases inherited, and an invariant gate for the standing invariant its
+    diff reaches — none for one it does not."""
+
+    import torve.application.lane as lane
+
+    _checked_phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+
+    candidate(lane_repo, "T-7351", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7351", 1)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7352"), document)
+    (lane_repo / "two.py").write_text("two = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "two.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7352)")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7352", path=naming.state_file(lane_repo, "T-7352"))
+    state.state = TaskState.READY
+    state.save()
+    _phase_contract(lane_repo, "T-7352", 2)
+
+    seen: list[str] = []
+    real = lane._regate
+
+    def regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str]:
+        exit_code, summary = real(workdir, base_ref, task_id)
+        seen.append(summary)
+        return exit_code, summary
+
+    monkeypatch.setattr(lane, "_regate", regate)
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document", only="T-7352")
+
+    assert [r.action for r in results] == ["landed"]
+    completion = seen[-1]
+    assert "decision:S-0930/D-1=pass" in completion
+    assert "invariant:S-0930/I-1=pass" in completion
+    assert "invariant:S-0930/I-2" not in completion
+
+
 def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     lane_repo, tmp_path, monkeypatch
 ):
@@ -2441,7 +2530,7 @@ def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
         lane_repo / ".torve" / "specs" / "S-0930" / "execution" / "T-7311-1-20261003T000000Z.yaml"
     )
     landing.parent.mkdir(parents=True, exist_ok=True)
-    landing.write_text("task: T-7311\n", encoding="utf-8")
+    landing.write_text("task: T-7311\nat: '2026-10-03T00:00:00Z'\n", encoding="utf-8")
     git(lane_repo, "add", "-A")
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "phase 1 by hand")
     git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")

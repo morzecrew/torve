@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0569
+phase: 1
+base: b81c555ae8d02f8717464f7192282243c818ce47
+commit: 63c71810525e935bda6b84683d544bcaaa3bfb0f
+at: '2026-10-13T10:36:51Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-10-13T10:29:46Z'
+    claim: >-
+      Reality: the tree now owes a LOCKED row whose check did not pass (D-1). S-0054/D-3
+      (LOCKED) forbade exactly this — a check that ran, green or red, was not owed
+      a divergence entry. Implementing D-1 departs from that standing row, which still
+      needs an amendment.
+    evidence: >-
+      src/torve/gates/decisions_reported.py:364-374 — the branch that now owes a row
+      whose check did not pass, where S-0054/D-3 left every checked row covered.
+    action: departed
+    proposal: >-
+      Amend S-0054/D-3 to except a check that did not pass: its row owes a divergence
+      entry, per S-0106/D-1.
+  - decision: S-0054/D-3
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-10-13T10:32:57Z'
+    claim: >-
+      The standing row governs src/torve/gates/decisions_reported.py, which this change
+      touches. Its clause — a check green or red is not owed an entry — is superseded
+      in code by S-0106/D-1; the check that did not pass now leaves its LOCKED row
+      owed. The row itself still needs an amendment.
+    evidence: >-
+      src/torve/gates/decisions_reported.py:361-376 — the check branch that now owes
+      a row whose check did not pass, where S-0054/D-3 left it covered.
+    action: departed
+    proposal: >-
+      Amend S-0054/D-3 to except a check that did not pass, per S-0106/D-1.

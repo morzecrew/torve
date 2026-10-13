@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from torve.base.globs import matches
 from torve.base.model import STRICT, SchemaVersion
 from torve.domain.spec import is_citation
 from torve.domain.task import Scope
@@ -210,15 +212,92 @@ DEFAULT_TEST_PATTERNS = [
     "**/*.spec.*",
 ]
 
+# The launcher a list of test files is appended to (S-0106/D-7): the engine's
+# default is pytest over the appended paths, and a repository whose tests are
+# `*_test.go` or `*.spec.ts` names its own.
+DEFAULT_TEST_RUN = "python3 -m pytest -q -p no:cacheprovider"
+
+# Module -> its tests, as path templates over `{dir}` (the module's directory)
+# and `{stem}` (its filename without extension) (S-0106/D-7). The default is the
+# Python pairing at any depth under `tests/`: `test_<stem>.py` and every
+# `test_<stem>_*.py`.
+DEFAULT_TEST_PAIRS = ["tests/**/test_{stem}.py", "tests/**/test_{stem}_*.py"]
+
 
 # ....................... #
 
 
 class TestsConfig(BaseModel):
+    """Which files count as tests, how a module pairs with them, and how they
+    run (S-0106/D-7)."""
+
     model_config = STRICT
 
     patterns: list[str] = Field(default_factory=lambda: list(DEFAULT_TEST_PATTERNS))
     """The globs that say which files are tests, for the no-test-tampering gate."""
+
+    run: str = DEFAULT_TEST_RUN
+    """The command a list of test files is appended to (S-0106/D-7) — what
+    red-on-base runs a qualifying file with. Defaults to pytest over the paths."""
+
+    pair: list[str] = Field(default_factory=lambda: list(DEFAULT_TEST_PAIRS))
+    """Templates from a module to its tests over `{dir}` and `{stem}`
+    (S-0106/D-7); the default is the Python pairing at any depth under
+    `tests/`."""
+
+    # ....................... #
+
+    def expansions(self, module: str) -> list[str]:
+        """The path patterns this config's `pair` templates make of *module* —
+        `{dir}` is its directory, `{stem}` its filename without extension."""
+
+        directory, _, filename = str(module).rpartition("/")
+        stem = filename.rsplit(".", 1)[0]
+        patterns: list[str] = []
+
+        for template in self.pair:
+            # A module at the repository root has no directory, so a template's
+            # leading `{dir}/` would leave a spurious `/`.
+            if not directory:
+                template = template.replace("{dir}/", "")
+
+            patterns.append(template.format(dir=directory, stem=stem))
+
+        return patterns
+
+    # ....................... #
+
+    def source_suffixes(self) -> set[str]:
+        """The suffixes a module must carry for this config's `pair` templates
+        to apply (S-0106/D-7): the suffix each template gives the test file
+        after `{stem}`. The default's templates say `.py`, so `gates.json` does
+        not pair as though it were `gates.py`; a Go template says `.go`, so
+        only a `.go` module brings its `_test.go`."""
+
+        suffixes: set[str] = set()
+
+        for template in self.pair:
+            _, marker, tail = template.partition("{stem}")
+
+            if marker and (suffix := Path(tail).suffix):
+                suffixes.add(suffix)
+
+        return suffixes
+
+    # ....................... #
+
+    def paired(self, module: str, names: Iterable[str]) -> list[str]:
+        """The existing paths among *names* that pair with *module* under this
+        config's `pair` templates, sorted (S-0106/D-7). A module whose suffix
+        the templates do not name pairs with nothing, so a data file under
+        `tests/` is never a module's test."""
+
+        suffixes = self.source_suffixes()
+
+        if suffixes and Path(module).suffix not in suffixes:
+            return []
+
+        return sorted({str(name) for name in names if matches(str(name), self.expansions(module))})
 
 
 # ....................... #

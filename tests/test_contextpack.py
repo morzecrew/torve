@@ -153,6 +153,20 @@ def test_decisions_carry_consequence_rationale_amendments_and_the_standing_set(
     assert [s["id"] for s in payload["standing_over_scope"]] == ["S-0002/D-1"]
 
 
+def test_the_pack_carries_a_checked_rows_twin(tmp_path: Path) -> None:
+    """S-0106/D-5: the reviewer audits a check that can fail, so the pack
+    carries the twin beside the check, not only the check."""
+
+    rfc_dir = _seed(tmp_path)
+    task = _task()
+    task.decisions[0].check_twin = "tests/test_a_sabotage.py"
+
+    (row,) = decisions_file(task, load_corpus(rfc_dir), rfc_dir)["inherited"]
+
+    assert row["check"] == "pytest tests/test_a.py"
+    assert row["check_twin"] == "tests/test_a_sabotage.py"
+
+
 def test_a_rows_history_carries_no_fingerprint_stamp(tmp_path: Path) -> None:
     """A fingerprint is how `spec check` catches a hand edit. To an agent reading
     why a rule says what it says it is two hashes where a rule should be, and a
@@ -582,3 +596,19 @@ def test_an_unconstrained_scope_inlines_no_repository(tmp_path: Path) -> None:
     unconstrained = Task(id="T-0501", decisions=[])
 
     assert scope_file(tmp_path, unconstrained, {"named_tests": []}) == ""
+
+
+def test_the_pack_pairs_a_go_test_by_the_manifest(tmp_path: Path) -> None:
+    """S-0106/D-7: the pack's named tests read the manifest's `pair` templates,
+    so a Go module names the `_test.go` beside it."""
+
+    from torve.config.manifest import TestsConfig
+
+    (tmp_path / "src" / "foo").mkdir(parents=True)
+    (tmp_path / "src" / "foo" / "bar.go").write_text("package foo\n", encoding="utf-8")
+    (tmp_path / "src" / "foo" / "bar_test.go").write_text("package foo\n", encoding="utf-8")
+    task = Task(id="T-0500", decisions=[], scope={"allow": ["src/foo/bar.go"], "deny": []})  # type: ignore[arg-type]
+
+    payload = tests_file(tmp_path, task, TestsConfig(pair=["{dir}/{stem}_test.go"]))
+
+    assert {"module": "src/foo/bar.go", "test": "src/foo/bar_test.go"} in payload["named_tests"]

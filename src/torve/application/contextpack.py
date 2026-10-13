@@ -35,7 +35,7 @@ from pathspec import GitIgnoreSpec
 from torve.application.colocation import contended_paths
 from torve.application.planner import standing_decisions
 from torve.application.projections import why_report
-from torve.config.manifest import load_manifest
+from torve.config.manifest import TestsConfig, load_manifest
 from torve.config.spec import SpecError, load_corpus
 from torve.domain.spec import Corpus, Document
 from torve.domain.task import Task
@@ -88,6 +88,7 @@ def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str
             "consequence": decision.consequence,
             "check": decision.check,
             "check_state": decision.check_state,
+            "check_twin": decision.check_twin,
         }
         hit = by_id.get(decision.id)
 
@@ -200,11 +201,12 @@ def _convicts_on(name: str) -> str:
 # ....................... #
 
 
-def tests_file(root: Path, task: Task) -> dict[str, Any]:
+def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict[str, Any]:
     """What covers the scope: files under scope.allow with their measured
     line coverage from the last battery's coverage.xml, and the test
-    modules that name them (the T-0113 rule). Per-test ids need coverage
-    contexts the battery does not record yet; what it does record is here."""
+    modules that name them (the T-0113 rule, by the manifest's `tests.pair`
+    templates — S-0106/D-7). Per-test ids need coverage contexts the battery
+    does not record yet; what it does record is here."""
 
     allow = GitIgnoreSpec.from_lines(task.scope.allow or ["**"])
     # S-0104/D-7: a contingent literal is part of what covers the scope, so its
@@ -232,25 +234,31 @@ def tests_file(root: Path, task: Task) -> dict[str, Any]:
                 hit = sum(1 for line in lines if line.get("hits") not in (None, "0"))
                 covered.append({"path": path, "lines": len(lines), "covered": hit})
 
-    from torve.application.intake import paired_test_files
+    config = tests or TestsConfig()
+    candidates = [
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and UNWALKED.isdisjoint(path.relative_to(root).parts)
+    ]
 
     named: list[dict[str, str]] = []
-    tests_dir = root / "tests"
-    test_names = [p.name for p in tests_dir.iterdir()] if tests_dir.is_dir() else []
+    # A module is a source file the scope names, by extension — not only `.py`,
+    # so a Go or TS module pairs too (S-0106/D-7); the extension also keeps a
+    # bare directory out of the pairing.
     modules = [
         glob
         for glob in task.scope.allow
-        if "*" not in glob and glob.endswith(".py") and not glob.startswith("tests/")
+        if "*" not in glob and not glob.startswith("tests/") and Path(glob).suffix
     ]
     modules += [
         path
         for path in task.scope.contingent
-        if path.endswith(".py") and not path.startswith("tests/")
+        if not path.startswith("tests/") and Path(path).suffix
     ]
 
     for module in dict.fromkeys(modules):
-        for name in paired_test_files(Path(module).stem, test_names):
-            named.append({"module": module, "test": f"tests/{name}"})
+        for test in config.paired(module, candidates):
+            named.append({"module": module, "test": test})
 
     return {"schema_version": 1, "coverage": covered, "named_tests": named}
 
@@ -753,6 +761,7 @@ def build(
     have read, and the replay measures the harness, not the calendar."""
 
     corpus = _load(rfc_dir) if rfc_dir.is_dir() else None
+    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
     files: dict[str, str] = {}
 
     def put(name: str, payload: dict[str, Any]) -> None:
@@ -767,7 +776,7 @@ def build(
 
     put("gates.json", gates_file(root, task, manifest_path))
 
-    tests = tests_file(root, task)
+    tests = tests_file(root, task, manifest.tests if manifest else None)
     put("tests.json", tests)
 
     scope = scope_file(root, task, tests)
