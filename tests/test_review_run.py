@@ -31,7 +31,9 @@ from torve.application.review import (
     build_review_prompt,
     parse_findings,
     run_review,
+    seat_api_error,
     touched_file,
+    transient_api_failure,
 )
 from torve.application.runner import run_task
 from torve.application.runstate import RunState
@@ -431,6 +433,40 @@ def test_unparseable_review_output_escalates_never_promotes(review_rig):
     assert state.escalation is not None
     assert state.escalation.reason == "gate_infrastructure_failure"
     assert "unparseable" in state.escalation.detail
+
+
+def _seat_error(result: str) -> str:
+    return json.dumps({"type": "result", "is_error": True, "result": result}) + "\n"
+
+
+def test_a_rate_limit_is_waited_out_once_and_a_refusal_is_not():
+    rate_limited = _seat_error("API Error: Request rejected (429) · rate limit")
+
+    assert seat_api_error(rate_limited) == "API Error: Request rejected (429) · rate limit"
+    assert transient_api_failure(rate_limited)
+    assert transient_api_failure(_seat_error("API Error: 529 overloaded"))
+    assert not transient_api_failure(_seat_error("API Error: 400 model not supported"))
+    assert seat_api_error('{"findings": []}') is None
+
+
+def test_a_seat_that_gives_no_verdict_escalates_naming_its_error(review_rig, monkeypatch):
+    # A reviewer at its usage limit answered every ask with a 429 and the
+    # escalation said "review output unparseable": the operator read a broken
+    # verdict where the seat had simply not answered yet.
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    repo, _runtime, deps_for = review_rig
+    limited = _seat_error("API Error: Request rejected (429) · usage limit")
+    reviewer = ScriptedAgent([AgentResult(exit_code=1, output=limited)])
+
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "gate_infrastructure_failure"
+    assert "gave no verdict (API Error: Request rejected (429)" in state.escalation.detail
+    assert "requeue once the seat answers" in state.escalation.detail
 
 
 def test_review_configured_without_an_agent_is_loud(review_rig):

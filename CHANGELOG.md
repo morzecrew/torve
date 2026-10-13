@@ -135,6 +135,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A reviewer seat that answers with a provider error instead of a verdict, such as a
+  429 at its usage limit, escalates naming that error and saying to requeue once the
+  seat answers. It used to read "review output unparseable". A 429 is now retried once
+  after a pause, as a 5xx already was.
+
 - The in-flight fence, the plan's same-phase check and decision inheritance no longer
   call overlapping scopes disjoint: `**/AGENTS.md` and `src/torve/cli/**` overlap, as do
   `src/**/*.py` and `src/a/*.py`. A phase now inherits every decision row its scope
