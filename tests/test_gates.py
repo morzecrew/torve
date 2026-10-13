@@ -919,6 +919,175 @@ def test_red_on_base_runs_both_trees_through_the_passs_own_executor(repo, red_on
     assert "tests/test_other.py" not in seen[0]  # only the qualifying files run
 
 
+# ----------------------- #
+# `red-on-base` under a refactor (S-0106/D-6): behaviour that held is what a
+# refactor is judged by, so the gate compares the two trees instead of
+# convicting a test that passes on the base one.
+
+
+def test_red_on_base_refactor_mode_passes_when_behaviour_held(repo, red_on_base):
+    from dataclasses import replace
+
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    outcome = red_on_base(RED_ON_BASE_GATE, replace(context_for(repo), change_type="refactor"))
+
+    assert outcome.outcome == "pass", outcome.output
+    assert "behaviour held under the refactor" in outcome.output
+
+
+def test_red_on_base_refactor_mode_leaves_a_feature_document_judged_as_before(repo, red_on_base):
+    # The same change under no change type is the feature reading: a test that
+    # passes on the base tree is the conviction S-0081/D-2 asks for.
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
+
+    assert outcome.outcome == "fail"
+    assert "every changed test passes on the base tree" in outcome.output
+
+
+def test_red_on_base_refactor_mode_convicts_when_behaviour_changed(repo, red_on_base):
+    from dataclasses import replace
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    repo.write("src/app.py", "VALUE = 1\n")
+    repo.commit("the base value")
+    repo.git("checkout", "-q", f"torve/{TASK_ID}")
+    repo.git("merge", "-q", "main")
+    repo.write("src/app.py", "VALUE = 2\n")
+    repo.write(
+        "tests/test_app.py", "from app import VALUE\n\n\ndef test_value():\n    assert VALUE == 1\n"
+    )
+    repo.commit("a refactor that changed behaviour")
+
+    outcome = red_on_base(RED_ON_BASE_GATE, replace(context_for(repo), change_type="refactor"))
+
+    assert outcome.outcome == "fail"
+    assert "behaviour changed under a refactor" in outcome.output
+
+
+def test_red_on_base_refactor_mode_passes_when_both_trees_are_red(repo, red_on_base):
+    # D-6 convicts green against red, not one exit code against another: a red
+    # on both sides — here a test failure (1) against a collection error (2) —
+    # is acceptance's to judge, so the gate must not call it changed behaviour.
+    from dataclasses import replace
+
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    def execute(command: str, timeout: float) -> tuple[int, str]:
+        return (1, "a test failed") if "git archive" in command else (2, "a collection error")
+
+    ctx = replace(context_for(repo), change_type="refactor", execute=execute)
+    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
+
+    assert outcome.outcome == "pass", outcome.output
+    assert "red on both trees" in outcome.output
+
+
+def test_red_on_base_refactor_mode_skips_when_a_tree_timed_out(repo, red_on_base):
+    # A timeout compared nothing: the base side extracts a tree and runs every
+    # inherited check, so it is the likelier one to run out of time, and a
+    # green candidate must not be convicted for it.
+    from dataclasses import replace
+
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    def execute(command: str, timeout: float) -> tuple[int | None, str]:
+        return (None, "timed out after 300s") if "git archive" in command else (0, "1 passed")
+
+    ctx = replace(context_for(repo), change_type="refactor", execute=execute)
+    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
+
+    assert outcome.outcome == "skipped", outcome.output
+    assert "timed out on the base tree" in outcome.output
+
+
+def _refactor_ctx(repo, execute, check: str = "uv run pytest -q -k nothing"):
+    """A refactor context whose contract carries one checked row."""
+
+    from dataclasses import replace
+
+    from torve.domain.task import InheritedDecision, Task
+
+    row = InheritedDecision(
+        id="S-0009/D-1",
+        grade="LOCKED",
+        text="the check decides",
+        paths=["src/**"],
+        check=check,
+    )
+    task = Task(id=TASK_ID, role="implement", decisions=[row], acceptance=[])
+
+    return replace(context_for(repo), change_type="refactor", task=task, execute=execute)
+
+
+def test_red_on_base_refactor_mode_runs_the_inherited_checks_on_both_trees(repo, red_on_base):
+    _changed(
+        repo,
+        "def sign(x):\n    return 1 if x >= 0 else -1\n",
+        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
+    )
+
+    seen: list[str] = []
+
+    def execute(command: str, timeout: float) -> tuple[int, str]:
+        seen.append(command)
+        return 0, ""
+
+    ctx = _refactor_ctx(repo, execute)
+    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
+
+    assert outcome.outcome == "pass", outcome.output
+    assert len(seen) == 2  # the base tree's script, then this attempt's own
+    assert f"git archive {ctx.merge_base}" in seen[0]  # the check ran on the base tree
+    assert "uv run pytest -q -k nothing" in seen[0]
+    assert seen[1].endswith("uv run pytest -q -k nothing")
+
+
+def test_red_on_base_refactor_mode_runs_the_checks_with_no_changed_test_file(repo, red_on_base):
+    # A source-only refactor changes no test file, so the inherited checks are
+    # all there is to compare.
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    repo.write("src/app.py", "VALUE = 1\n")
+    repo.commit("the base value")
+    repo.git("checkout", "-q", f"torve/{TASK_ID}")
+    repo.git("merge", "-q", "main")
+    repo.write("src/app.py", "VALUE = 2\n")
+    repo.commit("a source-only refactor")
+
+    seen: list[str] = []
+
+    def execute(command: str, timeout: float) -> tuple[int, str]:
+        seen.append(command)
+        return 0, ""
+
+    outcome = red_on_base(RED_ON_BASE_GATE, _refactor_ctx(repo, execute))
+
+    assert outcome.outcome == "pass", outcome.output
+    assert len(seen) == 2
+    assert "test_app.py" not in seen[0]
+    assert "uv run pytest -q -k nothing" in seen[1]
+
+
 def test_decisions_a_bare_local_id_names_the_tasks_own_row(repo):
     """A log entry may cite the row as the contract spells it (`S-0012/D-2`)
     or as the document's prose does (`D-2`). bloomery T-0007 wrote the bare

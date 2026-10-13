@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from torve.application.feedback import capture_feedback
+from torve.application.planner import change_type_of
 from torve.application.ports import (
     COMPLETION_CONTEXT,
     REBASE_CONTEXT,
@@ -212,6 +213,8 @@ def _regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str
 
     if landed and task_path is not None:
         ctx.task = load_task(task_path)
+        # S-0106/D-6: `red-on-base` reads the document's change type.
+        ctx.change_type = change_type_of(workdir / ctx.specs, ctx.task)
 
     if task_id is None:
         _document_inputs(ctx)
@@ -260,6 +263,10 @@ def _document_inputs(ctx: GateContext) -> None:
 
     if document is None:
         return
+
+    # S-0106/D-6: a refactor document's completion battery judges whether
+    # behaviour held, so the gate is told the type.
+    ctx.change_type = document.change.type if document.change else None
 
     ctx.inherited = [
         InheritedDecision(

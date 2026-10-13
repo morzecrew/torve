@@ -14,6 +14,7 @@ import yaml
 from rich.text import Text
 
 from torve.application import sizing
+from torve.application.planner import change_type_of
 from torve.application.telemetry import append_record, build_record, config_hash
 from torve.cli.console import (
     STYLE_DIM,
@@ -93,6 +94,9 @@ def gates_run(
 
     try:
         ctx = build_context(root, manifest, base=base, task_path=task_path)
+        # S-0106/D-6: the document's change type reaches the battery here, where
+        # the corpus can be read — a gate never parses a specification document.
+        ctx.change_type = change_type_of(root / ctx.specs, ctx.task)
         selected = {name.strip() for name in only.split(",")} if only else None
 
         with live_status("running gates", fmt) as update:
