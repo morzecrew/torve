@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attempt and review. The broker now meters streamed responses, which every seat on the
   Claude Code harness sends and which used to read as zero tokens.
 
+- A phase's contract carries `scope.contingent`: the files its change is likely to
+  reach beyond its declared globs, derived at mint and refresh from the import graph,
+  test pairing at any depth, package `__init__` files and the document's other phases.
+  The first write to one is a promotion when no task in flight holds it: the board
+  records it, the scope gate and the reviewer's prompt name it, and the spec quality
+  report counts promotions per phase. A path another task holds sends the attempt back
+  to the queue instead of to a person.
+
+- The gate manifest's `scope.derived` map names files that ride with a source in both
+  directions, such as lock files, goldens and generated schemas. Its default is the
+  lock-file table the scope gate used to hard-code.
+
 ### Changed
 
 - **Breaking:** `promotion.unit: document` and `promotion.landing: pull_request` need the
@@ -72,6 +84,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`torve why`, the night report, evals) and nothing else, so deleting it changes no
   decision torve makes.
 
+- A managed `AGENTS.md` beside a path in scope is writable by the phase, as a lock file
+  is. A module's tests pair with it at any depth under `tests/`; a nested-layout miss
+  warns at planning and a flat-layout miss still refuses.
+
+- **Upgrade:** the pre-write hook now reads globs through `globs.py`, a copy of
+  `torve.base.globs` beside it. A repository that carries its own copy of
+  `.torve/agents/hooks/implement/` should copy the whole directory again, or the hook
+  keeps refusing contingent writes the scope gate passes.
+
 ### Removed
 
 - **Breaking:** the `ratchet-what-you-build` and `corpus-bootstrap` skills. A profile
@@ -80,6 +101,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corpus.
 
 ### Fixed
+
+- The in-flight fence, the plan's same-phase check and decision inheritance no longer
+  call overlapping scopes disjoint: `**/AGENTS.md` and `src/torve/cli/**` overlap, as do
+  `src/**/*.py` and `src/a/*.py`. A phase now inherits every decision row its scope
+  reaches.
+
+- The pre-write hook reads a glob the way the scope gate does. It no longer lets
+  `src/*.py` write `src/a/b.py`, and no longer refuses a file under `src`, `docs/` or
+  `/src/x.py`. Gate `paths` filters, test pairing in planning and LOCKED-row backlinks
+  read globs the same way.
 
 - An agent equipped with no skills is no longer told that `working-rules` is its rules.
 

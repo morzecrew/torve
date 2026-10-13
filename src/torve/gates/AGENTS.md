@@ -257,28 +257,28 @@ An acceptance command that exits zero with a test summary in which no test ran �
 - Paths: `src/torve/gates/acceptance.py` `tests/test_gates.py`
 - Consequence: a phase cannot land green on a lane that never executed; one whose tests need what the sandbox lacks has to say how they run there
 
-### S-0104/D-5 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+### S-0104/D-5 — `ASSUMED` (A phase's scope bends to the files its change reaches)
 
 The gate manifest's `scope.derived` map names files that ride with a source, in both directions (a lock file with its manifest, a golden with its producer, a generated schema with its model); a derived path is contingent wherever its source is in scope. The map replaces the hard-coded lock-file table, and its default is that table.
 
 - Paths: `src/torve/config/manifest.py` `src/torve/gates/scope.py` `src/torve/application/neighbours.py`
 - Consequence: a repository names its own generated files once, and the import graph's blind spot is covered where it is named
 
-### S-0104/D-6 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+### S-0104/D-6 — `ASSUMED` (A phase's scope bends to the files its change reaches)
 
 A managed `AGENTS.md` beside a path in scope is writable as a lock file is: `torve spec project` writes it, and the scope gate allows it.
 
 - Paths: `src/torve/gates/scope.py` `.torve/agents/hooks/implement/scope_guard.py`
 - Consequence: a phase that changes governed code can regenerate its projection without a halt
 
-### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches) — implementation: none
+### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches)
 
 The attempt's prompt lists its contingent paths beside its scope, the scope gate reports every promoted path, and the reviewer is shown the promotions.
 
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/gates/scope.py` `src/torve/application/review.py`
 - Consequence: a widening is read by the agent, the gate and the reviewer, never made silently
 
-### S-0105/D-4 — `ASSUMED` (One reading of a scope glob) — implementation: none
+### S-0105/D-4 — `ASSUMED` (One reading of a scope glob)
 
 The other readers of a path glob read through `matches`: `intake._matched` and `neighbours._matched`, telemetry's `in_scope_read` class, a gate's `paths` filter (`gates/runner._judges_anything`) and `config/spec.check_backlinks`' LOCKED-row paths. Their prefix fallbacks go, since gitignore already matches what is under a matched directory.
 

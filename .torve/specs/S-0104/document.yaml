@@ -7,7 +7,7 @@ change:
   type: feat
   scope: scope
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0098, S-0099]
 informed_by: []
 supersedes: []
