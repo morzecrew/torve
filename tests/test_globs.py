@@ -155,3 +155,25 @@ def test_two_literals_and_a_part_segment_wildcard_agree_with_the_gate():
     for left in hit:
         for right in hit:
             assert overlap([left], [right]) == bool(hit[left] & hit[right]), (left, right)
+
+
+def test_a_scope_refuses_a_negated_glob():
+    # gitignore's negation turns on whether a glob met the path or a directory
+    # above it; the scope's readers would disagree, so a scope cannot carry one.
+    import pytest
+    from pydantic import ValidationError
+
+    from torve.domain.task import Scope
+
+    with pytest.raises(ValidationError, match="deny"):
+        Scope(allow=["src/**", "!src/private/**"])
+
+    assert Scope(allow=["src/**"], deny=["src/private/**"]).deny == ["src/private/**"]
+
+
+def test_a_close_bracket_first_in_a_class_is_a_member():
+    # `fnmatch` reads `[]]` as a class holding `]`; the overlap's reading has to
+    # agree, or the fence calls two scopes disjoint that write one file.
+    assert matches("a]", ["a[]]"])
+    assert overlap(["a[]]"], ["a]"])
+    assert overlap(["a[!]]"], ["ab"])

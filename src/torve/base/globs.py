@@ -137,7 +137,8 @@ def _accepts(pattern: _Pattern, path: tuple[str, ...]) -> bool:
 def matches(path: str, globs: Iterable[str]) -> bool:
     """Whether *path* falls under any of *globs*, in the gitignore reading the
     scope gate uses: the same glob answers the same set of paths everywhere the
-    engine reads it."""
+    engine reads it. A scope glob never starts with `!` (`Scope` refuses it),
+    so gitignore's negation is not read here."""
 
     segments = tuple(part for part in path.split("/") if part)
 
@@ -171,7 +172,12 @@ def _atoms(segment: str) -> list[tuple[str, ...]]:
         elif character == "?":
             atoms.append(("any",))
         elif character == "[":
-            end = segment.find("]", index + 1)
+            # As `fnmatch` reads a class: a `]` right after `[` or `[!` is a
+            # member, not the class's end.
+            start = index + 1
+            start += 1 if segment[start : start + 1] == "!" else 0
+            start += 1 if segment[start : start + 1] == "]" else 0
+            end = segment.find("]", start)
 
             if end == -1:
                 atoms.append(("char", "["))

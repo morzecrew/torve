@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A scope glob may no longer start with `!`. gitignore's negation turns on whether a glob
+  met the path itself or a directory above it, and the scope gate, the pre-write hook and
+  the overlap fence would read it differently. Name the paths a scope keeps out in `deny`.
+
+### Fixed
+
+- The pre-write hook reads a scope as the scope gate does. A contingent path is literal,
+  so a file name holding `[` or `*` is that file. A managed `AGENTS.md` passes only in a
+  directory the scope can write a file in, or beside a contingent path; an exact allow no
+  longer admits every `AGENTS.md` below its directory. A sibling key written after the
+  manifest's `derived:` block ends the block instead of being read as a source.
+  Repositories that copy `.torve/agents/hooks/implement/` should copy it again.
+
+- The overlap fence reads a bracket class as `fnmatch` does: a `]` right after `[` or
+  `[!` is a member, so `a[]]` and `a]` overlap.
+
 ## [0.3.0] - 2026-10-14
 
 ### Added
