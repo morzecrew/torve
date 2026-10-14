@@ -1490,6 +1490,10 @@ def test_the_pre_write_hook_reads_contingent_paths_and_projections_as_the_gate(
     assert not guard.is_allowed("src/unrelated/AGENTS.md", ["src/foo.py"])
     assert guard.is_allowed("src/torve/gates/AGENTS.md", ["src/**"])
 
+    # Only where a file directly in the directory can be in scope.
+    assert not guard.is_allowed("src/AGENTS.md", ["src/foo/**"])
+    assert not guard.is_allowed("src/c/AGENTS.md", ["src/[ab]/*.py"])
+
     # Beside a contingent-only file.
     assert guard.is_allowed("docs/AGENTS.md", ["src/**"], [], ["docs/notes.md"])
 

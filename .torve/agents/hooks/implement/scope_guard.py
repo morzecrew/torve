@@ -160,12 +160,11 @@ def _beside_scoped(
         return False
 
     where = rel[: -len(AGENTS_FILE)].rstrip("/")
-    here = f"/{where}/*" if where else "/*"
 
     if any(path.rpartition("/")[0] == where for path in contingent):
         return True
 
-    return globs.overlap(patterns, [here])
+    return globs.has_file_in(where, patterns)
 
 
 def is_allowed(

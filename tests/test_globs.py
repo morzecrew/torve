@@ -20,7 +20,7 @@ import itertools
 
 from pathspec import GitIgnoreSpec
 
-from torve.base.globs import matches, overlap
+from torve.base.globs import has_file_in, matches, overlap
 
 LITERALS = ("a",)
 WILDCARDS = ("*", "**", "?")
@@ -169,6 +169,22 @@ def test_a_scope_refuses_a_negated_glob():
         Scope(allow=["src/**", "!src/private/**"])
 
     assert Scope(allow=["src/**"], deny=["src/private/**"]).deny == ["src/private/**"]
+    # A contingent entry is a literal path: `!notes.py` is a file's name.
+    assert Scope(contingent=["docs/!notes.py"]).contingent == ["docs/!notes.py"]
+
+
+def test_a_file_directly_in_a_directory_is_asked_exactly():
+    assert has_file_in("src", ["src/foo.py"])
+    assert not has_file_in("src/unrelated", ["src/foo.py"])
+    # Only files below `src/foo` match, never one directly in `src`.
+    assert not has_file_in("src", ["src/foo/**"])
+    assert has_file_in("src/foo/bar", ["src/foo/**"])
+    # A class is read as `fnmatch` reads it, not as any character.
+    assert has_file_in("src/a", ["src/[ab]/*.py"])
+    assert not has_file_in("src/c", ["src/[ab]/*.py"])
+    assert has_file_in("", ["*.md"]) and has_file_in("deep/er", ["*.md"])
+    # A glob matching the directory itself covers everything below.
+    assert has_file_in("src/x", ["src/"])
 
 
 def test_a_close_bracket_first_in_a_class_is_a_member():
