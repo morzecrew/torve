@@ -23,7 +23,7 @@ as the agent seat.
 pip install torve                # or: uv tool install torve
 cd your-repository
 torve init --starter
-git add .torve .claude .agents && git commit -m "torve starter"
+git add .torve .claude/skills/torve/SKILL.md .agents/skills/torve/SKILL.md && git commit -m "torve starter"
 torve gates run --base main
 ```
 
