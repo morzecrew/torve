@@ -10,10 +10,10 @@ This page takes an empty repository through Torve's whole loop:
 6. A seat with a real agent.
 
 Every file below loads as written. Every command up to the last section
-was run against Torve 0.2, in a fresh repository with torve installed from
+was run against Torve 0.3.0, in a fresh repository with torve installed from
 PyPI, and the last section was checked with `torve doctor`.
 
-You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.2 is an alpha.
+You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.3 is an alpha.
 One operator has run it, against one adopting repository, with Claude Code
 as the agent seat.
 
@@ -23,7 +23,7 @@ as the agent seat.
 pip install torve                # or: uv tool install torve
 cd your-repository
 torve init --starter
-git add .torve && git commit -m "torve starter"
+git add .torve .claude .agents && git commit -m "torve starter"
 torve gates run --base main
 ```
 
@@ -43,10 +43,13 @@ what the starter wrote and takes it the rest of the way.
 
 - a JSON Schema for every file Torve reads, under `.torve/schemas/`;
 - `.torve/.gitignore` for what Torve alone writes;
-- `.wt/`, where task worktrees live, added to `.git/info/exclude`.
+- `.wt/`, where task worktrees live, added to `.git/info/exclude`;
+- a stub skill under every skill root, `.claude/skills/torve/SKILL.md` and
+  `.agents/skills/torve/SKILL.md`, so a session in the repository finds torve.
 
-`--starter` also writes a gate manifest and a configuration, each only when
-the file does not exist yet. An existing file is named in the output and
+`--starter` also writes a gate manifest, a configuration, and the role
+profiles under `.torve/agents/` (`implement`, `review`, `revert`), each only
+when the file does not exist yet. An existing file is named in the output and
 left alone. Plain `torve init` writes neither; without a manifest,
 `torve gates run` stops with
 `configuration error: no gate manifest at .torve/gates.yaml`.
@@ -212,7 +215,9 @@ torve plan S-0001 --no-dry-run  # writes .torve/tasks/T-0001/contract.yaml
 ```
 
 The fake agent replays a scripted scenario inside the sandbox, so the whole
-loop runs before any model is involved. `greet-scenario.yaml`:
+loop runs before any model is involved. Save it outside the repository, as
+`../greet-scenario.yaml`: `torve merge` refuses to fast-forward a checkout
+with untracked files.
 
 ```yaml
 attempts:
@@ -232,11 +237,12 @@ attempts:
 ```
 
 ```bash
-torve run T-0001 --agent fake --scenario greet-scenario.yaml
+torve run T-0001 --agent fake --scenario ../greet-scenario.yaml
 ```
 
 ```text
 T-0001: ready after 1 attempt(s)
+size ok envelope: n=0, below the observation floor of 5 — no reading yet — ...
   claimed -> running: attempt 1 dispatched
   running -> gated: agent exited 0; gates running
   gated -> reviewed: gates green; review not configured
@@ -251,8 +257,9 @@ work.
 An escalated task keeps its worktree and run state until
 `torve reap --escalated` clears them.
 
-`torve merge T-0001` lands the candidate on the base branch. Two commits
-appear:
+`torve merge T-0001` lands the candidate on the base branch. The base has not
+moved, so it fast-forwards; the checkout must be clean, or the lane refuses
+with exit 4. Two commits appear, both made by `torve run` on `torve/T-0001`:
 
 - `torve(T-0001): A greeting function — attempt 1 green`, the task's commit;
 - `torve(T-0001): landing of attempt 1`, which records the landing under
@@ -331,7 +338,7 @@ Each block does one thing:
 
 ```bash
 export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
-torve doctor                         # every line should read ✓
+torve doctor                         # every line should read ✓; it does not check the key
 torve run <task>
 ```
 
