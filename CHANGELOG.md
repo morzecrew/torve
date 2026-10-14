@@ -65,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Under `promotion.landing: pull_request` a paused pass still runs the lane: green
+  candidates land on their task or document branches, the completion battery runs and
+  the pull request is republished. One escalation no longer holds every green sibling
+  until a person answers it. A pause still stops the mint, the standing leg and the
+  review-thread leg under every landing mode, and under `promotion.landing: local` it
+  still stops the lane.
+
 - **Breaking:** `promotion.unit: document` and `promotion.landing: pull_request` need the
   Postgres store. `torve doctor` is red and the lane refuses to run on a mock store under
   either, because the rounds and escalations a document's landing depends on would vanish
@@ -134,6 +141,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corpus.
 
 ### Fixed
+
+- A night no longer closes as drained while a document's first ready candidate is
+  unlanded. Before the document branch existed, the drain check skipped that candidate
+  instead of measuring it against the base.
 
 - A phase cut from its document branch before the lane rebased that branch onto a moved
   base now lands. The lane replays only the phase's own commits. It used to replay the

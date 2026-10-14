@@ -2105,7 +2105,7 @@ The review prompt lists the gate's survivors, each with the decision rows whose 
 - Consequence: the reviewer's "could a wrong implementation pass?" is answered by real wrong implementations that did
 - Check: `uv run pytest tests/test_review_run.py -q -k survivor` (shadow; runs as `decision:S-0107/D-4`, no log entry owed)
 
-### S-0108/D-1 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+### S-0108/D-1 — `ASSUMED` (A pause stops new work, not a landing that waits for a review)
 
 Under `promotion.landing: pull_request` a paused pass runs the lane leg: green candidates land on their branches, the completion battery runs, and the pull request is republished. Under `promotion.landing: local` the pause stops the lane, as S-0052/D-3 says. The landing mode is the manager's to pass to the pass; `residency` does not read configuration.
 
@@ -2113,7 +2113,7 @@ Under `promotion.landing: pull_request` a paused pass runs the lane leg: green c
 - Consequence: one escalation no longer holds every green sibling and the phases behind them until a person answers it
 - Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-1`, no log entry owed)
 
-### S-0108/D-2 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+### S-0108/D-2 — `ASSUMED` (A pause stops new work, not a landing that waits for a review)
 
 A pause still stops the mint, the standing leg and the review-thread leg under every landing mode, and the relay still runs through it.
 
@@ -2121,7 +2121,7 @@ A pause still stops the mint, the standing leg and the review-thread leg under e
 - Consequence: the mint, standing and review-thread legs add no work during a pause
 - Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-2`, no log entry owed)
 
-### S-0108/D-3 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+### S-0108/D-3 — `ASSUMED` (A pause stops new work, not a landing that waits for a review)
 
 A night's drain check counts a ready candidate as owed when the document branch it would land onto does not exist yet: the first landing creates that branch, so until then the candidate is measured against the base, when the base has a tip. `lane.awaiting_landing` skipped such a candidate, because `_document_branch(..., dry_run=True)` names the branch whether or not it exists, so a document's only or first ready task could let the night close before the lane landed it.
 
