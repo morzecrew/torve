@@ -897,8 +897,9 @@ def test_a_task_requeued_folds_as_a_return_folds():
     board = project(
         [
             event(EventKind.TASK_MINTED, "T-1"),
-            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
             event(EventKind.LANDING_RECORDED, "T-1", {"sha": "abc123", "attempt": 1}),
+            # After the landing, so the requeue's own fold is what clears it.
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
             event(
                 EventKind.TASK_REQUEUED,
                 "T-1",
@@ -1899,37 +1900,64 @@ def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch)
     assert seen == [False, False, False, False, True]
 
 
-def test_the_lane_leg_calls_the_callback_for_each_requeued_conflict_result(monkeypatch):
-    """S-0109/D-1: `_lane_leg` calls the `requeue` callback once per `conflict
-    requeued` result, with the task id and the base tip, and still returns only
-    the landed task ids. `_serve` passes the callback that records the fact."""
-
-    import pathlib
+def test_the_lane_leg_hands_every_disposal_on_disk_to_the_callback_even_when_it_raises(
+    tmp_path, monkeypatch
+):
+    """S-0109/D-1: after every lane pass, raised or not, `_lane_leg` hands the
+    `requeue` callback each run the conflict disposal left `queued` with its
+    base tip, read from the run-state files, so a disposal recorded before a
+    later candidate raised is not lost."""
 
     from torve.application import lane as lane_module
-    from torve.application.lane import LaneResult
+    from torve.application.runstate import RunState
+    from torve.base import naming
     from torve.cli.manager import _lane_leg
     from torve.config.runconfig import PromotionConfig, RunnerConfig
 
-    def fake_process_lane(_root, _vcs, **kwargs):
-        return [
-            LaneResult("T-1", "torve/T-1", "conflict requeued", "captured", "base123"),
-            LaneResult("T-2", "torve/T-2", "landed", "landed", "head456"),
-        ]
+    disposed = RunState(task_id="T-1", path=naming.state_file(tmp_path, "T-1"))
+    disposed.state = TaskState.QUEUED
+    disposed.conflict_base = "base123"
+    disposed.save()
+    ready = RunState(task_id="T-2", path=naming.state_file(tmp_path, "T-2"))
+    ready.state = TaskState.READY
+    ready.save()
 
-    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    def raising_process_lane(_root, _vcs, **kwargs):
+        raise RuntimeError("a later candidate's rebase blew up")
+
+    monkeypatch.setattr(lane_module, "process_lane", raising_process_lane)
     config = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
-    seen: list[tuple[str, str]] = []
+    seen: list[list[tuple[str, str]]] = []
 
-    async def requeue(task_id: str, base_tip: str) -> None:
-        seen.append((task_id, base_tip))
+    async def requeue(candidates: list[tuple[str, str]]) -> None:
+        seen.append(candidates)
 
-    leg = _lane_leg(pathlib.Path("."), config, only=None, requeue=requeue)
+    leg = _lane_leg(tmp_path, config, only=None, requeue=requeue)
     assert leg is not None
-    landed = asyncio.run(leg())
 
-    assert seen == [("T-1", "base123")]
-    assert landed == ["T-2"]
+    with pytest.raises(RuntimeError):
+        asyncio.run(leg())
+
+    assert seen == [[("T-1", "base123")]]
+
+
+def test_a_requeue_is_owed_only_for_an_unlanded_ready_candidate():
+    """S-0109/D-1: the log is told once — a task the board still reads as
+    `ready` and that has not landed. A disposal whose work landed later, and a
+    task the board already reads as queued, owe nothing."""
+
+    from torve.cli.manager import _requeues_owed
+
+    board = Board(
+        tasks={
+            "T-1": TaskView(task_id="T-1", state=TaskState.READY),
+            "T-2": TaskView(task_id="T-2", state=TaskState.READY, landed_sha="abc"),
+            "T-3": TaskView(task_id="T-3", state=TaskState.QUEUED),
+        }
+    )
+    candidates = [("T-1", "b1"), ("T-2", "b2"), ("T-3", "b3"), ("T-4", "b4")]
+
+    assert _requeues_owed(candidates, board, landed={"T-2"}) == [("T-1", "b1")]
 
 
 def test_a_serve_reads_the_boards_resolutions_into_the_lane(tmp_path, monkeypatch):
@@ -2001,23 +2029,40 @@ def test_a_serve_records_the_requeued_conflict_in_the_log(tmp_path, monkeypatch)
     the actor and the reason and base tip in the payload, so the fact reaches
     the log the next pass dispatches from and not only the task's run-state
     file. The manager writes it, never the operator's `task.returned`
-    (S-0109/D-2)."""
+    (S-0109/D-2), and writes it once: a second pass finds the board already
+    reading the task as queued."""
 
     from forze_mock import MockDepsModule, MockState
 
     from torve.adapters.eventstore import document as eventstore
     from torve.application import lane as lane_module
-    from torve.application.lane import LaneResult
+    from torve.application.runstate import RunState
+    from torve.base import naming
     from torve.cli import manager as manager_cli
     from torve.config.runconfig import PromotionConfig, RunnerConfig
 
     state = MockState()
     monkeypatch.setattr(eventstore, "mock_module", lambda: MockDepsModule(state=state))
 
-    def fake_process_lane(_root, _vcs, **kwargs):
-        return [LaneResult("T-1", "torve/T-1", "conflict requeued", "captured", "base123")]
+    async def seed() -> None:
+        runtime = ExecutionRuntime(
+            deps=DepsRegistry.from_modules(MockDepsModule(state=state)).freeze()
+        )
 
-    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            await mint(log, "T-1")
+            await land(log, "T-1")
+
+    asyncio.run(seed())
+    # What the disposal leaves on disk: the run re-queued against the base it
+    # collided with, while the log still reads the candidate as ready.
+    disposed = RunState(task_id="T-1", path=naming.state_file(tmp_path, "T-1"))
+    disposed.state = TaskState.QUEUED
+    disposed.conflict_base = "base123"
+    disposed.save()
+
+    monkeypatch.setattr(lane_module, "process_lane", lambda _root, _vcs, **kwargs: [])
     terms = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
     monkeypatch.setattr(manager_cli, "load_config", lambda root, path: terms)
 
@@ -2028,7 +2073,7 @@ def test_a_serve_records_the_requeued_conflict_in_the_log(tmp_path, monkeypatch)
             root=tmp_path,
             config_path=None,
             worker="w-1",
-            passes=1,
+            passes=2,
             interval=0,
             only=None,
             dispatch=False,

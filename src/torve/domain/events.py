@@ -296,7 +296,7 @@ class TaskRequeued(BaseModel):
     model_config = STRICT
 
     reason: str
-    base_tip: str = ""
+    base_tip: str
 
 
 # ....................... #
