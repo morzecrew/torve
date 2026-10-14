@@ -40,12 +40,13 @@ not overlap.
 - `torve manager board <partition> --format json` every few minutes, filtered
   to tonight's tasks. A task moves through queued, claimed or running, gated,
   ready, landed. Escalated or halted means it waits for you.
-- When the queue reaches `loop.pause_escalations` the board goes quiet on
-  purpose: a paused night mints nothing, runs no standing job and opens no
-  review round. What it does not stop is what is already owed — an in-flight
-  attempt finishes, the notification relay pages, and with
-  `promotion.landing: pull_request` the lane still lands green candidates on
-  their branches and republishes their pull requests. Resolve the escalation
+- When the escalation queue reaches `loop.pause_escalations` every pass is
+  paused on purpose: a paused pass mints nothing, runs no standing job and
+  opens no review round. It does not stop work already on the board — queued
+  tasks are still claimed and run, an in-flight attempt finishes, the
+  notification relay pages, and with `promotion.landing: pull_request` the
+  lane still lands green candidates on their branches and republishes their
+  pull requests. Resolve escalations until the queue is below the threshold
   (see `torve guide torve escalations`) to let new work through again.
 - `torve night show <partition>` reports the night so far.
 - Check that the process is alive with `ps -eo pid,args | grep "[m]anager serve"`.
