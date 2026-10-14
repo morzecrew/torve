@@ -1048,16 +1048,16 @@
 <li>A seat with a real agent.</li>
 </ol>
 <p>Every file below loads as written. Every command up to the last section
-was run against Torve 0.2, in a fresh repository with torve installed from
+was run against Torve 0.3.0, in a fresh repository with torve installed from
 PyPI, and the last section was checked with <code>torve doctor</code>.</p>
-<p>You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.2 is an alpha.
+<p>You need Linux, git, Docker, and Python 3.13 or 3.14. Torve 0.3 is an alpha.
 One operator has run it, against one adopting repository, with Claude Code
 as the agent seat.</p>
 <h2 id="install-and-start">Install and start<a class="headerlink" href="#install-and-start" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>torve<span class="w">                </span><span class="c1"># or: uv tool install torve</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>your-repository
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>torve<span class="w"> </span>init<span class="w"> </span>--starter
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>git<span class="w"> </span>add<span class="w"> </span>.torve<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"torve starter"</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>git<span class="w"> </span>add<span class="w"> </span>.torve<span class="w"> </span>.claude<span class="w"> </span>.agents<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"torve starter"</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>torve<span class="w"> </span>gates<span class="w"> </span>run<span class="w"> </span>--base<span class="w"> </span>main
 </span></code></pre></div>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> ✓   scope                pass      blocking
@@ -1073,10 +1073,13 @@ what the starter wrote and takes it the rest of the way.</p>
 <ul>
 <li>a JSON Schema for every file Torve reads, under <code>.torve/schemas/</code>;</li>
 <li><code>.torve/.gitignore</code> for what Torve alone writes;</li>
-<li><code>.wt/</code>, where task worktrees live, added to <code>.git/info/exclude</code>.</li>
+<li><code>.wt/</code>, where task worktrees live, added to <code>.git/info/exclude</code>;</li>
+<li>a stub skill under every skill root, <code>.claude/skills/torve/SKILL.md</code> and
+  <code>.agents/skills/torve/SKILL.md</code>, so a session in the repository finds torve.</li>
 </ul>
-<p><code>--starter</code> also writes a gate manifest and a configuration, each only when
-the file does not exist yet. An existing file is named in the output and
+<p><code>--starter</code> also writes a gate manifest, a configuration, and the role
+profiles under <code>.torve/agents/</code> (<code>implement</code>, <code>review</code>, <code>revert</code>), each only
+when the file does not exist yet. An existing file is named in the output and
 left alone. Plain <code>torve init</code> writes neither; without a manifest,
 <code>torve gates run</code> stops with
 <code>configuration error: no gate manifest at .torve/gates.yaml</code>.</p>
@@ -1217,7 +1220,9 @@ reads only what is committed.</p>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0001<span class="w"> </span>--no-dry-run<span class="w">  </span><span class="c1"># writes .torve/tasks/T-0001/contract.yaml</span>
 </span></code></pre></div>
 <p>The fake agent replays a scripted scenario inside the sandbox, so the whole
-loop runs before any model is involved. <code>greet-scenario.yaml</code>:</p>
+loop runs before any model is involved. Save it outside the repository, as
+<code>../greet-scenario.yaml</code>: <code>torve merge</code> refuses to fast-forward a checkout
+with untracked files.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">attempts</span><span class="p">:</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">writes</span><span class="p">:</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">      </span><span class="nt">greet.py</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
@@ -1233,13 +1238,14 @@ loop runs before any model is involved. <code>greet-scenario.yaml</code>:</p>
 </span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">            </span><span class="no">def test_greet(self):</span>
 </span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">                </span><span class="no">self.assertEqual(greet("Ada"), "Hello, Ada")</span>
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>torve<span class="w"> </span>run<span class="w"> </span>T-0001<span class="w"> </span>--agent<span class="w"> </span>fake<span class="w"> </span>--scenario<span class="w"> </span>greet-scenario.yaml
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>torve<span class="w"> </span>run<span class="w"> </span>T-0001<span class="w"> </span>--agent<span class="w"> </span>fake<span class="w"> </span>--scenario<span class="w"> </span>../greet-scenario.yaml
 </span></code></pre></div>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>T-0001: ready after 1 attempt(s)
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  claimed -&gt; running: attempt 1 dispatched
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  running -&gt; gated: agent exited 0; gates running
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>  gated -&gt; reviewed: gates green; review not configured
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>  reviewed -&gt; ready: committed dea1b9d321; pushed=False; pr deferred; ...
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>size ok envelope: n=0, below the observation floor of 5 — no reading yet — ...
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  claimed -&gt; running: attempt 1 dispatched
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>  running -&gt; gated: agent exited 0; gates running
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>  gated -&gt; reviewed: gates green; review not configured
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>  reviewed -&gt; ready: committed dea1b9d321; pushed=False; pr deferred; ...
 </span></code></pre></div>
 <p>Without <code>--scenario</code>, the fake agent writes one marker file outside the
 task's scope. The <code>scope</code> gate convicts every attempt, and the task
@@ -1247,8 +1253,9 @@ escalates at the attempt ceiling. That is a quick way to watch a gate refuse
 work.</p>
 <p>An escalated task keeps its worktree and run state until
 <code>torve reap --escalated</code> clears them.</p>
-<p><code>torve merge T-0001</code> lands the candidate on the base branch. Two commits
-appear:</p>
+<p><code>torve merge T-0001</code> lands the candidate on the base branch. The base has not
+moved, so it fast-forwards; the checkout must be clean, or the lane refuses
+with exit 4. Two commits appear, both made by <code>torve run</code> on <code>torve/T-0001</code>:</p>
 <ul>
 <li><code>torve(T-0001): A greeting function — attempt 1 green</code>, the task's commit;</li>
 <li><code>torve(T-0001): landing of attempt 1</code>, which records the landing under
@@ -1312,7 +1319,7 @@ harness and the provider. Then add the seat and the broker to
 </ul>
 <p><strong>4. Run it.</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">CLAUDE_CODE_OAUTH_TOKEN</span><span class="o">=</span>...<span class="w">   </span><span class="c1"># from `claude setup-token`</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>torve<span class="w"> </span>doctor<span class="w">                         </span><span class="c1"># every line should read ✓</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>torve<span class="w"> </span>doctor<span class="w">                         </span><span class="c1"># every line should read ✓; it does not check the key</span>
 </span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>torve<span class="w"> </span>run<span class="w"> </span>&lt;task&gt;
 </span></code></pre></div>
 <p><code>torve doctor</code> names the harness, the profile, the model and the provider of
