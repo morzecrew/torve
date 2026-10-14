@@ -26,7 +26,7 @@ import subprocess
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Concatenate, ParamSpec
+from typing import TYPE_CHECKING, ParamSpec
 
 from torve.application.feedback import capture_feedback
 from torve.application.planner import change_type_of
@@ -2539,9 +2539,7 @@ def promotion_needs_durable_store(unit: str, pull_request: bool) -> bool:
 _P = ParamSpec("_P")
 
 
-def _one_lane(
-    fn: Callable[Concatenate[Path, _P], list[LaneResult]],
-) -> Callable[Concatenate[Path, _P], list[LaneResult]]:
+def _one_lane(fn: Callable[_P, list[LaneResult]]) -> Callable[_P, list[LaneResult]]:
     """One lane per checkout at a time. Every manager worker runs a lane leg and
     `torve merge` runs one too, and two passes rebasing in the same `lane-*`
     checkout break each other's battery. An exclusive `flock` on
@@ -2550,7 +2548,9 @@ def _one_lane(
     exits, so a killed lane never leaves it held."""
 
     @functools.wraps(fn)
-    def run(root: Path, /, *args: _P.args, **kwargs: _P.kwargs) -> list[LaneResult]:
+    def run(*args: _P.args, **kwargs: _P.kwargs) -> list[LaneResult]:
+        # `root` by position or by name, as `process_lane` has always taken it.
+        root = Path(str(kwargs["root"] if "root" in kwargs else args[0]))
         lock = root / naming.WORKTREE_DIR / "lane.lock"
         lock.parent.mkdir(parents=True, exist_ok=True)
 
@@ -2565,7 +2565,7 @@ def _one_lane(
                     )
                 ]
 
-            return fn(root, *args, **kwargs)
+            return fn(*args, **kwargs)
 
     return run
 

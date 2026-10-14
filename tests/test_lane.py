@@ -135,8 +135,8 @@ def test_a_second_lane_on_the_checkout_reports_busy_and_touches_nothing(lane_rep
 
     assert [r.action for r in busy] == ["lane busy"]
     assert git(lane_repo, "rev-parse", "main") == base
-    # Released, the next pass lands as ever.
-    assert [r.action for r in process_lane(lane_repo, GitLane())] == ["landed"]
+    # Released, the next pass lands as ever, `root` named or not.
+    assert [r.action for r in process_lane(root=lane_repo, vcs=GitLane())] == ["landed"]
 
 
 def test_a_rebased_landing_names_the_commit_that_landed(lane_repo):
