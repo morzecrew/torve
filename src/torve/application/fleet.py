@@ -47,12 +47,27 @@ def escalated_tasks(root: Path, board: Board | None = None) -> set[str]:
     Union by task id rather than a sum, because a task escalated under one
     and re-escalated under the other is one task the operator has to look
     at, and counting it twice pauses a fleet for work that does not exist.
+
+    A file whose task the log has since closed — landed by hand or abandoned
+    — is the escalation's leftover footprint for `torve reap --escalated`,
+    not a queue entry: `manager resolve` clears the file only on a requeue
+    (S-0094/D-5), and counting it held every later pass paused.
     """
 
+    closed = (
+        set()
+        if board is None
+        else {
+            view.task_id
+            for view in board.tasks.values()
+            if view.state is TaskState.ABANDONED
+            or (view.state is TaskState.READY and view.landed_sha)
+        }
+    )
     from_files = {
         state.task_id
         for state in RunState.load_all(root / naming.WORKTREE_DIR)
-        if state.state is TaskState.ESCALATED
+        if state.state is TaskState.ESCALATED and state.task_id not in closed
     }
 
     return from_files | (board.escalated() if board is not None else set())
