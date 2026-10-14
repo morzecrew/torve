@@ -1803,6 +1803,33 @@ def test_a_task_landed_on_a_document_is_owed_nothing_whatever_its_ancestry(lane_
     assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == []
 
 
+def test_a_document_s_first_candidate_is_owed_before_its_branch_exists(lane_repo, tmp_path):
+    # S-0108/D-3: a document's first ready candidate has no branch to be
+    # measured against yet — the first landing cuts it — so the drain check
+    # measures it against the base rather than skipping it, and a night cannot
+    # close one pass before the lane landed it.
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7321", "one.py", "one = 1\n")
+    _contract(lane_repo, "T-7321", "S-0912")
+    assert GitLane().tip(lane_repo, naming.document_branch("S-0912")) is None
+
+    # The document branch does not exist yet and the candidate is owed.
+    assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == ["T-7321"]
+    # The task unit is unchanged: it is measured against the base either way.
+    assert awaiting_landing(lane_repo, GitLane(), "main") == ["T-7321"]
+
+    published: list[tuple[str, str]] = []
+    process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        unit="document",
+    )
+
+    # Once its landing file is on the document branch it is owed nothing.
+    assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == []
+
+
 def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch(
     lane_repo, tmp_path
 ):

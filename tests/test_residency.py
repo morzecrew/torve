@@ -441,6 +441,162 @@ def test_a_pause_stops_the_lane_and_not_the_relay(tmp_path):
     run(scenario)
 
 
+def test_a_pull_request_landing_runs_the_lane_through_a_pause_and_a_local_one_stops_it(tmp_path):
+    """S-0108/D-1: under a pull-request landing a paused pass still runs the
+    lane — green candidates land on their own branches, the completion
+    battery runs and their pull requests are republished — so one escalation
+    no longer holds every green sibling and the phases behind them. Under a
+    local landing the pause stops the lane, as S-0052/D-3 says. Which of the
+    two it is comes from the caller, not from configuration: `residency`
+    never reads `promotion.landing` itself."""
+
+    order: list[str] = []
+    contract(tmp_path, "T-0001")
+
+    async def lane() -> list[str]:
+        order.append("lane")
+
+        return []
+
+    def threads() -> tuple[str, bool]:
+        order.append("threads")
+
+        return "no unresolved review threads", False
+
+    def standing() -> tuple[str, bool]:
+        order.append("standing")
+
+        return "nothing fired", False
+
+    async def scenario(log):
+        worker = worker_over(log, [])
+
+        await once(
+            log,
+            worker,
+            tmp_path,
+            PARTITION,
+            dispatch=False,
+            paused=True,
+            lane=lane,
+            lane_through_pause=True,
+            threads=threads,
+            standing=standing,
+        )
+        # The lane runs through the pause; the legs that add work still stop.
+        assert order == ["lane"]
+
+        # The same paused pass under a local landing leaves the lane alone.
+        order.clear()
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, paused=True, lane=lane)
+        assert order == []
+
+        board = project(await log.since(partition=PARTITION))
+        assert "T-0001" not in board.tasks
+
+    run(scenario)
+
+
+def test_the_pass_runs_the_lane_through_a_pause_only_under_a_pull_request_landing(
+    tmp_path, monkeypatch
+):
+    """S-0108/D-1's other half: the landing mode is the manager's to pass to
+    the pass, and `residency` does not read configuration. A pull-request
+    landing runs the lane through a pause; a local one leaves it to the pause,
+    as it always did.
+
+    It lives here rather than beside the manager's other CLI cases because the
+    decision's own check is `tests/test_residency.py -k pause`, and a manager
+    that always passed `False` or misspelled the mode would otherwise satisfy
+    that check while doing the wrong thing."""
+
+    from torve.application import residency
+    from torve.cli import manager as manager_cli
+    from torve.cli.manager import _serve
+
+    seen: list[bool] = []
+
+    class Stopped(Exception):
+        pass
+
+    async def spy(*_args, **kwargs):
+        seen.append(kwargs["lane_through_pause"])
+        raise Stopped
+
+    monkeypatch.setattr(residency, "serve", spy)
+
+    for landing in ("pull_request", "local"):
+        terms = RunnerConfig(promotion=PromotionConfig(landing=landing))
+        monkeypatch.setattr(manager_cli, "load_config", lambda root, path, t=terms: t)
+
+        with pytest.raises(Stopped):
+            asyncio.run(
+                _serve(
+                    None,
+                    PARTITION,
+                    root=tmp_path,
+                    config_path=None,
+                    worker="w-1",
+                    passes=1,
+                    interval=0,
+                    only=None,
+                    dispatch=False,
+                )
+            )
+
+    assert seen == [True, False]
+
+
+def test_a_pause_still_stops_the_mint_standing_and_threads_under_either_landing(tmp_path):
+    """S-0108/D-2: the landing mode changes only whether the lane runs through
+    a pause. The mint, the standing leg and the review-thread leg add work
+    somebody has to triage under every mode, so a pause stops them; the relay
+    delivers what is already owed rather than creating anything, so it runs
+    either way."""
+
+    order: list[str] = []
+    contract(tmp_path, "T-0001")
+
+    async def relay() -> list[str]:
+        order.append("relay")
+
+        return []
+
+    def threads() -> tuple[str, bool]:
+        order.append("threads")
+
+        return "no unresolved review threads", False
+
+    def standing() -> tuple[str, bool]:
+        order.append("standing")
+
+        return "nothing fired", False
+
+    async def scenario(log):
+        worker = worker_over(log, [])
+
+        for through_pause in (True, False):
+            order.clear()
+            await once(
+                log,
+                worker,
+                tmp_path,
+                PARTITION,
+                dispatch=False,
+                paused=True,
+                relay=relay,
+                threads=threads,
+                standing=standing,
+                lane_through_pause=through_pause,
+            )
+            assert order == ["relay"]
+
+        board = project(await log.since(partition=PARTITION))
+        assert "T-0001" not in board.tasks
+
+    run(scenario)
+
+
 def test_the_review_thread_leg_sits_between_the_landing_leg_and_the_mint(tmp_path):
     """S-0084/D-16: after the landing leg, because a thread is answered only
     once the record says the round's task landed, and before the mint and the

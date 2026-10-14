@@ -603,6 +603,7 @@ async def _serve(
             paused=paused,
             relay=relay,
             lane=lane_leg,
+            lane_through_pause=config.promotion.landing == "pull_request",
             threads=thread_leg,
             stop=stop if terms is not None else None,
         )

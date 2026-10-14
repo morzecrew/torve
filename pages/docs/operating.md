@@ -941,7 +941,10 @@ as it stands at that dispatch (S-0090/D-3).
 A pass mints nothing while this root's escalation queue is at
 `loop.pause_escalations` (default 1), counting both carriers — a task
 escalated under v1 and one the manager escalated are both a person's turn.
-The queue may drain during a pause; it may not grow.
+The queue may drain during a pause; it may not grow. The mint, the standing
+leg and the review-thread leg stop under every mode — they add work somebody
+has to triage — while the notification relay runs regardless, and under
+`landing: pull_request` so does the landing leg (S-0108/D-1, S-0108/D-2).
 
 So an escalation nobody triages stops new work. That is the design, and it
 is worth knowing before wondering why a board went quiet: check
@@ -1046,10 +1049,21 @@ because the absence is at least visible.
 A conflict is reported and left for a human. The lane never resolves one,
 and it does not resolve one differently because a pass called it.
 
-**A pause stops landing.** Unlike the notification relay — which delivers
-what is already owed and so runs regardless — landing advances the
-repository, and a pause is a statement that nobody has capacity to look at
-what advancing produces.
+**A pause stops landing — under a local landing.** The relay delivers what
+is already owed and so runs regardless; under `landing: local` the lane does
+not, because landing advances this checkout and a pause is a statement that
+nobody has capacity to look at what advancing produces (S-0052/D-3).
+
+Under `landing: pull_request` the paused pass still runs the lane
+(S-0108/D-1): a green candidate lands on its own branch, the completion
+battery runs and its pull request is republished, so one escalation no longer
+holds every green sibling and the phases behind them while a person answers
+it. The base is not moved here either, so nothing a person has to triage
+advances. Whatever the landing mode, a pause still stops the mint, the
+standing leg and the review-thread leg, which add work somebody has to
+triage, and the relay still runs (S-0108/D-2). Which mode runs the lane
+through a pause is the manager's to decide from `promotion.landing`;
+`residency` does not read configuration.
 
 ## Landing as a pull request
 

@@ -10,6 +10,17 @@ the gate output. Then sort the cause into one of three kinds:
 
 Only the third is the agent's. Most escalations are the first two.
 
+## While an escalation holds the pause
+
+An escalation at `loop.pause_escalations` (default 1) pauses the night, so
+the board closing down is the design rather than a fault. A pause stops new
+work: nothing is minted, no standing job runs and no review round opens,
+whatever the landing mode. It does not stop what is already running or
+already owed — an attempt in flight finishes, the notification relay pages
+the undelivered queue, and under `promotion.landing: pull_request` the
+landing leg still lands green candidates on their branches. Resolve the
+escalation to let new work through again.
+
 ## Closing one
 
 `torve manager resolve <partition> <task> --resolution <requeued|abandoned|landed>`
