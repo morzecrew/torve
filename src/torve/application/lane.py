@@ -148,7 +148,15 @@ def awaiting_landing(root: Path, vcs: LaneVcs, base: str | None, unit: str = "ta
 
         target = (
             _document_branch(root, vcs, state.task_id, dry_run=True) if unit == "document" else None
-        ) or base
+        )
+
+        # The document branch does not exist yet: the first landing cuts it, so
+        # until then the candidate is measured against the base (S-0108/D-3).
+        # `_document_branch(..., dry_run=True)` names the branch whether or not
+        # it exists, and a candidate skipped here lets the night close before
+        # the lane landed it.
+        if target is None or vcs.tip(root, target) is None:
+            target = base
 
         if target is None or vcs.tip(root, target) is None:
             continue
