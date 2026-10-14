@@ -24,6 +24,9 @@ WORKTREE_DIR = ".wt"
 # the ordinary one under a distinct name, so a bare task id and its
 # drafting-run worktree never collide during adoption.
 INTAKE_SUFFIX = ".intake"
+# The lane's checkouts under the worktree directory: `lane-<task>` for a
+# candidate's rebase, `lane-<document>` for a document's battery.
+LANE_WORKTREE_PREFIX = "lane-"
 # The durable trace store's directory (S-0039/the-store, S-0039/D-1), spelled from
 # the engine root. One string, so the root-relative `trace_ref` recorded in
 # telemetry is literally this text.

@@ -105,6 +105,40 @@ def _landing_commit(root: Path, task_id: str) -> str:
     return path
 
 
+def test_a_stale_lane_checkout_does_not_block_the_next_rebase(lane_repo):
+    # A lane killed mid-battery leaves `lane-<task>` behind; the reap no longer
+    # sweeps the lane's checkouts, so the lane clears a stale one itself.
+    candidate(lane_repo, "T-7003", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7004", "two.py", "two = 2\n")
+    stale = lane_repo / ".wt" / "lane-T-7004"
+    git(lane_repo, "worktree", "add", "-q", "--detach", str(stale), "main")
+
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    actions = {r["task"]: r["action"] for r in json.loads(result.stdout)["results"]}
+
+    assert actions == {"T-7003": "landed", "T-7004": "landed"}
+    assert not stale.exists()
+
+
+def test_a_second_lane_on_the_checkout_reports_busy_and_touches_nothing(lane_repo):
+    import fcntl
+
+    candidate(lane_repo, "T-7005", "one.py", "one = 1\n")
+    base = git(lane_repo, "rev-parse", "main")
+    lock = lane_repo / ".wt" / "lane.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+
+    with lock.open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        busy = process_lane(lane_repo, GitLane())
+
+    assert [r.action for r in busy] == ["lane busy"]
+    assert git(lane_repo, "rev-parse", "main") == base
+    # Released, the next pass lands as ever, `root` named or not.
+    assert [r.action for r in process_lane(root=lane_repo, vcs=GitLane())] == ["landed"]
+
+
 def test_a_rebased_landing_names_the_commit_that_landed(lane_repo):
     candidate(lane_repo, "T-7011", "one.py", "one = 1\n")
     candidate(lane_repo, "T-7012", "two.py", "two = 2\n")

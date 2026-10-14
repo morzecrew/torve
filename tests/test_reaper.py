@@ -166,6 +166,23 @@ def test_intake_worktree_with_no_state_is_swept_as_debris(tmp_path):
     assert workspace.removed == ["T-9502.intake"]
 
 
+def test_the_lane_s_checkouts_survive_every_sweep(tmp_path):
+    # A `lane-*` checkout has no state file; a reap during a served night took
+    # the one a completion battery was running in, and every later gate errored.
+    workspace = ListingWorkspace(
+        [
+            ("lane-S-0901", tmp_path / ".wt" / "lane-S-0901"),
+            ("lane-T-9503", tmp_path / ".wt" / "lane-T-9503"),
+        ]
+    )
+
+    for escalated in (False, True):
+        report = reap(tmp_path, RunnerConfig(), MockRuntime(), workspace, escalated=escalated)
+        assert report.worktrees_removed == []
+
+    assert workspace.removed == []
+
+
 def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):
     state_at(tmp_path, "T-9201", TaskState.READY)
     escalated = state_at(tmp_path, "T-9202", TaskState.RUNNING, age_s=3600)

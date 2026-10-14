@@ -110,6 +110,14 @@ def _sweep_worktrees(
         # debris and a concurrent pass destroys it mid-run.
         task_id = name.removesuffix(naming.INTAKE_SUFFIX)
 
+        # The lane's own checkouts (`lane-<task>`, `lane-<document>`) have no
+        # state file, so they read as debris too, and a reap during a served
+        # night removed the one a completion battery was running in. The lane
+        # removes each when it is done and, holding its lock, clears a stale
+        # one before reusing its path, so none is the sweep's.
+        if name.startswith(naming.LANE_WORKTREE_PREFIX):
+            continue
+
         if _collectable(by_task.get(task_id), escalated):
             if not dry_run:
                 workspace.remove(name)

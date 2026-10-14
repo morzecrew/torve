@@ -19,12 +19,14 @@ telemetry stream as an engine event (S-0006/D-7).
 
 from __future__ import annotations
 
+import fcntl
+import functools
 import re
 import subprocess
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ParamSpec
 
 from torve.application.feedback import capture_feedback
 from torve.application.planner import change_type_of
@@ -2537,6 +2539,41 @@ def promotion_needs_durable_store(unit: str, pull_request: bool) -> bool:
     return unit == "document" or pull_request
 
 
+_P = ParamSpec("_P")
+
+
+def _one_lane(fn: Callable[_P, list[LaneResult]]) -> Callable[_P, list[LaneResult]]:
+    """One lane per checkout at a time. Every manager worker runs a lane leg and
+    `torve merge` runs one too, and two passes rebasing in the same `lane-*`
+    checkout break each other's battery. An exclusive `flock` on
+    `.wt/lane.lock` for the whole pass: a second pass finds it held and says the
+    lane is busy instead of waiting, and the kernel releases it when its holder
+    exits, so a killed lane never leaves it held."""
+
+    @functools.wraps(fn)
+    def run(*args: _P.args, **kwargs: _P.kwargs) -> list[LaneResult]:
+        # `root` by position or by name, as `process_lane` has always taken it.
+        root = Path(str(kwargs["root"] if "root" in kwargs else args[0]))
+        lock = root / naming.WORKTREE_DIR / "lane.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+
+        with lock.open("a") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            except BlockingIOError:
+                return [
+                    LaneResult(
+                        "", "", "lane busy", "another process is running the lane on this checkout"
+                    )
+                ]
+
+            return fn(*args, **kwargs)
+
+    return run
+
+
+@_one_lane
 def process_lane(
     root: Path,
     vcs: LaneVcs,

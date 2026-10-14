@@ -515,6 +515,13 @@ class GitLane:
         """Rebase *branch* onto *onto* in a fresh worktree. An *upstream*
         replays only the commits after it (`--onto onto upstream`)."""
 
+        # A lane killed mid-battery leaves its checkout behind. A pass holds
+        # the lane's lock (`lane._one_lane`), so a checkout already at this
+        # path is a dead pass's, never a live one's.
+        if workdir.exists():
+            _git(root, "worktree", "remove", "--force", str(workdir))
+
+        _git(root, "worktree", "prune")
         added = _git(root, "worktree", "add", str(workdir), branch)
 
         if added.returncode != 0:
