@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0592
+phase: 2
+base: 29c3b50426c7b18056e0ac6e14fd243d756255a9
+commit: bc76e874e662ab1bde4a2a8b685faec57801a247
+at: '2026-10-14T07:28:57Z'
+agent: session/claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-14T07:17:22Z'
+    claim: >-
+      The phase lands the mutation builtin without its shadow entry in .torve/gates.yaml.
+      The battery judges an attempt with the engine as landed, which has no @mutation
+      builtin until S-0107 merges, so a manifest naming it fails every gate run as
+      gate_infrastructure_failure (attempt 1 escalated on exactly that).
+    evidence: >-
+      `torve gates run` on attempt 1 — ValueError("gate 'mutation': unknown builtin
+      '@mutation'")
+    action: departed
+    proposal: >-
+      Add the shadow entry to .torve/gates.yaml in the pull request that marks S-0107
+      implemented, once main's engine carries the builtin.
