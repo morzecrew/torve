@@ -44,7 +44,7 @@ from torve.cli.options import (
 from torve.domain.states import EXIT_CONFIG, EXIT_OK, TaskState
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+    from collections.abc import AsyncGenerator, Awaitable, Callable, Container, Sequence
 
     from forze.application.execution import ExecutionRuntime
 
@@ -111,6 +111,7 @@ def _lane_leg(
     *,
     only: str | None,
     resolved: Callable[[], Awaitable[set[str]]] | None = None,
+    requeue: Callable[[list[tuple[str, str]]], Awaitable[None]] | None = None,
 ) -> Lane | None:
     """The pass's landing leg, or None when the switch is off.
 
@@ -125,6 +126,14 @@ def _lane_leg(
     holds the store (S-0101/D-2): a round a person abandoned releases the
     wave on every host because the resolution rides the log, not a row on
     the host that minted the round.
+
+    `requeue` is handed, after every lane pass and whether or not the pass
+    raised, each run the conflict disposal left `queued` with the base it
+    collided with (S-0109/D-1). Read from the run-state files rather than the
+    pass's results, a disposal recorded before a later candidate raised, or a
+    log write that failed, is offered again on the next pass; the caller writes
+    only what the log does not hold yet. The manual `torve merge` path passes
+    none and keeps escalating to the person at the terminal.
     """
 
     if not config.promotion.auto_merge:
@@ -147,41 +156,80 @@ def _lane_leg(
         # for a person, bounded as ever by `conflict_base`. `torve merge`
         # passes none — the operator standing at the terminal is exactly who
         # should see a conflict.
-        results = await asyncio.to_thread(
-            process_lane,
-            root,
-            GitLane(),
-            only=only,
-            ci=_resolve_ci(config),
-            approvals_required=config.promotion.approvals,
-            require_review=config.promotion.require_review,
-            quiet_window_s=config.promotion.quiet_window,
-            on_conflict=conflict_disposal(root, GitLane()),
-            # The landing act and the read-back the manual verb is handed
-            # (S-0083/D-15): without them an armed pass under
-            # `landing: pull_request` fast-forwards the checkout's base
-            # locally, which is the one act that mode exists to avoid — and a
-            # unit for a night nothing but the manual verb can reach is a unit
-            # for nothing.
-            publish=_publisher(root, config),
-            forge=_forge(config),
-            unit=config.promotion.unit,
-            # A red completion battery is minted as a round only where the
-            # review leg reads recorded findings (S-0096/D-2); elsewhere it
-            # escalates the completing task at once. The verdict is the
-            # `torve/completion` status on the tip the leg reads back
-            # (S-0099/D-4, S-0103/D-4), written here as the manual verb writes it.
-            rounds=config.threads.enabled and "record" in config.threads.sources,
-            status=_status(config),
-            # The store the promotion unit and landing need (S-0099/D-11).
-            store=config.store.adapter,
-            # The board's resolutions, read by the caller (S-0101/D-2).
-            resolved=set(await resolved()) if resolved is not None else set(),
-        )
+        try:
+            results = await asyncio.to_thread(
+                process_lane,
+                root,
+                GitLane(),
+                only=only,
+                ci=_resolve_ci(config),
+                approvals_required=config.promotion.approvals,
+                require_review=config.promotion.require_review,
+                quiet_window_s=config.promotion.quiet_window,
+                on_conflict=conflict_disposal(root, GitLane()),
+                # The landing act and the read-back the manual verb is handed
+                # (S-0083/D-15): without them an armed pass under
+                # `landing: pull_request` fast-forwards the checkout's base
+                # locally, which is the one act that mode exists to avoid — and a
+                # unit for a night nothing but the manual verb can reach is a unit
+                # for nothing.
+                publish=_publisher(root, config),
+                forge=_forge(config),
+                unit=config.promotion.unit,
+                # A red completion battery is minted as a round only where the
+                # review leg reads recorded findings (S-0096/D-2); elsewhere it
+                # escalates the completing task at once. The verdict is the
+                # `torve/completion` status on the tip the leg reads back
+                # (S-0099/D-4, S-0103/D-4), written here as the manual verb writes it.
+                rounds=config.threads.enabled and "record" in config.threads.sources,
+                status=_status(config),
+                # The store the promotion unit and landing need (S-0099/D-11).
+                store=config.store.adapter,
+                # The board's resolutions, read by the caller (S-0101/D-2).
+                resolved=set(await resolved()) if resolved is not None else set(),
+            )
+
+        finally:
+            if requeue is not None:
+                await requeue(_conflict_requeues(root))
 
         return [result.task for result in results if result.landed]
 
     return lane
+
+
+def _conflict_requeues(root: Path) -> list[tuple[str, str]]:
+    """Every run the lane's conflict disposal left `queued`, with the base it
+    collided with: the run-state files the disposal writes (S-0006/A-1), read
+    whole so nothing a raised pass or a failed write dropped is lost."""
+
+    from torve.application.runstate import RunState
+    from torve.base import naming
+
+    return [
+        (state.task_id, state.conflict_base)
+        for state in RunState.load_all(root / naming.WORKTREE_DIR)
+        if state.state is TaskState.QUEUED and state.conflict_base
+    ]
+
+
+def _requeues_owed(
+    candidates: list[tuple[str, str]], board: Board, landed: Container[str]
+) -> list[tuple[str, str]]:
+    """The re-queues the log does not hold yet (S-0109/D-1): a task the board
+    still reads as a `ready` candidate. A task already landed is not one —
+    run-state files of disposals whose work landed later outlive them — and
+    one the board already reads as queued or further on has its fact."""
+
+    owed = []
+
+    for task_id, base_tip in candidates:
+        view = board.tasks.get(task_id)
+
+        if task_id not in landed and view is not None and view.state is TaskState.READY:
+            owed.append((task_id, base_tip))
+
+    return owed
 
 
 def _refreshing(lane: Lane, landings: dict[str, str], root: Path) -> Lane:
@@ -495,9 +543,37 @@ async def _serve(
 
         return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
 
+    async def requeue(candidates: list[tuple[str, str]]) -> None:
+        """Record the served lane's own re-queues (S-0109/D-1): the disposal
+        writes the task's run-state file and the lane moves on, and the board
+        dispatches from the log, so the fact is written here through the log
+        the pass already holds — for each disposal the log does not hold yet,
+        so a write that failed is made on the next pass. The actor is the
+        manager — the disposal is a mechanical act, not the operator's verdict
+        (S-0109/D-2)."""
+
+        from torve.domain.events import ActorKind, EventKind
+
+        # Read the board only when a disposal of unlanded work is on disk.
+        if all(task in landings for task, _ in candidates):
+            return
+
+        board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
+        for task_id, base_tip in _requeues_owed(candidates, board, landings):
+            await log.record(
+                EventKind.TASK_REQUEUED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id=worker,
+                payload={"reason": "merge_conflict", "base_tip": base_tip},
+            )
+
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
-    lane_leg = _lane_leg(root, config, only=only, resolved=resolutions)
+    lane_leg = _lane_leg(root, config, only=only, resolved=resolutions, requeue=requeue)
 
     if lane_leg is not None:
         lane_leg = _refreshing(lane_leg, landings, root)

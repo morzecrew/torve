@@ -70,6 +70,7 @@ executable intent without a human signature.**
 | `task.claimed` | manager |
 | `task.released` | manager |
 | `task.returned` | operator |
+| `task.requeued` | manager |
 | `attempt.started` | worker |
 | `attempt.finished` | worker |
 | `gates.evaluated` | worker |

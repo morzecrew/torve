@@ -439,6 +439,9 @@ def _dispose_conflict(
             branch,
             "conflict requeued",
             f"merge_conflict ({found_by}): captured for the revision loop and re-queued",
+            # S-0109/D-1: the base tip the candidate was requeued against, so
+            # the caller recording the fact has it without re-reading the base.
+            base_tip,
         )
     )
 
