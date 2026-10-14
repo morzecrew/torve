@@ -707,7 +707,7 @@ The `mutation` builtin gate (shadow, attempt battery) samples at most `budget` m
 
 - Paths: `src/torve/gates/mutation.py` `src/torve/gates/__init__.py` `src/torve/config/manifest.py` `.torve/gates.yaml`
 - Consequence: the score costs a bounded, repeatable amount and never touches the worktree under judgment
-- Check: `uv run pytest tests/test_mutation.py tests/test_gates.py -q -k mutation` (shadow; runs as `decision:S-0107/D-2`, no log entry owed)
+- Check: `uv run pytest tests/test_gates.py -q -k mutation_gate` (shadow; runs as `decision:S-0107/D-2`, no log entry owed)
 
 ## Invariants holding over `src/torve/config/`
 

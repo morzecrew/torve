@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-14T06:30:00Z'
+    title: >-
+      D-2's and D-5's checks select the tests that judge them
+    changes:
+      - subject: D-2
+        field: check
+        before: >-
+          uv run pytest tests/test_mutation.py tests/test_gates.py -q -k mutation
+        after: >-
+          uv run pytest tests/test_gates.py -q -k mutation_gate
+      - subject: D-5
+        field: check
+        before: uv run pytest tests/test_sabotage.py -q
+        after: >-
+          uv run pytest tests/test_sabotage.py -q -k mutation_case
+    md: >-
+      Phase 1's review (T-0596, on T-0591) found both checks weak. D-2's `-k mutation`
+      selected only the mutator's own tests in `tests/test_mutation.py` and nothing
+      in `tests/test_gates.py`, so a missing or wrong gate passed it. D-5's ran all
+      of `tests/test_sabotage.py`, which passes whether or not a mutation case exists.
+      Each check now selects only the tests that judge its row, and phase 2 names
+      those tests: `test_mutation_gate_*` and `test_the_mutation_case_*`. Until phase
+      2 lands, both checks select nothing and fail as vacuous (S-0106/D-1), under
+      shadow.

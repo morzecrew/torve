@@ -37,7 +37,7 @@ decisions:
       Red-on-base already shows a scratch tree is cheap and safe; a seeded sample
       makes two runs of one diff comparable.
     check: >-
-      uv run pytest tests/test_mutation.py tests/test_gates.py -q -k mutation
+      uv run pytest tests/test_gates.py -q -k mutation_gate
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -77,4 +77,5 @@ decisions:
       the gate is shown to tell a weak test from a strong one, as every gate must
     rationale: >-
       Every gate's ability to convict is proven by a sabotage case (S-0036/D-3).
-    check: uv run pytest tests/test_sabotage.py -q
+    check: >-
+      uv run pytest tests/test_sabotage.py -q -k mutation_case
