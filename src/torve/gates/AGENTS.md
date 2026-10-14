@@ -331,7 +331,7 @@ The `mutation` builtin gate (shadow, attempt battery) samples at most `budget` m
 
 - Paths: `src/torve/gates/mutation.py` `src/torve/gates/__init__.py` `src/torve/config/manifest.py` `.torve/gates.yaml`
 - Consequence: the score costs a bounded, repeatable amount and never touches the worktree under judgment
-- Check: `uv run pytest tests/test_mutation.py tests/test_gates.py -q -k mutation` (shadow; runs as `decision:S-0107/D-2`, no log entry owed)
+- Check: `uv run pytest tests/test_gates.py -q -k mutation_gate` (shadow; runs as `decision:S-0107/D-2`, no log entry owed)
 
 ### S-0107/D-5 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
 
@@ -339,7 +339,7 @@ The sabotage suite carries a mutation case: a change whose tests assert nothing 
 
 - Paths: `src/torve/gates/sabotage.py`
 - Consequence: the gate is shown to tell a weak test from a strong one, as every gate must
-- Check: `uv run pytest tests/test_sabotage.py -q` (shadow; runs as `decision:S-0107/D-5`, no log entry owed)
+- Check: `uv run pytest tests/test_sabotage.py -q -k mutation_case` (shadow; runs as `decision:S-0107/D-5`, no log entry owed)
 
 ## Invariants holding over `src/torve/gates/`
 

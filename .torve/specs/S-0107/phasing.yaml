@@ -20,7 +20,10 @@ phasing:
       input and timeout, and a shadow entry in `.torve/gates.yaml`; the sabotage case
       (D-2, D-5). Tests: tests that pin every line score 1; tests that assert nothing
       score 0 and list every survivor; a change with no Python source skips; the worktree
-      is byte-identical after the gate. Settles D-2 and D-5.
+      is byte-identical after the gate. The gate's tests in `tests/test_gates.py`
+      are named `test_mutation_gate_*`, the name D-2's check selects, and `tests/test_sabotage.py`
+      gains a test named `test_the_mutation_case_*` that runs the sabotage case, the
+      name D-5's check selects. Settles D-2 and D-5.
     scope:
       - src/torve/gates/mutation.py
       - src/torve/gates/__init__.py
