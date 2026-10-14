@@ -63,6 +63,19 @@ def test_the_spec_writer_teaches_when_a_row_gets_a_property():
     assert "proves the check can fail" in text
 
 
+def test_the_spec_writer_reads_a_survivor_as_a_weak_check():
+    """S-0107/D-4 (documentation): a row's check is judged by the mutants it
+    leaves alive on its own lines, so the skill says a check that leaves
+    survivors there is a weak one — and that a survivor is evidence, graded,
+    never a verdict on its own."""
+
+    raw = (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
+    text = " ".join(raw.split())
+
+    assert "a check that leaves survivors on its row's lines is a weak check" in text
+    assert "A survivor is evidence, not a verdict" in text
+
+
 def test_hypothesis_is_a_direct_dev_dependency():
     """S-0106/D-4: a row's property imports Hypothesis without a fixture, so the
     dependency is named in the dev group rather than reached transitively

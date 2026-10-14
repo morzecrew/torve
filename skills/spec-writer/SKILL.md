@@ -118,6 +118,14 @@ arrives first, invisibly.
    blocking row that names none. A row is never blocking on a check nobody
    has shown can fail.
 
+   A check that passes is not yet a strong check. The battery's `mutation`
+   gate edits the changed lines and reruns the paired tests, and **a check
+   that leaves survivors on its row's lines is a weak check**: the tests ran
+   the wrong edit and still passed. A survivor is evidence, not a verdict — an
+   equivalent mutant survives without the check being wrong — but an example
+   that exercises a line and asserts nothing about it is exactly what leaves
+   one, so read a survivor as a prompt to assert the line's behaviour.
+
 2. **Phasing must be mintable.** A phase is an entry in the `phasing` list —
    number, title, one-paragraph intent, the file globs it will touch, its
    acceptance commands, the phases it waits on — not prose about sequence.

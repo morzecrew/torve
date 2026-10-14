@@ -86,6 +86,42 @@ def test_the_operating_guide_documents_checks_twins_invariants_and_refactors():
     assert "change.type" in guide
 
 
+def test_the_operating_guide_documents_the_mutation_gate_and_how_to_read_a_survivor():
+    """S-0107/D-1..D-5: the page an operator reads names what a mutant is, the
+    budget that bounds the score, that the gate is shadow, how a survivor is
+    read — evidence, never a finding — where the score is shown, and the twin
+    that proves a weak test scores below a strong one."""
+
+    from torve.gates.mutation import DEFAULT_BUDGET
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+
+    # D-1: the operator set and the two lines that are never mutated.
+    for operator in ("comparison", "boolean", "arithmetic", "constant", "condition", "return"):
+        assert operator in guide, f"the guide does not name the {operator} mutant"
+    assert "A line the diff did not add or change is never mutated" in guide
+    assert "a test\nfile is never mutated" in guide
+
+    # D-2: the budget, the scratch copy, and the shadow state.
+    assert f"default {DEFAULT_BUDGET}" in guide
+    assert "scratch copy of the worktree" in guide
+    assert "twice their\nbaseline run" in guide
+    assert "`path:line — edit`" in guide
+    assert "shadow" in guide
+
+    # D-3: where the score and its survivors are read.
+    assert "gates.evaluated" in guide
+    assert "torve\nwhy" in guide or "torve why" in guide
+    assert "per phase and per document" in guide
+
+    # D-4: a survivor is evidence the reviewer grades, never a finding.
+    assert "a survivor is never a finding by itself" in guide
+
+    # D-5: the twin pair.
+    assert "scores 0 with every mutant a survivor" in guide
+    assert "tests pin each line scores 1" in guide
+
+
 def test_no_page_claims_the_retired_truth_boundary():
     # The site taught "git holds what SHOULD be, the store holds what
     # HAPPENED" as the organising rule until S-0044/D-1 inverted it. The pages
