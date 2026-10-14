@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
 ### Added
 
 - A `mutation` gate, at shadow, scores how well a change's own tests notice its source
@@ -2161,6 +2163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/morzecrew/torve/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/morzecrew/torve/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/morzecrew/torve/releases/tag/v0.1.0
