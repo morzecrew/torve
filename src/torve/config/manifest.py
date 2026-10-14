@@ -189,6 +189,10 @@ BUILTIN_INPUTS: dict[str, str] = {
     # S-0081: runs the changed test functions against the base tree, so it needs
     # the worktree and the base, not the diff alone.
     "red-on-base": "worktree",
+    # S-0107: mutates the changed source and runs the paired tests against a
+    # scratch copy of the whole worktree, so it needs the worktree, not the
+    # diff alone.
+    "mutation": "worktree",
 }
 BUILTIN_TIMEOUTS: dict[str, float] = {
     "scope": 30,
@@ -200,6 +204,9 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     "user-facing-text": 30,
     "acceptance": 600,
     "red-on-base": 300,
+    # S-0107: a baseline run of the paired tests plus the sampled mutants,
+    # each capped at twice that baseline — the dearest builtin when it scores.
+    "mutation": 900,
 }
 SHELL_GATE_TIMEOUT = 600.0
 

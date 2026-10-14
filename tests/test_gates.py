@@ -7,7 +7,16 @@ from conftest import context_for
 
 from torve.config.manifest import Gate
 from torve.gates.decisions_reported import check_decisions_reported, parse_log
-from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, entry, log_document
+from torve.gates.sabotage import (
+    BASE_MANIFEST,
+    MUTATION_APP,
+    MUTATION_STRONG_TEST,
+    MUTATION_WEAK_TEST,
+    TASK_ID,
+    base_task,
+    entry,
+    log_document,
+)
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 
@@ -1281,3 +1290,122 @@ def test_red_on_base_qualifies_an_unparseable_test_source_whole(repo, red_on_bas
 
     assert outcome.outcome == "pass", outcome.output
     assert "tests/test_core.py" in outcome.output
+
+
+# ----------------------- #
+# `mutation`: the attempt's own tests did not notice its source going wrong
+# (S-0107/D-1, S-0107/D-2).
+
+MUTATION_GATE = Gate(
+    name="mutation", run="@mutation", state="shadow", origin="S-0107", input="worktree", timeout=120
+)
+
+MUTATION_MANIFEST = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "gates": [
+        {
+            "name": "mutation",
+            "run": "@mutation",
+            "state": "shadow",
+            "origin": "S-0107",
+            "input": "worktree",
+            "timeout": 120,
+        }
+    ],
+}
+
+
+@pytest.fixture
+def mutation_gate(monkeypatch):
+    """The gate with its launcher pointed at this interpreter, so the scratch
+    repository's paired tests run without the project's own launcher."""
+
+    import shlex
+    import sys
+
+    from torve.gates import mutation as module
+
+    launcher = f"{shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
+    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
+
+    return module.check_mutation
+
+
+def _mutation_attempt(repo, source: str, test: str) -> None:
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", source)
+    repo.write("tests/test_app.py", test)
+    repo.commit("the attempt")
+
+
+def _digest(root: Path) -> dict[str, str]:
+    import hashlib
+
+    # The worktree's files, not git's own: git's background maintenance writes
+    # under `.git` whenever it likes, and the gate never touches it.
+    return {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and ".git" not in path.relative_to(root).parts
+    }
+
+
+def test_mutation_gate_scores_a_suite_that_pins_every_line_one(repo, mutation_gate):
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "pass", outcome.output
+    assert "score 1.00" in outcome.output
+    assert "survived 0" in outcome.output
+
+
+def test_mutation_gate_scores_a_suite_that_asserts_nothing_zero(repo, mutation_gate):
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_WEAK_TEST)
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "fail", outcome.output
+    assert "score 0.00" in outcome.output
+
+    # Every mutant survived, and every one of them is named as a survivor.
+    header, _, listed = outcome.output.partition("survivors:\n")
+    survivors = [line for line in listed.splitlines() if line.strip()]
+
+    assert "survived 6" in header
+    assert len(survivors) == 6
+    assert all("src/app.py:" in line and " — " in line for line in survivors), survivors
+
+
+def test_mutation_gate_skips_a_change_with_no_python_source(repo, mutation_gate):
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
+    repo.commit("a test-only change")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped", outcome.output
+    assert "no Python source" in outcome.output
+
+
+def test_mutation_gate_skips_a_change_with_no_paired_tests(repo, mutation_gate):
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", MUTATION_APP)
+    (repo.root / "tests" / "test_app.py").unlink()
+    repo.commit("a change with no test to score it")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped", outcome.output
+    assert "no test pairs" in outcome.output
+
+
+def test_mutation_gate_leaves_the_worktree_byte_identical(repo, mutation_gate):
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
+
+    before = _digest(repo.root)
+    mutation_gate(MUTATION_GATE, context_for(repo))
+    after = _digest(repo.root)
+
+    assert after == before

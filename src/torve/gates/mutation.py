@@ -15,20 +15,29 @@ however many times it is scored.
 from __future__ import annotations
 
 import ast
+import base64
 import hashlib
 import random
 import re
+import shlex
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from torve.base.globs import matches
-from torve.config.manifest import DEFAULT_TEST_PATTERNS
+from torve.base.shell import run_command
+from torve.config.manifest import DEFAULT_TEST_PATTERNS, DEFAULT_TEST_RUN, Gate
+from torve.gates.context import GateContext
+from torve.gates.contract import BuiltinOutcome, spec
 
 # ----------------------- #
 
 # The default mutant budget: at most this many mutants are sampled from a
 # diff, so the score costs a bounded amount (S-0107/D-2).
 DEFAULT_BUDGET = 30
+
+# How the paired tests are run. The engine's default, and the seam a test points
+# at its own interpreter; a manifest naming its own `tests.run` wins (S-0106/D-7).
+TEST_COMMAND = DEFAULT_TEST_RUN
 
 # A hunk header, read only for the first line number of its new side.
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
@@ -288,3 +297,209 @@ def _moved(value: object) -> bool | int | None:
         return value + 1
 
     return None
+
+
+# ----------------------- #
+# The gate (S-0107/D-2). The mutator above enumerates; this samples, applies
+# each mutant in a scratch copy of the worktree, and scores by whether the
+# task's paired tests notice.
+
+
+def _command(ctx: GateContext) -> str:
+    """The launcher the paired tests are appended to: the manifest's `tests.run`
+    (S-0106/D-7), or the module's `TEST_COMMAND` when the manifest leaves it at
+    the engine default."""
+
+    declared = ctx.manifest.tests.run
+
+    return TEST_COMMAND if declared == DEFAULT_TEST_RUN else declared
+
+
+# ....................... #
+
+
+def _changed_modules(ctx: GateContext) -> list[str]:
+    """The changed Python source files — a deleted file gone, a test file not
+    source, and an untracked file (status A) source like any other."""
+
+    tests = spec(ctx.manifest.tests.patterns)
+    found: list[str] = []
+
+    for entry in ctx.diff:
+        if (
+            entry.status != "D"
+            and entry.path.endswith(".py")
+            and not tests.match_file(entry.path)
+            and (ctx.root / entry.path).is_file()
+        ):
+            found.append(entry.path)
+
+    return found
+
+
+# ....................... #
+
+
+def _paired_tests(ctx: GateContext, modules: Iterable[str]) -> list[str]:
+    """The existing test files pairing with *modules* under the manifest's
+    `tests.pair` templates (S-0106/D-7), so a module's own test is what judges
+    its mutants and nothing else runs."""
+
+    found: set[str] = set()
+
+    for module in modules:
+        for pattern in ctx.manifest.tests.expansions(module):
+            for match in ctx.root.glob(pattern):
+                if match.is_file():
+                    found.add(str(match.relative_to(ctx.root)))
+
+    return sorted(found)
+
+
+# ....................... #
+
+
+def _script(command: str, files: list[str], found: list[Mutant], budget_s: float) -> str:
+    """One shell run: copy the worktree to a scratch directory, run the paired
+    tests to time a baseline, then apply each mutant in turn and rerun them
+    under twice that baseline. Every mutant restores its file from its own
+    encoded text first, so no edit is composed on another's.
+
+    The scratch copy is the whole worktree without `.git`, made and removed
+    inside the run, so the worktree under judgment is never written
+    (S-0107/D-2)."""
+
+    named = " ".join(shlex.quote(path) for path in files)
+    lines = [
+        "set -u",
+        "work=$(mktemp -d)",
+        "trap 'rm -rf \"$work\"' EXIT INT TERM",
+        'tar -C . --exclude=.git -cf - . | tar -C "$work" -xf -',
+        'cd "$work"',
+        "start=$(date +%s%N)",
+        f"timeout {budget_s:.0f} {command} {named} >/dev/null 2>&1",
+        "baseline_code=$?",
+        "baseline_ms=$(( ($(date +%s%N) - start) / 1000000 ))",
+        'if [ "$baseline_code" -eq 124 ]; then echo BASELINE-TIMEOUT; exit 0; fi',
+        'if [ "$baseline_code" -ne 0 ]; then echo BASELINE-RED; exit 0; fi',
+        # Twice the baseline, in whole seconds, with a floor of ten: a small
+        # suite's baseline is mostly interpreter start-up, which a loaded host
+        # can more than double, and a mutant cut off there reads as timed out
+        # rather than killed or survived.
+        "t=$(( baseline_ms / 500 ))",
+        '[ "$t" -lt 10 ] && t=10',
+    ]
+
+    for mutant in found:
+        blob = base64.b64encode(mutant.source.encode("utf-8")).decode("ascii")
+        location = shlex.quote(f"{mutant.path}:{mutant.line}")
+        # A multi-line node's edit is reported on one line, so a survivor is
+        # always a single `path:line — edit`.
+        edit = shlex.quote(" ".join(mutant.edit.split()))
+        lines.append(f"printf %s {shlex.quote(blob)} | base64 -d > {shlex.quote(mutant.path)}")
+        lines.append(f'timeout "$t" {command} {named} >/dev/null 2>&1')
+        lines.append("code=$?")
+        lines.append('if [ "$code" -eq 124 ]; then')
+        lines.append(f"  printf 'TIMEOUT\\t%s\\t%s\\n' {location} {edit}")
+        lines.append('elif [ "$code" -eq 0 ]; then')
+        lines.append(f"  printf 'SURVIVED\\t%s\\t%s\\n' {location} {edit}")
+        lines.append("else")
+        lines.append(f"  printf 'KILLED\\t%s\\n' {location}")
+        lines.append("fi")
+
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
+def _verdict(output: str) -> BuiltinOutcome:
+    """*output*'s marker lines as the score (S-0107/D-2): killed, survived and
+    timed-out counts, the score, and every survivor as `path:line — edit`."""
+
+    killed = survived = timed_out = 0
+    survivors: list[str] = []
+
+    for line in output.splitlines():
+        if line == "BASELINE-TIMEOUT":
+            return BuiltinOutcome("error", "the paired tests did not finish a baseline run")
+
+        if line == "BASELINE-RED":
+            return BuiltinOutcome(
+                "skipped",
+                "the paired tests fail on the tree as it stands, which acceptance judges",
+            )
+
+        fields = line.split("\t")
+
+        if fields[0] == "KILLED":
+            killed += 1
+
+        elif fields[0] == "SURVIVED":
+            survived += 1
+            survivors.append(f"{fields[1]} — {fields[2]}")
+
+        elif fields[0] == "TIMEOUT":
+            timed_out += 1
+
+    total = killed + survived + timed_out
+
+    if total == 0:
+        return BuiltinOutcome("skipped", "the mutation run scored no mutant")
+
+    score = killed / total
+    report = (
+        f"mutation score {score:.2f}: killed {killed}, survived {survived}, "
+        f"timed out {timed_out} of {total}"
+    )
+
+    if survivors:
+        report += "\nsurvivors:\n" + "\n".join(survivors)
+
+    if killed == total:
+        return BuiltinOutcome("pass", report)
+
+    return BuiltinOutcome("fail", report, exit_code=1)
+
+
+# ....................... #
+
+
+def check_mutation(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
+    modules = _changed_modules(ctx)
+
+    if not modules:
+        return BuiltinOutcome(
+            "skipped", "the diff changes no Python source line, so nothing is mutated"
+        )
+
+    sources = {
+        path: (ctx.root / path).read_text(encoding="utf-8", errors="replace") for path in modules
+    }
+    found = mutants(ctx.patch, sources, tests=ctx.manifest.tests.patterns, budget=DEFAULT_BUDGET)
+
+    if not found:
+        return BuiltinOutcome("skipped", "the changed lines hold nothing the six operators edit")
+
+    paired = _paired_tests(ctx, modules)
+
+    if not paired:
+        return BuiltinOutcome(
+            "skipped", f"no test pairs with the changed source ({', '.join(modules)})"
+        )
+
+    timeout = gate.timeout or 600.0
+    result = run_command(
+        _script(_command(ctx), paired, found, timeout / 2),
+        ctx.root,
+        timeout,
+        retry_flaky=False,
+        execute=ctx.execute,
+    )
+
+    if result.exit_code is None:
+        return BuiltinOutcome(
+            "error", f"the mutation run did not finish within {timeout:.0f}s\n{result.output}"
+        )
+
+    return _verdict(result.output)

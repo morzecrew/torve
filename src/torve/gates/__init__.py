@@ -10,6 +10,7 @@ from torve.gates.acceptance import check_acceptance
 from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome
 from torve.gates.decisions_reported import check_decisions_reported
+from torve.gates.mutation import check_mutation
 from torve.gates.no_test_tampering import check_no_test_tampering
 from torve.gates.red_on_base import check_red_on_base
 from torve.gates.scope import check_scope
@@ -27,6 +28,7 @@ BUILTINS: dict[str, Builtin] = {
     "acceptance": check_acceptance,
     "no-test-tampering": check_no_test_tampering,
     "red-on-base": check_red_on_base,
+    "mutation": check_mutation,
     "decisions-reported": check_decisions_reported,
     "self-audit": check_self_audit,
     "secrets": check_secrets,
