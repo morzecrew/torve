@@ -80,7 +80,8 @@
     <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
-        <a href="#__skip" class="md-skip">
+        
+        <a href="#decisions-governing-pagesdocsarchitecture" class="md-skip">
           Skip to content
         </a>
       
@@ -779,6 +780,11 @@
                     
                     
                     
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
                   
                   <div class="md-sidebar__inner">
                     
@@ -788,6 +794,42 @@
   
   
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decisions-governing-pagesdocsarchitecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Decisions governing <code>pages/docs/architecture/</code>
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decisions governing pages&#x2f;docs&#x2f;architecture&#x2f;">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#s-0109d-2-assumed-a-conflict-the-served-lane-re-queues-reaches-the-board-implementation-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0109/D-2 — <code>ASSUMED</code> (A conflict the served lane re-queues reaches the board) — implementation: none
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -818,6 +860,14 @@
 
 <!-- torve:managed pages/docs/architecture — rendered from the corpus; do not edit by hand -->
 
+<h2 id="decisions-governing-pagesdocsarchitecture">Decisions governing <code>pages/docs/architecture/</code><a class="headerlink" href="#decisions-governing-pagesdocsarchitecture" title="Permanent link">&para;</a></h2>
+<h3 id="s-0109d-2-assumed-a-conflict-the-served-lane-re-queues-reaches-the-board-implementation-none">S-0109/D-2 — <code>ASSUMED</code> (A conflict the served lane re-queues reaches the board) — implementation: none<a class="headerlink" href="#s-0109d-2-assumed-a-conflict-the-served-lane-re-queues-reaches-the-board-implementation-none" title="Permanent link">&para;</a></h3>
+<p><code>task.requeued</code> may be written by the manager only, and <code>task.returned</code> stays the operator's (S-0044/A-13).</p>
+<ul>
+<li>Paths: <code>src/torve/domain/events.py</code> <code>pages/docs/architecture/record.md</code></li>
+<li>Consequence: the record tells a mechanical disposal apart from a person sending judged work back</li>
+<li>Check: <code>uv run pytest tests/test_events.py tests/test_docs.py -q</code> (shadow; runs as <code>decision:S-0109/D-2</code>, no log entry owed)</li>
+</ul>
 <!-- /torve:managed -->
 
 
