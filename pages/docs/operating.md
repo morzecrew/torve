@@ -1055,10 +1055,13 @@ not, because landing advances this checkout and a pause is a statement that
 nobody has capacity to look at what advancing produces (S-0052/D-3).
 
 Under `landing: pull_request` the paused pass still runs the lane
-(S-0108/D-1): a green candidate lands on its own branch, the completion
-battery runs and its pull request is republished, so one escalation no longer
-holds every green sibling and the phases behind them while a person answers
-it. The base is not moved here either, so nothing a person has to triage
+(S-0108/D-1): a green candidate lands on its task or document branch, the
+completion battery runs and its pull request is republished, so one escalation
+no longer holds every green sibling and the phases behind them while a person
+answers it. Where the review-thread leg reads recorded findings (`threads.enabled`
+with the `record` source), a red battery during a pause records its finding, and the
+round about it opens on the first pass that is not paused; elsewhere the completing
+task escalates, as it does outside a pause. The base is not moved here either, so nothing a person has to triage
 advances. Whatever the landing mode, a pause still stops the mint, the
 standing leg and the review-thread leg, which add work somebody has to
 triage, and the relay still runs (S-0108/D-2). Which mode runs the lane

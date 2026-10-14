@@ -717,7 +717,7 @@ The gate's score and survivors ride the record's `gates.evaluated`, so `torve wh
 - Consequence: an author sees which phases' tests notice their own changes going wrong
 - Check: `uv run pytest tests/test_specquality.py -q -k mutation` (shadow; runs as `decision:S-0107/D-3`, no log entry owed)
 
-### S-0108/D-1 — `ASSUMED` (A pause stops new work, not a landing that waits for a review) — implementation: none
+### S-0108/D-1 — `ASSUMED` (A pause stops new work, not a landing that waits for a review)
 
 Under `promotion.landing: pull_request` a paused pass runs the lane leg: green candidates land on their branches, the completion battery runs, and the pull request is republished. Under `promotion.landing: local` the pause stops the lane, as S-0052/D-3 says. The landing mode is the manager's to pass to the pass; `residency` does not read configuration.
 
