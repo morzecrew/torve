@@ -45,7 +45,7 @@ from torve.config.runconfig import (
     SkillsConfig,
     TierConfig,
 )
-from torve.domain.attempt import Finding
+from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Scope, Task
 
@@ -818,6 +818,42 @@ def test_the_review_prompt_lists_a_promotion():
 
     # A diff that widened nothing says nothing about promotions.
     assert "widened beyond" not in build_review_prompt(target, "diff --git a/x b/x", [])
+
+
+def test_the_review_prompt_names_a_survivor_and_its_covering_row():
+    """S-0107/D-4: the reviewer is shown the wrong implementations the mutation
+    gate left alive, each beside the decision rows whose paths cover its line,
+    as evidence for the S-0106/D-5 audit. A survivor is never a finding by
+    itself, and a battery with no reading shows nothing."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[
+            InheritedDecision(id="S-0107/D-1", grade="ASSUMED", text="x", paths=["src/a.py"])
+        ],
+    )
+    result = GateResult(
+        name="mutation",
+        outcome="fail",
+        state="shadow",
+        output=(
+            "mutation score 0.75: killed 9, survived 2, timed out 0 of 12\n"
+            "survivors:\n"
+            "src/a.py:12 — x < y -> x <= y\n"
+            "src/b.py:3 — return x -> return None"
+        ),
+    )
+    prompt = build_review_prompt(target, "diff --git", [result])
+
+    assert "src/a.py:12 — x < y -> x <= y" in prompt
+    assert "rows covering this line: S-0107/D-1" in prompt
+    # A survivor on a line no declared row governs names no row, never invents one.
+    assert "src/b.py:3 — return x -> return None" in prompt
+    assert "rows covering this line: none" in prompt
+
+    # No mutation reading, nothing claimed.
+    assert "survivor" not in build_review_prompt(target, "diff --git", [])
 
 
 def test_the_audit_lists_a_checked_rows_check_and_twin_with_the_two_questions():

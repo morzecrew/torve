@@ -1032,6 +1032,13 @@ def burn_population(
 RECORDED_OUTPUT = 4000
 _RED = ("fail", "error")
 
+# A truncated red result keeps its tail, where the failure is. The `mutation`
+# gate (S-0107/D-2) is the exception: its report opens with the score line and
+# its survivors can run past the bound, so the tail alone would drop the score
+# exactly when the tests are weakest — the one reading `torve why` and the
+# quality report are for (S-0107/D-3). Its first line is kept beside the tail.
+_HEAD_LINE_GATES = ("mutation",)
+
 
 def _recorded_result(result: GateResult) -> dict[str, Any]:
     row = result.model_dump()
@@ -1040,7 +1047,9 @@ def _recorded_result(result: GateResult) -> dict[str, Any]:
     if result.outcome not in _RED:
         row["output"] = ""
     elif len(output) > RECORDED_OUTPUT:
-        row["output"] = output[-RECORDED_OUTPUT:]
+        tail = output[-RECORDED_OUTPUT:]
+        head = output.split("\n", 1)[0] if result.name in _HEAD_LINE_GATES else ""
+        row["output"] = f"{head}\n{tail}" if head else tail
 
     return row
 

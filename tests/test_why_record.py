@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
+from typer.testing import CliRunner
 
 from torve.application.manager import Board, project
 from torve.application.projections import (
@@ -30,6 +31,7 @@ from torve.application.projections import (
 )
 from torve.application.runstate import RunState
 from torve.base import naming
+from torve.cli import app
 from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 from torve.domain.states import TaskState
 from torve.domain.task import Task
@@ -193,6 +195,97 @@ def test_the_record_answers_the_whole_envelope(tmp_path):
     assert envelope["spec"] == "S-0050"
     assert [one["attempt"] for one in envelope["attempts"]] == [1]
     assert [one["event"] for one in envelope["events"]] == ["escalation"]
+
+
+# ....................... #
+
+
+def _why_payload(**extra) -> dict:
+    return {
+        "attempt": 1,
+        "verdict": "gates_red",
+        "exit_code": 1,
+        "results": [],
+        "agent": {"tier": "executor", "adapter": "harness", "attempt": 1, "cost_usd": 1.0},
+        **extra,
+    }
+
+
+def _write_why_attempt(root: Path, payload: dict) -> None:
+    from torve.application.telemetry import append_record, record_row
+
+    _write_contract(root)
+    append_record(
+        root / ".torve" / "telemetry.jsonl",
+        record_row(payload, task_id=TASK_ID, at="2026-09-05T10:00:00Z"),
+    )
+
+
+def test_why_reads_the_mutation_score_off_the_attempt(tmp_path):
+    """S-0107/D-3: the gate's score rides the record's `gates.evaluated`, so
+    `why` shows it — and an attempt whose battery produced no reading carries
+    no such key, so it shows nothing."""
+
+    scoring = _why_payload(
+        results=[
+            {
+                "name": "mutation",
+                "outcome": "fail",
+                "state": "shadow",
+                "output": (
+                    "mutation score 0.75: killed 9, survived 3, timed out 0 of 12\n"
+                    "survivors:\n"
+                    "src/a.py:12 — x < y -> x <= y"
+                ),
+            }
+        ],
+    )
+    envelope = why_report(
+        tmp_path, TASK_ID, recorded=[minted(), event(EventKind.GATES_EVALUATED, scoring)]
+    )
+
+    assert envelope["attempts"][0]["mutation"] == {
+        "score": 0.75,
+        "survivors": ["src/a.py:12 — x < y -> x <= y"],
+    }
+
+    silent = why_report(
+        tmp_path,
+        TASK_ID,
+        recorded=[minted(), event(EventKind.GATES_EVALUATED, _why_payload())],
+    )
+
+    assert "mutation" not in silent["attempts"][0]
+
+
+def test_why_renders_the_mutation_score_and_nothing_when_absent(tmp_path):
+    _write_why_attempt(
+        tmp_path,
+        _why_payload(
+            results=[
+                {
+                    "name": "mutation",
+                    "outcome": "fail",
+                    "state": "shadow",
+                    "output": (
+                        "mutation score 0.75: killed 9, survived 3, timed out 0 of 12\n"
+                        "survivors:\n"
+                        "src/a.py:12 — x < y -> x <= y"
+                    ),
+                }
+            ],
+        ),
+    )
+    scored = CliRunner().invoke(app, ["why", TASK_ID, "--root", str(tmp_path)])
+
+    assert "mutation 0.75" in scored.output
+    assert "1 survived" in scored.output
+
+    clean_root = tmp_path / "clean"
+    _write_why_attempt(clean_root, _why_payload())
+    silent = CliRunner().invoke(app, ["why", TASK_ID, "--root", str(clean_root)])
+
+    assert "mutation" not in silent.output
 
 
 # ....................... #

@@ -43,6 +43,7 @@ from torve.application.ports import (
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.base.clock import stamp
+from torve.base.globs import matches
 from torve.config import layout
 from torve.config.runconfig import (
     RunnerConfig,
@@ -53,7 +54,7 @@ from torve.config.runconfig import (
     sandbox_timeout_for,
     tier_for,
 )
-from torve.domain.attempt import Finding, GateResult
+from torve.domain.attempt import Finding, GateResult, mutation_reading
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
 from torve.gates.evidence import CITATION, filter_findings
@@ -128,6 +129,37 @@ def _inherited_decisions(decisions: list[InheritedDecision]) -> str:
     return "\n".join(lines)
 
 
+def mutation_survivors(gate_results: list[GateResult], decisions: list[InheritedDecision]) -> str:
+    """The survivors the `mutation` gate left, each beside the decision rows
+    whose paths cover its line (S-0107/D-4) — the real wrong implementations
+    that passed, for the reviewer to grade under S-0106/D-5's audit. A
+    survivor is never a finding by itself, and a battery that produced no
+    reading adds nothing."""
+
+    lines: list[str] = []
+
+    for result in gate_results:
+        reading = mutation_reading(result.model_dump())
+
+        if reading is None:
+            continue
+
+        for survivor in cast("list[str]", reading["survivors"]):
+            path = survivor.split(" — ", 1)[0].rsplit(":", 1)[0]
+            covering = [row.id for row in decisions if matches(path, row.paths)]
+            lines.append(f"- {survivor}")
+            lines.append("  rows covering this line: " + (", ".join(covering) or "none"))
+
+    if not lines:
+        return ""
+
+    return (
+        "\n\nThe mutation gate left these edits alive — wrong implementations "
+        "the paired tests did not notice. A survivor is evidence for the audit "
+        "below, never a finding by itself; grade it.\n\n" + "\n".join(lines)
+    )
+
+
 def build_review_prompt(
     target: Task,
     diff_text: str,
@@ -146,6 +178,10 @@ def build_review_prompt(
     gates_summary = (
         "\n".join(f"- {r.name}: {r.outcome}" for r in gate_results) or "- (none recorded)"
     )
+    # S-0107/D-4: the survivors ride beside the gate results, each with the
+    # rows whose paths cover its line, so the reviewer grades a real wrong
+    # implementation rather than imagining one.
+    survivors_block = mutation_survivors(gate_results, target.decisions)
 
     decisions = _inherited_decisions(target.decisions)
 
@@ -209,7 +245,7 @@ attempt. Do not spend the window discovering that.
 
 ## Gate results
 
-{gates_summary}
+{gates_summary}{survivors_block}
 
 ## What the engine knows
 
