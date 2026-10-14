@@ -1436,6 +1436,26 @@ def test_mutation_gate_scores_a_module_larger_than_one_shell_argument(repo, muta
     assert "score 1.00" in outcome.output
 
 
+def test_mutation_gate_restores_a_module_whose_name_begins_with_a_dash(repo, mutation_gate):
+    # `cp -app.py` reads the name as options; the restore must not, or the
+    # module would stay on one mutant while the next is applied over it. Under
+    # tests that assert nothing every mutant survives, so a stacked edit that
+    # breaks the module shows as a kill.
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("-app.py", MUTATION_APP)
+    repo.write(
+        "tests/test_-app.py",
+        MUTATION_WEAK_TEST.replace('parents[1] / "src"', "parents[1]").replace(
+            "from app import f", 'f = __import__("-app").f'
+        ),
+    )
+    repo.commit("a module named with a dash")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert "killed 0, survived 9" in outcome.output, outcome.output
+
+
 def test_mutation_gate_runs_a_launcher_written_as_a_shell_line(repo, mutation_gate, monkeypatch):
     import shlex
     import sys

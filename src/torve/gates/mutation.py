@@ -431,7 +431,8 @@ def _script(command: str, files: list[str], found: list[Mutant], timeout_s: floa
 
     for path in sorted({mutant.path for mutant in found}):
         quoted = shlex.quote(path)
-        lines.append(f'mkdir -p "$keep/$(dirname {quoted})" && cp {quoted} "$keep"/{quoted}')
+        # `--` ends the options: a repository path may begin with a dash.
+        lines.append(f'mkdir -p "$keep/$(dirname -- {quoted})" && cp -- {quoted} "$keep"/{quoted}')
 
     lines += [
         "start=$(date +%s%N)",
@@ -452,7 +453,7 @@ def _script(command: str, files: list[str], found: list[Mutant], timeout_s: floa
     for index, mutant in enumerate(found):
         quoted = shlex.quote(mutant.path)
         new = base64.b64encode(mutant.new.encode("utf-8")).decode("ascii")
-        restore = f'cp "$keep"/{quoted} {quoted}'
+        restore = f'cp -- "$keep"/{quoted} {quoted}'
         lines += [
             'if [ $(( $(date +%s) + t )) -ge "$deadline" ]; then',
             f"  echo 'U {index}'",
