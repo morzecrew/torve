@@ -6,7 +6,7 @@ kind: design
 change:
   type: fix
   scope: lane
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0079]
 informed_by: [S-0006, S-0044]
@@ -76,3 +76,5 @@ questions:
       A new `task.requeued` kind written by the manager, or widen `task.returned`'s
       authority to the manager with a `by: engine` field? Lean: a new kind; the record
       already keeps `task.released` and `task.returned` apart for the same reason.
+    status: settled
+    settled_by: D-2
