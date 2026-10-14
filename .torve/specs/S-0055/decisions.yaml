@@ -628,7 +628,7 @@ invariants:
   - id: I-4
     statement: The typing floor over src holds
     paths: [src/torve/**]
-    check: uv run mypy src && uv run basedpyright src
+    check: uv run mypy src
   - id: I-5
     statement: The suite is green
     paths: [src/torve/**, tests/**]

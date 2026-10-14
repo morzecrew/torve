@@ -62,3 +62,21 @@ amendments:
       record and predicted nothing. Decomposition itself is unchanged and is now the
       operator's to ask for with `torve decompose`. The estimate still judges drafts
       (S-0089/D-5).
+  - id: A-4
+    at: '2026-10-14T11:00:00Z'
+    title: >-
+      The typing floor is mypy's, as S-0014/D-14 records
+    changes:
+      - subject: I-4
+        field: check
+        before: uv run mypy src && uv run basedpyright src
+        after: uv run mypy src
+    md: >-
+      S-0014/A-2 retired `basedpyright` on 2026-08-27 and made `mypy src` the one
+      checker of record: two strict checkers over one tree bought disagreement, not
+      depth, and the `[tool.pyright]` block in `pyproject.toml` stays for editors
+      only. I-4 was written on 2026-09-09, when the specifications became directories,
+      and carried the retired checker along. Its check never ran until S-0106 put
+      invariant checks in the completion battery, where it has failed on every document
+      since, on 187 findings `mypy` does not share. The check now runs what D-14 names.
+      The findings are the editor's to clear over time; no gate waits on them.

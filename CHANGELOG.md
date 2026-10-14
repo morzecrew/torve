@@ -155,6 +155,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The typing invariant a completion battery runs (S-0055/I-4) checks `mypy src` only, the
+  checker of record since `basedpyright` was retired (S-0014/D-14). It still named
+  `basedpyright` and failed every document's battery on 187 findings `mypy` does not
+  share.
+
 - A conflict the served lane re-queues reaches the board. The manager records
   `task.requeued`, a fact only the manager writes, for every run the conflict disposal
   left queued, reconciled from the run-state files on every pass, and the revision
