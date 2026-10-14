@@ -242,6 +242,53 @@ non-zero, and `torve spec check` refuses a blocking row that names no twin,
 as the planner already refuses one at mint (S-0106/D-3). A row is never
 blocking on a check nobody has shown can fail.
 
+### The mutation score
+
+A green battery says the tests pass; it does not say they would fail if the
+change were wrong. The `mutation` gate asks that directly (S-0107/D-1,
+S-0107/D-2). It reads the candidate's changed Python lines and enumerates
+mutants — one edit to one AST node per mutant, from six operators: a
+comparison flipped, a boolean operator swapped, an arithmetic operator
+swapped, a constant moved by one, a condition negated, a return replaced by
+`None`. A line the diff did not add or change is never mutated, and a test
+file is never mutated, so every mutant names the attempt's own code.
+
+The gate samples at most `budget` mutants (default 30) with a seed derived
+from the diff, so one change always yields the same mutants and the score
+costs a bounded, repeatable amount (S-0107/D-2). Each mutant is applied in a
+scratch copy of the worktree — the tree under judgment is never written — and
+the task's paired tests are rerun against it under a timeout of twice their
+baseline run, and never under ten seconds, through the manifest's `tests.run`.
+A mutant starts only if it can finish within the gate's own timeout; any left
+over are reported as not run, and the score is over the mutants that ran. The
+gate reports killed, survived and timed-out counts, the score, and every
+survivor as `path:line — edit`. A change with no Python source line, or whose changed
+lines hold nothing the six operators edit, or with no paired test, is skipped
+with the reason rather than scored.
+
+A **survivor** is a wrong implementation the paired tests did not notice: the
+mutated code ran and the tests still passed. It is evidence, never a verdict,
+because a survivor can be an equivalent mutant — an edit that changes no
+behaviour, such as a comparison on a line a sentinel value cannot reach. The
+score is the share of mutants killed, so a score of 1 means every sampled edit
+was caught and an empty survivor list is the whole of that. The gate is
+**shadow**: it reports a score, and does not fail an attempt on one until a
+soak says what score is honest (S-0107/D-2).
+
+The score and its survivors ride the record's `gates.evaluated`, so `torve
+why` shows the score beside the attempt and the spec quality report gives a
+score per phase and per document — the author's view of which phases' tests
+notice their own changes going wrong (S-0107/D-3). The review prompt lists
+each survivor with the decision rows whose paths cover its line, as evidence
+for the check audit above: a survivor is never a finding by itself, and the
+reviewer grades it (S-0107/D-4).
+
+The gate is sabotaged like every other. Its case carries two twins: a change
+whose tests assert nothing scores 0 with every mutant a survivor, and a change
+whose tests pin each line scores 1 (S-0107/D-5). The pair proves the gate can
+tell a weak test from a strong one, which is what a score that never moved
+would hide.
+
 The same battery carries the document's **invariants**. A standing
 invariant — an `I-n` with a `statement`, `paths` and a `check` — enters as
 an `invariant:<id>` gate, always shadow: an invariant is a statement to read,

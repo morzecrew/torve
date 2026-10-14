@@ -642,6 +642,77 @@ def _coverage_legacy_unconvicted(repo: Repo) -> None:
 
 # ....................... #
 
+# The `mutation` builtin gate (S-0107/D-2), sabotaged for real: a source module
+# whose tests pin every line must kill every mutant, and the same module beside
+# tests that assert nothing must let every one live. The scratch run copies a
+# whole worktree and shells out to the test launcher, so the tools it needs are
+# declared and the case skips rather than convicting an environment.
+
+MUTATION_MANIFEST: dict[str, Any] = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    # The scratch repository is not a uv project, so the launcher is the
+    # installed `pytest` (as the coverage cases do).
+    "tests": {"run": "pytest -q -p no:cacheprovider"},
+    "gates": [
+        {
+            "name": "mutation",
+            "run": "@mutation",
+            "state": "blocking",
+            "origin": "S-0107",
+            "timeout": 120,
+        }
+    ],
+}
+
+MUTATION_REQUIRES = ("pytest", "tar", "timeout", "python3", "date")
+
+# Every operator has a node on a changed line: two comparisons and the `and`
+# joining them on the `if`, its condition, an arithmetic operator and two
+# constants, and two returns.
+MUTATION_APP = "def f(a, b):\n    if a < b and b > 0:\n        return a + 1\n    return b\n"
+
+_MUTATION_TEST_HEAD = (
+    "import sys\n"
+    "from pathlib import Path\n\n"
+    'sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))\n'
+    "from app import f  # noqa: E402\n\n\n"
+)
+
+# Exercises the source and asserts nothing, so no mutant can be noticed.
+MUTATION_WEAK_TEST = _MUTATION_TEST_HEAD + "def test_app():\n    f(1, 2)\n"
+
+# Pins every line: both boundaries (`a < b` at 2, 2; `b > 0` at -5, 0), the
+# `and` (3, 2 holds only the right side), the arithmetic and the constants, and
+# both returns' values.
+MUTATION_STRONG_TEST = _MUTATION_TEST_HEAD + (
+    "def test_app():\n"
+    "    assert f(1, 2) == 2\n"
+    "    assert f(2, 2) == 2\n"
+    "    assert f(3, 2) == 2\n"
+    "    assert f(-5, 0) == 0\n"
+    "    assert f(-1, 1) == 0\n"
+)
+
+
+def _mutation_weak(repo: Repo) -> None:
+    # A change whose tests assert nothing scores 0: every mutant survives.
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", MUTATION_APP)
+    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
+    repo.commit("weak tests")
+
+
+def _mutation_strong(repo: Repo) -> None:
+    # The clean twin: tests that pin each line kill every mutant.
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", MUTATION_APP)
+    repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
+    repo.commit("strong tests")
+
+
+# ....................... #
+
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
@@ -725,6 +796,20 @@ CASES: list[Case] = [
         "pass",
         _coverage_legacy_unconvicted,
         requires=("pytest", "diff-cover"),
+    ),
+    Case(
+        "mutation: tests that assert nothing let every mutant live",
+        "mutation",
+        "fail",
+        _mutation_weak,
+        requires=MUTATION_REQUIRES,
+    ),
+    Case(
+        "mutation: tests that pin each line kill every mutant",
+        "mutation",
+        "pass",
+        _mutation_strong,
+        requires=MUTATION_REQUIRES,
     ),
 ]
 

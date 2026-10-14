@@ -17,6 +17,7 @@ def test_every_gate_has_a_red_case_and_a_green_case():
         "secrets",
         "source-layout",
         "coverage-delta",
+        "mutation",
     ):
         expectations = {c.expected for c in CASES if c.gate == gate}
         assert "fail" in expectations, f"{gate} has no sabotage case"
@@ -176,3 +177,29 @@ def test_sabotage_suite_behaves():
     outcomes = run_all()
     misbehaved = [f"{o.name}: expected {o.expected}, got {o.got}" for o in outcomes if not o.ok]
     assert not misbehaved, "\n".join(misbehaved)
+
+
+def test_the_mutation_case_tells_a_weak_suite_from_a_strong_one():
+    """S-0107/D-5: the sabotage suite's mutation case — a change whose tests
+    assert nothing scores 0 with every mutant a survivor, and a change whose
+    tests pin each line scores 1. The two are the gate's proof that it can tell
+    a weak test from a strong one, so the case carries both directions."""
+    from torve.gates.sabotage import run_case
+
+    cases = [case for case in CASES if case.gate == "mutation"]
+    assert {case.expected for case in cases} == {"fail", "pass"}
+
+    import shutil
+
+    for case in cases:
+        # Only an environment without the case's tools skips it; a gate that
+        # skipped (a red baseline, no mutant) is the case failing.
+        missing = [tool for tool in case.requires if shutil.which(tool) is None]
+
+        if missing:
+            pytest.skip("absent from this environment: " + ", ".join(missing))
+
+        outcome = run_case(case)
+
+        assert outcome.ok, outcome.detail
+        assert outcome.got == case.expected

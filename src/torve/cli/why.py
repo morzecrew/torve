@@ -100,6 +100,15 @@ def _attempt_line(entry: dict[str, Any]) -> Text:
     if entry.get("convictions"):
         line.append(f" · convicted: {', '.join(entry['convictions'])}", style=STYLE_FAIL)
 
+    mutation = entry.get("mutation")
+
+    if isinstance(mutation, dict):
+        survivors = mutation.get("survivors")
+        line.append(f" · mutation {float(mutation['score']):.2f}", style=STYLE_DIM)
+
+        if isinstance(survivors, list) and survivors:
+            line.append(f" · {len(survivors)} survived", style=STYLE_FAIL)
+
     if entry.get("gates_run") is False:
         line.append(" · gates never ran", style=STYLE_DIM)
 

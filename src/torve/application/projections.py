@@ -39,6 +39,7 @@ from torve.base.clock import parse, stamp
 from torve.config import layout, spec
 from torve.config.manifest import UNLABELED_AXIS, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
+from torve.domain.attempt import mutation_reading
 from torve.domain.events import EventKind
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, Task
@@ -1617,6 +1618,23 @@ def _attempt_entry(rows: list[dict[str, Any]], attempt: int | None, root: Path) 
                         convictions.append(name)
 
     entry["convictions"] = convictions
+
+    # S-0107/D-3: the `mutation` gate's own score and survivors, the later row
+    # winning the fold the way scalars do above. Absent when no attempt's
+    # battery produced a reading, so a task with no mutation result shows
+    # nothing rather than a fabricated zero.
+    for row in rows:
+        results = row.get("results")
+
+        if not isinstance(results, list):
+            continue
+
+        for result in cast("list[object]", results):
+            if isinstance(result, dict):
+                reading = mutation_reading(cast("dict[str, Any]", result))
+
+                if reading is not None:
+                    entry["mutation"] = reading
 
     agent: dict[str, Any] = {}
 

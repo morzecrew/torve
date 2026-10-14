@@ -6,6 +6,8 @@ model, decides whether one stops the work (S-0001/D-10).
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -54,6 +56,52 @@ class GateResult(BaseModel):
     bypass: BypassRecord | None = None
     flaky_commands: list[str] = Field(default_factory=list)
     quarantined_failures: list[str] = Field(default_factory=list)
+
+
+# ....................... #
+
+# The `mutation` gate's report line (S-0107/D-2): `mutation score 0.75: ...`.
+_MUTATION_SCORE = re.compile(r"mutation score ([0-9]*\.?[0-9]+):")
+
+
+def mutation_reading(result: Mapping[str, object]) -> dict[str, object] | None:
+    """The `mutation` gate's reading of one recorded result (S-0107/D-3): the
+    score and the survivors the gate reported, parsed from the record a reader
+    already holds. A result that produced no score — a gate skipped, or one
+    that errored before the mutants ran — has no reading, so a reader shows
+    nothing rather than a zero (the absent-is-absent rule of S-0004/D-6)."""
+
+    if str(result.get("name") or "") != "mutation":
+        return None
+
+    outcome = str(result.get("outcome") or "")
+
+    if outcome == "pass":
+        # Every sampled mutant died, so the score is one and nothing survived.
+        # A green result's output is not kept, but the verdict is the fact.
+        return {"score": 1.0, "survivors": []}
+
+    if outcome != "fail":
+        return None
+
+    score: float | None = None
+    survivors: list[str] = []
+
+    # Both are read by shape, not by position: the record keeps only a red
+    # output's tail, so the head line carrying the score and the `survivors:`
+    # marker can both fall outside what survives. The score line names the
+    # gate's sums, every survivor line is `path:line — edit`, and nothing
+    # else carries the em-dash separator.
+    for line in str(result.get("output") or "").splitlines():
+        found = _MUTATION_SCORE.match(line)
+
+        if found:
+            score = float(found.group(1))
+
+        elif " — " in line:
+            survivors.append(line)
+
+    return None if score is None else {"score": score, "survivors": survivors}
 
 
 # ....................... #

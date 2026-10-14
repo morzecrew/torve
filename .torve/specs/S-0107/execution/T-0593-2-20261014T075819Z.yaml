@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0593
+phase: 3
+attempt: 2
+base: bb40ce42c2bed88cddb802e4e1c92977fe7055ef
+commit: 76cce0aef16d5568a05102dd1fe79d979d4d7183
+at: '2026-10-14T07:58:19Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-14T07:41:47Z'
+    claim: >-
+      S-0107/D-3 asks the specification-quality report for a score 'per phase and
+      per document' but does not say how a document's score is derived from its phases';
+      the report now derives it as the arithmetic mean of its phases' scores.
+    evidence: >-
+      src/torve/application/specquality.py:684-689 — summed scores are divided by
+      the phase count, so a document's score is the mean of its phases'
+    action: decided
+    proposal: >-
+      S-0107/D-3 should state the document aggregation: a document's score is the
+      arithmetic mean of its phases' mutation scores, and a phase with no reading
+      contributes none.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-14T07:41:47Z'
+    claim: >-
+      S-0107/D-3 does not say which attempt's score represents a phase whose several
+      attempts each ran the mutation gate; the report now takes the latest recorded
+      reading.
+    evidence: >-
+      src/torve/application/specquality.py:673 — the stream is walked in append order
+      and each reading overwrites the phase's, so the last row wins
+    action: decided
+    proposal: >-
+      S-0107/D-3 should say a phase's score is its latest recorded mutation reading,
+      matching the record's append order.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-14T07:52:29Z'
+    attempt: 2
+    claim: >-
+      S-0107/D-3 says the gate's score and survivors ride the record's gates.evaluated,
+      but the record keeps only the last RECORDED_OUTPUT characters of a red result's
+      output, so a mutation report long enough to be truncated loses the head line
+      carrying its score. The record now keeps the mutation gate's first line beside
+      the tail, and the reading parses the score and the survivors by shape rather
+      than by position.
+    evidence: >-
+      src/torve/application/telemetry.py:1051 — the gate named mutation keeps its
+      first line beside the tail; src/torve/domain/attempt.py:101 is where a survivor
+      is recognised by its em-dash separator
+    action: decided
+    proposal: >-
+      S-0107/D-3 should say the reading survives the record's output bound: the mutation
+      gate's report head is kept beside the tail, and its score and survivors are
+      read by shape, so a phase whose tests are weakest still reports its score rather
+      than vanishing as if the gate never ran.

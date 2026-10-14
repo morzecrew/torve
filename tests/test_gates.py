@@ -7,7 +7,16 @@ from conftest import context_for
 
 from torve.config.manifest import Gate
 from torve.gates.decisions_reported import check_decisions_reported, parse_log
-from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, entry, log_document
+from torve.gates.sabotage import (
+    BASE_MANIFEST,
+    MUTATION_APP,
+    MUTATION_STRONG_TEST,
+    MUTATION_WEAK_TEST,
+    TASK_ID,
+    base_task,
+    entry,
+    log_document,
+)
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 
@@ -1281,3 +1290,230 @@ def test_red_on_base_qualifies_an_unparseable_test_source_whole(repo, red_on_bas
 
     assert outcome.outcome == "pass", outcome.output
     assert "tests/test_core.py" in outcome.output
+
+
+# ----------------------- #
+# `mutation`: the attempt's own tests did not notice its source going wrong
+# (S-0107/D-1, S-0107/D-2).
+
+MUTATION_GATE = Gate(
+    name="mutation", run="@mutation", state="shadow", origin="S-0107", input="worktree", timeout=120
+)
+
+MUTATION_MANIFEST = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "gates": [
+        {
+            "name": "mutation",
+            "run": "@mutation",
+            "state": "shadow",
+            "origin": "S-0107",
+            "input": "worktree",
+            "timeout": 120,
+        }
+    ],
+}
+
+
+@pytest.fixture
+def mutation_gate(monkeypatch):
+    """The gate with its launcher pointed at this interpreter, so the scratch
+    repository's paired tests run without the project's own launcher."""
+
+    import shlex
+    import sys
+
+    from torve.gates import mutation as module
+
+    launcher = f"{shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
+    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
+
+    return module.check_mutation
+
+
+def _mutation_attempt(repo, source: str, test: str) -> None:
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", source)
+    repo.write("tests/test_app.py", test)
+    repo.commit("the attempt")
+
+
+def _digest(root: Path) -> dict[str, str]:
+    import hashlib
+
+    # The worktree's files, not git's own: git's background maintenance writes
+    # under `.git` whenever it likes, and the gate never touches it.
+    return {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and ".git" not in path.relative_to(root).parts
+    }
+
+
+def test_mutation_gate_scores_a_suite_that_pins_every_line_one(repo, mutation_gate):
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "pass", outcome.output
+    assert "score 1.00" in outcome.output
+    assert "survived 0" in outcome.output
+
+
+def test_mutation_gate_scores_a_suite_that_asserts_nothing_zero(repo, mutation_gate):
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_WEAK_TEST)
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "fail", outcome.output
+    assert "score 0.00" in outcome.output
+
+    # Every mutant survived, and every one of them is named as a survivor.
+    header, _, listed = outcome.output.partition("survivors:\n")
+    survivors = [line for line in listed.splitlines() if line.strip()]
+
+    assert "survived 9" in header
+    assert len(survivors) == 9
+    assert all("src/app.py:" in line and " — " in line for line in survivors), survivors
+
+
+def test_mutation_gate_skips_a_change_with_no_python_source(repo, mutation_gate):
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
+    repo.commit("a test-only change")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped", outcome.output
+    assert "no Python source" in outcome.output
+
+
+def test_mutation_gate_skips_a_change_with_no_paired_tests(repo, mutation_gate):
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", MUTATION_APP)
+    (repo.root / "tests" / "test_app.py").unlink()
+    repo.commit("a change with no test to score it")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped", outcome.output
+    assert "no test pairs" in outcome.output
+
+
+def test_mutation_gate_puts_each_file_back_before_the_next_mutant(repo, mutation_gate):
+    # `a.py`'s tests pin it and `b.py`'s assert nothing. Were `a.py` left on its
+    # last mutant, its test would fail under every `b.py` mutant and call them
+    # killed.
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/a.py", MUTATION_APP)
+    repo.write("src/b.py", MUTATION_APP)
+    repo.write("tests/test_a.py", MUTATION_STRONG_TEST.replace("from app import", "from a import"))
+    repo.write("tests/test_b.py", MUTATION_WEAK_TEST.replace("from app import", "from b import"))
+    repo.commit("two modules")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    _, _, listed = outcome.output.partition("survivors:\n")
+    survivors = [line for line in listed.splitlines() if line.strip()]
+
+    assert "killed 9, survived 9" in outcome.output, outcome.output
+    assert all(line.startswith("src/b.py:") for line in survivors), survivors
+
+
+def test_mutation_gate_scores_a_module_larger_than_one_shell_argument(repo, mutation_gate):
+    # The run carries edits, not files: a module past the kernel's 128 KB cap on
+    # one argument is scored like any other.
+    padding = '"""' + "x" * 200_000 + '"""\n'
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", padding + MUTATION_APP)
+    repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
+    repo.commit("a large module")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "pass", outcome.output
+    assert "score 1.00" in outcome.output
+
+
+def test_mutation_gate_restores_a_module_whose_name_begins_with_a_dash(repo, mutation_gate):
+    # `cp -app.py` reads the name as options; the restore must not, or the
+    # module would stay on one mutant while the next is applied over it. Under
+    # tests that assert nothing every mutant survives, so a stacked edit that
+    # breaks the module shows as a kill.
+    repo.seed(MUTATION_MANIFEST)
+    repo.write("-app.py", MUTATION_APP)
+    repo.write(
+        "tests/test_-app.py",
+        MUTATION_WEAK_TEST.replace('parents[1] / "src"', "parents[1]").replace(
+            "from app import f", 'f = __import__("-app").f'
+        ),
+    )
+    repo.commit("a module named with a dash")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert "killed 0, survived 9" in outcome.output, outcome.output
+
+
+def test_mutation_gate_runs_a_launcher_written_as_a_shell_line(repo, mutation_gate, monkeypatch):
+    import shlex
+    import sys
+
+    from torve.gates import mutation as module
+
+    launcher = f"cd . && {shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
+    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "pass", outcome.output
+
+
+def test_mutation_gate_never_mutates_through_a_symlink(repo, mutation_gate, tmp_path):
+    # A module reached through a link would be written through it, outside the
+    # scratch copy. A link's diff is its one line, so the target's first line
+    # is where the mutants would land.
+    source = "f = lambda a, b: a + 1 if a < b else b\n"
+    outside = tmp_path / "outside.py"
+    outside.write_text(source, encoding="utf-8")
+    repo.seed(MUTATION_MANIFEST)
+    linked = repo.root / "src" / "app.py"
+    linked.parent.mkdir(exist_ok=True)
+    linked.unlink(missing_ok=True)
+    linked.symlink_to(outside)
+    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
+    repo.commit("a linked module")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped", outcome.output
+    assert outside.read_text(encoding="utf-8") == source
+
+
+def test_a_mutation_run_missing_a_marker_is_an_error_not_a_score():
+    from torve.gates.mutation import _verdict, mutants
+
+    patch = (
+        "diff --git a/src/app.py b/src/app.py\n--- /dev/null\n+++ b/src/app.py\n"
+        "@@ -0,0 +1,4 @@\n" + "".join(f"+{line}\n" for line in MUTATION_APP.splitlines())
+    )
+    found = mutants(patch, {"src/app.py": MUTATION_APP})
+    # Every marker but the last: the output was cut short.
+    output = "\n".join(f"K {index}" for index in range(len(found) - 1))
+
+    outcome = _verdict(output, found)
+
+    assert outcome.outcome == "error"
+    assert f"reported {len(found) - 1} of {len(found)}" in outcome.output
+
+
+def test_mutation_gate_leaves_the_worktree_byte_identical(repo, mutation_gate):
+    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
+
+    before = _digest(repo.root)
+    mutation_gate(MUTATION_GATE, context_for(repo))
+    after = _digest(repo.root)
+
+    assert after == before

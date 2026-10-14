@@ -228,6 +228,130 @@ def test_the_report_counts_a_phase_s_promotions(tmp_path):
 
 
 # ....................... #
+# the mutation gate's score per phase and per document (S-0107/D-3)
+
+
+def write_mutation(root, task_id: str, output: str, *, outcome: str = "fail") -> None:
+    """A `gates.evaluated` row carrying one attempt's `mutation` gate result,
+    the shape `_recorded_result` writes — red keeps its output, a green keeps
+    only the verdict."""
+
+    telemetry = root / ".torve" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+
+    with telemetry.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "results": [
+                        {
+                            "name": "mutation",
+                            "outcome": outcome,
+                            "state": "shadow",
+                            "output": output,
+                        }
+                    ],
+                }
+            )
+            + "\n"
+        )
+
+
+def test_the_report_gives_a_phase_s_mutation_score(tmp_path):
+    """S-0107/D-3: the report reads the gate's score out of the record's
+    `gates.evaluated` per phase, and means it per document. A phase whose
+    attempts produced no reading is absent; a green result scores one."""
+
+    write_contract(tmp_path, "T-0001", spec="S-0107")
+    write_contract(tmp_path, "T-0002", spec="S-0107")
+    write_contract(tmp_path, "T-0003", spec="S-0108")
+    write_contract(tmp_path, "T-0004", spec="S-0107")
+    write_mutation(
+        tmp_path,
+        "T-0001",
+        "mutation score 0.75: killed 9, survived 3, timed out 0 of 12\n"
+        "survivors:\n"
+        "src/a.py:12 — x < y -> x <= y",
+    )
+    write_mutation(tmp_path, "T-0003", "", outcome="pass")
+    write_mutation(
+        tmp_path, "T-0004", "mutation score 0.25: killed 1, survived 3, timed out 0 of 4"
+    )
+
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
+
+    assert report["mutation"]["by_phase"] == {"T-0001": 0.75, "T-0003": 1.0, "T-0004": 0.25}
+    # The document's is the mean of its phases', not their sum.
+    assert report["mutation"]["by_document"] == {"S-0107": 0.5, "S-0108": 1.0}
+    assert "T-0002" not in report["mutation"]["by_phase"]
+
+
+def test_spec_health_prints_the_mutation_score_in_text_and_json(tmp_path):
+    """S-0107/D-3: `torve spec health`, the quality report's reader, carries
+    the score per document and per phase in both formats."""
+
+    (tmp_path / ".torve" / "specs").mkdir(parents=True)
+    write_contract(tmp_path, "T-0001", spec="S-0107")
+    write_mutation(
+        tmp_path, "T-0001", "mutation score 0.75: killed 3, survived 1, timed out 0 of 4"
+    )
+
+    text = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path)])
+    data = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path), "--format", "json"])
+
+    assert text.exit_code == 0, text.output
+    assert "mutation score: S-0107 0.75, T-0001 0.75" in text.output
+    assert json.loads(data.output)["mutation"] == {
+        "by_phase": {"T-0001": 0.75},
+        "by_document": {"S-0107": 0.75},
+    }
+
+
+def test_a_run_with_no_mutation_result_shows_nothing(tmp_path):
+    """A gate skipped before it scored leaves no reading — the report shows
+    nothing rather than a fabricated zero."""
+
+    write_contract(tmp_path, "T-0001", spec="S-0107")
+    write_mutation(
+        tmp_path,
+        "T-0001",
+        "the diff changes no Python source line, so nothing is mutated",
+        outcome="skipped",
+    )
+
+    report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
+
+    assert report["mutation"] == {"by_phase": {}, "by_document": {}}
+
+
+def test_a_long_survivor_report_keeps_its_mutation_score_through_the_record(tmp_path):
+    """S-0107/D-3: the record keeps only a red output's tail, and a mutation
+    report's survivors can run past that bound. The score line survives beside
+    the tail, so a phase whose tests are weakest still reads its score rather
+    than vanishing as if the gate never ran."""
+
+    from torve.application.telemetry import _recorded_result
+    from torve.domain.attempt import GateResult, mutation_reading
+
+    survivors = "\n".join(f"src/a.py:{n} — {'x = y -> x != y ' * 25}" for n in range(25))
+    output = (
+        "mutation score 0.40: killed 10, survived 25, timed out 0 of 35\nsurvivors:\n" + survivors
+    )
+    assert len(output) > 4000  # the record would otherwise drop the head
+
+    recorded = _recorded_result(
+        GateResult(name="mutation", outcome="fail", state="shadow", output=output)
+    )
+
+    reading = mutation_reading(recorded)
+
+    assert reading is not None
+    assert reading["score"] == 0.40
+    assert reading["survivors"]
+
+
+# ....................... #
 # touched: the declared scope.allow intersecting the decision's declared paths
 
 
