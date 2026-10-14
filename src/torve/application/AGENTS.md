@@ -2089,7 +2089,7 @@ The manifest's `tests:` block gains `run`, the command a list of test files is a
 - Consequence: a repository whose tests are `*_test.go` or `*.spec.ts` gets red-on-base and pairing by naming them, not by a change to torve
 - Check: `uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py -q -k adapter` (shadow; runs as `decision:S-0106/D-7`, no log entry owed)
 
-### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 The gate's score and survivors ride the record's `gates.evaluated`, so `torve why` and the spec quality report read them; the quality report gives the score per phase and per document.
 
@@ -2097,7 +2097,7 @@ The gate's score and survivors ride the record's `gates.evaluated`, so `torve wh
 - Consequence: an author sees which phases' tests notice their own changes going wrong
 - Check: `uv run pytest tests/test_specquality.py -q -k mutation` (shadow; runs as `decision:S-0107/D-3`, no log entry owed)
 
-### S-0107/D-4 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-4 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 The review prompt lists the gate's survivors, each with the decision rows whose paths cover its line, as evidence for S-0106/D-5's audit. A survivor is never a finding by itself; the reviewer grades it.
 

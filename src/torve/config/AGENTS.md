@@ -701,7 +701,7 @@ The manifest's `tests:` block gains `run`, the command a list of test files is a
 - Consequence: a repository whose tests are `*_test.go` or `*.spec.ts` gets red-on-base and pairing by naming them, not by a change to torve
 - Check: `uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py -q -k adapter` (shadow; runs as `decision:S-0106/D-7`, no log entry owed)
 
-### S-0107/D-2 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-2 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 The `mutation` builtin gate (shadow, attempt battery) samples at most `budget` mutants (default 30) with a seed derived from the diff, applies each in a scratch copy of the worktree, and runs the task's paired tests through `tests.run` with a timeout of twice their baseline run. It reports killed, survived and timed-out counts, the score, and every survivor as `path:line — edit`. A change with no Python source lines, or no paired tests, is skipped with the reason.
 

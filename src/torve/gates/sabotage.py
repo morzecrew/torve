@@ -698,6 +698,8 @@ MUTATION_STRONG_TEST = _MUTATION_TEST_HEAD + (
 def _mutation_weak(repo: Repo) -> None:
     # A change whose tests assert nothing scores 0: every mutant survives.
     repo.seed(MUTATION_MANIFEST)
+    # The attempt battery's gate judges a task (S-0107/D-2).
+    repo.task(base_task(allow=["src/**", "tests/**"]), None)
     repo.write("src/app.py", MUTATION_APP)
     repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
     repo.commit("weak tests")
@@ -706,6 +708,8 @@ def _mutation_weak(repo: Repo) -> None:
 def _mutation_strong(repo: Repo) -> None:
     # The clean twin: tests that pin each line kill every mutant.
     repo.seed(MUTATION_MANIFEST)
+    # The attempt battery's gate judges a task (S-0107/D-2).
+    repo.task(base_task(allow=["src/**", "tests/**"]), None)
     repo.write("src/app.py", MUTATION_APP)
     repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
     repo.commit("strong tests")

@@ -1332,8 +1332,14 @@ def mutation_gate(monkeypatch):
     return module.check_mutation
 
 
-def _mutation_attempt(repo, source: str, test: str) -> None:
+def _seed_mutation(repo) -> None:
+    # The attempt battery's gate judges a task (S-0107/D-2).
     repo.seed(MUTATION_MANIFEST)
+    repo.task(base_task(allow=["**"]), None)
+
+
+def _mutation_attempt(repo, source: str, test: str) -> None:
+    _seed_mutation(repo)
     repo.write("src/app.py", source)
     repo.write("tests/test_app.py", test)
     repo.commit("the attempt")
@@ -1378,8 +1384,22 @@ def test_mutation_gate_scores_a_suite_that_asserts_nothing_zero(repo, mutation_g
     assert all("src/app.py:" in line and " — " in line for line in survivors), survivors
 
 
-def test_mutation_gate_skips_a_change_with_no_python_source(repo, mutation_gate):
+def test_mutation_gate_skips_a_run_with_no_task(repo, mutation_gate):
+    # A document's completion battery and rebase regate judge no task; the score
+    # is an attempt's, and rerunning a whole document's tests there costs again.
     repo.seed(MUTATION_MANIFEST)
+    repo.write("src/app.py", MUTATION_APP)
+    repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
+    repo.commit("a document's diff, no task")
+
+    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
+
+    assert outcome.outcome == "skipped"
+    assert "no task" in outcome.output
+
+
+def test_mutation_gate_skips_a_change_with_no_python_source(repo, mutation_gate):
+    _seed_mutation(repo)
     repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
     repo.commit("a test-only change")
 
@@ -1390,7 +1410,7 @@ def test_mutation_gate_skips_a_change_with_no_python_source(repo, mutation_gate)
 
 
 def test_mutation_gate_skips_a_change_with_no_paired_tests(repo, mutation_gate):
-    repo.seed(MUTATION_MANIFEST)
+    _seed_mutation(repo)
     repo.write("src/app.py", MUTATION_APP)
     (repo.root / "tests" / "test_app.py").unlink()
     repo.commit("a change with no test to score it")
@@ -1405,7 +1425,7 @@ def test_mutation_gate_puts_each_file_back_before_the_next_mutant(repo, mutation
     # `a.py`'s tests pin it and `b.py`'s assert nothing. Were `a.py` left on its
     # last mutant, its test would fail under every `b.py` mutant and call them
     # killed.
-    repo.seed(MUTATION_MANIFEST)
+    _seed_mutation(repo)
     repo.write("src/a.py", MUTATION_APP)
     repo.write("src/b.py", MUTATION_APP)
     repo.write("tests/test_a.py", MUTATION_STRONG_TEST.replace("from app import", "from a import"))
@@ -1425,7 +1445,7 @@ def test_mutation_gate_scores_a_module_larger_than_one_shell_argument(repo, muta
     # The run carries edits, not files: a module past the kernel's 128 KB cap on
     # one argument is scored like any other.
     padding = '"""' + "x" * 200_000 + '"""\n'
-    repo.seed(MUTATION_MANIFEST)
+    _seed_mutation(repo)
     repo.write("src/app.py", padding + MUTATION_APP)
     repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
     repo.commit("a large module")
@@ -1441,7 +1461,7 @@ def test_mutation_gate_restores_a_module_whose_name_begins_with_a_dash(repo, mut
     # module would stay on one mutant while the next is applied over it. Under
     # tests that assert nothing every mutant survives, so a stacked edit that
     # breaks the module shows as a kill.
-    repo.seed(MUTATION_MANIFEST)
+    _seed_mutation(repo)
     repo.write("-app.py", MUTATION_APP)
     repo.write(
         "tests/test_-app.py",
@@ -1478,7 +1498,7 @@ def test_mutation_gate_never_mutates_through_a_symlink(repo, mutation_gate, tmp_
     source = "f = lambda a, b: a + 1 if a < b else b\n"
     outside = tmp_path / "outside.py"
     outside.write_text(source, encoding="utf-8")
-    repo.seed(MUTATION_MANIFEST)
+    _seed_mutation(repo)
     linked = repo.root / "src" / "app.py"
     linked.parent.mkdir(exist_ok=True)
     linked.unlink(missing_ok=True)

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `mutation` gate, at shadow, scores how well a change's own tests notice its source
+  going wrong. It applies up to 30 mutants, sampled with a seed from the diff, to the
+  lines the diff added or changed: a comparison flipped, a boolean operator swapped or a
+  `not` removed, an arithmetic operator swapped, a constant moved by one, a condition
+  negated, a return replaced by `None`. Each is applied in a scratch copy of the
+  worktree, and the task's paired tests are rerun against it. The gate reports the score
+  and every survivor as `path:line — edit`, and the sabotage suite carries a case that
+  tells weak tests from strong ones.
+
+- The score rides the record: `torve why` shows it, `torve spec health` gives it per
+  phase and per document, and the reviewer is shown each survivor with the decision rows
+  covering its line, as evidence it grades rather than a verdict.
+
 - `torve guide` prints a shipped skill, or one of its references, from the installed
   package. `torve guide torve` is the operator's skill: writing and accepting documents,
   serving a night, resolving escalations, landing a phase by hand, answering a pull

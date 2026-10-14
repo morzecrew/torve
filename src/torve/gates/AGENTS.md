@@ -317,7 +317,7 @@ The manifest's `tests:` block gains `run`, the command a list of test files is a
 - Consequence: a repository whose tests are `*_test.go` or `*.spec.ts` gets red-on-base and pairing by naming them, not by a change to torve
 - Check: `uv run pytest tests/test_manifest.py tests/test_gates.py tests/test_intake.py -q -k adapter` (shadow; runs as `decision:S-0106/D-7`, no log entry owed)
 
-### S-0107/D-1 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-1 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 `src/torve/gates/mutation.py` enumerates mutants over the candidate's changed Python source lines only, one edit to one AST node per mutant, from six operators: comparison, boolean, arithmetic, constant, condition and return. A line the diff did not add or change is never mutated, and a test file is never mutated.
 
@@ -325,7 +325,7 @@ The manifest's `tests:` block gains `run`, the command a list of test files is a
 - Consequence: every mutant is a recognisable edit to code on a changed line
 - Check: `uv run pytest tests/test_mutation.py -q -k operator` (shadow; runs as `decision:S-0107/D-1`, no log entry owed)
 
-### S-0107/D-2 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-2 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 The `mutation` builtin gate (shadow, attempt battery) samples at most `budget` mutants (default 30) with a seed derived from the diff, applies each in a scratch copy of the worktree, and runs the task's paired tests through `tests.run` with a timeout of twice their baseline run. It reports killed, survived and timed-out counts, the score, and every survivor as `path:line — edit`. A change with no Python source lines, or no paired tests, is skipped with the reason.
 
@@ -333,7 +333,7 @@ The `mutation` builtin gate (shadow, attempt battery) samples at most `budget` m
 - Consequence: the score costs a bounded, repeatable amount and never touches the worktree under judgment
 - Check: `uv run pytest tests/test_gates.py -q -k mutation_gate` (shadow; runs as `decision:S-0107/D-2`, no log entry owed)
 
-### S-0107/D-5 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-5 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 The sabotage suite carries a mutation case: a change whose tests assert nothing scores 0 with every mutant a survivor, and a change whose tests pin each line scores 1.
 

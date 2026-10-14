@@ -27,7 +27,7 @@ from torve.base.globs import matches
 from torve.base.shell import run_command
 from torve.config.manifest import DEFAULT_TEST_PATTERNS, DEFAULT_TEST_RUN, Gate
 from torve.gates.context import GateContext
-from torve.gates.contract import BuiltinOutcome, spec
+from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
 
 # ----------------------- #
 
@@ -546,6 +546,12 @@ def _verdict(output: str, found: list[Mutant]) -> BuiltinOutcome:
 
 
 def check_mutation(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
+    # The attempt battery's gate (S-0107/D-2): a document's completion battery
+    # and its rebase regate judge no task, and scoring a whole document's diff
+    # there would rerun every phase's tests for up to the gate's timeout again.
+    if ctx.task is None:
+        return NO_TASK
+
     modules = _changed_modules(ctx)
 
     if not modules:

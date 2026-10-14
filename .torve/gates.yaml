@@ -198,6 +198,22 @@ gates:
     # and 300 is the headroom a contract that rewrites every test file wants.
     timeout: 300
     sabotage: tests/test_gates.py
+  # Does the attempt's own test code notice its source going wrong (S-0107/D-1,
+  # D-2)? One edit to one node on a changed line, applied in a scratch copy of
+  # the worktree, scored by whether the paired tests fail. Enters at shadow and
+  # is promoted on soak evidence, like every measurement gate before it.
+  #
+  # Its cost is one baseline run of the paired tests plus each sampled mutant
+  # rerun under twice that baseline. A mutant starts only if it can finish
+  # inside this timeout, so a slow suite scores the mutants that ran rather
+  # than none. 900 is the headroom a contract that rewrites a heavily tested
+  # module wants; the twin is the gate's own CASES family in the sabotage suite.
+  - name: mutation
+    run: "@mutation"
+    state: shadow
+    origin: S-0107
+    timeout: 900
+    sabotage: mutation
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
