@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 from torve.base.model import STRICT
 from torve.domain.source import SOURCE_PATTERN
@@ -47,6 +47,25 @@ class Scope(BaseModel):
     imported first-party modules, paired tests, package `__init__` and the
     document's other phases' matches (S-0104/D-1). Derived at mint and refresh;
     never counted for disjointness or sizing."""
+
+    @field_validator("allow", "deny")
+    @classmethod
+    def _no_negation(cls, globs: list[str]) -> list[str]:
+        """A `!glob` is refused: gitignore's negation turns on whether a glob
+        met the path itself or a directory above it, and the readers of a scope
+        (the gate, the pre-write hook, the fence) would answer it differently.
+        Paths a scope keeps out are named in `deny`. `contingent` holds literal
+        paths, where a leading `!` is part of a file's name."""
+
+        negated = [glob for glob in globs if glob.startswith("!")]
+
+        if negated:
+            raise ValueError(
+                f"scope globs may not start with '!' ({', '.join(negated)}): "
+                "name the paths to keep out in `deny`"
+            )
+
+        return globs
 
 
 # ....................... #

@@ -1471,6 +1471,41 @@ def test_the_pre_write_hook_admits_contingent_and_projected_paths_only(tmp_path:
     assert not guard.is_allowed("other/notes.md", allow, deny, contingent)
 
 
+def test_the_pre_write_hook_reads_contingent_paths_and_projections_as_the_gate(
+    tmp_path: Path,
+) -> None:
+    """S-0104/D-1, D-6, as the scope gate reads them: a contingent path is
+    literal, a managed `AGENTS.md` passes only where the scope can write a file
+    directly in its directory or beside a contingent path, and a sibling key
+    after the manifest's `derived:` block ends it."""
+
+    guard = _hook_script("scope_guard")
+
+    # Literal: a `[1]` in a contingent name is that file, never a class.
+    assert guard.is_allowed("docs/a[1].md", ["src/**"], [], ["docs/a[1].md"])
+    assert not guard.is_allowed("docs/a1.md", ["src/**"], [], ["docs/a[1].md"])
+
+    # An exact allow reaches its own directory's projection, not a sibling's.
+    assert guard.is_allowed("src/AGENTS.md", ["src/foo.py"])
+    assert not guard.is_allowed("src/unrelated/AGENTS.md", ["src/foo.py"])
+    assert guard.is_allowed("src/torve/gates/AGENTS.md", ["src/**"])
+
+    # Only where a file directly in the directory can be in scope.
+    assert not guard.is_allowed("src/AGENTS.md", ["src/foo/**"])
+    assert not guard.is_allowed("src/c/AGENTS.md", ["src/[ab]/*.py"])
+
+    # Beside a contingent-only file.
+    assert guard.is_allowed("docs/AGENTS.md", ["src/**"], [], ["docs/notes.md"])
+
+    (tmp_path / ".torve").mkdir()
+    (tmp_path / ".torve" / "gates.yaml").write_text(
+        "scope:\n  derived:\n    pyproject.toml:\n    - uv.lock\n  allow:\n  - src/**\n",
+        encoding="utf-8",
+    )
+
+    assert guard.derived_map(tmp_path) == {"pyproject.toml": ["uv.lock"]}
+
+
 def test_the_pre_write_hook_falls_back_to_the_default_lock_table(tmp_path: Path) -> None:
     """S-0104/D-5: a manifest that names no `derived:` block — this repo's own
     — leaves the hook on the default lock table the scope gate applies, so a

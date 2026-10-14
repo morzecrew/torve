@@ -20,7 +20,7 @@ import itertools
 
 from pathspec import GitIgnoreSpec
 
-from torve.base.globs import matches, overlap
+from torve.base.globs import has_file_in, matches, overlap
 
 LITERALS = ("a",)
 WILDCARDS = ("*", "**", "?")
@@ -155,3 +155,41 @@ def test_two_literals_and_a_part_segment_wildcard_agree_with_the_gate():
     for left in hit:
         for right in hit:
             assert overlap([left], [right]) == bool(hit[left] & hit[right]), (left, right)
+
+
+def test_a_scope_refuses_a_negated_glob():
+    # gitignore's negation turns on whether a glob met the path or a directory
+    # above it; the scope's readers would disagree, so a scope cannot carry one.
+    import pytest
+    from pydantic import ValidationError
+
+    from torve.domain.task import Scope
+
+    with pytest.raises(ValidationError, match="deny"):
+        Scope(allow=["src/**", "!src/private/**"])
+
+    assert Scope(allow=["src/**"], deny=["src/private/**"]).deny == ["src/private/**"]
+    # A contingent entry is a literal path: `!notes.py` is a file's name.
+    assert Scope(contingent=["docs/!notes.py"]).contingent == ["docs/!notes.py"]
+
+
+def test_a_file_directly_in_a_directory_is_asked_exactly():
+    assert has_file_in("src", ["src/foo.py"])
+    assert not has_file_in("src/unrelated", ["src/foo.py"])
+    # Only files below `src/foo` match, never one directly in `src`.
+    assert not has_file_in("src", ["src/foo/**"])
+    assert has_file_in("src/foo/bar", ["src/foo/**"])
+    # A class is read as `fnmatch` reads it, not as any character.
+    assert has_file_in("src/a", ["src/[ab]/*.py"])
+    assert not has_file_in("src/c", ["src/[ab]/*.py"])
+    assert has_file_in("", ["*.md"]) and has_file_in("deep/er", ["*.md"])
+    # A glob matching the directory itself covers everything below.
+    assert has_file_in("src/x", ["src/"])
+
+
+def test_a_close_bracket_first_in_a_class_is_a_member():
+    # `fnmatch` reads `[]]` as a class holding `]`; the overlap's reading has to
+    # agree, or the fence calls two scopes disjoint that write one file.
+    assert matches("a]", ["a[]]"])
+    assert overlap(["a[]]"], ["a]"])
+    assert overlap(["a[!]]"], ["ab"])
