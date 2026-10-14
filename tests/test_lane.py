@@ -1898,6 +1898,49 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
     assert len(published) == 2
 
 
+def test_a_candidate_cut_before_its_document_was_rebased_replays_only_its_own_commits(
+    lane_repo, tmp_path
+):
+    """The document's rebase onto a moved base restates the earlier phase's
+    landing file, so that phase's pre-rebase commit no longer matches its
+    rebased copy. A later candidate cut from the old tip carries the old
+    commit; rebasing it as a whole replayed that commit and conflicted on
+    the landing file. Only the candidate's own commits are replayed."""
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0921", {"T-7411": "one.py"}, published)
+
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7412"), document)
+    (lane_repo / "two.py").write_text("two = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "two.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "torve(T-7412): two — attempt 1 green")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7412", path=naming.state_file(lane_repo, "T-7412"))
+    state.state = TaskState.READY
+    state.save()
+    _contract(lane_repo, "T-7412", "S-0921")
+
+    (lane_repo / "app.py").write_text("base = 5\n", encoding="utf-8")
+    git(lane_repo, "add", "app.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves")
+    git(lane_repo, "push", "-q", "origin", "main")
+    moved = git(lane_repo, "rev-parse", "origin/main")
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=24, state="open"), []),
+        on_conflict=conflict_disposal(lane_repo, GitLane()),
+        unit="document",
+    )
+
+    assert [r.action for r in results if r.task == "T-7412"] == ["landed"]
+    tip = git(lane_repo, "rev-parse", document)
+    assert git(lane_repo, "merge-base", "--is-ancestor", moved, tip) == ""
+    assert git(lane_repo, "show", f"{document}:one.py") == "# T-7411"
+    assert git(lane_repo, "show", f"{document}:two.py") == "two = 2"
+
+
 def test_an_open_document_rebases_the_remote_copy_and_keeps_a_hand_commit(lane_repo, tmp_path):
     published: list[tuple[str, str]] = []
     document = _landed_document(lane_repo, tmp_path, "S-0915", {"T-7308": "eight.py"}, published)
