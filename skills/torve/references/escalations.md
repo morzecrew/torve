@@ -12,14 +12,16 @@ Only the third is the agent's. Most escalations are the first two.
 
 ## While an escalation holds the pause
 
-An escalation at `loop.pause_escalations` (default 1) pauses the night, so
-the board closing down is the design rather than a fault. A pause stops new
-work: nothing is minted, no standing job runs and no review round opens,
-whatever the landing mode. It does not stop what is already running or
-already owed — an attempt in flight finishes, the notification relay pages
-the undelivered queue, and under `promotion.landing: pull_request` the
-landing leg still lands green candidates on their branches. Resolve the
-escalation to let new work through again.
+An escalation queue at `loop.pause_escalations` (default 1) pauses every
+pass, and that is the design rather than a fault. A paused pass adds no
+work: it mints nothing, runs no standing job and opens no review round,
+whatever the landing mode. The import a night runs when it opens is not a
+pass and still mints. A pause does not stop work already on the board:
+queued tasks are still claimed and run, an attempt in flight finishes, the
+notification relay pages the undelivered queue, and under
+`promotion.landing: pull_request` the landing leg still lands green
+candidates on their branches. Resolve escalations until the queue is below
+`loop.pause_escalations` to let new work through again.
 
 ## Closing one
 
