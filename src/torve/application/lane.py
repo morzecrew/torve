@@ -578,8 +578,34 @@ def _conflicting_probe(
         on_conflict is not None
         and state.conflict_base != probe_base
         and not vcs.is_ancestor(root, probe_base, branch_tip)
-        and vcs.rebase_conflicts(root, branch, base)
+        and vcs.rebase_conflicts(root, branch, base, _cut_point(root, branch, base, state.task_id))
     )
+
+
+def _cut_point(root: Path, branch: str, base: str, task_id: str) -> str | None:
+    """The commit *task_id*'s candidate was cut from: the parent of its first
+    own commit, by the subject the runner gives every commit it writes
+    (`torve(<task>): …`). None when no commit carries it.
+
+    A rebase from the merge base replays every commit of *base*'s old tip
+    as well, and once a document branch has been rebased onto a moved base,
+    the landing files it restated make the earlier phases' old commits
+    conflict with their own rebased copies."""
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "log", "--reverse", "--format=%H %s", f"{base}..{branch}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    for line in proc.stdout.splitlines():
+        sha, _, subject = line.partition(" ")
+
+        if subject.startswith(f"torve({task_id}):"):
+            return f"{sha}^"
+
+    return None
 
 
 # ....................... #
@@ -2318,7 +2344,9 @@ def _land_rebased(
     # second. Nothing bad shipped that time; the mechanism does not care.
     before_rebase = vcs.tip(root, branch) or branch_tip
 
-    if not vcs.rebase_in_worktree(root, branch, base, workdir):
+    upstream = _cut_point(root, branch, base, task_id)
+
+    if not vcs.rebase_in_worktree(root, branch, base, workdir, upstream):
         _handle_rebase_conflict(root, state, task_id, branch, base, base_tip, on_conflict, results)
         return
 

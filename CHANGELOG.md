@@ -135,6 +135,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A phase cut from its document branch before the lane rebased that branch onto a moved
+  base now lands. The lane replays only the phase's own commits. It used to replay the
+  earlier phases' pre-rebase commits too, whose landing files the rebase had restated, so
+  the rebase conflicted and the phase was requeued for an attempt it did not need.
+
 - An escalation resolved as `landed` or `abandoned` no longer keeps the manager paused.
   Those resolutions leave the run-state file for `torve reap --escalated`, and the pause
   counted that file as an open escalation, so every later pass skipped the lane until

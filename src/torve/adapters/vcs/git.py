@@ -488,14 +488,19 @@ class GitLane:
 
     # ....................... #
 
-    def rebase_conflicts(self, root: Path, branch: str, onto: str) -> bool:
+    def rebase_conflicts(
+        self, root: Path, branch: str, onto: str, upstream: str | None = None
+    ) -> bool:
         """A read-only conflict probe (S-0006/D-13, S-0006/A-2): would rebasing
         *branch* onto *onto* conflict? `git merge-tree --write-tree`
         merges in memory — no worktree, no ref moves; exit 1 is a
         conflict verdict, not an error. Single-commit candidates
-        (S-0010/D-8) make the merge verdict the rebase verdict."""
+        (S-0010/D-8) make the merge verdict the rebase verdict. An
+        *upstream* is the commit the branch was cut from, taken as the
+        merge base, as `rebase_in_worktree` replays from it."""
 
-        proc = _git(root, "merge-tree", "--write-tree", onto, branch)
+        based = (f"--merge-base={upstream}",) if upstream else ()
+        proc = _git(root, "merge-tree", "--write-tree", *based, onto, branch)
 
         if proc.returncode in (0, 1):
             return proc.returncode == 1
@@ -504,13 +509,18 @@ class GitLane:
 
     # ....................... #
 
-    def rebase_in_worktree(self, root: Path, branch: str, onto: str, workdir: Path) -> bool:
+    def rebase_in_worktree(
+        self, root: Path, branch: str, onto: str, workdir: Path, upstream: str | None = None
+    ) -> bool:
+        """Rebase *branch* onto *onto* in a fresh worktree. An *upstream*
+        replays only the commits after it (`--onto onto upstream`)."""
+
         added = _git(root, "worktree", "add", str(workdir), branch)
 
         if added.returncode != 0:
             raise RuntimeError(added.stderr.strip() or f"worktree add failed for {branch}")
 
-        rebased = _git(workdir, "rebase", onto)
+        rebased = _git(workdir, "rebase", *(("--onto", onto, upstream) if upstream else (onto,)))
 
         if rebased.returncode != 0:
             _git(workdir, "rebase", "--abort")
