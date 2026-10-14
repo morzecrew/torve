@@ -709,7 +709,7 @@ The red completion battery's finding is read from the `torve/completion` failure
 - Consequence: a row is never blocking on a check nobody has shown can fail
 - Check: `uv run pytest tests/test_cli.py tests/test_rfc_check.py -q -k twin` (shadow; runs as `decision:S-0106/D-3`, no log entry owed)
 
-### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill) — implementation: none
+### S-0107/D-3 — `ASSUMED` (A change's tests are scored by the mutants they kill)
 
 The gate's score and survivors ride the record's `gates.evaluated`, so `torve why` and the spec quality report read them; the quality report gives the score per phase and per document.
 
