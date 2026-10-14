@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A conflict the served lane re-queues reaches the board
+    intent: >-
+      Add `task.requeued` (payload `reason`, `base_tip`; written by the manager) and
+      fold it as `task.returned` folds. The lane's `conflict requeued` result carries
+      the base tip; `_lane_leg` takes a `requeue` callback and calls it once per such
+      result; `_serve` records the fact. The record page's authority table and the
+      operator skill's escalations reference say so. Tests: the callback is called
+      with the task id and base tip (`tests/test_manager.py`, selected by `-k requeued`);
+      the fold; the authority rule (`tests/test_events.py`); the lane result's base
+      tip (`tests/test_lane.py`). Settles D-1 and D-2.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/application/manager.py
+      - src/torve/application/lane.py
+      - src/torve/cli/manager.py
+      - tests/test_events.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+      - pages/docs/architecture/record.md
+      - skills/torve/**
+    acceptance:
+      - >-
+        uv run pytest tests/test_events.py tests/test_manager.py tests/test_manager_e2e.py
+        tests/test_lane.py tests/test_lane_prevention.py tests/test_docs.py tests/test_skills.py
+      - uv run mypy src
+    character: routine

@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      When the served lane re-queues a candidate on a conflict (S-0079/D-10), the
+      manager records `task.requeued` for that task with the reason and the base tip,
+      and the board folds it as it folds `task.returned`: `queued`, with the claim
+      and the landed sha cleared.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/application/manager.py
+      - src/torve/cli/manager.py
+    consequence: >-
+      a task the disposal re-queued is dispatched again on a later pass, and a night
+      no longer refuses to open over it
+    rationale: >-
+      The manager dispatches from the log and the lane lands from run-state files;
+      a re-queue written to only one of them reaches neither.
+    check: >-
+      uv run pytest tests/test_manager.py -q -k requeued
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `task.requeued` may be written by the manager only, and `task.returned` stays
+      the operator's (S-0044/A-13).
+    paths: [src/torve/domain/events.py, pages/docs/architecture/record.md]
+    consequence: >-
+      the record tells a mechanical disposal apart from a person sending judged work
+      back
+    rationale: >-
+      The authority rule names who may move a task; an engine re-queue bounded by
+      S-0006/D-12 is the manager's act, as a released lease is.
+    check: >-
+      uv run pytest tests/test_events.py tests/test_docs.py -q

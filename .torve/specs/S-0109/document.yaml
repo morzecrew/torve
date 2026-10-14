@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0109
+title: >-
+  A conflict the served lane re-queues reaches the board
+kind: design
+change:
+  type: fix
+  scope: lane
+status: draft
+implementation: none
+depends_on: [S-0079]
+informed_by: [S-0006, S-0044]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A served night hands the lane `conflict_disposal` (S-0079/D-10): a candidate whose rebase conflicts against a moved base is captured for the revision loop and re-queued instead of escalated. The re-queue is written only to the task's run-state file. The manager dispatches from the log, where the task is still `ready`, and the lane takes candidates from run-state files that say `ready`. So a re-queued task is neither landed nor run again: the night refuses to open with "no task on this board can be started", and a person has to run `torve manager return`.
+
+  The manager now records each re-queue in the log as `task.requeued`, a fact the manager writes. The board folds it the way it folds `task.returned`, so the next pass dispatches the revision attempt the disposal promised.
+motivation: >-
+  T-0588 on 2026-10-14: the lane requeued it on a conflict (a false one, fixed in
+  #92). The run-state file said `queued`, the board said `ready`, and the night refused
+  to open until the operator returned the task by hand.
+current_state: >-
+  `lane._dispose_conflict` escalates and then re-queues the run state, sets `conflict_base`,
+  and appends a `conflict requeued` lane result. `cli/manager._lane_leg` returns only
+  the landed task ids from the lane's results, and nothing else the lane did reaches
+  the log. `task.returned` (S-0044/A-13) is the one fact that folds a `ready` task
+  back to `queued`, and only the operator may write it.
+goals: |-
+  - A conflict the served lane disposes of is dispatched again on a later pass without a person.
+  - The record tells an engine re-queue apart from a person's return.
+non_goals: |-
+  - Changing when the disposal applies, or its bound (S-0006/D-12).
+  - The manual `torve merge` lane, which never auto-disposes.
+design:
+  - key: the-requeue-reaches-the-log
+    md: |-
+      | Step | Today | After |
+      |---|---|---|
+      | lane disposes of a conflict | run-state file `queued`, `lane_conflict_requeued` telemetry | the same, and the lane result carries the base tip |
+      | lane leg returns | landed task ids | landed task ids; a `requeue` callback is called once per `conflict requeued` result |
+      | manager | — | records `task.requeued` (actor `manager`, payload `reason`, `base_tip`) |
+      | board fold | task stays `ready` with its landed sha | `queued`, claim and landed sha cleared, as `task.returned` folds |
+      | next pass | night refuses or idles | dispatches the revision attempt, briefed by the captured conflict |
+
+      `_lane_leg` takes `requeue: Callable[[str, str], Awaitable[None]] | None` beside `resolved`. `_serve` passes one that writes the fact through the log it already holds.
+tests: |-
+  - A lane leg whose lane result is `conflict requeued` calls the requeue callback with the task id and base tip.
+  - `task.requeued` folds a `ready` task with a landed sha to `queued` with the sha and claim cleared.
+  - Only the manager may write `task.requeued`; `task.returned` stays the operator's.
+  - The record page's authority table lists `task.requeued`.
+docs: >-
+  `pages/docs/architecture/record.md` gains the `task.requeued` row; the operator
+  skill's escalations reference says a served night re-queues a conflict itself.
+out_of_scope: >-
+  - A disposal whose cleanup is refused still escalates in the run-state file only;
+  the pause already counts that file (S-0048/D-5), so it is not stranded silently.
+risks: >-
+  - A task re-queued against a base that keeps moving is dispatched once per base
+  tip, as S-0006/D-12 bounds it today; the log adds no new loop.
+alternatives:
+  - option: Let the manager write `task.returned`.
+    rejected_because: >-
+      `task.returned` records a person's verdict on judged work (S-0044/A-13), and
+      the night report and `torve why` would read an engine disposal as a person's
+      call.
+  - option: >-
+      Keep the candidate `ready` and let the lane retry the rebase on the next pass.
+    rejected_because: >-
+      A real conflict does not resolve itself; the revision loop exists for it.
+questions:
+  - id: Q-1
+    text: >-
+      A new `task.requeued` kind written by the manager, or widen `task.returned`'s
+      authority to the manager with a `by: engine` field? Lean: a new kind; the record
+      already keeps `task.released` and `task.returned` apart for the same reason.
