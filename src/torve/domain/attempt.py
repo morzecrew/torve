@@ -93,7 +93,7 @@ def mutation_reading(result: Mapping[str, object]) -> dict[str, object] | None:
     # gate's sums, every survivor line is `path:line — edit`, and nothing
     # else carries the em-dash separator.
     for line in str(result.get("output") or "").splitlines():
-        found = _MUTATION_SCORE.search(line)
+        found = _MUTATION_SCORE.match(line)
 
         if found:
             score = float(found.group(1))

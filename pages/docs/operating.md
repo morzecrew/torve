@@ -258,9 +258,11 @@ from the diff, so one change always yields the same mutants and the score
 costs a bounded, repeatable amount (S-0107/D-2). Each mutant is applied in a
 scratch copy of the worktree — the tree under judgment is never written — and
 the task's paired tests are rerun against it under a timeout of twice their
-baseline run, through the manifest's `tests.run`. The gate reports killed,
-survived and timed-out counts, the score, and every survivor as
-`path:line — edit`. A change with no Python source line, or whose changed
+baseline run, and never under ten seconds, through the manifest's `tests.run`.
+A mutant starts only if it can finish within the gate's own timeout; any left
+over are reported as not run, and the score is over the mutants that ran. The
+gate reports killed, survived and timed-out counts, the score, and every
+survivor as `path:line — edit`. A change with no Python source line, or whose changed
 lines hold nothing the six operators edit, or with no paired test, is skipped
 with the reason rather than scored.
 

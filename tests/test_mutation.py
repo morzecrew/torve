@@ -131,5 +131,34 @@ def test_removing_not_keeps_the_operand_one_node():
     )
 
 
+def _new_module(source: str) -> str:
+    return (
+        f"diff --git a/{MODULE} b/{MODULE}\n--- /dev/null\n+++ b/{MODULE}\n"
+        f"@@ -0,0 +1,{len(source.splitlines())} @@\n"
+        + "".join(f"+{line}\n" for line in source.splitlines())
+    )
+
+
+def test_a_node_changed_below_its_first_line_is_mutated():
+    # Only line 3 changed, inside a comparison that starts on line 2.
+    source = "def f(a, b):\n    return (a\n            < b)\n"
+    patch = (
+        f"diff --git a/{MODULE} b/{MODULE}\n--- a/{MODULE}\n+++ b/{MODULE}\n"
+        "@@ -1,3 +1,3 @@\n def f(a, b):\n     return (a\n-            <= b)\n+            < b)\n"
+    )
+
+    found = mutation.mutants(patch, {MODULE: source})
+
+    assert any(m.operator == "comparison" for m in found), found
+
+
+def test_an_explicit_return_none_is_not_mutated_to_itself():
+    found = mutation.mutants(
+        _new_module("def f():\n    return None\n"), {MODULE: "def f():\n    return None\n"}
+    )
+
+    assert [m for m in found if m.operator == "return"] == []
+
+
 def test_a_zero_budget_samples_nothing():
     assert mutation.mutants(PATCH_ALL, {MODULE: SOURCE}, budget=0) == []

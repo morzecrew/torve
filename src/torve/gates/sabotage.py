@@ -665,12 +665,12 @@ MUTATION_MANIFEST: dict[str, Any] = {
     ],
 }
 
-MUTATION_REQUIRES = ("pytest", "tar", "timeout", "base64", "date")
+MUTATION_REQUIRES = ("pytest", "tar", "timeout", "python3", "date")
 
-# Every operator has a node on a changed line: a comparison on the `if`, its
-# condition, an arithmetic operator and a constant on one return, and two
-# returns.
-MUTATION_APP = "def f(a, b):\n    if a < b:\n        return a + 1\n    return b\n"
+# Every operator has a node on a changed line: two comparisons and the `and`
+# joining them on the `if`, its condition, an arithmetic operator and two
+# constants, and two returns.
+MUTATION_APP = "def f(a, b):\n    if a < b and b > 0:\n        return a + 1\n    return b\n"
 
 _MUTATION_TEST_HEAD = (
     "import sys\n"
@@ -682,10 +682,16 @@ _MUTATION_TEST_HEAD = (
 # Exercises the source and asserts nothing, so no mutant can be noticed.
 MUTATION_WEAK_TEST = _MUTATION_TEST_HEAD + "def test_app():\n    f(1, 2)\n"
 
-# Pins every line: the boundary at `a < b`, the arithmetic and the constant on
-# the one return, and both returns' values.
+# Pins every line: both boundaries (`a < b` at 2, 2; `b > 0` at -5, 0), the
+# `and` (3, 2 holds only the right side), the arithmetic and the constants, and
+# both returns' values.
 MUTATION_STRONG_TEST = _MUTATION_TEST_HEAD + (
-    "def test_app():\n    assert f(1, 2) == 2\n    assert f(2, 2) == 2\n"
+    "def test_app():\n"
+    "    assert f(1, 2) == 2\n"
+    "    assert f(2, 2) == 2\n"
+    "    assert f(3, 2) == 2\n"
+    "    assert f(-5, 0) == 0\n"
+    "    assert f(-1, 1) == 0\n"
 )
 
 

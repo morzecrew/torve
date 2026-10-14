@@ -76,13 +76,18 @@ _ARITHMETIC: dict[type[ast.operator], type[ast.operator]] = {
 
 @dataclass(frozen=True)
 class Mutant:
-    """One edit to one node on one changed line, with the file's text after it."""
+    """One edit to one node on a changed line, with the file's text after it
+    and the edit itself: the character span of the file's text and what
+    replaces it, which is all the gate's run carries."""
 
     path: str
     line: int
     operator: str
     edit: str
     source: str
+    start: int = 0
+    end: int = 0
+    new: str = ""
 
 
 @dataclass(frozen=True)
@@ -171,6 +176,9 @@ def mutants(
                     operator=edit.operator,
                     edit=f"{edit.old} -> {edit.new}",
                     source=f"{source[: edit.start]}{edit.new}{source[edit.end :]}",
+                    start=edit.start,
+                    end=edit.end,
+                    new=edit.new,
                 )
             )
 
@@ -216,21 +224,21 @@ def _edits(source: str, changed: set[int]) -> list[_Edit]:
         if isinstance(node, ast.Compare) and len(node.ops) == 1:
             comparison = _COMPARISONS.get(type(node.ops[0]))
 
-            if comparison is not None and node.lineno in changed:
+            if comparison is not None and _touches(node, changed):
                 compared = ast.Compare(node.left, [comparison()], node.comparators)
                 edits.append(_edit(source, "comparison", node, ast.unparse(compared)))
 
         elif isinstance(node, ast.BoolOp):
             boolean = _BOOLEANS.get(type(node.op))
 
-            if boolean is not None and node.lineno in changed:
+            if boolean is not None and _touches(node, changed):
                 joined = ast.BoolOp(boolean(), node.values)
                 edits.append(_edit(source, "boolean", node, ast.unparse(joined)))
 
         elif (
             isinstance(node, ast.UnaryOp)
             and isinstance(node.op, ast.Not)
-            and node.lineno in changed
+            and _touches(node, changed)
         ):
             # The operand keeps its parentheses: `not` binds looser than a
             # comparison but tighter than `and`, so `z and not (x or y)` with the
@@ -240,26 +248,41 @@ def _edits(source: str, changed: set[int]) -> list[_Edit]:
         elif isinstance(node, ast.BinOp):
             arithmetic = _ARITHMETIC.get(type(node.op))
 
-            if arithmetic is not None and node.lineno in changed:
+            if arithmetic is not None and _touches(node, changed):
                 operated = ast.BinOp(node.left, arithmetic(), node.right)
                 edits.append(_edit(source, "arithmetic", node, ast.unparse(operated)))
 
-        elif isinstance(node, ast.Constant) and node.lineno in changed:
+        elif isinstance(node, ast.Constant) and _touches(node, changed):
             moved = _moved(node.value)
 
             if moved is not None:
                 edits.append(_edit(source, "constant", node, ast.unparse(ast.Constant(moved))))
 
-        elif isinstance(node, ast.If | ast.While) and node.test.lineno in changed:
+        elif isinstance(node, ast.If | ast.While) and _touches(node.test, changed):
             negated = ast.UnaryOp(ast.Not(), node.test)
             edits.append(_edit(source, "condition", node.test, ast.unparse(negated)))
 
-        elif isinstance(node, ast.Return) and node.value is not None and node.lineno in changed:
+        elif (
+            isinstance(node, ast.Return)
+            and node.value is not None
+            # `return None` already says it: the edit would change nothing.
+            and not (isinstance(node.value, ast.Constant) and node.value.value is None)
+            and _touches(node, changed)
+        ):
             edits.append(_edit(source, "return", node, "return None"))
 
     edits.sort(key=lambda edit: (edit.line, edit.start))
 
     return edits
+
+
+def _touches(node: ast.expr | ast.stmt, changed: set[int]) -> bool:
+    """Whether *node* spans a changed line: a multi-line expression changed
+    below its first line is the diff's code all the same."""
+
+    end = node.end_lineno if node.end_lineno is not None else node.lineno
+
+    return any(line in changed for line in range(node.lineno, end + 1))
 
 
 def _edit(source: str, operator: str, node: ast.expr | ast.stmt, new: str) -> _Edit:
@@ -320,17 +343,24 @@ def _command(ctx: GateContext) -> str:
 
 def _changed_modules(ctx: GateContext) -> list[str]:
     """The changed Python source files — a deleted file gone, a test file not
-    source, and an untracked file (status A) source like any other."""
+    source, a path reached through a symlink skipped, and an untracked file
+    (status A) source like any other."""
 
     tests = spec(ctx.manifest.tests.patterns)
+    root = ctx.root.resolve()
     found: list[str] = []
 
     for entry in ctx.diff:
+        path = ctx.root / entry.path
+
         if (
             entry.status != "D"
             and entry.path.endswith(".py")
             and not tests.match_file(entry.path)
-            and (ctx.root / entry.path).is_file()
+            and path.is_file()
+            # No symlink anywhere on the path: the scratch copy keeps links, and
+            # a mutant written through one lands outside the scratch tree.
+            and path.resolve() == root / entry.path
         ):
             found.append(entry.path)
 
@@ -359,25 +389,53 @@ def _paired_tests(ctx: GateContext, modules: Iterable[str]) -> list[str]:
 # ....................... #
 
 
-def _script(command: str, files: list[str], found: list[Mutant], budget_s: float) -> str:
+# Applies one mutant inside the scratch copy: the character span of the file
+# the offsets were taken from, replaced with the new text. Carried as
+# arguments, so the run holds each edit and never a whole file — `sh -c` takes
+# its script as one argument, which the kernel caps at 128 KB.
+_APPLY = (
+    "import base64, sys\n"
+    "path, start, end = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])\n"
+    "new = base64.b64decode(sys.argv[4]).decode('utf-8')\n"
+    "with open(path, encoding='utf-8', newline='') as handle:\n"
+    "    text = handle.read()\n"
+    "with open(path, 'w', encoding='utf-8', newline='') as handle:\n"
+    "    handle.write(text[:start] + new + text[end:])\n"
+)
+
+
+def _script(command: str, files: list[str], found: list[Mutant], timeout_s: float) -> str:
     """One shell run: copy the worktree to a scratch directory, run the paired
-    tests to time a baseline, then apply each mutant in turn and rerun them
-    under twice that baseline. Every mutant restores its file from its own
-    encoded text first, so no edit is composed on another's.
+    tests to time a baseline, then apply each mutant in turn, rerun them under
+    twice that baseline, and put the file back before the next.
 
-    The scratch copy is the whole worktree without `.git`, made and removed
-    inside the run, so the worktree under judgment is never written
-    (S-0107/D-2)."""
+    Each mutant prints one marker naming its index — killed, survived, timed
+    out, not run, or not applied — so the reading needs no text of the run and
+    a missing marker is seen as one. A mutant starts only if it can finish
+    before the gate's timeout, so a slow suite scores the mutants that ran
+    rather than none. The scratch copy is the whole worktree without `.git`,
+    made and removed inside the run, so the worktree under judgment is never
+    written (S-0107/D-2)."""
 
-    named = " ".join(shlex.quote(path) for path in files)
+    run = shlex.quote(f"{command} {' '.join(shlex.quote(path) for path in files)}")
     lines = [
         "set -u",
         "work=$(mktemp -d)",
-        "trap 'rm -rf \"$work\"' EXIT INT TERM",
+        "keep=$(mktemp -d)",
+        'trap \'rm -rf "$work" "$keep"\' EXIT INT TERM',
+        # The gate's timeout less a margin for the copy and the cleanup.
+        f"deadline=$(( $(date +%s) + {max(int(timeout_s) - 10, 1)} ))",
         'tar -C . --exclude=.git -cf - . | tar -C "$work" -xf -',
         'cd "$work"',
+    ]
+
+    for path in sorted({mutant.path for mutant in found}):
+        quoted = shlex.quote(path)
+        lines.append(f'mkdir -p "$keep/$(dirname {quoted})" && cp {quoted} "$keep"/{quoted}')
+
+    lines += [
         "start=$(date +%s%N)",
-        f"timeout {budget_s:.0f} {command} {named} >/dev/null 2>&1",
+        f"timeout {max(int(timeout_s / 2), 1)} sh -c {run} >/dev/null 2>&1",
         "baseline_code=$?",
         "baseline_ms=$(( ($(date +%s%N) - start) / 1000000 ))",
         'if [ "$baseline_code" -eq 124 ]; then echo BASELINE-TIMEOUT; exit 0; fi',
@@ -388,24 +446,26 @@ def _script(command: str, files: list[str], found: list[Mutant], budget_s: float
         # rather than killed or survived.
         "t=$(( baseline_ms / 500 ))",
         '[ "$t" -lt 10 ] && t=10',
+        f"apply={shlex.quote(_APPLY)}",
     ]
 
-    for mutant in found:
-        blob = base64.b64encode(mutant.source.encode("utf-8")).decode("ascii")
-        location = shlex.quote(f"{mutant.path}:{mutant.line}")
-        # A multi-line node's edit is reported on one line, so a survivor is
-        # always a single `path:line — edit`.
-        edit = shlex.quote(" ".join(mutant.edit.split()))
-        lines.append(f"printf %s {shlex.quote(blob)} | base64 -d > {shlex.quote(mutant.path)}")
-        lines.append(f'timeout "$t" {command} {named} >/dev/null 2>&1')
-        lines.append("code=$?")
-        lines.append('if [ "$code" -eq 124 ]; then')
-        lines.append(f"  printf 'TIMEOUT\\t%s\\t%s\\n' {location} {edit}")
-        lines.append('elif [ "$code" -eq 0 ]; then')
-        lines.append(f"  printf 'SURVIVED\\t%s\\t%s\\n' {location} {edit}")
-        lines.append("else")
-        lines.append(f"  printf 'KILLED\\t%s\\n' {location}")
-        lines.append("fi")
+    for index, mutant in enumerate(found):
+        quoted = shlex.quote(mutant.path)
+        new = base64.b64encode(mutant.new.encode("utf-8")).decode("ascii")
+        restore = f'cp "$keep"/{quoted} {quoted}'
+        lines += [
+            'if [ $(( $(date +%s) + t )) -ge "$deadline" ]; then',
+            f"  echo 'U {index}'",
+            f'elif python3 -c "$apply" {quoted} {mutant.start} {mutant.end} {new}; then',
+            f'  timeout "$t" sh -c {run} >/dev/null 2>&1',
+            "  code=$?",
+            f"  {restore}",
+            f"  case \"$code\" in 0) echo 'S {index}' ;; 124) echo 'T {index}' ;; *) echo 'K {index}' ;; esac",
+            "else",
+            f"  echo 'E {index}'",
+            f"  {restore}",
+            "fi",
+        ]
 
     return "\n".join(lines)
 
@@ -413,12 +473,13 @@ def _script(command: str, files: list[str], found: list[Mutant], budget_s: float
 # ....................... #
 
 
-def _verdict(output: str) -> BuiltinOutcome:
-    """*output*'s marker lines as the score (S-0107/D-2): killed, survived and
-    timed-out counts, the score, and every survivor as `path:line — edit`."""
+def _verdict(output: str, found: list[Mutant]) -> BuiltinOutcome:
+    """*output*'s markers as the score (S-0107/D-2): killed, survived and
+    timed-out counts, the score, and every survivor as `path:line — edit`.
+    A run that reports fewer markers than it had mutants is an error, never a
+    score over the ones that happened to be read."""
 
-    killed = survived = timed_out = 0
-    survivors: list[str] = []
+    marks: dict[int, str] = {}
 
     for line in output.splitlines():
         if line == "BASELINE-TIMEOUT":
@@ -430,28 +491,46 @@ def _verdict(output: str) -> BuiltinOutcome:
                 "the paired tests fail on the tree as it stands, which acceptance judges",
             )
 
-        fields = line.split("\t")
+        kind, _, index = line.partition(" ")
 
-        if fields[0] == "KILLED":
-            killed += 1
+        if kind in ("K", "S", "T", "U", "E") and index.isdigit():
+            marks[int(index)] = kind
 
-        elif fields[0] == "SURVIVED":
-            survived += 1
-            survivors.append(f"{fields[1]} — {fields[2]}")
+    if sorted(marks) != list(range(len(found))):
+        return BuiltinOutcome(
+            "error",
+            f"the mutation run reported {len(marks)} of {len(found)} mutants\n{output[-2000:]}",
+        )
 
-        elif fields[0] == "TIMEOUT":
-            timed_out += 1
+    unapplied = [found[index] for index, kind in marks.items() if kind == "E"]
 
+    if unapplied:
+        return BuiltinOutcome(
+            "error",
+            "a mutant could not be applied: "
+            + ", ".join(f"{mutant.path}:{mutant.line}" for mutant in unapplied),
+        )
+
+    kinds = [marks[index] for index in range(len(found))]
+    killed, survived, timed_out = kinds.count("K"), kinds.count("S"), kinds.count("T")
     total = killed + survived + timed_out
 
     if total == 0:
-        return BuiltinOutcome("skipped", "the mutation run scored no mutant")
+        return BuiltinOutcome("skipped", "no mutant could run within the gate's timeout")
 
-    score = killed / total
     report = (
-        f"mutation score {score:.2f}: killed {killed}, survived {survived}, "
+        f"mutation score {killed / total:.2f}: killed {killed}, survived {survived}, "
         f"timed out {timed_out} of {total}"
     )
+
+    if kinds.count("U"):
+        report += f"; {kinds.count('U')} not run within the gate's timeout"
+
+    survivors = [
+        f"{mutant.path}:{mutant.line} — {' '.join(mutant.edit.split())}"
+        for mutant, kind in zip(found, kinds, strict=True)
+        if kind == "S"
+    ]
 
     if survivors:
         report += "\nsurvivors:\n" + "\n".join(survivors)
@@ -473,9 +552,18 @@ def check_mutation(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             "skipped", "the diff changes no Python source line, so nothing is mutated"
         )
 
-    sources = {
-        path: (ctx.root / path).read_text(encoding="utf-8", errors="replace") for path in modules
-    }
+    sources: dict[str, str] = {}
+
+    for path in modules:
+        # Read as written, line endings included, since the edits' offsets are
+        # applied to the same bytes in the scratch copy; a file that is not
+        # UTF-8 is left unmutated rather than rewritten in another encoding.
+        try:
+            sources[path] = (ctx.root / path).read_bytes().decode("utf-8")
+
+        except UnicodeDecodeError:
+            continue
+
     found = mutants(ctx.patch, sources, tests=ctx.manifest.tests.patterns, budget=DEFAULT_BUDGET)
 
     if not found:
@@ -490,7 +578,7 @@ def check_mutation(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
     timeout = gate.timeout or 600.0
     result = run_command(
-        _script(_command(ctx), paired, found, timeout / 2),
+        _script(_command(ctx), paired, found, timeout),
         ctx.root,
         timeout,
         retry_flaky=False,
@@ -502,4 +590,4 @@ def check_mutation(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             "error", f"the mutation run did not finish within {timeout:.0f}s\n{result.output}"
         )
 
-    return _verdict(result.output)
+    return _verdict(result.output, found)

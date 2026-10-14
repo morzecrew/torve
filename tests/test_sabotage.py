@@ -189,11 +189,17 @@ def test_the_mutation_case_tells_a_weak_suite_from_a_strong_one():
     cases = [case for case in CASES if case.gate == "mutation"]
     assert {case.expected for case in cases} == {"fail", "pass"}
 
-    for case in cases:
-        outcome = run_case(case)
+    import shutil
 
-        if outcome.got == "skipped":  # the environment lacks the tools the case needs
-            pytest.skip(outcome.detail)
+    for case in cases:
+        # Only an environment without the case's tools skips it; a gate that
+        # skipped (a red baseline, no mutant) is the case failing.
+        missing = [tool for tool in case.requires if shutil.which(tool) is None]
+
+        if missing:
+            pytest.skip("absent from this environment: " + ", ".join(missing))
+
+        outcome = run_case(case)
 
         assert outcome.ok, outcome.detail
         assert outcome.got == case.expected

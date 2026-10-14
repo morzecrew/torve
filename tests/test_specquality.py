@@ -266,6 +266,7 @@ def test_the_report_gives_a_phase_s_mutation_score(tmp_path):
     write_contract(tmp_path, "T-0001", spec="S-0107")
     write_contract(tmp_path, "T-0002", spec="S-0107")
     write_contract(tmp_path, "T-0003", spec="S-0108")
+    write_contract(tmp_path, "T-0004", spec="S-0107")
     write_mutation(
         tmp_path,
         "T-0001",
@@ -274,11 +275,15 @@ def test_the_report_gives_a_phase_s_mutation_score(tmp_path):
         "src/a.py:12 — x < y -> x <= y",
     )
     write_mutation(tmp_path, "T-0003", "", outcome="pass")
+    write_mutation(
+        tmp_path, "T-0004", "mutation score 0.25: killed 1, survived 3, timed out 0 of 4"
+    )
 
     report = decision_report(tmp_path, tmp_path / ".torve" / "specs")
 
-    assert report["mutation"]["by_phase"] == {"T-0001": 0.75, "T-0003": 1.0}
-    assert report["mutation"]["by_document"] == {"S-0107": 0.75, "S-0108": 1.0}
+    assert report["mutation"]["by_phase"] == {"T-0001": 0.75, "T-0003": 1.0, "T-0004": 0.25}
+    # The document's is the mean of its phases', not their sum.
+    assert report["mutation"]["by_document"] == {"S-0107": 0.5, "S-0108": 1.0}
     assert "T-0002" not in report["mutation"]["by_phase"]
 
 

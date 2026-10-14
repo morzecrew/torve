@@ -1047,9 +1047,12 @@ def _recorded_result(result: GateResult) -> dict[str, Any]:
     if result.outcome not in _RED:
         row["output"] = ""
     elif len(output) > RECORDED_OUTPUT:
-        tail = output[-RECORDED_OUTPUT:]
         head = output.split("\n", 1)[0] if result.name in _HEAD_LINE_GATES else ""
-        row["output"] = f"{head}\n{tail}" if head else tail
+        # The head line counts against the bound, so the record stays within it.
+        room = RECORDED_OUTPUT - len(head) - 1
+        row["output"] = (
+            f"{head}\n{output[-room:] if room > 0 else ''}" if head else output[-RECORDED_OUTPUT:]
+        )
 
     return row
 
