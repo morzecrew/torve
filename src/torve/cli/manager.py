@@ -111,6 +111,7 @@ def _lane_leg(
     *,
     only: str | None,
     resolved: Callable[[], Awaitable[set[str]]] | None = None,
+    requeue: Callable[[str, str], Awaitable[None]] | None = None,
 ) -> Lane | None:
     """The pass's landing leg, or None when the switch is off.
 
@@ -125,6 +126,12 @@ def _lane_leg(
     holds the store (S-0101/D-2): a round a person abandoned releases the
     wave on every host because the resolution rides the log, not a row on
     the host that minted the round.
+
+    `requeue` is called once per `conflict requeued` result with the task id
+    and the base tip the disposal captured (S-0109/D-1), so the re-queue
+    reaches the log the manager dispatches from rather than only the task's
+    run-state file. The manual `torve merge` path passes none and keeps
+    escalating to the person at the terminal.
     """
 
     if not config.promotion.auto_merge:
@@ -178,6 +185,11 @@ def _lane_leg(
             # The board's resolutions, read by the caller (S-0101/D-2).
             resolved=set(await resolved()) if resolved is not None else set(),
         )
+
+        if requeue is not None:
+            for result in results:
+                if result.action == "conflict requeued":
+                    await requeue(result.task, result.sha)
 
         return [result.task for result in results if result.landed]
 
@@ -495,9 +507,28 @@ async def _serve(
 
         return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
 
+    async def requeue(task_id: str, base_tip: str) -> None:
+        """Record the served lane's own re-queue (S-0109/D-1): the disposal
+        writes the task's run-state file and the lane moves on, and the board
+        dispatches from the log, so the fact is written here through the log
+        the pass already holds. The actor is the manager — the disposal is a
+        mechanical act, not the operator's verdict (S-0109/D-2)."""
+
+        from torve.domain.events import ActorKind, EventKind
+
+        await log.record(
+            EventKind.TASK_REQUEUED,
+            partition=partition,
+            subject_type=SubjectType.TASK,
+            subject_id=task_id,
+            actor_kind=ActorKind.MANAGER,
+            actor_id=worker,
+            payload={"reason": "merge_conflict", "base_tip": base_tip},
+        )
+
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
-    lane_leg = _lane_leg(root, config, only=only, resolved=resolutions)
+    lane_leg = _lane_leg(root, config, only=only, resolved=resolutions, requeue=requeue)
 
     if lane_leg is not None:
         lane_leg = _refreshing(lane_leg, landings, root)

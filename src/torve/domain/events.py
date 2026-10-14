@@ -88,6 +88,9 @@ class EventKind(StrEnum):
     TASK_CLAIMED = "task.claimed"
     TASK_RELEASED = "task.released"
     TASK_RETURNED = "task.returned"
+    # S-0109/D-2: a re-queue is the manager's own act, not a person's return —
+    # the record must tell a mechanical disposal apart from judged work sent back.
+    TASK_REQUEUED = "task.requeued"
     ATTEMPT_STARTED = "attempt.started"
     ATTEMPT_FINISHED = "attempt.finished"
     GATES_EVALUATED = "gates.evaluated"
@@ -126,6 +129,9 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     # ESCALATION_RESOLVED's reason — an agent that could return its own
     # judged work could route around every verdict it disliked.
     EventKind.TASK_RETURNED: frozenset({ActorKind.OPERATOR}),
+    # S-0109/D-2: an engine re-queue bounded by S-0006/D-12 is the manager's act,
+    # as a released lease is — the row keeps it apart from the operator's return.
+    EventKind.TASK_REQUEUED: frozenset({ActorKind.MANAGER}),
     EventKind.ATTEMPT_STARTED: frozenset({ActorKind.WORKER}),
     EventKind.ATTEMPT_FINISHED: frozenset({ActorKind.WORKER}),
     EventKind.GATES_EVALUATED: frozenset({ActorKind.WORKER}),
@@ -275,6 +281,22 @@ class TaskReturned(BaseModel):
 
     reason: str
     note: str = ""
+
+
+# ....................... #
+
+
+class TaskRequeued(BaseModel):
+    """A candidate the served lane's conflict disposal re-queued (S-0109/D-1,
+    S-0079/D-10). The manager's act rather than a person's verdict, kept
+    distinct from `TaskReturned` for that reason (S-0109/D-2): `reason` is the
+    disposal that sent it back and `base_tip` the moved base it collided with,
+    so the record says what it was requeued against."""
+
+    model_config = STRICT
+
+    reason: str
+    base_tip: str = ""
 
 
 # ....................... #
@@ -648,6 +670,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.TASK_CLAIMED: TaskClaimed,
     EventKind.TASK_RELEASED: TaskReleased,
     EventKind.TASK_RETURNED: TaskReturned,
+    EventKind.TASK_REQUEUED: TaskRequeued,
     EventKind.ATTEMPT_STARTED: AttemptStarted,
     EventKind.ATTEMPT_FINISHED: AttemptFinished,
     EventKind.GATES_EVALUATED: GatesEvaluated,

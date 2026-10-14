@@ -369,6 +369,18 @@ def conflicting_candidate(root: Path, task_id: str) -> str:
     return git(root, "rev-parse", "HEAD")
 
 
+def test_a_requeued_conflict_result_carries_the_base_tip(lane_repo):
+    # S-0109/D-1: the result names the moved base tip the candidate was
+    # requeued against, so the caller recording `task.requeued` has it without
+    # re-reading the base.
+    base_tip = conflicting_candidate(lane_repo, "T-7011")
+
+    results = process_lane(lane_repo, GitLane(), on_conflict=lambda task_id: "requeued")
+
+    assert [r.action for r in results] == ["conflict requeued"]
+    assert results[0].sha == base_tip
+
+
 def test_the_wired_disposal_captures_the_collided_diff_before_requeuing(lane_repo):
     # The restored disposal (S-0052/a-conflict-disposes-of-itself) is the loop's minus the forge
     # half: the next attempt's feedback record holds the superseded

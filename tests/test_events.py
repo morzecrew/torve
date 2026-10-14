@@ -57,6 +57,27 @@ def test_an_agent_may_never_sign_for_a_human():
             check_authority(ActorKind.AGENT, kind)
 
 
+def test_a_requeue_is_the_managers_and_a_return_stays_the_operators():
+    """S-0109/D-2: a mechanical re-queue and a person's return are two facts,
+    so the record can tell an engine disposal from judged work sent back. The
+    manager writes `task.requeued`; only the operator writes `task.returned`."""
+
+    from torve.domain.events import TaskRequeued
+
+    assert AUTHORITY[EventKind.TASK_REQUEUED] == frozenset({ActorKind.MANAGER})
+    assert AUTHORITY[EventKind.TASK_RETURNED] == frozenset({ActorKind.OPERATOR})
+
+    with pytest.raises(UnauthorizedWrite):
+        check_authority(ActorKind.OPERATOR, EventKind.TASK_REQUEUED)
+
+    payload = validate_payload(
+        EventKind.TASK_REQUEUED, {"reason": "merge_conflict", "base_tip": "abc123"}
+    )
+
+    assert isinstance(payload, TaskRequeued)
+    assert payload.base_tip == "abc123"
+
+
 def test_a_payload_is_validated_against_its_kind():
     payload = {
         "attempt": 1,

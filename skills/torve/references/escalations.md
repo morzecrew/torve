@@ -84,9 +84,12 @@ document branch, resolve it `landed` with that commit. Otherwise requeue it.
 **`gate_infrastructure_failure`, `seat_refused`.** Infrastructure. Run
 `torve doctor`, fix what it names, then reap and requeue.
 
-**`merge_conflict`.** The lane could not rebase the candidate. Resolve the
-conflict by hand on the document branch, or requeue after the conflicting
-work lands.
+**`merge_conflict`.** The lane could not rebase the candidate. A served night
+re-queues a conflict itself — the disposal captures the candidate, records
+`task.requeued` and dispatches the revision attempt on a later pass — so this
+reaches you only from `torve merge` at the terminal, where the operator is
+exactly who should see it. Resolve the conflict by hand on the document
+branch, or requeue after the conflicting work lands.
 
 ## After
 

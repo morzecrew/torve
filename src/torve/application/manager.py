@@ -123,6 +123,9 @@ _TRANSITIONS: dict[EventKind, TaskState] = {
     EventKind.TASK_CLAIMED: TaskState.CLAIMED,
     EventKind.TASK_RELEASED: TaskState.QUEUED,
     EventKind.TASK_RETURNED: TaskState.QUEUED,
+    # S-0109/D-1: a re-queue folds exactly as a return does — the task is the
+    # lane's to land again.
+    EventKind.TASK_REQUEUED: TaskState.QUEUED,
     EventKind.ATTEMPT_STARTED: TaskState.RUNNING,
     EventKind.GATES_EVALUATED: TaskState.GATED,
     EventKind.REVIEW_RECORDED: TaskState.REVIEWED,
@@ -211,9 +214,10 @@ def project(events: Iterable[EventRecord]) -> Board:
             )
         elif event.kind is EventKind.TASK_RELEASED:
             view = replace(view, claimed_by=None, claimed_at=None)
-        elif event.kind is EventKind.TASK_RETURNED:
+        elif event.kind in (EventKind.TASK_RETURNED, EventKind.TASK_REQUEUED):
             # The candidate's commit is no longer the answer, and a queued
             # row still showing a landing reads as a landing (S-0044/A-13).
+            # A re-queue (S-0109/D-1) folds the same way.
             view = replace(view, claimed_by=None, claimed_at=None, landed_sha=None)
         elif event.kind is EventKind.ATTEMPT_STARTED:
             view = replace(view, attempts=int(payload.get("attempt") or view.attempts + 1))

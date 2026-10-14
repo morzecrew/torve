@@ -889,6 +889,30 @@ def test_resolving_an_escalation_returns_the_task_or_takes_it_off_the_board():
     assert board_after("abandoned").state is TaskState.ABANDONED
 
 
+def test_a_task_requeued_folds_as_a_return_folds():
+    """S-0109/D-1: the board folds `task.requeued` as it folds `task.returned`
+    — `queued`, with the claim and the landed sha cleared — so the next pass
+    dispatches the revision attempt the disposal promised."""
+
+    board = project(
+        [
+            event(EventKind.TASK_MINTED, "T-1"),
+            event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}),
+            event(EventKind.LANDING_RECORDED, "T-1", {"sha": "abc123", "attempt": 1}),
+            event(
+                EventKind.TASK_REQUEUED,
+                "T-1",
+                {"reason": "merge_conflict", "base_tip": "def456"},
+            ),
+        ]
+    )
+    view = board.tasks["T-1"]
+
+    assert view.state is TaskState.QUEUED
+    assert view.claimed_by is None
+    assert view.landed_sha is None
+
+
 def test_a_landed_resolution_reads_as_a_landing():
     """`landed` is a hand finish: the row must read as a landing reads — off
     the queue, with the sha the person named — or the worker re-dispatches
@@ -1875,6 +1899,39 @@ def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch)
     assert seen == [False, False, False, False, True]
 
 
+def test_the_lane_leg_calls_the_callback_for_each_requeued_conflict_result(monkeypatch):
+    """S-0109/D-1: `_lane_leg` calls the `requeue` callback once per `conflict
+    requeued` result, with the task id and the base tip, and still returns only
+    the landed task ids. `_serve` passes the callback that records the fact."""
+
+    import pathlib
+
+    from torve.application import lane as lane_module
+    from torve.application.lane import LaneResult
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        return [
+            LaneResult("T-1", "torve/T-1", "conflict requeued", "captured", "base123"),
+            LaneResult("T-2", "torve/T-2", "landed", "landed", "head456"),
+        ]
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    config = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+    seen: list[tuple[str, str]] = []
+
+    async def requeue(task_id: str, base_tip: str) -> None:
+        seen.append((task_id, base_tip))
+
+    leg = _lane_leg(pathlib.Path("."), config, only=None, requeue=requeue)
+    assert leg is not None
+    landed = asyncio.run(leg())
+
+    assert seen == [("T-1", "base123")]
+    assert landed == ["T-2"]
+
+
 def test_a_serve_reads_the_boards_resolutions_into_the_lane(tmp_path, monkeypatch):
     """S-0101/D-2: the pass's `resolutions` closure reads the board the caller
     already holds and hands the lane the fact, so a round a person abandoned on
@@ -1936,6 +1993,64 @@ def test_a_serve_reads_the_boards_resolutions_into_the_lane(tmp_path, monkeypatc
     )
 
     assert seen["resolved"] == {"T-7543"}
+
+
+def test_a_serve_records_the_requeued_conflict_in_the_log(tmp_path, monkeypatch):
+    """S-0109/D-1: the callback `_serve` hands the lane leg records
+    `task.requeued` for the task the disposal re-queued, with the manager as
+    the actor and the reason and base tip in the payload, so the fact reaches
+    the log the next pass dispatches from and not only the task's run-state
+    file. The manager writes it, never the operator's `task.returned`
+    (S-0109/D-2)."""
+
+    from forze_mock import MockDepsModule, MockState
+
+    from torve.adapters.eventstore import document as eventstore
+    from torve.application import lane as lane_module
+    from torve.application.lane import LaneResult
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    state = MockState()
+    monkeypatch.setattr(eventstore, "mock_module", lambda: MockDepsModule(state=state))
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        return [LaneResult("T-1", "torve/T-1", "conflict requeued", "captured", "base123")]
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    terms = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: terms)
+
+    asyncio.run(
+        manager_cli._serve(
+            None,
+            PARTITION,
+            root=tmp_path,
+            config_path=None,
+            worker="w-1",
+            passes=1,
+            interval=0,
+            only=None,
+            dispatch=False,
+        )
+    )
+
+    async def read() -> list:
+        runtime = ExecutionRuntime(
+            deps=DepsRegistry.from_modules(MockDepsModule(state=state)).freeze()
+        )
+
+        async with runtime.scope():
+            events = await event_log(runtime.get_context()).since(partition=PARTITION)
+
+        return [event for event in events if event.kind is EventKind.TASK_REQUEUED]
+
+    requeued = asyncio.run(read())
+
+    assert len(requeued) == 1
+    assert requeued[0].subject_id == "T-1"
+    assert requeued[0].actor_kind is ActorKind.MANAGER
+    assert requeued[0].payload == {"reason": "merge_conflict", "base_tip": "base123"}
 
 
 # ....................... #
