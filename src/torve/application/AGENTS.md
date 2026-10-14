@@ -2129,7 +2129,7 @@ A night's drain check counts a ready candidate as owed when the document branch 
 - Consequence: a night stays open until it has landed its last green candidate, including a document's first ready candidate
 - Check: `uv run pytest tests/test_lane.py -q -k first_candidate` (shadow; runs as `decision:S-0108/D-3`, no log entry owed)
 
-### S-0109/D-1 — `ASSUMED` (A conflict the served lane re-queues reaches the board) — implementation: none
+### S-0109/D-1 — `ASSUMED` (A conflict the served lane re-queues reaches the board)
 
 When the served lane re-queues a candidate on a conflict (S-0079/D-10), the manager records `task.requeued` for that task with the reason and the base tip, and the board folds it as it folds `task.returned`: `queued`, with the claim and the landed sha cleared.
 

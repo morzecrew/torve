@@ -142,6 +142,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A conflict the served lane re-queues reaches the board. The manager records
+  `task.requeued`, a fact only the manager writes, for every run the conflict disposal
+  left queued, reconciled from the run-state files on every pass, and the revision
+  attempt is dispatched like any queued task. The re-queue used to reach only the
+  run-state file, so the task stayed `ready` in the log and was neither landed nor run
+  again, and a night refused to open over it.
+
 - `torve reap` no longer removes the lane's own checkouts (`.wt/lane-*`). They have no
   state file, so the sweep read them as debris, and a reap during a served night removed
   the one a completion battery was running in, turning every later gate into an error.

@@ -725,7 +725,7 @@ Under `promotion.landing: pull_request` a paused pass runs the lane leg: green c
 - Consequence: one escalation no longer holds every green sibling and the phases behind them until a person answers it
 - Check: `uv run pytest tests/test_residency.py -q -k pause` (shadow; runs as `decision:S-0108/D-1`, no log entry owed)
 
-### S-0109/D-1 — `ASSUMED` (A conflict the served lane re-queues reaches the board) — implementation: none
+### S-0109/D-1 — `ASSUMED` (A conflict the served lane re-queues reaches the board)
 
 When the served lane re-queues a candidate on a conflict (S-0079/D-10), the manager records `task.requeued` for that task with the reason and the base tip, and the board folds it as it folds `task.returned`: `queued`, with the claim and the landed sha cleared.
 

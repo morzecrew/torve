@@ -371,7 +371,7 @@ A contingent path is promoted on its first write when no in-flight task's `allow
 - Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `.torve/agents/hooks/implement/scope_guard.py`
 - Consequence: an attempt that needs a neighbour writes it and carries on, and no other task writes it at the same time
 
-### S-0109/D-2 — `ASSUMED` (A conflict the served lane re-queues reaches the board) — implementation: none
+### S-0109/D-2 — `ASSUMED` (A conflict the served lane re-queues reaches the board)
 
 `task.requeued` may be written by the manager only, and `task.returned` stays the operator's (S-0044/A-13).
 
