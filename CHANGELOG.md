@@ -135,6 +135,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An escalation resolved as `landed` or `abandoned` no longer keeps the manager paused.
+  Those resolutions leave the run-state file for `torve reap --escalated`, and the pause
+  counted that file as an open escalation, so every later pass skipped the lane until
+  someone reaped.
+
 - A reviewer seat that answers with a provider error instead of a verdict, such as a
   429 at its usage limit, escalates naming that error and saying to requeue once the
   seat answers. It used to read "review output unparseable". A 429 is now retried once

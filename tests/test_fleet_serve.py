@@ -267,6 +267,31 @@ def test_the_escalation_count_unions_both_carriers(tmp_path):
 # ....................... #
 
 
+def test_a_file_whose_task_the_log_closed_does_not_hold_the_pause(tmp_path):
+    """A hand landing or an abandon leaves the run-state file for `torve reap
+    --escalated` (S-0094/D-5); the log has closed the task, so the file is a
+    footprint and no longer pauses the pass. A file the board never closed
+    still counts."""
+
+    one = root(tmp_path, "one")
+
+    for task in ("T-0001", "T-0002", "T-0003", "T-0004"):
+        escalate(one, task)
+
+    board = Board(
+        tasks={
+            "T-0001": TaskView(task_id="T-0001", state=TaskState.READY, landed_sha="abc123"),
+            "T-0002": TaskView(task_id="T-0002", state=TaskState.ABANDONED),
+            "T-0003": TaskView(task_id="T-0003", state=TaskState.READY),
+        }
+    )
+
+    assert escalated_tasks(one, board) == {"T-0003", "T-0004"}
+
+
+# ....................... #
+
+
 @pytest.mark.parametrize("order", ["manifest", "alphabetical"])
 def test_the_order_is_the_manifests_and_never_a_priority(tmp_path, order):
     """S-0024/D-4: a fleet that serves in a chosen order is one config change
