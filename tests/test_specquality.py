@@ -282,6 +282,27 @@ def test_the_report_gives_a_phase_s_mutation_score(tmp_path):
     assert "T-0002" not in report["mutation"]["by_phase"]
 
 
+def test_spec_health_prints_the_mutation_score_in_text_and_json(tmp_path):
+    """S-0107/D-3: `torve spec health`, the quality report's reader, carries
+    the score per document and per phase in both formats."""
+
+    (tmp_path / ".torve" / "specs").mkdir(parents=True)
+    write_contract(tmp_path, "T-0001", spec="S-0107")
+    write_mutation(
+        tmp_path, "T-0001", "mutation score 0.75: killed 3, survived 1, timed out 0 of 4"
+    )
+
+    text = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path)])
+    data = CliRunner().invoke(app, ["spec", "health", "--root", str(tmp_path), "--format", "json"])
+
+    assert text.exit_code == 0, text.output
+    assert "mutation score: S-0107 0.75, T-0001 0.75" in text.output
+    assert json.loads(data.output)["mutation"] == {
+        "by_phase": {"T-0001": 0.75},
+        "by_document": {"S-0107": 0.75},
+    }
+
+
 def test_a_run_with_no_mutation_result_shows_nothing(tmp_path):
     """A gate skipped before it scored leaves no reading — the report shows
     nothing rather than a fabricated zero."""
