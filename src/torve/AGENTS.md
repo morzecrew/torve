@@ -19,7 +19,7 @@ No module is named `models`, `utils`, `helpers`, `common` or `base` below the pa
 
 ### S-0055/D-59 — `ASSUMED` (Standing decisions)
 
-Strict typing is a floor over `src/`: `mypy --strict` and `basedpyright` strict block CI and the acceptance fallback; tests, scripts and skills carry no type floor
+Strict typing is a floor over `src/`: `mypy --strict` blocks CI and the acceptance fallback, the one checker of record (S-0014/D-14); tests, scripts and skills carry no type floor
 
 - Paths: `src/torve/**` `pyproject.toml`
 - Consequence: A substrate surface change fails at the type check
