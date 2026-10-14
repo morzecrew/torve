@@ -142,6 +142,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `torve reap` no longer removes the lane's own checkouts (`.wt/lane-*`). They have no
+  state file, so the sweep read them as debris, and a reap during a served night removed
+  the one a completion battery was running in, turning every later gate into an error.
+  The lane now clears a stale checkout at its own path before reusing it, which a lane
+  killed mid-battery leaves behind.
+
 - A night no longer closes as drained while a document's first ready candidate is
   unlanded. Before the document branch existed, the drain check skipped that candidate
   instead of measuring it against the base.

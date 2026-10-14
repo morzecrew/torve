@@ -105,6 +105,22 @@ def _landing_commit(root: Path, task_id: str) -> str:
     return path
 
 
+def test_a_stale_lane_checkout_does_not_block_the_next_rebase(lane_repo):
+    # A lane killed mid-battery leaves `lane-<task>` behind; the reap no longer
+    # sweeps the lane's checkouts, so the lane clears a stale one itself.
+    candidate(lane_repo, "T-7003", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7004", "two.py", "two = 2\n")
+    stale = lane_repo / ".wt" / "lane-T-7004"
+    git(lane_repo, "worktree", "add", "-q", "--detach", str(stale), "main")
+
+    result = invoke_merge(lane_repo)
+    assert result.exit_code == 0, result.output
+    actions = {r["task"]: r["action"] for r in json.loads(result.stdout)["results"]}
+
+    assert actions == {"T-7003": "landed", "T-7004": "landed"}
+    assert not stale.exists()
+
+
 def test_a_rebased_landing_names_the_commit_that_landed(lane_repo):
     candidate(lane_repo, "T-7011", "one.py", "one = 1\n")
     candidate(lane_repo, "T-7012", "two.py", "two = 2\n")
