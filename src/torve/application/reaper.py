@@ -113,8 +113,8 @@ def _sweep_worktrees(
         # The lane's own checkouts (`lane-<task>`, `lane-<document>`) have no
         # state file, so they read as debris too, and a reap during a served
         # night removed the one a completion battery was running in. The lane
-        # removes each when it is done and clears a stale one before reusing
-        # its path, so none is the sweep's.
+        # removes each when it is done and, holding its lock, clears a stale
+        # one before reusing its path, so none is the sweep's.
         if name.startswith(naming.LANE_WORKTREE_PREFIX):
             continue
 

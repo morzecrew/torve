@@ -121,6 +121,24 @@ def test_a_stale_lane_checkout_does_not_block_the_next_rebase(lane_repo):
     assert not stale.exists()
 
 
+def test_a_second_lane_on_the_checkout_reports_busy_and_touches_nothing(lane_repo):
+    import fcntl
+
+    candidate(lane_repo, "T-7005", "one.py", "one = 1\n")
+    base = git(lane_repo, "rev-parse", "main")
+    lock = lane_repo / ".wt" / "lane.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+
+    with lock.open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        busy = process_lane(lane_repo, GitLane())
+
+    assert [r.action for r in busy] == ["lane busy"]
+    assert git(lane_repo, "rev-parse", "main") == base
+    # Released, the next pass lands as ever.
+    assert [r.action for r in process_lane(lane_repo, GitLane())] == ["landed"]
+
+
 def test_a_rebased_landing_names_the_commit_that_landed(lane_repo):
     candidate(lane_repo, "T-7011", "one.py", "one = 1\n")
     candidate(lane_repo, "T-7012", "two.py", "two = 2\n")

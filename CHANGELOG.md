@@ -148,6 +148,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The lane now clears a stale checkout at its own path before reusing it, which a lane
   killed mid-battery leaves behind.
 
+- One lane runs per checkout at a time. Every manager worker runs a lane leg and
+  `torve merge` runs one too, and two passes in the same `lane-*` checkout broke each
+  other's battery. A pass holds an exclusive lock on `.wt/lane.lock`; a second pass reports
+  `lane busy` and touches nothing, and a killed pass releases the lock with its process.
+
 - A night no longer closes as drained while a document's first ready candidate is
   unlanded. Before the document branch existed, the drain check skipped that candidate
   instead of measuring it against the base.
