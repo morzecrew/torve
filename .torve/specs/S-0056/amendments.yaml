@@ -58,3 +58,36 @@ amendments:
       `torve review corpus` is a shipped verb: any repository replays its seeded cases against its own reviewer tier, and `torve review corpus add <landing-sha>` scaffolds a new case from an escape, writing into `.torve/review-corpus/<case>/`. The directory is a repository's own regression corpus, a sibling of `.torve/standing/` and `.torve/sources/`, and torve has no claim on a `tests/fixtures/` path in someone else's tree.
 
       The evidence that it is not test data is that no test reads it: every case in `tests/test_review_corpus.py` is built under a temporary root, and the three cases here — a clean twin and two seeded defects — are replayed by the verb, not by pytest. Moving them would have broken the feature to tidy a directory.
+  - id: A-6
+    at: '2026-10-15T10:51:31Z'
+    title: >-
+      Phase 4's record migration is overtaken by S-0099
+    changes:
+      - subject: D-11
+        field: retired
+        before: >-
+          src/torve/application/telemetry.py src/torve/application/contextpack.py
+          src/torve/application/intake.py src/torve/application/specquality.py
+        after: >-
+          overtaken: S-0099/D-6 and S-0099/D-10 make no decision read .torve/telemetry.jsonl,
+          so there is no reader left to route through the record
+    md: >-
+      Phase 4 (T-0303) was abandoned, and S-0099 later took the opposite direction
+      from D-11: rather than one reader that prefers the record, no decision reads
+      `.torve/telemetry.jsonl` at all (S-0099/D-6), and the file stays the attempt
+      stream the ledger, the evals and the night report read (S-0099/D-10). D-11 is
+      retired rather than left unimplemented, and phase 4 is struck from the phasing
+      with it: what this document landed is phases 1 to 3 (T-0300 to T-0302).
+  - id: A-7
+    at: '2026-10-15T10:51:36Z'
+    title: Trace retention is S-0039's
+    changes:
+      - subject: D-13
+        field: retired
+        before: src/torve/application/reaper.py
+        after: >-
+          settled elsewhere: S-0039/D-3's retention pass in the reaper bounds traces/
+    md: >-
+      D-13 asked whether phase 4 would give `traces/` and `regimes/` a retention window.
+      Phase 4 never ran, and the reaper's retention pass under S-0039/D-3 already
+      bounds the trace store, so the question is closed where the deletion lives.

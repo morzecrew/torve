@@ -3,7 +3,7 @@ id: S-0056
 title: Structure for everything
 kind: design
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0053, S-0054]
 informed_by: [S-0049, S-0050, S-0055]
 supersedes: []
