@@ -14,11 +14,11 @@ permissions:
 
 jobs:
   # First, and everything else waits on it: a tag that is not on `main`, or
-  # that names a version `pyproject.toml` does not declare, runs nothing here —
+  # that is not a release version (the tag is the version: hatch-vcs), runs nothing here —
   # not the CI it would re-run and not the build. `build` repeats the main
   # check before packaging.
   tag-on-main:
-    name: Ensure the tag is on main and names the declared version
+    name: Ensure the tag is on main and names a release version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0
       - name: Ensure release tag is on main
         run: bash .github/scripts/ensure-tag-on-main.sh
-      - name: Ensure the tag names the declared version
+      - name: Ensure the tag names a release version
         run: bash .github/scripts/ensure-tag-matches-version.sh
 
   ci:
@@ -74,6 +74,9 @@ jobs:
 
       - name: Build
         run: uv build
+
+      - name: Ensure the build carries the tag's version
+        run: bash .github/scripts/ensure-tag-matches-version.sh dist
 
       - name: Upload package artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
