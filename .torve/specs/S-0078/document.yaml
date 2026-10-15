@@ -3,7 +3,7 @@ id: S-0078
 title: The dsh seat is measurable, like the other two
 kind: design
 status: draft
-implementation: none
+implementation: abandoned
 depends_on: [S-0075]
 informed_by: [S-0066]
 supersedes: []
@@ -13,6 +13,8 @@ schema_version: 4
 summary: |
   A dsh attempt reports its tokens and reports nothing about how it spent them: the image's reporter writes one nameless `tool-call` line per call, so the classifier that reads every claude attempt reads none of dsh's, and the seat cannot be compared on anything but price.
 motivation: |
+  Archived unaccepted on 2026-10-15: the one consumer of a measurable dsh seat is a comparison of dsh, or of a scout subagent, against the incumbent seat, and that experiment was deferred. The gap below still stands; redraft from this document if the comparison is taken up.
+
   The engine can say what a claude attempt did with its turns and cannot say it for a dsh one. Measured on the replays of T-0417, the dsh trace carries this:
 
   ```

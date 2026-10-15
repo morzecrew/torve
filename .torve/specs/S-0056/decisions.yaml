@@ -94,25 +94,4 @@ decisions:
     consequence: >-
       Git keeps the history and the record keeps the landings; nothing standing cites
       a task log
-  - id: D-11
-    grade: ASSUMED
-    text: >-
-      `torve migrate telemetry` reads the file once into the record; every reader
-      that opens `.torve/telemetry.jsonl` goes through one function that reads the
-      record when a store is configured and the file when not
-    paths:
-      - src/torve/application/telemetry.py
-      - src/torve/application/contextpack.py
-      - src/torve/application/intake.py
-      - src/torve/application/specquality.py
-    consequence: >-
-      The file is a carrier and an append target, never what a reader with a record
-      opens
-  - id: D-13
-    grade: OPEN
-    text: >-
-      Whether phase 4 gives `traces/` and `regimes/` a retention window or leaves
-      them to S-0039
-    paths: [src/torve/application/reaper.py]
-    consequence: Decided by whoever executes phase 4, logged
-retired: [D-12]
+retired: [D-12, D-11, D-13]
