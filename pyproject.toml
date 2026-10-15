@@ -1,6 +1,6 @@
 [project]
 name = "torve"
-version = "0.3.1"
+dynamic = ["version"]
 description = "A specification-and-gate engine for a standing agent team: graded decisions, scope as a contract, deterministic gates, sandboxed runs"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
@@ -106,7 +106,7 @@ docs = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 # What the sdist carries is named, not whatever the tree holds: without a list
@@ -116,6 +116,17 @@ build-backend = "hatchling.build"
 # its forced includes below) plus the lockfile and the changelog. Anchored:
 # the patterns match as `.gitignore` lines do, so a bare `skills` also takes
 # `.agents/skills` and `.claude/skills`, and a bare `README.md` `web/README.md`.
+# The version is the tag's (`v0.3.1` builds 0.3.1), so a release is a tag and a
+# changelog cut, never a hand-edited number. A build outside a clone — the
+# sandbox image's context carries no `.git` — reads `SETUPTOOLS_SCM_PRETEND_VERSION`,
+# and without it the fallback says plainly that the version is unknown.
+[tool.hatch.version]
+source = "vcs"
+raw-options = { fallback_version = "0.0.0+unknown" }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/torve/_version.py"
+
 [tool.hatch.build.targets.sdist]
 include = [
     "/src/torve",
@@ -329,6 +340,12 @@ strict = true
 # disagreeing with it. mypy's `exclude` is a regex over paths and does not
 # apply to files named explicitly on the command line.
 exclude = ["^tests/", "^scripts/", "^skills/"]
+
+[[tool.mypy.overrides]]
+# Written by hatch-vcs when the package is built; a task's worktree is never
+# built, and `torve/__init__.py` falls back without it.
+module = ["torve._version"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # The OpenSandbox SDK ships no type information; the adapter imports it lazily

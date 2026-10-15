@@ -1763,7 +1763,6 @@ wheels = [
 
 [[package]]
 name = "torve"
-version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "attrs" },
@@ -1839,7 +1838,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'serve'", specifier = ">=0.30" },
     { name = "yoyo-migrations", marker = "extra == 'migrate'", specifier = ">=9" },
 ]
-provides-extras = ["opensandbox", "postgres", "migrate", "mcp", "serve"]
+provides-extras = ["mcp", "migrate", "opensandbox", "postgres", "serve"]
 
 [package.metadata.requires-dev]
 dev = [

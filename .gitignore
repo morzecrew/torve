@@ -227,3 +227,4 @@ __marimo__/
 .repowise/
 .claude/CLAUDE.md
 pages/site/
+src/torve/_version.py

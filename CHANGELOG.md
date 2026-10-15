@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The version comes from the git tag through `hatch-vcs`: `v0.3.2` builds 0.3.2, and a
+  checkout between tags reports a development version such as `0.3.2.dev3+g1a2b3c4`. A
+  release is a tag and a changelog cut; no file carries the number by hand.
+
 ## [0.3.1] - 2026-10-15
 
 ### Changed
