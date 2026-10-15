@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The version comes from the git tag through `hatch-vcs`: `v0.3.1` builds 0.3.1, and a
+- The version comes from the git tag through `hatch-vcs`: `v0.3.2` builds 0.3.2, and a
   checkout between tags reports a development version such as `0.3.2.dev3+g1a2b3c4`. A
   release is a tag and a changelog cut; no file carries the number by hand.
+
+## [0.3.1] - 2026-10-15
+
+### Changed
 
 - A scope glob may no longer start with `!`. gitignore's negation turns on whether a glob
   met the path itself or a directory above it, and the scope gate, the pre-write hook and
@@ -2185,7 +2189,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/morzecrew/torve/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/morzecrew/torve/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/morzecrew/torve/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/morzecrew/torve/releases/tag/v0.1.0
