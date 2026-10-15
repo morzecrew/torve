@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checkout between tags reports a development version such as `0.3.2.dev3+g1a2b3c4`. A
   release is a tag and a changelog cut; no file carries the number by hand.
 
+### Fixed
+
+- The lane no longer lands a task again once its document merged while no pass ran. A
+  pull request squash-merged with its branch deleted between passes left its tasks'
+  run states READY, and the next pass cut the document branch afresh from `main` and
+  replayed them onto it, conflicting with the squash. A task whose landing file the base
+  tree holds is now landed, whatever its run state says.
+
 ## [0.3.1] - 2026-10-15
 
 ### Changed
