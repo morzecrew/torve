@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The version comes from the git tag through `hatch-vcs`: `v0.3.1` builds 0.3.1, and a
+  checkout between tags reports a development version such as `0.3.2.dev3+g1a2b3c4`. A
+  release is a tag and a changelog cut; no file carries the number by hand.
+
 - A scope glob may no longer start with `!`. gitignore's negation turns on whether a glob
   met the path itself or a directory above it, and the scope gate, the pre-write hook and
   the overlap fence would read it differently. Name the paths a scope keeps out in `deny`.
