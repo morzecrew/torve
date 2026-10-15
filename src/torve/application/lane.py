@@ -110,10 +110,25 @@ class LaneResult:
 
 
 def ready_candidates(root: Path) -> list[RunState]:
+    """The READY run states the lane still owes a landing. A task whose landing
+    file the base tree holds has landed, whatever its run state says: a
+    document squash-merged and its branch deleted while no pass ran leaves
+    nothing else to read the merge from, and re-cutting the branch to land the
+    task again replays work the base already has (S-0059/D-12, S-0099/D-3)."""
+
+    from torve.application.decisions import landings
+
     states = RunState.load_all(root / naming.WORKTREE_DIR)
+    based = {one.task for one in landings(root, root / layout.SPECS_DIR)}
 
     return sorted(
-        (s for s in states if s.state is TaskState.READY and not _awaits_adoption(root, s.task_id)),
+        (
+            s
+            for s in states
+            if s.state is TaskState.READY
+            and s.task_id not in based
+            and not _awaits_adoption(root, s.task_id)
+        ),
         key=lambda s: s.task_id,
     )
 

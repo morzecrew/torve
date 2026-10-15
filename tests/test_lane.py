@@ -1876,6 +1876,36 @@ def test_a_document_s_first_candidate_is_owed_before_its_branch_exists(lane_repo
     assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == []
 
 
+def test_a_document_merged_while_no_pass_ran_lands_none_of_its_tasks_again(lane_repo, tmp_path):
+    # bloomery, 2026-10-15: S-0092's pull request was squash-merged and its
+    # branch deleted while no pass ran, so no pass read the merge back. Its
+    # tasks' run states still read READY, and the next pass re-cut the
+    # document branch from main and landed them onto it again, conflicting
+    # with the squash. A task whose landing file the base holds has landed.
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7331", "one.py", "one = 1\n")
+    _contract(lane_repo, "T-7331", "S-0913")
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    document = naming.document_branch("S-0913")
+    assert published == [("T-7331", document)]
+
+    # The squash merge, and the branch deleted with it.
+    git(lane_repo, "merge", "-q", "--squash", document)
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the document (#1)")
+    git(lane_repo, "push", "-q", "origin", "main", f":refs/heads/{document}")
+    kept = git(lane_repo, "rev-parse", document)
+    published.clear()
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    assert [result for result in results if result.task == "T-7331"] == []
+    assert published == []
+    assert git(lane_repo, "rev-parse", document) == kept
+    assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == []
+
+
 def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch(
     lane_repo, tmp_path
 ):
