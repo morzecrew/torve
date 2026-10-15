@@ -16,7 +16,7 @@ fi
 
 # The GitHub release reads its notes from this section after PyPI has the
 # package, so a tag without one would publish and then fail half-released.
-if ! grep -qF "## [${VERSION}]" CHANGELOG.md; then
+if ! grep -qE "^## \[${VERSION//./\\.}\]( |$)" CHANGELOG.md; then
 	echo "ERROR: CHANGELOG.md has no '## [${VERSION}]' section to release from"
 	exit 1
 fi
