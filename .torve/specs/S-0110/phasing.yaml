@@ -22,9 +22,10 @@ phasing:
       No git command torve runs runs a repository's hook
     intent: >-
       Every git subprocess the adapters and the lane start carries `-c core.hooksPath=/dev/null`.
-      Tests: in a repository whose installed pre-commit and post-commit hooks write
-      a marker, `commit_all`, the lane's rebase and a worktree checkout leave no marker.
-      Settles D-7.
+      Tests: in a repository whose installed pre-commit, post-commit, post-checkout,
+      post-rewrite and pre-push hooks write a marker, `commit_all`, the lane's rebase,
+      a worktree checkout and a push to a local bare remote leave no marker. Settles
+      D-7.
     scope:
       - src/torve/adapters/vcs/**
       - src/torve/adapters/workspace/**
