@@ -32,10 +32,12 @@ phasing:
       - src/torve/application/lane.py
       - tests/test_provenance.py
       - tests/test_lane.py
+      - tests/test_lane_prevention.py
       - tests/test_runner.py
     acceptance:
       - >-
-        uv run pytest tests/test_provenance.py tests/test_lane.py tests/test_runner.py
+        uv run pytest tests/test_provenance.py tests/test_lane.py tests/test_lane_prevention.py
+        tests/test_runner.py
       - uv run mypy src
     character: routine
   - phase: 3
@@ -88,12 +90,13 @@ phasing:
       - src/torve/config/agents.py
       - tests/test_equipment.py
       - tests/test_agents.py
+      - tests/test_globs.py
       - tests/test_skills.py
       - tests/test_cli.py
     acceptance:
       - >-
-        uv run pytest tests/test_equipment.py tests/test_agents.py tests/test_skills.py
-        tests/test_cli.py
+        uv run pytest tests/test_equipment.py tests/test_agents.py tests/test_globs.py
+        tests/test_skills.py tests/test_cli.py
       - uv run mypy src
       - uv run torve spec check
     character: structural
@@ -144,9 +147,12 @@ phasing:
       - src/torve/application/review.py
       - tests/test_contextpack.py
       - tests/test_review_run.py
+      - tests/test_review_corpus.py
+      - tests/test_review_role.py
     acceptance:
       - >-
-        uv run pytest tests/test_contextpack.py tests/test_review_run.py
+        uv run pytest tests/test_contextpack.py tests/test_review_run.py tests/test_review_corpus.py
+        tests/test_review_role.py
       - uv run mypy src
     depends_on:
       - 5
@@ -168,6 +174,7 @@ phasing:
       - pages/docs/**
       - README.md
       - tests/test_manager.py
+      - tests/test_manager_e2e.py
       - tests/test_skills.py
       - tests/test_docs.py
     acceptance:
