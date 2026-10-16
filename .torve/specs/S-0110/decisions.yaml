@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`,
+      and rebuilds its seat images in the same change.
+    paths: [pyproject.toml, uv.lock, migrations/substrate/FORZE_VERSION]
+    consequence: >-
+      torve runs on the forze its adopters run, and the substrate pin check reads
+      the new version
+    rationale: >-
+      Between 0.10.0 and 0.13.0 forze's packaging and the durable substrate torve
+      uses are byte-identical, and the document plane only gained; a trial on the
+      pin passed 2529 tests with no code change.
+    cites: [S-0055/D-43, S-0071/D-2]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `config.yaml` may name the release a repository needs, `engine: "X.Y.Z"`, meaning
+      at least X.Y.Z and below X.(Y+1).0. A command that loads the configuration under
+      a torve outside that range stops, naming the installed version, the range and
+      the install command for a release inside it; `torve --version`, `guide` and
+      `doctor` still run. A configuration with no `engine` loads under any version.
+    paths: [src/torve/config/runconfig.py, .torve/schemas/**]
+    consequence: >-
+      the lock no longer pins torve, and a stale install stops before it serves a
+      night
+    rationale: >-
+      Once torve leaves the repository's lock, nothing else records which torve the
+      repository was written for. The owner chose a refusal over a doctor-only check
+      (Q-4, 2026-10-16).
+    cites: [S-0095/D-5, S-0055/D-30]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A repository installs torve as a uv tool, not as a project dependency, and every
+      command torve writes or ships for a host or a sandbox calls bare `torve`: the
+      stub `init` writes, the shipped hooks, and the operating docs and skill.
+    paths: [src/torve/cli/init.py, skills/torve/**, skills/hooks/**, pages/docs/**]
+    consequence: >-
+      torve's pins and an application's never meet in one lock
+    rationale: >-
+      erp-backend pins forze 0.13.0 and torve pinned 0.10.0, so one environment could
+      not hold both. `uv run` runs a command its environment lacks from `PATH`, so
+      a `uv run torve` already in a repository keeps working.
+    cites: [S-0100/D-3]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `just images` stamps every image with the version of the tree it builds, through
+      `SETUPTOOLS_SCM_PRETEND_VERSION` from `git describe`; `torve doctor` runs each
+      seat image's `torve --version` and goes red when it differs from the host's.
+    paths: [bake.hcl, justfile, sandboxes/base/Dockerfile, src/torve/cli/doctor.py]
+    consequence: >-
+      a sandbox running another torve than the host is a red check before a night
+    rationale: >-
+      The image build has no `.git`, so the version came from a stale `_version.py`:
+      `claude-sandbox:2.1.283` reports 0.1.0 while bloomery runs 0.3.2.
+    cites: [S-0063/D-7, S-0063/D-11]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The base image installs CPython 3.13 and 3.14 into its read-only interpreter
+      directory, and torve's own environment stays on 3.13.
+    paths: [sandboxes/base/Dockerfile]
+    consequence: >-
+      a project on Python 3.14 runs its gates in a seat image without deriving one
+    rationale: >-
+      erp-backend requires Python 3.14, and the sandbox user cannot install an interpreter
+      where uv looks for one.
+    cites: [S-0063/D-7]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The pre-write, read and finish hooks and their `claude/settings.json` live in
+      `skills/hooks/implement/` and ship in the wheel. A profile equips them as `source:
+      torve:hooks/implement`, mounted as `implement`. torve's own implement profile
+      and the starter implement profile equip them; the load-time hook check covers
+      `torve:` items.
+    paths:
+      - skills/hooks/**
+      - .torve/agents/*.yaml
+      - src/torve/cli/init.py
+      - src/torve/config/agents.py
+    consequence: >-
+      an upgrade brings its hooks, and no adopter carries a copy
+    rationale: >-
+      bloomery's copies were byte-identical to torve's and were copied again on each
+      upgrade (bloomery #289). S-0104/D-12 left shipping them to a document of its
+      own. The owner agreed on 2026-10-16 (Q-1) that the move amends the paths of
+      S-0072/D-1, S-0072/D-2 and S-0077/D-3, leaving their text.
+    cites: [S-0062/D-3, S-0062/D-6, S-0104/D-12, S-0105/D-3, S-0100/D-8]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Every git command torve runs carries `core.hooksPath=/dev/null`, so no repository
+      hook runs on a commit, rebase, checkout or push torve makes. A repository moves
+      the checks its hooks stand for into its gates or its CI.
+    paths:
+      - src/torve/adapters/vcs/**
+      - src/torve/adapters/workspace/**
+      - src/torve/application/lane.py
+    consequence: >-
+      configuration an agent wrote never runs on the host through a hook
+    rationale: >-
+      pre-commit reads `.pre-commit-config.yaml` from the worktree, which the agent
+      writes, and the lane commits on the host before any gate; a fixer that edits
+      a file also aborts the commit.
+    cites: [S-0055/D-3]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      `gates.yaml` may name the Python project's directory, `layout.root` (default
+      the repository root). The source root is `<root>/src`: the source-layout gate,
+      the citation scan, the spec-quality frontier and the coverage fallback prefix
+      read it, and the `tests` defaults are re-rooted under `<root>` when the `tests`
+      block is absent. Nothing searches the tree for it.
+    paths:
+      - src/torve/config/manifest.py
+      - src/torve/gates/source_layout.py
+      - src/torve/config/spec.py
+      - src/torve/application/specquality.py
+      - .torve/schemas/**
+    consequence: >-
+      a project under `app/` gets every check a root project gets, and a root project
+      changes nothing
+    rationale: >-
+      erp-backend's code under `app/src` passed the source-layout gate over zero files
+      and was never scanned for citations. The owner agreed on 2026-10-16 (Q-2) that
+      S-0057/D-9's text is amended to read the layout's source root.
+    cites: [S-0057/D-9, S-0055/D-15]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `layout.carried` names top-level directories that ride with any change, joining
+      `tests` and `.torve`. The sizer's thresholds stay as they are. A glob whose
+      first segment is a wildcard names no module.
+    paths: [src/torve/application/sizing.py, src/torve/config/manifest.py]
+    consequence: >-
+      a change that pairs code with its migration counts one module, as one that pairs
+      code with its tests does
+    rationale: >-
+      Carrying `db` takes erp-backend's last 60 commits from 29 multi-module scopes
+      to 7. The carried set records where a repository keeps what rides with code,
+      which is layout; the thresholds S-0089 measured are unchanged. The owner accepted
+      reversing S-0089's rejected alternative on 2026-10-16 (Q-3).
+    cites: [S-0089/D-1, S-0089/D-5, S-0105/D-1]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Three readings come from configuration a repository already has: the coverage
+      prefix from the Cobertura `<sources>` element, the reviewer's lock-file elision
+      from the rider files `scope.derived` names (beside `uv.lock` and `src/torve/_web/`),
+      and the context pack's test exclusion from `tests.patterns`.
+    paths: [src/torve/application/contextpack.py, src/torve/application/review.py]
+    consequence: >-
+      a nested lock is not reviewed line by line, and a nested test tree is not packed
+      as source
+    cites: [S-0104/D-5, S-0055/D-55]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `pages/docs/reference/stability.md` and the operator reference `upgrading.md`
+      state the upgrade: install the release over the old one (`uv tool install --force`
+      with the new exact version; `uv tool upgrade` keeps an exact pin) and raise
+      `engine`, rebuild the seat images, run `torve init`, `torve migrate --all` when
+      the release notes name a record migration, and `torve doctor`, then commit.
+      A release that moves a `schema_version`, adds a record migration or changes
+      the hooks carries an Upgrade note.
+    paths:
+      - pages/docs/reference/stability.md
+      - README.md
+      - skills/torve/references/upgrading.md
+    consequence: >-
+      an adopter upgrades from one page, and a session from one reference
+    cites: [S-0095/D-6]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      The adoption reference installs torve as a tool, sets `engine`, declares a nested
+      layout, equips the shipped hooks, derives an image only for what the base lacks,
+      and moves the repository's hooks into CI. The review reference covers bot threads
+      that arrive after a night drains and waits on checks with `gh pr checks --watch`.
+      The operator skill says an archive needs `--superseded-by`.
+    paths: [skills/torve/**]
+    consequence: >-
+      the second adopter's session learns what the first adopter's operator learnt
+      by hand
+    cites: [S-0100/D-4, S-0100/D-5, S-0053/D-8]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      `torve manager board <partition> --until-change` reads the board every `--interval`
+      seconds (default 60), optionally only a `--document`'s tasks, and exits 0 printing
+      the changed rows when a task's state, attempts or escalation changes, or when
+      the night closes. It writes nothing and runs no leg.
+    paths: [src/torve/cli/manager.py]
+    consequence: >-
+      an operator session waits on a night without a script of its own
+    rationale: >-
+      Every operating session wrote the same poller over `board --format json`.
+    cites: [S-0085/D-6, S-0055/D-56, S-0055/D-42]
