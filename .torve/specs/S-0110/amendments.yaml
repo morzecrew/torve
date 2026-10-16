@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-16T13:53:51Z'
+    title: >-
+      Each phase owns the tests paired with the modules it allows
+    md: >-
+      Planning refused five contracts on the T-0113 rule: a phase that allows a module
+      must allow its existing tests. Phase 2 now owns `tests/test_lane_prevention.py`,
+      phase 4 `tests/test_globs.py`, phase 6 `tests/test_review_corpus.py` and `tests/test_review_role.py`,
+      and phase 7 `tests/test_manager_e2e.py`; phases 2, 4 and 6 run them in their
+      acceptance. Phase 7's test needs Docker and the lab store, so phases 1 and 7
+      name the host-side run the operator owes before the pull request merges.
