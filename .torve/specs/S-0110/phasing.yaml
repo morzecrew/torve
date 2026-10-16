@@ -4,9 +4,11 @@ phasing:
     title: torve runs on forze 0.13.0
     intent: >-
       Pin `forze==0.13.0` in the dependencies, the `postgres` extra, the dev group
-      and `migrations/substrate/FORZE_VERSION`, and relock. The Postgres integration
-      test and the manager end-to-end test run against the lab store before the change
-      lands, and the seat images are rebuilt in the same change. Settles D-1.
+      and `migrations/substrate/FORZE_VERSION`, and relock. Before the change lands,
+      the operator runs the store's tests on the host, which a sandbox cannot (S-0071/D-5):
+      `just pg-up`, `just migrate`, then `uv run pytest tests/test_postgres_integration.py
+      tests/test_manager_e2e.py` with `TORVE_PG_DSN` naming the lab store. The seat
+      images are rebuilt in the same change. Settles D-1.
     scope:
       - pyproject.toml
       - uv.lock
@@ -167,7 +169,10 @@ phasing:
       to `review.md` and the archive note to `SKILL.md`; restate the upgrade in `stability.md`
       and the README. Tests: the board verb exits on a change and on the night's close
       (`tests/test_manager.py`); the skill names only verbs that exist (`tests/test_skills.py`,
-      `tests/test_docs.py`). Settles D-11, D-12 and D-13.
+      `tests/test_docs.py`). `tests/test_manager_e2e.py` is in scope as `manager.py`'s
+      paired test; it needs Docker and the lab store, so the operator runs it on the
+      host before the document's pull request merges, as phase 1 does. Settles D-11,
+      D-12 and D-13.
     scope:
       - src/torve/cli/manager.py
       - skills/torve/**
