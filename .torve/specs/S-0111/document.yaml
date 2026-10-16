@@ -1,0 +1,115 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0111
+title: A task gets a Docker daemon of its own
+kind: design
+change:
+  type: feat
+  scope: runtime
+status: draft
+implementation: none
+depends_on: [S-0110]
+informed_by: [S-0055, S-0063, S-0071]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A repository whose tests drive containers loses them in a sandbox. bloomery's Docker-bound acceptance skips green there, because its tests skip without a daemon. erp-backend's end-to-end suite runs only through docker compose. The one mode torve has, `runtime.docker: socket`, hands the sandbox the host daemon. That is root on the host for an agent running unattended. It also lets erp-backend's fixed `erp-e2e` project, its fixed ports and its `down -v` collide with the owner's own stack, and it can reach torve's own store.
+
+  `runtime.docker: nested` gives each sandbox that needs Docker a daemon of its own: a privileged side container that the sandbox shares a network namespace with. A compose project, its ports and its volumes live and die with the task. Tests reach published ports on `localhost` as they do on a laptop, and a daemon that does not come up fails the sandbox instead of letting a test skip. The gates sandbox gets it first, then the attempt; the reviewer never does.
+motivation: >-
+  On 2026-10-16 the owner called Docker inside the sandbox a base capability, because
+  without it "we would lose a lot of important gates and tests", and accepted a privileged
+  side container per task. A probe from a bridge container the same day reached PyPI,
+  ghcr.io, GitHub and the Docker Hub mirror directly, but not api.anthropic.com.
+current_state: >-
+  `runtime.docker` takes `""` or `"socket"` (S-0017/A-1): socket mounts the host daemon's
+  socket and adds its group, is refused by OpenSandbox and sealed broker mode, and
+  only the `own` trust class may use it. No configuration enables it. The base and
+  claude images carry no Docker CLI (the battery image carries a static CLI without
+  compose). S-0071/D-5 refuses an acceptance command that names `docker` at mint,
+  because a sandbox has no daemon. The host runs Docker 29 rootful on cgroup v2 with
+  runc only (no sysbox), keeps `torve-postgres` on the same daemon, and its egress
+  proxy listens on 127.0.0.1:7890. Seat sandboxes run with `--network host` to reach
+  it.
+goals: |-
+  - A sandbox can build images and run containers and compose projects, and nothing it starts outlives the task.
+  - Two tasks, and a task and the owner's own stack, never share a container, a port or a volume.
+  - A sandbox that asked for Docker and did not get it fails as infrastructure, never as a green skip.
+  - An image a task pulled stays pulled for that worker slot's next task.
+non_goals: |-
+  - Containing a determined escape: a privileged side container contains accidents, not an agent set on leaving it. The owner accepted that trade; sysbox, which would close it, is not installed and not supported on the host's distribution.
+  - Removing socket mode; it stays for the `own` trust class.
+  - Docker in the reviewer's sandbox, or under OpenSandbox.
+  - Services declared in configuration instead of a daemon: both adopters' tests drive Docker themselves.
+design:
+  - key: the-side-container
+    md: |-
+      For a sandbox that gets Docker, the runtime first starts `<sandbox>-dockerd` from `runtime.nested.image` (a pinned `docker:<version>-dind`):
+      - `--privileged`, with the sandbox's own labels, so the reaper removes it with the sandbox;
+      - the worktree mounted at the sandbox's own workdir, so a compose file's relative bind (`../db/migrations`) resolves to the same files;
+      - the worker slot's cache volume `<runtime.nested.cache_volume>-<slot>` at `/var/lib/docker`, so pulled images survive the task;
+      - `runtime.nested.registry_mirrors` as the daemon's mirrors.
+
+      It waits until `docker info` answers, then removes the containers, volumes and networks a previous task left in the cache, keeping images. Only then does it start the sandbox with `--network container:<sandbox>-dockerd` and `DOCKER_HOST=tcp://127.0.0.1:2375`. Destroying the sandbox destroys both.
+  - key: egress
+    md: >-
+      A sandbox in the side container's namespace no longer shares the host's loopback,
+      so the proxy at 127.0.0.1 is out of reach. The runtime rewrites a loopback proxy
+      in a nested sandbox's environment to the side container's network gateway, as
+      sealed mode already rewrites it to the broker. The host's proxy must listen
+      on that gateway too. `torve doctor` checks from a bridge container that it answers.
+      The gates sandbox needs no proxy: PyPI, ghcr.io and the mirrors answer from
+      the bridge. An attempt does, because its model's API may not.
+  - key: which-sandboxes
+    md: >-
+      `runtime.nested.roles` names the roles whose sandboxes get Docker, and defaults
+      to `[gates]`. Adding `implement` lets an attempt run what its gates will run.
+      The review role is refused, because a judge does not start containers. OpenSandbox
+      and sealed broker mode refuse `nested`, as they refuse `socket`. The fleet's
+      trust table admits `nested` for the `own` class.
+tests: |-
+  - `runtime.docker: nested` validates with its block, and is refused under OpenSandbox, under sealed mode, for the review role and for a fleet trust class other than `own` (D-1, D-4).
+  - The runtime's arguments for a nested sandbox: a privileged side container with the sandbox's labels, the worktree at the workdir, the slot's cache volume and the mirrors; the sandbox on `--network container:` with `DOCKER_HOST` (D-1, D-2).
+  - A side container whose `docker info` never answers fails creation with a runtime error, and both containers are removed (D-3).
+  - A loopback proxy in a nested sandbox's environment is rewritten to the gateway (D-6).
+  - The base image carries `docker`, `docker compose`, `docker buildx`, `just` and `openssl` (D-5).
+  - Behind `TORVE_IMAGE_TESTS`: a nested gates sandbox runs a compose project with a published port, reaches it on `localhost`, and leaves nothing behind (D-1, D-2).
+  - An acceptance command naming `docker` mints under a nested configuration and is refused without one (D-7).
+docs: >-
+  The runtime configuration reference (`runtime.docker`, `runtime.nested`), and the
+  operator skill's `adopting.md` (when to choose nested, and the host proxy prerequisite).
+out_of_scope: |-
+  - bloomery's and erp-backend's configuration and their e2e gates; each adopts `nested` in its own change.
+  - A rootless or sysbox daemon; either replaces `--privileged` later behind the same configuration.
+risks: |-
+  - A privileged container can reach the host's devices. An agent that tries can leave the side container; the mode contains accidents only (the owner's accepted trade).
+  - A cold cache pulls every image a compose project names, several gigabytes for erp-backend, on each slot's first task.
+  - Containers inside the side container write root-owned files into a bind-mounted worktree; the lane's commit and cleanup run as the operator and may meet them.
+  - Digest-pinned images a registry no longer serves fail the pull, as they would on a laptop.
+  - Host prerequisites: the proxy must listen on the bridge gateway for nested attempts, and the cache volumes take disk until pruned.
+alternatives:
+  - option: >-
+      Keep the host socket (`socket`) for every adopter.
+    rejected_because: >-
+      It is root on the host for an unattended agent, its compose projects collide
+      with the owner's and with each other on fixed names and ports, and it reaches
+      the torve store on the same daemon.
+  - option: >-
+      Declare service containers in configuration and give the agent no Docker API.
+    rejected_because: >-
+      bloomery's tests start containers through testcontainers and erp-backend's through
+      compose; both would be rewritten, and an image build would remain impossible.
+  - option: >-
+      sysbox, which nests a daemon without `--privileged`.
+    rejected_because: >-
+      It is not installed, installing it restarts the daemon a night runs on, and
+      the host's distribution is unsupported. It stays the upgrade path for D-1.
+questions:
+  - id: Q-1
+    text: >-
+      S-0071/D-5 is LOCKED and says "a sandbox has no Docker daemon", which is why
+      an acceptance command naming `docker` is refused at mint. Under `nested` the
+      gates sandbox has one. Amend its text to "a sandbox has no Docker daemon unless
+      the repository runs one nested (S-0111)", keeping the refusal for every other
+      configuration? Lean: yes.
