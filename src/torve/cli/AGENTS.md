@@ -733,6 +733,34 @@ When the served lane re-queues a candidate on a conflict (S-0079/D-10), the mana
 - Consequence: a task the disposal re-queued is dispatched again on a later pass, and a night no longer refuses to open over it
 - Check: `uv run pytest tests/test_manager.py -q -k requeued` (shadow; runs as `decision:S-0109/D-1`, no log entry owed)
 
+### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+A repository installs torve as a uv tool, not as a project dependency, and every command torve writes or ships for a host or a sandbox calls bare `torve`: the stub `init` writes, the shipped hooks, and the operating docs and skill.
+
+- Paths: `src/torve/cli/init.py` `skills/torve/**` `skills/hooks/**` `pages/docs/**`
+- Consequence: torve's pins and an application's never meet in one lock
+
+### S-0110/D-4 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`just images` stamps every image with the version of the tree it builds, through `SETUPTOOLS_SCM_PRETEND_VERSION` from `git describe`; `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
+
+- Paths: `bake.hcl` `justfile` `sandboxes/base/Dockerfile` `src/torve/cli/doctor.py`
+- Consequence: a sandbox running another torve than the host is a red check before a night
+
+### S-0110/D-6 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+The pre-write, read and finish hooks and their `claude/settings.json` live in `skills/hooks/implement/` and ship in the wheel. A profile equips them as `source: torve:hooks/implement`, mounted as `implement`. torve's own implement profile and the starter implement profile equip them; the load-time hook check covers `torve:` items.
+
+- Paths: `skills/hooks/**` `.torve/agents/*.yaml` `src/torve/cli/init.py` `src/torve/config/agents.py`
+- Consequence: an upgrade brings its hooks, and no adopter carries a copy
+
+### S-0110/D-13 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`torve manager board <partition> --until-change` reads the board every `--interval` seconds (default 60), optionally only a `--document`'s tasks, and exits 0 printing the changed rows when a task's state, attempts or escalation changes, or when the night closes. It writes nothing and runs no leg.
+
+- Paths: `src/torve/cli/manager.py`
+- Consequence: an operator session waits on a night without a script of its own
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

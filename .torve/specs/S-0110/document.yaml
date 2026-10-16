@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: adoption
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0089, S-0095, S-0100]
 informed_by:
@@ -108,7 +108,7 @@ tests: |-
   - The bake file passes the build's version to every image, and the doctor reds a seat image whose `torve --version` differs from the host's (D-4).
   - The base image installs CPython 3.13 and 3.14 (D-5).
   - A profile equipping `torve:hooks/implement` materializes the four hooks and `claude/settings.json` from the package; the starter implement profile equips it; the shipped `globs.py` is byte-identical with `src/torve/base/globs.py` (D-6).
-  - A commit, a rebase and a worktree checkout torve runs in a repository with an installed hook do not run it (D-7).
+  - A commit, a rebase, a worktree checkout and a push torve runs in a repository with installed hooks run none of them (D-7).
   - With `layout.root: app`, the source-layout gate, the citation scan, the spec-quality frontier and the `tests` defaults read `app/src` and `app/tests`; with no `layout`, every one of them reads what it reads today (D-8).
   - With `layout.carried: [db]`, a scope over `app/src/**` and `db/migrations/**` counts one module; `**/x.py` counts none (D-9).
   - The coverage prefix comes from Cobertura's `<sources>`; `app/uv.lock` is elided when `scope.derived` names it; a pack excludes `app/tests/**` when `tests.patterns` names it (D-10).

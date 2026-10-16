@@ -120,6 +120,27 @@ A row's `check` may name a property test: a Hypothesis test stating the decision
 - Paths: `pyproject.toml` `skills/spec-writer/SKILL.md`
 - Consequence: a decision is checked over the inputs it governs, not over the one example its author thought of
 
+### S-0110/D-1 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`, and rebuilds its seat images in the same change.
+
+- Paths: `pyproject.toml` `uv.lock` `migrations/substrate/FORZE_VERSION`
+- Consequence: torve runs on the forze its adopters run, and the substrate pin check reads the new version
+
+### S-0110/D-4 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`just images` stamps every image with the version of the tree it builds, through `SETUPTOOLS_SCM_PRETEND_VERSION` from `git describe`; `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
+
+- Paths: `bake.hcl` `justfile` `sandboxes/base/Dockerfile` `src/torve/cli/doctor.py`
+- Consequence: a sandbox running another torve than the host is a red check before a night
+
+### S-0110/D-11 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`pages/docs/reference/stability.md` and the operator reference `upgrading.md` state the upgrade: install the release over the old one (`uv tool install --force` with the new exact version; `uv tool upgrade` keeps an exact pin) and raise `engine`, rebuild the seat images, run `torve init`, `torve migrate --all` when the release notes name a record migration, and `torve doctor`, then commit. A release that moves a `schema_version`, adds a record migration or changes the hooks carries an Upgrade note.
+
+- Paths: `pages/docs/reference/stability.md` `README.md` `skills/torve/references/upgrading.md`
+- Consequence: an adopter upgrades from one page, and a session from one reference
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -137,13 +158,14 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 `<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
 - `migrations/` — 1 decision(s)
+- `migrations/substrate/` — 1 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/diagrams/` — 0 decision(s)
-- `pages/docs/` — 4 decision(s)
+- `pages/docs/` — 5 decision(s)
 - `pages/docs/architecture/` — 1 decision(s)
-- `pages/docs/reference/` — 1 decision(s)
+- `pages/docs/reference/` — 2 decision(s)
 - `sandboxes/` — 11 decision(s)
-- `sandboxes/base/` — 0 decision(s)
+- `sandboxes/base/` — 2 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/claude/toolkit/` — 3 decision(s)
 - `sandboxes/dsh/` — 3 decision(s)
@@ -153,7 +175,8 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `skills/` — 8 decision(s)
 - `skills/flag-dont-flip/` — 1 decision(s)
 - `skills/spec-writer/` — 2 decision(s)
-- `skills/torve/` — 2 decision(s)
+- `skills/torve/` — 4 decision(s)
+- `skills/torve/references/` — 1 decision(s)
 - `skills/working-rules/` — 8 decision(s)
 - `src/` — 1 decision(s)
 - `src/torve/` — 3 decision(s)
@@ -163,14 +186,14 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/broker/` — 2 decision(s)
 - `src/torve/adapters/notify/` — 0 decision(s)
 - `src/torve/adapters/runtime/` — 4 decision(s)
-- `src/torve/adapters/vcs/` — 13 decision(s)
-- `src/torve/adapters/workspace/` — 3 decision(s)
-- `src/torve/application/` — 293 decision(s)
+- `src/torve/adapters/vcs/` — 14 decision(s)
+- `src/torve/adapters/workspace/` — 4 decision(s)
+- `src/torve/application/` — 297 decision(s)
 - `src/torve/base/` — 5 decision(s)
-- `src/torve/cli/` — 100 decision(s)
-- `src/torve/config/` — 94 decision(s)
+- `src/torve/cli/` — 104 decision(s)
+- `src/torve/config/` — 98 decision(s)
 - `src/torve/domain/` — 50 decision(s)
-- `src/torve/gates/` — 45 decision(s)
+- `src/torve/gates/` — 46 decision(s)
 - `tests/` — 64 decision(s)
 - `tests/fixtures/` — 0 decision(s)
 - `web/` — 1 decision(s)

@@ -341,6 +341,13 @@ The sabotage suite carries a mutation case: a change whose tests assert nothing 
 - Consequence: the gate is shown to tell a weak test from a strong one, as every gate must
 - Check: `uv run pytest tests/test_sabotage.py -q -k mutation_case` (shadow; runs as `decision:S-0107/D-5`, no log entry owed)
 
+### S-0110/D-8 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`gates.yaml` may name the Python project's directory, `layout.root` (default the repository root). The source root is `<root>/src`: the source-layout gate, the citation scan, the spec-quality frontier and the coverage fallback prefix read it, and the `tests` defaults are re-rooted under `<root>` when the `tests` block is absent. Nothing searches the tree for it.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/source_layout.py` `src/torve/config/spec.py` `src/torve/application/specquality.py` `.torve/schemas/**`
+- Consequence: a project under `app/` gets every check a root project gets, and a root project changes nothing
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail
