@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      The gates sandbox gets a Docker daemon of its own
+    intent: >-
+      Add `nested` to `runtime.docker` with its `runtime.nested` block (image, cache_volume,
+      registry_mirrors, roles, ready_s) and its refusals; the runtime starts, readies,
+      prunes and destroys the side container and joins the sandbox to it; the runner
+      marks the gates sandbox; the base image adds the Docker CLI, compose, buildx,
+      `just` and `openssl`; the lint admits `docker` under a nested gates role, which
+      amends S-0071/D-5 as the owner agrees (Q-1). Tests: configuration and refusals
+      (`tests/test_runconfig.py`), the runtime's arguments and the readiness failure
+      against a fake docker (`tests/test_runtime_conformance.py`), the lint (`tests/test_intake.py`),
+      the image (`tests/test_sandbox_defs.py`), and a live compose round trip behind
+      `TORVE_IMAGE_TESTS` (`tests/test_sandbox_images.py`). Settles D-1 to D-5 and
+      D-7.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/config/fleet.py
+      - src/torve/application/ports.py
+      - src/torve/application/runner.py
+      - src/torve/application/intake.py
+      - src/torve/adapters/runtime/docker.py
+      - sandboxes/base/Dockerfile
+      - .torve/schemas/**
+      - .torve/specs/S-0071/**
+      - tests/test_runconfig.py
+      - tests/test_runtime_conformance.py
+      - tests/test_intake.py
+      - tests/test_sandbox_defs.py
+      - tests/test_sandbox_images.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_runtime_conformance.py tests/test_intake.py
+        tests/test_sandbox_defs.py tests/test_sandbox_images.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: structural
+  - phase: 2
+    title: >-
+      An attempt can be nested, and reaches its model through the gateway
+    intent: >-
+      The session marks an attempt's sandbox when `implement` is nested; a loopback
+      proxy is rewritten to the side container's gateway; the doctor checks the rewritten
+      proxy from a bridge container. Tests: the rewrite (`tests/test_runtime_conformance.py`),
+      the session's mark (`tests/test_session.py`), the doctor's check against a fake
+      docker (`tests/test_doctor.py`). Settles D-6.
+    scope:
+      - src/torve/application/session.py
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/cli/doctor.py
+      - tests/test_runtime_conformance.py
+      - tests/test_session.py
+      - tests/test_doctor.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runtime_conformance.py tests/test_session.py tests/test_doctor.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: >-
+      The reference and the adoption guide say when to nest
+    intent: >-
+      Document `runtime.docker: nested` and its block in the configuration reference,
+      and add to the operator skill's `adopting.md` when to choose it over socket,
+      the host proxy prerequisite for nested attempts, and the cold-cache cost. Tests:
+      the docs name only fields that exist (`tests/test_docs.py`, `tests/test_skills.py`).
+    scope: [pages/docs/**, skills/torve/**, tests/test_docs.py, tests/test_skills.py]
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+    depends_on:
+      - 2
+    character: routine

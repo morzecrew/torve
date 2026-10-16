@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `runtime.docker: nested` gives each sandbox of a role in `runtime.nested.roles`
+      a Docker daemon in a privileged side container from `runtime.nested.image`,
+      a pinned dind image. The sandbox joins the side container's network namespace
+      and reaches the daemon at `tcp://127.0.0.1:2375`.
+    paths:
+      - src/torve/config/runconfig.py
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/application/ports.py
+      - .torve/schemas/**
+    consequence: >-
+      a task's containers, ports and volumes are its own, and published ports answer
+      on `localhost`
+    rationale: >-
+      The owner accepted a privileged side container per task on 2026-10-16. It contains
+      accidental damage; socket mode contains none, and sysbox is unavailable on the
+      host.
+    cites: [S-0055/D-3, S-0055/D-33]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The side container carries the sandbox's labels, mounts the worktree at the
+      sandbox's workdir and the worker slot's cache volume at `/var/lib/docker`, and
+      uses `runtime.nested.registry_mirrors`. Once its daemon answers, it removes
+      the containers, volumes and networks a previous task left, keeping images. Destroying
+      the sandbox destroys it.
+    paths: [src/torve/adapters/runtime/docker.py]
+    consequence: >-
+      nothing a task starts outlives it, and what it pulled stays pulled for the slot
+    rationale: >-
+      erp-backend's compose files bind `../db/migrations` by relative path, and its
+      stacks restart on a daemon's boot unless removed.
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A side container whose `docker info` does not answer within `runtime.nested.ready_s`
+      seconds (default 60) fails the sandbox's creation as a runtime error, and both
+      containers are removed.
+    paths: [src/torve/adapters/runtime/docker.py]
+    consequence: >-
+      a sandbox that asked for Docker either has it or does not run; a Docker-bound
+      test never skips green
+    rationale: >-
+      bloomery's Docker-bound acceptance skipped green in a sandbox without a daemon
+      (bloomery #191, #192).
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `runtime.nested.roles` defaults to `[gates]`. The review role is refused, and
+      so are OpenSandbox, sealed broker mode and every fleet trust class but `own`.
+    paths: [src/torve/config/runconfig.py, src/torve/config/fleet.py]
+    consequence: >-
+      a judge never starts containers, and nested mode runs only where socket mode
+      could
+    cites: [S-0017/D-10]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The base image carries the Docker CLI with its compose and buildx plugins, `just`
+      and `openssl`.
+    paths: [sandboxes/base/Dockerfile]
+    consequence: >-
+      a repository's own Docker recipes run in a seat image without deriving one
+    rationale: >-
+      erp-backend's e2e recipe is `just e2e` over `docker compose`, and its environment
+      file is generated with `openssl`.
+    cites: [S-0063/D-7]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      In a nested sandbox's environment, a proxy whose host is loopback is rewritten
+      to the side container's network gateway. `torve doctor` checks, from a bridge
+      container, that the rewritten proxy answers when a role other than gates is
+      nested.
+    paths: [src/torve/adapters/runtime/docker.py, src/torve/cli/doctor.py]
+    consequence: >-
+      an attempt in a nested sandbox reaches its model, or the doctor says why not
+    rationale: >-
+      From the bridge, PyPI, ghcr.io, GitHub and the Docker Hub mirror answer directly,
+      and api.anthropic.com does not (probe, 2026-10-16).
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The mint-time lint admits an acceptance command naming `docker` when the configuration
+      nests the gates role, and refuses it otherwise.
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      a phase can name its e2e suite as acceptance once its gates can run it
+    cites: [S-0071/D-5]
