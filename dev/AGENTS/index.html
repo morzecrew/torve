@@ -857,6 +857,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#s-0110d-3-assumed-a-second-adopter-runs-torve-from-a-tool-install-implementation-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0110/D-3 — <code>ASSUMED</code> (A second adopter runs torve from a tool install) — implementation: none
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -917,6 +928,12 @@
 <ul>
 <li>Paths: <code>pages/docs/operating.md</code></li>
 <li>Consequence: the operating page, the skill and the CLI say the same thing once each</li>
+</ul>
+<h3 id="s-0110d-3-assumed-a-second-adopter-runs-torve-from-a-tool-install-implementation-none">S-0110/D-3 — <code>ASSUMED</code> (A second adopter runs torve from a tool install) — implementation: none<a class="headerlink" href="#s-0110d-3-assumed-a-second-adopter-runs-torve-from-a-tool-install-implementation-none" title="Permanent link">&para;</a></h3>
+<p>A repository installs torve as a uv tool, not as a project dependency, and every command torve writes or ships for a host or a sandbox calls bare <code>torve</code>: the stub <code>init</code> writes, the shipped hooks, and the operating docs and skill.</p>
+<ul>
+<li>Paths: <code>src/torve/cli/init.py</code> <code>skills/torve/**</code> <code>skills/hooks/**</code> <code>pages/docs/**</code></li>
+<li>Consequence: torve's pins and an application's never meet in one lock</li>
 </ul>
 <!-- /torve:managed -->
 
