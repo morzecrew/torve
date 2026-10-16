@@ -1,0 +1,161 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0110
+title: A second adopter runs torve from a tool install
+kind: design
+change:
+  type: feat
+  scope: adoption
+status: draft
+implementation: none
+depends_on: [S-0089, S-0095, S-0100]
+informed_by: [S-0055, S-0057, S-0062, S-0063, S-0071, S-0072, S-0077, S-0104, S-0105]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  erp-backend cannot adopt torve as bloomery did. Its application pins forze 0.13 while torve pins 0.10, so torve cannot be one of its dependencies. Its package lives under `app/`, and several of torve's checks read `src/` and `tests/` at the repository root. Its pre-commit hook would run on every commit the lane makes on the host, reading configuration the agent can edit. And each adopter still copies torve's hooks by hand on every upgrade.
+
+  torve becomes a tool a repository installs (`uv tool install`), not a dependency it locks. The repository states the torve it needs in `config.yaml`, and the doctor checks that the sandbox image carries the same version. The hooks ship in the package. `gates.yaml` can name the directory the Python project lives in and the directories that ride with any change. Every git command torve runs leaves the repository's hooks off. The operator skill gains an upgrade reference, and the adoption reference covers all of this.
+motivation: >-
+  The owner asked on 2026-10-15 to adopt torve in erp-backend, and on 2026-10-16 chose
+  a uv tool install for every adopter, a layout the configuration declares, forze 0.13.0
+  in torve, Python 3.14 in the sandbox, and the skill gaps fixed in torve so bloomery
+  gains them too. Research on erp-backend found each obstacle this document removes.
+current_state: >-
+  torve pins `forze==0.10.0` (pyproject.toml, `migrations/substrate/FORZE_VERSION`) and
+  bloomery locks torve in its dev group. erp-backend locks `forze==0.13.0`, keeps `pyproject.toml`
+  and `uv.lock` under `app/`, its code under `app/src/` and its tests under `app/tests/`,
+  and runs pre-commit (gitleaks, end-of-file and whitespace fixers) as an installed
+  git hook. The base image installs CPython 3.13 only, into a directory the sandbox
+  user cannot write. The image build has no `.git` and sets no version, so `torve --version`
+  inside `claude-sandbox:2.1.283` reports 0.1.0 while bloomery runs 0.3.2. The hooks
+  live in `.torve/agents/hooks/implement/`, and adopters copy them (bloomery #289).
+  `init` writes a stub that runs `uv run --quiet torve guide torve`. Four sites read
+  a root `src/`: the source-layout gate, the citation scan, the spec-quality frontier
+  and the coverage fallback prefix. The sizer carries only `tests` and `.torve`, so
+  22 of erp-backend's last 60 commits count `app` and `db` as two modules, and it keys
+  a glob that starts with `**/` as a module named `**`. Lane commits run on the host
+  with no `--no-verify`. No reference says how to upgrade torve.
+goals: |-
+  - A repository whose own pins clash with torve's still runs torve, and states the torve it needs in one line.
+  - A sandbox image that carries a different torve than the host is a red doctor check, not a surprise in a night.
+  - Upgrading torve copies nothing by hand.
+  - A Python project under a subdirectory gets every check a root project gets, and a migration directory rides with the code it serves.
+  - No git command torve runs executes the repository's hooks.
+  - An operator learns to adopt and to upgrade torve from the skill alone.
+non_goals: |-
+  - Docker inside the sandbox; that is a document of its own.
+  - Configurable sizing thresholds: `MAX_MODULES` and `MAX_ALLOW_GLOBS` stay as S-0089 measured them.
+  - Auto-detecting the layout; S-0013/A-2's rule against searching the tree stands.
+  - A Claude Code plugin or an MCP server for operators: the skill already reaches every session through the stub, and neither would version with the installed torve.
+design:
+  - key: tool-install
+    md: |-
+      A repository installs torve with `uv tool install 'torve[postgres,migrate]==X.Y.Z'`. Its own lock no longer carries torve, so torve's pins and the application's never meet. `uv run torve` still works: uv runs a command the project's environment lacks from `PATH`. torve's stub, hooks and docs call bare `torve` all the same.
+
+      `config.yaml` may name the release the repository needs, `engine: "0.4.0"`, meaning at least 0.4.0 and below 0.5.0. A command that loads the configuration under another torve stops, naming both versions and the upgrade command, the way S-0095/D-5 stops a file written for another torve. The image build stamps the version it was built from, and `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
+  - key: hooks-as-equipment
+    md: >-
+      The hooks move to `skills/hooks/implement/` and ship in the wheel with the skills.
+      A profile equips them as `source: torve:hooks/implement`. The mount keeps its
+      name, `implement`, so the hooks' `settings.json` does not change. torve's own
+      profiles and the starter implement profile equip them. An adopter deletes its
+      copy, and an upgrade brings the new hooks with the release.
+  - key: layout
+    md: |-
+      `gates.yaml` describes the repository under work, so the layout lives there:
+
+      ```yaml
+      layout:
+        root: app        # the Python project's directory; default "" (the repository root)
+        carried: [db]    # top-level directories that ride with any change; default []
+      ```
+
+      `root` re-roots the source-layout gate, the citation scan, the spec-quality frontier, the coverage fallback prefix and the `tests` defaults (used only when the `tests` block is absent). `carried` joins `tests` and `.torve` in the sizer's carried set. The thresholds stay fixed. The defaults reproduce today's behaviour, so bloomery and torve change nothing.
+
+      Three readings are derived instead of configured: the coverage prefix from the Cobertura `<sources>` element, the reviewer's lock-file elision from the rider files named in `scope.derived`, and the context pack's test exclusion from `tests.patterns`.
+  - key: hooks-off
+    md: >-
+      A repository's git hooks run code the repository's tree configures. pre-commit
+      reads `.pre-commit-config.yaml` from the worktree, and in a task's worktree an
+      agent wrote it. Every git command torve runs therefore carries `core.hooksPath=/dev/null`,
+      which keeps S-0055/D-3: no agent code runs on the host. A repository moves the
+      checks its hooks stood for into its gates or its CI. erp-backend's CI already
+      runs its hooks and a gitleaks scan (erp-backend #118).
+  - key: upgrade
+    md: |-
+      The upgrade, stated once in `pages/docs/reference/stability.md` and in a new operator reference, `upgrading.md`:
+      1. `uv tool upgrade torve` (or install the release), and raise `engine:` in `config.yaml`.
+      2. Rebuild the seat images (`just images` in torve, or the repository's derived image).
+      3. `torve init` rewrites what lags, `torve migrate --all` when the release notes name a record migration, and `torve doctor` must come back green.
+      4. Commit.
+tests: |-
+  - torve resolves and passes its suite on forze 0.13.0, and the substrate pin check reads 0.13.0 (D-1).
+  - A configuration naming `engine: "0.4.0"` loads under 0.4.x and is refused under 0.3.x and 0.5.0, naming both versions; one with no `engine` loads under any version (D-2).
+  - The stub `init` writes, the shipped hooks and the operating docs call bare `torve` (D-3).
+  - The bake file passes the build's version to every image, and the doctor reds a seat image whose `torve --version` differs from the host's (D-4).
+  - The base image installs CPython 3.13 and 3.14 (D-5).
+  - A profile equipping `torve:hooks/implement` materializes the four hooks and `claude/settings.json` from the package; the starter implement profile equips it; the shipped `globs.py` is byte-identical with `src/torve/base/globs.py` (D-6).
+  - A commit, a rebase and a worktree checkout torve runs in a repository with an installed hook do not run it (D-7).
+  - With `layout.root: app`, the source-layout gate, the citation scan, the spec-quality frontier and the `tests` defaults read `app/src` and `app/tests`; with no `layout`, every one of them reads what it reads today (D-8).
+  - With `layout.carried: [db]`, a scope over `app/src/**` and `db/migrations/**` counts one module; `**/x.py` counts none (D-9).
+  - The coverage prefix comes from Cobertura's `<sources>`; `app/uv.lock` is elided when `scope.derived` names it; a pack excludes `app/tests/**` when `tests.patterns` names it (D-10).
+  - `torve manager board --until-change` exits with the changed rows when a task moves, and when the night closes (D-13).
+  - The operator skill's references name only verbs that exist; `upgrading.md` exists (D-11, D-12).
+docs: |-
+  `pages/docs/reference/stability.md` (the upgrade), the configuration reference (`engine`, `layout`), and the operator skill (`adopting.md`, `upgrading.md`, `review.md`, `SKILL.md`).
+out_of_scope: |-
+  - bloomery's own switch (drop the dev dependency, add the CI tool install, set `engine`, delete its hook copy): a bloomery PR after the release.
+  - erp-backend's configuration and its first document.
+risks: |-
+  - The forze bump moves `config_hash`, so telemetry starts a new regime, and the seat images must be rebuilt in the same change (S-0071/D-2).
+  - A repository that relied on its hooks running on torve's commits loses them silently; the release notes and `adopting.md` say to move them to CI.
+  - Moving the hooks needs three LOCKED rows' paths amended (Q-1); until the owner amends them, `spec check` reports them as matching nothing.
+  - A repository that keeps torve in its lock as well as on `PATH` runs whichever `uv run` finds first, the lock's; `torve doctor` names the running version.
+  - The shipped hooks keep their corpus citations in code comments; S-0100/D-5 governs skill text, which these are not.
+alternatives:
+  - option: >-
+      Keep torve as a dev dependency and bump forze in lockstep with each adopter.
+    rejected_because: >-
+      Every forze release in an application would wait on a torve release, and two
+      adopters on different forze versions could not both lock torve.
+  - option: >-
+      Run the repository's hooks on the lane's commits and retry once when a fixer
+      edits a file.
+    rejected_because: >-
+      The hooks read configuration the agent can edit, so they run agent code on the
+      host, which S-0055/D-3 forbids.
+  - option: >-
+      Ship the hooks from `.torve/agents/hooks/` with a wheel force-include and leave
+      the files where they are.
+    rejected_because: >-
+      The source tree and the wheel would disagree about where `torve:hooks` resolves:
+      `skills_root()` reads `skills/` in a checkout and `_skills` in the wheel.
+questions:
+  - id: Q-1
+    text: >-
+      S-0072/D-1, S-0072/D-2 and S-0077/D-3 are LOCKED and name `.torve/agents/hooks`
+      in their paths. D-6 moves the hooks to `skills/hooks/implement/`. Amend those
+      rows' paths to the new directory, leaving their text unchanged? Lean: yes.
+    status: open
+  - id: Q-2
+    text: >-
+      S-0057/D-9 is LOCKED: `spec check` resolves citations "in tracked files under
+      `src/**`, `pages/**`". D-8 scans `<layout.root>/src/**`. Amend its text to "under
+      the layout's source root (`src/**` by default), `pages/**`"? Lean: yes.
+    status: open
+  - id: Q-3
+    text: >-
+      S-0089 rejected a per-repository carried set as tuning a threshold nobody has
+      calibrated. D-9 makes the carried set a layout fact while the thresholds stay
+      fixed. Accept the reversal? Lean: yes; 22 of erp-backend's last 60 commits pair
+      `app/` with `db/migrations/`, the way a change pairs code with its tests.
+    status: open
+  - id: Q-4
+    text: >-
+      When the installed torve is outside `engine:`, should every command that loads
+      the configuration stop, or only `torve doctor` go red? Lean: stop, as S-0095/D-5
+      stops a file written for another torve; `torve --version`, `guide` and `doctor`
+      still run.
+    status: open
