@@ -1,20 +1,20 @@
 # yaml-language-server: $schema=../../schemas/phasing.json
 phasing:
   - phase: 1
-    title: >-
-      torve runs on forze 0.13.0
+    title: torve runs on forze 0.13.0
     intent: >-
-      Pin `forze==0.13.0` in the dependencies, the `postgres` extra, the dev group and
-      `migrations/substrate/FORZE_VERSION`, and relock. The Postgres integration test
-      and the manager end-to-end test run against the lab store before the change lands,
-      and the seat images are rebuilt in the same change. Settles D-1.
+      Pin `forze==0.13.0` in the dependencies, the `postgres` extra, the dev group
+      and `migrations/substrate/FORZE_VERSION`, and relock. The Postgres integration
+      test and the manager end-to-end test run against the lab store before the change
+      lands, and the seat images are rebuilt in the same change. Settles D-1.
     scope:
       - pyproject.toml
       - uv.lock
       - migrations/substrate/FORZE_VERSION
       - tests/test_migrate.py
     acceptance:
-      - uv run pytest tests/test_migrate.py tests/test_taskstore.py tests/test_dst.py
+      - >-
+        uv run pytest tests/test_migrate.py tests/test_taskstore.py tests/test_dst.py
       - uv run mypy src
     character: routine
   - phase: 2
@@ -33,7 +33,8 @@ phasing:
       - tests/test_lane.py
       - tests/test_runner.py
     acceptance:
-      - uv run pytest tests/test_provenance.py tests/test_lane.py tests/test_runner.py
+      - >-
+        uv run pytest tests/test_provenance.py tests/test_lane.py tests/test_runner.py
       - uv run mypy src
     character: routine
   - phase: 3
@@ -43,8 +44,8 @@ phasing:
       Add `engine` to the runner configuration with its refusal, regenerate the schemas,
       stamp the image's version from `bake.hcl`, add the doctor's image version check,
       and install CPython 3.13 and 3.14 in the base image. Tests: the range and its
-      refusal (`tests/test_runconfig.py`, `tests/test_versions.py`); the bake file passes
-      the version and the base image installs both interpreters (`tests/test_sandbox_defs.py`);
+      refusal (`tests/test_runconfig.py`, `tests/test_versions.py`); the bake file
+      passes the version and the base image installs both interpreters (`tests/test_sandbox_defs.py`);
       the doctor's check against a fake image runner (`tests/test_doctor.py`). Settles
       D-2, D-4 and D-5.
     scope:
@@ -65,13 +66,13 @@ phasing:
       - uv run mypy src
     character: structural
   - phase: 4
-    title: >-
-      The hooks ship in the package
+    title: The hooks ship in the package
     intent: >-
-      Move `.torve/agents/hooks/implement/` to `skills/hooks/implement/`; torve's implement
-      profile and the starter implement profile equip `torve:hooks/implement`; the load-time
-      hook check covers `torve:` items; the hooks and the stub call bare `torve`. Lands
-      after the owner amends the paths of S-0072/D-1, S-0072/D-2 and S-0077/D-3 (Q-1).
+      Move `.torve/agents/hooks/implement/` to `skills/hooks/implement/`; torve's
+      implement profile and the starter implement profile equip `torve:hooks/implement`;
+      the load-time hook check covers `torve:` items; the hooks and the stub call
+      bare `torve`. The same change amends the paths of S-0072/D-1, S-0072/D-2 and
+      S-0077/D-3 to the new directory (`torve spec amend`), as the owner agreed (Q-1).
       Tests: a `torve:hooks/implement` item materializes the hooks and `claude/settings.json`;
       the starter profile equips it; the shipped `globs.py` stays byte-identical with
       `src/torve/base/globs.py`; the stub calls bare `torve`. Settles D-3 and D-6.
@@ -92,17 +93,17 @@ phasing:
       - uv run torve spec check
     character: structural
   - phase: 5
-    title: >-
-      `gates.yaml` declares the layout
+    title: '`gates.yaml` declares the layout'
     intent: >-
-      Add `layout.root` and `layout.carried` to the gates manifest and its schema. The
-      source-layout gate, the citation scan, the spec-quality frontier, the coverage
+      Add `layout.root` and `layout.carried` to the gates manifest and its schema.
+      The source-layout gate, the citation scan, the spec-quality frontier, the coverage
       fallback prefix and the `tests` defaults read `layout.root`; the sizer's callers
-      pass `layout.carried`; a wildcard first segment names no module. Lands after the
-      owner amends S-0057/D-9 (Q-2). Tests: with no `layout` every site reads what it
-      reads today; with `root: app` each reads `app/src` or `app/tests`; with `carried:
-      [db]` a scope over `app/src/**` and `db/migrations/**` counts one module; `**/x.py`
-      counts none; the source-layout twin still fails. Settles D-8 and D-9.
+      pass `layout.carried`; a wildcard first segment names no module. The same change
+      amends S-0057/D-9's text to the layout's source root, as the owner agreed (Q-2).
+      Tests: with no `layout` every site reads what it reads today; with `root: app`
+      each reads `app/src` or `app/tests`; with `carried: [db]` a scope over `app/src/**`
+      and `db/migrations/**` counts one module; `**/x.py` counts none; the source-layout
+      twin still fails. Settles D-8 and D-9.
     scope:
       - src/torve/config/manifest.py
       - src/torve/gates/source_layout.py
@@ -120,16 +121,17 @@ phasing:
         tests/test_spec.py tests/test_specquality.py tests/test_sizing.py tests/test_intake.py
       - uv run mypy src
       - uv run torve spec check
+    depends_on:
+      - 3
     character: structural
-    depends_on: [3]
   - phase: 6
     title: >-
       Coverage, lock elision and test exclusion read the configuration
     intent: >-
-      The coverage prefix comes from Cobertura's `<sources>`; the reviewer elides the
-      rider files `scope.derived` names beside `uv.lock` and `src/torve/_web/`; the
-      context pack excludes what `tests.patterns` names. Tests: a nested coverage report,
-      a nested lock and a nested test tree (`tests/test_contextpack.py`, `tests/test_review_run.py`).
+      The coverage prefix comes from Cobertura's `<sources>`; the reviewer elides
+      the rider files `scope.derived` names beside `uv.lock` and `src/torve/_web/`;
+      the context pack excludes what `tests.patterns` names. Tests: a nested coverage
+      report, a nested lock and a nested test tree (`tests/test_contextpack.py`, `tests/test_review_run.py`).
       Settles D-10.
     scope:
       - src/torve/application/contextpack.py
@@ -137,10 +139,12 @@ phasing:
       - tests/test_contextpack.py
       - tests/test_review_run.py
     acceptance:
-      - uv run pytest tests/test_contextpack.py tests/test_review_run.py
+      - >-
+        uv run pytest tests/test_contextpack.py tests/test_review_run.py
       - uv run mypy src
+    depends_on:
+      - 5
     character: routine
-    depends_on: [5]
   - phase: 7
     title: >-
       The operator learns to adopt and to upgrade, and waits on a night with one verb
@@ -161,7 +165,12 @@ phasing:
       - tests/test_skills.py
       - tests/test_docs.py
     acceptance:
-      - uv run pytest tests/test_manager.py tests/test_skills.py tests/test_docs.py
+      - >-
+        uv run pytest tests/test_manager.py tests/test_skills.py tests/test_docs.py
       - uv run mypy src
+    depends_on:
+      - 2
+      - 3
+      - 4
+      - 5
     character: routine
-    depends_on: [2, 3, 4, 5]
