@@ -24,4 +24,11 @@ In `unit: document` a task's worktree is cut from the document branch's tip when
 - Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
 - Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
 
+### S-0110/D-7 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+Every git command torve runs carries `core.hooksPath=/dev/null`, so no repository hook runs on a commit, rebase, checkout or push torve makes. A repository moves the checks its hooks stand for into its gates or its CI.
+
+- Paths: `src/torve/adapters/vcs/**` `src/torve/adapters/workspace/**` `src/torve/application/lane.py`
+- Consequence: configuration an agent wrote never runs on the host through a hook
+
 <!-- /torve:managed -->

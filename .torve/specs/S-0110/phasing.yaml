@@ -79,6 +79,10 @@ phasing:
     scope:
       - skills/hooks/**
       - .torve/agents/**
+      - .torve/specs/S-0072/**
+      - .torve/specs/S-0077/**
+      - .torve/specs/S-0104/**
+      - .torve/specs/S-0105/**
       - src/torve/cli/init.py
       - src/torve/config/agents.py
       - tests/test_equipment.py
@@ -114,6 +118,7 @@ phasing:
       - src/torve/application/intake.py
       - src/torve/cli/**
       - .torve/schemas/**
+      - .torve/specs/S-0057/**
       - tests/**
     acceptance:
       - >-

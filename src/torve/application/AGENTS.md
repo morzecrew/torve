@@ -2123,6 +2123,34 @@ When the served lane re-queues a candidate on a conflict (S-0079/D-10), the mana
 - Consequence: a task the disposal re-queued is dispatched again on a later pass, and a night no longer refuses to open over it
 - Check: `uv run pytest tests/test_manager.py -q -k requeued` (shadow; runs as `decision:S-0109/D-1`, no log entry owed)
 
+### S-0110/D-7 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+Every git command torve runs carries `core.hooksPath=/dev/null`, so no repository hook runs on a commit, rebase, checkout or push torve makes. A repository moves the checks its hooks stand for into its gates or its CI.
+
+- Paths: `src/torve/adapters/vcs/**` `src/torve/adapters/workspace/**` `src/torve/application/lane.py`
+- Consequence: configuration an agent wrote never runs on the host through a hook
+
+### S-0110/D-8 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`gates.yaml` may name the Python project's directory, `layout.root` (default the repository root). The source root is `<root>/src`: the source-layout gate, the citation scan, the spec-quality frontier and the coverage fallback prefix read it, and the `tests` defaults are re-rooted under `<root>` when the `tests` block is absent. Nothing searches the tree for it.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/source_layout.py` `src/torve/config/spec.py` `src/torve/application/specquality.py` `.torve/schemas/**`
+- Consequence: a project under `app/` gets every check a root project gets, and a root project changes nothing
+
+### S-0110/D-9 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`layout.carried` names top-level directories that ride with any change, joining `tests` and `.torve`. The sizer's thresholds stay as they are. A glob whose first segment is a wildcard names no module.
+
+- Paths: `src/torve/application/sizing.py` `src/torve/config/manifest.py`
+- Consequence: a change that pairs code with its migration counts one module, as one that pairs code with its tests does
+
+### S-0110/D-10 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+Three readings come from configuration a repository already has: the coverage prefix from the Cobertura `<sources>` element, the reviewer's lock-file elision from the rider files `scope.derived` names (beside `uv.lock` and `src/torve/_web/`), and the context pack's test exclusion from `tests.patterns`.
+
+- Paths: `src/torve/application/contextpack.py` `src/torve/application/review.py`
+- Consequence: a nested lock is not reviewed line by line, and a nested test tree is not packed as source
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

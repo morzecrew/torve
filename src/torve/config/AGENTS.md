@@ -709,6 +709,34 @@ The `mutation` builtin gate (shadow, attempt battery) samples at most `budget` m
 - Consequence: the score costs a bounded, repeatable amount and never touches the worktree under judgment
 - Check: `uv run pytest tests/test_gates.py -q -k mutation_gate` (shadow; runs as `decision:S-0107/D-2`, no log entry owed)
 
+### S-0110/D-2 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`config.yaml` may name the release a repository needs, `engine: "X.Y.Z"`, meaning at least X.Y.Z and below X.(Y+1).0. A command that loads the configuration under a torve outside that range stops, naming the installed version, the range and the install command for a release inside it; `torve --version`, `guide` and `doctor` still run. A configuration with no `engine` loads under any version.
+
+- Paths: `src/torve/config/runconfig.py` `.torve/schemas/**`
+- Consequence: the lock no longer pins torve, and a stale install stops before it serves a night
+
+### S-0110/D-6 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+The pre-write, read and finish hooks and their `claude/settings.json` live in `skills/hooks/implement/` and ship in the wheel. A profile equips them as `source: torve:hooks/implement`, mounted as `implement`. torve's own implement profile and the starter implement profile equip them; the load-time hook check covers `torve:` items.
+
+- Paths: `skills/hooks/**` `.torve/agents/*.yaml` `src/torve/cli/init.py` `src/torve/config/agents.py`
+- Consequence: an upgrade brings its hooks, and no adopter carries a copy
+
+### S-0110/D-8 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`gates.yaml` may name the Python project's directory, `layout.root` (default the repository root). The source root is `<root>/src`: the source-layout gate, the citation scan, the spec-quality frontier and the coverage fallback prefix read it, and the `tests` defaults are re-rooted under `<root>` when the `tests` block is absent. Nothing searches the tree for it.
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/source_layout.py` `src/torve/config/spec.py` `src/torve/application/specquality.py` `.torve/schemas/**`
+- Consequence: a project under `app/` gets every check a root project gets, and a root project changes nothing
+
+### S-0110/D-9 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+`layout.carried` names top-level directories that ride with any change, joining `tests` and `.torve`. The sizer's thresholds stay as they are. A glob whose first segment is a wildcard names no module.
+
+- Paths: `src/torve/application/sizing.py` `src/torve/config/manifest.py`
+- Consequence: a change that pairs code with its migration counts one module, as one that pairs code with its tests does
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -94,4 +94,11 @@ A ready candidate whose document has a closed, unmerged pull request, found on t
 - Paths: `src/torve/application/lane.py` `src/torve/adapters/vcs/git.py`
 - Consequence: deleting a closed document's branch does not bring its tasks back
 
+### S-0110/D-7 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+Every git command torve runs carries `core.hooksPath=/dev/null`, so no repository hook runs on a commit, rebase, checkout or push torve makes. A repository moves the checks its hooks stand for into its gates or its CI.
+
+- Paths: `src/torve/adapters/vcs/**` `src/torve/adapters/workspace/**` `src/torve/application/lane.py`
+- Consequence: configuration an agent wrote never runs on the host through a hook
+
 <!-- /torve:managed -->

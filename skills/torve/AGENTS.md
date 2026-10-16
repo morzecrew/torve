@@ -16,4 +16,18 @@ corpus-bootstrap becomes the operator skill's `references/adopting.md`, written 
 - Paths: `skills/corpus-bootstrap/**` `skills/torve/**` `.torve/skills-vendor/**` `src/torve/config/runconfig.py`
 - Consequence: onboarding a repository is taught in the format the engine reads, by the skill that teaches the rest of operating it
 
+### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+A repository installs torve as a uv tool, not as a project dependency, and every command torve writes or ships for a host or a sandbox calls bare `torve`: the stub `init` writes, the shipped hooks, and the operating docs and skill.
+
+- Paths: `src/torve/cli/init.py` `skills/torve/**` `skills/hooks/**` `pages/docs/**`
+- Consequence: torve's pins and an application's never meet in one lock
+
+### S-0110/D-12 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+The adoption reference installs torve as a tool, sets `engine`, declares a nested layout, equips the shipped hooks, derives an image only for what the base lacks, and moves the repository's hooks into CI. The review reference covers bot threads that arrive after a night drains and waits on checks with `gh pr checks --watch`. The operator skill says an archive needs `--superseded-by`.
+
+- Paths: `skills/torve/**`
+- Consequence: the second adopter's session learns what the first adopter's operator learnt by hand
+
 <!-- /torve:managed -->

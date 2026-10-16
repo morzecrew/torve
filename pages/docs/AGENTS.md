@@ -30,4 +30,11 @@ The starter manifest is the four structural builtins (`scope`, `secrets`, `no-te
 - Paths: `pages/docs/operating.md`
 - Consequence: the operating page, the skill and the CLI say the same thing once each
 
+### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+
+A repository installs torve as a uv tool, not as a project dependency, and every command torve writes or ships for a host or a sandbox calls bare `torve`: the stub `init` writes, the shipped hooks, and the operating docs and skill.
+
+- Paths: `src/torve/cli/init.py` `skills/torve/**` `skills/hooks/**` `pages/docs/**`
+- Consequence: torve's pins and an application's never meet in one lock
+
 <!-- /torve:managed -->
