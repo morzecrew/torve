@@ -7,7 +7,12 @@ import pytest
 import yaml
 
 from torve.application.telemetry import config_hash
-from torve.config.manifest import TwinlessGateWarning, load_manifest, read_layout
+from torve.config.manifest import (
+    LayoutConfig,
+    TwinlessGateWarning,
+    load_manifest,
+    read_layout,
+)
 from torve.gates.sabotage import BASE_MANIFEST, CASES
 
 
@@ -32,6 +37,20 @@ def test_layout_defaults_to_the_repository_root(tmp_path):
 def test_layout_root_reads_the_source_root(tmp_path):
     manifest = load_manifest(write_manifest(tmp_path, dict(BASE_MANIFEST, layout={"root": "app"})))
     assert manifest.layout.source_prefix() == "app/src/"
+
+
+@pytest.mark.parametrize(
+    ("written", "read"),
+    [("./app/", "app"), ("app/", "app"), (".", ""), ("./", ""), ("", ""), ("a/./b", "a/b")],
+)
+def test_layout_root_reads_one_spelling_per_directory(written: str, read: str):
+    assert LayoutConfig(root=written).root == read
+
+
+@pytest.mark.parametrize("written", ["/srv/app", "../app", "app/../../x", "app/.."])
+def test_layout_root_outside_the_repository_is_refused(written: str):
+    with pytest.raises(ValueError, match=r"layout\.root"):
+        LayoutConfig(root=written)
 
 
 def test_the_tests_defaults_re_root_under_the_project_directory(tmp_path):

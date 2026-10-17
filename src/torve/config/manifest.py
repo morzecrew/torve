@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 import yaml
@@ -256,7 +256,18 @@ class LayoutConfig(BaseModel):
     @field_validator("root")
     @classmethod
     def _root_shape(cls, value: str) -> str:
-        return value.strip("/")
+        """One spelling per directory: `./app/` reads `app` and `.` reads the
+        repository root. A path that leaves the repository is refused."""
+
+        path = PurePosixPath(value)
+
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError(
+                f"layout.root {value!r} must be a directory inside the repository, "
+                "relative to its root, with no `..` segment"
+            )
+
+        return "" if str(path) == "." else str(path)
 
     # ....................... #
 
