@@ -657,7 +657,7 @@ def batch_claims(claims: Sequence[Claim], cap: int) -> list[list[Claim]]:
 # ....................... #
 
 
-def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
+def mint_round(root: Path, config: RunnerConfig, round_: Round, taken: Collection[str] = ()) -> str:
     """The round through the adoption path a standing job already uses
     (S-0084/D-7): a scratch drafts file carries the composed body through
     `intake.adopt`, so identifier assignment, the commit and
@@ -708,7 +708,9 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round) -> str:
         # document does not judge it. Its scope crosses whatever rows govern
         # the files the findings anchor, and the decisions-reported gate
         # holds the attempt to those rows as it holds every phase.
-        (task_id,) = adopt(root, scratch, config, assume_lock=True, document_threshold=False)
+        (task_id,) = adopt(
+            root, scratch, config, assume_lock=True, document_threshold=False, taken=taken
+        )
 
     except Exception:
         shutil.rmtree(source.parent, ignore_errors=True)
@@ -1940,7 +1942,9 @@ def review_thread_leg(
                 if len(minted) >= config.threads.rounds_per_pass:
                     break
 
-                minted.append(mint_round(root, config, round_))
+                # S-0056/D-9: the board's ids, not only the files, or a round
+                # takes the id of a task the record already holds.
+                minted.append(mint_round(root, config, round_, {one.subject_id for one in records}))
 
     parts: list[str] = []
 

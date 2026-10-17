@@ -16,7 +16,7 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
-from torve.application.executors import outcome_of
+from torve.application.executors import outcome_of, record_reader, recorded_tasks
 from torve.application.manager import project
 from torve.application.runstate import Escalation, RunState
 from torve.application.worker import Outcome, Worker
@@ -327,3 +327,61 @@ def test_a_claim_waits_for_its_dependency_to_reach_the_base():
         assert claimed is not None and claimed.id == "T-2"
 
     run(scenario)
+
+
+def test_a_dispatch_carries_every_task_id_the_record_holds():
+    """S-0056/D-9: the ids a run's minted contracts must skip are the board's,
+    read from the log once per dispatch."""
+
+    import asyncio
+    from types import SimpleNamespace
+
+    class Log:
+        async def of_subject_type(self, subject_type, *, partition=None):
+            assert partition == "torve"
+            return [SimpleNamespace(subject_id=one) for one in ("T-0609", "T-0603", "T-0609")]
+
+    assert asyncio.run(recorded_tasks(Log(), "torve")) == ("T-0603", "T-0609")
+
+
+def test_a_run_reads_the_record_when_it_mints_not_when_it_began():
+    """S-0056/D-9: the reader runs from the runner's thread when a contract is
+    minted, so it sees a task another slot minted while the attempt ran."""
+
+    import asyncio
+    from types import SimpleNamespace
+
+    ids = ["T-0603"]
+
+    class Log:
+        async def of_subject_type(self, subject_type, *, partition=None):
+            return [SimpleNamespace(subject_id=one) for one in ids]
+
+    async def run() -> tuple[str, ...]:
+        read = record_reader(Log(), "torve", asyncio.get_running_loop())
+        ids.append("T-0610")  # minted by another slot after the run began
+
+        return await asyncio.to_thread(read)
+
+    assert asyncio.run(run()) == ("T-0603", "T-0610")
+
+
+def test_a_hand_run_verb_reads_the_partitions_ids_and_none_without_one(tmp_path, monkeypatch):
+    """S-0056/D-9: `--partition` makes `intake`, `decompose`, `adopt` and `review
+    pr` number past the board's ids; naming none, the files are the record."""
+
+    from torve.cli import options
+
+    seen: list[str] = []
+
+    def read_log(dsn, reader):
+        seen.append(dsn)
+        return ("T-0603",)
+
+    monkeypatch.setattr(options, "read_log", read_log)
+    monkeypatch.setattr(options, "dsn_for", lambda root, dsn: dsn or "from-config")
+
+    assert options.recorded_ids(tmp_path, "", "") == ()
+    assert seen == []
+    assert options.recorded_ids(tmp_path, "", "torve") == ("T-0603",)
+    assert seen == ["from-config"]

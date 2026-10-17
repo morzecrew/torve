@@ -133,6 +133,7 @@ def runner_execute(
             # S-0099/D-8: the number the runner starts at, read from the
             # record rather than from a state file a reap may have removed.
             attempt_base = await _recorded_attempts(log, partition, task.id)
+            bound = replace(bound, taken=record_reader(log, partition, loop))
 
         state = await asyncio.to_thread(
             run_task, root, task, config, bound, attempt_base=attempt_base
@@ -150,6 +151,31 @@ def runner_execute(
 
 
 # ....................... #
+
+
+def record_reader(
+    log: EventLog, partition: str, loop: asyncio.AbstractEventLoop
+) -> Callable[[], tuple[str, ...]]:
+    """The record's task ids, read on the manager's loop from the runner's
+    thread at the moment a run mints a contract."""
+
+    def read() -> tuple[str, ...]:
+        return asyncio.run_coroutine_threadsafe(recorded_tasks(log, partition), loop).result()
+
+    return read
+
+
+async def recorded_tasks(log: EventLog, partition: str) -> tuple[str, ...]:
+    """Every task id the record has mentioned (S-0056/D-9). With a store the
+    board is the only place a task is, so a contract minted mid-run numbers
+    past these; the files a store-backed plan never writes would let it reuse
+    a queued task's id."""
+
+    from torve.domain.events import SubjectType
+
+    records = await log.of_subject_type(SubjectType.TASK, partition=partition)
+
+    return tuple(sorted({record.subject_id for record in records}))
 
 
 async def _recorded_attempts(log: EventLog, partition: str, task_id: str) -> int:

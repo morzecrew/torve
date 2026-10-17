@@ -886,13 +886,14 @@ def test_the_pass_records_the_facts_in_the_order_they_became_true(tmp_path):
 
 @dataclass
 class StubDeps:
-    """The four fields this seam touches. The real bundle is the CLI's to
+    """The five fields this seam touches. The real bundle is the CLI's to
     build; what `runner_execute` does to it is replace exactly these."""
 
     sink: object = None
     facts: object = None
     journal: object = None
     channel: object = None
+    taken: object = None
 
 
 def prepared(deps):

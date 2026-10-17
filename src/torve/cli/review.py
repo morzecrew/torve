@@ -58,10 +58,13 @@ from torve.cli.console import (
 )
 from torve.cli.options import (
     ConfigOption,
+    DsnOption,
     FormatOption,
+    PartitionOption,
     RootOption,
     RuntimeName,
     load_config,
+    recorded_ids,
     runtime_for,
 )
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
@@ -666,6 +669,8 @@ def _subject_of(root: Path, sha: str) -> str:
 @review_app.command("pr")
 def pr(
     number: Annotated[int, typer.Argument(help="Pull request number on scm.repo.")],
+    partition: PartitionOption = "",
+    dsn: DsnOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -713,6 +718,7 @@ def pr(
         number,
         token,
         broker=build_broker(config.broker),
+        taken=recorded_ids(root, dsn, partition),
     )
 
     if fmt is Format.JSON:

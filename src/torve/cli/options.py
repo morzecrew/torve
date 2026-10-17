@@ -191,6 +191,20 @@ def read_log(dsn: str, reader: Callable[[EventLog], Awaitable[Read]]) -> Read:
 # ....................... #
 
 
+# S-0056/D-9: with a store the board is the only place a task is.
+def recorded_ids(root: Path, dsn: str, partition: str) -> tuple[str, ...]:
+    """The task ids a partition's record holds, for a verb that mints a
+    contract: a new id numbers past these as well as the files. Naming no
+    partition reads none, since the files are then the record."""
+
+    if not partition:
+        return ()
+
+    from torve.application.executors import recorded_tasks
+
+    return read_log(dsn_for(root, dsn), lambda log: recorded_tasks(log, partition))
+
+
 def dsn_for(root: Path, override: str = "") -> str:
     """The DSN a record read should use, given what the caller typed.
 

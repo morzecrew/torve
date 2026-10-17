@@ -20,6 +20,7 @@ import asyncio
 import json
 import re
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -62,15 +63,21 @@ from torve.gates.evidence import CITATION, filter_findings
 # ----------------------- #
 
 
-def mint_review_task(root: Path, target: Task, intent: str | None = None) -> Task:
+def mint_review_task(
+    root: Path, target: Task, intent: str | None = None, taken: Iterable[str] = ()
+) -> Task:
     """Runner-minted at gated (S-0005/D-11): the same contract shape with a
     different role (S-0005/D-9), decisions inherited from the target, one
-    iteration. The planner never mints these — review follows execution."""
+    iteration. The planner never mints these — review follows execution.
+
+    `taken` is the record's task ids when a store holds the tasks (S-0056/D-9):
+    counted from the files alone, the review took the id of a task the record
+    had queued, and staging its copy removed that task's worktree."""
 
     from torve.application.planner import next_task_number
 
     review = Task(
-        id=f"T-{next_task_number(root):04d}",
+        id=f"T-{next_task_number(root, taken):04d}",
         spec=target.spec,
         role="review",
         targets=[target.id],
@@ -1140,6 +1147,7 @@ def review_pull_request(
     number: int,
     token: str | None = None,
     broker: Broker | None = None,
+    taken: Iterable[str] = (),
 ) -> PrReviewOutcome:
     """S-0005/triggers: skip rules first (draft, zero changed files, configured
     authors, not open); one review per head — the pull regime's debounce,
@@ -1194,6 +1202,7 @@ def review_pull_request(
             if degraded
             else None
         ),
+        taken=taken,
     )
 
     workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"
@@ -1327,7 +1336,8 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
     its revision budget retries in place (S-0043/D-1), and a spent budget, an
     unparseable verdict or a broker refusal escalates the target."""
 
-    review_task = mint_review_task(run.root, run.task)
+    taken = run.deps.taken() if run.deps.taken is not None else ()
+    review_task = mint_review_task(run.root, run.task, taken=taken)
 
     outcome = await asyncio.to_thread(
         run_review,

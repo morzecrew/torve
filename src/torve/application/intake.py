@@ -1025,6 +1025,7 @@ def mint_intake_task(
     config: RunnerConfig,
     spec: str | None = None,
     source: str | None = None,
+    taken: Iterable[str] = (),
 ) -> Task:
     """Engine-minted at request time, like a review at gated — the id here
     names the drafting run itself, never its output (S-0020/D-4).
@@ -1036,7 +1037,7 @@ def mint_intake_task(
     from torve.application.planner import next_task_number
 
     task = Task(
-        id=f"T-{next_task_number(root):04d}",
+        id=f"T-{next_task_number(root, taken):04d}",
         spec=document_id(spec) if spec else None,
         source=resolve_source(root, config, source) if source else None,
         role="draft",
@@ -1096,7 +1097,9 @@ def _decomposition_depth(root: Path, task_id: str) -> int:
 
 # The decomposition run (S-0026/the-decomposition-run): a draft-role run exactly RFC
 # 0020's shape, pointed at a contract instead of a commander's prose.
-def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) -> Task:
+def mint_decomposition_task(
+    root: Path, parent_id: str, config: RunnerConfig, taken: Iterable[str] = ()
+) -> Task:
     """Refuses a third decomposition round by name (S-0026/D-12) before any
     drafting compute is spent; otherwise mints the drafting run the same
     way `mint_intake_task` does, its single target naming what it
@@ -1121,7 +1124,7 @@ def mint_decomposition_task(root: Path, parent_id: str, config: RunnerConfig) ->
         )
 
     task = Task(
-        id=f"T-{next_task_number(root):04d}",
+        id=f"T-{next_task_number(root, taken):04d}",
         spec=parent.spec,
         role="draft",
         intent=f"Decompose {parent_id}: {parent.intent}",
@@ -1942,6 +1945,7 @@ def adopt(
     config: RunnerConfig,
     assume_lock: bool = False,
     document_threshold: bool = True,
+    taken: Iterable[str] = (),
 ) -> list[str]:
     """Adopt every draft the run produced: ids minted here and nowhere
     else, contracts committed as engine records on base, the loop left to
@@ -1950,7 +1954,8 @@ def adopt(
     adopt command applies under the lock the tick holds. `document_threshold`
     off is for a draft that is already a phase of an accepted document — a
     review round (S-0084/D-7) — which the threshold that routes a standalone
-    draft to its own document does not judge."""
+    draft to its own document does not judge. `taken` is the record's task
+    ids when a store holds the tasks (S-0056/D-9), which the new ids skip."""
 
     from torve.application.enginelock import acquire_lock, release_lock
     from torve.application.planner import next_task_number
@@ -2011,7 +2016,7 @@ def adopt(
         )
 
     try:
-        start = next_task_number(root)
+        start = next_task_number(root, taken)
         ids = {d.ref: f"T-{start + i:04d}" for i, d in enumerate(drafts)}
         written: list[Path] = []
 

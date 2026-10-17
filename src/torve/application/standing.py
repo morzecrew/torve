@@ -26,7 +26,7 @@ import json
 import re
 import shutil
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -360,7 +360,9 @@ def _resolve_document(root: Path, config: RunnerConfig, identifier: str) -> str:
 # ....................... #
 
 
-def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
+def instantiate(
+    root: Path, job: StandingContract, config: RunnerConfig, taken: Iterable[str] = ()
+) -> str:
     """S-0020/adoption's adoption path, unchanged (S-0023/D-4): a scratch drafts
     file carries the job's fixed body through `intake.adopt`, so id
     assignment, the commit and `inherit_decisions` all run through the one
@@ -401,7 +403,7 @@ def instantiate(root: Path, job: StandingContract, config: RunnerConfig) -> str:
     # The tick that calls this leg already holds the lock (S-0019/D-2); adopt's
     # own acquire would deadlock against it.
     try:
-        (new_id,) = adopt(root, scratch, config, assume_lock=True)
+        (new_id,) = adopt(root, scratch, config, assume_lock=True, taken=taken)
 
     except Exception:
         # A refused adoption never retries this scratch — the next
@@ -573,6 +575,7 @@ def standing_leg(
     config: RunnerConfig,
     runtime: Runtime,
     landed: Callable[[str], bool],
+    taken: Iterable[str] = (),
 ) -> tuple[str, bool]:
     """The tick's standing leg (S-0023/bounds-because-this-is-the-leg-that-can-grow): evaluate every committed
     job's predicate and mint at most `loop.standing_max_per_tick`
@@ -637,7 +640,7 @@ def standing_leg(
             continue
 
         try:
-            fired.append(f"{job.name}->{instantiate(root, job, config)}")
+            fired.append(f"{job.name}->{instantiate(root, job, config, taken)}")
 
         except ValueError as exc:
             # S-0023/D-3's rule, one step later than it was written: the leg
