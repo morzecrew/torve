@@ -9,3 +9,78 @@ amendments:
       `tests/test_docs.py` compares with the enum, so phase 3 cannot leave the suite
       green without the page. Phase 3 now owns that page and runs that test. The halt
       is the class this document fixes; the night ran the engine before it.
+  - id: A-2
+    at: '2026-10-17T17:55:25Z'
+    title: the pre-write hook moves into the wheel
+    changes:
+      - subject: D-12
+        field: paths
+        before: [.torve/agents/hooks/implement/scope_guard.py]
+        after: [skills/hooks/implement/scope_guard.py]
+      - subject: D-12
+        field: fingerprint
+        after: 6dc4f00769f963a9/161f7c080078d8ce
+  - id: A-3
+    at: '2026-10-17T17:55:35Z'
+    title: the pre-write hook moves into the wheel
+    changes:
+      - subject: D-2
+        field: paths
+        before:
+          - src/torve/application/runner.py
+          - src/torve/application/manager.py
+          - src/torve/domain/events.py
+          - .torve/agents/hooks/implement/scope_guard.py
+        after:
+          - src/torve/application/runner.py
+          - src/torve/application/manager.py
+          - src/torve/domain/events.py
+          - skills/hooks/implement/scope_guard.py
+      - subject: D-2
+        field: fingerprint
+        after: 8c3c8407fdc99e87/7a9dcaa23c1b21f2
+  - id: A-4
+    at: '2026-10-17T17:55:46Z'
+    title: the pre-write hook moves into the wheel
+    changes:
+      - subject: D-6
+        field: paths
+        before: [src/torve/gates/scope.py, .torve/agents/hooks/implement/scope_guard.py]
+        after: [src/torve/gates/scope.py, skills/hooks/implement/scope_guard.py]
+      - subject: D-6
+        field: fingerprint
+        after: 179148e70e830d72/3a08b1cee0c72217
+  - id: A-5
+    at: '2026-10-17T17:56:50Z'
+    title: >-
+      the pre-write hook path stays as the row declares it
+    changes:
+      - subject: D-2
+        field: paths
+        before:
+          - src/torve/application/runner.py
+          - src/torve/application/manager.py
+          - src/torve/domain/events.py
+          - skills/hooks/implement/scope_guard.py
+        after:
+          - src/torve/application/runner.py
+          - src/torve/application/manager.py
+          - src/torve/domain/events.py
+          - .torve/agents/hooks/implement/scope_guard.py
+      - subject: D-2
+        field: fingerprint
+        before: 8c3c8407fdc99e87/7a9dcaa23c1b21f2
+        after: b61fb7aa224fb211/0cbd323f35b8da4f
+  - id: A-6
+    at: '2026-10-17T17:56:59Z'
+    title: >-
+      the pre-write hook path stays as the row declares it
+    changes:
+      - subject: D-6
+        field: paths
+        before: [src/torve/gates/scope.py, skills/hooks/implement/scope_guard.py]
+        after: [src/torve/gates/scope.py, .torve/agents/hooks/implement/scope_guard.py]
+      - subject: D-6
+        field: fingerprint
+        before: 179148e70e830d72/3a08b1cee0c72217
+        after: 68c43c6215521fb6/920088c60deee661

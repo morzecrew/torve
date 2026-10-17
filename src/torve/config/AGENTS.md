@@ -547,7 +547,7 @@ A gate declares what it judges, and an attempt that changed none of it is report
 
 An equipment item carries its payload at the root and one directory per harness beside it; a harness reads only its own, and an item with no directory for a harness a seat could use is refused at load, naming the profile and the manifest
 
-- Paths: `.torve/agents/hooks` `src/torve/config/agents.py`
+- Paths: `skills/hooks/**` `src/torve/config/agents.py`
 - Consequence: the disagreement between two harnesses' idea of one kind becomes a message before an image is pulled, instead of an exception inside a container
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 

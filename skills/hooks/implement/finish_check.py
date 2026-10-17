@@ -182,7 +182,7 @@ def owed_entries(root: Path, task_id: str, touched: list[str]) -> list[str]:
     if not touched:
         return []
 
-    args = ["uv", "run", "torve", "log", "owed", task_id, "--format", "json"]
+    args = ["torve", "log", "owed", task_id, "--format", "json"]
     args += [one for path in touched for one in ("--touched", path)]
 
     try:
@@ -202,7 +202,7 @@ def owed_entries(root: Path, task_id: str, touched: list[str]) -> list[str]:
         return []
 
     howto = (
-        f"write them in one `uv run torve log divergence {task_id} …` call, one "
+        f"write them in one `torve log divergence {task_id} …` call, one "
         "--decision/--grade/--kind/--class/--claim/--evidence/--action row each; "
         "that is every entry owed, so there is nothing left to ask for"
     )
@@ -216,7 +216,7 @@ def drifted_files(root: Path) -> list[str]:
 
     try:
         run = subprocess.run(
-            ["uv", "run", "torve", "spec", "project", "--check", "--format", "json"],
+            ["torve", "spec", "project", "--check", "--format", "json"],
             capture_output=True,
             text=True,
             cwd=root,
@@ -258,7 +258,7 @@ def drift_owed(contract: Path, drifted: list[str]) -> list[str]:
 
     return [
         "the spec projection has drifted inside this contract's scope — run "
-        "`uv run torve spec project` and commit what it writes: " + ", ".join(owed)
+        "`torve spec project` and commit what it writes: " + ", ".join(owed)
     ]
 
 

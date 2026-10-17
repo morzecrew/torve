@@ -898,7 +898,7 @@ def test_a_fetch_keeps_no_repository_history(tmp_path: Path, monkeypatch) -> Non
 # ....................... #
 # The first hook declaration (S-0066/D-5, S-0066/D-6)
 
-HOOK_DIR = Path(__file__).resolve().parent.parent / ".torve" / "agents" / "hooks" / "implement"
+HOOK_DIR = Path(__file__).resolve().parent.parent / "skills" / "hooks" / "implement"
 
 
 def _hook_script(name: str):
@@ -922,7 +922,7 @@ def test_the_hook_kind_is_declared_on_implement_and_nowhere_else() -> None:
 
     (hook,) = [i for i in load_profile(Path("."), "implement").equipment if i.kind == "hook"]
 
-    assert hook.source == "local:.torve/agents/hooks/implement"
+    assert hook.source == "torve:hooks/implement"
 
     # The payload stays at the item's root, and the harness reads its own
     # directory beside it (S-0072/D-1): the settings the claude image points
@@ -931,6 +931,33 @@ def test_the_hook_kind_is_declared_on_implement_and_nowhere_else() -> None:
         assert (HOOK_DIR / name).is_file(), name
 
     assert (HOOK_DIR / "claude" / "settings.json").is_file()
+
+
+def test_a_torve_hook_item_materializes_its_scripts_and_claude_settings(tmp_path: Path) -> None:
+    """S-0110/D-6: the hooks ship as package data, so a `torve:` item is what an
+    adopter equips and an upgrade brings its hooks — nothing is copied into the
+    repository. `torve equip` warms it into the mount under the name the claude
+    settings reach it by, `implement/`, with the settings beside the scripts."""
+
+    from torve.application.equipment import MANIFEST, mount_root
+
+    cache = tmp_path / "cache"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    item = Equipment(kind="hook", source="torve:hooks/implement")
+
+    where = mount_root([item], root=repo, cache=cache)
+
+    assert where is not None
+    (entry,) = json.loads((where / MANIFEST).read_text(encoding="utf-8"))["items"]
+
+    assert entry["source"] == "torve:hooks/implement"
+    assert entry["path"] == "/opt/torve/equipment/implement"
+
+    for name in ("scope_guard.py", "read_guard.py", "finish_check.py"):
+        assert (where / "implement" / name).is_file(), name
+
+    assert (where / "implement" / "claude" / "settings.json").is_file()
 
 
 def test_the_refusal_reads_the_contract_and_blocks_only_inside_scope(tmp_path: Path) -> None:
@@ -1206,20 +1233,21 @@ def test_the_owed_rows_arrive_named_with_the_one_call_that_writes_them(
     """S-0077/D-2: the block carries the engine's own account of each LOCKED
     row the diff touches with no entry, plus how to write them in one call —
     the set being complete is what removes the poll. Nothing touched, or an
-    engine that cannot answer, is silence."""
+    engine that cannot answer, is silence. The stub is a bare `torve`, because
+    that is how the hook reaches the engine (S-0110/D-3)."""
 
     import os
 
     check = _hook_script("finish_check")
     fake = tmp_path / "bin"
     fake.mkdir()
-    (fake / "uv").write_text(
+    (fake / "torve").write_text(
         "#!/bin/sh\n"
         'printf \'{"owed": ["decision D-9: LOCKED, and the diff touches 1 file(s)"],'
         ' "skipped": []}\'\n',
         encoding="utf-8",
     )
-    (fake / "uv").chmod(0o755)
+    (fake / "torve").chmod(0o755)
     monkeypatch.setenv("PATH", str(fake) + os.pathsep + os.environ.get("PATH", ""))
 
     named, howto = check.owed_entries(tmp_path, "T-0001", ["src/a.py"])
@@ -1229,7 +1257,7 @@ def test_the_owed_rows_arrive_named_with_the_one_call_that_writes_them(
 
     assert check.owed_entries(tmp_path, "T-0001", []) == []
 
-    (fake / "uv").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (fake / "torve").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
 
     assert check.owed_entries(tmp_path, "T-0001", ["src/a.py"]) == []
 
@@ -1291,7 +1319,7 @@ def test_dsh_equip_installs_the_guard_through_dsh_s_own_verb_then_patches_it_in(
                 "items": [
                     {
                         "kind": "hook",
-                        "source": "local:.torve/agents/hooks/implement",
+                        "source": "torve:hooks/implement",
                         "path": str(HOOK_DIR),
                     }
                 ]

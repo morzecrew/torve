@@ -35,6 +35,7 @@ decisions:
     rationale: >-
       `scopes_clash` already fences in-flight tasks; a promotion is one more path
       in the fence.
+    fingerprint: b61fb7aa224fb211/0cbd323f35b8da4f
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -86,6 +87,7 @@ decisions:
       a phase that changes governed code can regenerate its projection without a halt
     rationale: >-
       T-0289 hit the poison ceiling on projections alone.
+    fingerprint: 68c43c6215521fb6/920088c60deee661
   - id: D-7
     grade: ASSUMED
     text: >-
@@ -144,7 +146,8 @@ decisions:
       This document changes torve's own copy of the pre-write hook; an adopter's copy
       is refreshed from torve's when it upgrades, and shipping the hook as package
       equipment is a document of its own.
-    paths: [.torve/agents/hooks/implement/scope_guard.py]
+    paths: [skills/hooks/implement/scope_guard.py]
     consequence: >-
       the change stays inside torve's tree, and an adopter's hook follows its upgrade
     rationale: The owner's answer to Q-2 (2026-10-12).
+    fingerprint: 6dc4f00769f963a9/161f7c080078d8ce

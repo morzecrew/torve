@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-17T17:23:53Z'
+    title: the finish check moves into the wheel
+    changes:
+      - subject: D-3
+        field: paths
+        before: [.torve/agents/hooks/implement/finish_check.py]
+        after: [skills/hooks/implement/finish_check.py]
+      - subject: D-3
+        field: fingerprint
+        after: 3c6621f112417f2b/fdfaa749be29ddb2
+  - id: A-2
+    at: '2026-10-17T17:55:14Z'
+    title: the finish check moves into the wheel
+    changes:
+      - subject: D-1
+        field: paths
+        before: [.torve/agents/hooks/implement/finish_check.py]
+        after: [skills/hooks/implement/finish_check.py]
+      - subject: D-1
+        field: fingerprint
+        after: 50d4e0f7a7701e24/d8f29ab37f26bf0b
+  - id: A-3
+    at: '2026-10-17T17:55:20Z'
+    title: the finish check moves into the wheel
+    changes:
+      - subject: D-2
+        field: paths
+        before: [.torve/agents/hooks/implement/finish_check.py]
+        after: [skills/hooks/implement/finish_check.py]
+      - subject: D-2
+        field: fingerprint
+        after: d1291c4b0effd265/d8f29ab37f26bf0b

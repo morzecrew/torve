@@ -288,9 +288,13 @@ skips = ["B101", "B404", "B603", "B607"]
 
 [tool.deptry]
 known_first_party = ["torve"]
-# The engine's own hooks under `.torve/agents/hooks/` import each other as
-# siblings; they are not a package and never ship.
-extend_exclude = [".torve"]
+# The shipped hooks under `skills/hooks/` import each other as siblings —
+# `read_guard` and `finish_check` reach `scope_guard`, which reaches the
+# byte-identical `globs` beside it. They are package data rather than an
+# importable package, so a sibling import is not a dependency to resolve and
+# deptry is told to leave them alone. `.torve` is the engine's own state, and
+# `.torve/skills-vendor` a third party's skills materialised at run time.
+extend_exclude = [".torve", "skills/hooks"]
 ignore_notebooks = true
 
 [tool.deptry.per_rule_ignores]

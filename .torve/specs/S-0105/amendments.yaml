@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-17T17:55:56Z'
+    title: the pre-write hook moves into the wheel
+    changes:
+      - subject: D-3
+        field: paths
+        before:
+          - .torve/agents/hooks/implement/globs.py
+          - .torve/agents/hooks/implement/scope_guard.py
+        after: [skills/hooks/implement/globs.py, skills/hooks/implement/scope_guard.py]
+      - subject: D-3
+        field: text
+        before: >-
+          The pre-write hook reads its globs through a byte-identical copy of the
+          module, `.torve/agents/hooks/implement/globs.py`, imported as a sibling
+          the way `read_guard` imports `scope_guard`. `fnmatch` leaves the hook, and
+          `read_guard` and `finish_check` take the same reading through `scope_guard.is_allowed`.
+          A test fails when the copy and the source differ.
+        after: >-
+          The pre-write hook reads its globs through a byte-identical copy of the
+          module, `skills/hooks/implement/globs.py`, imported as a sibling the way
+          `read_guard` imports `scope_guard`. `fnmatch` leaves the hook, and `read_guard`
+          and `finish_check` take the same reading through `scope_guard.is_allowed`.
+          A test fails when the copy and the source differ.
+      - subject: D-3
+        field: fingerprint
+        after: c0c515d0aa406cf4/47514a445400d70b

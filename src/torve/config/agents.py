@@ -27,6 +27,7 @@ site would be the split leaking out of the files it belongs in.
 
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -628,6 +629,21 @@ def _harness_label(image: str) -> str:
     return repository.removesuffix(SANDBOX_SUFFIX) if repository.endswith(SANDBOX_SUFFIX) else ""
 
 
+def packaged_skills() -> Path:
+    """Where a `torve:` source resolves (S-0062/D-6): the packaged copy in a
+    wheel, or the repository's own `skills/` beside it in a development
+    checkout — the resolution `torve equip` takes, repeated here because the
+    config layer may not reach the application one that also performs it.
+    """
+
+    packaged = Path(str(resources.files("torve"))) / "_skills"
+
+    if packaged.is_dir():
+        return packaged
+
+    return Path(__file__).resolve().parents[3] / "skills"
+
+
 def _equipped(
     seat: str, harness_name: str, profile_name: str, merged: dict[str, Any], root: Path
 ) -> None:
@@ -685,18 +701,22 @@ def _equipped(
     # reads only its own (`claude/`, `dsh/`), so a profile whose item carries
     # no directory for the seat's harness is refused here behind the same
     # guarantee S-0063/D-4 makes for kinds — a message before an image is
-    # pulled, not an `IsADirectoryError` at `wall 0s`. Only a `local:` item is
-    # checkable at load: its payload is in the repository this config was read
-    # from, where a fetched item's is not fetched yet. An image that answers
-    # no harness names no directory, and requires none.
+    # pulled, not an `IsADirectoryError` at `wall 0s`. A `local:` payload is in
+    # the repository this config was read from and a `torve:` one in the
+    # package data this engine ships (S-0110/D-6); a fetched item's tree does
+    # not exist until `torve equip` runs, so the load check asks nothing of it.
+    # An image that answers no harness names no directory, and requires none.
     for item in items:
-        if item.kind != "hook" or item.scheme != "local":
+        if item.kind != "hook" or item.scheme not in ("local", "torve"):
             continue
 
         label = _harness_label(str(merged.get("image") or ""))
 
         if label:
-            missing = root / item.locator / label
+            base = (
+                root / item.locator if item.scheme == "local" else packaged_skills() / item.locator
+            )
+            missing = base / label
 
             if not missing.is_dir():
                 raise AgentError(

@@ -1463,8 +1463,11 @@ def test_init_writes_the_stub_once_and_never_overwrites_one(tmp_path):
         assert path.is_file()
         text = path.read_text(encoding="utf-8")
         assert "name: torve" in text
-        # The pointer is inlined by command injection, with the fallback named.
-        assert "!`uv run --quiet torve guide torve`" in text
+        # The pointer is inlined by command injection, with the fallback named:
+        # bare `torve`, because a repository installs it as a uv tool and never
+        # as a project dependency (S-0110/D-3).
+        assert "!`torve guide torve`" in text
+        assert "uv run" not in text
         assert "torve guide spec-writer" in text
 
     before = twin.read_text(encoding="utf-8")
@@ -1495,6 +1498,16 @@ def test_init_starter_equips_the_role_skills(tmp_path):
     written = materialize("implement", root / ".torve" / "skills", sets)
 
     assert sorted(written) == ["flag-dont-flip", "working-rules"]
+
+    # S-0110/D-6: the starter implement profile also equips the shipped hooks,
+    # so a fresh adopter's seat reaches its guard without a copy in the tree.
+    from torve.config.agents import load_profile
+
+    hooks = [
+        item.source for item in load_profile(root, "implement").equipment if item.kind == "hook"
+    ]
+
+    assert hooks == ["torve:hooks/implement"]
 
     # Never over a profile an adopter wrote.
     profile = root / ".torve" / "agents" / "implement.yaml"
