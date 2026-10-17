@@ -25,16 +25,28 @@ changed. One release to the next, in order:
    seat image's `torve --version` and goes red when it differs from the
    host's; rebuild before a night spends an attempt finding out.
 4. **Run `torve init`.** It rewrites `.torve/schemas/` from the engine you
-   just installed, adds any ignore pattern minted since, and brings a
-   starter profile's shipped hooks up. It never overwrites a file that
-   exists, so a configuration or a gate manifest a repository owns is left
-   alone.
+   just installed and adds any ignore pattern minted since. It never
+   overwrites a file that exists: a configuration, a gate manifest or a role
+   profile a repository owns is left alone, even under `--starter`.
 5. **Migrate the record** when the release's Upgrade note names one:
    `torve migrate --all` against the store.
 6. **Run `torve doctor`** and read the red lines: the version lock, the
    schemas lagging the engine, the seat images, the store.
 7. **Commit** what `torve init` and the configuration changed, so every later
    run and every CI job reads the schemas the installed engine wrote.
+
+A repository upgrading from 0.3 or earlier copied the hooks into
+`.torve/agents/hooks/implement/`, and its implement profile names that copy
+(`source: local:.torve/agents/hooks/implement`). The hooks now ship in the
+package, and `torve init` does not touch an existing profile, so edit the
+profile's hook item by hand:
+
+```yaml
+- kind: hook
+  source: torve:hooks/implement
+```
+
+and delete the copied `.torve/agents/hooks/implement/` directory.
 
 A release whose changelog entry carries no Upgrade note moves no format, adds
 no record migration and changes no hooks; steps 1, 2, 4, 6 and 7 are then the
