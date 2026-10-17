@@ -46,6 +46,7 @@ from torve.base import naming
 from torve.base.clock import stamp
 from torve.base.globs import matches
 from torve.config import layout
+from torve.config.manifest import read_layout
 from torve.config.runconfig import (
     RunnerConfig,
     agent_timeout_for,
@@ -543,9 +544,12 @@ def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
             tree = None
 
         if tree is not None:
+            # S-0110/D-8: the fallback prefix is the layout's source root.
+            source = read_layout(root).source_prefix()
+
             for cls in tree.iter("class"):
                 filename = cls.get("filename") or ""
-                path = filename if filename.startswith("src/") else f"src/{filename}"
+                path = filename if filename.startswith(source) else f"{source}{filename}"
                 lines = changed.get(path)
 
                 if not lines:

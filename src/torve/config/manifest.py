@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from torve.base.globs import matches
 from torve.base.model import STRICT, SchemaVersion
+from torve.config import layout as layout_module
 from torve.domain.spec import is_citation
 from torve.domain.task import Scope
 from torve.domain.vocabulary import GateAxis, GateInput, GateState
@@ -234,6 +235,70 @@ DEFAULT_TEST_PAIRS = ["tests/**/test_{stem}.py", "tests/**/test_{stem}_*.py"]
 # ....................... #
 
 
+class LayoutConfig(BaseModel):
+    """Where the Python project sits (S-0110/D-8, S-0110/D-9). `root` is the
+    project's directory relative to the repository root — empty when the
+    project is the repository — and `carried` names top-level directories that
+    ride with any change, beside `tests` and `.torve`."""
+
+    model_config = STRICT
+
+    root: str = ""
+    """The Python project's directory, relative to the repository root; empty
+    for a project at the root."""
+
+    carried: list[str] = Field(default_factory=list)
+    """Top-level directories that ride with any change (S-0110/D-9), beside
+    `tests` and `.torve`; the sizer does not count them as modules."""
+
+    # ....................... #
+
+    @field_validator("root")
+    @classmethod
+    def _root_shape(cls, value: str) -> str:
+        return value.strip("/")
+
+    # ....................... #
+
+    def source_prefix(self) -> str:
+        """The repository-relative prefix of the project's source root
+        (S-0110/D-8): `<root>/src/`, or `src/` at the repository root."""
+
+        return f"{self.root}/src/" if self.root else "src/"
+
+
+# ....................... #
+
+
+def read_layout(root: Path) -> LayoutConfig:
+    """The `layout` block of the repository's manifest, the default when there
+    is none (S-0110/D-8). Read without the full `load_manifest`, so a reader
+    that wants only the project directory neither voices a twinless manifest's
+    warning nor triggers its refusal."""
+
+    path = layout_module.gates_file(root)
+
+    if not path.is_file():
+        return LayoutConfig()
+
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    except (OSError, yaml.YAMLError):
+        return LayoutConfig()
+
+    block = raw.get("layout") if isinstance(raw, dict) else None
+
+    try:
+        return LayoutConfig.model_validate(block or {})
+
+    except ValueError:
+        return LayoutConfig()
+
+
+# ....................... #
+
+
 class TestsConfig(BaseModel):
     """Which files count as tests, how a module pairs with them, and how they
     run (S-0106/D-7)."""
@@ -251,6 +316,22 @@ class TestsConfig(BaseModel):
     """Templates from a module to its tests over `{dir}` and `{stem}`
     (S-0106/D-7); the default is the Python pairing at any depth under
     `tests/`."""
+
+    # ....................... #
+
+    @classmethod
+    def re_rooted(cls, root: str) -> TestsConfig:
+        """The default patterns and pairing, re-rooted under a project
+        directory (S-0110/D-8): a project under `app/` keeps its tests under
+        `app/tests`. A `tests` block a repository declares is never re-rooted
+        — only the defaults are."""
+
+        prefix = f"{root.strip('/')}/"
+
+        return cls(
+            patterns=[f"{prefix}{pattern}" for pattern in DEFAULT_TEST_PATTERNS],
+            pair=[f"{prefix}{pattern}" for pattern in DEFAULT_TEST_PAIRS],
+        )
 
     # ....................... #
 
@@ -354,6 +435,10 @@ class Manifest(BaseModel):
     scope: ManifestScope = Field(default_factory=ManifestScope)
     """The repository-wide scope the scope gate judges a diff against when the run carries
     no task file of its own, with the `derived` map the gate reads."""
+    layout: LayoutConfig = Field(default_factory=LayoutConfig)
+    """Where the Python project sits (S-0110/D-8, S-0110/D-9): the directory the source
+    root and the `tests` defaults are read under, and the directories that ride with any
+    change."""
     tests: TestsConfig = Field(default_factory=TestsConfig)
     """Which files count as tests, for the no-test-tampering gate."""
     secrets: SecretsConfig = Field(default_factory=SecretsConfig)
@@ -369,6 +454,31 @@ class Manifest(BaseModel):
     gates: list[Gate] = Field(default_factory=list)
     """The battery itself: every gate entry, run in the order the resolver puts them
     in."""
+
+    # ....................... #
+
+    @model_validator(mode="before")
+    @classmethod
+    def _re_root_tests(cls, data: object) -> object:
+        """The `tests` defaults read under `layout.root` (S-0110/D-8): a project
+        under `app/` has its tests under `app/tests` when the repository
+        declares no `tests` block of its own. A declared block is left exactly
+        as written."""
+
+        if not isinstance(data, dict) or "tests" in data:
+            return data
+
+        block = data.get("layout")
+        root = (
+            str(block.get("root") or "").strip("/")
+            if isinstance(block, dict)
+            else (block.root if isinstance(block, LayoutConfig) else "")
+        )
+
+        if not root:
+            return data
+
+        return {**data, "tests": TestsConfig.re_rooted(root).model_dump()}
 
     # ....................... #
 

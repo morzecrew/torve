@@ -171,7 +171,7 @@ The corpus is `.torve/specs/` and the archive `.torve/archive/`; the configurati
 
 ### S-0057/D-9 — `LOCKED` (The specification is a directory)
 
-`spec check` resolves every citation-shaped identifier in tracked files under `src/**`, `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md` over the corpus and the archive: unknown is a problem naming `file:line`, retired a warning, archived clean; tests and skills are not scanned
+`spec check` resolves every citation-shaped identifier in tracked files under the source root (`<root>/src`), `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md` over the corpus and the archive: unknown is a problem naming `file:line`, retired a warning, archived clean; tests and skills are not scanned
 
 - Paths: `src/torve/config/spec.py`
 - Consequence: A comment that cites a row is checked like a `cites` list; an identifier can never be invented in the code

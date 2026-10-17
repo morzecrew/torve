@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from torve.application.telemetry import config_hash
-from torve.config.manifest import TwinlessGateWarning, load_manifest
+from torve.config.manifest import TwinlessGateWarning, load_manifest, read_layout
 from torve.gates.sabotage import BASE_MANIFEST, CASES
 
 
@@ -15,6 +15,62 @@ def write_manifest(tmp_path, data):
     path = tmp_path / "gates.yaml"
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return path
+
+
+# S-0110/D-8: `layout.root` names the Python project's directory; the source
+# root is `<root>/src` and the `tests` defaults re-root under `<root>`.
+
+
+def test_layout_defaults_to_the_repository_root(tmp_path):
+    manifest = load_manifest(write_manifest(tmp_path, BASE_MANIFEST))
+    assert manifest.layout.root == ""
+    assert manifest.layout.carried == []
+    assert manifest.layout.source_prefix() == "src/"
+    assert manifest.tests.patterns[0] == "tests/**"
+
+
+def test_layout_root_reads_the_source_root(tmp_path):
+    manifest = load_manifest(write_manifest(tmp_path, dict(BASE_MANIFEST, layout={"root": "app"})))
+    assert manifest.layout.source_prefix() == "app/src/"
+
+
+def test_the_tests_defaults_re_root_under_the_project_directory(tmp_path):
+    manifest = load_manifest(write_manifest(tmp_path, dict(BASE_MANIFEST, layout={"root": "app"})))
+    assert manifest.tests.patterns[0] == "app/tests/**"
+    assert manifest.tests.pair[0] == "app/tests/**/test_{stem}.py"
+
+
+def test_a_declared_tests_block_is_never_re_rooted(tmp_path):
+    """S-0110/D-8: only the defaults re-root; a repository that writes its own
+    `tests` block reads exactly what it wrote."""
+
+    manifest = load_manifest(
+        write_manifest(
+            tmp_path,
+            dict(BASE_MANIFEST, layout={"root": "app"}, tests={"patterns": ["spec/**"]}),
+        )
+    )
+    assert manifest.tests.patterns == ["spec/**"]
+
+
+def test_layout_carried_is_read(tmp_path):
+    manifest = load_manifest(
+        write_manifest(tmp_path, dict(BASE_MANIFEST, layout={"carried": ["db"]}))
+    )
+    assert manifest.layout.carried == ["db"]
+
+
+def test_read_layout_reads_the_block_without_the_whole_manifest(tmp_path):
+    nested = tmp_path / ".torve"
+    nested.mkdir()
+    write_manifest(nested, dict(BASE_MANIFEST, layout={"root": "app", "carried": ["db"]}))
+    found = read_layout(tmp_path)
+    assert found.root == "app"
+    assert found.carried == ["db"]
+
+
+def test_read_layout_defaults_when_there_is_no_manifest(tmp_path):
+    assert read_layout(tmp_path).source_prefix() == "src/"
 
 
 def test_load_and_resolve_defaults(tmp_path):

@@ -35,7 +35,7 @@ from pathspec import GitIgnoreSpec
 from torve.application.colocation import contended_paths
 from torve.application.planner import standing_decisions
 from torve.application.projections import why_report
-from torve.config.manifest import TestsConfig, load_manifest
+from torve.config.manifest import TestsConfig, load_manifest, read_layout
 from torve.config.spec import SpecError, load_corpus
 from torve.domain.spec import Corpus, Document
 from torve.domain.task import Task
@@ -223,9 +223,14 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
             tree = None
 
         if tree is not None:
+            # S-0110/D-8: the fallback prefix is the layout's source root, so a
+            # coverage report from a project under `app/` re-roots to
+            # `app/src/` rather than the repository root's `src/`.
+            source = read_layout(root).source_prefix()
+
             for cls in tree.iter("class"):
                 filename = cls.get("filename") or ""
-                path = filename if filename.startswith("src/") else f"src/{filename}"
+                path = filename if filename.startswith(source) else f"{source}{filename}"
 
                 if not (allow.match_file(path) or path in contingent):
                     continue

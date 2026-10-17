@@ -31,6 +31,7 @@ from torve.cli.options import (
     runtime_for,
 )
 from torve.config import layout
+from torve.config.manifest import read_layout
 
 if TYPE_CHECKING:
     from torve.application.ports import Agent
@@ -175,7 +176,7 @@ def run_cmd(
     from torve.application import sizing
     from torve.application.telemetry import engine_event
 
-    verdict = sizing.estimate(task)
+    verdict = sizing.estimate(task, read_layout(root).carried)
 
     if verdict.size == "too_large" and not sizing.has_children(root, task.id):
         err().print("note: size estimate is too_large: " + "; ".join(verdict.reasons))

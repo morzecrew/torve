@@ -43,6 +43,7 @@ from torve.cli.options import (
 )
 from torve.cli.run import ContractArgument, contract_for
 from torve.config import layout
+from torve.config.manifest import read_layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 from torve.gates.context import load_task
 
@@ -80,7 +81,7 @@ def brief_cmd(
     specs = root / config.specs.path
     errors = lint_contract(root, path)
     uninherited = standing_warnings(root, path, specs)
-    verdict = estimate(task)
+    verdict = estimate(task, read_layout(root).carried)
     # The pack an attempt reads is the pack a session gets, built by the same
     # function dispatch calls and written where the prompt says it is
     # (S-0054/D-10) — the battery is read back out of it rather than recomputed.
