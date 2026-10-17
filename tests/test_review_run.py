@@ -29,6 +29,8 @@ from torve.application.ports import AgentResult, BrokerHandle, BrokerUsage
 from torve.application.review import (
     SchemaRefusal,
     build_review_prompt,
+    elide_diff_bulk,
+    elided_prefixes,
     mint_review_task,
     parse_findings,
     run_review,
@@ -39,6 +41,7 @@ from torve.application.review import (
 from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.base import naming
+from torve.config.manifest import Manifest
 from torve.config.runconfig import (
     ReviewConfig,
     RunnerConfig,
@@ -820,6 +823,33 @@ def test_the_review_prompt_lists_a_promotion():
 
     # A diff that widened nothing says nothing about promotions.
     assert "widened beyond" not in build_review_prompt(target, "diff --git a/x b/x", [])
+
+
+def test_the_reviewer_elides_the_rider_files_a_manifest_names():
+    """S-0110/D-10: the reviewer's elision set is the manifest's own
+    `scope.derived` rider files, so a nested lock is bulk no review reads line
+    by line — beside the vendored prefix and root lock always elided. With no
+    manifest the nested lock is reviewed in full."""
+
+    manifest = Manifest.model_validate(
+        {"scope": {"derived": {"web/package.json": ["web/package-lock.json"]}}}
+    )
+    diff = (
+        "diff --git a/web/package-lock.json b/web/package-lock.json\n"
+        "--- a/web/package-lock.json\n+++ b/web/package-lock.json\n@@ -1 +1 @@\n"
+        '-{"a":1}\n+{"a":2}\n'
+        "diff --git a/src/x.py b/src/x.py\n"
+        "--- a/src/x.py\n+++ b/src/x.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+    )
+
+    elided = elided_prefixes(manifest)
+
+    assert "web/package-lock.json" in elided
+    assert "[vendored/generated: web/package-lock.json" in elide_diff_bulk(diff, elided)
+    assert "+x = 2" in elide_diff_bulk(diff, elided)
+    # With no manifest the nested lock's body is reviewed in full.
+    assert "[vendored/generated:" not in elide_diff_bulk(diff)
+    assert '-{"a":1}' in elide_diff_bulk(diff)
 
 
 def test_the_review_prompt_names_a_survivor_and_its_covering_row():

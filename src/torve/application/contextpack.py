@@ -201,6 +201,38 @@ def _convicts_on(name: str) -> str:
 # ....................... #
 
 
+def coverage_prefix(root: Path, tree: ElementTree.ElementTree[ElementTree.Element[str]]) -> str:
+    """The repository-relative prefix a Cobertura report's `filename`s are read
+    under (S-0110/D-10): the first `<sources>` entry the report declares, made
+    relative to *root* when it is absolute; the layout's source root when the
+    report declares none (S-0110/D-8). A `filename` is relative to this prefix,
+    so a nested `<source>app/src</source>` re-roots to `app/src/` rather than
+    the repository root's `src/`."""
+
+    for element in tree.iter("source"):
+        text = (element.text or "").strip()
+
+        if not text:
+            continue
+
+        path = Path(text)
+
+        if path.is_absolute():
+            try:
+                text = path.resolve().relative_to(root.resolve()).as_posix()
+            except ValueError:
+                continue
+
+        text = text.strip("/")
+
+        return f"{text}/" if text not in ("", ".") else ""
+
+    return read_layout(root).source_prefix()
+
+
+# ....................... #
+
+
 def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict[str, Any]:
     """What covers the scope: files under scope.allow with their measured
     line coverage from the last battery's coverage.xml, and the test
@@ -223,10 +255,10 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
             tree = None
 
         if tree is not None:
-            # S-0110/D-8: the fallback prefix is the layout's source root, so a
-            # coverage report from a project under `app/` re-roots to
-            # `app/src/` rather than the repository root's `src/`.
-            source = read_layout(root).source_prefix()
+            # S-0110/D-10: the prefix comes from the report's own `<sources>`,
+            # so a nested report re-roots to its real source root; the layout
+            # is the fallback when the report declares none (S-0110/D-8).
+            source = coverage_prefix(root, tree)
 
             for cls in tree.iter("class"):
                 filename = cls.get("filename") or ""
@@ -619,6 +651,7 @@ def scope_file(
     tests: dict[str, Any],
     budget: int = SCOPE_BUDGET,
     outline_budget: int = OUTLINE_BUDGET,
+    patterns: list[str] | None = None,
 ) -> str:
     """The files `scope.allow` names and the tests `tests.json` names, as one
     document (S-0076/D-2): their contents when they fit under *budget*, an
@@ -630,7 +663,7 @@ def scope_file(
 
     bodies: list[tuple[str, str]] = []
 
-    for rel in _in_scope(root, task, tests):
+    for rel in _in_scope(root, task, tests, patterns):
         try:
             bodies.append((rel, (root / rel).read_text(encoding="utf-8")))
         except (OSError, UnicodeDecodeError):
@@ -701,16 +734,24 @@ def scope_file(
     return "\n".join(lines)
 
 
-def _in_scope(root: Path, task: Task, tests: dict[str, Any]) -> list[str]:
+def _in_scope(
+    root: Path, task: Task, tests: dict[str, Any], patterns: list[str] | None = None
+) -> list[str]:
     """The paths under `scope.allow` and not under `scope.deny`, plus the tests
     `tests_file` named for them, plus the contract's `scope.contingent` literals
     (S-0104/D-7): the neighbours a change is likely to reach ride with the scope
     so the attempt reads them as one. An empty allow list means unconstrained,
     which is every file in the tree — so it contributes nothing here and the
-    named tests stand alone: a pack is not the place to inline a repository."""
+    named tests stand alone: a pack is not the place to inline a repository.
+
+    A path `tests.patterns` names is a test (S-0110/D-10): it is not packed as
+    the scope's source, so a nested test tree an allow glob would sweep in stays
+    out — the tests that name the scope's modules, which `named` holds, are the
+    pack's tests."""
 
     allow = GitIgnoreSpec.from_lines(task.scope.allow) if task.scope.allow else None
     deny = GitIgnoreSpec.from_lines(task.scope.deny) if task.scope.deny else None
+    test = GitIgnoreSpec.from_lines(patterns) if patterns else None
     named = {str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])}
     contingent = set(task.scope.contingent)
     found: set[str] = set()
@@ -724,6 +765,7 @@ def _in_scope(root: Path, task: Task, tests: dict[str, Any]) -> list[str]:
             if rel in named or (
                 (rel in contingent or (allow is not None and allow.match_file(rel)))
                 and not (deny is not None and deny.match_file(rel))
+                and not (test is not None and test.match_file(rel))
             ):
                 found.add(rel)
 
@@ -784,7 +826,7 @@ def build(
     tests = tests_file(root, task, manifest.tests if manifest else None)
     put("tests.json", tests)
 
-    scope = scope_file(root, task, tests)
+    scope = scope_file(root, task, tests, patterns=(manifest.tests.patterns if manifest else None))
 
     if scope:
         files["scope.md"] = scope

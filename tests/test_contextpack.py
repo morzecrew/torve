@@ -247,6 +247,57 @@ def test_tests_read_coverage_under_the_project_directory(tmp_path: Path) -> None
     assert payload["coverage"] == [{"path": "app/src/a/thing.py", "lines": 2, "covered": 1}]
 
 
+def test_tests_read_the_coverage_prefix_from_the_sources_element(tmp_path: Path) -> None:
+    """S-0110/D-10: the prefix a Cobertura report's `filename`s sit under comes
+    from its own `<sources>` element, so a nested report re-roots to its real
+    source root rather than the repository root's `src/`."""
+
+    _seed(tmp_path)
+    (tmp_path / "app" / "src" / "a").mkdir(parents=True)
+    (tmp_path / "app" / "src" / "a" / "thing.py").write_text("", encoding="utf-8")
+    body = (
+        "<packages><package><classes>"
+        '<class filename="a/thing.py"><lines><line number="1" hits="1"/>'
+        '<line number="2" hits="0"/></lines></class>'
+        "</classes></package></packages>"
+    )
+    report = tmp_path / "coverage.xml"
+    task = Task(id="T-0500", spec="S-0001", decisions=[], scope=Scope(allow=["app/src/a/**"]))
+    expected = [{"path": "app/src/a/thing.py", "lines": 2, "covered": 1}]
+
+    report.write_text(
+        f'<?xml version="1.0"?><coverage><sources><source>app/src</source></sources>'
+        f"{body}</coverage>",
+        encoding="utf-8",
+    )
+    assert tests_file(tmp_path, task)["coverage"] == expected
+
+    # A report naming its source absolutely lands on the same scope globs.
+    report.write_text(
+        f'<?xml version="1.0"?><coverage><sources><source>{tmp_path.resolve()}/app/src'
+        f"</source></sources>{body}</coverage>",
+        encoding="utf-8",
+    )
+    assert tests_file(tmp_path, task)["coverage"] == expected
+
+
+def test_the_scope_does_not_pack_a_nested_test_tree_as_source(tmp_path: Path) -> None:
+    """S-0110/D-10: a file `tests.patterns` names is a test, not the scope's
+    source, so an allow glob that sweeps a nested test tree in does not pack
+    that tree's bodies."""
+
+    (tmp_path / "app" / "src").mkdir(parents=True)
+    (tmp_path / "app" / "src" / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "app" / "tests").mkdir()
+    (tmp_path / "app" / "tests" / "test_mod.py").write_text("", encoding="utf-8")
+    task = Task(id="T-0500", spec="S-0001", decisions=[], scope=Scope(allow=["app/**"]))
+
+    scope = scope_file(tmp_path, task, {"named_tests": []}, patterns=["app/tests/**"])
+
+    assert "## `app/src/mod.py`" in scope
+    assert "app/tests/test_mod.py" not in scope
+
+
 def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
     """S-0096/D-4: the pack names `test_<stem>.py` and every existing
     `test_<stem>_*.py`, and no name that merely shares a prefix."""

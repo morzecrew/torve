@@ -46,7 +46,7 @@ from torve.base import naming
 from torve.base.clock import stamp
 from torve.base.globs import matches
 from torve.config import layout
-from torve.config.manifest import read_layout
+from torve.config.manifest import Manifest, load_manifest
 from torve.config.runconfig import (
     RunnerConfig,
     agent_timeout_for,
@@ -173,6 +173,8 @@ def build_review_prompt(
     diff_text: str,
     gate_results: list[GateResult],
     degraded: bool = False,
+    *,
+    elided: tuple[str, ...] | None = None,
 ) -> str:
     """The reviewer's whole input (S-0005/D-3: no author trace, ever). The
     calibration paragraph is deliberate — this reviewer sees a diff after
@@ -201,7 +203,9 @@ def build_review_prompt(
     # a diff carrying vendored bulk exceeds any context, and a reviewer with
     # tools reads lazily. A short head rides along as orientation only,
     # elided the same way the staged file is.
-    head_lines = elide_diff_bulk(diff_text).splitlines()[:80]
+    head_lines = elide_diff_bulk(
+        diff_text, ELIDED_DIFF_PATHS if elided is None else elided
+    ).splitlines()[:80]
     diff_head = "\n".join(head_lines)
     diff_head_lines = len(head_lines)
 
@@ -313,10 +317,27 @@ An empty list is a valid, complete review: {{"findings": []}}
 # it destroyed a review from inside the session (T-0241). The section is
 # replaced with a one-line marker naming the path; the actual bytes sit in
 # the copy's tree for a reviewer that truly needs them.
-ELIDED_DIFF_PATHS = ("src/torve/_web/", "uv.lock", "package-lock.json")
+ELIDED_DIFF_PATHS = ("src/torve/_web/", "uv.lock")
 
 
-def elide_diff_bulk(diff_text: str) -> str:
+def elided_prefixes(manifest: Manifest | None) -> tuple[str, ...]:
+    """Every path whose diff section the reviewer collapses to a marker
+    (S-0110/D-10): the vendored prefix and lock file the engine always elides,
+    plus each rider file the manifest's `scope.derived` map names — a lock
+    beside a nested manifest is bulk no reviewer reads line by line, whatever
+    depth it sits at. A manifest that declares no map leaves the engine's own
+    defaults in place (S-0104/D-5)."""
+
+    prefixes = list(ELIDED_DIFF_PATHS)
+
+    if manifest is not None:
+        riders = {rider for riders in manifest.scope.derived.values() for rider in riders}
+        prefixes += sorted(riders - set(prefixes))
+
+    return tuple(prefixes)
+
+
+def elide_diff_bulk(diff_text: str, prefixes: tuple[str, ...] = ELIDED_DIFF_PATHS) -> str:
     """Every per-file section of a unified diff whose path starts with an
     elided prefix collapses to a marker line; all other sections pass through
     byte-for-byte. Deterministic, path-keyed, content-blind."""
@@ -327,7 +348,7 @@ def elide_diff_bulk(diff_text: str) -> str:
     for line in diff_text.splitlines(keepends=True):
         if line.startswith("diff --git "):
             path = line.split(" b/")[-1].strip()
-            eliding = any(path.startswith(prefix) for prefix in ELIDED_DIFF_PATHS)
+            eliding = any(path.startswith(prefix) for prefix in prefixes)
 
             if eliding:
                 kept.append(
@@ -544,8 +565,11 @@ def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
             tree = None
 
         if tree is not None:
-            # S-0110/D-8: the fallback prefix is the layout's source root.
-            source = read_layout(root).source_prefix()
+            # S-0110/D-10: the prefix comes from the report's own `<sources>`,
+            # the layout's source root when it declares none (S-0110/D-8).
+            from torve.application.contextpack import coverage_prefix
+
+            source = coverage_prefix(root, tree)
 
             for cls in tree.iter("class"):
                 filename = cls.get("filename") or ""
@@ -785,12 +809,18 @@ def run_review(
 
     image = image_for(config, tier)
 
+    # S-0110/D-10: the elision set is the manifest's own rider files, so a
+    # nested lock rides out of the reviewer's view exactly as the root one does.
+    manifest_path = layout.gates_file(root)
+    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
+    elided = elided_prefixes(manifest)
+
     # The reviewer's whole input, composed first (S-0005/D-3: no author trace,
     # ever) — after this line the diff under judgment is text in a string, and
     # no state the copy can reach has any part in it. The diff itself is
     # staged as a file in the copy below (S-0005/A-5): a diff carrying a vendored
     # bundle exceeds any prompt, and a reviewer with tools reads lazily.
-    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded)
+    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded, elided=elided)
 
     # T-0172: the harness names the session trace after the workspace it is
     # given. The executor's trace is taken in hand here, before the copy is
@@ -811,7 +841,7 @@ def run_review(
     # from inside the session, and the real bytes sit in the tree anyway.
     diff_path = copy / ".torve" / "tmp" / "review.diff"
     diff_path.parent.mkdir(parents=True, exist_ok=True)
-    diff_path.write_text(elide_diff_bulk(diff_text), encoding="utf-8")
+    diff_path.write_text(elide_diff_bulk(diff_text, elided), encoding="utf-8")
 
     # S-0054/D-13: the reviewer reads the pack too — built for the target, as a
     # replay, so no model-authored entry enters — plus `touched.json`, the
@@ -1050,12 +1080,10 @@ def run_review(
         },
     }
 
-    manifest = layout.gates_file(worktree)
+    manifest_file = layout.gates_file(worktree)
 
-    if manifest.is_file():
-        from torve.config.manifest import load_manifest
-
-        append_record(root / load_manifest(manifest).telemetry, record)
+    if manifest_file.is_file():
+        append_record(root / load_manifest(manifest_file).telemetry, record)
 
     state.transition(TaskState.GATED, "findings produced")
     state.transition(TaskState.REVIEWED, fact)
