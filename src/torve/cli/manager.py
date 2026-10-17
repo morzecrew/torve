@@ -101,10 +101,13 @@ async def _board(dsn: str | None, partition: str) -> Board:
 # ....................... #
 
 
-async def _board_and_night(dsn: str | None, partition: str) -> tuple[Board, NightReport | None]:
-    """The board and the latest night's window, folded from one read of the
-    same log — what `--until-change` polls (S-0110/D-13). The night is what
-    tells a watcher that a night ended, which the board alone cannot say."""
+async def _board_and_night(
+    dsn: str | None, partition: str, night_id: str = ""
+) -> tuple[Board, NightReport | None]:
+    """The board and a night's window — the one `night_id` names, else the
+    latest — folded from one read of the same log: what `--until-change` polls
+    (S-0110/D-13). The night is what tells a watcher that a night ended, which
+    the board alone cannot say."""
 
     from torve.application.eventlog import event_log
     from torve.application.manager import night_report, project
@@ -112,7 +115,7 @@ async def _board_and_night(dsn: str | None, partition: str) -> tuple[Board, Nigh
     async with _runtime(dsn) as runtime:
         records = list(await event_log(runtime.get_context()).since(partition=partition))
 
-    return project(records), night_report(records)
+    return project(records), night_report(records, night_id=night_id)
 
 
 def _of_document(board: Board, document: str) -> Board:
@@ -142,7 +145,7 @@ def _moved(before: Board, now: Board) -> list[TaskView]:
 
 
 async def _watch(
-    read: Callable[[], Awaitable[tuple[Board, NightReport | None]]],
+    read: Callable[[str], Awaitable[tuple[Board, NightReport | None]]],
     *,
     interval: float,
     document: str | None,
@@ -151,15 +154,19 @@ async def _watch(
 
     The first read is the baseline and prints nothing; a later read that
     finds a task's state, attempts or escalation moved returns those rows,
-    and one that finds the watched night closed returns the night. Nothing
-    is written and no leg is run — this is a reader for a person's terminal.
+    and one that finds the watched night closed returns the night. The
+    watched night is the one open at the first read, or the first to open
+    after it, and `read` is handed its id: a newer night opening between two
+    reads cannot hide its close. Nothing is written and no leg is run — this
+    is a reader for a person's terminal.
     """
 
     before: Board | None = None
     was: NightReport | None = None
+    watched = ""
 
     while True:
-        board, night = await read()
+        board, night = await read(watched)
 
         if document is not None:
             board = _of_document(board, document)
@@ -174,6 +181,9 @@ async def _watch(
                 and (was is None or was.close is None or was.night_id != night.night_id)
             ):
                 return [], night
+
+        if not watched and night is not None and night.close is None:
+            watched = night.night_id
 
         before, was = board, night
         await asyncio.sleep(interval)
@@ -922,7 +932,7 @@ def board_cmd(
     if until_change:
         moved, night = asyncio.run(
             _watch(
-                lambda: _board_and_night(dsn_value, partition),
+                lambda night_id: _board_and_night(dsn_value, partition, night_id),
                 interval=interval,
                 document=document or None,
             )

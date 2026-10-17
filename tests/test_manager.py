@@ -2257,7 +2257,7 @@ def _watch_cli(tmp_path, monkeypatch, boards, nights):
 
     polls = itertools.count()
 
-    async def fake(_dsn, _partition):
+    async def fake(_dsn, _partition, _night_id=""):
         index = min(next(polls), len(boards) - 1)
         return boards[index], nights[index]
 
@@ -2321,6 +2321,37 @@ def test_the_board_exits_when_the_night_closes(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert NIGHT in result.output
     assert "closed" in result.output
+
+
+def test_the_watch_follows_its_own_night_past_a_newer_one():
+    """S-0110/D-13: the watch pins the night open when it began. Night A
+    closing and night B opening between two reads still ends the wait on A's
+    close; following "the latest night" would see only B, open, and wait on."""
+
+    from torve.cli.manager import _watch
+
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    a_open = night_event(EventKind.NIGHT_OPENED, "N-A", TERMS, at=opened)
+    a_closed = night_event(
+        EventKind.NIGHT_CLOSED,
+        "N-A",
+        {"reason": "drained", "handled": 1},
+        at=opened + timedelta(hours=1),
+    )
+    b_open = night_event(EventKind.NIGHT_OPENED, "N-B", TERMS, at=opened + timedelta(hours=2))
+    logs = [[a_open], [a_open, a_closed, b_open]]
+    asked: list[str] = []
+
+    async def read(night_id: str):
+        asked.append(night_id)
+        assert len(asked) <= len(logs), "the watch missed the close of the night it began on"
+        return Board(), night_report(logs[len(asked) - 1], night_id=night_id)
+
+    moved, night = asyncio.run(_watch(read, interval=0, document=None))
+
+    assert moved == []
+    assert night is not None and night.night_id == "N-A" and night.close is not None
+    assert asked == ["", "N-A"]
 
 
 def test_a_watch_of_one_document_ignores_anothers_tasks():
