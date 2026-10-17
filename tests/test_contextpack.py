@@ -227,6 +227,26 @@ def test_tests_read_coverage_under_scope_and_the_named_test_files(tmp_path: Path
     assert payload["named_tests"] == [{"module": "src/a/thing.py", "test": "tests/test_thing.py"}]
 
 
+def test_tests_read_coverage_under_the_project_directory(tmp_path: Path) -> None:
+    """S-0110/D-8: the fallback prefix is the layout's source root, so a
+    coverage report from a project under `app/` re-roots to `app/src/` rather
+    than the repository root's `src/`."""
+
+    (tmp_path / ".torve").mkdir()
+    (tmp_path / ".torve" / "gates.yaml").write_text("layout:\n  root: app\n", encoding="utf-8")
+    (tmp_path / "coverage.xml").write_text(
+        '<?xml version="1.0"?><coverage><packages><package><classes>'
+        '<class filename="a/thing.py"><lines><line number="1" hits="1"/><line number="2" hits="0"/></lines></class>'
+        "</classes></package></packages></coverage>",
+        encoding="utf-8",
+    )
+    task = Task(id="T-0500", spec="S-0001", decisions=[], scope=Scope(allow=["app/src/a/**"]))
+
+    payload = tests_file(tmp_path, task)
+
+    assert payload["coverage"] == [{"path": "app/src/a/thing.py", "lines": 2, "covered": 1}]
+
+
 def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
     """S-0096/D-4: the pack names `test_<stem>.py` and every existing
     `test_<stem>_*.py`, and no name that merely shares a prefix."""

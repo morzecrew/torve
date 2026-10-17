@@ -49,6 +49,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Scope, Task
+from torve.gates.sabotage import BASE_MANIFEST
 
 # The shipped role skills, as a repository's profiles would declare them.
 ROLE_SKILLS: dict[str, list[str]] = {
@@ -1233,6 +1234,28 @@ def test_touched_file_reads_coverage_and_prior_reviews(repo):
     assert payload["coverage"] == [{"path": "src/app.py", "changed": 2, "covered": 1}]
     assert [p["review"] for p in payload["prior_reviews"]] == ["T-0227"]
     assert payload["prior_reviews"][0]["findings"][0]["severity"] == "major"
+
+
+def test_touched_file_reads_coverage_under_the_project_directory(repo):
+    """S-0110/D-8: the fallback prefix is the layout's source root, so a
+    project under `app/` matches coverage to its own `app/src/` paths."""
+
+    repo.seed(dict(BASE_MANIFEST, layout={"root": "app"}))
+    target = Task(id="T-9001", intent="x", decisions=[])
+    (repo.root / "coverage.xml").write_text(
+        '<coverage><packages><package><classes><class filename="app.py">'
+        '<lines><line number="1" hits="1"/><line number="2" hits="0"/><line number="3" hits="1"/>'
+        "</lines></class></classes></package></packages></coverage>",
+        encoding="utf-8",
+    )
+
+    payload = touched_file(
+        repo.root,
+        target,
+        "diff --git a/app/src/app.py b/app/src/app.py\n@@ -1,2 +2,2 @@\n+a\n+b\n",
+    )
+
+    assert payload["coverage"] == [{"path": "app/src/app.py", "changed": 2, "covered": 1}]
 
 
 def test_a_shape_failure_is_refused_by_field_never_unparseable(review_rig):
