@@ -133,7 +133,7 @@ def runner_execute(
             # S-0099/D-8: the number the runner starts at, read from the
             # record rather than from a state file a reap may have removed.
             attempt_base = await _recorded_attempts(log, partition, task.id)
-            bound = replace(bound, taken=await recorded_tasks(log, partition))
+            bound = replace(bound, taken=record_reader(log, partition, loop))
 
         state = await asyncio.to_thread(
             run_task, root, task, config, bound, attempt_base=attempt_base
@@ -151,6 +151,18 @@ def runner_execute(
 
 
 # ....................... #
+
+
+def record_reader(
+    log: EventLog, partition: str, loop: asyncio.AbstractEventLoop
+) -> Callable[[], tuple[str, ...]]:
+    """The record's task ids, read on the manager's loop from the runner's
+    thread at the moment a run mints a contract."""
+
+    def read() -> tuple[str, ...]:
+        return asyncio.run_coroutine_threadsafe(recorded_tasks(log, partition), loop).result()
+
+    return read
 
 
 async def recorded_tasks(log: EventLog, partition: str) -> tuple[str, ...]:

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -113,10 +113,12 @@ class RunDeps:
     # at open. The sandbox reaches the record through the broker or not at
     # all — it never holds a store credential (S-0045/D-1).
     channel: RunChannel | None = None
-    # S-0056/D-9: the task ids the record holds when a store holds the tasks.
-    # A contract the run mints (the review at gated) numbers past them, since
-    # a store-backed plan writes no file under `.torve/tasks/` to count.
-    taken: tuple[str, ...] = ()
+    # S-0056/D-9: reads the task ids the record holds when a store holds the
+    # tasks. A contract the run mints (the review at gated) numbers past them,
+    # since a store-backed plan writes no file under `.torve/tasks/` to count.
+    # Read when the contract is minted, not when the run began: another slot
+    # may mint while an attempt runs. None is a run without a store.
+    taken: Callable[[], Iterable[str]] | None = None
 
 
 # ....................... #

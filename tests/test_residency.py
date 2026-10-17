@@ -893,7 +893,7 @@ class StubDeps:
     facts: object = None
     journal: object = None
     channel: object = None
-    taken: object = ()
+    taken: object = None
 
 
 def prepared(deps):

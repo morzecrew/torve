@@ -1334,7 +1334,8 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
     its revision budget retries in place (S-0043/D-1), and a spent budget, an
     unparseable verdict or a broker refusal escalates the target."""
 
-    review_task = mint_review_task(run.root, run.task, taken=run.deps.taken)
+    taken = run.deps.taken() if run.deps.taken is not None else ()
+    review_task = mint_review_task(run.root, run.task, taken=taken)
 
     outcome = await asyncio.to_thread(
         run_review,
