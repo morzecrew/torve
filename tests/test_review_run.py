@@ -29,6 +29,7 @@ from torve.application.ports import AgentResult, BrokerHandle, BrokerUsage
 from torve.application.review import (
     SchemaRefusal,
     build_review_prompt,
+    mint_review_task,
     parse_findings,
     run_review,
     seat_api_error,
@@ -1417,3 +1418,16 @@ def test_a_refused_document_is_asked_once_more_too(review_rig):
     assert outcome.refusal is None
     assert outcome.unparseable is False
     assert outcome.fact == "review clean"
+
+
+def test_a_review_numbers_past_the_record_when_a_store_holds_the_tasks(repo):
+    """S-0056/D-9: a store-backed plan writes no file, so counted from the files
+    alone a review took a queued task's id, and staging its copy removed that
+    task's worktree (T-0603, 2026-10-16). The record's ids count as well."""
+
+    (repo.root / ".torve" / "tasks" / "T-0602").mkdir(parents=True)
+    target = Task(id="T-0603", intent="Pin forze.", decisions=[])
+
+    assert mint_review_task(repo.root, target, taken=("T-0603", "T-0609")).id == "T-0610"
+    # Without a store the files are the record, and the review just minted counts.
+    assert mint_review_task(repo.root, target).id == "T-0611"

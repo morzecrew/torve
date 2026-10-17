@@ -16,7 +16,7 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
-from torve.application.executors import outcome_of
+from torve.application.executors import outcome_of, recorded_tasks
 from torve.application.manager import project
 from torve.application.runstate import Escalation, RunState
 from torve.application.worker import Outcome, Worker
@@ -327,3 +327,18 @@ def test_a_claim_waits_for_its_dependency_to_reach_the_base():
         assert claimed is not None and claimed.id == "T-2"
 
     run(scenario)
+
+
+def test_a_dispatch_carries_every_task_id_the_record_holds():
+    """S-0056/D-9: the ids a run's minted contracts must skip are the board's,
+    read from the log once per dispatch."""
+
+    import asyncio
+    from types import SimpleNamespace
+
+    class Log:
+        async def of_subject_type(self, subject_type, *, partition=None):
+            assert partition == "torve"
+            return [SimpleNamespace(subject_id=one) for one in ("T-0609", "T-0603", "T-0609")]
+
+    assert asyncio.run(recorded_tasks(Log(), "torve")) == ("T-0603", "T-0609")

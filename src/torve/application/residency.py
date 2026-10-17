@@ -93,7 +93,7 @@ Lane = Callable[[], Awaitable[list[str]]]
 # what it did and whether anything fired. Wired by the composition root
 # because firing a predicate needs a sandbox, and this module decides only
 # *when* it may run.
-Standing = Callable[[], tuple[str, bool]]
+Standing = Callable[[], tuple[str, bool] | Awaitable[tuple[str, bool]]]
 
 # One pass of the review-thread leg (S-0084/D-16), returning what it did and
 # whether it minted anything. Wired by the composition root because reading

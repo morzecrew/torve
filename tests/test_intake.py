@@ -1100,6 +1100,16 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
     assert not (seeded.root / ".torve" / "tick.lock").exists()  # lock released
 
 
+def test_adopt_numbers_past_the_record_when_a_store_holds_the_tasks(seeded):
+    """S-0056/D-9: a review round or a standing instance adopted while a store
+    holds the tasks skips the board's ids, which no file under `.torve/tasks/`
+    names."""
+
+    source = adopted_ready_run(seeded)
+
+    assert adopt(seeded.root, source, RunnerConfig(), taken=("T-0050",)) == ["T-0051", "T-0052"]
+
+
 def test_adopt_copies_decisions_from_an_accepted_document(seeded):
     place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture spec")

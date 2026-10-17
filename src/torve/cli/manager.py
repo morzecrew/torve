@@ -524,14 +524,19 @@ async def _serve(
             held=frozenset(holding),
         )
 
-    def standing() -> tuple[str, bool]:
+    async def standing() -> tuple[str, bool]:
         # S-0023's leg, unchanged — it mints a contract through the
         # ordinary adoption path, and the scan above imports whatever it
         # minted onto the board. Nothing about it had to move for the
-        # manager to run it (S-0023/A-2).
+        # manager to run it (S-0023/A-2), except that an instance numbers
+        # past the board's ids, not only the files (S-0056/D-9).
         from torve.application.standing import standing_leg
 
-        return standing_leg(root, config, runtime_for(config, None), landings.__contains__)
+        taken = {one.subject_id for one in await board_records()}
+
+        return standing_leg(
+            root, config, runtime_for(config, None), landings.__contains__, taken=taken
+        )
 
     async def resolutions() -> set[str]:
         """The rounds a person resolved off the board (S-0101/D-2): the lane's

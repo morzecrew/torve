@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A task minted during a served run no longer takes the id of a task the store already
+  holds. A plan minted into the record writes no file under `.torve/tasks/`, and the
+  review minted at gated, a review-thread round and a standing instance counted only
+  those files, so a review took the id of the task it judged and staging its copy
+  removed that task's worktree, crashing the night. They now number past the board's
+  ids as well.
+
 ## [0.3.2] - 2026-10-15
 
 ### Changed

@@ -1942,6 +1942,7 @@ def adopt(
     config: RunnerConfig,
     assume_lock: bool = False,
     document_threshold: bool = True,
+    taken: Iterable[str] = (),
 ) -> list[str]:
     """Adopt every draft the run produced: ids minted here and nowhere
     else, contracts committed as engine records on base, the loop left to
@@ -1950,7 +1951,8 @@ def adopt(
     adopt command applies under the lock the tick holds. `document_threshold`
     off is for a draft that is already a phase of an accepted document — a
     review round (S-0084/D-7) — which the threshold that routes a standalone
-    draft to its own document does not judge."""
+    draft to its own document does not judge. `taken` is the record's task
+    ids when a store holds the tasks (S-0056/D-9), which the new ids skip."""
 
     from torve.application.enginelock import acquire_lock, release_lock
     from torve.application.planner import next_task_number
@@ -2011,7 +2013,7 @@ def adopt(
         )
 
     try:
-        start = next_task_number(root)
+        start = next_task_number(root, taken)
         ids = {d.ref: f"T-{start + i:04d}" for i, d in enumerate(drafts)}
         written: list[Path] = []
 
