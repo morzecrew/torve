@@ -1,0 +1,124 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0605
+phase: 3
+attempt: 4
+base: c09b3fa4df0da183e254aacc5ae5934752208d43
+commit: a83dae55dae4ed4d0fc7af43c6d50fc6f3c7035a
+at: '2026-10-17T18:50:56Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-17T17:12:34Z'
+    attempt: 2
+    claim: >-
+      S-0110/D-4 names `git describe` as the source of the version stamped onto every
+      image but not how that version is rendered. `git describe --tags --always` prints
+      `v0.3.2-5-gabc1234` off a tag and a bare hash with no tags — neither is PEP
+      440, which hatch-vcs refuses, and neither can ever equal the host's `torve --version`,
+      so the doctor check this task adds would be permanently red. Rendering the source
+      to PEP 440 is a decision the decision table did not settle.
+    evidence: >-
+      justfile:82 — the stamp is rendered `--match 'v*'` plus `X.Y.Z.devN+gHASH`,
+      falling back to bare `torve --version`; the review thread T-0612 raised the
+      non-PEP-440 string
+    action: decided
+    proposal: >-
+      D-4 should say the stamp is rendered to PEP 440 before it is pretended — `git
+      describe --tags --match 'v*'` with the off-tag form converted to `X.Y.Z.devN+gHASH`,
+      or the host's own `torve --version` — so the pretended version is always valid
+      and always equals the host's, and the doctor check cannot be red on a correctly
+      built image.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-17T17:16:51Z'
+    attempt: 2
+    claim: >-
+      S-0110/D-4 names `git describe` as the source of the version stamped onto every
+      image but not how that version is rendered. `git describe --tags --always` prints
+      `v0.3.2-5-gabc1234` off a tag and a bare hash with no tags — neither is PEP
+      440, which hatch-vcs refuses, and neither can ever equal the host's `torve --version`,
+      so the doctor check this task adds would be permanently red. Rendering the source
+      to PEP 440 is a decision the decision table did not settle.
+    evidence: >-
+      justfile:82 — the stamp is rendered `--match 'v*'` plus `X.Y.Z.devN+gHASH`,
+      falling back to bare `torve --version`; the review thread T-0612 raised the
+      non-PEP-440 string
+    action: decided
+    proposal: >-
+      D-4 should say the stamp is rendered to PEP 440 before it is pretended — `git
+      describe --tags --match 'v*'` with the off-tag form converted to `X.Y.Z.devN+gHASH`,
+      or the host's own `torve --version` — so the pretended version is always valid
+      and always equals the host's, and the doctor check cannot be red on a correctly
+      built image.
+  - decision: D-4
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-17T18:25:12Z'
+    attempt: 4
+    claim: >-
+      S-0110/D-4 says the stamp comes 'from `git describe`'. Rendering that output
+      by hand disagrees with the tool that renders it for the host: hatch-vcs's guess-next-dev
+      turns `v0.3.2-5-gabc1234` into `0.3.3.dev5+gabc1234`, while the review's `sed`
+      produced `0.3.2.dev5+gabc1234` — a string doctor's exact comparison flags as
+      a different torve, and one that PEP 440 orders below the tag it follows. The
+      stamp is now the host's own `torve --version`, which is the string doctor compares
+      against by construction.
+    evidence: >-
+      justfile:83 — the stamp is `uv run torve --version`, the host's own release,
+      no rendering of `git describe` beside it; hatch-vcs derives the host's string
+    action: departed
+    proposal: >-
+      D-4 should say the stamp is the host's own `torve --version`, handed to bake
+      as VERSION and pretended through SETUPTOOLS_SCM_PRETEND_VERSION, rather than
+      a version rendered from `git describe`.
+  - decision: D-4
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-17T18:34:53Z'
+    attempt: 4
+    claim: >-
+      S-0110/D-4 says the stamp comes 'from `git describe`'. Rendering that output
+      by hand disagrees with the tool that renders it for the host: hatch-vcs's guess-next-dev
+      turns `v0.3.2-5-gabc1234` into `0.3.3.dev5+gabc1234`, while the review's `sed`
+      produced `0.3.2.dev5+gabc1234` — a string doctor's exact comparison flags as
+      a different torve, and one that PEP 440 orders below the tag it follows. The
+      stamp is now the host's own `torve --version`, which is the string doctor compares
+      against by construction.
+    evidence: >-
+      justfile:83 — the stamp is `uv run torve --version`, the host's own release,
+      no rendering of `git describe` beside it; hatch-vcs derives the host's string
+    action: departed
+    proposal: >-
+      D-4 should say the stamp is the host's own `torve --version`, handed to bake
+      as VERSION and pretended through SETUPTOOLS_SCM_PRETEND_VERSION, rather than
+      a version rendered from `git describe`.
