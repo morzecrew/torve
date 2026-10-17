@@ -129,7 +129,7 @@ torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/subs
 
 ### S-0110/D-4 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
 
-`just images` stamps every image with the version of the tree it builds, through `SETUPTOOLS_SCM_PRETEND_VERSION` from `git describe`; `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
+`just images` stamps every image with the version setuptools-scm renders for the tree it builds, the number hatch-vcs gives the host's torve, through `SETUPTOOLS_SCM_PRETEND_VERSION`; `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
 
 - Paths: `bake.hcl` `justfile` `sandboxes/base/Dockerfile` `src/torve/cli/doctor.py`
 - Consequence: a sandbox running another torve than the host is a red check before a night

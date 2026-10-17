@@ -48,9 +48,10 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      `just images` stamps every image with the version of the tree it builds, through
-      `SETUPTOOLS_SCM_PRETEND_VERSION` from `git describe`; `torve doctor` runs each
-      seat image's `torve --version` and goes red when it differs from the host's.
+      `just images` stamps every image with the version setuptools-scm renders for
+      the tree it builds, the number hatch-vcs gives the host's torve, through `SETUPTOOLS_SCM_PRETEND_VERSION`;
+      `torve doctor` runs each seat image's `torve --version` and goes red when it
+      differs from the host's.
     paths: [bake.hcl, justfile, sandboxes/base/Dockerfile, src/torve/cli/doctor.py]
     consequence: >-
       a sandbox running another torve than the host is a red check before a night
@@ -58,6 +59,7 @@ decisions:
       The image build has no `.git`, so the version came from a stale `_version.py`:
       `claude-sandbox:2.1.283` reports 0.1.0 while bloomery runs 0.3.2.
     cites: [S-0063/D-7, S-0063/D-11]
+    fingerprint: 228c3324f6271a9e/ff49045d274cbe9b
   - id: D-5
     grade: ASSUMED
     text: >-

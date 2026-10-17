@@ -11,3 +11,31 @@ amendments:
       and phase 7 `tests/test_manager_e2e.py`; phases 2, 4 and 6 run them in their
       acceptance. Phase 7's test needs Docker and the lab store, so phases 1 and 7
       name the host-side run the operator owes before the pull request merges.
+  - id: A-2
+    at: '2026-10-17T21:10:19Z'
+    title: >-
+      the image stamp is the release setuptools-scm renders
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          `just images` stamps every image with the version of the tree it builds,
+          through `SETUPTOOLS_SCM_PRETEND_VERSION` from `git describe`; `torve doctor`
+          runs each seat image's `torve --version` and goes red when it differs from
+          the host's.
+        after: >-
+          `just images` stamps every image with the version setuptools-scm renders
+          for the tree it builds, the number hatch-vcs gives the host's torve, through
+          `SETUPTOOLS_SCM_PRETEND_VERSION`; `torve doctor` runs each seat image's
+          `torve --version` and goes red when it differs from the host's.
+      - subject: D-4
+        field: fingerprint
+        after: 228c3324f6271a9e/ff49045d274cbe9b
+    md: >-
+      T-0605 found that rendering `git describe` by hand disagrees with hatch-vcs,
+      which numbers a build after a tag as the next release's dev version, so the
+      doctor's exact comparison would flag every image built between two tags. The
+      justfile renders the stamp with setuptools-scm, the library hatch-vcs runs,
+      so image and host get the same number for the same tree; `torve --version` was
+      not taken, because it reads the `_version.py` the last sync wrote. The row now
+      says so.
