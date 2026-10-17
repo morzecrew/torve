@@ -33,19 +33,23 @@ says what each surface does and does not promise. Report security issues as
 ## Install
 
 ```bash
-pip install torve                # or: uv tool install torve
-pip install 'torve[postgres]'    # the durable run store and the manager's log
-pip install 'torve[migrate]'     # `torve migrate`, for that store's schema
-pip install 'torve[mcp]'         # the planning session's read surface
-pip install 'torve[serve]'       # the loopback dashboard
-pip install 'torve[opensandbox]' # the OpenSandbox runtime adapter
+uv tool install torve            # a repository installs torve as a tool
+uv tool install 'torve[postgres]'    # the durable run store and the manager's log
+uv tool install 'torve[migrate]'     # `torve migrate`, for that store's schema
+uv tool install 'torve[mcp]'         # the planning session's read surface
+uv tool install 'torve[serve]'       # the loopback dashboard
+uv tool install 'torve[opensandbox]' # the OpenSandbox runtime adapter
 ```
 
 From a checkout instead: `uv sync`, then `uv run torve ...`.
 
-Upgrading an installed torve is install the release, run `torve init` in
-the repository, then `torve doctor` — and `torve migrate --all` when the
-release's Upgrade note names a record migration.
+A repository installs torve as a tool, not as a project dependency, and names
+the release it needs in `.torve/config.yaml`, `engine: "X.Y.Z"`. Upgrading is
+installing the release over the old one (`uv tool install --force` with the
+new exact version; `uv tool upgrade` keeps an exact pin), raising `engine`,
+rebuilding the seat images, running `torve init`, `torve migrate --all` when
+the release's Upgrade note names a record migration, and `torve doctor`, then
+committing.
 [Stability](https://morzecrew.github.io/torve/latest/reference/stability/)
 states the steps, what each release's changelog entry promises, and how a
 foreign `schema_version` is refused.

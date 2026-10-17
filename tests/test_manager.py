@@ -2235,3 +2235,130 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
     asyncio.run(leg())
 
     assert seen["status"] is sentinel
+
+
+# ....................... #
+# `--until-change` (S-0110/D-13): an operator waits on a night without a
+# script of its own. The verb reads the board in a loop and exits when a
+# task moves or the night closes; it writes nothing and runs no leg.
+
+
+def _watch_cli(tmp_path, monkeypatch, boards, nights):
+    """Invoke `manager board --until-change` over a scripted sequence of
+    reads — each poll takes the next board and night, holding the last once
+    the script runs out, so the loop always has an answer to exit on."""
+
+    import itertools
+
+    from typer.testing import CliRunner
+
+    from torve.cli import manager as manager_cli
+    from torve.cli.main import app
+
+    polls = itertools.count()
+
+    async def fake(_dsn, _partition):
+        index = min(next(polls), len(boards) - 1)
+        return boards[index], nights[index]
+
+    monkeypatch.setattr(manager_cli, "_board_and_night", fake)
+    monkeypatch.setattr(manager_cli, "dsn_for", lambda root, dsn: None)
+
+    return CliRunner().invoke(
+        app,
+        [
+            "manager",
+            "board",
+            PARTITION,
+            "--until-change",
+            "--interval",
+            "0",
+            "--root",
+            str(tmp_path),
+        ],
+    )
+
+
+def test_the_board_exits_when_a_task_moves(tmp_path, monkeypatch):
+    """S-0110/D-13: the wait ends on the first row whose state, attempts or
+    escalation changed, and prints that row."""
+
+    boards = [
+        Board(tasks={"T-1": TaskView(task_id="T-1", state=TaskState.QUEUED)}),
+        Board(tasks={"T-1": TaskView(task_id="T-1", state=TaskState.RUNNING, attempts=1)}),
+    ]
+
+    result = _watch_cli(tmp_path, monkeypatch, boards, [None, None])
+
+    assert result.exit_code == 0, result.output
+    assert "T-1" in result.output
+    assert "running" in result.output
+
+
+def test_the_board_exits_when_the_night_closes(tmp_path, monkeypatch):
+    """S-0110/D-13: an unchanged board still ends the wait when the watched
+    night closes — that is the operator's other answer."""
+
+    opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
+    open_events = [night_event(EventKind.NIGHT_OPENED, NIGHT, TERMS, at=opened)]
+    closed_events = [
+        *open_events,
+        night_event(
+            EventKind.NIGHT_CLOSED,
+            NIGHT,
+            {"reason": "drained", "handled": 1},
+            at=opened + timedelta(hours=8),
+        ),
+    ]
+
+    result = _watch_cli(
+        tmp_path,
+        monkeypatch,
+        [Board(), Board()],
+        [night_report(open_events), night_report(closed_events)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert NIGHT in result.output
+    assert "closed" in result.output
+
+
+def test_a_watch_of_one_document_ignores_anothers_tasks():
+    """S-0110/D-13's `--document`: only the named document's rows move the
+    watcher, and another document's task running beside it does not."""
+
+    from torve.cli.manager import _moved, _of_document
+    from torve.domain.task import Scope
+
+    def contract(task_id: str, spec: str) -> Task:
+        return Task(id=task_id, spec=spec, decisions=[], scope=Scope(allow=["src/**"], deny=[]))
+
+    before = Board(
+        tasks={
+            "T-1": TaskView(
+                task_id="T-1", state=TaskState.QUEUED, contract=contract("T-1", "S-0110")
+            ),
+            "T-2": TaskView(
+                task_id="T-2", state=TaskState.QUEUED, contract=contract("T-2", "S-0111")
+            ),
+        }
+    )
+    now = Board(
+        tasks={
+            "T-1": TaskView(
+                task_id="T-1", state=TaskState.QUEUED, contract=contract("T-1", "S-0110")
+            ),
+            "T-2": TaskView(
+                task_id="T-2",
+                state=TaskState.RUNNING,
+                attempts=1,
+                contract=contract("T-2", "S-0111"),
+            ),
+        }
+    )
+
+    mine = _of_document(before, "S-0110"), _of_document(now, "S-0110")
+    theirs = _of_document(before, "S-0111"), _of_document(now, "S-0111")
+
+    assert _moved(*mine) == []
+    assert [view.task_id for view in _moved(*theirs)] == ["T-2"]
