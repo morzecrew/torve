@@ -338,9 +338,12 @@ def elided_prefixes(manifest: Manifest | None) -> tuple[str, ...]:
 
 
 def elide_diff_bulk(diff_text: str, prefixes: tuple[str, ...] = ELIDED_DIFF_PATHS) -> str:
-    """Every per-file section of a unified diff whose path starts with an
-    elided prefix collapses to a marker line; all other sections pass through
-    byte-for-byte. Deterministic, path-keyed, content-blind."""
+    """Every per-file section of a unified diff whose path is an elided file,
+    or sits under an elided directory (an entry ending in `/`), collapses to a
+    marker line; all other sections pass through byte-for-byte. A file entry
+    matches exactly, so `web/package-lock.json` never hides
+    `web/package-lock.json.audit.py`. Deterministic, path-keyed,
+    content-blind."""
 
     kept: list[str] = []
     eliding = False
@@ -348,7 +351,10 @@ def elide_diff_bulk(diff_text: str, prefixes: tuple[str, ...] = ELIDED_DIFF_PATH
     for line in diff_text.splitlines(keepends=True):
         if line.startswith("diff --git "):
             path = line.split(" b/")[-1].strip()
-            eliding = any(path.startswith(prefix) for prefix in prefixes)
+            eliding = any(
+                path == prefix or (prefix.endswith("/") and path.startswith(prefix))
+                for prefix in prefixes
+            )
 
             if eliding:
                 kept.append(

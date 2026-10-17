@@ -852,6 +852,31 @@ def test_the_reviewer_elides_the_rider_files_a_manifest_names():
     assert '-{"a":1}' in elide_diff_bulk(diff)
 
 
+def test_a_rider_file_elides_only_itself():
+    """A rider is a file and matches exactly: `web/package-lock.json` does not
+    hide a file whose name merely starts with it. A directory entry, ending in
+    `/`, still elides everything under it."""
+
+    manifest = Manifest.model_validate(
+        {"scope": {"derived": {"web/package.json": ["web/package-lock.json"]}}}
+    )
+    diff = (
+        "diff --git a/web/package-lock.json.audit.py b/web/package-lock.json.audit.py\n"
+        "--- a/web/package-lock.json.audit.py\n+++ b/web/package-lock.json.audit.py\n"
+        "@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+        "diff --git a/uv.lock.py b/uv.lock.py\n"
+        "--- a/uv.lock.py\n+++ b/uv.lock.py\n@@ -1 +1 @@\n-y = 1\n+y = 2\n"
+        "diff --git a/src/torve/_web/app.js b/src/torve/_web/app.js\n"
+        "--- a/src/torve/_web/app.js\n+++ b/src/torve/_web/app.js\n@@ -1 +1 @@\n-a\n+b\n"
+    )
+
+    elided = elide_diff_bulk(diff, elided_prefixes(manifest))
+
+    assert "+x = 2" in elided
+    assert "+y = 2" in elided
+    assert "[vendored/generated: src/torve/_web/app.js" in elided
+
+
 def test_the_review_prompt_names_a_survivor_and_its_covering_row():
     """S-0107/D-4: the reviewer is shown the wrong implementations the mutation
     gate left alive, each beside the decision rows whose paths cover its line,
