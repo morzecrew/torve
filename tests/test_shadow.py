@@ -151,6 +151,19 @@ def test_parent_of_and_diffstats(tmp_path):
     assert set(committed["files"]) == {"f.txt", "new.txt"}
 
 
+def test_a_stage_that_fails_is_no_measurement(tmp_path):
+    """`git add -A` refused — here by an index another process holds — leaves
+    a partial stage; diffing it would measure part of the work as all of it."""
+
+    root, (_, c2, _) = scratch_history(tmp_path)
+    workspace = ShadowWorkspace(root, depth=2).create("T-7003", c2)
+    (workspace / "new.txt").write_text("replayed\n", encoding="utf-8")
+    (workspace / ".git" / "index.lock").write_text("", encoding="utf-8")
+
+    with pytest.raises(WorkspaceError, match=r"index\.lock"):
+        diff_worktree(workspace, c2)
+
+
 # ....................... #
 # The shadow loop end to end (real Docker)
 

@@ -376,17 +376,18 @@ def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
     parent), untracked files included. Never against HEAD: a shadow clone
     carries a real `.git` the sandbox can reach, so an agent may commit its
     own work — which moves HEAD and would read as an empty diff. Stages
-    everything first — the workspace is a throwaway measurement artefact."""
+    everything first — the workspace is a throwaway measurement artefact. A
+    stage or a diff that fails raises rather than measuring part of the work."""
 
-    subprocess.run(
-        ["git", *NO_HOOKS, "-C", str(workspace), "add", "-A"], capture_output=True, check=False
-    )
+    for args in (["add", "-A"], ["diff", "--cached", base, "--numstat"]):
+        proc = subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(workspace), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
-    proc = subprocess.run(
-        ["git", *NO_HOOKS, "-C", str(workspace), "diff", "--cached", base, "--numstat"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+        if proc.returncode != 0:
+            raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
 
     return _parse_numstat(proc.stdout)
