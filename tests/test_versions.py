@@ -98,3 +98,40 @@ def test_an_older_schema_version_is_refused_naming_the_release_notes(
 
     assert str(older) in str(caught.value)
     assert str(current) in str(caught.value)
+
+
+# ....................... #
+# The engine range (S-0110/D-2): a configuration's `engine: X.Y.Z` admits at
+# least X.Y.Z and below X.(Y+1).0, and stops a torve outside that range before
+# it serves a night. The load-time refusal is tested in test_runconfig.py.
+
+
+def test_the_engine_range_spans_the_release_and_the_next_minor() -> None:
+    from torve.config.runconfig import engine_range
+
+    assert engine_range("0.3.2") == ((0, 3, 2), (0, 4, 0))
+    assert engine_range("1.9.10") == ((1, 9, 10), (1, 10, 0))
+
+
+@pytest.mark.parametrize(
+    ("version", "admitted"),
+    [
+        ("0.3.2", True),  # the floor is in
+        ("0.3.99", True),  # and everything up to the minor's end
+        ("0.3.1", False),  # below the floor is out
+        ("0.4.0", False),  # the next minor is out
+        ("0.3.3.dev1+gabc", True),  # a build after the floor's tag is in
+        ("0.3.2+gabc.d20261017", True),  # a local label ranks as its release
+        ("0.3.2.dev5+gabc", False),  # a build on the way to the floor is before it
+        ("0.3.2rc1", False),  # and so is the floor's release candidate
+        ("0.4.0.dev1+gabc", False),  # a build on the way to the next minor is out
+    ],
+)
+def test_check_engine_admits_exactly_the_range(version: str, admitted: bool) -> None:
+    from torve.config.runconfig import EngineRefused, check_engine
+
+    if admitted:
+        check_engine("0.3.2", version)
+    else:
+        with pytest.raises(EngineRefused):
+            check_engine("0.3.2", version)

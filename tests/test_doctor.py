@@ -389,3 +389,121 @@ def test_route_check_reds_a_seat_whose_provider_is_not_allowed(tmp_path: Path):
             ),
         )
     ]
+
+
+# ----------------------- #
+# S-0110/D-4: a seat image on another torve than the host is a red check. The
+# image is asked through one seam, so a fake image runner answers as docker would.
+
+
+def test_the_image_version_check_reds_a_seat_running_another_torve(monkeypatch):
+    from torve.cli import doctor
+
+    monkeypatch.setattr(doctor, "_in_image", lambda image, command: "0.1.0")
+
+    check = doctor._image_version_check("claude-sandbox:latest", "0.3.2")
+
+    assert check is not None
+    name, ok, detail = check
+    assert (name, ok) == ("image claude-sandbox:latest", False)
+    assert "runs torve 0.1.0" in detail and "0.3.2" in detail
+
+
+def test_the_image_version_check_is_silent_when_the_versions_agree(monkeypatch):
+    from torve.cli import doctor
+
+    monkeypatch.setattr(doctor, "_in_image", lambda image, command: "0.3.2")
+
+    assert doctor._image_version_check("claude-sandbox:latest", "0.3.2") is None
+
+
+def test_the_image_version_check_is_silent_when_the_image_cannot_answer(monkeypatch):
+    """The existence check already names an unusable image; this adds nothing
+    when the image answers no version at all."""
+
+    from torve.cli import doctor
+
+    monkeypatch.setattr(doctor, "_in_image", lambda image, command: None)
+
+    assert doctor._image_version_check("claude-sandbox:latest", "0.3.2") is None
+
+
+def test_the_image_version_check_asks_the_image_for_its_torve_version(monkeypatch):
+    from torve.cli import doctor
+
+    seen: dict = {}
+
+    def fake(image: str, command: list) -> str:
+        seen["image"], seen["command"] = image, command
+        return "0.3.2"
+
+    monkeypatch.setattr(doctor, "_in_image", fake)
+
+    doctor._image_torve_version("claude-sandbox:latest")
+
+    assert seen == {"image": "claude-sandbox:latest", "command": ["torve", "--version"]}
+
+
+# ----------------------- #
+# S-0110/D-2: doctor still runs on a configuration naming an engine outside this
+# build — it reports the refusal rather than dying on the same load.
+
+
+def test_doctor_reports_an_engine_outside_the_range_rather_than_dying(tmp_path, monkeypatch):
+    from torve.cli import doctor
+    from torve.config import runconfig
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "0.2.9")
+    root = _doctor_repo(tmp_path, {"engine": "0.3.2"})
+
+    checks = doctor._engine_check(root, None)
+
+    assert checks is not None
+    name, ok, detail = checks[0]
+    assert (name, ok) == ("engine", False)
+    assert ">=0.3.2,<0.4.0" in detail and "0.2.9" in detail
+
+
+def test_doctor_names_no_engine_line_when_the_range_admits(tmp_path, monkeypatch):
+    from torve.cli import doctor
+    from torve.config import runconfig
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "0.3.5")
+
+    assert doctor._engine_check(_doctor_repo(tmp_path, {"engine": "0.3.2"}), None) is None
+
+
+def test_the_image_is_asked_through_docker_and_a_failure_is_no_answer(monkeypatch):
+    """S-0110/D-4: the probe runs the image's own entrypoint-less command and
+    takes only a clean, non-empty answer; a non-zero exit, empty output or no
+    runtime at all is no answer, never a version."""
+
+    import subprocess
+
+    from torve.cli import doctor
+
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        code, out = answers.pop(0)
+        if code is None:
+            raise OSError("no docker")
+        return subprocess.CompletedProcess(argv, code, stdout=out, stderr="")
+
+    monkeypatch.setattr(doctor.subprocess, "run", run)
+    answers = [(0, " 0.3.3.dev7+g25dc21b27\n"), (1, "0.3.2\n"), (0, "  \n"), (None, "")]
+
+    assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) == "0.3.3.dev7+g25dc21b27"
+    assert calls[0] == [
+        "docker",
+        "run",
+        "--rm",
+        "--entrypoint",
+        "torve",
+        "claude-sandbox:t",
+        "--version",
+    ]
+    assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) is None
+    assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) is None
+    assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) is None

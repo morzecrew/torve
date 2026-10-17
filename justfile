@@ -72,17 +72,25 @@ quality strict="false":
 # ----------------------- #
 # Sandbox images
 
-# Build every sandbox image; `just images agents` skips the gates-side one
+# The tree's release (S-0110/D-4), rendered from git at build time by
+# setuptools-scm, the library hatch-vcs runs to number the host's own torve, so
+# the two cannot disagree: off a tag, `v0.3.2-5-gabc1234` is `0.3.3.dev5+g…`
+# under its guess-next-dev scheme. Not `torve --version`, which reads the
+# `_version.py` the last sync wrote and goes stale as commits and tags move.
+# A quoted string rather than a backtick, so `just --list` never runs it.
+_release := "uv run --no-project --quiet --with setuptools-scm python -m setuptools_scm"
+
+# Build every sandbox image; `just images agents` skips the gates-side one.
 images group='default':
-    docker buildx bake --file bake.hcl {{ group }}
+    VERSION=$({{ _release }}) docker buildx bake --file bake.hcl {{ group }}
 
 # Build one image by its definition name, e.g. `just image claude`
 image name:
-    docker buildx bake --file bake.hcl {{ name }}
+    VERSION=$({{ _release }}) docker buildx bake --file bake.hcl {{ name }}
 
 # Build and push under a registry, e.g. `just images-push ghcr.io/morzecrew v1`
 images-push registry tag='latest' group='default':
-    REGISTRY={{ registry }} TAG={{ tag }} \
+    VERSION=$({{ _release }}) REGISTRY={{ registry }} TAG={{ tag }} \
       docker buildx bake --file bake.hcl --push {{ group }}
 
 # ----------------------- #

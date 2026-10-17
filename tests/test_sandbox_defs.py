@@ -386,6 +386,43 @@ def test_bake_names_a_target_for_every_definition() -> None:
         assert f"{name}-sandbox" in baked
 
 
+def test_every_image_is_stamped_with_the_tree_s_release() -> None:
+    """S-0110/D-4: the build has no `.git`, so hatch-vcs wrote a stale version
+    and an image reported another torve than the host. `just images` hands the
+    release in, bake passes it, and the base bakes it into the CLI through
+    `SETUPTOOLS_SCM_PRETEND_VERSION`.
+
+    The release is rendered by setuptools-scm, the library hatch-vcs runs: off a
+    tag, `v0.3.2-5-gabc1234` is `0.3.3.dev5+g…` under its guess-next-dev
+    scheme, which no `sed` over `git describe` reproduces, and `torve --version`
+    reads a `_version.py` that goes stale as commits and tags move."""
+
+    assert 'variable "VERSION"' in BAKE.read_text(encoding="utf-8")
+    assert "SETUPTOOLS_SCM_PRETEND_VERSION" in BAKE.read_text(encoding="utf-8")
+
+    just = Path("justfile").read_text(encoding="utf-8")
+    assert "VERSION=$({{ _release }})" in just
+    assert "python -m setuptools_scm" in just
+    assert "uv run torve --version" not in just
+    assert "git describe --" not in just
+    assert r".dev\\1+g\\2" not in just
+
+    base = BASE.read_text(encoding="utf-8")
+    assert "ARG SETUPTOOLS_SCM_PRETEND_VERSION" in base
+    assert 'SETUPTOOLS_SCM_PRETEND_VERSION="${SETUPTOOLS_SCM_PRETEND_VERSION}"' in base
+
+
+def test_the_base_installs_both_interpreters_a_project_may_run_under() -> None:
+    """S-0110/D-5: 3.13 and 3.14 into the read-only interpreter directory, so a
+    project on either runs its gates in a seat image without deriving one; the
+    engine's own environment stays on 3.13."""
+
+    block = BASE.read_text(encoding="utf-8")
+
+    assert "uv python install 3.13 3.14" in block
+    assert "uv venv --python 3.13 /opt/torve/cli" in block
+
+
 def test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument() -> None:
     """A contract with a dozen rows and its context pack composes past the
     kernel's single-argument limit (128 KiB on Linux), and a prompt handed to

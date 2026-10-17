@@ -17,7 +17,14 @@ from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PrivateAttr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from torve.base.model import STRICT, SchemaVersion
 from torve.config import layout
@@ -472,6 +479,85 @@ def configured_images(config: RunnerConfig) -> list[str]:
     images.update(tier.image for tier in config.tiers.values() if tier.image)
 
     return sorted(images)
+
+
+# ....................... #
+# The engine range (S-0110/D-2): a configuration may name the release it was
+# written for, and a torve outside that range stops before it serves a night.
+
+
+class EngineRefused(ValueError):
+    """The configuration names an `engine` release this install is outside
+    (S-0110/D-2): the command stops, naming the version it found and the one
+    to install instead."""
+
+
+def installed_version() -> str:
+    """The version of the torve that is running — what an `engine` range is
+    judged against (S-0110/D-2). Read through a function, never a constant, so
+    a test can stand a known version in."""
+
+    import torve
+
+    return torve.__version__
+
+
+def _release(text: str) -> tuple[int, int, int, int] | None:
+    """The `X.Y.Z` a version string leads with, and its rank against that
+    release: -1 for a pre-release (`.devN`, `aN`, `bN`, `rcN`), which comes
+    before it — hatch-vcs numbers a build after v0.3.1 `0.3.2.dev5` — and 0
+    otherwise; a local label (`+g1234`) and a post-release rank as the
+    release. None when nothing leads."""
+
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(\.?(?:dev|a|b|rc)\d*)?", text)
+
+    if match is None:
+        return None
+
+    return (int(match[1]), int(match[2]), int(match[3]), -1 if match[4] else 0)
+
+
+def engine_range(engine: str) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    """`X.Y.Z` to the two releases that bound it (S-0110/D-2): at least
+    X.Y.Z, and below X.(Y+1).0. The shape is strict — a range is derived from
+    the release, never written beside it."""
+
+    parts = engine.split(".")
+
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        raise ValueError(
+            f"engine {engine!r} must name a release as X.Y.Z — a version range is "
+            "derived from it, not written"
+        )
+
+    x, y, z = (int(part) for part in parts)
+
+    return (x, y, z), (x, y + 1, 0)
+
+
+def check_engine(engine: str, version: str | None = None) -> None:
+    """Raise `EngineRefused` when `version` — or the torve that is running —
+    falls outside the range `engine` names (S-0110/D-2). A configuration naming
+    no engine is admitted under any version."""
+
+    if not engine:
+        return
+
+    floor, ceiling = engine_range(engine)
+    running = version if version is not None else installed_version()
+    parsed = _release(running)
+
+    if parsed is not None and (*floor, 0) <= parsed and parsed[:3] < ceiling:
+        return
+
+    found = running
+    low = ".".join(str(part) for part in floor)
+    high = ".".join(str(part) for part in ceiling)
+
+    raise EngineRefused(
+        f"engine names torve >={low},<{high} and this install is {found!r} — "
+        f"install a release inside the range: uv tool install --force torve=={low}"
+    )
 
 
 # ....................... #
@@ -1594,6 +1680,22 @@ class RunnerConfig(BaseModel):
     pull requests (S-0010/two-ports-deliberately-separate)."""
     specs: SpecsConfig = Field(default_factory=SpecsConfig)
     """Where the specification corpus lives (S-0013/D-7, S-0057/D-3)."""
+    engine: str = ""
+    """S-0110/D-2: the release this repository was written for, as `X.Y.Z` — meaning at
+    least X.Y.Z and below X.(Y+1).0. A command that loads this configuration under a
+    torve outside the range stops, naming the installed version, the range and the
+    command that installs a release inside it; a configuration naming none loads under
+    any version."""
+
+    @field_validator("engine")
+    @classmethod
+    def _engine_names_a_release(cls, value: str) -> str:
+        # S-0110/D-2: the shape only — the range is judged at load, where the
+        # installed version is known and the file can be named.
+        if value:
+            engine_range(value)
+
+        return value
 
     @model_validator(mode="before")
     @classmethod
@@ -1994,6 +2096,14 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
         )
 
         raise ValueError(f"{where}: invalid merged tier configuration — {exc}") from exc
+
+    # S-0110/D-2: the shape is the model's; the range needs the version this
+    # process runs, so it is judged here, naming the file the operator wrote.
+    try:
+        check_engine(loaded.engine)
+
+    except EngineRefused as error:
+        raise EngineRefused(f"{resolved}: {error}") from None
 
     # S-0068/D-1: the one boolean that converts five unused criteria into five
     # unset ones is refused alone. A refusal rather than a warning because
