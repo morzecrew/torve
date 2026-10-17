@@ -175,7 +175,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `skills/` — 8 decision(s)
 - `skills/flag-dont-flip/` — 1 decision(s)
 - `skills/hooks/` — 4 decision(s)
-- `skills/hooks/implement/` — 5 decision(s)
+- `skills/hooks/implement/` — 7 decision(s)
 - `skills/spec-writer/` — 2 decision(s)
 - `skills/torve/` — 4 decision(s)
 - `skills/torve/references/` — 1 decision(s)

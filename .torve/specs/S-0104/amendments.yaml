@@ -84,3 +84,43 @@ amendments:
         field: fingerprint
         before: 179148e70e830d72/3a08b1cee0c72217
         after: 68c43c6215521fb6/920088c60deee661
+  - id: A-7
+    at: '2026-10-17T21:08:53Z'
+    title: the pre-write hook is read where it ships
+    changes:
+      - subject: D-2
+        field: paths
+        before:
+          - src/torve/application/runner.py
+          - src/torve/application/manager.py
+          - src/torve/domain/events.py
+          - .torve/agents/hooks/implement/scope_guard.py
+        after:
+          - src/torve/application/runner.py
+          - src/torve/application/manager.py
+          - src/torve/domain/events.py
+          - skills/hooks/implement/scope_guard.py
+      - subject: D-2
+        field: fingerprint
+        before: b61fb7aa224fb211/0cbd323f35b8da4f
+        after: 8c3c8407fdc99e87/7a9dcaa23c1b21f2
+    md: >-
+      S-0110 moved the pre-write hook into the wheel, at `skills/hooks/implement/`,
+      and T-0606 put this row's path back (A-5) only because re-pointing it rewrites
+      managed `AGENTS.md` files outside that task's scope. The row now names the hook
+      where it ships, and its projections are regenerated with it.
+  - id: A-8
+    at: '2026-10-17T21:09:02Z'
+    title: the pre-write hook is read where it ships
+    changes:
+      - subject: D-6
+        field: paths
+        before: [src/torve/gates/scope.py, .torve/agents/hooks/implement/scope_guard.py]
+        after: [src/torve/gates/scope.py, skills/hooks/implement/scope_guard.py]
+      - subject: D-6
+        field: fingerprint
+        before: 68c43c6215521fb6/920088c60deee661
+        after: 179148e70e830d72/3a08b1cee0c72217
+    md: >-
+      The same move as A-7 for this row: the pre-write hook ships at `skills/hooks/implement/scope_guard.py`,
+      and A-6's return to the old path was a scope limit of T-0606, not a decision.

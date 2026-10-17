@@ -24,6 +24,20 @@ Both are reverted if attempts per landing rises, whatever happens to the turn co
 - Consequence: a change that buys turns by making attempts fail more often is caught by the number it damaged rather than defended by the one it moved
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0104/D-2 — `ASSUMED` (A phase's scope bends to the files its change reaches)
+
+A contingent path is promoted on its first write when no in-flight task's `allow` or promoted paths hold it: the board records `scope.promoted`, and the path joins the task's fence for every overlap check after.
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `skills/hooks/implement/scope_guard.py`
+- Consequence: an attempt that needs a neighbour writes it and carries on, and no other task writes it at the same time
+
+### S-0104/D-6 — `ASSUMED` (A phase's scope bends to the files its change reaches)
+
+A managed `AGENTS.md` beside a path in scope is writable as a lock file is: `torve spec project` writes it, and the scope gate allows it.
+
+- Paths: `src/torve/gates/scope.py` `skills/hooks/implement/scope_guard.py`
+- Consequence: a phase that changes governed code can regenerate its projection without a halt
+
 ### S-0104/D-12 — `ASSUMED` (A phase's scope bends to the files its change reaches)
 
 This document changes torve's own copy of the pre-write hook; an adopter's copy is refreshed from torve's when it upgrades, and shipping the hook as package equipment is a document of its own.
