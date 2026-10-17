@@ -1550,6 +1550,67 @@ def test_a_contract_naming_no_document_lands_by_the_task_unit(lane_repo, tmp_pat
     assert not [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
 
 
+def _composing_publisher(root: Path, bodies: list[tuple[str, str]]):
+    """Composes each pull request's body from the contracts as the real
+    publisher does (S-0083/D-8): the document's for a document branch, the
+    task's otherwise — the read the served lane died on for a task the board
+    holds."""
+    from torve.cli.merge import _document_pr_text, _pr_text
+
+    def publish(task_id: str, branch: str) -> str:
+        git(root, "push", "-q", "--force", "origin", f"{branch}:refs/heads/{branch}")
+
+        if branch == naming.branch(task_id):
+            _title, body = _pr_text(root, task_id)
+        else:
+            _title, body, _complete = _document_pr_text(root, task_id, branch)
+
+        bodies.append((task_id, body))
+
+        return "https://forge/pr/7"
+
+    return publish
+
+
+def test_a_task_the_board_holds_lands_from_the_contract_its_worktree_carries(lane_repo, tmp_path):
+    # S-0056/D-9: with a store, `torve plan` writes no file at the root and
+    # dispatch projects the contract into the run's worktree only. The lane
+    # read the root copy and failed every pass with ENOENT (T-0603, 2026-10-17).
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7211", "eleven.py", "eleven = 11\n")
+    candidate(lane_repo, "T-7212", "twelve.py", "twelve = 12\n")
+
+    for task_id in ("T-7211", "T-7212"):
+        _carry_landing(lane_repo, task_id, "S-0911")
+        worktree = naming.worktree(lane_repo, task_id)
+        git(lane_repo, "worktree", "add", "-q", str(worktree), naming.branch(task_id))
+        projected = worktree / ".torve" / "tasks" / task_id / "contract.yaml"
+        projected.parent.mkdir(parents=True)
+        projected.write_text(
+            f"schema_version: 2\nid: {task_id}\ndecisions: []\nspec: S-0911\n", encoding="utf-8"
+        )
+
+    bodies: list[tuple[str, str]] = []
+
+    results = process_lane(
+        lane_repo, GitLane(), publish=_composing_publisher(lane_repo, bodies), unit="document"
+    )
+
+    document = naming.document_branch("S-0911")
+    # Both phases land onto the document's branch: the first as measured, the
+    # second rebased after the lane released its worktree — and its pull
+    # request still carries both phases.
+    assert [(r.action, r.branch) for r in results] == [("landed", document)] * 2
+    assert [e["mode"] for e in _events(lane_repo) if e.get("event") == "lane_landed"] == [
+        "fast-forward",
+        "rebased",
+    ]
+    assert [task for task, _body in bodies] == ["T-7211", "T-7212"]
+    assert "## T-7211" in bodies[1][1] and "## T-7212" in bodies[1][1]
+    # Nothing was written at the root: the board is the only place a task is.
+    assert not (lane_repo / ".torve" / "tasks").exists()
+
+
 def test_a_refused_publication_puts_the_document_branch_back(lane_repo, tmp_path):
     _origin(lane_repo, tmp_path)
     candidate(lane_repo, "T-7206", "six.py", "six = 6\n")
