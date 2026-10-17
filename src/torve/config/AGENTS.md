@@ -171,7 +171,7 @@ The corpus is `.torve/specs/` and the archive `.torve/archive/`; the configurati
 
 ### S-0057/D-9 — `LOCKED` (The specification is a directory)
 
-`spec check` resolves every citation-shaped identifier in tracked files under `src/**`, `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md` over the corpus and the archive: unknown is a problem naming `file:line`, retired a warning, archived clean; tests and skills are not scanned
+`spec check` resolves every citation-shaped identifier in tracked files under the source root (`<root>/src`), `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md` over the corpus and the archive: unknown is a problem naming `file:line`, retired a warning, archived clean; tests and skills are not scanned
 
 - Paths: `src/torve/config/spec.py`
 - Consequence: A comment that cites a row is checked like a `cites` list; an identifier can never be invented in the code
@@ -547,7 +547,7 @@ A gate declares what it judges, and an attempt that changed none of it is report
 
 An equipment item carries its payload at the root and one directory per harness beside it; a harness reads only its own, and an item with no directory for a harness a seat could use is refused at load, naming the profile and the manifest
 
-- Paths: `.torve/agents/hooks` `src/torve/config/agents.py`
+- Paths: `skills/hooks/**` `src/torve/config/agents.py`
 - Consequence: the disagreement between two harnesses' idea of one kind becomes a message before an image is pulled, instead of an exception inside a container
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 

@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-17T17:23:39Z'
+    title: the hooks move into the wheel
+    changes:
+      - subject: D-1
+        field: paths
+        before: [.torve/agents/hooks, src/torve/config/agents.py]
+        after: [skills/hooks, src/torve/config/agents.py]
+      - subject: D-1
+        field: fingerprint
+        after: fdded0d4ace60ae3/527e22dccefc4dff
+  - id: A-2
+    at: '2026-10-17T17:23:48Z'
+    title: the hooks move into the wheel
+    changes:
+      - subject: D-2
+        field: paths
+        before: [.torve/agents/hooks]
+        after: [skills/hooks]
+      - subject: D-2
+        field: fingerprint
+        after: 88c33389fdeb4f69/f1a2692dda789d59
+  - id: A-3
+    at: '2026-10-17T17:54:55Z'
+    title: the hooks move into the wheel
+    changes:
+      - subject: D-1
+        field: paths
+        before: [skills/hooks, src/torve/config/agents.py]
+        after: [skills/hooks/**, src/torve/config/agents.py]
+      - subject: D-1
+        field: fingerprint
+        before: fdded0d4ace60ae3/527e22dccefc4dff
+        after: b188062bfa7c5ac6/09b180d9e29952e5
+  - id: A-4
+    at: '2026-10-17T17:55:05Z'
+    title: the hooks move into the wheel
+    changes:
+      - subject: D-2
+        field: paths
+        before: [skills/hooks]
+        after: [skills/hooks/**]
+      - subject: D-2
+        field: fingerprint
+        before: 88c33389fdeb4f69/f1a2692dda789d59
+        after: 0d0dc5f45142118f/6bb68662329d8933

@@ -106,3 +106,30 @@ amendments:
       - subject: D-5
         field: fingerprint
         after: 5a37d72f24cda8e5/28c964192f749129
+  - id: A-9
+    at: '2026-10-17T00:00:00Z'
+    title: the citation scan reads the layout's source root
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          `spec check` resolves every citation-shaped identifier in tracked files
+          under `src/**`, `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md`
+          over the corpus and the archive: unknown is a problem naming `file:line`,
+          retired a warning, archived clean; tests and skills are not scanned
+        after: >-
+          `spec check` resolves every citation-shaped identifier in tracked files
+          under the source root (`<root>/src`), `pages/**` and every `AGENTS.md`,
+          `CLAUDE.md` and `README.md` over the corpus and the archive: unknown is
+          a problem naming `file:line`, retired a warning, archived clean; tests and
+          skills are not scanned
+      - subject: D-9
+        field: fingerprint
+        after: 529b5214a1b2f4ba/47a620c96c97eb15
+    md: |-
+      A Python project need not sit at the repository root: `gates.yaml` names its
+      directory, `layout.root` (S-0110/D-8), and the source root becomes `<root>/src`.
+      The scan read a literal `src/**`, so a project under `app/` was scanned nowhere
+      and its citations went unchecked. The row now reads the layout's source root;
+      the owner agreed on 2026-10-16 (Q-2). `pages/**` and the named files stay as
+      they were — the docs live at the repository root whatever the project does.

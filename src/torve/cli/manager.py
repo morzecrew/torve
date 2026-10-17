@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from torve.application.manager import Board, TaskView, stalled
+from torve.application.manager import Board, NightReport, TaskView, stalled
 from torve.application.residency import IDLE_SECONDS, NightRefused
 from torve.cli.console import (
     STYLE_DIM,
@@ -93,13 +93,100 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
 
 
 async def _board(dsn: str | None, partition: str) -> Board:
+    board, _night = await _board_and_night(dsn, partition)
+
+    return board
+
+
+# ....................... #
+
+
+async def _board_and_night(
+    dsn: str | None, partition: str, night_id: str = ""
+) -> tuple[Board, NightReport | None]:
+    """The board and a night's window — the one `night_id` names, else the
+    latest — folded from one read of the same log: what `--until-change` polls
+    (S-0110/D-13). The night is what tells a watcher that a night ended, which
+    the board alone cannot say."""
+
     from torve.application.eventlog import event_log
-    from torve.application.manager import project
+    from torve.application.manager import night_report, project
 
     async with _runtime(dsn) as runtime:
-        log = event_log(runtime.get_context())
+        records = list(await event_log(runtime.get_context()).since(partition=partition))
 
-        return project(await log.since(partition=partition))
+    return project(records), night_report(records, night_id=night_id)
+
+
+def _of_document(board: Board, document: str) -> Board:
+    """The board with only the named document's tasks (S-0110/D-13): a task
+    whose contract names another document is not this watch's business."""
+
+    return Board(
+        tasks={
+            task_id: view
+            for task_id, view in board.tasks.items()
+            if view.contract is not None and view.contract.spec == document
+        }
+    )
+
+
+def _moved(before: Board, now: Board) -> list[TaskView]:
+    """The rows whose state, attempts or escalation changed since the last
+    read (S-0110/D-13) — a task that appeared counts as a change from
+    nothing, the state it is minted into being a fact worth seeing."""
+
+    return [
+        view
+        for task_id, view in sorted(now.tasks.items())
+        if (was := before.tasks.get(task_id)) is None
+        or (was.state, was.attempts, was.escalation) != (view.state, view.attempts, view.escalation)
+    ]
+
+
+async def _watch(
+    read: Callable[[str], Awaitable[tuple[Board, NightReport | None]]],
+    *,
+    interval: float,
+    document: str | None,
+) -> tuple[list[TaskView], NightReport | None]:
+    """Poll a board until something moves (S-0110/D-13).
+
+    The first read is the baseline and prints nothing; a later read that
+    finds a task's state, attempts or escalation moved returns those rows,
+    and one that finds the watched night closed returns the night. The
+    watched night is the one open at the first read, or the first to open
+    after it, and `read` is handed its id: a newer night opening between two
+    reads cannot hide its close. Nothing is written and no leg is run — this
+    is a reader for a person's terminal.
+    """
+
+    before: Board | None = None
+    was: NightReport | None = None
+    watched = ""
+
+    while True:
+        board, night = await read(watched)
+
+        if document is not None:
+            board = _of_document(board, document)
+
+        if before is not None:
+            if moved := _moved(before, board):
+                return moved, None
+
+            if (
+                night is not None
+                and night.close is not None
+                and (was is None or was.close is None or was.night_id != night.night_id)
+            ):
+                return [], night
+
+        if not watched and night is not None and night.close is None:
+            watched = night.night_id
+
+        before, was = board, night
+        await asyncio.sleep(interval)
 
 
 # ....................... #
@@ -742,6 +829,65 @@ def _document_waits(root: Path, board: Board) -> dict[str, dict[str, list[str]]]
 # ....................... #
 
 
+def _changed_rows(
+    moved: list[TaskView],
+    night: NightReport | None,
+    partition: str,
+    document: str | None,
+    fmt: Format,
+) -> None:
+    """Print what `--until-change` waited for (S-0110/D-13): the rows that
+    moved, or the night that closed, and nothing else."""
+
+    night_id: str | None = None
+    reason: str | None = None
+
+    if night is not None and night.close is not None:
+        night_id, reason = night.night_id, str(night.close.reason)
+
+    if fmt is Format.JSON:
+        emit_json(
+            {
+                "partition": partition,
+                "document": document,
+                "changed": [
+                    {
+                        "task": view.task_id,
+                        "state": str(view.state),
+                        "attempts": view.attempts,
+                        "escalation": view.escalation,
+                    }
+                    for view in moved
+                ],
+                "night_closed": (
+                    {"night": night_id, "reason": reason} if night_id is not None else None
+                ),
+            }
+        )
+        return
+
+    console = out(fmt)
+    header(console, "manager board", partition + (f" · {document}" if document else ""))
+
+    if moved:
+        table = make_table("task", "state", "attempts", "escalation")
+        add_rows_truncated(
+            table,
+            [
+                (view.task_id, str(view.state), str(view.attempts), view.escalation or "—")
+                for view in moved
+            ],
+        )
+        console.print(table)
+        footer(console, f"{len(moved)} task(s) moved")
+
+    if night_id is not None:
+        closing(console, f"night {night_id} closed — {reason}")
+
+
+# ....................... #
+
+
 @manager_app.command("board")
 def board_cmd(
     partition: Annotated[str, typer.Argument(help="The repository this board is for.")],
@@ -754,17 +900,59 @@ def board_cmd(
     ] = "",
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
+    document: Annotated[
+        str,
+        typer.Option("--document", help="Under --until-change, watch only this document's tasks."),
+    ] = "",
+    until_change: Annotated[
+        bool,
+        typer.Option(
+            "--until-change",
+            help="Read the board every --interval seconds and exit when a task's state, "
+            "attempts or escalation moves, or the night closes. Writes nothing.",
+        ),
+    ] = False,
+    interval: Annotated[
+        float,
+        typer.Option("--interval", min=1, help="Seconds between reads under --until-change."),
+    ] = 60.0,
 ) -> None:
     """Show what a partition's recorded facts add up to: every task the log
     has mentioned, the state its events leave it in, and who holds it.
 
     Nothing here is stored — the board is rebuilt from the log on every
     call, which is the same thing a manager does when it restarts.
+
+    `--until-change` is the same read in a loop: it waits on a night for a
+    person and exits on the first task whose state, attempts or escalation
+    moved, or when the night closes.
     """
+
+    dsn_value = dsn_for(root, dsn) or None
+
+    if until_change:
+        if dsn_value is None:
+            # Without a DSN each read stands up a fresh mock log, which never
+            # changes: the watch would wait forever.
+            raise fail(
+                "configuration error: --until-change watches the durable log, and no DSN "
+                "resolves — pass --dsn or configure a postgres store with its DSN variable set",
+                EXIT_CONFIG,
+            )
+
+        moved, night = asyncio.run(
+            _watch(
+                lambda night_id: _board_and_night(dsn_value, partition, night_id),
+                interval=interval,
+                document=document or None,
+            )
+        )
+        _changed_rows(moved, night, partition, document or None, fmt)
+        raise typer.Exit(EXIT_OK)
 
     from torve.application.projections import LANDED, landed
 
-    result = asyncio.run(_board(dsn_for(root, dsn) or None, partition))
+    result = asyncio.run(_board(dsn_value, partition))
     waits = _document_waits(root, result)
     recorded = landed(root)
 

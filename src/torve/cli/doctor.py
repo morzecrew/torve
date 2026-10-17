@@ -62,6 +62,7 @@ from typing import Any, cast
 from urllib.parse import urlencode, urlsplit
 
 import typer
+import yaml
 from rich.text import Text
 
 from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out
@@ -200,10 +201,88 @@ def _toolkit_drift(root: Path, name: str, image: str) -> str | None:
     )
 
 
+# The image's own `torve --version`, the second thing doctor asks of it
+# (S-0110/D-4). Shelled through docker like the toolkit listing above: a seat
+# image is asked the question the engine asks a sandbox.
+_IMAGE_TIMEOUT_S = 60
+
+
+def _in_image(image: str, command: list[str]) -> str | None:
+    """Run `command` in `image` through docker and return its trimmed stdout,
+    or None when the image cannot answer — no runtime, a non-zero exit, a
+    transport failure. The one seam a test fakes to answer as an image would."""
+
+    try:
+        result = subprocess.run(
+            ["docker", "run", "--rm", "--entrypoint", command[0], image, *command[1:]],
+            capture_output=True,
+            text=True,
+            timeout=_IMAGE_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    return result.stdout.strip() or None
+
+
+def _image_torve_version(image: str) -> str | None:
+    """The `torve --version` a seat image reports (S-0110/D-4)."""
+
+    return _in_image(image, ["torve", "--version"])
+
+
+def _image_version_check(image: str, host: str) -> tuple[str, bool, str] | None:
+    """Red when a seat image runs a different torve than the host (S-0110/D-4):
+    a sandbox on another engine is a red check before a night, not a mystery
+    inside it. None when the image answers nothing (doctor already says when an
+    image is unusable) or reports the host's own version."""
+
+    seen = _image_torve_version(image)
+
+    if seen is None or seen == host:
+        return None
+
+    return (
+        f"image {image}",
+        False,
+        (
+            f"{image}: runs torve {seen}, this host runs {host} — a seat image and "
+            "the runner must be one engine; rebuild it (just images)"
+        ),
+    )
+
+
+def _engine_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]] | None:
+    """S-0110/D-2: a configuration naming an engine release this torve is
+    outside stops every command that loads it. Doctor is named as one that
+    still runs, so it reports the refusal as its own red line rather than
+    dying on the same load. None when the range admits this build — or names
+    none — and the other checks speak."""
+
+    from torve.config.runconfig import EngineRefused, load_runner_config
+
+    try:
+        load_runner_config(root, config_path)
+
+    except EngineRefused as error:
+        return [("engine", False, str(error))]
+
+    except (ValueError, yaml.YAMLError):
+        # Some other unreadable configuration: each check below names it in
+        # the words `load_config` already has.
+        return None
+
+    return None
+
+
 def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     from torve.cli.options import runtime_for
     from torve.cli.sandbox import definitions_root, harness_kind
-    from torve.config.runconfig import configured_images
+    from torve.config.runconfig import configured_images, installed_version
 
     config = load_config(root, config_path)
     checks: list[tuple[str, bool, str]] = []
@@ -277,6 +356,16 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     checks.append((f"image {image}", False, drift))
 
                     continue
+
+                # S-0110/D-4: a seat image on another torve than the host is a
+                # red check before a night, not a mystery inside it.
+                if runtime is not None:
+                    mismatch = _image_version_check(image, installed_version())
+
+                    if mismatch is not None:
+                        checks.append(mismatch)
+
+                        continue
 
             checks.append((f"image {image}", True, detail))
 
@@ -1013,17 +1102,25 @@ def doctor(
     root = root.resolve()
     ok, message = check_forze_pin()
     checks: list[tuple[str, bool, str]] = [("forze-pin", ok, message)]
-    checks += _store_checks(root, config_path)
-    checks += _broker_check(root, config_path)
-    checks += _review_bias_check(root, config_path)
-    checks += _promotion_check(root, config_path)
-    checks += _profile_checks(root, config_path)
-    checks += _route_checks(root, config_path)
-    checks += _equipment_checks(root, config_path)
-    checks += _image_checks(root, config_path)
-    checks += _init_checks(root, config_path)
-    checks += _stub_checks(root)
-    checks += _standing_refusal_check(root)
+    refused = _engine_check(root, config_path)
+
+    if refused is not None:
+        # S-0110/D-2: doctor still runs on a configuration naming an engine
+        # outside this build — it reports the refusal rather than dying on it.
+        checks += refused
+    else:
+        checks += _store_checks(root, config_path)
+        checks += _broker_check(root, config_path)
+        checks += _review_bias_check(root, config_path)
+        checks += _promotion_check(root, config_path)
+        checks += _profile_checks(root, config_path)
+        checks += _route_checks(root, config_path)
+        checks += _equipment_checks(root, config_path)
+        checks += _image_checks(root, config_path)
+        checks += _init_checks(root, config_path)
+        checks += _stub_checks(root)
+        checks += _standing_refusal_check(root)
+
     healthy = all(passed for _, passed, _ in checks)
 
     if fmt is Format.JSON:

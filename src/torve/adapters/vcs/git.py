@@ -26,9 +26,20 @@ from torve.domain.spec import LANDING_FILE
 # ----------------------- #
 
 
+# Every git torve starts runs with the repository's hooks switched off
+# (S-0110/D-7): configuration an agent wrote never executes on the host
+# through a hook. `-c` is inherited by git's own child processes, so the
+# commits an internal rebase makes and the send-pack behind a push are
+# covered by the one flag on the parent command.
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
+
+
 def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", "-C", str(worktree), *args], capture_output=True, text=True, check=False
+        ["git", *NO_HOOKS, "-C", str(worktree), *args],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -178,6 +189,7 @@ class GitVcs:
         proc = subprocess.run(
             [
                 "git",
+                *NO_HOOKS,
                 "-C",
                 str(worktree),
                 *config,
@@ -223,7 +235,17 @@ class GitVcs:
             env = {**os.environ, "TORVE_PUSH_TOKEN": token, "GIT_TERMINAL_PROMPT": "0"}
 
         proc = subprocess.run(
-            ["git", "-C", str(root), *config, "push", "origin", "--delete", f"refs/heads/{branch}"],
+            [
+                "git",
+                *NO_HOOKS,
+                "-C",
+                str(root),
+                *config,
+                "push",
+                "origin",
+                "--delete",
+                f"refs/heads/{branch}",
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -273,6 +295,7 @@ class GitVcs:
         proc = subprocess.run(
             [
                 "git",
+                *NO_HOOKS,
                 "-C",
                 str(root),
                 *config,
@@ -315,6 +338,7 @@ class GitVcs:
         proc = subprocess.run(
             [
                 "git",
+                *NO_HOOKS,
                 "-C",
                 str(root),
                 *config,

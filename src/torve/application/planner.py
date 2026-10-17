@@ -42,6 +42,7 @@ import yaml
 from torve.application import neighbours, sizing
 from torve.base.globs import overlap
 from torve.config import layout, spec
+from torve.config.manifest import read_layout
 from torve.domain.attempt import SizeVerdict
 from torve.domain.spec import ChangeType, Corpus, Document, Phase, document_id, number_of
 from torve.domain.task import InheritedDecision, Scope, Task
@@ -585,7 +586,13 @@ def plan_document(
             character=entry.character or None,
         )
 
-        planned.append(PlannedTask(task=task, title=entry.title, size=sizing.estimate(task)))
+        planned.append(
+            PlannedTask(
+                task=task,
+                title=entry.title,
+                size=sizing.estimate(task, read_layout(root).carried),
+            )
+        )
 
     return PlanReport(number=number, document=document, tasks=planned)
 

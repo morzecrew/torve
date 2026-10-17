@@ -126,13 +126,14 @@ decisions:
     grade: LOCKED
     text: >-
       `spec check` resolves every citation-shaped identifier in tracked files under
-      `src/**`, `pages/**` and every `AGENTS.md`, `CLAUDE.md` and `README.md` over
-      the corpus and the archive: unknown is a problem naming `file:line`, retired
-      a warning, archived clean; tests and skills are not scanned
+      the source root (`<root>/src`), `pages/**` and every `AGENTS.md`, `CLAUDE.md`
+      and `README.md` over the corpus and the archive: unknown is a problem naming
+      `file:line`, retired a warning, archived clean; tests and skills are not scanned
     paths: [src/torve/config/spec.py]
     consequence: >-
       A comment that cites a row is checked like a `cites` list; an identifier can
       never be invented in the code
+    fingerprint: 529b5214a1b2f4ba/47a620c96c97eb15
   - id: D-10
     grade: ASSUMED
     text: >-

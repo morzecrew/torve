@@ -15,6 +15,15 @@ variable "TAG" {
   default = "latest"
 }
 
+variable "VERSION" {
+  # S-0110/D-4: the release the tree being built is at, stamped onto every
+  # image through SETUPTOOLS_SCM_PRETEND_VERSION. The build has no `.git`, so
+  # without it hatch-vcs wrote a stale version and an image reported another
+  # torve than the host. `just images` fills it with the release setuptools-scm
+  # renders for the tree, and refuses to build when that render is empty.
+  default = ""
+}
+
 function "name" {
   params = [image]
   result = REGISTRY == "" ? "${image}:${TAG}" : "${REGISTRY}/${image}:${TAG}"
@@ -35,6 +44,7 @@ target "base" {
   context    = "."
   dockerfile = "sandboxes/base/Dockerfile"
   tags       = [name("sandbox-base")]
+  args       = { SETUPTOOLS_SCM_PRETEND_VERSION = VERSION }
 }
 
 # A definition's context is its own directory — it holds the Dockerfile and

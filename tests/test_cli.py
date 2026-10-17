@@ -1103,6 +1103,33 @@ def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
     assert dsn_for(tmp_path) == ""
 
 
+def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkeypatch):
+    """S-0110/D-2: a torve outside the configuration's engine range stops the
+    command. The DSN read falls back to nothing on an unreadable configuration,
+    and it must not fall back past this refusal, or `status` reads on."""
+
+    import typer
+
+    from torve.cli.options import dsn_for, dsn_to_write
+    from torve.config import runconfig
+    from torve.domain.states import EXIT_CONFIG
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "0.2.9")
+    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        'schema_version: 1\nengine: "0.3.2"\nstore:\n  adapter: postgres\n'
+        "  dsn_env: TORVE_TEST_PG\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TORVE_TEST_PG", "postgresql://configured/db")
+
+    for resolve in (dsn_for, dsn_to_write):
+        with pytest.raises(typer.Exit) as refused:
+            resolve(tmp_path)
+
+        assert refused.value.exit_code == EXIT_CONFIG
+
+
 def test_owed_reports_a_row_covered_by_its_check(repo):
     """S-0054 S-0054/D-3: `torve log owed` names the three states — owed,
     pathless, covered by a check — so the executor sees why a row is or is
@@ -1463,8 +1490,11 @@ def test_init_writes_the_stub_once_and_never_overwrites_one(tmp_path):
         assert path.is_file()
         text = path.read_text(encoding="utf-8")
         assert "name: torve" in text
-        # The pointer is inlined by command injection, with the fallback named.
-        assert "!`uv run --quiet torve guide torve`" in text
+        # The pointer is inlined by command injection, with the fallback named:
+        # bare `torve`, because a repository installs it as a uv tool and never
+        # as a project dependency (S-0110/D-3).
+        assert "!`torve guide torve`" in text
+        assert "uv run" not in text
         assert "torve guide spec-writer" in text
 
     before = twin.read_text(encoding="utf-8")
@@ -1495,6 +1525,16 @@ def test_init_starter_equips_the_role_skills(tmp_path):
     written = materialize("implement", root / ".torve" / "skills", sets)
 
     assert sorted(written) == ["flag-dont-flip", "working-rules"]
+
+    # S-0110/D-6: the starter implement profile also equips the shipped hooks,
+    # so a fresh adopter's seat reaches its guard without a copy in the tree.
+    from torve.config.agents import load_profile
+
+    hooks = [
+        item.source for item in load_profile(root, "implement").equipment if item.kind == "hook"
+    ]
+
+    assert hooks == ["torve:hooks/implement"]
 
     # Never over a profile an adopter wrote.
     profile = root / ".torve" / "agents" / "implement.yaml"

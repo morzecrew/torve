@@ -268,7 +268,7 @@ The gate manifest's `scope.derived` map names files that ride with a source, in 
 
 A managed `AGENTS.md` beside a path in scope is writable as a lock file is: `torve spec project` writes it, and the scope gate allows it.
 
-- Paths: `src/torve/gates/scope.py` `.torve/agents/hooks/implement/scope_guard.py`
+- Paths: `src/torve/gates/scope.py` `skills/hooks/implement/scope_guard.py`
 - Consequence: a phase that changes governed code can regenerate its projection without a halt
 
 ### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches)

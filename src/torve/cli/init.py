@@ -107,11 +107,10 @@ description: A session operating torve. Read this before running any torve comma
 
 # torve
 
-!`uv run --quiet torve guide torve`
+!`torve guide torve`
 
-If nothing printed above, run `uv run torve guide torve` yourself, or
-`torve guide torve` where torve is on the PATH. Run `torve guide spec-writer`
-the same way before writing a document.
+If nothing printed above, run `torve guide torve` yourself. Run
+`torve guide spec-writer` the same way before writing a document.
 
 ## The owner's rails
 
@@ -126,6 +125,8 @@ the same way before writing a document.
 # S-0100/D-8: the role profiles `--starter` writes, so a fresh adopter's agent
 # is equipped with the skills its prompt names. Declared, never inferred
 # (S-0061/D-13), and each only where the file does not exist yet (S-0095/D-1).
+# The implement starter also equips the shipped hooks (S-0110/D-6), so an
+# upgrade reaches a fresh adopter without it carrying a copy.
 STARTER_PROFILES = {
     "implement": """\
 role: implement
@@ -135,6 +136,8 @@ equipment:
   source: torve:working-rules
 - kind: skill
   source: torve:flag-dont-flip
+- kind: hook
+  source: torve:hooks/implement
 """,
     "revert": """\
 role: revert

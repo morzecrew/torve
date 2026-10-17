@@ -39,7 +39,7 @@ from torve.cli.options import (
 )
 from torve.cli.run import ContractArgument, contract_for
 from torve.config import layout
-from torve.config.manifest import load_manifest
+from torve.config.manifest import load_manifest, read_layout
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
 from torve.gates import sabotage
 from torve.gates.context import GitError, build_context, load_task
@@ -351,7 +351,9 @@ def size(
 ) -> None:
     """Estimate whether a task contract is the right size to dispatch."""
 
-    verdict = sizing.estimate(load_task(contract_for(root.resolve(), contract)))
+    verdict = sizing.estimate(
+        load_task(contract_for(root.resolve(), contract)), read_layout(root.resolve()).carried
+    )
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "size": verdict.size, "reasons": verdict.reasons})

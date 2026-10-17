@@ -18,6 +18,13 @@ from torve.base import naming
 # slow half of a dispatch is the attempt, never the checkout.
 _WORKTREE_LOCK = threading.Lock()
 
+# Every git torve starts runs with the repository's hooks switched off
+# (S-0110/D-7): configuration an agent wrote never executes on the host
+# through a hook. `-c` is inherited by git's own child processes, so a
+# `worktree add`'s checkout and the commits a fetch's server helper makes are
+# covered by the one flag on the parent command.
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
+
 
 # ....................... #
 
@@ -37,7 +44,10 @@ class GitWorkspace:
 
     def _git(self, *args: str) -> str:
         proc = subprocess.run(
-            ["git", "-C", str(self.root), *args], capture_output=True, text=True, check=False
+            ["git", *NO_HOOKS, "-C", str(self.root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
         if proc.returncode != 0:
@@ -108,7 +118,7 @@ class GitWorkspace:
 
         tip = self._git("rev-parse", branch).strip()
         held = subprocess.run(
-            ["git", "-C", str(self.root), "merge-base", "--is-ancestor", tip, base],
+            ["git", *NO_HOOKS, "-C", str(self.root), "merge-base", "--is-ancestor", tip, base],
             capture_output=True,
             text=True,
             check=False,
@@ -130,7 +140,7 @@ class GitWorkspace:
 
     def _ref_exists(self, ref: str) -> bool:
         proc = subprocess.run(
-            ["git", "-C", str(self.root), "rev-parse", "--verify", "--quiet", ref],
+            ["git", *NO_HOOKS, "-C", str(self.root), "rev-parse", "--verify", "--quiet", ref],
             capture_output=True,
             text=True,
             check=False,
@@ -150,7 +160,7 @@ class GitWorkspace:
         path = naming.worktree(self.root, task_id)
 
         proc = subprocess.run(
-            ["git", "-C", str(self.root), "worktree", "remove", "--force", str(path)],
+            ["git", *NO_HOOKS, "-C", str(self.root), "worktree", "remove", "--force", str(path)],
             capture_output=True,
             text=True,
             check=False,
@@ -160,7 +170,7 @@ class GitWorkspace:
             shutil.rmtree(path, ignore_errors=True)
 
         subprocess.run(
-            ["git", "-C", str(self.root), "worktree", "prune"],
+            ["git", *NO_HOOKS, "-C", str(self.root), "worktree", "prune"],
             capture_output=True,
             check=False,
         )
@@ -230,7 +240,10 @@ class ShadowWorkspace:
 
         def run(*args: str) -> None:
             proc = subprocess.run(
-                ["git", "-C", str(path), *args], capture_output=True, text=True, check=False
+                ["git", *NO_HOOKS, "-C", str(path), *args],
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
             if proc.returncode != 0:
@@ -243,7 +256,7 @@ class ShadowWorkspace:
             "-q",
             f"--depth={self.depth}",
             "--upload-pack",
-            "git -c uploadpack.allowanysha1inwant=true upload-pack",
+            "git -c core.hooksPath=/dev/null -c uploadpack.allowanysha1inwant=true upload-pack",
             str(self.root),
             sha,
         )
@@ -297,7 +310,7 @@ def shipped_commit(root: Path, task_id: str, spec_dir: Path | None = None) -> st
 
 def parent_of(root: Path, sha: str) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"{sha}^"],
+        ["git", *NO_HOOKS, "-C", str(root), "rev-parse", "--verify", "--quiet", f"{sha}^"],
         capture_output=True,
         text=True,
         check=False,
@@ -343,7 +356,7 @@ def diff_range(root: Path, sha: str) -> dict[str, object]:
     """What actually shipped: the commit against its first parent."""
 
     proc = subprocess.run(
-        ["git", "-C", str(root), "diff", "--numstat", f"{sha}^", sha],
+        ["git", *NO_HOOKS, "-C", str(root), "diff", "--numstat", f"{sha}^", sha],
         capture_output=True,
         text=True,
         check=False,
@@ -363,15 +376,18 @@ def diff_worktree(workspace: Path, base: str) -> dict[str, object]:
     parent), untracked files included. Never against HEAD: a shadow clone
     carries a real `.git` the sandbox can reach, so an agent may commit its
     own work — which moves HEAD and would read as an empty diff. Stages
-    everything first — the workspace is a throwaway measurement artefact."""
+    everything first — the workspace is a throwaway measurement artefact. A
+    stage or a diff that fails raises rather than measuring part of the work."""
 
-    subprocess.run(["git", "-C", str(workspace), "add", "-A"], capture_output=True, check=False)
+    for args in (["add", "-A"], ["diff", "--cached", base, "--numstat"]):
+        proc = subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(workspace), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
-    proc = subprocess.run(
-        ["git", "-C", str(workspace), "diff", "--cached", base, "--numstat"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+        if proc.returncode != 0:
+            raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
 
     return _parse_numstat(proc.stdout)

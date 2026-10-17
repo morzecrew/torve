@@ -87,28 +87,47 @@ amendment `A-n` and a task `T-NNNN` are never reused once minted, and
 
 ## Upgrading
 
-One release to the next is five steps, in order:
+A repository installs torve as a tool and names the release it needs in
+`.torve/config.yaml`, `engine: "X.Y.Z"` — meaning at least that release and
+below the next minor. One release to the next is these steps, in order:
 
-1. Install the release: `pip install -U torve`, or `uv tool upgrade torve`.
-2. Run `torve init` in the repository. It rewrites `.torve/schemas/` from
-   the engine you just installed and adds any ignore pattern minted since.
-   It touches a configuration or a gate manifest only under `--starter`,
-   and only where none exists.
-3. Commit what `torve init` changed, so every later run and every CI job
-   reads the schemas the installed engine wrote.
-4. Run `torve doctor` and read the red lines before running anything. A
-   red line for a sandbox image means the image and the definition copied
-   under `.torve/sandbox/` no longer agree: copy `sandboxes/<name>` from
-   the release into `.torve/sandbox/` again, and rebuild the image from a
-   checkout at that release (`just image <name>`).
+1. Install the release over the old one, naming the new exact version.
+   `uv tool install --force 'torve[postgres,migrate]==X.Y.Z'` replaces it;
+   `uv tool upgrade torve` keeps an exact pin, so it never crosses a release
+   on its own.
+2. Raise `engine` in `.torve/config.yaml` to the release just installed. A
+   command that loads the configuration under a torve outside the range stops,
+   naming the installed version, the range and the install command for a
+   release inside it; `torve --version`, `torve guide` and `torve doctor`
+   still run.
+3. Rebuild the seat images from a checkout of that release (`just images`).
+   An image whose torve version differs from the host's is a red finding in
+   `torve doctor`, and the rebuild is what clears it.
+4. Run `torve init` in the repository. It rewrites `.torve/schemas/` from the
+   engine you just installed and adds any ignore pattern minted since. It
+   writes a configuration, a gate manifest or a role profile only under
+   `--starter`, and only where none exists: `torve init` never touches a
+   profile the repository already has.
 5. When the release's Upgrade note names a record migration, run
    `torve migrate --all` against the store.
+6. Run `torve doctor` and read the red lines before running anything.
+7. Commit what `torve init` and the configuration changed, so every later run
+   and every CI job reads the schemas the installed engine wrote.
 
-A release that moves a `schema_version` in the table above, or adds a
-record migration, carries an Upgrade note in its changelog entry, naming
-the files whose shape moved, the versions on either side, and the
-conversion. A release whose entry carries no Upgrade note moves neither,
-and steps 1 to 4 are the whole upgrade.
+A repository upgrading from 0.3 or earlier copied the hooks into
+`.torve/agents/hooks/implement/`, and its implement profile names that copy
+(`source: local:.torve/agents/hooks/implement`). The hooks now ship in the
+package, and `torve init` leaves the profile as it is, so edit the profile's
+hook item by hand to `source: torve:hooks/implement` and delete the copied
+`.torve/agents/hooks/implement/` directory.
+
+A release that moves a `schema_version` in the table above, adds a record
+migration, or changes the shipped hooks, carries an Upgrade note in its
+changelog entry, naming the files whose shape moved, the versions on either
+side, and the conversion. A release whose entry carries no Upgrade note moves
+none of them, and the upgrade is the common steps: install the release and
+raise `engine`, rebuild the seat images, run `torve init` and `torve doctor`,
+and commit.
 
 ## Internal
 

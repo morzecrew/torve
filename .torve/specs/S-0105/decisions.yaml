@@ -48,19 +48,18 @@ decisions:
     grade: ASSUMED
     text: >-
       The pre-write hook reads its globs through a byte-identical copy of the module,
-      `.torve/agents/hooks/implement/globs.py`, imported as a sibling the way `read_guard`
+      `skills/hooks/implement/globs.py`, imported as a sibling the way `read_guard`
       imports `scope_guard`. `fnmatch` leaves the hook, and `read_guard` and `finish_check`
       take the same reading through `scope_guard.is_allowed`. A test fails when the
       copy and the source differ.
-    paths:
-      - .torve/agents/hooks/implement/globs.py
-      - .torve/agents/hooks/implement/scope_guard.py
+    paths: [skills/hooks/implement/globs.py, skills/hooks/implement/scope_guard.py]
     consequence: >-
       a write the hook refuses is a write the gate would convict, and the other way
       round
     rationale: >-
       The hook is a file each repository carries; a pinned copy is the one way it
       reads what the engine reads without importing it.
+    fingerprint: c0c515d0aa406cf4/47514a445400d70b
   - id: D-4
     grade: ASSUMED
     text: >-
