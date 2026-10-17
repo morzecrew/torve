@@ -533,7 +533,9 @@ def role_skills(root: Path) -> dict[str, list[str]]:
 # ....................... #
 
 
-def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str]]:
+def resolve_seats(
+    tiers: dict[str, Any], root: Path, default_image: str = ""
+) -> dict[str, tuple[str, str]]:
     """Merge each seat's harness and profile into its raw mapping, before
     `TierConfig` ever validates (the shape S-0028/D-2 already used).
 
@@ -547,6 +549,8 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
     seat's own keys — but the seat may only carry seat keys, so nothing it
     writes can overwrite either file (S-0061/D-9). Returns the (harness,
     profile) names per seat for whoever wants to say where a value came from.
+    `default_image` is `runtime.image`, the image a seat that names none runs
+    in (`image_for`).
     """
 
     named: dict[str, tuple[str, str]] = {}
@@ -597,7 +601,7 @@ def resolve_seats(tiers: dict[str, Any], root: Path) -> dict[str, tuple[str, str
             del merged[own]
 
         merged.update(entry)
-        _equipped(key, harness_name, profile_name, merged, root)
+        _equipped(key, harness_name, profile_name, merged, root, default_image)
         tiers[key] = merged
         named[key] = (harness_name, profile_name)
 
@@ -645,7 +649,12 @@ def packaged_skills() -> Path:
 
 
 def _equipped(
-    seat: str, harness_name: str, profile_name: str, merged: dict[str, Any], root: Path
+    seat: str,
+    harness_name: str,
+    profile_name: str,
+    merged: dict[str, Any],
+    root: Path,
+    default_image: str = "",
 ) -> None:
     """Refuse a kind this harness cannot be given, and an item it would not be
     able to read; then derive the one shape a reader still has (S-0063/D-4,
@@ -710,7 +719,9 @@ def _equipped(
         if item.kind != "hook" or item.scheme not in ("local", "torve"):
             continue
 
-        label = _harness_label(str(merged.get("image") or ""))
+        # The image the seat runs in, resolved as `image_for` does: its own,
+        # else the runtime's.
+        label = _harness_label(str(merged.get("image") or default_image))
 
         if label:
             base = (

@@ -1994,7 +1994,9 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     if isinstance(tiers, dict):
         try:
-            named = resolve_seats(cast("dict[str, Any]", tiers), root)
+            runtime = config.get("runtime")
+            default_image = runtime.get("image") if isinstance(runtime, dict) else None
+            named = resolve_seats(cast("dict[str, Any]", tiers), root, str(default_image or ""))
 
         except AgentError as exc:
             raise ValueError(str(exc)) from None

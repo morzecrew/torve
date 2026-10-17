@@ -577,6 +577,29 @@ def test_a_harness_that_names_no_sandbox_names_no_directory(root: Path):
     assert [item.kind for item in config.tiers["executor"].equipment] == ["hook"]
 
 
+def test_a_harness_with_no_image_is_checked_against_the_runtime_image(root: Path):
+    """A seat whose harness names no image runs in `runtime.image` (`image_for`),
+    so the load check reads the harness directory off that image: a
+    `claude-sandbox` runtime needs `claude/` beside the item's payload."""
+
+    write(harnesses_dir(root) / "bare.yaml", "adapter: fake\nkinds: [hook]\n")
+    write(
+        agents_dir(root) / "guarded.yaml",
+        "equipment: [{kind: hook, source: 'local:.torve/agents/hooks/guard'}]\n",
+    )
+    seat = "tiers:\n  executor:\n    harness: bare\n    profile: guarded\n"
+    runtime = "runtime:\n  image: claude-sandbox:2.1.252\n"
+
+    with pytest.raises(ValueError, match="`claude/`"):
+        load(root, runtime + seat)
+
+    write(root / ".torve" / "agents" / "hooks" / "guard" / "claude" / "settings.json", "{}\n")
+
+    config = load(root, runtime + seat)
+
+    assert [item.kind for item in config.tiers["executor"].equipment] == ["hook"]
+
+
 def test_a_fetched_hook_item_is_not_checkable_at_load(root: Path):
     """Only `local:` payload is in the repository the config was read from; a
     fetched hook's tree does not exist until `torve equip` runs, so the load
