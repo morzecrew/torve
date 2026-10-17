@@ -913,7 +913,8 @@ def board_cmd(
         ),
     ] = False,
     interval: Annotated[
-        float, typer.Option("--interval", help="Seconds between reads under --until-change.")
+        float,
+        typer.Option("--interval", min=1, help="Seconds between reads under --until-change."),
     ] = 60.0,
 ) -> None:
     """Show what a partition's recorded facts add up to: every task the log

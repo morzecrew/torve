@@ -2243,10 +2243,11 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
 # task moves or the night closes; it writes nothing and runs no leg.
 
 
-def _watch_cli(tmp_path, monkeypatch, boards, nights):
+def _watch_cli(tmp_path, monkeypatch, boards, nights, interval="1"):
     """Invoke `manager board --until-change` over a scripted sequence of
     reads — each poll takes the next board and night, holding the last once
-    the script runs out, so the loop always has an answer to exit on."""
+    the script runs out, so the loop always has an answer to exit on. The
+    wait between reads is skipped."""
 
     import itertools
 
@@ -2261,8 +2262,12 @@ def _watch_cli(tmp_path, monkeypatch, boards, nights):
         index = min(next(polls), len(boards) - 1)
         return boards[index], nights[index]
 
+    async def no_wait(_seconds):
+        return None
+
     monkeypatch.setattr(manager_cli, "_board_and_night", fake)
     monkeypatch.setattr(manager_cli, "dsn_for", lambda root, dsn: None)
+    monkeypatch.setattr(manager_cli.asyncio, "sleep", no_wait)
 
     return CliRunner().invoke(
         app,
@@ -2272,7 +2277,7 @@ def _watch_cli(tmp_path, monkeypatch, boards, nights):
             PARTITION,
             "--until-change",
             "--interval",
-            "0",
+            interval,
             "--root",
             str(tmp_path),
         ],
@@ -2293,6 +2298,16 @@ def test_the_board_exits_when_a_task_moves(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "T-1" in result.output
     assert "running" in result.output
+
+
+def test_the_watch_refuses_an_interval_under_a_second(tmp_path, monkeypatch):
+    """A zero or fractional interval would hammer the store with reads; the
+    floor is one second, refused before the first read."""
+
+    result = _watch_cli(tmp_path, monkeypatch, [Board()], [None], interval="0.5")
+
+    assert result.exit_code == 2
+    assert "--interval" in result.output
 
 
 def test_the_board_exits_when_the_night_closes(tmp_path, monkeypatch):
