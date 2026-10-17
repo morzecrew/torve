@@ -101,8 +101,8 @@ below the next minor. One release to the next is these steps, in order:
    release inside it; `torve --version`, `torve guide` and `torve doctor`
    still run.
 3. Rebuild the seat images from a checkout of that release (`just images`).
-   An image running another torve than the host is a red `torve doctor`, and
-   the rebuild is what clears it.
+   An image whose torve version differs from the host's is a red finding in
+   `torve doctor`, and the rebuild is what clears it.
 4. Run `torve init` in the repository. It rewrites `.torve/schemas/` from the
    engine you just installed and adds any ignore pattern minted since. It
    writes a configuration, a gate manifest or a role profile only under
