@@ -49,10 +49,10 @@ profile's hook item by hand:
 and delete the copied `.torve/agents/hooks/implement/` directory.
 
 A release whose changelog entry carries no Upgrade note moves no format, adds
-no record migration and changes no hooks; steps 1, 2, 4, 6 and 7 are then the
-whole upgrade. A release that moves a `schema_version`, adds a record
-migration or changes the hooks carries an Upgrade note naming what moved on
-either side and the conversion.
+no record migration and changes no hooks; every step but the migration (5) is
+then the whole upgrade, the image rebuild included. A release that moves a
+`schema_version`, adds a record migration or changes the hooks carries an
+Upgrade note naming what moved on either side and the conversion.
 
 The stability page on the documentation site is the same steps for an adopter;
 `torve guide torve` lists this reference beside the others.

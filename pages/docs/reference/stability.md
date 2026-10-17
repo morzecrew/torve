@@ -125,8 +125,9 @@ A release that moves a `schema_version` in the table above, adds a record
 migration, or changes the shipped hooks, carries an Upgrade note in its
 changelog entry, naming the files whose shape moved, the versions on either
 side, and the conversion. A release whose entry carries no Upgrade note moves
-none of them, and installing the release and raising `engine` is the whole
-upgrade.
+none of them, and the upgrade is the common steps: install the release and
+raise `engine`, rebuild the seat images, run `torve init` and `torve doctor`,
+and commit.
 
 ## Internal
 
