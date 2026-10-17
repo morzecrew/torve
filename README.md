@@ -33,13 +33,14 @@ says what each surface does and does not promise. Report security issues as
 ## Install
 
 ```bash
-uv tool install torve            # a repository installs torve as a tool
-uv tool install 'torve[postgres]'    # the durable run store and the manager's log
-uv tool install 'torve[migrate]'     # `torve migrate`, for that store's schema
-uv tool install 'torve[mcp]'         # the planning session's read surface
-uv tool install 'torve[serve]'       # the loopback dashboard
-uv tool install 'torve[opensandbox]' # the OpenSandbox runtime adapter
+uv tool install 'torve[postgres,migrate]'   # a repository installs torve as a tool
 ```
+
+One install carries every extra it needs; installing again with other extras
+needs `--force`. The extras: `postgres`, the durable run store and the
+manager's log; `migrate`, `torve migrate` for that store's schema; `mcp`, the
+planning session's read surface; `serve`, the loopback dashboard;
+`opensandbox`, the OpenSandbox runtime adapter.
 
 From a checkout instead: `uv sync`, then `uv run torve ...`.
 
