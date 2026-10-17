@@ -191,11 +191,11 @@ def read_log(dsn: str, reader: Callable[[EventLog], Awaitable[Read]]) -> Read:
 # ....................... #
 
 
+# S-0056/D-9: with a store the board is the only place a task is.
 def recorded_ids(root: Path, dsn: str, partition: str) -> tuple[str, ...]:
-    """The task ids a partition's record holds (S-0056/D-9), for a verb that
-    mints a contract: with a store the board is the only place a task is, so
-    a new id numbers past these as well as the files. Naming no partition
-    reads none, since the files are then the record."""
+    """The task ids a partition's record holds, for a verb that mints a
+    contract: a new id numbers past these as well as the files. Naming no
+    partition reads none, since the files are then the record."""
 
     if not partition:
         return ()
