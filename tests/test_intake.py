@@ -1110,6 +1110,14 @@ def test_adopt_numbers_past_the_record_when_a_store_holds_the_tasks(seeded):
     assert adopt(seeded.root, source, RunnerConfig(), taken=("T-0050",)) == ["T-0051", "T-0052"]
 
 
+def test_a_drafting_run_numbers_past_the_record_when_a_store_holds_the_tasks(seeded):
+    """S-0056/D-9: `torve intake --partition` mints its run past the board's ids."""
+
+    task = mint_intake_task(seeded.root, "add a widget module", RunnerConfig(), taken=("T-0050",))
+
+    assert task.id == "T-0051"
+
+
 def test_adopt_copies_decisions_from_an_accepted_document(seeded):
     place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
     seeded.commit("fixture spec")

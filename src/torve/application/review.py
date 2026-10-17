@@ -1147,6 +1147,7 @@ def review_pull_request(
     number: int,
     token: str | None = None,
     broker: Broker | None = None,
+    taken: Iterable[str] = (),
 ) -> PrReviewOutcome:
     """S-0005/triggers: skip rules first (draft, zero changed files, configured
     authors, not open); one review per head — the pull regime's debounce,
@@ -1201,6 +1202,7 @@ def review_pull_request(
             if degraded
             else None
         ),
+        taken=taken,
     )
 
     workdir = root / naming.WORKTREE_DIR / f"{review.id}.pr"

@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   review minted at gated, a review-thread round and a standing instance counted only
   those files, so a review took the id of the task it judged and staging its copy
   removed that task's worktree, crashing the night. They now number past the board's
-  ids as well.
+  ids as well, read when the contract is minted. `torve intake`, `decompose`, `adopt`
+  and `review pr` take `--partition` (and `--dsn`) to do the same when run by hand.
 
 ## [0.3.2] - 2026-10-15
 

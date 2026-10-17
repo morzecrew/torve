@@ -364,3 +364,24 @@ def test_a_run_reads_the_record_when_it_mints_not_when_it_began():
         return await asyncio.to_thread(read)
 
     assert asyncio.run(run()) == ("T-0603", "T-0610")
+
+
+def test_a_hand_run_verb_reads_the_partitions_ids_and_none_without_one(tmp_path, monkeypatch):
+    """S-0056/D-9: `--partition` makes `intake`, `decompose`, `adopt` and `review
+    pr` number past the board's ids; naming none, the files are the record."""
+
+    from torve.cli import options
+
+    seen: list[str] = []
+
+    def read_log(dsn, reader):
+        seen.append(dsn)
+        return ("T-0603",)
+
+    monkeypatch.setattr(options, "read_log", read_log)
+    monkeypatch.setattr(options, "dsn_for", lambda root, dsn: dsn or "from-config")
+
+    assert options.recorded_ids(tmp_path, "", "") == ()
+    assert seen == []
+    assert options.recorded_ids(tmp_path, "", "torve") == ("T-0603",)
+    assert seen == ["from-config"]

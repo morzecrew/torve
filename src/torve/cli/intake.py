@@ -27,10 +27,13 @@ from torve.cli.console import (
 )
 from torve.cli.options import (
     ConfigOption,
+    DsnOption,
     FormatOption,
+    PartitionOption,
     RootOption,
     RuntimeName,
     load_config,
+    recorded_ids,
     runtime_for,
 )
 from torve.cli.run import ContractArgument, contract_for
@@ -59,6 +62,8 @@ def intake_cmd(
         ),
     ] = None,
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
+    partition: PartitionOption = "",
+    dsn: DsnOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -94,7 +99,14 @@ def intake_cmd(
     from torve.base import naming
 
     try:
-        task = mint_intake_task(root, request, config, spec=spec, source=source)
+        task = mint_intake_task(
+            root,
+            request,
+            config,
+            spec=spec,
+            source=source,
+            taken=recorded_ids(root, dsn, partition),
+        )
 
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
@@ -159,6 +171,8 @@ def intake_cmd(
 def decompose_cmd(
     task_id: Annotated[str, typer.Argument(help="The oversized contract to decompose.")],
     runtime_name: Annotated[RuntimeName | None, typer.Option("--runtime")] = None,
+    partition: PartitionOption = "",
+    dsn: DsnOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -183,7 +197,9 @@ def decompose_cmd(
 
     try:
         agent = build_tier_agent(config, root, "planner")
-        task = mint_decomposition_task(root, task_id, config)
+        task = mint_decomposition_task(
+            root, task_id, config, taken=recorded_ids(root, dsn, partition)
+        )
 
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
@@ -256,6 +272,8 @@ def decompose_cmd(
 
 def adopt_cmd(
     task_id: Annotated[str, typer.Argument(help="The drafting run whose drafts to adopt.")],
+    partition: PartitionOption = "",
+    dsn: DsnOption = "",
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
@@ -270,7 +288,7 @@ def adopt_cmd(
     config = load_config(root, config_path)
 
     try:
-        adopted = adopt(root, task_id, config)
+        adopted = adopt(root, task_id, config, taken=recorded_ids(root, dsn, partition))
 
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
