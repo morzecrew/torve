@@ -298,6 +298,31 @@ def test_the_scope_does_not_pack_a_nested_test_tree_as_source(tmp_path: Path) ->
     assert "app/tests/test_mod.py" not in scope
 
 
+def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path) -> None:
+    """S-0110/D-10 keeps out a test an allow glob sweeps in, never one the
+    scope names by path: a glob-free allow entry and a contingent literal are
+    packed though `tests.patterns` matches them."""
+
+    (tmp_path / "app" / "tests").mkdir(parents=True)
+    for name in ("test_allowed.py", "test_contingent.py", "test_swept.py"):
+        (tmp_path / "app" / "tests" / name).write_text("x = 1\n", encoding="utf-8")
+    task = Task(
+        id="T-0500",
+        spec="S-0001",
+        decisions=[],
+        scope=Scope(
+            allow=["app/tests/test_allowed.py", "app/tests/*.py"],
+            contingent=["app/tests/test_contingent.py"],
+        ),
+    )
+
+    scope = scope_file(tmp_path, task, {"named_tests": []}, patterns=["app/tests/**"])
+
+    assert "## `app/tests/test_allowed.py`" in scope
+    assert "## `app/tests/test_contingent.py`" in scope
+    assert "app/tests/test_swept.py" not in scope
+
+
 def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
     """S-0096/D-4: the pack names `test_<stem>.py` and every existing
     `test_<stem>_*.py`, and no name that merely shares a prefix."""

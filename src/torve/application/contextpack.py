@@ -747,13 +747,17 @@ def _in_scope(
     A path `tests.patterns` names is a test (S-0110/D-10): it is not packed as
     the scope's source, so a nested test tree an allow glob would sweep in stays
     out — the tests that name the scope's modules, which `named` holds, are the
-    pack's tests."""
+    pack's tests. A test the scope names literally, in `contingent` or as a
+    glob-free allow entry, was asked for by name and stays."""
 
     allow = GitIgnoreSpec.from_lines(task.scope.allow) if task.scope.allow else None
     deny = GitIgnoreSpec.from_lines(task.scope.deny) if task.scope.deny else None
     test = GitIgnoreSpec.from_lines(patterns) if patterns else None
     named = {str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])}
     contingent = set(task.scope.contingent)
+    literal = contingent | {
+        entry for entry in task.scope.allow if not any(c in entry for c in "*?[")
+    }
     found: set[str] = set()
 
     for parent, dirs, names in root.walk():
@@ -765,7 +769,7 @@ def _in_scope(
             if rel in named or (
                 (rel in contingent or (allow is not None and allow.match_file(rel)))
                 and not (deny is not None and deny.match_file(rel))
-                and not (test is not None and test.match_file(rel))
+                and (rel in literal or not (test is not None and test.match_file(rel)))
             ):
                 found.add(rel)
 
