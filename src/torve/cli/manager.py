@@ -931,6 +931,15 @@ def board_cmd(
     dsn_value = dsn_for(root, dsn) or None
 
     if until_change:
+        if dsn_value is None:
+            # Without a DSN each read stands up a fresh mock log, which never
+            # changes: the watch would wait forever.
+            raise fail(
+                "configuration error: --until-change watches the durable log, and no DSN "
+                "resolves — pass --dsn or configure a postgres store with its DSN variable set",
+                EXIT_CONFIG,
+            )
+
         moved, night = asyncio.run(
             _watch(
                 lambda night_id: _board_and_night(dsn_value, partition, night_id),

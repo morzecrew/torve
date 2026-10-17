@@ -2243,7 +2243,7 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
 # task moves or the night closes; it writes nothing and runs no leg.
 
 
-def _watch_cli(tmp_path, monkeypatch, boards, nights, interval="1"):
+def _watch_cli(tmp_path, monkeypatch, boards, nights, interval="1", dsn="postgresql://log/db"):
     """Invoke `manager board --until-change` over a scripted sequence of
     reads — each poll takes the next board and night, holding the last once
     the script runs out, so the loop always has an answer to exit on. The
@@ -2266,7 +2266,7 @@ def _watch_cli(tmp_path, monkeypatch, boards, nights, interval="1"):
         return None
 
     monkeypatch.setattr(manager_cli, "_board_and_night", fake)
-    monkeypatch.setattr(manager_cli, "dsn_for", lambda root, dsn: None)
+    monkeypatch.setattr(manager_cli, "dsn_for", lambda root, _typed: dsn)
     monkeypatch.setattr(manager_cli.asyncio, "sleep", no_wait)
 
     return CliRunner().invoke(
@@ -2308,6 +2308,16 @@ def test_the_watch_refuses_an_interval_under_a_second(tmp_path, monkeypatch):
 
     assert result.exit_code == 2
     assert "--interval" in result.output
+
+
+def test_the_watch_refuses_a_log_no_dsn_resolves(tmp_path, monkeypatch):
+    """With no DSN every read stands up a fresh mock log that never changes,
+    so the watch is refused as a configuration error before its first read."""
+
+    result = _watch_cli(tmp_path, monkeypatch, [Board()], [None], dsn="")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "--until-change" in result.output and "DSN" in result.output
 
 
 def test_the_board_exits_when_the_night_closes(tmp_path, monkeypatch):
