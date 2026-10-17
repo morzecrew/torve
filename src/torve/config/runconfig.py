@@ -486,10 +486,11 @@ def configured_images(config: RunnerConfig) -> list[str]:
 # written for, and a torve outside that range stops before it serves a night.
 
 
-class EngineRefused(ValueError):
+class EngineRefused(Exception):
     """The configuration names an `engine` release this install is outside
     (S-0110/D-2): the command stops, naming the version it found and the one
-    to install instead."""
+    to install instead. Not a `ValueError`, so a caller that falls back on an
+    unreadable configuration cannot carry on past it."""
 
 
 def installed_version() -> str:

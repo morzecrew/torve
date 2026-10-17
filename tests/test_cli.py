@@ -1103,6 +1103,33 @@ def test_dsn_defaults_to_the_configured_variable(tmp_path, monkeypatch):
     assert dsn_for(tmp_path) == ""
 
 
+def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkeypatch):
+    """S-0110/D-2: a torve outside the configuration's engine range stops the
+    command. The DSN read falls back to nothing on an unreadable configuration,
+    and it must not fall back past this refusal, or `status` reads on."""
+
+    import typer
+
+    from torve.cli.options import dsn_for, dsn_to_write
+    from torve.config import runconfig
+    from torve.domain.states import EXIT_CONFIG
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "0.2.9")
+    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".torve" / "config.yaml").write_text(
+        'schema_version: 1\nengine: "0.3.2"\nstore:\n  adapter: postgres\n'
+        "  dsn_env: TORVE_TEST_PG\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TORVE_TEST_PG", "postgresql://configured/db")
+
+    for resolve in (dsn_for, dsn_to_write):
+        with pytest.raises(typer.Exit) as refused:
+            resolve(tmp_path)
+
+        assert refused.value.exit_code == EXIT_CONFIG
+
+
 def test_owed_reports_a_row_covered_by_its_check(repo):
     """S-0054 S-0054/D-3: `torve log owed` names the three states — owed,
     pathless, covered by a check — so the executor sees why a row is or is
