@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed that task's worktree, crashing the night. They now number past the board's
   ids as well, read when the contract is minted. `torve intake`, `decompose`, `adopt`
   and `review pr` take `--partition` (and `--dsn`) to do the same when run by hand.
+- The served lane now lands a task the store holds. `torve plan --partition` writes no
+  contract under `.torve/tasks/`, but the lane read it there to find the task's
+  document and to compose its pull request, so every pass failed with "No such file or
+  directory" and pushed the task branch on its way. The lane now reads the contract
+  dispatch wrote into the run's worktree when the root has none, and keeps that copy
+  when it releases the worktree to rebase.
 
 ## [0.3.2] - 2026-10-15
 

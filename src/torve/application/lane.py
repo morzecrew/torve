@@ -184,13 +184,24 @@ def awaiting_landing(root: Path, vcs: LaneVcs, base: str | None, unit: str = "ta
     return owed
 
 
+def contract_file(root: Path, task_id: str) -> Path:
+    """Where the landing reads a task's contract: the root's copy where the
+    files are the record, else the one dispatch projected into the run's
+    worktree. With a store the board holds the task and the root has no file
+    (S-0056/D-9)."""
+
+    path = layout.task_file(root, task_id)
+
+    return path if path.is_file() else layout.task_file(naming.worktree(root, task_id), task_id)
+
+
 def _awaits_adoption(root: Path, task_id: str) -> bool:
     """A READY draft run is intake's output, not the lane's input
     (S-0020, S-0020/D-1): it has no branch and nothing to land — adoption
     consumes it. Anything unreadable stays a candidate; the lane's own
     no-branch handling reports it rather than hiding it."""
 
-    contract = layout.task_file(root, task_id)
+    contract = contract_file(root, task_id)
 
     if not contract.is_file():
         return False
@@ -828,7 +839,7 @@ def _document_branch(
 
     from torve.gates.context import load_task, resolve_base
 
-    contract = layout.task_file(root, task_id)
+    contract = contract_file(root, task_id)
 
     if not contract.is_file():
         return None
@@ -999,7 +1010,7 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
 
     for carried in dict.fromkeys([*carried_tasks(root, document), task_id]):
         try:
-            landings.append(DocumentLanding(task=load_task(layout.task_file(root, carried))))
+            landings.append(DocumentLanding(task=load_task(contract_file(root, carried))))
 
         except (OSError, ValueError):
             continue
@@ -1820,7 +1831,7 @@ def carried_tasks(root: Path, branch: str) -> list[str]:
     the same carrier as `document_tasks` (S-0099/D-2), so a stray file names
     no task."""
 
-    return [task for task in document_tasks(root, branch) if layout.task_file(root, task).is_file()]
+    return [task for task in document_tasks(root, branch) if contract_file(root, task).is_file()]
 
 
 # ....................... #
@@ -2358,8 +2369,23 @@ def _land_rebased(
         # The run's own worktree still pins the branch, and git refuses to
         # check a branch out twice. A READY candidate's worktree is
         # disposable — the work lives on the branch, and the reap would
-        # collect it anyway — so the lane releases it for the rebase.
+        # collect it anyway — so the lane releases it for the rebase. A task
+        # the board holds has no contract at the root (S-0056/D-9): the copy
+        # in this worktree is the one the landing still reads, so it is put
+        # back where `contract_file` finds it.
+        # ponytail: the copy lives until a reap sweeps `.wt/<task>`; the
+        # record's `task.minted` is the durable one, once the lane holds the log.
+        projected = contract_file(root, task_id)
+        held = (
+            projected.read_bytes()
+            if engine_wt in projected.parents and projected.is_file()
+            else None
+        )
         vcs.remove_worktree(root, engine_wt)
+
+        if held is not None:
+            projected.parent.mkdir(parents=True, exist_ok=True)
+            projected.write_bytes(held)
 
     workdir = root / naming.WORKTREE_DIR / f"lane-{task_id}"
 

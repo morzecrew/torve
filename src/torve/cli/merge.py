@@ -109,14 +109,14 @@ def _pr_text(root: Path, task_id: str, records: Sequence[EventRecord] = ()) -> t
     from any host, and a host whose stream is empty lists the same results."""
 
     from torve.application.forge import compose_pr
+    from torve.application.lane import contract_file
     from torve.application.projections import rows_from_events
     from torve.application.runstate import RunState
     from torve.base import naming
-    from torve.config import layout
     from torve.domain.attempt import GateResult
     from torve.gates.context import load_task
 
-    task = load_task(layout.task_file(root, task_id))
+    task = load_task(contract_file(root, task_id))
     state = RunState.load(naming.state_file(root, task_id))
 
     rows = [r for r in rows_from_events(records) if r.get("task_id") == task_id and "results" in r]
@@ -162,9 +162,8 @@ def _document_pr_text(
     """
 
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
-    from torve.application.lane import carried_landings, carried_tasks
+    from torve.application.lane import carried_landings, carried_tasks, contract_file
     from torve.application.projections import rows_from_events
-    from torve.config import layout
     from torve.domain.attempt import GateResult
     from torve.gates.context import load_task
 
@@ -183,7 +182,7 @@ def _document_pr_text(
         recorded: list[Any] = (judged[-1].get("results") or []) if judged else []
         landings.append(
             DocumentLanding(
-                task=load_task(layout.task_file(root, carried_id)),
+                task=load_task(contract_file(root, carried_id)),
                 sha=commits.get(carried_id) or (tip or ""),
                 results=[GateResult.model_validate(r) for r in recorded],
             )
