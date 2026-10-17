@@ -401,7 +401,10 @@ def test_every_image_is_stamped_with_the_tree_s_release() -> None:
     assert "SETUPTOOLS_SCM_PRETEND_VERSION" in BAKE.read_text(encoding="utf-8")
 
     just = Path("justfile").read_text(encoding="utf-8")
-    assert "VERSION=$({{ _release }})" in just
+    # Every image recipe stops on a failed or empty render rather than baking
+    # an empty VERSION: an assignment prefix ignores its substitution's exit.
+    assert just.count('v=$({{ _release }}) && test -n "$v" && VERSION=$v ') == 3
+    assert "VERSION=$({{ _release }})" not in just
     assert "python -m setuptools_scm" in just
     assert "uv run torve --version" not in just
     assert "git describe --" not in just

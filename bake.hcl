@@ -19,7 +19,8 @@ variable "VERSION" {
   # S-0110/D-4: the release the tree being built is at, stamped onto every
   # image through SETUPTOOLS_SCM_PRETEND_VERSION. The build has no `.git`, so
   # without it hatch-vcs wrote a stale version and an image reported another
-  # torve than the host. `just images` fills it from `git describe`.
+  # torve than the host. `just images` fills it with the release setuptools-scm
+  # renders for the tree, and refuses to build when that render is empty.
   default = ""
 }
 
