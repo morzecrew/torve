@@ -162,5 +162,6 @@ invariants:
       Every key of the old flat tier body lives in exactly one of the three files,
       and the other two refuse it by name.
     paths: [src/torve/config/agents.py, src/torve/config/runconfig.py]
-    check: uv run pytest tests/test_agents.py -k one_home
+    check: >-
+      uv run pytest tests/test_agents.py -k "key_in_a or moved_key"
 retired: [D-5, D-6]

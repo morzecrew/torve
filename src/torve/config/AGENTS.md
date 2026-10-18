@@ -768,7 +768,7 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
   - Check: `uv run pytest tests/test_agents.py -k base_rules`
 - **S-0061/I-2**: Every key of the old flat tier body lives in exactly one of the three files, and the other two refuse it by name.
   - Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py`
-  - Check: `uv run pytest tests/test_agents.py -k one_home`
+  - Check: `uv run pytest tests/test_agents.py -k "key_in_a or moved_key"`
 - **S-0062/I-2**: Every equipment item a run used is named by a cache key that resolves to a source and a ref an operator wrote.
   - Paths: `src/torve/config/equipment.py` `src/torve/application/telemetry.py`
   - Check: `uv run pytest tests/test_equipment.py -k reconstructable`
@@ -777,6 +777,6 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
   - Check: `uv run pytest tests/test_agents.py -k no_shell`
 - **S-0064/I-1**: Every dispatchable seat names a model its provider's roster lists and a dialect its harness speaks; neither is discovered by an attempt.
   - Paths: `src/torve/config/runconfig.py` `src/torve/config/providers.py`
-  - Check: `uv run pytest tests/test_providers.py -k pairing`
+  - Check: `uv run pytest tests/test_runconfig.py tests/test_dispatch.py -k "cannot_speak or declaring_no_dialect or roster_does_not_list"`
 
 <!-- /torve:managed -->
