@@ -3,7 +3,7 @@
   "private": true,
   "description": "dsh and every package under it, pinned by package-lock.json so a rebuild cannot change the harness",
   "dependencies": {
-    "@deepseek-ai/dsh": "0.1.1-rc.2"
+    "@deepseek-ai/dsh": "0.1.2-rc.1"
   },
   "overrides": {
     "@deepseek-ai/cordis": "4.0.2",
