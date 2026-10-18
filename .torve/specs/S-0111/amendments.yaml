@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-18T18:21:00Z'
+    title: >-
+      Phase 1 owns the tests paired with the modules it allows
+    md: >-
+      Planning refused phase 1 on the T-0113 rule: a phase that allows a module must
+      allow its existing tests. Phase 1 allows `src/torve/application/runner.py` and
+      `src/torve/config/fleet.py`, so it now owns `tests/test_runner.py`, `tests/test_fleet.py`,
+      `tests/test_fleet_cli.py`, `tests/test_fleet_config.py` and `tests/test_fleet_serve.py`,
+      and runs them in its acceptance. All five run without Docker or the store.
