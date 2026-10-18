@@ -1,0 +1,131 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0112
+title: A release publishes its seat images
+kind: design
+change:
+  type: feat
+  scope: images
+status: draft
+implementation: none
+depends_on: [S-0110, S-0111]
+informed_by: [S-0063]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A repository that installs torve as a tool cannot build the images its seats run, because `just images` needs torve's source tree. So every adopter copies torve's image definitions into `.torve/sandbox/`, and the copies drift.
+
+  Each torve release now builds its base and seat images from the tag and checks that each one runs that release. Only then does it publish them to `ghcr.io/morzecrew`, tagged with the release's version. A harness manifest names its image with `{torve}`, which resolves to the installed torve's version. An upgrade then moves `engine` and nothing else, and the image runs the host's torve by construction. `torve doctor` accepts a published image by its labels, with no local definition. Renovate keeps the harness versions the definitions pin current.
+motivation: >-
+  On 2026-10-18 the owner asked for the images to be built and published from torve.
+  The same day showed why. Every adopter carries a copy of torve's definitions under
+  `.torve/sandbox/` so that `torve doctor` finds a definition beside each image, and
+  bloomery's copy of the base had already drifted from torve's. `just images` builds
+  the base only as a context and never tags it, so `sandbox-base:latest` was five
+  weeks old and ran torve 0.1.0, and an image derived from it inherited that version.
+  The bake tags `:latest` while the harness manifests pin versioned tags, so every
+  rebuild ended with a `docker tag` per seat by hand.
+current_state: >-
+  `bake.hcl` declares the base and one target per definition under `sandboxes/` (S-0063/D-8).
+  `REGISTRY` and `TAG` variables exist, `TAG` defaults to `latest`, and `just images-push`
+  pushes with them, but nothing calls it. The `default` group leaves out the base.
+  Each image carries the host's version through `SETUPTOOLS_SCM_PRETEND_VERSION` (S-0110/D-4).
+  The harness manifests pin `claude-sandbox:2.1.283`, `dsh-sandbox:0.1.2-rc.1` and
+  `mimo-sandbox:0.1.15`. The release workflow publishes only the package to PyPI and
+  the GitHub release. `torve doctor` requires `<root>/<definitions>/<name>/Dockerfile`
+  for every `<name>-sandbox` image (S-0063/D-6) and compares the image's toolkit with
+  the definition's (S-0063/D-14). The definitions pin claude, codex, dsh and mimo
+  in `ARG`s; opencode installs whatever npm serves; the base and codex copy uv from
+  `ghcr.io/astral-sh/uv:latest`. Dependabot watches uv and the GitHub actions; nothing
+  watches the images.
+goals: |-
+  - A release's images are on ghcr.io before anyone needs them, each tested to run that release.
+  - An adopter carries no copy of a definition torve publishes, and its upgrade is `uv tool install` plus `engine`.
+  - torve's own seats name their images the same way, and a local rebuild needs no retag.
+  - Every version a definition installs is pinned, and Renovate proposes the next one.
+non_goals: |-
+  - arm64 images: every host that serves today is amd64.
+  - Signing the images: the labels and the digest identify them, as S-0017/D-1 already records.
+  - Moving the adopters off their copies: bloomery and platform-images each do that in their own pull request after the release.
+design:
+  - key: tags-and-the-placeholder
+    md: |-
+      The version tag is the release's version, written as a tag. A tag may not hold `+`, so a development version's local part takes `-` instead: `0.4.1.dev3+g1a2b3c4` is tagged `0.4.1.dev3-g1a2b3c4`. Every image gets that tag, and the base is in the `default` group. `just images` then tags exactly what it stamps, and `:latest` is gone.
+
+      A published release also tags each seat `<harness>-torve<version>` (for example `claude-sandbox:2.1.283-torve0.5.0`), for a person who wants the harness's version in the reference. The base and battery images have no harness version and get only the version tag. No tag is pushed twice.
+
+      `{torve}` in a harness manifest's `image` or in `runtime.image` is replaced at load with the installed torve's version, written as a tag. torve's own manifests say `claude-sandbox:{torve}`. An adopter's say `ghcr.io/morzecrew/claude-sandbox:{torve}`. A derived image builds `FROM ghcr.io/morzecrew/sandbox-base:<version>`.
+  - key: labels
+    md: |-
+      The bake gives every image:
+      - `org.opencontainers.image.source`: torve's repository;
+      - `org.opencontainers.image.version`: the stamped version;
+      - `org.opencontainers.image.revision`: the commit;
+      - `io.morze.torve.harness.version`: the harness's version, on a seat image.
+
+      `torve doctor` reads them for a published image instead of a definition. The source must name torve's repository and the version must equal the host's. A `<name>-sandbox` image with neither a definition nor those labels stays red, as S-0063/D-6 has it.
+  - key: the-release
+    md: |-
+      The release workflow gains an `images` job after `publish`.
+      1. It builds every target from the tag with `VERSION` set to the tag's version, and loads each into the runner.
+      2. For each image, it runs `torve --version`, which must print the tag's version. A seat image also runs its harness's `--version`, which must print the version its label carries.
+      3. Only then does it push both tags of every image.
+
+      A failure leaves the package published and no image tagged, and the job can be rerun. The packages are public; the owner settled that on 2026-10-18, Claude Code's included.
+  - key: renovate
+    md: |-
+      Every version a definition installs sits in an `ARG` with a `# renovate:` annotation on the line above, as morzecrew/platform-images annotates its bake file. Every `FROM` and `COPY --from` names a pinned tag. `.github/renovate.json` limits Renovate to `sandboxes/**`: a regex manager for the annotated `ARG`s, the dockerfile manager for the base images, and npm for the dsh harness's lock. Dependabot keeps uv and the actions.
+
+      A merged bump reaches adopters with the next release, because a published tag is never moved.
+tests: |-
+  - `{torve}` resolves to the installed version in a harness manifest and in `runtime.image`, and a `+` becomes `-` (D-2).
+  - The bake's resolved definition tags every target, the base included, with the stamped version, and gives each the four labels (D-3, D-5).
+  - Doctor accepts a published image whose labels name torve's repository and the host's version, and reds one whose version differs or whose source is another repository (D-6).
+  - The release workflow's `images` job needs `publish` and runs its version checks before any push (D-1, D-4).
+  - Every `FROM` and `COPY --from` under `sandboxes/` names a pinned tag, and every `*_VERSION` `ARG` carries a `# renovate:` annotation (D-7).
+docs: >-
+  The adoption reference's image section and the upgrading reference's rebuild step
+  say to pull the published images and name them with `{torve}`. The configuration
+  reference documents the placeholder.
+out_of_scope: |-
+  - Removing bloomery's and platform-images' copies of the definitions: their own pull requests, after this ships in a release.
+  - A weekly rebuild of a published tag: a rebuilt tag is a new digest and a new regime (S-0017/D-1). A base-image security fix ships as a release.
+risks: |-
+  - The first publish creates each package under the org's default visibility; making them public is a setting on GitHub, once per package.
+  - A release now takes as long as its slowest image build. A failed image job is rerun on its own and does not touch PyPI.
+  - The harness version reaches an adopter only through a torve release, so a harness security fix needs one.
+alternatives:
+  - option: >-
+      Adopters pin `claude-sandbox:2.1.283-torve0.5.0` in their manifests, with no
+      placeholder.
+    rejected_because: >-
+      Two numbers then move on every upgrade, in every manifest, and must agree with
+      `engine`; a tool that bumps one cannot see the other. The tag is still published
+      for a person who wants it.
+  - option: >-
+      Keep copying the definitions into adopters and build the images on each host.
+    rejected_because: >-
+      The copies drift, the build needs torve's source tree, and a tool install has
+      none.
+  - option: >-
+      Move every dependency torve has from Dependabot to Renovate.
+    rejected_because: >-
+      The images need an `ARG` regex manager, which Dependabot lacks; uv and the actions
+      need nothing Dependabot does not already do. Q-1 asks whether to consolidate
+      anyway.
+questions:
+  - id: Q-1
+    text: >-
+      Renovate for `sandboxes/**` only, beside Dependabot, or all of torve's dependencies
+      on Renovate as platform-images does? The draft keeps Dependabot for uv and the
+      actions.
+  - id: Q-2
+    text: >-
+      Is the Renovate app installed for morzecrew/torve? It runs on platform-images;
+      phase 4's configuration does nothing without it.
+  - id: Q-3
+    text: >-
+      After the first publish, the seven packages need their visibility set to public
+      on GitHub. Is that yours to do, or should the workflow's token be given the
+      permission to do it?
