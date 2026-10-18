@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dispatch wrote into the run's worktree when the root has none, and keeps that copy
   when it releases the worktree to rebase.
 
+### Security
+
+- The dsh seat image runs dsh 0.1.2-rc.1. Earlier releases trusted the Host header on
+  dsh's local control-plane API, so code in the sandbox could run commands with full
+  access and lift the seat's approval policy. Rebuild the dsh image.
+
 ## [0.3.2] - 2026-10-15
 
 ### Changed
