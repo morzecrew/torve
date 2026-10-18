@@ -373,9 +373,11 @@ def test_a_harness_reading_the_mount_excludes_nothing(tmp_path):
 # The arm reaches the attempt as a composed prompt (S-0082/D-1, S-0082/D-2)
 
 
-def _arm_session(tmp_path, **arm) -> dict:
+def _arm_session(tmp_path, *, docker: str = "", nested_roles=None, **arm) -> dict:
     """Drive one attempt under *arm* and hand back what the agent was given,
-    what the worktree carried when it looked, and the record the attempt left."""
+    what the worktree carried when it looked, and the record the attempt left.
+    *docker* and *nested_roles* configure the runtime, so a test can nest the
+    attempt's sandbox (S-0111/D-4)."""
 
     import asyncio
     import json
@@ -383,6 +385,7 @@ def _arm_session(tmp_path, **arm) -> dict:
 
     from torve.application.ports import AgentResult, SandboxHandle
     from torve.application.runner import drive_attempts, real_hooks
+    from torve.config.runconfig import NestedConfig, RuntimeConfig
     from torve.domain.states import TaskState
 
     seen: dict = {}
@@ -401,6 +404,8 @@ def _arm_session(tmp_path, **arm) -> dict:
 
     class InertRuntime:
         def create(self, spec, workspace):
+            seen["nested"] = spec.nested
+
             return SandboxHandle(id="h-1", name=spec.name)
 
         def resolve_image(self, image):
@@ -421,6 +426,7 @@ def _arm_session(tmp_path, **arm) -> dict:
 
     config = RunnerConfig(
         poison_ceiling=1,
+        runtime=RuntimeConfig(docker=docker, nested=NestedConfig(roles=nested_roles or ["gates"])),
         tiers={
             "planner": TierConfig(),
             "reviewer": TierConfig(),
@@ -495,6 +501,29 @@ def test_the_configured_arm_composes_its_prompt_in_the_adapter_as_it_did(tmp_pat
     assert seen["pack"]
     assert "removed" not in seen["agent_block"]
     assert "arm" not in seen["agent_block"]
+
+
+# ....................... #
+# The attempt's sandbox is nested when the configuration nests its role
+# (S-0111/D-4): the same mark the gates sandbox always got, resolved from
+# `runtime.nested.roles` so `implement` has to be named.
+
+
+def test_the_attempt_sandbox_is_nested_when_implement_is_nested(tmp_path):
+    seen = _arm_session(tmp_path, docker="nested", nested_roles=["gates", "implement"])
+
+    assert seen["nested"] is not None
+    assert seen["nested"].image == "docker:27.5.1-dind"
+    assert seen["nested"].volume == "torve-dind-0"
+
+
+def test_the_attempt_sandbox_is_not_nested_when_only_gates_is(tmp_path):
+    """The default nests the gates role alone (S-0111/D-4), so an attempt's
+    sandbox carries no daemon of its own until `implement` is named."""
+
+    seen = _arm_session(tmp_path, docker="nested")
+
+    assert seen["nested"] is None
 
 
 # ----------------------- #

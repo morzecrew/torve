@@ -15,6 +15,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from torve.application.ports import (
     PROXY_ENV,
@@ -65,6 +66,68 @@ def cache_home_env(mount: str = CACHE_MOUNT) -> dict[str, str]:
 # address is the broker, and the proxy env points at it — never at the
 # host's own proxy, which would be a path nobody meant to leave open.
 SEALED_PROXY_ENV = ("http_proxy", "https_proxy", "all_proxy")
+
+
+# ....................... #
+
+
+# The hosts that mean "this machine's own loopback": a proxy on one of them is
+# reachable from the host and, under a chosen network mode, from the sandbox —
+# but not from a nested sandbox, which holds the side container's namespace
+# instead of the host's (S-0111/D-6).
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+# The proxy variables that carry a URL, as opposed to `no_proxy`'s host list:
+# only a proxy a loopback host names is rewritten, never the host list.
+PROXY_URL_ENV = tuple(name for name in PROXY_ENV if name != "no_proxy")
+
+
+# ....................... #
+
+
+def _proxy_host(value: str) -> str | None:
+    return urlsplit(value).hostname
+
+
+def host_loopback_proxies() -> dict[str, str]:
+    """The host environment's proxy variables whose host is loopback, by the
+    spelling the variable carries — the ones a nested sandbox cannot reach at
+    that address (S-0111/D-6)."""
+
+    found: dict[str, str] = {}
+
+    for name in PROXY_URL_ENV:
+        for variant in (name, name.upper()):
+            value = os.environ.get(variant)
+
+            if value and _proxy_host(value) in LOOPBACK_HOSTS:
+                found[variant] = value
+
+    return found
+
+
+# ....................... #
+
+
+def rewrite_loopback(url: str, gateway: str) -> str:
+    """*url* with a loopback host replaced by *gateway* (S-0111/D-6), preserving
+    scheme, credentials and port. Anything not a loopback URL is returned
+    unchanged: the rewrite is for the one address a nested sandbox lost, never a
+    general rewrite of what the host forwards."""
+
+    parts = urlsplit(url)
+
+    if parts.hostname not in LOOPBACK_HOSTS:
+        return url
+
+    host = f"[{gateway}]" if ":" in gateway else gateway
+    netloc = f"{host}:{parts.port}" if parts.port else host
+
+    if parts.username:
+        credentials = parts.username + (f":{parts.password}" if parts.password else "")
+        netloc = f"{credentials}@{netloc}"
+
+    return urlunsplit(parts._replace(netloc=netloc))
 
 
 # ....................... #
@@ -143,6 +206,21 @@ class DockerRuntime:
 
     # ....................... #
 
+    def _loopback_gateway(self) -> str:
+        """The address a nested sandbox's loopback proxy is rewritten to
+        (S-0111/D-6): the side container — and so the sandbox sharing its
+        namespace — sits on the daemon's default bridge, whose gateway is the
+        host side of that network, where the host's proxy must answer. Resolved
+        only when a forwarded proxy is on loopback, so a host with no such proxy
+        asks docker nothing."""
+
+        if not host_loopback_proxies():
+            return ""
+
+        return self._network_gateway("bridge")
+
+    # ....................... #
+
     @staticmethod
     def _mounts_cache(spec: SandboxSpec) -> bool:
         """A spec carrying the fixed cache mount is the whole signal: the
@@ -155,32 +233,43 @@ class DockerRuntime:
     # ....................... #
 
     @staticmethod
-    def _proxy_args() -> list[str]:
+    def _proxy_args(gateway: str = "") -> list[str]:
         """The host's proxy variables, name-only, for a container's own tools
         and its daemon. An ordinary non-sealed sandbox forwards them under a
         chosen network mode; a nested sandbox takes the side container's
         namespace instead of a mode, so it and the side container forward them
         here rather than losing egress to the branch they no longer take. A
-        loopback proxy needs the gateway rewrite (S-0111/D-6), which is deferred;
-        a proxy that needs no rewrite is forwarded as it always was."""
+        loopback proxy is unreachable there and is rewritten to *gateway*, the
+        host side of the side container's network (S-0111/D-6); a proxy that
+        needs no rewrite is forwarded name-only, exactly as it always was."""
 
         args: list[str] = []
 
         for name in PROXY_ENV:
             for variant in (name, name.upper()):
-                if variant in os.environ:
+                value = os.environ.get(variant)
+
+                if value is None:
+                    continue
+
+                if gateway and _proxy_host(value) in LOOPBACK_HOSTS:
+                    args += ["-e", f"{variant}={rewrite_loopback(value, gateway)}"]
+                else:
                     args += ["-e", variant]
 
         return args
 
     # ....................... #
 
-    def _run_args(self, spec: SandboxSpec, workspace: Path, side: str = "") -> list[str]:
+    def _run_args(
+        self, spec: SandboxSpec, workspace: Path, side: str = "", gateway: str = ""
+    ) -> list[str]:
         """The `docker run` argument list for a spec — pure, so the mount
         and env wiring is testable without a daemon. *side* names the nested
         side container this sandbox joins (S-0111/D-1), when it has one: then the
         sandbox shares the side container's network namespace and reaches its
-        daemon at `DOCKER_HOST`, and the run's own network mode does not apply."""
+        daemon at `DOCKER_HOST`, and the run's own network mode does not apply.
+        *gateway* rewrites a loopback proxy for that sandbox (S-0111/D-6)."""
 
         mount_mode = ":ro" if spec.workspace_read_only else ""
 
@@ -219,7 +308,7 @@ class DockerRuntime:
             # taking a network mode of its own (S-0111/D-1): its loopback then holds
             # the daemon, so published ports answer on `localhost`.
             args += ["--network", f"container:{side}", "-e", f"DOCKER_HOST={DOCKER_HOST}"]
-            args += self._proxy_args()
+            args += self._proxy_args(gateway)
 
         elif self.network:
             args += ["--network", self.network]
@@ -280,7 +369,9 @@ class DockerRuntime:
 
     # ....................... #
 
-    def _side_args(self, spec: SandboxSpec, workspace: Path, side: str) -> list[str]:
+    def _side_args(
+        self, spec: SandboxSpec, workspace: Path, side: str, gateway: str = ""
+    ) -> list[str]:
         """The `docker run` argument list for a nested sandbox's side container
         (S-0111/D-2): privileged, carrying the sandbox's labels so the reaper
         removes it with the sandbox, the worktree at the sandbox's own workdir
@@ -316,8 +407,10 @@ class DockerRuntime:
 
         # The side daemon pulls the task's images itself, so it needs the host's
         # proxy too (S-0111/D-2): without it a mirrored or proxied registry is
-        # unreachable and every `docker pull` in the sandbox fails.
-        args += self._proxy_args()
+        # unreachable and every `docker pull` in the sandbox fails. A loopback
+        # proxy is rewritten for the side container as well, since it shares the
+        # namespace the rewrite is meant for (S-0111/D-6).
+        args += self._proxy_args(gateway)
 
         for key, value in spec.labels.items():
             args += ["--label", f"{key}={value}"]
@@ -378,8 +471,9 @@ class DockerRuntime:
         assert spec.nested is not None
 
         side = f"{spec.name}{NESTED_SUFFIX}"
+        gateway = self._loopback_gateway()
 
-        started = self._run(*self._side_args(spec, workspace, side))
+        started = self._run(*self._side_args(spec, workspace, side, gateway))
 
         if started.returncode != 0:
             raise DockerError(started.stderr.strip() or "nested side container failed to start")
@@ -399,7 +493,7 @@ class DockerRuntime:
                 pruned.stderr.strip() or "nested sandbox: the side daemon would not prune"
             )
 
-        proc = self._run(*self._run_args(spec, workspace, side))
+        proc = self._run(*self._run_args(spec, workspace, side, gateway))
 
         if proc.returncode != 0:
             # D-3: both containers are removed — the sandbox never came up, and

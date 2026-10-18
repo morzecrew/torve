@@ -507,3 +507,88 @@ def test_the_image_is_asked_through_docker_and_a_failure_is_no_answer(monkeypatc
     assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) is None
     assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) is None
     assert doctor._in_image("claude-sandbox:t", ["torve", "--version"]) is None
+
+
+# ----------------------- #
+# S-0111/D-6: a nested attempt reaches its model through the host's loopback
+# proxy rewritten to the side container's bridge gateway, or doctor says why
+# not. A fake docker answers both calls: the gateway lookup and the probe from
+# a bridge container.
+
+
+def _clear_proxies(monkeypatch) -> None:
+    from torve.application.ports import PROXY_ENV
+
+    for name in PROXY_ENV:
+        for variant in (name, name.upper()):
+            monkeypatch.delenv(variant, raising=False)
+
+
+def _nested_repo(tmp_path: Path, roles: list[str]) -> Path:
+    return _doctor_repo(tmp_path, {"runtime": {"docker": "nested", "nested": {"roles": roles}}})
+
+
+def _fake_docker_runs(monkeypatch, *, answers: bool, seen: list) -> None:
+    import subprocess
+
+    from torve.cli import doctor
+
+    def run(argv, **kwargs):
+        seen.append(argv)
+
+        if argv[1] == "network":
+            return subprocess.CompletedProcess(argv, 0, stdout="172.17.0.1\n", stderr="")
+
+        return subprocess.CompletedProcess(argv, 0 if answers else 1, stdout="", stderr="")
+
+    monkeypatch.setattr(doctor.subprocess, "run", run)
+
+
+def test_the_nested_proxy_check_rewrites_a_loopback_proxy_and_probes_the_gateway(
+    tmp_path: Path, monkeypatch
+):
+    from torve.cli import doctor
+
+    _clear_proxies(monkeypatch)
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:7890")
+    root = _nested_repo(tmp_path, ["gates", "implement"])
+    seen: list = []
+    _fake_docker_runs(monkeypatch, answers=True, seen=seen)
+
+    checks = doctor._nested_proxy_check(root, None)
+
+    assert [(name, ok) for name, ok, _ in checks] == [("nested-proxy", True)]
+    assert "https_proxy=http://172.17.0.1:7890" in checks[0][2]
+
+    probe = next(argv for argv in seen if argv[1] == "run")
+    assert "--network" in probe and "bridge" in probe
+    assert "http://172.17.0.1:7890" in probe
+
+
+def test_the_nested_proxy_check_reds_a_proxy_the_bridge_cannot_reach(tmp_path: Path, monkeypatch):
+    from torve.cli import doctor
+
+    _clear_proxies(monkeypatch)
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:7890")
+    root = _nested_repo(tmp_path, ["gates", "implement"])
+    _fake_docker_runs(monkeypatch, answers=False, seen=[])
+
+    checks = doctor._nested_proxy_check(root, None)
+
+    assert [(name, ok) for name, ok, _ in checks] == [("nested-proxy", False)]
+    assert "https_proxy=http://172.17.0.1:7890" in checks[0][2]
+    assert "bridge gateway 172.17.0.1" in checks[0][2]
+
+
+def test_the_nested_proxy_check_is_silent_when_no_attempt_is_nested(tmp_path: Path, monkeypatch):
+    from torve.cli import doctor
+
+    _clear_proxies(monkeypatch)
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:7890")
+    _fake_docker_runs(monkeypatch, answers=True, seen=[])
+
+    gates_only = _nested_repo(tmp_path / "gates", ["gates"])
+    off = _doctor_repo(tmp_path / "off", {})
+
+    assert doctor._nested_proxy_check(gates_only, None) == []
+    assert doctor._nested_proxy_check(off, None) == []

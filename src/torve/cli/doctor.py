@@ -256,6 +256,159 @@ def _image_version_check(image: str, host: str) -> tuple[str, bool, str] | None:
     )
 
 
+# The nested attempt's egress check (S-0111/D-6). A sandbox that holds the side
+# container's namespace lost the host's loopback, so the runtime rewrites a
+# loopback proxy to that side container's network gateway — and doctor asks the
+# rewritten address from a container on the same bridge. A run's model API may
+# be reachable only through the proxy, so this is the one preflight that stands
+# between a nested attempt and a silent egress failure. Reachability is one TCP
+# connect; the probe needs only the python3 a sandbox image carries.
+
+_NESTED_PROBE_TIMEOUT_S = 30
+_NESTED_PROBE = (
+    "import socket,sys,urllib.parse as u\n"
+    "p=u.urlsplit(sys.argv[1])\n"
+    "socket.create_connection((p.hostname, p.port or (443 if p.scheme=='https' else 80)), 5).close()\n"
+)
+
+
+def _docker_out(argv: list[str], timeout: int) -> subprocess.CompletedProcess[str] | None:
+    """One docker call through the module's own subprocess seam, or None when
+    the runtime cannot be reached at all — the seam `_in_image` already fakes."""
+
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _bridge_gateway() -> str | None:
+    """The default bridge's gateway — the host side of the network a nested
+    sandbox's side container sits on (S-0111/D-6) — or None when docker cannot
+    answer."""
+
+    result = _docker_out(
+        [
+            "docker",
+            "network",
+            "inspect",
+            "--format",
+            "{{(index .IPAM.Config 0).Gateway}}",
+            "bridge",
+        ],
+        _IMAGE_TIMEOUT_S,
+    )
+
+    if result is None or result.returncode != 0:
+        return None
+
+    return result.stdout.strip() or None
+
+
+def _bridge_answers(image: str, url: str) -> bool:
+    """Whether *url* answers a TCP connection from a container on the default
+    bridge (S-0111/D-6) — the network the nested side container, and so the
+    sandbox, sits on."""
+
+    result = _docker_out(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "bridge",
+            "--entrypoint",
+            "python3",
+            image,
+            "-c",
+            _NESTED_PROBE,
+            url,
+        ],
+        _NESTED_PROBE_TIMEOUT_S,
+    )
+
+    return result is not None and result.returncode == 0
+
+
+def _nested_proxy_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """S-0111/D-6: when a role other than gates is nested, an attempt reaches
+    its model through the host's proxy rewritten to the bridge gateway — or
+    doctor says why not. No line when nested is off, when only gates is nested
+    (the gates sandbox needs no proxy), or when the host has no loopback proxy
+    to rewrite."""
+
+    from torve.adapters.runtime.docker import host_loopback_proxies, rewrite_loopback
+
+    config = load_config(root, config_path)
+    runtime = config.runtime
+
+    if runtime.docker != "nested" or not any(role != "gates" for role in runtime.nested.roles):
+        return []
+
+    proxies = host_loopback_proxies()
+
+    if not proxies:
+        return [
+            (
+                "nested-proxy",
+                True,
+                (
+                    "nested: no loopback proxy in the host environment — a nested "
+                    "attempt reaches its model directly"
+                ),
+            )
+        ]
+
+    gateway = _bridge_gateway()
+
+    if gateway is None:
+        return [
+            (
+                "nested-proxy",
+                False,
+                (
+                    "nested: the bridge gateway could not be resolved, so a loopback "
+                    "proxy cannot be rewritten for a nested attempt — the docker runtime "
+                    "is unavailable"
+                ),
+            )
+        ]
+
+    rewritten = {name: rewrite_loopback(url, gateway) for name, url in proxies.items()}
+    broken = sorted(
+        name for name, url in rewritten.items() if not _bridge_answers(runtime.image, url)
+    )
+
+    if broken:
+        named = ", ".join(f"{name}={rewritten[name]}" for name in broken)
+
+        return [
+            (
+                "nested-proxy",
+                False,
+                (
+                    f"nested: {named} do not answer from the bridge — a nested attempt's "
+                    f"egress is the host's proxy at the bridge gateway {gateway}; make the "
+                    "host proxy listen there too"
+                ),
+            )
+        ]
+
+    named = ", ".join(f"{name}={rewritten[name]}" for name in sorted(rewritten))
+
+    return [
+        (
+            "nested-proxy",
+            True,
+            f"nested: {named} answered from a bridge container",
+        )
+    ]
+
+
+# ....................... #
+
+
 def _engine_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]] | None:
     """S-0110/D-2: a configuration naming an engine release this torve is
     outside stops every command that loads it. Doctor is named as one that
@@ -1117,6 +1270,7 @@ def doctor(
         checks += _route_checks(root, config_path)
         checks += _equipment_checks(root, config_path)
         checks += _image_checks(root, config_path)
+        checks += _nested_proxy_check(root, config_path)
         checks += _init_checks(root, config_path)
         checks += _stub_checks(root)
         checks += _standing_refusal_check(root)

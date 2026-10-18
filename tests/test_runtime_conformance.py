@@ -352,6 +352,10 @@ if args and args[0] == "exec":
         sys.exit(int(os.environ.get("FAKE_DOCKER_INFO_RC", "0")))
     sys.exit(0)
 
+if args and args[0] == "network":
+    print(os.environ.get("FAKE_DOCKER_GATEWAY", "172.17.0.1"))
+    sys.exit(0)
+
 sys.exit(0)
 """
 
@@ -445,6 +449,28 @@ def test_a_nested_sandbox_and_its_side_container_keep_the_host_proxies(monkeypat
 
     assert "https_proxy" in joined
     assert "https_proxy" in side
+
+
+def test_a_loopback_proxy_is_rewritten_to_the_side_containers_gateway(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-6: a nested sandbox holds the side container's namespace, so the
+    host's loopback proxy is out of reach. The sandbox — and the side daemon
+    beside it — are handed that proxy at the side container's network gateway
+    instead, resolved from the daemon's default bridge."""
+
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:7890")
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    spec = nested_spec()
+
+    handle = runtime.create(spec, tmp_path)
+
+    runs = [a for a in fake_docker.invocations() if a[0] == "run"]
+    side, joined = runs[0], runs[1]
+    assert "https_proxy=http://172.17.0.1:7890" in side
+    assert "https_proxy=http://172.17.0.1:7890" in joined
+
+    runtime.destroy(handle)
 
 
 def test_create_starts_the_side_container_readies_it_then_joins_the_sandbox(fake_docker, tmp_path):
