@@ -1,0 +1,100 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0111]
+phasing:
+  - phase: 1
+    title: >-
+      Every image is tagged with the version it carries
+    intent: >-
+      The bake tags every target with the stamped version written as a tag (`+` as
+      `-`), puts the base in the `default` group and gives each image the four labels;
+      `just images` passes the commit for the revision label. The configuration loader
+      replaces `{torve}` in a harness manifest's `image` and in `runtime.image`, and
+      torve's own harness manifests use it. Tests: the placeholder (`tests/test_agents.py`,
+      `tests/test_runconfig.py`) and the bake's tags, group and labels (`tests/test_sandbox_defs.py`).
+      Settles D-2, D-3 and D-5.
+    scope:
+      - bake.hcl
+      - justfile
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - .torve/harnesses/**
+      - tests/test_agents.py
+      - tests/test_runconfig.py
+      - tests/test_sandbox_defs.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_agents.py tests/test_runconfig.py tests/test_sandbox_defs.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: Doctor accepts a published image by its labels
+    intent: >-
+      Where a `<name>-sandbox` image has no definition beside it, doctor reads its
+      labels and accepts it when the source names torve's repository and the version
+      equals the host's; S-0063/D-6 is amended to say so, as the owner agreed. Tests:
+      a published image accepted, one with another version or another source red,
+      a local image without a definition still red (`tests/test_doctor.py`, `tests/test_sandbox_defs.py`).
+      Settles D-6.
+    scope:
+      - src/torve/cli/doctor.py
+      - src/torve/cli/sandbox.py
+      - .torve/specs/S-0063/**
+      - tests/test_doctor.py
+      - tests/test_sandbox_defs.py
+      - tests/test_sandbox_images.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_doctor.py tests/test_sandbox_defs.py tests/test_sandbox_images.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: >-
+      The release publishes the images after checking each one
+    intent: >-
+      The release workflow's `images` job, after `publish`, builds every target from
+      the tag with the tag's version, checks each image's `torve --version` and each
+      seat's harness version against its label, then pushes both tags. Tests: the
+      job needs `publish` and its checks precede every push (`tests/test_release_workflow.py`),
+      and zizmor passes. Settles D-1 and D-4.
+    scope:
+      - .github/workflows/release.yaml
+      - .github/scripts/**
+      - tests/test_release_workflow.py
+    acceptance:
+      - uv run pytest tests/test_release_workflow.py
+      - uv run zizmor --collect=default .github/
+    depends_on:
+      - 1
+    character: routine
+  - phase: 4
+    title: Renovate keeps the definitions' versions current
+    intent: >-
+      Every installed version becomes an `ARG` with a `# renovate:` annotation (opencode
+      gains one), every `FROM` and `COPY --from` is pinned (uv among them), and `.github/renovate.json`
+      configures Renovate for `sandboxes/**` alone. Tests: every pin and annotation
+      (`tests/test_sandbox_defs.py`). Settles D-7.
+    scope: [sandboxes/*/Dockerfile, .github/renovate.json, tests/test_sandbox_defs.py]
+    acceptance:
+      - uv run pytest tests/test_sandbox_defs.py
+    depends_on:
+      - 2
+    character: routine
+  - phase: 5
+    title: The references say to pull
+    intent: >-
+      The adoption reference's image section, the upgrading reference's rebuild step
+      and the configuration reference describe the published images, `{torve}` and
+      deriving from `ghcr.io/morzecrew/sandbox-base`. Tests: the docs name only fields
+      and images that exist (`tests/test_docs.py`, `tests/test_skills.py`). Settles
+      D-8.
+    scope: [skills/torve/**, pages/docs/**, tests/test_docs.py, tests/test_skills.py]
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+    depends_on:
+      - 3
+      - 4
+    character: routine

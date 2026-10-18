@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Every torve release publishes the base and every definition under `sandboxes/`
+      to `ghcr.io/morzecrew/<name>`, public. Each image is tagged with the release's
+      version, and each seat image also `<harness>-torve<version>`. A published tag
+      is never pushed twice.
+    paths: [.github/workflows/release.yaml]
+    consequence: >-
+      an adopter pulls the images its release names and builds none of torve's
+    rationale: >-
+      The owner asked for published images on 2026-10-18 and settled that the packages,
+      Claude Code's included, are public. A tool install has no source tree to build
+      from.
+    cites: [S-0063/D-6, S-0110/D-4]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `{torve}` in a harness manifest's `image` or in `runtime.image` is replaced
+      when the configuration loads with the installed torve's version, with `+` written
+      `-`. torve's own harness manifests name their images that way.
+    paths:
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - .torve/harnesses/**
+    consequence: >-
+      an upgrade moves `engine` and no image reference, and a seat runs the host's
+      torve by construction
+    rationale: >-
+      A pinned seat tag is a second version beside `engine` that must agree with it,
+      and the bake's `:latest` never matched the pins, so every rebuild ended in a
+      retag by hand.
+    cites: [S-0110/D-2, S-0017/D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The bake tags every image, the base included, with the version it stamps, written
+      as a tag; `:latest` is gone, and the base is in the `default` group.
+    paths: [bake.hcl, justfile]
+    consequence: >-
+      `just images` produces exactly the tags `{torve}` resolves to, and a derived
+      image finds a base that runs the same torve
+    rationale: >-
+      The base was built only as a context, so `sandbox-base:latest` was five weeks
+      old and ran torve 0.1.0 on 2026-10-18.
+    cites: [S-0063/D-8, S-0110/D-4]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The release's `images` job runs after `publish`. It builds every target from
+      the tag and loads each, checks that `torve --version` prints the tag's version
+      and a seat's harness prints the version its label carries, and pushes only then.
+    paths: [.github/workflows/release.yaml, .github/scripts/**]
+    consequence: >-
+      no tag names an image that runs another torve, and a failed image job leaves
+      PyPI as it was
+    rationale: >-
+      morzecrew/platform-images smoke-tests a digest before it moves a tag, and doctor
+      already refuses a version mismatch on the host; the release refuses it before
+      anyone pulls.
+    cites: [S-0110/D-4]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Every image carries `org.opencontainers.image.source`, `org.opencontainers.image.version`
+      and `org.opencontainers.image.revision`, and a seat image `io.morze.torve.harness.version`.
+    paths: [bake.hcl]
+    consequence: >-
+      a pulled image says which repository, release and commit built it without its
+      definition beside it
+    rationale: >-
+      Doctor needs something to read where an adopter keeps no definition (D-6).
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `torve doctor` accepts a `<name>-sandbox` image with no definition beside it
+      when its `org.opencontainers.image.source` names torve's repository and its
+      version label equals the host's torve. An image with neither a definition nor
+      those labels stays red.
+    paths: [src/torve/cli/doctor.py, src/torve/cli/sandbox.py]
+    consequence: >-
+      an adopter keeps `.torve/sandbox/<name>/` only for an image it builds itself
+    rationale: >-
+      The owner agreed on 2026-10-18 that this amends S-0063/D-6, which the phase
+      that settles this row does. A published image's reviewed definition is torve's,
+      at the commit its revision label names.
+    cites: [S-0063/D-6, S-0063/D-14]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      Every version a definition installs is an `ARG` annotated `# renovate:`, every
+      `FROM` and `COPY --from` names a pinned tag, and Renovate, limited to `sandboxes/**`,
+      proposes the bumps.
+    paths: [sandboxes/*/Dockerfile, .github/renovate.json]
+    consequence: >-
+      a harness or base update arrives as a pull request, and reaches adopters with
+      the next release
+    rationale: >-
+      The owner asked for the images to be bumped in time. Dependabot has no manager
+      for an `ARG`, and opencode and uv were unpinned on 2026-10-18.
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The adoption and upgrading references and the configuration reference say to
+      pull the published images, name them with `{torve}`, and derive from `ghcr.io/morzecrew/sandbox-base`.
+    paths: [skills/torve/references/**, pages/docs/**]
+    consequence: >-
+      an adopter's first image step is a pull, not a copy
+    rationale: >-
+      The adoption reference names a `torve-base:latest` image that no build produces.
