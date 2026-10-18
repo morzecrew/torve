@@ -976,8 +976,13 @@ def test_the_base_carries_the_docker_cli_compose_buildx_just_and_openssl() -> No
     neither plugin; its plugin directory is where `compose` and `buildx` live."""
 
     block = BASE.read_text(encoding="utf-8")
+    # The comments name openssl and just too: only an instruction line proves
+    # the image carries them.
+    instructions = "\n".join(
+        line for line in block.splitlines() if not line.lstrip().startswith("#")
+    )
 
-    assert "openssl" in block
-    assert "--from=docker:27.5.1-cli /usr/local/bin/docker" in block
-    assert "--from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins" in block
-    assert "just" in block
+    assert "openssl" in instructions
+    assert "--from=docker:27.5.1-cli /usr/local/bin/docker" in instructions
+    assert "--from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins" in instructions
+    assert "/just /usr/local/bin/just" in instructions
