@@ -825,10 +825,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#s-0110d-11-assumed-a-second-adopter-runs-torve-from-a-tool-install-implementation-none" class="md-nav__link">
+  <a href="#s-0110d-11-assumed-a-second-adopter-runs-torve-from-a-tool-install" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        S-0110/D-11 — <code>ASSUMED</code> (A second adopter runs torve from a tool install) — implementation: none
+        S-0110/D-11 — <code>ASSUMED</code> (A second adopter runs torve from a tool install)
       </span>
     </span>
   </a>
@@ -878,7 +878,7 @@
 <li>Paths: <code>pages/docs/reference/stability.md</code> <code>README.md</code></li>
 <li>Consequence: an adopter reads one page to upgrade, and a release cannot move a format silently</li>
 </ul>
-<h3 id="s-0110d-11-assumed-a-second-adopter-runs-torve-from-a-tool-install-implementation-none">S-0110/D-11 — <code>ASSUMED</code> (A second adopter runs torve from a tool install) — implementation: none<a class="headerlink" href="#s-0110d-11-assumed-a-second-adopter-runs-torve-from-a-tool-install-implementation-none" title="Permanent link">&para;</a></h3>
+<h3 id="s-0110d-11-assumed-a-second-adopter-runs-torve-from-a-tool-install">S-0110/D-11 — <code>ASSUMED</code> (A second adopter runs torve from a tool install)<a class="headerlink" href="#s-0110d-11-assumed-a-second-adopter-runs-torve-from-a-tool-install" title="Permanent link">&para;</a></h3>
 <p><code>pages/docs/reference/stability.md</code> and the operator reference <code>upgrading.md</code> state the upgrade: install the release over the old one (<code>uv tool install --force</code> with the new exact version; <code>uv tool upgrade</code> keeps an exact pin) and raise <code>engine</code>, rebuild the seat images, run <code>torve init</code>, <code>torve migrate --all</code> when the release notes name a record migration, and <code>torve doctor</code>, then commit. A release that moves a <code>schema_version</code>, adds a record migration or changes the hooks carries an Upgrade note.</p>
 <ul>
 <li>Paths: <code>pages/docs/reference/stability.md</code> <code>README.md</code> <code>skills/torve/references/upgrading.md</code></li>
