@@ -580,6 +580,22 @@ def test_the_nested_proxy_check_reds_a_proxy_the_bridge_cannot_reach(tmp_path: P
     assert "bridge gateway 172.17.0.1" in checks[0][2]
 
 
+def test_the_nested_proxy_check_never_prints_a_proxy_password(tmp_path: Path, monkeypatch):
+    from torve.cli import doctor
+
+    _clear_proxies(monkeypatch)
+    monkeypatch.setenv("https_proxy", "http://user:hunter2@127.0.0.1:7890")
+    root = _nested_repo(tmp_path, ["gates", "implement"])
+
+    for answers in (True, False):
+        _fake_docker_runs(monkeypatch, answers=answers, seen=[])
+
+        message = doctor._nested_proxy_check(root, None)[0][2]
+
+        assert "https_proxy=http://172.17.0.1:7890" in message
+        assert "hunter2" not in message and "user@" not in message
+
+
 def test_the_nested_proxy_check_is_silent_when_no_attempt_is_nested(tmp_path: Path, monkeypatch):
     from torve.cli import doctor
 

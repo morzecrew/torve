@@ -59,7 +59,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import typer
 import yaml
@@ -380,8 +380,14 @@ def _nested_proxy_check(root: Path, config_path: Path | None) -> list[tuple[str,
         name for name, url in rewritten.items() if not _bridge_answers(runtime.image, url)
     )
 
+    def shown(url: str) -> str:
+        # A credentialed proxy's user and password stay out of doctor's output
+        # and any log that captures it.
+        parts = urlsplit(url)
+        return urlunsplit(parts._replace(netloc=parts.netloc.rpartition("@")[2]))
+
     if broken:
-        named = ", ".join(f"{name}={rewritten[name]}" for name in broken)
+        named = ", ".join(f"{name}={shown(rewritten[name])}" for name in broken)
 
         return [
             (
@@ -395,7 +401,7 @@ def _nested_proxy_check(root: Path, config_path: Path | None) -> list[tuple[str,
             )
         ]
 
-    named = ", ".join(f"{name}={rewritten[name]}" for name in sorted(rewritten))
+    named = ", ".join(f"{name}={shown(rewritten[name])}" for name in sorted(rewritten))
 
     return [
         (
