@@ -7,21 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `.torve/config.yaml` can name the torve release a repository needs, `engine: "X.Y.Z"`,
+  meaning that release up to the next minor. A command that loads the configuration
+  under a torve outside the range stops and names the install command for one inside
+  it; `torve --version`, `guide` and `doctor` still run.
+
+- `torve doctor` goes red when a seat image carries another torve version than the
+  host's. `just images` stamps each image with the version the host's torve reports
+  for the same tree.
+
+- `gates.yaml` can declare a Python project under a subdirectory, `layout.root`, and
+  top-level directories that ride with any change, `layout.carried`. The source-layout
+  gate, citation scan, spec quality report, coverage and default test paths read the
+  project root; the sizer counts a carried directory as no module.
+
+- `torve manager board --until-change` waits until a task's state, attempts or
+  escalation changes, or the night closes, then prints the changed rows and exits.
+  `--document` narrows the wait to one document's tasks.
+
+- The base sandbox image carries CPython 3.14 beside 3.13, so a project on Python 3.14
+  runs its gates in a seat image without deriving one.
+
+- `torve guide torve upgrading` states the upgrade, and the adoption reference covers a
+  tool install, `engine`, a nested layout and the shipped hooks.
+
+### Changed
+
+- **Breaking:** torve's git commands no longer run the repository's git hooks; every
+  commit, rebase, checkout and push it makes sets `core.hooksPath=/dev/null`. A
+  repository that relied on a hook running on torve's commits moves that check into
+  its gates or its CI.
+
+- **Breaking:** a repository installs torve as a uv tool rather than locking it as a
+  dependency, and the stub `torve init` writes calls bare `torve`. A repository that
+  keeps torve only in its lock installs it as a tool too, or the stub finds no `torve`.
+
+- torve runs on forze 0.13.0. Its configuration hash moves with the pin, so telemetry
+  starts a new regime, and the seat images need rebuilding.
+
+- **Upgrade:** the implement hooks ship in the package as `torve:hooks/implement`, and
+  the starter implement profile equips them. `torve init` leaves an existing profile
+  alone: a repository that copied `.torve/agents/hooks/implement/` points its profile's
+  hook item there by hand and deletes the copy.
+
+- For a project under a subdirectory, coverage reads its source prefix from the
+  report's Cobertura `<sources>`, the reviewer collapses every rider file
+  `scope.derived` names as it does `uv.lock`, and the context pack leaves out paths
+  `tests.patterns` names.
+
 ### Fixed
 
-- A task minted during a served run no longer takes the id of a task the store already
-  holds. A plan minted into the record writes no file under `.torve/tasks/`, and the
-  review minted at gated, a review-thread round and a standing instance counted only
-  those files, so a review took the id of the task it judged and staging its copy
-  removed that task's worktree, crashing the night. They now number past the board's
-  ids as well, read when the contract is minted. `torve intake`, `decompose`, `adopt`
-  and `review pr` take `--partition` (and `--dsn`) to do the same when run by hand.
-- The served lane now lands a task the store holds. `torve plan --partition` writes no
-  contract under `.torve/tasks/`, but the lane read it there to find the task's
-  document and to compose its pull request, so every pass failed with "No such file or
-  directory" and pushed the task branch on its way. The lane now reads the contract
-  dispatch wrote into the run's worktree when the root has none, and keeps that copy
-  when it releases the worktree to rebase.
+- The sizer no longer counts a glob whose first segment is a wildcard, such as
+  `**/x.py`, as a module named `**`.
+
+- A review, thread round or standing task minted during a served run no longer takes
+  the id of a task only the store holds, which removed that task's worktree and
+  crashed the night. `torve intake`, `decompose`, `adopt` and `review pr` take
+  `--partition` to number past the board's ids by hand.
+
+- The served lane lands a task planned with `torve plan --partition`. It read the task's
+  contract from `.torve/tasks/`, which such a plan never writes, so every pass failed
+  with "No such file or directory".
 
 ## [0.3.2] - 2026-10-15
 

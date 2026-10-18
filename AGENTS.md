@@ -120,21 +120,21 @@ A row's `check` may name a property test: a Hypothesis test stating the decision
 - Paths: `pyproject.toml` `skills/spec-writer/SKILL.md`
 - Consequence: a decision is checked over the inputs it governs, not over the one example its author thought of
 
-### S-0110/D-1 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+### S-0110/D-1 — `ASSUMED` (A second adopter runs torve from a tool install)
 
 torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`, and rebuilds its seat images in the same change.
 
 - Paths: `pyproject.toml` `uv.lock` `migrations/substrate/FORZE_VERSION`
 - Consequence: torve runs on the forze its adopters run, and the substrate pin check reads the new version
 
-### S-0110/D-4 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+### S-0110/D-4 — `ASSUMED` (A second adopter runs torve from a tool install)
 
 `just images` stamps every image with the version setuptools-scm renders for the tree it builds, the number hatch-vcs gives the host's torve, through `SETUPTOOLS_SCM_PRETEND_VERSION`; `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
 
 - Paths: `bake.hcl` `justfile` `sandboxes/base/Dockerfile` `src/torve/cli/doctor.py`
 - Consequence: a sandbox running another torve than the host is a red check before a night
 
-### S-0110/D-11 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+### S-0110/D-11 — `ASSUMED` (A second adopter runs torve from a tool install)
 
 `pages/docs/reference/stability.md` and the operator reference `upgrading.md` state the upgrade: install the release over the old one (`uv tool install --force` with the new exact version; `uv tool upgrade` keeps an exact pin) and raise `engine`, rebuild the seat images, run `torve init`, `torve migrate --all` when the release notes name a record migration, and `torve doctor`, then commit. A release that moves a `schema_version`, adds a record migration or changes the hooks carries an Upgrade note.
 

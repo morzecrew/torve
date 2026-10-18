@@ -30,7 +30,7 @@ The starter manifest is the four structural builtins (`scope`, `secrets`, `no-te
 - Paths: `pages/docs/operating.md`
 - Consequence: the operating page, the skill and the CLI say the same thing once each
 
-### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install)
 
 A repository installs torve as a uv tool, not as a project dependency, and every command torve writes or ships for a host or a sandbox calls bare `torve`: the stub `init` writes, the shipped hooks, and the operating docs and skill.
 
