@@ -763,7 +763,7 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 
 ### S-0111/D-6 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
 
-In a nested sandbox's environment, a proxy whose host is loopback is rewritten to the side container's network gateway. `torve doctor` checks, from a bridge container, that the rewritten proxy answers when a role other than gates is nested.
+In a nested sandbox's environment, a proxy whose host is loopback is rewritten to the side container's network gateway. `torve doctor` checks, from a bridge container, that the rewritten proxy answers whenever any role is nested: the side daemon of every nested sandbox, the gates included, pulls its images through it.
 
 - Paths: `src/torve/adapters/runtime/docker.py` `src/torve/cli/doctor.py`
 - Consequence: an attempt in a nested sandbox reaches its model, or the doctor says why not

@@ -345,6 +345,9 @@ with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
 args = sys.argv[1:]
 
 if args and args[0] == "run":
+    # What an `-e NAME` argument would forward: the CLI's own environment.
+    with open(os.environ["FAKE_DOCKER_LOG"] + ".env", "a", encoding="utf-8") as f:
+        f.write(json.dumps(os.environ.get("https_proxy")) + "\n")
     print("fakecontainerid")
     sys.exit(0)
 
@@ -469,8 +472,12 @@ def test_a_loopback_proxy_is_rewritten_to_the_side_containers_gateway(
 
     runs = [a for a in fake_docker.invocations() if a[0] == "run"]
     side, joined = runs[0], runs[1]
-    assert "https_proxy=http://172.17.0.1:7890" in side
-    assert "https_proxy=http://172.17.0.1:7890" in joined
+    # Named only in the arguments, so a proxy's credentials never show in a
+    # process listing; the rewritten value is the docker CLI's environment.
+    assert "https_proxy" in side and "https_proxy" in joined
+    assert not any("7890" in arg for arg in side + joined)
+    forwarded = (fake_docker.log_file.parent / "fake-docker.log.env").read_text().split()
+    assert forwarded[:2] == ['"http://172.17.0.1:7890"'] * 2
 
     runtime.destroy(handle)
 

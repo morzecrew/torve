@@ -27,7 +27,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # CLI looks for `compose` and `buildx`.
 COPY --from=docker:27.5.1-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
-COPY --from=ghcr.io/casey/just:1.40.0 /just /usr/local/bin/just
+COPY --from=ghcr.io/casey/just:1.59.0 /just /usr/local/bin/just
 
 # The engine's own CLI, for the verbs an attempt calls from inside its
 # sandbox: `torve log divergence` records a divergence through the run's

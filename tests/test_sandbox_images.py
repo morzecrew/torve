@@ -1332,7 +1332,13 @@ def test_a_nested_sandbox_runs_a_compose_project_over_its_own_daemon(tmp_path):
         "services:\n"
         "  ping:\n"
         "    image: alpine:3.20\n"
-        "    command: [sh, -c, 'echo nested-round-trip']\n",
+        "    command: [sh, -c, 'echo nested-round-trip']\n"
+        "  web:\n"
+        "    image: alpine:3.20\n"
+        r"    command: [sh, -c, 'while true; do printf"
+        r' "HTTP/1.0 200 OK\r\n\r\nnested-port" | nc -l -p 80; done'
+        "']\n"
+        "    ports: ['18080:80']\n",
         encoding="utf-8",
     )
 
@@ -1352,9 +1358,20 @@ def test_a_nested_sandbox_runs_a_compose_project_over_its_own_daemon(tmp_path):
             version = runtime.exec(handle, "docker compose version", 120)
             assert version.exit_code == 0, version.output
 
-            up = runtime.exec(handle, "docker compose up --abort-on-container-exit", 600)
+            up = runtime.exec(handle, "docker compose up --abort-on-container-exit ping", 600)
             assert up.exit_code == 0, up.output
             assert "nested-round-trip" in up.output
+
+            # A published port answers on the sandbox's own `localhost`: it shares
+            # the side container's namespace, where the daemon binds the port.
+            web = runtime.exec(handle, "docker compose up -d web", 300)
+            assert web.exit_code == 0, web.output
+            port = runtime.exec(
+                handle,
+                "curl -s --retry 20 --retry-connrefused --retry-delay 1 http://localhost:18080/",
+                120,
+            )
+            assert "nested-port" in port.output, port.output
 
             # The daemon is the sandbox's own, reached at the address it was told
             # (S-0111/D-1): a TLS-only daemon on 2376 would have failed readiness.

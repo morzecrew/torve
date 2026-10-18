@@ -10,3 +10,30 @@ amendments:
       `src/torve/config/fleet.py`, so it now owns `tests/test_runner.py`, `tests/test_fleet.py`,
       `tests/test_fleet_cli.py`, `tests/test_fleet_config.py` and `tests/test_fleet_serve.py`,
       and runs them in its acceptance. All five run without Docker or the store.
+  - id: A-2
+    at: '2026-10-18T22:22:21Z'
+    title: >-
+      The doctor checks the rewritten proxy whenever any role is nested
+    changes:
+      - subject: D-6
+        field: text
+        before: >-
+          In a nested sandbox's environment, a proxy whose host is loopback is rewritten
+          to the side container's network gateway. `torve doctor` checks, from a bridge
+          container, that the rewritten proxy answers when a role other than gates
+          is nested.
+        after: >-
+          In a nested sandbox's environment, a proxy whose host is loopback is rewritten
+          to the side container's network gateway. `torve doctor` checks, from a bridge
+          container, that the rewritten proxy answers whenever any role is nested:
+          the side daemon of every nested sandbox, the gates included, pulls its images
+          through it.
+      - subject: D-6
+        field: fingerprint
+        after: de73237daa356786/0e3c926c74d862e3
+    md: >-
+      Review of the document's pull request found the gates exemption wrong. The runtime
+      hands every nested side container the host's proxy, rewritten to the bridge
+      gateway, because its daemon pulls the task's images. A host whose proxy listens
+      on loopback alone then fails every pull in a gates-only configuration, and the
+      doctor said nothing. The check now runs whenever any role is nested.

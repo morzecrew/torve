@@ -164,8 +164,14 @@ class DockerRuntime:
     # ....................... #
 
     def _run(
-        self, *args: str, timeout: float | None = None, stdin: str | None = None
+        self,
+        *args: str,
+        timeout: float | None = None,
+        stdin: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
+        # *env* overlays the docker CLI's own environment, so a value an `-e NAME`
+        # argument forwards never shows in the process's argument list.
         return subprocess.run(
             [self.docker, *args],
             capture_output=True,
@@ -173,6 +179,7 @@ class DockerRuntime:
             timeout=timeout,
             check=False,
             input=stdin,
+            env={**os.environ, **env} if env else None,
         )
 
     # ....................... #
@@ -233,43 +240,48 @@ class DockerRuntime:
     # ....................... #
 
     @staticmethod
-    def _proxy_args(gateway: str = "") -> list[str]:
+    def _proxy_args() -> list[str]:
         """The host's proxy variables, name-only, for a container's own tools
         and its daemon. An ordinary non-sealed sandbox forwards them under a
         chosen network mode; a nested sandbox takes the side container's
         namespace instead of a mode, so it and the side container forward them
-        here rather than losing egress to the branch they no longer take. A
-        loopback proxy is unreachable there and is rewritten to *gateway*, the
-        host side of the side container's network (S-0111/D-6); a proxy that
-        needs no rewrite is forwarded name-only, exactly as it always was."""
+        here rather than losing egress to the branch they no longer take. Name-only
+        always: a rewritten value travels in the docker CLI's environment
+        (`_proxy_env`), so a proxy's credentials never reach an argument list."""
 
-        args: list[str] = []
-
-        for name in PROXY_ENV:
-            for variant in (name, name.upper()):
-                value = os.environ.get(variant)
-
-                if value is None:
-                    continue
-
-                if gateway and _proxy_host(value) in LOOPBACK_HOSTS:
-                    args += ["-e", f"{variant}={rewrite_loopback(value, gateway)}"]
-                else:
-                    args += ["-e", variant]
-
-        return args
+        return [
+            arg
+            for name in PROXY_ENV
+            for variant in (name, name.upper())
+            if variant in os.environ
+            for arg in ("-e", variant)
+        ]
 
     # ....................... #
 
-    def _run_args(
-        self, spec: SandboxSpec, workspace: Path, side: str = "", gateway: str = ""
-    ) -> list[str]:
+    @staticmethod
+    def _proxy_env(gateway: str) -> dict[str, str]:
+        """The loopback proxies rewritten to *gateway*, the host side of the side
+        container's network (S-0111/D-6), by the variable that carries each: the
+        values a nested sandbox's `-e NAME` arguments forward in place of the
+        host's. A proxy that needs no rewrite keeps the host's own value."""
+
+        if not gateway:
+            return {}
+
+        return {
+            variant: rewrite_loopback(value, gateway)
+            for variant, value in host_loopback_proxies().items()
+        }
+
+    # ....................... #
+
+    def _run_args(self, spec: SandboxSpec, workspace: Path, side: str = "") -> list[str]:
         """The `docker run` argument list for a spec — pure, so the mount
         and env wiring is testable without a daemon. *side* names the nested
         side container this sandbox joins (S-0111/D-1), when it has one: then the
         sandbox shares the side container's network namespace and reaches its
-        daemon at `DOCKER_HOST`, and the run's own network mode does not apply.
-        *gateway* rewrites a loopback proxy for that sandbox (S-0111/D-6)."""
+        daemon at `DOCKER_HOST`, and the run's own network mode does not apply."""
 
         mount_mode = ":ro" if spec.workspace_read_only else ""
 
@@ -308,7 +320,7 @@ class DockerRuntime:
             # taking a network mode of its own (S-0111/D-1): its loopback then holds
             # the daemon, so published ports answer on `localhost`.
             args += ["--network", f"container:{side}", "-e", f"DOCKER_HOST={DOCKER_HOST}"]
-            args += self._proxy_args(gateway)
+            args += self._proxy_args()
 
         elif self.network:
             args += ["--network", self.network]
@@ -369,9 +381,7 @@ class DockerRuntime:
 
     # ....................... #
 
-    def _side_args(
-        self, spec: SandboxSpec, workspace: Path, side: str, gateway: str = ""
-    ) -> list[str]:
+    def _side_args(self, spec: SandboxSpec, workspace: Path, side: str) -> list[str]:
         """The `docker run` argument list for a nested sandbox's side container
         (S-0111/D-2): privileged, carrying the sandbox's labels so the reaper
         removes it with the sandbox, the worktree at the sandbox's own workdir
@@ -402,7 +412,9 @@ class DockerRuntime:
             "-w",
             spec.workdir,
             "-v",
-            f"{spec.nested.volume}:/var/lib/docker",
+            # No volume name is an anonymous volume, which `rm -v` removes with
+            # the side container: a shadow run's daemon starts and ends cold.
+            f"{spec.nested.volume}:/var/lib/docker" if spec.nested.volume else "/var/lib/docker",
         ]
 
         # The side daemon pulls the task's images itself, so it needs the host's
@@ -410,7 +422,7 @@ class DockerRuntime:
         # unreachable and every `docker pull` in the sandbox fails. A loopback
         # proxy is rewritten for the side container as well, since it shares the
         # namespace the rewrite is meant for (S-0111/D-6).
-        args += self._proxy_args(gateway)
+        args += self._proxy_args()
 
         for key, value in spec.labels.items():
             args += ["--label", f"{key}={value}"]
@@ -468,11 +480,15 @@ class DockerRuntime:
     # What a nested daemon is cleared of before a task starts (S-0111/D-2): the
     # containers, volumes and networks a previous task in this slot left, never
     # the images — what was pulled stays pulled. Run once the daemon answers, so
-    # the task's own names and ports cannot collide with a corpse.
+    # the task's own names and ports cannot collide with a corpse. Every container
+    # goes, running ones too: the daemon restarts a `restart: always` service
+    # from the last task, and a prune skips what runs. `volume prune -a` takes
+    # named volumes, which a plain prune keeps since Docker 23. Chained with
+    # `&&` and stderr kept, so a failed step fails the clearing and says why.
     NESTED_PRUNE = (
-        "docker container prune -f >/dev/null 2>&1; "
-        "docker volume prune -f >/dev/null 2>&1; "
-        "docker network prune -f >/dev/null 2>&1"
+        'ids=$(docker ps -aq) && { [ -z "$ids" ] || docker rm -f -v $ids >/dev/null; } && '
+        "docker volume prune -a -f >/dev/null && "
+        "docker network prune -f >/dev/null"
     )
 
     # ....................... #
@@ -484,9 +500,9 @@ class DockerRuntime:
         assert spec.nested is not None
 
         side = f"{spec.name}{NESTED_SUFFIX}"
-        gateway = self._loopback_gateway()
+        proxies = self._proxy_env(self._loopback_gateway())
 
-        started = self._run(*self._side_args(spec, workspace, side, gateway))
+        started = self._run(*self._side_args(spec, workspace, side), env=proxies)
 
         if started.returncode != 0:
             raise DockerError(started.stderr.strip() or "nested side container failed to start")
@@ -513,7 +529,7 @@ class DockerRuntime:
                 pruned.stderr.strip() or "nested sandbox: the side daemon would not prune"
             )
 
-        proc = self._run(*self._run_args(spec, workspace, side, gateway))
+        proc = self._run(*self._run_args(spec, workspace, side), env=proxies)
 
         if proc.returncode != 0:
             # D-3: both containers are removed — the sandbox never came up, and
@@ -527,13 +543,17 @@ class DockerRuntime:
 
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
         if spec.nested is not None:
-            return self._create_nested(spec, workspace)
-        proc = self._run(*self._run_args(spec, workspace))
+            # A nested sandbox mounts the same cache volume, so it takes the
+            # same ownership step below.
+            handle = self._create_nested(spec, workspace)
 
-        if proc.returncode != 0:
-            raise DockerError(proc.stderr.strip() or "docker run failed")
+        else:
+            proc = self._run(*self._run_args(spec, workspace))
 
-        handle = SandboxHandle(id=proc.stdout.strip(), name=spec.name)
+            if proc.returncode != 0:
+                raise DockerError(proc.stderr.strip() or "docker run failed")
+
+            handle = SandboxHandle(id=proc.stdout.strip(), name=spec.name)
 
         if self._mounts_cache(spec):
             # A named volume Docker creates on first use is root-owned, and

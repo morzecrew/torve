@@ -147,12 +147,14 @@ What these settings mean:
   are its own, and nothing it starts outlives it.
 
 `nested` needs the `docker` runtime; OpenSandbox and sealed broker mode refuse
-it, and the review role is refused — a judge never starts containers.
+it, and the review role is refused — a judge never starts containers. The
+sandbox image must carry the Docker CLI: `sandboxes/base` does, so derive the
+gates image from it rather than from a stock language image.
 
 ```yaml
 runtime:
   adapter: docker
-  image: python:3.13-slim
+  image: sandbox-base:latest    # carries the docker CLI; a stock image does not
   docker: nested
   nested:
     image: docker:27.5.1-dind   # the pinned dind image the side container runs

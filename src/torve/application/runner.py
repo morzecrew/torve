@@ -631,7 +631,9 @@ def _nested_docker(run: Dispatch, role: str) -> NestedDocker | None:
 
     return NestedDocker(
         image=nested.image,
-        volume=f"{nested.cache_volume}-{run.config.worker_slot}",
+        # A shadow run starts cold (S-0035/D-3): no slot volume, so its daemon
+        # gets a throwaway one that leaves with the side container.
+        volume="" if run.shadow else f"{nested.cache_volume}-{run.config.worker_slot}",
         registry_mirrors=tuple(nested.registry_mirrors),
         ready_s=nested.ready_s,
     )

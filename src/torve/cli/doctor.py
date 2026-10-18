@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -256,28 +257,40 @@ def _image_version_check(image: str, host: str) -> tuple[str, bool, str] | None:
     )
 
 
-# The nested attempt's egress check (S-0111/D-6). A sandbox that holds the side
+# The nested sandbox's egress check (S-0111/D-6). A sandbox that holds the side
 # container's namespace lost the host's loopback, so the runtime rewrites a
 # loopback proxy to that side container's network gateway — and doctor asks the
-# rewritten address from a container on the same bridge. A run's model API may
-# be reachable only through the proxy, so this is the one preflight that stands
-# between a nested attempt and a silent egress failure. Reachability is one TCP
-# connect; the probe needs only the python3 a sandbox image carries.
+# rewritten address from a container on the same bridge. A run's model API, and
+# the side daemon's image pulls, may be reachable only through the proxy, so this
+# is the one preflight that stands between a nested sandbox and a silent egress
+# failure. Reachability is one TCP connect; the probe needs only the python3 a
+# sandbox image carries.
 
 _NESTED_PROBE_TIMEOUT_S = 30
 _NESTED_PROBE = (
-    "import socket,sys,urllib.parse as u\n"
-    "p=u.urlsplit(sys.argv[1])\n"
+    "import os,socket,urllib.parse as u\n"
+    "p=u.urlsplit(os.environ['TORVE_PROBE_URL'])\n"
     "socket.create_connection((p.hostname, p.port or (443 if p.scheme=='https' else 80)), 5).close()\n"
 )
 
 
-def _docker_out(argv: list[str], timeout: int) -> subprocess.CompletedProcess[str] | None:
+def _docker_out(
+    argv: list[str], timeout: int, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str] | None:
     """One docker call through the module's own subprocess seam, or None when
-    the runtime cannot be reached at all — the seam `_in_image` already fakes."""
+    the runtime cannot be reached at all — the seam `_in_image` already fakes.
+    *env* overlays the docker CLI's environment, for a value that must not show
+    in an argument list."""
 
     try:
-        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env={**os.environ, **env} if env else None,
+        )
 
     except (OSError, subprocess.SubprocessError):
         return None
@@ -309,7 +322,8 @@ def _bridge_gateway() -> str | None:
 def _bridge_answers(image: str, url: str) -> bool:
     """Whether *url* answers a TCP connection from a container on the default
     bridge (S-0111/D-6) — the network the nested side container, and so the
-    sandbox, sits on."""
+    sandbox, sits on. The URL rides in the environment, named only, so a
+    proxy's credentials stay out of the host's process listing."""
 
     result = _docker_out(
         [
@@ -318,32 +332,33 @@ def _bridge_answers(image: str, url: str) -> bool:
             "--rm",
             "--network",
             "bridge",
+            "-e",
+            "TORVE_PROBE_URL",
             "--entrypoint",
             "python3",
             image,
             "-c",
             _NESTED_PROBE,
-            url,
         ],
         _NESTED_PROBE_TIMEOUT_S,
+        env={"TORVE_PROBE_URL": url},
     )
 
     return result is not None and result.returncode == 0
 
 
 def _nested_proxy_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """S-0111/D-6: when a role other than gates is nested, an attempt reaches
-    its model through the host's proxy rewritten to the bridge gateway — or
-    doctor says why not. No line when nested is off, when only gates is nested
-    (the gates sandbox needs no proxy), or when the host has no loopback proxy
-    to rewrite."""
+    """S-0111/D-6, S-0111/A-2: when any role is nested, its sandbox and side daemon
+    reach the network through the host's proxy rewritten to the bridge gateway —
+    or doctor says why not. No line when nested is off, or when the host has no
+    loopback proxy to rewrite."""
 
     from torve.adapters.runtime.docker import host_loopback_proxies, rewrite_loopback
 
     config = load_config(root, config_path)
     runtime = config.runtime
 
-    if runtime.docker != "nested" or not any(role != "gates" for role in runtime.nested.roles):
+    if runtime.docker != "nested" or not runtime.nested.roles:
         return []
 
     proxies = host_loopback_proxies()
@@ -369,7 +384,7 @@ def _nested_proxy_check(root: Path, config_path: Path | None) -> list[tuple[str,
                 False,
                 (
                     "nested: the bridge gateway could not be resolved, so a loopback "
-                    "proxy cannot be rewritten for a nested attempt — the docker runtime "
+                    "proxy cannot be rewritten for a nested sandbox — the docker runtime "
                     "is unavailable"
                 ),
             )
@@ -394,7 +409,7 @@ def _nested_proxy_check(root: Path, config_path: Path | None) -> list[tuple[str,
                 "nested-proxy",
                 False,
                 (
-                    f"nested: {named} do not answer from the bridge — a nested attempt's "
+                    f"nested: {named} do not answer from the bridge — a nested sandbox's "
                     f"egress is the host's proxy at the bridge gateway {gateway}; make the "
                     "host proxy listen there too"
                 ),

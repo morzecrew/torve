@@ -266,7 +266,11 @@ def _needs_host(words: list[str], nested_gates: bool = False) -> bool:
     rather than skipping.
     """
 
-    if words[0] in {"docker", "podman"}:
+    # The nested daemon is Docker's: a gates sandbox has no podman to run.
+    if words[0] == "podman":
+        return True
+
+    if words[0] == "docker":
         return not nested_gates
 
     if "torve" not in words:
@@ -297,7 +301,7 @@ def _nests_gates(tree: Path) -> bool:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         config = RunnerConfig.model_validate(raw or {})
 
-    except (yaml.YAMLError, ValidationError):
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError):
         return False
 
     return config.runtime.nests("gates")

@@ -1712,6 +1712,11 @@ def test_the_lint_admits_docker_when_the_gates_role_is_nested(tmp_path: Path):
     config.write_text("runtime:\n  docker: nested\n", encoding="utf-8")
     assert lint_drafts(tmp_path, document(draft_dict(acceptance=command)), 4) == []
 
+    # The nested daemon is Docker's: podman still has nothing to run on.
+    podman = ["podman compose up -d"]
+    refused = lint_drafts(tmp_path, document(draft_dict(acceptance=podman)), 4)
+    assert any("reads the host" in e for e in refused)
+
     # Nested, but the gates role is not among the nested roles: no daemon where
     # the battery runs, so the refusal stands.
     config.write_text(
@@ -1742,6 +1747,13 @@ def test_the_lint_refuses_docker_when_the_configuration_is_absent_or_unreadable(
 
     (tree / ".torve").mkdir()
     (tree / ".torve" / "config.yaml").write_text("runtime: [unclosed\n", encoding="utf-8")
+    assert any(
+        "reads the host" in e
+        for e in lint_drafts(tree, document(draft_dict(acceptance=command)), 4)
+    )
+
+    # Bytes that are not UTF-8 are unreadable too: a refusal, not a crash.
+    (tree / ".torve" / "config.yaml").write_bytes(b"runtime:\n  docker: \xff\xfe\n")
     assert any(
         "reads the host" in e
         for e in lint_drafts(tree, document(draft_dict(acceptance=command)), 4)

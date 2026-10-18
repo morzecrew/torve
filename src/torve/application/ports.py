@@ -54,7 +54,7 @@ class NestedDocker:
     the runtime adapter derives nothing."""
 
     image: str
-    volume: str  # the fully-resolved slot-suffixed docker-state volume
+    volume: str  # the slot-suffixed docker-state volume; "" for a shadow run's throwaway one
     registry_mirrors: tuple[str, ...] = ()
     ready_s: float = 60.0
 

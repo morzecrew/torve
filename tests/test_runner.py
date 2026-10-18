@@ -3242,6 +3242,11 @@ def test_the_gates_sandbox_is_marked_nested_only_when_the_configuration_nests_ga
     )
     assert spec.name.endswith("-gates")
 
+    # A shadow run starts cold (S-0035/D-3): never the slot's daemon state.
+    run.shadow = True
+    shadow = _gates_spec(run, state).nested
+    assert shadow is not None and shadow.volume == ""
+
 
 def test_a_nested_implement_role_does_not_mark_the_gates_sandbox():
     """The default nests the gates alone (S-0111/D-4): a configuration nesting
