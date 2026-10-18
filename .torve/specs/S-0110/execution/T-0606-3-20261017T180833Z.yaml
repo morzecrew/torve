@@ -1,0 +1,237 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0606
+phase: 4
+attempt: 3
+base: 25dc21b27dbf5b97f8e26fe2bee6db707468f420
+commit: d3a09b1d7581525fd081faaf448543769aa907c4
+at: '2026-10-17T18:08:33Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-17T17:28:09Z'
+    claim: >-
+      The three path amendments re-govern directories, so five managed AGENTS.md projections
+      render differently than the tree holds; three of the five lie outside the contract's
+      scope, so the drift is reported rather than repaired.
+    evidence: >-
+      `uv run torve spec project --check` — FAIL 44 governed directories, 5 drifting
+    action: decided
+    proposal: >-
+      name AGENTS.md, skills/AGENTS.md and skills/hooks/AGENTS.md in the phase's scope
+      beside skills/hooks/** so the projection is regenerated in the same change
+  - decision: S-0072/D-1
+    grade: LOCKED
+    at: '2026-10-17T17:28:09Z'
+    claim: >-
+      The hooks live at skills/hooks/implement now and this row's paths name skills/hooks
+      and src/torve/config/agents.py, amended under Q-1; the payload-at-root, one-directory-per-harness
+      shape is unchanged, and the load-time refusal covers torve: items as it did
+      local ones.
+    evidence: >-
+      .torve/specs/S-0072/decisions.yaml:9 — the row now reads paths: [skills/hooks,
+      src/torve/config/agents.py]
+    action: decided
+    proposal: >-
+      nothing: the row was amended to the new directory and stands
+  - decision: S-0072/D-2
+    grade: LOCKED
+    at: '2026-10-17T17:28:09Z'
+    claim: >-
+      One judgement both harnesses invoke still lives in one place, moved to skills/hooks;
+      claude/settings.json and the dsh declaration reach the same scripts through
+      the mount name implement, which the move leaves unchanged.
+    evidence: >-
+      .torve/specs/S-0072/decisions.yaml:25 — the row now reads paths: [skills/hooks]
+    action: decided
+    proposal: >-
+      nothing: the row was amended to the new directory and stands
+  - decision: S-0077/D-3
+    grade: LOCKED
+    at: '2026-10-17T17:28:09Z'
+    claim: >-
+      The finish check lives at skills/hooks/implement/finish_check.py and still names
+      the governed rows the diff touches with no entry, asking bare torve rather than
+      uv.
+    evidence: >-
+      .torve/specs/S-0077/decisions.yaml:35 — the row now reads paths: [skills/hooks/implement/finish_check.py]
+    action: decided
+    proposal: >-
+      nothing: the row was amended to the new directory and stands
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-17T17:30:02Z'
+    claim: >-
+      Two of the five drifting projections, not three, lie outside the contract's
+      scope: the allow glob skills/hooks/** matches skills/hooks/AGENTS.md, so the
+      three the finish check named were regenerated with torve spec project. Root
+      AGENTS.md and skills/AGENTS.md were put back byte-for-byte the way they were
+      and remain drifted, which the shadow spec-projection gate reports and no blocking
+      gate reads.
+    evidence: >-
+      `uv run torve spec project --check` — DRIFT AGENTS.md; DRIFT skills/AGENTS.md;
+      FAIL 44 governed directories, 2 drifting
+    action: decided
+    proposal: >-
+      name AGENTS.md and skills/AGENTS.md in this phase's scope so the governed-directory
+      index and the skills/ projection are re-rendered in the same change that moved
+      the hooks
+  - decision: S-0072/D-1
+    grade: LOCKED
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      The row spells the new directory the way the corpus spells a directory a row
+      governs: skills/hooks/** beside src/torve/config/agents.py. The bare skills/hooks
+      the first amendment wrote governs the same files, but a bare directory projects
+      to its parent, so the row rendered into skills/AGENTS.md, a managed file outside
+      this contract's scope, and no agent editing the hooks was shown it. The item
+      shape the row states is unchanged.
+    evidence: >-
+      .torve/specs/S-0072/decisions.yaml:9 — the row reads paths: [skills/hooks/**,
+      src/torve/config/agents.py] (amendment A-3); this supersedes the attempt-1 entry
+      that recorded the bare spelling
+    action: decided
+  - decision: S-0072/D-2
+    grade: LOCKED
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      The row names skills/hooks/** for the same reason: the judgement both harnesses
+      invoke now projects into skills/hooks/AGENTS.md, the file an agent editing the
+      hooks reads, rather than into the skills index this contract cannot write. The
+      one-implementation rule and the mount name implement reach both harnesses unchanged.
+    evidence: >-
+      .torve/specs/S-0072/decisions.yaml:25 — the row reads paths: [skills/hooks/**]
+      (amendment A-4)
+    action: decided
+  - decision: S-0077/D-1
+    grade: ASSUMED
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      The finish check the row is about moved with the hooks, so its declared path
+      follows the file to skills/hooks/implement/finish_check.py. torve spec check
+      had named the row as path-rot against the old location, which this change created.
+    evidence: >-
+      .torve/specs/S-0077/decisions.yaml:8 — the row reads paths: [skills/hooks/implement/finish_check.py]
+      (amendment A-2)
+    action: departed
+  - decision: S-0077/D-2
+    grade: ASSUMED
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      Same move and same repair as S-0077/D-1: the row is about the same file, and
+      its path follows it.
+    evidence: >-
+      .torve/specs/S-0077/decisions.yaml:23 — the row reads paths: [skills/hooks/implement/finish_check.py]
+      (amendment A-3)
+    action: departed
+  - decision: S-0104/D-12
+    grade: ASSUMED
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      The pre-write hook this row is about is the file that moved, so its path follows
+      it; the row says shipping the hook as package equipment is a document of its
+      own, which is what this change carries out.
+    evidence: >-
+      .torve/specs/S-0104/decisions.yaml:149 — the row reads paths: [skills/hooks/implement/scope_guard.py]
+      (amendment A-2)
+    action: departed
+  - decision: S-0105/D-3
+    grade: ASSUMED
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      Both paths follow the moved copy and the text citation of the old path is rewritten,
+      because the rule the row states — the hook reads its globs through a byte-identical
+      copy of the source, proven by a test — is what this contract keeps true.
+    evidence: >-
+      .torve/specs/S-0105/decisions.yaml:55 — the row reads paths: [skills/hooks/implement/globs.py,
+      skills/hooks/implement/scope_guard.py], text amended (amendment A-1)
+    action: departed
+  - decision: S-0104/D-2
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      The fourth path was re-pointed at the moved hook and put back in the same turn:
+      a render prints a row paths line into every section carrying it, so re-pointing
+      it rewrites src/torve/application/AGENTS.md, src/torve/domain/AGENTS.md and
+      src/torve/gates/AGENTS.md, three managed files outside this contract scope.
+      The row stands with the dead path rather than a scope gate red.
+    evidence: >-
+      .torve/specs/S-0104/amendments.yaml:53 — A-5 puts the path back to [src/torve/application/runner.py,
+      src/torve/application/manager.py, src/torve/domain/events.py, .torve/agents/hooks/implement/scope_guard.py]
+    action: departed
+  - decision: S-0104/D-6
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-10-17T17:59:01Z'
+    attempt: 3
+    claim: >-
+      The same round trip as S-0104/D-2: this row carries the hook path beside src/torve/gates/scope.py,
+      and re-pointing it rewrites src/torve/gates/AGENTS.md, outside this contract
+      scope, so the path went back.
+    evidence: >-
+      .torve/specs/S-0104/amendments.yaml:74 — A-6 puts the path back to [src/torve/gates/scope.py,
+      .torve/agents/hooks/implement/scope_guard.py]
+    action: departed
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-17T17:59:06Z'
+    attempt: 3
+    claim: >-
+      The move makes deptry red: the hooks leave .torve, whose exclusion covered them,
+      and the sibling imports under skills/hooks/implement/ read as missing dependencies.
+      The exclusion and its comment follow the hooks to skills/hooks. The contract
+      names neither pyproject.toml nor the dependency analysis, and a top-level file
+      in the diff is also what lets the root AGENTS.md projection be rewritten at
+      all: the scope gate promotes a managed AGENTS.md beside a scoped path, and the
+      root index sits beside every top-level file.
+    evidence: >-
+      `uv run deptry .` printed: skills/hooks/implement/finish_check.py:250: DEP001
+      scope_guard imported but missing from the dependency definitions; read_guard.py:30:
+      DEP001 scope_guard; scope_guard.py:32: DEP001 globs; Found 3 dependency issues.
+    action: decided
+    proposal: >-
+      name pyproject.toml in the phase scope beside skills/hooks/**, so a move that
+      changes what the dependency analysis reads carries its own exclusion and the
+      root projection it re-renders
+    notes: >-
+      This entry supersedes the attempt-1 entry that reported root AGENTS.md and skills/AGENTS.md
+      left byte-for-byte and drifting: both are regenerated now. The no-test rule
+      that produced it is in working-rules, not in the gate.

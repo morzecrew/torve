@@ -35,13 +35,23 @@ gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"})
 
 GitHub's API sometimes fails with a TLS or EOF error. Retry it.
 
+## Threads that arrive after the night
+
+The thread leg answers what the bots have raised when the night drains; a bot
+that reviews the new head afterwards, or a person who comments the next
+morning, leaves findings the night never saw. They are the same work: list
+them with the query above on the head the day's work left, and answer each one
+no differently from a thread the leg minted. A thread a person opened is never
+resolved by you.
+
 ## After a fix
 
 - Run the phase's acceptance, not only the tests of the files you touched.
 - Push as a fast-forward, then look at the threads again: the bots review the
   new head.
 - Wait for CI and for the bots' re-review before calling the pull request
-  ready.
+  ready. `gh pr checks --watch` blocks until every check on the head finishes,
+  and exits non-zero when one fails — the wait without polling by hand.
 - If a bot still requests changes after all its threads are resolved, ask it
   to re-review in its own convention, and only when the owner has granted
   that.

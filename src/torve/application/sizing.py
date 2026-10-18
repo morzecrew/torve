@@ -9,6 +9,7 @@ observations are carried by the telemetry records themselves.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
@@ -30,7 +31,24 @@ CARRIED = frozenset({"tests", ".torve"})
 # ....................... #
 
 
-def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
+def _module_of(glob: str) -> str | None:
+    """The top-level module a scope glob names, or None (S-0110/D-9): a glob
+    with no `/` names no module, and a first segment that is a wildcard — `**`,
+    `*`, `?` — names no module either. `**/x.py` could be anywhere, so counting
+    its `**` as a module was never a module."""
+
+    if "/" not in glob:
+        return None
+
+    first = glob.split("/", 1)[0]
+
+    return None if any(ch in first for ch in "*?[") else first
+
+
+# ....................... #
+
+
+def estimate_scope(scope: Scope, acceptance: list[str], carried: Iterable[str] = ()) -> SizeVerdict:
     """The rule set itself, over the two fields it actually reads — shared
     by a minted task (`estimate`) and a still-unminted draft (S-0026
     S-0026/D-12's per-child check), so a decomposition judges its own children
@@ -52,8 +70,11 @@ def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
     # cosmetic number but a route to a decomposition run, so the estimate would
     # split a task for being properly recorded. Measured over this repository's
     # 61 contracts: counting `.torve` calls 9 of them oversized on that ground
-    # alone, and 33 stay oversized for reasons that are real.
-    modules = {glob.split("/", 1)[0] for glob in scope.allow if "/" in glob} - CARRIED
+    # alone, and 33 stay oversized for reasons that are real. `carried` names
+    # the directories a repository keeps that ride with code the same way
+    # (S-0110/D-9) — a migration tree beside the module it migrates.
+    modules = {module for glob in scope.allow if (module := _module_of(glob))} - CARRIED
+    modules -= set(carried)
 
     if len(modules) > MAX_MODULES:
         listed = ", ".join(sorted(modules))
@@ -74,8 +95,8 @@ def estimate_scope(scope: Scope, acceptance: list[str]) -> SizeVerdict:
 # ....................... #
 
 
-def estimate(task: Task) -> SizeVerdict:
-    return estimate_scope(task.scope, task.acceptance)
+def estimate(task: Task, carried: Iterable[str] = ()) -> SizeVerdict:
+    return estimate_scope(task.scope, task.acceptance, carried)
 
 
 # ....................... #

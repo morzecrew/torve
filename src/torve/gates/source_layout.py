@@ -27,11 +27,15 @@ FORBIDDEN_MODULE_NAMES = frozenset({"models.py", "utils.py", "helpers.py", "comm
 
 
 def check_source_layout(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
+    # S-0110/D-8: the source root is the layout's, `<root>/src/`, so a project
+    # under `app/` is checked over `app/src/` rather than passing over zero
+    # files because the diff is nowhere under the repository root's `src/`.
+    prefix = ctx.manifest.layout.source_prefix()
     candidates = sorted(
         {
             p
             for p in [*ctx.changed_paths, *ctx.untracked]
-            if p.endswith(".py") and p.startswith("src/")
+            if p.endswith(".py") and p.startswith(prefix)
         }
     )
 

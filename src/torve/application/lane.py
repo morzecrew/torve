@@ -57,6 +57,14 @@ if TYPE_CHECKING:
 #: own rows and invariants (S-0106/D-2).
 DOCUMENT_BRANCH = re.compile(r"^torve/(S-\d+)$")
 
+#: Every git the lane starts runs with the repository's hooks switched off
+#: (S-0110/D-7): configuration an agent wrote never executes on the host
+#: through a hook. `-c` is inherited by git's own child processes, so the
+#: commits a rebase makes and the send-pack behind a push are covered by the
+#: one flag on the parent command. The lane reads git through subprocess
+#: where no port method fits (the ports are not its to widen).
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
+
 
 # `pull_request` mode's landing act (S-0080/D-3), injected because the push and
 # the forge call are adapters: (task, branch) -> what the forge answered, a
@@ -279,7 +287,7 @@ def _document_inputs(ctx: GateContext) -> None:
     from torve.domain.task import InheritedDecision
 
     proc = subprocess.run(
-        ["git", "-C", str(ctx.root), "rev-parse", "--abbrev-ref", "HEAD"],
+        ["git", *NO_HOOKS, "-C", str(ctx.root), "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True,
         text=True,
         check=False,
@@ -486,7 +494,7 @@ def _superseded_diff(root: Path, base_tip: str, branch_tip: str) -> str:
     reads history through subprocess for exactly this reason."""
 
     proc = subprocess.run(
-        ["git", "-C", str(root), "diff", f"{base_tip}...{branch_tip}"],
+        ["git", *NO_HOOKS, "-C", str(root), "diff", f"{base_tip}...{branch_tip}"],
         capture_output=True,
         # A repository holds whatever bytes a candidate committed, and the
         # disposal is built on RuntimeError: a UnicodeDecodeError raised
@@ -632,7 +640,16 @@ def _cut_point(root: Path, branch: str, base: str, task_id: str) -> str | None:
     conflict with their own rebased copies."""
 
     proc = subprocess.run(
-        ["git", "-C", str(root), "log", "--reverse", "--format=%H %s", f"{base}..{branch}"],
+        [
+            "git",
+            *NO_HOOKS,
+            "-C",
+            str(root),
+            "log",
+            "--reverse",
+            "--format=%H %s",
+            f"{base}..{branch}",
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -910,7 +927,7 @@ def _keep_ref(root: Path, ref: str, sha: str) -> None:
     `_superseded_diff` reads git through subprocess for the same reason."""
 
     proc = subprocess.run(
-        ["git", "-C", str(root), "update-ref", ref, sha],
+        ["git", *NO_HOOKS, "-C", str(root), "update-ref", ref, sha],
         capture_output=True,
         text=True,
         check=False,
@@ -925,7 +942,7 @@ def _ref_sha(root: Path, ref: str) -> str | None:
     subprocess for the same reason `_keep_ref` writes through it."""
 
     proc = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", ref],
+        ["git", *NO_HOOKS, "-C", str(root), "rev-parse", "--verify", "--quiet", ref],
         capture_output=True,
         text=True,
         check=False,
@@ -939,7 +956,7 @@ def _drop_ref(root: Path, ref: str) -> None:
     ref that is not there is nothing to forget."""
 
     subprocess.run(
-        ["git", "-C", str(root), "update-ref", "-d", ref],
+        ["git", *NO_HOOKS, "-C", str(root), "update-ref", "-d", ref],
         capture_output=True,
         text=True,
         check=False,
@@ -962,7 +979,10 @@ def _restate_landings(workdir: Path, onto: str) -> None:
 
     def git(*args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["git", "-C", str(workdir), *args], capture_output=True, text=True, check=False
+            ["git", *NO_HOOKS, "-C", str(workdir), *args],
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
     changed: list[str] = []
@@ -1668,6 +1688,7 @@ def open_documents(root: Path) -> list[str]:
     refs = subprocess.run(
         [
             "git",
+            *NO_HOOKS,
             "-C",
             str(root),
             "for-each-ref",
@@ -1701,7 +1722,7 @@ def _landing_paths(root: Path, ref: str) -> set[str]:
     from torve.domain.spec import EXECUTION_DIR, LANDING_FILE
 
     tree = subprocess.run(
-        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", ref],
+        ["git", *NO_HOOKS, "-C", str(root), "ls-tree", "-r", "--name-only", ref],
         capture_output=True,
         text=True,
         check=False,
@@ -1759,7 +1780,18 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]
 
     for ref in refs:
         proc = subprocess.run(
-            ["git", "-C", str(root), "ls-tree", "-r", "--name-only", ref, "--", directory],
+            [
+                "git",
+                *NO_HOOKS,
+                "-C",
+                str(root),
+                "ls-tree",
+                "-r",
+                "--name-only",
+                ref,
+                "--",
+                directory,
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -1781,7 +1813,7 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]
 
             commit = ""
             body = subprocess.run(
-                ["git", "-C", str(root), "show", f"{ref}:{path}"],
+                ["git", *NO_HOOKS, "-C", str(root), "show", f"{ref}:{path}"],
                 capture_output=True,
                 text=True,
                 check=False,

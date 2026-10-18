@@ -76,6 +76,25 @@ def test_estimate_scope_too_small_on_nothing_declared():
     assert verdict.size == "too_small"
 
 
+def test_a_carried_directory_is_not_a_module():
+    """S-0110/D-9: a repository names the top-level directories that ride with
+    its code — a migration tree beside the module it migrates — so a change
+    pairing the two counts one module, as one pairing code with its tests
+    does."""
+
+    scope = Scope(allow=["app/src/**", "db/migrations/**"])
+    assert sizing.estimate_scope(scope, ["x"]).size == "too_large"
+    assert sizing.estimate_scope(scope, ["x"], ["db"]).size == "ok"
+
+
+def test_a_wildcard_first_segment_names_no_module():
+    """S-0110/D-9: `**/x.py` could be anywhere, so its `**` was never a
+    module the task spans."""
+
+    verdict = sizing.estimate_scope(Scope(allow=["**/x.py"]), ["x"])
+    assert verdict.size == "ok"
+
+
 def test_the_contingent_set_is_not_sized():
     """S-0104/D-1: `contingent` is what the change may reach, never what it
     declares — so it is not a module, an allow glob or an acceptance count."""

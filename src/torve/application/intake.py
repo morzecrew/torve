@@ -44,6 +44,7 @@ from torve.base.clock import stamp
 from torve.base.globs import matches
 from torve.base.model import STRICT
 from torve.config import layout
+from torve.config.manifest import read_layout
 from torve.config.runconfig import (
     RunnerConfig,
     TierConfig,
@@ -570,7 +571,7 @@ def lint_decomposition(
             )
 
     for draft in drafts:
-        verdict = sizing.estimate_scope(draft.scope, draft.acceptance)
+        verdict = sizing.estimate_scope(draft.scope, draft.acceptance, read_layout(tree).carried)
 
         if verdict.size == "too_large":
             errors.append(
@@ -899,7 +900,11 @@ def document_threshold(
 
 
 def _threshold_for_scope(
-    rfc_dir: Path, scope: Scope, acceptance: list[str], min_documents: int
+    rfc_dir: Path,
+    scope: Scope,
+    acceptance: list[str],
+    min_documents: int,
+    carried: Iterable[str] = (),
 ) -> ThresholdVerdict:
     """Wires §5.1's standing rows and the size verdict into `document_
     threshold` for one scope — the shape both the intake lint and adoption
@@ -908,7 +913,7 @@ def _threshold_for_scope(
     from torve.application.planner import standing_decisions
 
     standing = standing_decisions(rfc_dir, scope.allow)
-    size = sizing.estimate_scope(scope, acceptance)
+    size = sizing.estimate_scope(scope, acceptance, carried)
     documents = _document_owners(rfc_dir)
 
     return document_threshold(standing, size, documents, min_documents)
@@ -927,7 +932,11 @@ def lint_document_threshold(
 
     for draft in document.drafts:
         verdict = _threshold_for_scope(
-            rfc_dir, draft.scope, draft.acceptance, config.intake.document_threshold
+            rfc_dir,
+            draft.scope,
+            draft.acceptance,
+            config.intake.document_threshold,
+            read_layout(tree).carried,
         )
 
         if verdict.verdict == "document_required":
@@ -976,6 +985,7 @@ def document_threshold_warnings(
         task.scope,
         task.acceptance,
         config.intake.document_threshold,
+        read_layout(tree).carried,
     )
 
     if verdict.verdict != "document_required":
@@ -1993,7 +2003,11 @@ def adopt(
 
     for draft in drafts if document_threshold else []:
         verdict = _threshold_for_scope(
-            rfc_dir, draft.scope, draft.acceptance, config.intake.document_threshold
+            rfc_dir,
+            draft.scope,
+            draft.acceptance,
+            config.intake.document_threshold,
+            read_layout(root).carried,
         )
 
         if verdict.verdict == "document_required":

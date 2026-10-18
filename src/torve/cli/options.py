@@ -118,12 +118,12 @@ def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
     """Configuration errors exit 3: a bad file is the operator's to
     fix, distinct from red gates (1) and infrastructure failure (4)."""
 
-    from torve.config.runconfig import load_runner_config
+    from torve.config.runconfig import EngineRefused, load_runner_config
 
     try:
         return load_runner_config(root, config_path)
 
-    except (ValueError, yaml.YAMLError) as exc:
+    except (ValueError, EngineRefused, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
 
@@ -221,10 +221,15 @@ def dsn_for(root: Path, override: str = "") -> str:
     if override:
         return override
 
-    from torve.config.runconfig import load_runner_config
+    from torve.config.runconfig import EngineRefused, load_runner_config
 
     try:
         config = load_runner_config(root, None)
+
+    except EngineRefused as exc:
+        # S-0110/D-2: an install outside the engine range stops the command;
+        # falling back to no DSN would carry on past it.
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
     except (ValueError, OSError):
         return ""

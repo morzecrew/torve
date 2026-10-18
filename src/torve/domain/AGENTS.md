@@ -368,7 +368,7 @@ A contract carries `scope.contingent`, literal paths the planner derives at mint
 
 A contingent path is promoted on its first write when no in-flight task's `allow` or promoted paths hold it: the board records `scope.promoted`, and the path joins the task's fence for every overlap check after.
 
-- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `.torve/agents/hooks/implement/scope_guard.py`
+- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `skills/hooks/implement/scope_guard.py`
 - Consequence: an attempt that needs a neighbour writes it and carries on, and no other task writes it at the same time
 
 ### S-0109/D-2 — `ASSUMED` (A conflict the served lane re-queues reaches the board)

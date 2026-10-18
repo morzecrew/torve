@@ -122,6 +122,32 @@ def test_the_operating_guide_documents_the_mutation_gate_and_how_to_read_a_survi
     assert "tests pin each line scores 1" in guide
 
 
+def test_the_upgrade_page_and_the_readme_name_only_verbs_that_exist():
+    """S-0110/D-11 restates the upgrade steps on the reference page and the
+    README, and those steps name verbs. Prose rots where code does not, so a
+    `torve <verb>` either of them names has to resolve in the CLI."""
+
+    from typer.main import get_command
+
+    from torve.cli.main import app
+
+    root = get_command(app)
+    readme = PAGES.parents[1] / "README.md"
+    texts = [readme.read_text(encoding="utf-8")]
+    texts += [
+        one.read_text(encoding="utf-8")
+        for one in sorted((PAGES / "reference").glob("*.md"))
+        if one.name != "AGENTS.md"
+    ]
+
+    for text in texts:
+        for first, second in re.findall(r"`torve ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?", text):
+            assert first in root.commands, first
+            group = root.commands[first]
+            if second and hasattr(group, "commands"):
+                assert second in group.commands, f"{first} {second}"
+
+
 def test_no_page_claims_the_retired_truth_boundary():
     # The site taught "git holds what SHOULD be, the store holds what
     # HAPPENED" as the organising rule until S-0044/D-1 inverted it. The pages

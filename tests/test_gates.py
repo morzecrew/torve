@@ -1537,3 +1537,29 @@ def test_mutation_gate_leaves_the_worktree_byte_identical(repo, mutation_gate):
     after = _digest(repo.root)
 
     assert after == before
+
+
+def test_the_source_layout_gate_reads_the_layout_source_root(repo):
+    """S-0110/D-8: the changed Python files the gate judges are the ones under
+    the layout's source root, `<root>/src/` — a project under `app/` is checked
+    at `app/src/`, and a file the repository keeps at `src/` is not the
+    project's source at all."""
+
+    from torve.gates.source_layout import check_source_layout
+
+    repo.seed(dict(BASE_MANIFEST, layout={"root": "app"}))
+    repo.write("src/torve/models.py", "X = 1\n")
+    repo.commit("a catch-all name beside the project")
+
+    outside = check_source_layout(GATE, context_for(repo))
+
+    assert outside.outcome == "pass", outside.output
+    assert "0 changed source file(s)" in outside.output
+
+    repo.write("app/src/torve/models.py", "X = 1\n")
+    repo.commit("a catch-all name inside the project")
+
+    inside = check_source_layout(GATE, context_for(repo))
+
+    assert inside.outcome == "fail", inside.output
+    assert "app/src/torve/models.py" in inside.output

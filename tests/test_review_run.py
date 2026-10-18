@@ -29,6 +29,8 @@ from torve.application.ports import AgentResult, BrokerHandle, BrokerUsage
 from torve.application.review import (
     SchemaRefusal,
     build_review_prompt,
+    elide_diff_bulk,
+    elided_prefixes,
     mint_review_task,
     parse_findings,
     run_review,
@@ -39,6 +41,7 @@ from torve.application.review import (
 from torve.application.runner import run_task
 from torve.application.runstate import RunState
 from torve.base import naming
+from torve.config.manifest import Manifest
 from torve.config.runconfig import (
     ReviewConfig,
     RunnerConfig,
@@ -49,6 +52,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Scope, Task
+from torve.gates.sabotage import BASE_MANIFEST
 
 # The shipped role skills, as a repository's profiles would declare them.
 ROLE_SKILLS: dict[str, list[str]] = {
@@ -821,6 +825,58 @@ def test_the_review_prompt_lists_a_promotion():
     assert "widened beyond" not in build_review_prompt(target, "diff --git a/x b/x", [])
 
 
+def test_the_reviewer_elides_the_rider_files_a_manifest_names():
+    """S-0110/D-10: the reviewer's elision set is the manifest's own
+    `scope.derived` rider files, so a nested lock is bulk no review reads line
+    by line — beside the vendored prefix and root lock always elided. With no
+    manifest the nested lock is reviewed in full."""
+
+    manifest = Manifest.model_validate(
+        {"scope": {"derived": {"web/package.json": ["web/package-lock.json"]}}}
+    )
+    diff = (
+        "diff --git a/web/package-lock.json b/web/package-lock.json\n"
+        "--- a/web/package-lock.json\n+++ b/web/package-lock.json\n@@ -1 +1 @@\n"
+        '-{"a":1}\n+{"a":2}\n'
+        "diff --git a/src/x.py b/src/x.py\n"
+        "--- a/src/x.py\n+++ b/src/x.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+    )
+
+    elided = elided_prefixes(manifest)
+
+    assert "web/package-lock.json" in elided
+    assert "[vendored/generated: web/package-lock.json" in elide_diff_bulk(diff, elided)
+    assert "+x = 2" in elide_diff_bulk(diff, elided)
+    # With no manifest the nested lock's body is reviewed in full.
+    assert "[vendored/generated:" not in elide_diff_bulk(diff)
+    assert '-{"a":1}' in elide_diff_bulk(diff)
+
+
+def test_a_rider_file_elides_only_itself():
+    """A rider is a file and matches exactly: `web/package-lock.json` does not
+    hide a file whose name merely starts with it. A directory entry, ending in
+    `/`, still elides everything under it."""
+
+    manifest = Manifest.model_validate(
+        {"scope": {"derived": {"web/package.json": ["web/package-lock.json"]}}}
+    )
+    diff = (
+        "diff --git a/web/package-lock.json.audit.py b/web/package-lock.json.audit.py\n"
+        "--- a/web/package-lock.json.audit.py\n+++ b/web/package-lock.json.audit.py\n"
+        "@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+        "diff --git a/uv.lock.py b/uv.lock.py\n"
+        "--- a/uv.lock.py\n+++ b/uv.lock.py\n@@ -1 +1 @@\n-y = 1\n+y = 2\n"
+        "diff --git a/src/torve/_web/app.js b/src/torve/_web/app.js\n"
+        "--- a/src/torve/_web/app.js\n+++ b/src/torve/_web/app.js\n@@ -1 +1 @@\n-a\n+b\n"
+    )
+
+    elided = elide_diff_bulk(diff, elided_prefixes(manifest))
+
+    assert "+x = 2" in elided
+    assert "+y = 2" in elided
+    assert "[vendored/generated: src/torve/_web/app.js" in elided
+
+
 def test_the_review_prompt_names_a_survivor_and_its_covering_row():
     """S-0107/D-4: the reviewer is shown the wrong implementations the mutation
     gate left alive, each beside the decision rows whose paths cover its line,
@@ -1233,6 +1289,28 @@ def test_touched_file_reads_coverage_and_prior_reviews(repo):
     assert payload["coverage"] == [{"path": "src/app.py", "changed": 2, "covered": 1}]
     assert [p["review"] for p in payload["prior_reviews"]] == ["T-0227"]
     assert payload["prior_reviews"][0]["findings"][0]["severity"] == "major"
+
+
+def test_touched_file_reads_coverage_under_the_project_directory(repo):
+    """S-0110/D-8: the fallback prefix is the layout's source root, so a
+    project under `app/` matches coverage to its own `app/src/` paths."""
+
+    repo.seed(dict(BASE_MANIFEST, layout={"root": "app"}))
+    target = Task(id="T-9001", intent="x", decisions=[])
+    (repo.root / "coverage.xml").write_text(
+        '<coverage><packages><package><classes><class filename="app.py">'
+        '<lines><line number="1" hits="1"/><line number="2" hits="0"/><line number="3" hits="1"/>'
+        "</lines></class></classes></package></packages></coverage>",
+        encoding="utf-8",
+    )
+
+    payload = touched_file(
+        repo.root,
+        target,
+        "diff --git a/app/src/app.py b/app/src/app.py\n@@ -1,2 +2,2 @@\n+a\n+b\n",
+    )
+
+    assert payload["coverage"] == [{"path": "app/src/app.py", "changed": 2, "covered": 1}]
 
 
 def test_a_shape_failure_is_refused_by_field_never_unparseable(review_rig):

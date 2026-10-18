@@ -29,7 +29,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # project at all. The interpreter is installed where every uid can read it,
 # because a sandbox runs as the host's uid and uv's default install
 # directory is root's home; the build proves it by running the verb as
-# `nobody` rather than as the user that built it.
+# `nobody` rather than as the user that built it. S-0110/D-5 installs 3.13
+# and 3.14 there — a project on 3.14 runs its gates in a seat image without
+# deriving one — while torve's own environment stays on 3.13.
 #
 # The context is the repository root, so the project's inputs are named
 # rather than swept — a `COPY .` here would bake the worktree, the venv and
@@ -45,10 +47,15 @@ COPY src /opt/torve/build-context/src
 COPY skills /opt/torve/build-context/skills
 COPY migrations /opt/torve/build-context/migrations
 ENV UV_PYTHON_INSTALL_DIR=/opt/torve/python
+# S-0110/D-4: `just images` hands the tree's release in here so hatch-vcs bakes
+# it into the CLI — the build has no `.git`, and without it the image's
+# `torve --version` was a stale constant the host could not match.
+ARG SETUPTOOLS_SCM_PRETEND_VERSION=""
 RUN set -eu; \
-    uv python install 3.13; \
+    uv python install 3.13 3.14; \
     uv venv --python 3.13 /opt/torve/cli; \
     UV_PROJECT_ENVIRONMENT=/opt/torve/cli \
+    SETUPTOOLS_SCM_PRETEND_VERSION="${SETUPTOOLS_SCM_PRETEND_VERSION}" \
       uv sync --locked --no-cache --no-dev --no-editable \
         --project /opt/torve/build-context; \
     ln -sf /opt/torve/cli/bin/torve /usr/local/bin/torve; \

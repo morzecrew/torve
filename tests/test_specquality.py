@@ -1109,3 +1109,56 @@ def test_the_report_carries_path_rot_and_the_coverage_frontier(tmp_path):
     assert [r["identifier"] for r in report["path_rot"]] == ["S-0001/D-2"]
     assert report["coverage"]["src/torve/cli"] == {"governed": 1, "ungoverned": 0, "retired": 0}
     assert report["coverage"]["src/torve/gates"] == {"governed": 0, "ungoverned": 1, "retired": 0}
+
+
+# ----------------------- #
+# S-0110/D-8, S-0110/D-9: the project need not sit at the repository root
+
+
+def test_the_frontier_counts_a_project_under_the_layout_root(tmp_path):
+    """S-0110/D-8: with `layout.root: app` the source lives under `app/`, so
+    the frontier buckets are the project's subpackages, `app/src/torve/cli` and
+    `app/src/torve/gates` — split the way a root-level project's `src/torve/cli`
+    and `src/torve/gates` are, not collapsed into one `app/src/torve` bucket."""
+
+    (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".torve" / "gates.yaml").write_text("layout:\n  root: app\n", encoding="utf-8")
+    cli = tmp_path / "app" / "src" / "torve" / "cli"
+    cli.mkdir(parents=True)
+    (cli / "rfc.py").write_text("", encoding="utf-8")
+    gates = tmp_path / "app" / "src" / "torve" / "gates"
+    gates.mkdir()
+    (gates / "scope.py").write_text("", encoding="utf-8")
+    rfc_dir = corpus(
+        tmp_path,
+        **{"0001": document("0001", [("S-0001/D-1", "LOCKED", "x", "`app/src/torve/cli/**`")])},
+    )
+
+    report = decision_report(tmp_path, rfc_dir)
+
+    assert report["coverage"]["app/src/torve/cli"] == {"governed": 1, "ungoverned": 0, "retired": 0}
+    assert report["coverage"]["app/src/torve/gates"] == {
+        "governed": 0,
+        "ungoverned": 1,
+        "retired": 0,
+    }
+
+
+def test_a_task_size_counts_a_carried_directory_once(tmp_path):
+    """S-0110/D-9: the join reads `layout.carried` once, so a task spanning a
+    module and the tree that rides with it is sized as one module."""
+
+    from torve.application.specquality import read_tasks
+
+    write_contract(
+        tmp_path,
+        "T-0001",
+        scope_allow=["app/src/**", "db/migrations/**"],
+        acceptance=["true"],
+    )
+
+    assert read_tasks(tmp_path)[0].size == "too_large"
+
+    (tmp_path / ".torve" / "gates.yaml").write_text("layout:\n  carried: [db]\n", encoding="utf-8")
+
+    assert read_tasks(tmp_path)[0].size == "ok"

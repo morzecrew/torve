@@ -37,6 +37,10 @@ Never cross these unless the owner says so in this session:
 - Merging a pull request, deleting a branch, force-pushing and rewriting
   history are the owner's acts. A plain fast-forward push of a hand commit to
   a document branch is yours, when no night is working that document.
+- Retiring a document is `torve spec archive <id> --superseded-by <id>`.
+  Deleting one is only for an unaccepted draft that nothing cites; any other
+  document is archived with `--superseded-by`, so its identifiers keep
+  resolving.
 - A review thread a person opened is never resolved by you. A bot's thread
   may be answered and resolved.
 - Credentials stay with the host's `gh` login. A token never goes into a
@@ -70,6 +74,7 @@ name in the store, for example `org/repo`.
 - Finishing a phase by hand: `torve guide torve by-hand`
 - Answering a document pull request's review: `torve guide torve review`
 - Bringing torve to a new repository: `torve guide torve adopting`
+- Upgrading the install: `torve guide torve upgrading`
 - Writing or amending a document: `torve guide spec-writer`
 
 ## Habits that prevent most repairs

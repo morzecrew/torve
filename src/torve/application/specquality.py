@@ -69,6 +69,7 @@ from torve.base import naming
 from torve.base.clock import parse
 from torve.base.globs import overlap
 from torve.config import layout, spec
+from torve.config.manifest import read_layout
 from torve.domain.attempt import mutation_reading
 from torve.domain.spec import Corpus, qualify
 from torve.domain.states import TaskState
@@ -129,6 +130,10 @@ class TaskFacts:
     # population read after a reap sweep saw every task as unlanded
     # regardless of what shipped.
     landed: bool = False
+    # S-0110/D-9: the manifest's `layout.carried`, read once at the join so
+    # `size` recomputes under today's rule — the directories this repository
+    # keeps beside code as riders.
+    carried: frozenset[str] = frozenset()
 
     # ....................... #
 
@@ -158,7 +163,7 @@ class TaskFacts:
         a historical population must read under today's rule the same way a
         fresh dispatch does."""
 
-        return estimate_scope(Scope(allow=self.scope_allow), self.acceptance).size
+        return estimate_scope(Scope(allow=self.scope_allow), self.acceptance, self.carried).size
 
     # ....................... #
 
@@ -353,6 +358,7 @@ def read_tasks(root: Path) -> list[TaskFacts]:
         return found
 
     landed_ids = _landed_task_ids(root)
+    carried = frozenset(read_layout(root).carried)
 
     for contract_path in sorted(tasks_dir.glob("T-*/contract.yaml")):
         record = _load_yaml_dict(contract_path)
@@ -375,6 +381,7 @@ def read_tasks(root: Path) -> list[TaskFacts]:
                 attempts=run_state.attempts if run_state is not None else 0,
                 history=run_state.history if run_state is not None else [],
                 landed=task_id in landed_ids,
+                carried=carried,
             )
         )
 
@@ -448,12 +455,20 @@ def corpus_shape(root: Path, rfc_dir: Path) -> dict[str, Any]:
         for one in path_rot(corpus, root)
     ]
     frontier: dict[str, dict[str, int]] = {}
-    source = root / "src"
+    # S-0110/D-8: the source root is the layout's, `<root>/src`, so a nested
+    # project's frontier is counted over its own code. Buckets are three
+    # segments of the path relative to the project root — the source root's
+    # directory, the package and its subpackage — so `app/src/torve/cli` splits
+    # from `app/src/torve/gates` exactly as `src/torve/cli` does at the root.
+    layout = read_layout(root)
+    base = root / layout.root
+    prefix = f"{layout.root}/" if layout.root else ""
+    source = base / "src"
 
     if corpus.documents and source.is_dir():
         for path in sorted(source.rglob("*.py")):
             relative = path.relative_to(root).as_posix()
-            top = "/".join(relative.split("/")[:3])
+            top = prefix + "/".join(path.relative_to(base).as_posix().split("/")[:3])
             counts = frontier.setdefault(top, {"governed": 0, "ungoverned": 0, "retired": 0})
             counts[coverage(corpus, relative)] += 1
 

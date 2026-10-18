@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from torve.config.spec import check_anatomy
+from torve.config.spec import check_anatomy, scan_roots
 from torve.domain.spec import (
     DOCUMENT_FILE,
     Alternative,
@@ -367,6 +367,19 @@ def test_schema_descriptions_cover_every_property(tmp_path) -> None:
 # S-0095/D-4: the retired grammar is checked only when the archive holds the
 # renumbering map; without one, a design-document number with a section
 # and a dotted decision are prose like any other.
+
+
+def test_the_citation_scan_reads_the_layout_source_root(tmp_path) -> None:
+    """S-0057/D-9, S-0110/D-8: a project under `app/` is scanned at
+    `app/src/`; `pages/` stays at the repository root whatever the project
+    does."""
+
+    assert scan_roots(tmp_path) == ("src/", "pages/")
+
+    (tmp_path / ".torve").mkdir()
+    (tmp_path / ".torve" / "gates.yaml").write_text("layout:\n  root: app\n", encoding="utf-8")
+
+    assert scan_roots(tmp_path) == ("app/src/", "pages/")
 
 
 def test_old_grammar_in_prose_is_silent_without_a_map_and_refused_with_one(tmp_path) -> None:

@@ -1006,3 +1006,65 @@ def test_the_approve_comment_defaults_unset_and_loads_from_yaml(tmp_path: Path) 
     )
 
     assert config.threads.approve_comment == "Approved — nothing left open."
+
+
+# ....................... #
+# The engine range (S-0110/D-2): a configuration may name the release it was
+# written for, and a torve outside that range stops before it serves a night.
+
+
+def test_an_engine_that_is_not_a_release_is_refused_naming_the_shape() -> None:
+    with pytest.raises(ValidationError, match=r"X\.Y\.Z"):
+        RunnerConfig(engine="0.3")
+
+
+def test_a_configuration_within_the_engine_range_loads(tmp_path: Path, monkeypatch) -> None:
+    from torve.config import runconfig
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "0.3.5")
+
+    assert load(tmp_path, 'schema_version: 1\nengine: "0.3.2"\n').engine == "0.3.2"
+
+
+def test_a_configuration_naming_no_engine_loads_under_any_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from torve.config import runconfig
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "9.9.9")
+
+    assert load(tmp_path, "schema_version: 1\n").engine == ""
+
+
+def test_a_torve_outside_the_engine_range_stops_the_load(tmp_path: Path, monkeypatch) -> None:
+    """S-0110/D-2: the refusal names the file, the installed version, the range
+    and the install command for a release inside it — nobody is there at 04:00
+    to work it out from a bare version mismatch."""
+
+    from torve.config import runconfig
+    from torve.config.runconfig import EngineRefused
+
+    monkeypatch.setattr(runconfig, "installed_version", lambda: "0.2.9")
+
+    with pytest.raises(EngineRefused) as caught:
+        load(tmp_path, 'schema_version: 1\nengine: "0.3.2"\n')
+
+    message = str(caught.value)
+    assert "config.yaml" in message
+    assert "0.2.9" in message
+    assert ">=0.3.2,<0.4.0" in message
+    assert "uv tool install --force torve==0.3.2" in message
+
+
+def test_the_engine_range_admits_its_floor_and_refuses_what_comes_before_and_after() -> None:
+    """S-0110/D-2: `engine: "0.3.2"` is at least 0.3.2 and below 0.4.0, and a
+    pre-release of the floor comes before it."""
+
+    from torve.config.runconfig import EngineRefused, check_engine
+
+    check_engine("0.3.2", "0.3.2")
+    check_engine("0.3.2", "0.3.99+gabc")
+
+    for outside in ("0.3.2.dev1", "0.3.2rc1", "0.3.1", "0.4.0", "0.4.0.dev3"):
+        with pytest.raises(EngineRefused):
+            check_engine("0.3.2", outside)

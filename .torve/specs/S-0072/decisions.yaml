@@ -6,7 +6,7 @@ decisions:
       An equipment item carries its payload at the root and one directory per harness
       beside it; a harness reads only its own, and an item with no directory for a
       harness a seat could use is refused at load, naming the profile and the manifest
-    paths: [.torve/agents/hooks, src/torve/config/agents.py]
+    paths: [skills/hooks/**, src/torve/config/agents.py]
     consequence: >-
       the disagreement between two harnesses' idea of one kind becomes a message before
       an image is pulled, instead of an exception inside a container
@@ -16,12 +16,13 @@ decisions:
       S-0063/D-4 already promises this refusal; it was kept for the kind and not for
       the item
     cites: [S-0066/D-7, S-0063/D-4]
+    fingerprint: b188062bfa7c5ac6/09b180d9e29952e5
   - id: D-2
     grade: LOCKED
     text: >-
       The judgement is one implementation both harnesses invoke; a per-harness declaration
       names how to reach it and never restates what it decides
-    paths: [.torve/agents/hooks]
+    paths: [skills/hooks/**]
     consequence: >-
       a refusal cannot differ by harness, so an attempt's guard is a property of the
       role rather than of the seat that happened to run it
@@ -29,6 +30,7 @@ decisions:
       two guards that resemble each other are two guards, and the day they differ
       is the day one lets something through while the record says both were enforced
     cites: [S-0066/D-5]
+    fingerprint: 0d0dc5f45142118f/6bb68662329d8933
   - id: D-3
     grade: ASSUMED
     text: >-

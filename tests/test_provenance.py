@@ -14,7 +14,7 @@ from test_run_loop import OK, MockRuntime, MockScm, ScriptedAgent
 
 import torve.application.runner as run_module
 from torve.adapters.store.durable import open_store
-from torve.adapters.vcs.git import GitVcs
+from torve.adapters.vcs.git import GitLane, GitVcs
 from torve.adapters.workspace.git import GitWorkspace
 from torve.application.dispatch import RunDeps
 from torve.application.runner import run_task
@@ -354,3 +354,82 @@ def test_an_unresolvable_target_fails_loudly_before_dispatch(engine_repo):
 def test_a_revert_contract_names_its_targets():
     with pytest.raises(ValueError, match="revert task names what it undoes"):
         Task(id="T-1", role="revert", scope=Scope(), decisions=[])
+
+
+# ----------------------- #
+
+# S-0110/D-7: every git torve starts carries `core.hooksPath=/dev/null`, so no
+# repository hook runs on a commit, rebase, checkout or push the engine makes.
+
+HOOKS = ("pre-commit", "post-commit", "post-checkout", "post-rewrite", "pre-push")
+
+
+@pytest.fixture
+def hooked_repo(tmp_path: Path) -> tuple[Path, Path]:
+    """A repository whose five hooks each append to their own marker file
+    beside it. Returns (repo, marker directory)."""
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    git(root, "config", "user.name", "A Human")
+    git(root, "config", "user.email", "human@example.invalid")
+    markers = tmp_path / "markers"
+    markers.mkdir()
+
+    for name in HOOKS:
+        script = root / ".git" / "hooks" / name
+        script.write_text(f'#!/bin/sh\necho ran >> "{markers / name}"\n', encoding="utf-8")
+        script.chmod(0o755)
+
+    (root / "app.py").write_text("value = 1\n", encoding="utf-8")
+    git(root, "add", "-A")
+    return root, markers
+
+
+def fired(markers: Path) -> set[str]:
+    return {p.name for p in markers.iterdir() if p.stat().st_size}
+
+
+def test_the_installed_hooks_are_live(hooked_repo):
+    """The control: a plain commit runs the hooks the fixture installed, so
+    the absence below is the flag and not a hook git never found."""
+
+    root, markers = hooked_repo
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "control")
+    assert fired(markers) == {"pre-commit", "post-commit"}
+
+
+def test_torve_git_leaves_every_repository_hook_unfired(hooked_repo, tmp_path):
+    root, markers = hooked_repo
+    vcs = GitVcs()
+
+    # commit_all.
+    assert vcs.commit_all(root, "torve(T-8300): attempt 1 green")
+    assert fired(markers) == set()
+
+    # A worktree checkout, and a commit inside it.
+    ws = GitWorkspace(root)
+    worktree = ws.create("T-8301", "main")
+    (worktree / "attempt.py").write_text("work = 1\n", encoding="utf-8")
+    vcs.commit_all(worktree, "torve(T-8301): attempt 1 green")
+    assert fired(markers) == set()
+
+    # The lane's rebase, with the base moved under the candidate: the rebase
+    # replays the commit, so it is not a fast-forward no-op.
+    (root / "app.py").write_text("value = 3\n", encoding="utf-8")
+    vcs.commit_all(root, "base moves on")
+    branch = naming.branch("T-8301")
+    before = git(worktree, "rev-parse", branch)
+    ws.remove("T-8301")  # git refuses to check the branch out twice
+    workdir = tmp_path / "rebase-wt"
+    assert GitLane().rebase_in_worktree(root, branch, "main", workdir) is True
+    assert git(root, "rev-parse", branch) != before
+    assert fired(markers) == set()
+
+    # A push to a local bare remote.
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    git(root, "remote", "add", "origin", str(remote))
+    assert vcs.push(root, "T-8302") is True
+    assert fired(markers) == set()

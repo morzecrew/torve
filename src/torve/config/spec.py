@@ -90,7 +90,20 @@ SCAN_ROOTS = ("src/", "pages/")
 SCAN_NAMES = ("AGENTS.md", "CLAUDE.md", "README.md")
 # Test data that invents identifiers by design, as the user-facing-text
 # gate already exempts it.
-SCAN_EXCLUDE = ("src/torve/gates/sabotage.py",)
+SCAN_EXCLUDE = ("torve/gates/sabotage.py",)
+
+
+def scan_roots(root: Path) -> tuple[str, ...]:
+    """The roots the citation scan reads under (S-0057/D-9, S-0110/D-8): the
+    layout's source root `<root>/src` and `pages/`, both repository-relative.
+    A project nested under `app/` is scanned at `app/src/`."""
+
+    from torve.config.manifest import read_layout
+
+    return (read_layout(root).source_prefix(), "pages/")
+
+
+# ....................... #
 # A managed block the projection rendered (`torve.application.colocation`
 # writes the marker; this layer may only read it, S-0055/D-23). One rendered
 # for a directory other than the file's own is another tree's projection —
@@ -1155,12 +1168,15 @@ def tracked_files(root: Path) -> list[str]:
     if done.returncode != 0:
         return []
 
+    roots = scan_roots(root)
+    excluded = {f"{roots[0]}{suffix}" for suffix in SCAN_EXCLUDE}
+
     return [
         name
         for name in done.stdout.split("\0")
         if name
-        and name not in SCAN_EXCLUDE
-        and (name.startswith(SCAN_ROOTS) or Path(name).name in SCAN_NAMES)
+        and name not in excluded
+        and (name.startswith(roots) or Path(name).name in SCAN_NAMES)
     ]
 
 
