@@ -122,6 +122,27 @@ def test_the_operating_guide_documents_the_mutation_gate_and_how_to_read_a_survi
     assert "tests pin each line scores 1" in guide
 
 
+def test_the_configuration_reference_names_the_nested_docker_block_the_engine_parses():
+    """The page that documents `.torve/config.yaml` names `runtime.docker` and
+    every field of its `runtime.nested` block, and each name is one the engine
+    parses — so a renamed key cannot leave the reference teaching a setting
+    nothing reads."""
+
+    from torve.config.runconfig import NestedConfig, RuntimeConfig
+
+    page = (PAGES / "get-started.md").read_text(encoding="utf-8")
+
+    assert "runtime.docker" in page
+    assert "nested" in page
+
+    for key in ("docker", "nested"):
+        assert key in RuntimeConfig.model_fields, key
+        assert key in page, f"the configuration reference does not name runtime.{key}"
+
+    for key in NestedConfig.model_fields:
+        assert key in page, f"the configuration reference does not name runtime.nested.{key}"
+
+
 def test_the_upgrade_page_and_the_readme_name_only_verbs_that_exist():
     """S-0110/D-11 restates the upgrade steps on the reference page and the
     README, and those steps name verbs. Prose rots where code does not, so a
