@@ -12,7 +12,7 @@ FROM ${BASE}
 # with `npm ci`, and the build refuses a lock whose dsh is not this ARG.
 # A bump: set the ARG and the dependency in `harness/package.json`, regenerate
 # the lock with `npm install` in the base image, and rebuild.
-ARG DSH_VERSION=0.1.1-rc.2
+ARG DSH_VERSION=0.1.2-rc.1
 COPY harness/ /opt/harness/
 RUN cd /opt/harness && npm ci --no-audit --no-fund \
  && test "$(node -p 'require("@deepseek-ai/dsh/package.json").version')" = "${DSH_VERSION}" \
