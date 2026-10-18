@@ -113,3 +113,5 @@ questions:
       gates sandbox has one. Amend its text to "a sandbox has no Docker daemon unless
       the repository runs one nested (S-0111)", keeping the refusal for every other
       configuration? Lean: yes.
+    status: settled
+    settled_by: D-7

@@ -90,4 +90,8 @@ decisions:
     paths: [src/torve/application/intake.py]
     consequence: >-
       a phase can name its e2e suite as acceptance once its gates can run it
+    rationale: >-
+      The owner agreed on 2026-10-18 (Q-1) that phase 1 amends S-0071/D-5's text to
+      "a sandbox has no Docker daemon unless the repository runs one nested (S-0111)",
+      keeping the refusal for every other configuration.
     cites: [S-0071/D-5]
