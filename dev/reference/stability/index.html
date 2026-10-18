@@ -1217,28 +1217,46 @@ back.</p>
 amendment <code>A-n</code> and a task <code>T-NNNN</code> are never reused once minted, and
 <code>torve spec check</code> refuses a corpus that reuses one.</p>
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
-<p>One release to the next is five steps, in order:</p>
+<p>A repository installs torve as a tool and names the release it needs in
+<code>.torve/config.yaml</code>, <code>engine: "X.Y.Z"</code> — meaning at least that release and
+below the next minor. One release to the next is these steps, in order:</p>
 <ol>
-<li>Install the release: <code>pip install -U torve</code>, or <code>uv tool upgrade torve</code>.</li>
-<li>Run <code>torve init</code> in the repository. It rewrites <code>.torve/schemas/</code> from
-   the engine you just installed and adds any ignore pattern minted since.
-   It touches a configuration or a gate manifest only under <code>--starter</code>,
-   and only where none exists.</li>
-<li>Commit what <code>torve init</code> changed, so every later run and every CI job
-   reads the schemas the installed engine wrote.</li>
-<li>Run <code>torve doctor</code> and read the red lines before running anything. A
-   red line for a sandbox image means the image and the definition copied
-   under <code>.torve/sandbox/</code> no longer agree: copy <code>sandboxes/&lt;name&gt;</code> from
-   the release into <code>.torve/sandbox/</code> again, and rebuild the image from a
-   checkout at that release (<code>just image &lt;name&gt;</code>).</li>
+<li>Install the release over the old one, naming the new exact version.
+   <code>uv tool install --force 'torve[postgres,migrate]==X.Y.Z'</code> replaces it;
+   <code>uv tool upgrade torve</code> keeps an exact pin, so it never crosses a release
+   on its own.</li>
+<li>Raise <code>engine</code> in <code>.torve/config.yaml</code> to the release just installed. A
+   command that loads the configuration under a torve outside the range stops,
+   naming the installed version, the range and the install command for a
+   release inside it; <code>torve --version</code>, <code>torve guide</code> and <code>torve doctor</code>
+   still run.</li>
+<li>Rebuild the seat images from a checkout of that release (<code>just images</code>).
+   An image whose torve version differs from the host's is a red finding in
+   <code>torve doctor</code>, and the rebuild is what clears it.</li>
+<li>Run <code>torve init</code> in the repository. It rewrites <code>.torve/schemas/</code> from the
+   engine you just installed and adds any ignore pattern minted since. It
+   writes a configuration, a gate manifest or a role profile only under
+   <code>--starter</code>, and only where none exists: <code>torve init</code> never touches a
+   profile the repository already has.</li>
 <li>When the release's Upgrade note names a record migration, run
    <code>torve migrate --all</code> against the store.</li>
+<li>Run <code>torve doctor</code> and read the red lines before running anything.</li>
+<li>Commit what <code>torve init</code> and the configuration changed, so every later run
+   and every CI job reads the schemas the installed engine wrote.</li>
 </ol>
-<p>A release that moves a <code>schema_version</code> in the table above, or adds a
-record migration, carries an Upgrade note in its changelog entry, naming
-the files whose shape moved, the versions on either side, and the
-conversion. A release whose entry carries no Upgrade note moves neither,
-and steps 1 to 4 are the whole upgrade.</p>
+<p>A repository upgrading from 0.3 or earlier copied the hooks into
+<code>.torve/agents/hooks/implement/</code>, and its implement profile names that copy
+(<code>source: local:.torve/agents/hooks/implement</code>). The hooks now ship in the
+package, and <code>torve init</code> leaves the profile as it is, so edit the profile's
+hook item by hand to <code>source: torve:hooks/implement</code> and delete the copied
+<code>.torve/agents/hooks/implement/</code> directory.</p>
+<p>A release that moves a <code>schema_version</code> in the table above, adds a record
+migration, or changes the shipped hooks, carries an Upgrade note in its
+changelog entry, naming the files whose shape moved, the versions on either
+side, and the conversion. A release whose entry carries no Upgrade note moves
+none of them, and the upgrade is the common steps: install the release and
+raise <code>engine</code>, rebuild the seat images, run <code>torve init</code> and <code>torve doctor</code>,
+and commit.</p>
 <h2 id="internal">Internal<a class="headerlink" href="#internal" title="Permanent link">&para;</a></h2>
 <p>These change without notice, in any release:</p>
 <ul>
