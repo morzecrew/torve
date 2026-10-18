@@ -133,7 +133,7 @@ def rewrite_loopback(url: str, gateway: str) -> str:
 # ....................... #
 
 
-# A nested sandbox (S-0111/docker-inside-the-sandbox): the side container's name is the
+# A nested sandbox (S-0111/D-1): the side container's name is the
 # sandbox's plus this, and the sandbox reaches the daemon over the namespace it
 # shares with it. The address is the one the side container's own dockerd serves:
 # the dind image's entrypoint enables TLS on 2376 unless `DOCKER_TLS_CERTDIR` is
@@ -440,7 +440,20 @@ class DockerRuntime:
         deadline = time.monotonic() + ready_s
 
         while True:
-            proc = self._run("exec", side, "sh", "-c", f"DOCKER_HOST={DOCKER_HOST} docker info")
+            # Each probe gets only what is left of the clock: a stalled dockerd
+            # hangs `docker info`, and an unbounded call would never come back to
+            # the deadline check below.
+            try:
+                proc = self._run(
+                    "exec",
+                    side,
+                    "sh",
+                    "-c",
+                    f"DOCKER_HOST={DOCKER_HOST} docker info",
+                    timeout=max(0.1, deadline - time.monotonic()),
+                )
+            except subprocess.TimeoutExpired:
+                return False
 
             if proc.returncode == 0:
                 return True
@@ -485,7 +498,14 @@ class DockerRuntime:
                 f"within {spec.nested.ready_s:.0f}s — the side container was removed"
             )
 
-        pruned = self._run("exec", side, "sh", "-c", self.NESTED_PRUNE, timeout=120)
+        try:
+            pruned = self._run("exec", side, "sh", "-c", self.NESTED_PRUNE, timeout=120)
+        except subprocess.TimeoutExpired:
+            # A stalled prune fails the creation like any other: the side
+            # container is removed below rather than left running.
+            pruned = subprocess.CompletedProcess(
+                [], 1, "", "nested sandbox: the side daemon's prune timed out"
+            )
 
         if pruned.returncode != 0:
             self._run("rm", "-f", "-v", side)

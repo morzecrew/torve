@@ -186,11 +186,11 @@ amendments:
           reads any of those can never go green there and the contract is unlandable
           by construction
     md: >-
-      S-0111 gives a sandbox a daemon of its own when the configuration runs one
-      nested, and the gates sandbox gets it first. So the sentence D-5's refusal
-      rests on — "a sandbox has no Docker daemon" — is no longer literally true,
-      and an acceptance command naming `docker` is runnable exactly when the
-      repository nests its gates role (S-0111/D-7). The owner agreed on 2026-10-18
-      (S-0111 Q-1). The refusal itself is unchanged for every other configuration:
-      the lint admits `docker` only where `runtime.nested.roles` contains `gates`,
-      and a sandbox with no daemon still cannot run it.
+      S-0111 gives a sandbox a daemon of its own when the configuration runs one nested,
+      and the gates sandbox gets it first. So the sentence D-5's refusal rests on
+      — "a sandbox has no Docker daemon" — is no longer literally true, and an acceptance
+      command naming `docker` is runnable exactly when the repository nests its gates
+      role (S-0111/D-7). The owner agreed on 2026-10-18 (S-0111 Q-1). The refusal
+      itself is unchanged for every other configuration: the lint admits `docker`
+      only where `runtime.nested.roles` contains `gates`, and a sandbox with no daemon
+      still cannot run it.

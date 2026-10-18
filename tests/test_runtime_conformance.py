@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import time
 import uuid
 from pathlib import Path
 
@@ -336,7 +337,7 @@ def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch
 
 
 FAKE_DOCKER_SRC = r"""#!/usr/bin/env python3
-import json, os, sys
+import json, os, sys, time
 
 with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps(sys.argv[1:]) + "\n")
@@ -349,6 +350,7 @@ if args and args[0] == "run":
 
 if args and args[0] == "exec":
     if "info" in " ".join(args):
+        time.sleep(float(os.environ.get("FAKE_DOCKER_INFO_HANG_S", "0")))
         sys.exit(int(os.environ.get("FAKE_DOCKER_INFO_RC", "0")))
     sys.exit(0)
 
@@ -519,3 +521,49 @@ def test_a_daemon_that_never_answers_fails_the_creation_and_removes_both(
     joins = [a for a in invocations if a[0] == "run" and f"container:{spec.name}-dockerd" in a]
     assert not joins, "the sandbox was joined to a daemon that never answered"
     assert any(a[:4] == ["rm", "-f", "-v", f"{spec.name}-dockerd"] for a in invocations)
+
+
+def test_a_probe_that_hangs_still_fails_the_creation_on_the_clock(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-3: a stalled dockerd hangs `docker info` itself, so each probe is
+    bounded by what is left of `ready_s` — the creation fails on time instead of
+    waiting on the hung call."""
+
+    from torve.adapters.runtime.docker import DockerError
+
+    monkeypatch.setenv("FAKE_DOCKER_INFO_HANG_S", "30")
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    started = time.monotonic()
+
+    with pytest.raises(DockerError, match="did not answer"):
+        runtime.create(nested_spec(ready_s=0.5), tmp_path)
+
+    assert time.monotonic() - started < 10
+
+
+def test_a_prune_that_times_out_fails_the_creation_and_removes_the_side(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-2, D-3: a prune that never returns fails the creation as a
+    DockerError, and the privileged side container is removed, not leaked."""
+
+    from torve.adapters.runtime.docker import DockerError
+
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    spec = nested_spec()
+    run = runtime._run
+
+    def stalled_prune(*args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if DockerRuntime.NESTED_PRUNE in args:
+            raise subprocess.TimeoutExpired(list(args), 120)
+        return run(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(runtime, "_run", stalled_prune)
+
+    with pytest.raises(DockerError, match="prune timed out"):
+        runtime.create(spec, tmp_path)
+
+    assert any(
+        a[:4] == ["rm", "-f", "-v", f"{spec.name}-dockerd"] for a in fake_docker.invocations()
+    )
