@@ -4,7 +4,7 @@
 # upstream leg tunnels through the host's https_proxy; the sandbox never sees
 # a proxy either way.
 name: anthropic
-key_env: CLAUDE_CODE_OAUTH_TOKEN
+key_env: CLAUDE_CODE_HH_OAUTH_TOKEN
 via_proxy: true
 
 routes:
