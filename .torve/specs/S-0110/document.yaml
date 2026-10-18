@@ -6,7 +6,7 @@ change:
   type: feat
   scope: adoption
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0089, S-0095, S-0100]
 informed_by:
   - S-0055

@@ -18,14 +18,14 @@ The judgement is one implementation both harnesses invoke; a per-harness declara
 - Consequence: a refusal cannot differ by harness, so an attempt's guard is a property of the role rather than of the seat that happened to run it
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+### S-0110/D-3 — `ASSUMED` (A second adopter runs torve from a tool install)
 
 A repository installs torve as a uv tool, not as a project dependency, and every command torve writes or ships for a host or a sandbox calls bare `torve`: the stub `init` writes, the shipped hooks, and the operating docs and skill.
 
 - Paths: `src/torve/cli/init.py` `skills/torve/**` `skills/hooks/**` `pages/docs/**`
 - Consequence: torve's pins and an application's never meet in one lock
 
-### S-0110/D-6 — `ASSUMED` (A second adopter runs torve from a tool install) — implementation: none
+### S-0110/D-6 — `ASSUMED` (A second adopter runs torve from a tool install)
 
 The pre-write, read and finish hooks and their `claude/settings.json` live in `skills/hooks/implement/` and ship in the wheel. A profile equips them as `source: torve:hooks/implement`, mounted as `implement`. torve's own implement profile and the starter implement profile equip them; the load-time hook check covers `torve:` items.
 
