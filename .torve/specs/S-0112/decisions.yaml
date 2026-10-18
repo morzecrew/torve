@@ -13,7 +13,7 @@ decisions:
     rationale: >-
       The owner asked for published images on 2026-10-18 and settled that the packages,
       Claude Code's included, are public. A tool install has no source tree to build
-      from.
+      from. The owner makes each package public after the first publish (Q-3).
     cites: [S-0063/D-6, S-0110/D-4]
   - id: D-2
     grade: ASSUMED
@@ -99,7 +99,9 @@ decisions:
       the next release
     rationale: >-
       The owner asked for the images to be bumped in time. Dependabot has no manager
-      for an `ARG`, and opencode and uv were unpinned on 2026-10-18.
+      for an `ARG`, and opencode and uv were unpinned on 2026-10-18. The owner settled
+      on 2026-10-18 that Renovate covers the sandbox images only, beside Dependabot
+      (Q-1), and installed the app on torve (Q-2).
   - id: D-8
     grade: ASSUMED
     text: >-

@@ -119,13 +119,20 @@ questions:
     text: >-
       Renovate for `sandboxes/**` only, beside Dependabot, or all of torve's dependencies
       on Renovate as platform-images does? The draft keeps Dependabot for uv and the
-      actions.
+      actions. The owner's answer (2026-10-18): Renovate for the sandbox images only.
+    status: settled
+    settled_by: D-7
   - id: Q-2
     text: >-
       Is the Renovate app installed for morzecrew/torve? It runs on platform-images;
-      phase 4's configuration does nothing without it.
+      phase 4's configuration does nothing without it. The owner's answer (2026-10-18):
+      installed.
+    status: settled
+    settled_by: D-7
   - id: Q-3
     text: >-
       After the first publish, the seven packages need their visibility set to public
       on GitHub. Is that yours to do, or should the workflow's token be given the
-      permission to do it?
+      permission to do it? The owner's answer (2026-10-18): the owner sets them public.
+    status: settled
+    settled_by: D-1
