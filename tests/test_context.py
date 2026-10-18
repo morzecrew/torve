@@ -1496,6 +1496,26 @@ def test_resolve_base_fetches_before_it_prefers_origin_main(tmp_path):
     assert _tip(clone.root, "origin/main") == _tip(upstream.root, "main")
 
 
+def test_the_base_fetch_runs_no_repository_hook(tmp_path):
+    """S-0110/D-7: a fetch that moves origin/main runs `reference-transaction`.
+    The plain fetch after it is the control, so the absence is the flag."""
+
+    upstream, clone = _remote_pair(tmp_path)
+    marker = tmp_path / "marker"
+    hook = clone.root / ".git" / "hooks" / "reference-transaction"
+    hook.write_text(f'#!/bin/sh\necho ran >> "{marker}"\n', encoding="utf-8")
+    hook.chmod(0o755)
+
+    assert resolve_base(clone.root, None, fetch=True) == "origin/main"
+    assert _tip(clone.root, "origin/main") == _tip(upstream.root, "main")
+    assert not marker.exists()
+
+    upstream.write("src/app.py", "print('again')\n")
+    upstream.commit("upstream moves again")
+    subprocess.run(["git", "-C", str(clone.root), "fetch", "-q"], check=True)
+    assert marker.exists()
+
+
 def test_a_worktree_that_fetches_is_cut_from_the_remote_tip(tmp_path):
     upstream, clone = _remote_pair(tmp_path)
 

@@ -24,6 +24,9 @@ from torve.domain.task import InheritedDecision, Task
 # ----------------------- #
 
 TASK_BRANCH = re.compile(r"^torve/(T-\d+)")
+# S-0110/D-7: `resolve_base` fetches through `git`, and a fetch that moves a ref
+# runs `reference-transaction` (and its `gc --auto` runs `pre-auto-gc`).
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
 BYPASS_TRAILER = re.compile(r"^Torve-Bypass:\s*([A-Za-z0-9_-]+)\s*:\s*(.+?)\s*$", re.M)
 
 
@@ -39,7 +42,7 @@ class GitError(RuntimeError):
 
 def git(root: Path, *args: str) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True, check=False
+        ["git", *NO_HOOKS, "-C", str(root), *args], capture_output=True, text=True, check=False
     )
 
     if proc.returncode != 0:
