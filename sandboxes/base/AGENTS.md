@@ -16,4 +16,11 @@ The base image installs CPython 3.13 and 3.14 into its read-only interpreter dir
 - Paths: `sandboxes/base/Dockerfile`
 - Consequence: a project on Python 3.14 runs its gates in a seat image without deriving one
 
+### S-0111/D-5 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
+
+The base image carries the Docker CLI with its compose and buildx plugins, `just` and `openssl`.
+
+- Paths: `sandboxes/base/Dockerfile`
+- Consequence: a repository's own Docker recipes run in a seat image without deriving one
+
 <!-- /torve:managed -->
