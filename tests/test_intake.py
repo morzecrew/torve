@@ -1695,3 +1695,54 @@ def test_the_default_pairing_leaves_a_non_python_module_alone(tmp_path: Path):
     from torve.application.neighbours import contingent_paths
 
     assert "tests/test_intake.py" not in contingent_paths(tmp_path, ["docs/intake.md"])
+
+
+def test_the_lint_admits_docker_when_the_gates_role_is_nested(tmp_path: Path):
+    """S-0111/D-7, amending S-0071/D-5: an acceptance command naming `docker` is
+    refused unless the repository nests the gates role — then the gates sandbox
+    runs a daemon of its own and a Docker-bound suite named as acceptance runs
+    rather than skipping green."""
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('hi')\n", encoding="utf-8")
+    config = tmp_path / ".torve" / "config.yaml"
+    config.parent.mkdir()
+    command = ["docker compose up -d --wait"]
+
+    config.write_text("runtime:\n  docker: nested\n", encoding="utf-8")
+    assert lint_drafts(tmp_path, document(draft_dict(acceptance=command)), 4) == []
+
+    # Nested, but the gates role is not among the nested roles: no daemon where
+    # the battery runs, so the refusal stands.
+    config.write_text(
+        "runtime:\n  docker: nested\n  nested:\n    roles: [implement]\n", encoding="utf-8"
+    )
+    refused = lint_drafts(tmp_path, document(draft_dict(acceptance=command)), 4)
+    assert any("reads the host" in e for e in refused)
+
+    # Nested off is the S-0071/D-5 refusal unchanged.
+    config.write_text("runtime:\n  docker: socket\n", encoding="utf-8")
+    refused = lint_drafts(tmp_path, document(draft_dict(acceptance=command)), 4)
+    assert any("reads the host" in e for e in refused)
+
+
+def test_the_lint_refuses_docker_when_the_configuration_is_absent_or_unreadable(
+    tree: Path,
+):
+    """A missing or unreadable configuration cannot prove the daemon is there,
+    so the lint refuses where it cannot check (S-0111/D-7)."""
+
+    command = ["docker compose up -d --wait"]
+
+    # No configuration at all.
+    assert any(
+        "reads the host" in e
+        for e in lint_drafts(tree, document(draft_dict(acceptance=command)), 4)
+    )
+
+    (tree / ".torve").mkdir()
+    (tree / ".torve" / "config.yaml").write_text("runtime: [unclosed\n", encoding="utf-8")
+    assert any(
+        "reads the host" in e
+        for e in lint_drafts(tree, document(draft_dict(acceptance=command)), 4)
+    )

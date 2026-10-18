@@ -966,3 +966,18 @@ def test_only_a_capacity_error_before_any_turn_is_retried(
     done = subprocess.run([sys.executable, str(script), str(output)], check=False)
 
     assert (done.returncode == 0) is retry
+
+
+def test_the_base_carries_the_docker_cli_compose_buildx_just_and_openssl() -> None:
+    """S-0111/D-5: a repository's own Docker recipes run in a seat image without
+    deriving one — erp-backend's e2e recipe is `just e2e` over `docker compose`,
+    and its environment file is generated with `openssl`. The CLI comes from
+    the pinned release image, not the distribution's package, whose CLI carries
+    neither plugin; its plugin directory is where `compose` and `buildx` live."""
+
+    block = BASE.read_text(encoding="utf-8")
+
+    assert "openssl" in block
+    assert "--from=docker:27.5.1-cli /usr/local/bin/docker" in block
+    assert "--from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins" in block
+    assert "just" in block

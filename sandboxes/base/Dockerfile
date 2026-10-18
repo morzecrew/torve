@@ -13,10 +13,21 @@ FROM node:24-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      git curl ca-certificates python3 zstd \
+      git curl ca-certificates python3 zstd openssl \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# The Docker CLI with its compose and buildx plugins, and `just`, so a
+# repository's own Docker recipes run in a seat image without deriving one
+# (S-0111/D-5): erp-backend's e2e recipe is `just e2e` over `docker compose`,
+# and its environment file is generated with `openssl` (installed above). The
+# CLI is copied from the pinned release image rather than the distribution's
+# package, whose CLI carries neither plugin; its plugin directory is where the
+# CLI looks for `compose` and `buildx`.
+COPY --from=docker:27.5.1-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
+COPY --from=ghcr.io/casey/just:1.40.0 /just /usr/local/bin/just
 
 # The engine's own CLI, for the verbs an attempt calls from inside its
 # sandbox: `torve log divergence` records a divergence through the run's

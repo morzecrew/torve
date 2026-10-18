@@ -829,7 +829,7 @@ The projection's live sections move to the pack, which already carries the same 
 
 ### S-0071/D-5 — `LOCKED` (The battery costs what it costs for reasons unrelated to what it judges)
 
-A phase's acceptance commands are runnable in the environment that judges them: a sandbox has no Docker daemon, no host credentials and no operational state, so a command that reads any of those can never go green there and the contract is unlandable by construction
+A phase's acceptance commands are runnable in the environment that judges them: a sandbox has no Docker daemon unless the repository runs one nested (S-0111), no host credentials and no operational state, so a command that reads any of those can never go green there and the contract is unlandable by construction
 
 - Paths: `.torve/specs` `src/torve/application/intake.py`
 - Consequence: an authoring mistake costs one refusal at mint instead of the poison ceiling, three attempts and their money

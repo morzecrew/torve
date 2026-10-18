@@ -1304,3 +1304,64 @@ def test_live_destroy_by_id_across_connections(live, tmp_path):
     finally:
         with contextlib.suppress(Exception):  # the handle outlived its sandbox on a green pass
             creator.destroy(handle)
+
+
+# ....................... #
+# Nested mode's live round trip (S-0111/D-1..D-3): a daemon of the sandbox's
+# own, and a compose project over it. Behind TORVE_IMAGE_TESTS because it pulls
+# the dind image and starts a privileged container.
+
+
+@builds_images
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+@pytest.mark.timeout(1800)
+def test_a_nested_sandbox_runs_a_compose_project_over_its_own_daemon(tmp_path):
+    """S-0111/D-1, D-2, D-5: the side container's daemon answers the sandbox, the
+    base image's `docker compose` reaches it, and a project started there lives
+    and dies with the sandbox — the sandbox's published ports answer on its own
+    `localhost`, because it shares the side container's namespace."""
+
+    from torve.adapters.runtime.docker import DockerRuntime
+    from torve.application.ports import NestedDocker, SandboxSpec
+
+    tag = "base-sandbox-nested-probe"
+    volume = f"torve-dind-conformance-{uuid.uuid4().hex[:8]}"
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "compose.yaml").write_text(
+        "services:\n"
+        "  ping:\n"
+        "    image: alpine:3.20\n"
+        "    command: [sh, -c, 'echo nested-round-trip']\n",
+        encoding="utf-8",
+    )
+
+    bake("base", tag)
+    runtime = DockerRuntime()
+    spec = SandboxSpec(
+        name=f"torve-nested-{uuid.uuid4().hex[:8]}",
+        image=tag,
+        labels=naming.labels("T-9907", uuid.uuid4().hex, Path.cwd()),
+        timeout_s=900,
+        nested=NestedDocker(image="docker:27.5.1-dind", volume=volume, ready_s=180),
+    )
+
+    try:
+        handle = runtime.create(spec, workspace)
+        try:
+            version = runtime.exec(handle, "docker compose version", 120)
+            assert version.exit_code == 0, version.output
+
+            up = runtime.exec(handle, "docker compose up --abort-on-container-exit", 600)
+            assert up.exit_code == 0, up.output
+            assert "nested-round-trip" in up.output
+
+            # The daemon is the sandbox's own, reached at the address it was told
+            # (S-0111/D-1): a TLS-only daemon on 2376 would have failed readiness.
+            info = runtime.exec(handle, "docker info --format '{{.ServerVersion}}'", 60)
+            assert info.exit_code == 0, info.output
+        finally:
+            runtime.destroy(handle)
+    finally:
+        subprocess.run(["docker", "volume", "rm", "-f", volume], capture_output=True, check=False)
+        unbake(tag)

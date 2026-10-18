@@ -58,6 +58,7 @@ from torve.application.manager import in_flight_fences, project
 from torve.application.planner import change_type_of
 from torve.application.ports import (
     AgentResult,
+    NestedDocker,
     Runtime,
     SandboxHandle,
     SandboxSpec,
@@ -617,6 +618,54 @@ def _record_promotions(run: Dispatch, state: RunState, ctx: GateContext) -> None
 # ....................... #
 
 
+def _nested_docker(run: Dispatch, role: str) -> NestedDocker | None:
+    """The daemon a sandbox of *role* gets, or None (S-0111/D-1, D-4). The
+    configuration resolves role membership (`nests`); the runner composes the
+    adapter's fact from it, slot-suffixing the docker-state volume like every
+    other per-slot volume so two workers never share a daemon's state."""
+
+    if not run.config.runtime.nests(role):
+        return None
+
+    nested = run.config.runtime.nested
+
+    return NestedDocker(
+        image=nested.image,
+        volume=f"{nested.cache_volume}-{run.config.worker_slot}",
+        registry_mirrors=tuple(nested.registry_mirrors),
+        ready_s=nested.ready_s,
+    )
+
+
+# ....................... #
+
+
+def _gates_spec(run: Dispatch, state: RunState) -> SandboxSpec:
+    """The battery's sandbox spec (S-0003/D-8, S-0035/D-3, S-0111/D-4): the same
+    image and derived cache the attempt ran under, and — when the configuration
+    nests the gates role — a daemon of its own in a side container."""
+
+    return SandboxSpec(
+        name=naming.sandbox_name(run.task.id, state.run_id) + "-gates",
+        # Shell gates run over the same image the agent ran under
+        # (S-0003/D-8) — an image swap between attempt and gates would be
+        # its own regime change.
+        image=run.image or run.config.runtime.image,
+        labels=naming.labels(run.task.id, state.run_id, run.root),
+        timeout_s=run.config.runtime.sandbox_timeout,
+        # The battery pays the toolchain cold tax (mypy, ruff, uv all
+        # run under these gates), so the live gates sandbox carries the
+        # same derived-cache mount the attempt did — an empty dict here
+        # is the cold pass, shadow's the exclusion (S-0035/D-3).
+        volumes=cache_volumes(run),
+        # The gates sandbox gets the nested daemon first (S-0111/D-4).
+        nested=_nested_docker(run, "gates"),
+    )
+
+
+# ....................... #
+
+
 def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
     the patch feed the review's input when one is configured. Raises on
@@ -648,24 +697,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         task_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(source, task_file)
 
-    executor = _SandboxExecutor(
-        run.deps.runtime,
-        SandboxSpec(
-            name=naming.sandbox_name(run.task.id, state.run_id) + "-gates",
-            # Shell gates run over the same image the agent ran under
-            # (S-0003/D-8) — an image swap between attempt and gates would be
-            # its own regime change.
-            image=run.image or run.config.runtime.image,
-            labels=naming.labels(run.task.id, state.run_id, run.root),
-            timeout_s=run.config.runtime.sandbox_timeout,
-            # The battery pays the toolchain cold tax (mypy, ruff, uv all
-            # run under these gates), so the live gates sandbox carries the
-            # same derived-cache mount the attempt did — an empty dict here
-            # is the cold pass, shadow's the exclusion (S-0035/D-3).
-            volumes=cache_volumes(run),
-        ),
-        run.worktree,
-    )
+    executor = _SandboxExecutor(run.deps.runtime, _gates_spec(run, state), run.worktree)
 
     try:
         ctx = build_context(

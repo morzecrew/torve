@@ -70,9 +70,9 @@ decisions:
     grade: LOCKED
     text: >-
       A phase's acceptance commands are runnable in the environment that judges them:
-      a sandbox has no Docker daemon, no host credentials and no operational state,
-      so a command that reads any of those can never go green there and the contract
-      is unlandable by construction
+      a sandbox has no Docker daemon unless the repository runs one nested (S-0111),
+      no host credentials and no operational state, so a command that reads any of
+      those can never go green there and the contract is unlandable by construction
     paths: [.torve/specs, src/torve/application/intake.py]
     consequence: >-
       an authoring mistake costs one refusal at mint instead of the poison ceiling,

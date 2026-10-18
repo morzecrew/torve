@@ -1068,3 +1068,63 @@ def test_the_engine_range_admits_its_floor_and_refuses_what_comes_before_and_aft
     for outside in ("0.3.2.dev1", "0.3.2rc1", "0.3.1", "0.4.0", "0.4.0.dev3"):
         with pytest.raises(EngineRefused):
             check_engine("0.3.2", outside)
+
+
+# ....................... #
+# Docker inside the sandbox, nested (S-0111/D-1..D-4): the block, its defaults,
+# role membership, and the refusals — a judge never starts containers, and
+# nested runs only where the docker runtime and no sealed broker could.
+
+
+def test_nested_defaults_to_a_pinned_dind_image_a_gates_role_and_a_clock() -> None:
+    from torve.config.runconfig import NestedConfig, RuntimeConfig
+
+    nested = RuntimeConfig().nested
+
+    assert nested == NestedConfig(
+        image="docker:27.5.1-dind",
+        cache_volume="torve-dind",
+        registry_mirrors=[],
+        roles=["gates"],
+        ready_s=60,
+    )
+    # "" is the ordinary sandbox: no daemon, no role nested.
+    assert RuntimeConfig().nests("gates") is False
+
+
+def test_nests_reads_only_a_nested_docker_and_the_named_roles() -> None:
+    from torve.config.runconfig import RuntimeConfig
+
+    gates = RuntimeConfig(docker="nested")
+    assert gates.nests("gates") is True
+    assert gates.nests("implement") is False  # the default nests the gates alone
+
+    open_roles = RuntimeConfig(docker="nested", nested={"roles": ["gates", "implement"]})
+    assert open_roles.nests("implement") is True
+
+    # Nested off is nested nowhere, whatever the roles block says.
+    assert RuntimeConfig(docker="socket", nested={"roles": ["gates"]}).nests("gates") is False
+
+
+def test_a_nested_review_role_is_refused() -> None:
+    from torve.config.runconfig import NestedConfig, RuntimeConfig
+
+    with pytest.raises(ValidationError, match="a judge never starts containers"):
+        RuntimeConfig(docker="nested", nested=NestedConfig(roles=["gates", "review"]))
+
+
+def test_nested_needs_the_docker_runtime() -> None:
+    from torve.config.runconfig import RuntimeConfig
+
+    with pytest.raises(ValidationError, match=r"nested needs the docker runtime"):
+        RuntimeConfig(adapter="opensandbox", docker="nested")
+
+
+def test_a_sealed_broker_refuses_nested_docker() -> None:
+    from torve.config.runconfig import BrokerConfig, RuntimeConfig
+
+    with pytest.raises(ValidationError, match=r"refuses runtime\.docker: nested"):
+        RunnerConfig(
+            runtime=RuntimeConfig(docker="nested", network="torve-sealed"),
+            broker=BrokerConfig(adapter="local", mode="sealed", network="torve-sealed"),
+        )

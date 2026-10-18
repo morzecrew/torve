@@ -1019,6 +1019,46 @@ class BrokerConfig(BaseModel):
 # ....................... #
 
 
+class NestedConfig(BaseModel):
+    """The daemon a sandbox gets under `runtime.docker: nested` (S-0111/D-1): a
+    privileged side container it shares a network namespace with, so a task's
+    containers, ports and volumes are its own and nothing it starts outlives it."""
+
+    model_config = STRICT
+
+    image: str = "docker:27.5.1-dind"
+    """The pinned dind image the privileged side container runs (S-0111/D-1)."""
+    cache_volume: str = "torve-dind"
+    """The base name of the volume holding the side container's `/var/lib/docker`
+    (S-0111/D-2). The worker slot is appended, like every slot-suffixed volume: what a
+    task pulled stays pulled for that slot, and two workers never share a daemon's state."""
+    registry_mirrors: list[str] = Field(default_factory=list)
+    """Registry mirrors the side container's daemon is started with (S-0111/D-2),
+    passed to dockerd as `--registry-mirror=<url>`."""
+    roles: list[str] = Field(default_factory=lambda: ["gates"])
+    """The roles whose sandboxes get the nested daemon (S-0111/D-4). Defaults to the gates
+    alone; the review role is refused — a judge never starts containers."""
+    ready_s: float = 60
+    """How long to wait for the side container's `docker info` to answer before the
+    sandbox's creation fails as a runtime error (S-0111/D-3)."""
+
+    @model_validator(mode="after")
+    def _a_judge_never_starts_containers(self) -> NestedConfig:
+        """S-0111/D-4: the reviewer reads and writes nothing, and a sandbox it
+        drove containers from would be judging on a machine of its own making."""
+
+        if "review" in self.roles:
+            raise ValueError(
+                "runtime.nested.roles may not name 'review' — a judge never starts "
+                "containers (S-0111/D-4)"
+            )
+
+        return self
+
+
+# ....................... #
+
+
 class RuntimeConfig(BaseModel):
     model_config = STRICT
 
@@ -1063,15 +1103,46 @@ class RuntimeConfig(BaseModel):
     host's loopback — the operator trades network isolation for the host's egress path,
     knowingly. Docker-only; the OpenSandbox server owns its own egress model
     (S-0003/runtime)."""
-    docker: Literal["", "socket"] = ""
+    docker: Literal["", "socket", "nested"] = ""
     """Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). "socket"
     mounts the host daemon's socket into every sandbox of the run — attempt and gates
     alike — and the image supplies the docker CLI. Host-equivalent capability, granted
     knowingly per repository (S-0017/D-10): a container started over the host socket can
-    mount any host path. The nested daemon is the named, deferred stronger mode.
-    OpenSandbox refuses any value here."""
+    mount any host path. "nested" (S-0111/D-1) starts a privileged side container running
+    its own daemon and joins each sandbox of a role in `nested.roles` to it — a task's own
+    containers, ports and volumes. The review role is refused, and so are OpenSandbox and
+    sealed broker mode. OpenSandbox refuses any value here."""
+    nested: NestedConfig = Field(default_factory=NestedConfig)
+    """The privileged side container a `nested` sandbox shares a network namespace with
+    (S-0111/D-1): its image, volume, mirrors, roles and readiness clock."""
     opensandbox: OpenSandboxConfig = Field(default_factory=OpenSandboxConfig)
     """The OpenSandbox server the runtime talks to when the adapter is opensandbox."""
+
+    # ....................... #
+
+    def nests(self, role: str) -> bool:
+        """Whether a sandbox of *role* gets a daemon of its own (S-0111/D-1, D-4):
+        nested is on and the role is one the configuration nests. The one reading
+        of role membership — the runner marks with it, the lint admits with it."""
+
+        return self.docker == "nested" and role in self.nested.roles
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _nested_is_the_docker_runtime_only(self) -> RuntimeConfig:
+        """S-0111/D-4: a nested daemon is a side container on the host daemon, which
+        only the docker runtime has a place for. OpenSandbox's server owns its own
+        egress and lifecycle, and refuses docker access in any mode."""
+
+        if self.docker == "nested" and self.adapter != "docker":
+            raise ValueError(
+                "runtime.docker: nested needs the docker runtime — the opensandbox "
+                "runtime has no host daemon to run a side container beside, and "
+                "refuses docker access in any mode (S-0111/D-4)"
+            )
+
+        return self
 
 
 # ....................... #
@@ -1875,9 +1946,9 @@ class RunnerConfig(BaseModel):
 
         if self.runtime.docker:
             raise ValueError(
-                "broker mode 'sealed' refuses runtime.docker: socket — mounting the "
-                "host daemon into the sandbox is host-equivalent capability "
-                "(S-0017/D-10), the exact trust sealed containment exists to remove"
+                f"broker mode 'sealed' refuses runtime.docker: {self.runtime.docker} — "
+                "a daemon inside the sandbox is capability the sealed containment "
+                "exists to remove (S-0017/D-10)"
             )
 
         if self.runtime.network != self.broker.network:
