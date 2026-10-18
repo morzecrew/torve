@@ -141,6 +141,20 @@ torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/subs
 - Paths: `pages/docs/reference/stability.md` `README.md` `skills/torve/references/upgrading.md`
 - Consequence: an adopter upgrades from one page, and a session from one reference
 
+### S-0112/D-3 — `ASSUMED` (A release publishes its seat images) — implementation: none
+
+The bake tags every image, the base included, with the version it stamps, written as a tag; `:latest` is gone, and the base is in the `default` group.
+
+- Paths: `bake.hcl` `justfile`
+- Consequence: `just images` produces exactly the tags `{torve}` resolves to, and a derived image finds a base that runs the same torve
+
+### S-0112/D-5 — `ASSUMED` (A release publishes its seat images) — implementation: none
+
+Every image carries `org.opencontainers.image.source`, `org.opencontainers.image.version` and `org.opencontainers.image.revision`, and a seat image `io.morze.torve.harness.version`.
+
+- Paths: `bake.hcl`
+- Consequence: a pulled image says which repository, release and commit built it without its definition beside it
+
 ## Invariants holding over the repository root
 
 - **S-0055/I-1**: The five layer contracts hold over the whole package
@@ -161,10 +175,10 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `migrations/substrate/` — 1 decision(s)
 - `pages/` — 2 decision(s)
 - `pages/diagrams/` — 0 decision(s)
-- `pages/docs/` — 5 decision(s)
+- `pages/docs/` — 6 decision(s)
 - `pages/docs/architecture/` — 1 decision(s)
 - `pages/docs/reference/` — 2 decision(s)
-- `sandboxes/` — 11 decision(s)
+- `sandboxes/` — 12 decision(s)
 - `sandboxes/base/` — 3 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/claude/toolkit/` — 3 decision(s)
@@ -178,7 +192,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `skills/hooks/implement/` — 7 decision(s)
 - `skills/spec-writer/` — 2 decision(s)
 - `skills/torve/` — 4 decision(s)
-- `skills/torve/references/` — 1 decision(s)
+- `skills/torve/references/` — 2 decision(s)
 - `skills/working-rules/` — 8 decision(s)
 - `src/` — 1 decision(s)
 - `src/torve/` — 3 decision(s)
@@ -192,8 +206,8 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/workspace/` — 4 decision(s)
 - `src/torve/application/` — 299 decision(s)
 - `src/torve/base/` — 5 decision(s)
-- `src/torve/cli/` — 105 decision(s)
-- `src/torve/config/` — 100 decision(s)
+- `src/torve/cli/` — 106 decision(s)
+- `src/torve/config/` — 101 decision(s)
 - `src/torve/domain/` — 50 decision(s)
 - `src/torve/gates/` — 46 decision(s)
 - `tests/` — 64 decision(s)

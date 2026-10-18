@@ -100,6 +100,13 @@ Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` 
 - Consequence: nine broker branches across three definitions go, and mimo becomes brokerable by deletion rather than by implementation
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0112/D-7 — `ASSUMED` (A release publishes its seat images) — implementation: none
+
+Every version a definition installs is an `ARG` annotated `# renovate:`, every `FROM` and `COPY --from` names a pinned tag, and Renovate, limited to `sandboxes/**`, proposes the bumps.
+
+- Paths: `sandboxes/*/Dockerfile` `.github/renovate.json`
+- Consequence: a harness or base update arrives as a pull request, and reaches adopters with the next release
+
 ## Invariants holding over `sandboxes/`
 
 - **S-0063/I-2**: Every image definition answers `/opt/torve/equip` and `/opt/torve/run`, and none carries its own copy of the CLI layer.

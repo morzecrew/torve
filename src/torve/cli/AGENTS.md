@@ -768,6 +768,13 @@ In a nested sandbox's environment, a proxy whose host is loopback is rewritten t
 - Paths: `src/torve/adapters/runtime/docker.py` `src/torve/cli/doctor.py`
 - Consequence: an attempt in a nested sandbox reaches its model, or the doctor says why not
 
+### S-0112/D-6 — `ASSUMED` (A release publishes its seat images) — implementation: none
+
+`torve doctor` accepts a `<name>-sandbox` image with no definition beside it when its `org.opencontainers.image.source` names torve's repository and its version label equals the host's torve. An image with neither a definition nor those labels stays red.
+
+- Paths: `src/torve/cli/doctor.py` `src/torve/cli/sandbox.py`
+- Consequence: an adopter keeps `.torve/sandbox/<name>/` only for an image it builds itself
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

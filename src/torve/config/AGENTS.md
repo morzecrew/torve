@@ -751,6 +751,13 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 - Paths: `src/torve/config/runconfig.py` `src/torve/config/fleet.py`
 - Consequence: a judge never starts containers, and nested mode runs only where socket mode could
 
+### S-0112/D-2 — `ASSUMED` (A release publishes its seat images) — implementation: none
+
+`{torve}` in a harness manifest's `image` or in `runtime.image` is replaced when the configuration loads with the installed torve's version, with `+` written `-`. torve's own harness manifests name their images that way.
+
+- Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py` `.torve/harnesses/**`
+- Consequence: an upgrade moves `engine` and no image reference, and a seat runs the host's torve by construction
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
