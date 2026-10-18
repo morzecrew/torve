@@ -348,6 +348,13 @@ The sabotage suite carries a mutation case: a change whose tests assert nothing 
 - Paths: `src/torve/config/manifest.py` `src/torve/gates/source_layout.py` `src/torve/config/spec.py` `src/torve/application/specquality.py` `.torve/schemas/**`
 - Consequence: a project under `app/` gets every check a root project gets, and a root project changes nothing
 
+### S-0113/D-6 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+
+An invariant gate whose check selects no test fails as "the check selected nothing", as a decision gate does, and stays shadow.
+
+- Paths: `src/torve/gates/runner.py`
+- Consequence: a stale `-k` selection reads as stale, not as a broken rule
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail

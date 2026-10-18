@@ -758,6 +758,13 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 - Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py` `.torve/harnesses/**`
 - Consequence: an upgrade moves `engine` and no image reference, and a seat runs the host's torve by construction
 
+### S-0113/D-1 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+
+When git fails in a root that has a `.git`, the citation scan reads the tracked files from `.torve/tmp/tracked-files`. With no list there, `torve spec check` reports a problem saying the scan did not run; it never reads the tree as empty. A root with no `.git` scans nothing, as before.
+
+- Paths: `src/torve/config/spec.py`
+- Consequence: spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations they judge on the host
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0111]
+phasing:
+  - phase: 1
+    title: A sandbox scans the host's list of tracked files
+    intent: >-
+      `tracked_files` reads `.torve/tmp/tracked-files` when git fails in a root that
+      has a `.git`, and the check reports a problem when it has neither; the runner
+      writes the list before the gates sandbox starts and the session before the attempt's
+      sandbox starts. Tests: the scan with git failing, with and without the list,
+      and with no `.git` (`tests/test_spec.py`, `tests/test_cli_spec.py`); the list
+      written before each sandbox (`tests/test_runner.py`, `tests/test_session.py`).
+      Settles D-1 and D-2.
+    scope:
+      - src/torve/config/spec.py
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - tests/test_spec*.py
+      - tests/test_cli_spec.py
+      - tests/test_runner*.py
+      - tests/test_session*.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_spec.py tests/test_spec_load.py tests/test_specquality.py
+        tests/test_cli_spec.py tests/test_runner.py tests/test_session.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: routine
+  - phase: 2
+    title: The lane checks citations before a fast-forward
+    intent: >-
+      Before a fast-forward, the lane checks out the candidate's head in a disposable
+      worktree, runs the engine's citation scan over it, and sends a candidate with
+      a problem back as a red re-gate does. Tests: an unknown citation in a new file
+      stops the fast-forward and sends the candidate back; a clean candidate lands
+      (`tests/test_lane.py`). Settles D-3.
+    scope: [src/torve/application/lane.py, tests/test_lane*.py]
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: >-
+      A store runtime closes its client, and a watcher holds one
+    intent: >-
+      Each CLI `_runtime` closes the Postgres client its module opened when the scope
+      ends; `--until-change` opens one runtime and reads through it on every interval.
+      Tests: a runtime closes its client on exit, and a watch over several reads opens
+      one runtime (`tests/test_manager.py`). Settles D-4.
+    scope:
+      - src/torve/adapters/eventstore/document.py
+      - src/torve/cli/manager.py
+      - src/torve/cli/decisions.py
+      - src/torve/cli/fleet.py
+      - src/torve/cli/options.py
+      - tests/test_document*.py
+      - tests/test_manager*.py
+      - tests/test_decisions*.py
+      - tests/test_fleet*.py
+      - tests/test_options*.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_decisions.py tests/test_fleet_cli.py
+        tests/test_fleet_serve.py
+      - uv run mypy src
+    character: routine
+  - phase: 4
+    title: A requeue's note briefs the next attempt
+    intent: >-
+      `manager resolve --resolution requeued --note` adds the note to the task's feedback
+      record as an operator thread, keeping what the record holds; the escalations
+      reference says so. Tests: the record holds the note after its earlier threads
+      and before the diff, and a resolve with no note leaves the record as it was
+      (`tests/test_feedback.py`, `tests/test_manager.py`). Settles D-5.
+    scope:
+      - src/torve/cli/manager.py
+      - src/torve/application/feedback.py
+      - skills/torve/references/escalations.md
+      - tests/test_manager*.py
+      - tests/test_feedback*.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_feedback.py tests/test_manager.py tests/test_skills.py
+      - uv run mypy src
+    depends_on:
+      - 3
+    character: routine
+  - phase: 5
+    title: An invariant that selects no test says so
+    intent: >-
+      The gate runner reads an invariant gate's empty selection as it reads a decision
+      gate's, failing it as "the check selected nothing" under its shadow state. Tests:
+      an invariant gate whose check exits 5 fails with that verdict (`tests/test_gates.py`).
+      Settles D-6.
+    scope: [src/torve/gates/runner.py, tests/test_gates*.py, tests/test_runner*.py]
+    acceptance:
+      - uv run pytest tests/test_gates.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: routine

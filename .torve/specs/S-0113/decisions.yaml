@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      When git fails in a root that has a `.git`, the citation scan reads the tracked
+      files from `.torve/tmp/tracked-files`. With no list there, `torve spec check`
+      reports a problem saying the scan did not run; it never reads the tree as empty.
+      A root with no `.git` scans nothing, as before.
+    paths: [src/torve/config/spec.py]
+    consequence: >-
+      spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations
+      they judge on the host
+    rationale: >-
+      In the S-0111 night `tracked_files` returned an empty list in the gates sandbox,
+      and spec-valid passed three attempts that carried an undefined citation.
+    cites: [S-0057/D-9]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Before the engine starts an attempt's sandbox or a gate battery's sandbox over
+      a worktree, the host writes `git ls-files` of that worktree to `.torve/tmp/tracked-files`
+      in it.
+    paths: [src/torve/application/runner.py, src/torve/application/session.py]
+    consequence: >-
+      a tool in the sandbox that cannot run git reads the repository's file list,
+      and the sandbox never sees the git directory
+    rationale: >-
+      `.torve/tmp/` is ignored, so the list never reaches a commit. The battery's
+      list is written after the attempt, so it holds what the attempt left tracked.
+    cites: [D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Before a fast-forward, the lane runs the engine's citation scan over the candidate's
+      committed tree on the host, in a disposable worktree. A problem sends the candidate
+      back as a red re-gate does, and the candidate is not landed.
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a citation in a file the attempt created, untracked while the battery ran, is
+      judged before it lands
+    rationale: >-
+      T-0624's attempt 4 was fast-forwarded with a citation the host reports, and
+      the whole-document battery found it only at the last phase.
+    cites: [S-0101/D-8, S-0057/D-9]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A store runtime a CLI verb opens closes its Postgres client when the runtime's
+      scope ends, and `torve manager board --until-change` opens one runtime for the
+      whole wait.
+    paths:
+      - src/torve/adapters/eventstore/document.py
+      - src/torve/cli/manager.py
+      - src/torve/cli/decisions.py
+      - src/torve/cli/fleet.py
+      - src/torve/cli/options.py
+    consequence: >-
+      a watcher holds one connection pool however long it waits
+    rationale: >-
+      A watcher held 97 of the store's 100 connections in the S-0111 night, and every
+      other reader of the store failed until it was stopped.
+    cites: [S-0110/D-13]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `torve manager resolve --resolution requeued --note` adds the note to the task's
+      feedback record as an operator thread, after the threads and before the diff
+      the record already holds.
+    paths: [src/torve/cli/manager.py, src/torve/application/feedback.py]
+    consequence: >-
+      the next attempt is briefed by the person who requeued it
+    rationale: >-
+      The owner's note on T-0624's requeue named the fix, and the next attempt repeated
+      the fault because the note never reached it. `manager return --note` already
+      briefs an attempt this way.
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      An invariant gate whose check selects no test fails as "the check selected nothing",
+      as a decision gate does, and stays shadow.
+    paths: [src/torve/gates/runner.py]
+    consequence: >-
+      a stale `-k` selection reads as stale, not as a broken rule
+    rationale: >-
+      S-0061/I-2 and S-0064/I-1 selected no test until a document reached their paths,
+      and the battery reported them as a bare `fail`.
+    cites: [S-0106/D-1, S-0106/D-2]

@@ -1,0 +1,118 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0113
+title: A gate in the sandbox sees what the host sees
+kind: design
+change:
+  type: fix
+  scope: gates
+status: accepted
+implementation: none
+depends_on: []
+informed_by: [S-0057, S-0101, S-0106, S-0110, S-0111]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The S-0111 night landed a citation no document defines, because the sandbox's `torve spec check` could not run git and read the tree as empty; this document makes the sandbox scan what the host scans and closes three smaller gaps the same night found.
+
+  A sandbox gets the host's list of tracked files, and a scan that cannot read one says so instead of passing. The lane checks citations on the host before a fast-forward, because a new file is not yet tracked when the battery runs. `manager board --until-change` holds one store connection pool for its whole wait. A requeue's note reaches the next attempt. An invariant whose check selects no test says so.
+motivation: |-
+  On 2026-10-18 T-0624's attempts 2, 3 and 4 passed spec-valid in the gates sandbox while `src/torve/adapters/runtime/docker.py` cited a section name S-0111 does not define. The lane's host re-gate caught attempt 2 and escalated it. Attempt 4 was built on the document branch's tip, so the lane fast-forwarded it without a re-gate and the citation landed; the whole-document battery then went red at the last phase. The owner requeued T-0624 with a note naming the fix, and the next attempt never saw it.
+
+  The same night, a watcher waiting on `torve manager board --until-change` held 97 of the store's 100 connections, and every other reader failed with `too many clients already`. The whole-document battery also ran two invariants whose `-k` selections matched no test, S-0061/I-2 and S-0064/I-1, and reported them only as `fail`.
+current_state: |-
+  - `tracked_files` in `src/torve/config/spec.py` runs `git ls-files` and returns an empty list when git fails, which the citation scan reads as a tree with nothing to scan (S-0057/D-9). An attempt's worktree carries a `.git` file pointing at the host's git directory, which no sandbox mounts, so git fails in every sandbox. Reproduced: with `GIT_DIR=/nonexistent` the check reports 0 problems where it reports 1 with git.
+  - The battery runs before the engine commits the attempt's work, so a file the attempt created is untracked when the battery scans, on the host as in a sandbox.
+  - The lane fast-forwards a candidate whose base has not moved under it, on the premise that the tree that lands is the one the gates measured (`_land_fast_forward` in `src/torve/application/lane.py`).
+  - Each read of `--until-change` (S-0110/D-13) opens a store runtime whose `PostgresClient` (`postgres_module` in `src/torve/adapters/eventstore/document.py`) is never closed. The CLI's other `_runtime` helpers in `manager.py`, `decisions.py`, `fleet.py` and `options.py` do the same, which a one-shot verb survives because its process exits.
+  - `manager resolve --note` records the note on the `escalation.resolved` event only. `manager return --note` already writes its note into the task's feedback record as an operator thread.
+  - A decision gate whose check selects no test fails as "the check selected nothing" (S-0106/D-1). An invariant gate keeps the plain exit-code verdict.
+goals: |-
+  - A gate in a sandbox reports the citation problems the same gate reports on the host.
+  - No candidate lands with a citation problem the host would report.
+  - A watcher holds one connection pool for as long as it waits.
+  - The note an operator writes on a requeue briefs the next attempt.
+  - A stale invariant selection names itself.
+non_goals: |-
+  - Giving a sandbox git. The sandbox reads a file list; it never sees the repository's git directory.
+  - Re-running the whole battery before a fast-forward.
+  - Running every standing invariant on a schedule; a stale selection surfaces when a document reaches its paths (D-6).
+design:
+  - key: the-file-list
+    md: |-
+      Before the engine starts a sandbox over a worktree, for an attempt or for a gate battery, the host writes the repository's tracked files to `.torve/tmp/tracked-files` in that worktree. `.torve/tmp/` is ignored, so the list never reaches a commit, and the battery's list is written after the attempt, so it is current.
+
+      `tracked_files` uses git when git answers. When git fails in a root that has a `.git`, it reads the list. With neither, `torve spec check` reports a problem saying the citation scan did not run. A root with no `.git` still scans nothing, as today.
+  - key: the-fast-forward
+    md: >-
+      A file the attempt created is untracked while the battery runs, so neither the
+      host nor a sandbox scans it then. Before a fast-forward, the lane runs the engine's
+      citation scan over the candidate's committed tree on the host, in a disposable
+      worktree. A problem sends the candidate back as a red re-gate does (S-0101/D-8).
+      The rest of the battery is not repeated: its inputs were whole.
+  - key: the-store
+    md: >-
+      A store runtime the CLI opens closes its Postgres client when the runtime's
+      scope ends. `--until-change` opens one runtime for the whole wait and reads
+      through it on every interval.
+  - key: the-operator-note
+    md: >-
+      `manager resolve --resolution requeued --note` adds the note to the task's feedback
+      record as an operator thread, keeping the threads and the diff the record already
+      holds. The next attempt reads it as it reads a `manager return --note`.
+  - key: an-empty-selection
+    md: >-
+      An invariant gate whose check selects no test fails as "the check selected nothing",
+      as a decision gate already does. It stays shadow (S-0106/D-2).
+tests: |-
+  - With git failing in a root that has a `.git`, the scan reads `.torve/tmp/tracked-files` and reports a citation problem in a listed file; with no list it reports that the scan did not run; a root with no `.git` reports nothing (D-1).
+  - The runner writes the list before the gates sandbox starts and the session before the attempt's sandbox starts, and the list matches `git ls-files` (D-2).
+  - A fast-forward candidate whose committed tree carries an unknown citation is not landed and is sent back; a clean one lands as before (D-3).
+  - A runtime the CLI opens closes its client on exit, and `--until-change` opens one runtime across several reads (D-4).
+  - `manager resolve --resolution requeued --note` leaves a feedback record holding the note after the threads it already held (D-5).
+  - An invariant gate whose check exits 5 fails as "the check selected nothing" (D-6).
+docs: >-
+  The escalations reference (`skills/torve/references/escalations.md`) says a requeue's
+  note briefs the next attempt.
+out_of_scope: |-
+  - Shell gates that call git themselves (Q-2).
+  - Capturing a lane red's gate output into the task's feedback (Q-3).
+risks: |-
+  - The list is a snapshot: a file the agent adds during an attempt is missing from the attempt's own list, so the agent's self-check can miss it. The battery's list is written after the attempt, and the lane's scan covers the committed tree.
+  - The lane's check before a fast-forward adds a worktree checkout and a scan, a few seconds per landing.
+alternatives:
+  - option: >-
+      Mount the repository's git directory read-only into the sandbox.
+    rejected_because: >-
+      The candidate's own tests run in the gates sandbox and would read `.git/config`,
+      where a checkout may keep a credential. A file list gives the scan what it needs
+      and nothing else.
+  - option: Walk the scan roots on disk when git fails.
+    rejected_because: >-
+      The walk reads ignored files, such as a rendered site under `pages/`, and reports
+      citations the repository never carries.
+  - option: >-
+      Re-run the whole battery on the host before every fast-forward.
+    rejected_because: >-
+      Only the citation scan lacks part of its input when the battery runs; the rest
+      would be paid for again on every landing.
+questions:
+  - id: Q-1
+    text: >-
+      Should the citation scan read what the next commit carries (`git ls-files --cached
+      --others --exclude-standard`) instead of tracked files only? The battery would
+      then see a new file during the attempt, and the lane's check before a fast-forward
+      (D-3) would become a second line rather than the only one. It amends LOCKED
+      S-0057/D-9, which says "tracked files". Lean: yes, the owner's call.
+  - id: Q-2
+    text: >-
+      A shell gate that calls git reads nothing in a sandbox. coverage-delta's `diff-cover
+      --compare-branch` fails there, and an adopter's `git ls-files | xargs` gate
+      passes over no files. Should the battery refuse or flag a gate command naming
+      `git`, or should the list of D-2 grow a diff the gates can read?
+  - id: Q-3
+    text: >-
+      When the lane sends a candidate back on a red re-gate, should the red gates'
+      output reach the next attempt's feedback, as a review blocker's finding does?
+      Lean: yes.
