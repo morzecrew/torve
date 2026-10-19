@@ -2069,8 +2069,9 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
 
     # S-0112/D-2: `{torve}` in `runtime.image` names the installed torve, so a
     # seat that names no image of its own runs the host's release.
-    if isinstance(runtime, dict) and "image" in runtime:
-        runtime["image"] = resolve_image(str(runtime.get("image") or ""))
+    # A value that is not a string is left for `RuntimeConfig` to refuse.
+    if isinstance(runtime, dict) and isinstance(runtime.get("image"), str):
+        runtime["image"] = resolve_image(runtime["image"])
 
     if isinstance(tiers, dict):
         try:

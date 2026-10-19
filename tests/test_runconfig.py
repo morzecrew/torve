@@ -1071,6 +1071,14 @@ def test_a_torve_placeholder_in_the_runtime_image_resolves(tmp_path: Path, monke
     assert config.runtime.image == "ghcr.io/morzecrew/sandbox-base:0.4.1.dev3-g1a2b3c4"
 
 
+def test_a_runtime_image_that_is_not_a_string_is_refused(tmp_path: Path) -> None:
+    """S-0112/D-2: the placeholder is resolved in strings only, so `image: 123`
+    reaches validation as a number and is refused, not read as an image name."""
+
+    with pytest.raises(ValueError, match="image"):
+        load(tmp_path, "runtime:\n  image: 123\n")
+
+
 def test_the_engine_range_admits_its_floor_and_refuses_what_comes_before_and_after() -> None:
     """S-0110/D-2: `engine: "0.3.2"` is at least 0.3.2 and below 0.4.0, and a
     pre-release of the floor comes before it."""
