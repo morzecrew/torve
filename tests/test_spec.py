@@ -424,6 +424,28 @@ def test_the_left_list_keeps_a_name_plain_ls_files_would_quote(tmp_path, monkeyp
     assert tracked_files(tmp_path) == ["src/é.py"]
 
 
+def test_a_write_git_cannot_answer_leaves_no_stale_list(tmp_path, monkeypatch) -> None:
+    """S-0113/D-2: the worktree outlives an attempt, so a list an earlier
+    write left would be read as current; a write git cannot answer removes
+    it, and the scan says it did not run."""
+
+    import subprocess
+
+    from torve.config.spec import tracked_files, tracked_list_file, write_tracked_files
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    write_tracked_files(tmp_path)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+    write_tracked_files(tmp_path)
+
+    assert not tracked_list_file(tmp_path).exists()
+    assert tracked_files(tmp_path) is None
+
+
 def test_the_scan_with_no_list_where_git_fails_says_so(tmp_path, monkeypatch) -> None:
     """S-0113/D-1: git failing in a root that carries a `.git` and no list is
     not an empty tree — the scan hands back `None`, which the check reports

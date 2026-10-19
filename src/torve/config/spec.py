@@ -1179,10 +1179,14 @@ def write_tracked_files(root: Path) -> None:
         check=False,
     )
 
+    path = tracked_list_file(root)
+
     if done.returncode != 0:
+        # A list an earlier write left would be read as current; with none,
+        # the scan warns that it did not run.
+        path.unlink(missing_ok=True)
         return
 
-    path = tracked_list_file(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(done.stdout, encoding="utf-8")
 
