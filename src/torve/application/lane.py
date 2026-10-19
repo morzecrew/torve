@@ -2262,6 +2262,115 @@ def _document_verdicts(
 # ....................... #
 
 
+def _record_red(
+    root: Path,
+    state: RunState,
+    task_id: str,
+    branch: str,
+    branch_tip: str,
+    base_tip: str,
+    summary: str,
+    status: StatusScm | None,
+    results: list[LaneResult],
+) -> None:
+    """A candidate the lane judged red is sent back as the next pass's to
+    re-gate (S-0101/D-8): the red rides the forge as a status on the head
+    naming the base tip, so a later `torve merge` reads it back rather than
+    starting its count at zero, and a second red at the same base and head is
+    a person's to look at — escalated, not regated for ever.
+
+    Shared by the rebase's battery and the fast-forward's citation scan
+    (S-0113/D-3), so both send a candidate back the same way."""
+
+    if _red_again(root, status, task_id, base_tip, branch_tip):
+        engine_event(
+            root,
+            "lane_candidate_stuck",
+            {
+                "task": task_id,
+                "base": base_tip,
+                "head": branch_tip,
+                "gates": summary,
+            },
+        )
+
+        if state.state is TaskState.READY:
+            state.escalate(
+                EscalationReason.POISON_CEILING,
+                f"red again at the same base and head: {summary}",
+            )
+
+        results.append(
+            LaneResult(task_id, branch, "stuck", "red again at the same base and head — escalated")
+        )
+
+        return
+
+    _write_status(root, status, branch_tip, REGATE_CONTEXT, "failure", base_tip)
+    engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
+    results.append(LaneResult(task_id, branch, "gates red", summary))
+
+
+# ....................... #
+
+
+def _candidate_citations(root: Path, vcs: LaneVcs, task_id: str, head: str) -> list[str]:
+    """The engine's citation scan over the candidate's committed tree, in a
+    disposable worktree on the host (S-0113/D-3): a citation in a file the
+    attempt created, untracked while the battery ran, is judged before it
+    lands.
+
+    The worktree is detached, not checked out on the branch: the run's own
+    checkout may still pin it. A corpus the candidate's tree does not hold, or
+    one the loader refuses, contributes nothing — a corpus error is
+    `spec check`'s to report, never the lane's to die on, as it is for the
+    document-branch battery (S-0106/D-2). A scan that cannot run at all
+    reports a problem rather than reading the tree as empty (S-0113/D-1)."""
+
+    from torve.config import spec
+
+    workdir = root / naming.WORKTREE_DIR / f"lane-scan-{task_id}"
+
+    if workdir.exists():
+        vcs.remove_worktree(root, workdir)
+
+    added = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(root), "worktree", "add", "--detach", str(workdir), head],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if added.returncode != 0:
+        return [f"the citation scan did not run — {added.stderr.strip() or 'worktree add failed'}"]
+
+    try:
+        spec_dir = workdir / layout.SPECS_DIR
+
+        try:
+            corpus = spec.load_corpus(spec_dir)
+
+        except (spec.SpecError, OSError):
+            return []
+
+        names = spec.tracked_files(workdir)
+
+        if names is None:
+            return ["the citation scan did not run — git failed in the candidate's worktree"]
+
+        problems, _warnings = spec.check_tree(
+            workdir, corpus, spec_dir, spec.tree_citations(workdir, spec_dir, names)
+        )
+
+        return problems
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+
+# ....................... #
+
+
 def _land_fast_forward(
     root: Path,
     vcs: LaneVcs,
@@ -2271,6 +2380,8 @@ def _land_fast_forward(
     dry_run: bool,
     approver: str,
     results: list[LaneResult],
+    state: RunState,
+    base_tip: str,
     publish: Publisher | None = None,
     document: str | None = None,
     rounds: bool = False,
@@ -2309,6 +2420,19 @@ def _land_fast_forward(
             _open_pull_request(
                 root, publish, task_id, branch, branch_tip, "fast-forward", approver, results
             )
+
+        return
+
+    # S-0113/D-3: the battery measured the branch before the attempt's last
+    # files were committed, so the candidate's committed tree is scanned for
+    # citations once more before it lands — a citation in a new file goes back
+    # as a red re-gate does.
+    problems = _candidate_citations(root, vcs, task_id, branch_tip)
+
+    if problems:
+        _record_red(
+            root, state, task_id, branch, branch_tip, base_tip, "; ".join(problems), status, results
+        )
 
         return
 
@@ -2445,44 +2569,7 @@ def _land_rebased(
 
     if exit_code != 0:
         vcs.reset_branch(root, branch, before_rebase)
-
-        if _red_again(root, status, task_id, base_tip, branch_tip):
-            # S-0101/D-8: the same candidate red at the same base and head a
-            # second time is a person's to look at, not another rebase's.
-            engine_event(
-                root,
-                "lane_candidate_stuck",
-                {
-                    "task": task_id,
-                    "base": base_tip,
-                    "head": branch_tip,
-                    "gates": summary,
-                },
-            )
-
-            if state.state is TaskState.READY:
-                state.escalate(
-                    EscalationReason.POISON_CEILING,
-                    f"red again at the same base and head: {summary}",
-                )
-
-            results.append(
-                LaneResult(
-                    task_id,
-                    branch,
-                    "stuck",
-                    "red again at the same base and head — escalated",
-                )
-            )
-
-            return
-
-        # The red is the forge's to remember (S-0101/D-8): a status on the head
-        # naming the base tip, so a later `torve merge` reads it back rather
-        # than starting its count at zero.
-        _write_status(root, status, branch_tip, REGATE_CONTEXT, "failure", base_tip)
-        engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
-        results.append(LaneResult(task_id, branch, "gates red", summary))
+        _record_red(root, state, task_id, branch, branch_tip, base_tip, summary, status, results)
         return
 
     if publish is not None:
@@ -2566,6 +2653,8 @@ def _land_candidate(
             dry_run,
             approver,
             results,
+            state,
+            base_tip,
             publish,
             document,
             rounds,

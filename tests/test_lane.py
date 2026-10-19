@@ -168,6 +168,41 @@ def test_a_fast_forward_landing_keeps_the_commit_it_named(lane_repo):
     assert git(lane_repo, "show", f"main:{path}").split("commit: ", 1)[1].strip() == work
 
 
+def test_an_unknown_citation_in_a_new_file_stops_the_fast_forward(lane_repo):
+    """S-0113/D-3: a citation in a file the attempt created, untracked while
+    the battery ran, is judged before it lands — and a candidate with a
+    problem goes back as a red re-gate does, not onto the base."""
+
+    (lane_repo / "src").mkdir()
+    candidate(lane_repo, "T-7050", "src/new.py", "new = 1  # S-9999/D-1\n")
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code == 1, result.output
+    report = json.loads(result.stdout)
+    assert report["results"][0]["action"] == "gates red"
+    assert "S-9999/D-1" in report["results"][0]["detail"]
+    # The branch is untouched, so the next pass re-gates the same head.
+    assert git(lane_repo, "rev-parse", f"{naming.branch('T-7050')}") != git(
+        lane_repo, "rev-parse", "main"
+    )
+    assert not (lane_repo / "src" / "new.py").exists()
+
+
+def test_a_clean_candidate_lands_through_the_citation_scan(lane_repo):
+    """S-0113/D-3: the scan runs before every fast-forward, and a candidate
+    whose citations all resolve lands as measured."""
+
+    (lane_repo / "src").mkdir()
+    candidate(lane_repo, "T-7051", "src/clean.py", "clean = 1\n")
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "landed"
+    assert (lane_repo / "src" / "clean.py").is_file()
+
+
 def test_a_red_rebase_puts_the_branch_back_so_the_next_pass_regates(lane_repo):
     """T-0391 landed on a battery that had gone red, in two passes.
 
