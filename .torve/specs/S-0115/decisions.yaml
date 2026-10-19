@@ -1,0 +1,109 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A test function proves a row when its own source, docstring, comments and body,
+      carries the row's full identifier as a whole token. A module or class docstring
+      proves nothing on its functions' behalf, and only test functions that differ
+      from the base tree as parsed syntax qualify.
+    paths: [src/torve/gates/row_evidence.py]
+    consequence: >-
+      the tests already citing rows become evidence without a new convention, and
+      one citation at the top of a file cannot vouch for every test in it
+    rationale: >-
+      94 of 101 test files already cite rows. Matching the identifiers the battery
+      carries needs no citation grammar, so the gate imports nothing from the specification's
+      owner.
+    cites: [S-0081/D-2, S-0055/D-26]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A builtin gate `evidence` runs each row's citing functions against the base
+      tree, built as `red-on-base` builds it, and against the candidate. A row is
+      proved when one of its citing functions is red on base and green on the candidate.
+      A row that carries a `check` is judged by its own decision gate, and `evidence`
+      does not run it.
+    paths:
+      - src/torve/gates/row_evidence.py
+      - src/torve/gates/__init__.py
+      - src/torve/config/manifest.py
+    consequence: >-
+      a row counts as proved only by a test the change had to turn green
+    rationale: >-
+      A test green on base would have passed before a line was written (S-0081). A
+      check already runs as its own gate (S-0054/D-2), and running it twice proves
+      nothing new.
+    cites: [S-0081/D-5, S-0054/D-2]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A row is behavioural unless every one of its paths is documentation, a `*.md`
+      file or a path under `pages/`. `evidence` fails when a behavioural row is unproved
+      and carries no `check`, naming each such row, and skips when the battery carries
+      no behavioural row. It enters at shadow.
+    paths: [src/torve/gates/row_evidence.py]
+    consequence: >-
+      an unproved requirement is named in every battery that carries it, without blocking
+      a landing until the gate's record earns it
+    rationale: >-
+      Documentation rows are proved by reading, not by a test. Rows over sandbox definitions
+      and workflows have tests that prove them, so the source root alone is too narrow
+      a line.
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `evidence` names a sabotage case and its twin: a behavioural row whose only
+      citing test passes on base fails, and the same row with a citing test red on
+      base passes.
+    paths: [src/torve/gates/sabotage.py]
+    consequence: >-
+      `torve gates check` proves the gate can fail before any manifest names it
+    cites: [S-0055/D-15]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      After the whole-document battery, the lane joins per row the `evidence` verdict
+      and tests, the `decision:<id>` outcome, the mutation survivors whose path matches
+      the row's paths, and the review findings recorded on the document's tasks whose
+      evidence path matches them.
+    paths: [src/torve/application/evidence_matrix.py, src/torve/application/lane.py]
+    consequence: >-
+      one table answers, row by row, what proves it and what argues against it
+    rationale: >-
+      A builtin sees only its own context, not other gates' results, so the join runs
+      after the battery, where every result is in hand.
+  - id: D-6
+    grade: OPEN
+    text: >-
+      How the joined table reaches the pull request's composer: a host file keyed
+      by the branch tip, the battery's result threaded to the publisher, or a record.
+      The body never carries a table measured on another tip.
+    paths: [src/torve/application/lane.py, src/torve/cli/merge.py]
+    consequence: >-
+      the implementer picks the carrier the lane's existing ports make cheapest
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The document pull request's decisions table gains columns for the tests that
+      prove each row, its check, its survivors and its findings when a joined table
+      exists for the tip it publishes; without one the table stays as it is.
+    paths: [src/torve/application/forge.py]
+    consequence: >-
+      the owner accepts requirement by requirement, and a repository whose manifest
+      has no `evidence` entry sees no change
+    rationale: >-
+      The rows are written once (bloomery #155); a second table would repeat them.
+    cites: [S-0083/D-8]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The working rules and the spec-writer skill tell an implementer to cite, in
+      each test's docstring, the row it proves, and `pages/docs/operating.md` documents
+      the gate and the table's columns.
+    paths:
+      - skills/working-rules/SKILL.md
+      - skills/spec-writer/SKILL.md
+      - pages/docs/operating.md
+    consequence: >-
+      the citations the gate reads are written on purpose rather than by habit

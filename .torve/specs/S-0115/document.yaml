@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0115
+title: Every decision shows its evidence
+kind: design
+change:
+  type: feat
+  scope: gates
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0054, S-0057, S-0081, S-0106, S-0107, S-0113]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A document's pull request shows, decision by decision, the tests that prove each row and how they behaved on the base tree and on the candidate, so the owner accepts requirement by requirement instead of on one green battery.
+
+  A new shadow gate, `evidence`, finds the changed test functions that cite a row and runs them against the base tree and the candidate. After the whole-document battery the lane joins that with each row's check, the mutation survivors in the row's paths and the review findings on them, and the document's pull request carries the result in its decisions table. A behavioural row with no proving test and no check fails the gate, in shadow.
+motivation: |-
+  Requirements-based verification asks, for every requirement, which test shows it holds and whether that test needed the change. torve's rows are its requirements, and its tests already name them: 94 of the 101 files under `tests/` cite a row, 650 distinct rows in all. Nothing reads those citations. The document pull request lists the rows and each landing's gate verdicts, and a green battery says the suite passed, not that each row has a test that the change had to turn green.
+
+  `red-on-base` asks the nearest question and rarely answers it. It convicts only when every changed test passes on the base tree, so one red test clears every other. Of its 166 recorded runs since 2026-09-17, 150 passed, 16 skipped and none failed. Only 21 of the corpus's 554 rows carry a `check`.
+
+  On 2026-10-19 two attempts of S-0113 passed `spec-valid` by writing the file the scan trusted. The battery was green, and nothing in the pull request showed which of S-0113's rows a test had actually proved.
+current_state: |-
+  - The citation scan reads the source root, `pages/` and every `AGENTS.md`, `CLAUDE.md` and `README.md`; tests are not scanned (S-0057/D-9, LOCKED).
+  - `red-on-base` (S-0081) extracts the base tree with `git archive`, copies the changed test files over it and runs them; its input is the test functions that differ from base as parsed syntax (S-0081/D-2, LOCKED). It stays shadow.
+  - A row with a `check` runs as a `decision:<id>` gate the runner appends (S-0054/D-2, LOCKED), shadow until an amendment promotes it (S-0054/D-4, LOCKED).
+  - The `mutation` gate (S-0107) reports survivors as `path:line — operator`. In every one of its 36 recorded attempt-battery runs it skipped.
+  - The whole-document battery (S-0093, S-0106/D-2) runs in the lane over the document branch tip with the document's rows as `ctx.inherited` (`_document_inputs` in `src/torve/application/lane.py`) and returns a one-line summary.
+  - `compose_document_pr` in `src/torve/application/forge.py` writes the rows once as a table of id, grade and text, then each landing's gates line and divergences.
+  - Every gate names a sabotage twin (S-0055/D-15, LOCKED), and `gates` imports only `domain`, `base` and `config` (S-0055/D-24, LOCKED).
+goals: |-
+  - For every row a document defines, its pull request shows the tests that prove it, whether each was red on base and green on the candidate, the row's check verdict, and the survivors and findings in its paths.
+  - A behavioural row with neither a proving test nor a check shows as a shadow failure, named.
+  - The evidence comes from gate runs on the tree, never from the implementer's own report.
+non_goals: |-
+  - `spec check` validating citations in tests (Q-2).
+  - Making `evidence` blocking; that is a later amendment with soak evidence, as S-0054/D-4 asks of a check.
+  - Who writes the tests. An independent test author is the subject of the verifier document drafted beside this one.
+design:
+  - key: a-test-names-its-row
+    md: |-
+      A test function proves a row when its own source, docstring, comments and body, carries the row's full identifier, `S-NNNN/D-n`, as a whole token, so row 2 of a document never matches row 21. A module or class docstring proves nothing on its functions' behalf, because one citation at the top of a file would otherwise make every test in it evidence.
+
+      Only changed test functions qualify, read as `red-on-base` reads them (S-0081/D-2): a test that cited the row before this change was evidence for an earlier one. The gate matches the identifiers of the rows the battery carries, so it needs no citation grammar and imports nothing from the specification's owner (S-0055/D-26).
+  - key: the-evidence-gate
+    md: |-
+      A builtin gate, `evidence`, runs each row's citing functions twice: on the base tree, built as `red-on-base` builds it, and on the candidate. A row is proved when one of its citing functions is red on base and green on the candidate. A row that carries a `check` is judged by its own decision gate, and `evidence` does not run it again.
+
+      A row is behavioural unless every one of its paths is documentation: a `*.md` file, or a path under `pages/`. The gate fails, in shadow, when a behavioural row is unproved and carries no `check`, and names each such row. Its output is one line per row, which the lane reads back. A battery whose rows are all documentation skips.
+  - key: the-table
+    md: |-
+      After the whole-document battery, the lane joins, row by row: the `evidence` verdict and its tests, the row's `decision:<id>` outcome, the mutation survivors whose path matches the row's paths, and the review findings whose evidence path matches them.
+
+      The document pull request's decisions table gains those columns when a joined table exists for the branch tip it publishes. Without one, the table stays as it is today, so a repository whose manifest has no `evidence` entry sees no change.
+  - key: rollout
+    md: >-
+      The engine serving a night runs `main`'s builtins, and a manifest entry naming
+      a builtin that engine lacks fails every battery as infrastructure (T-0592, S-0107).
+      So the phases build the gate and the table and never touch `.torve/gates.yaml`;
+      the completion pull request adds the `evidence` entry, shadow, with its twin.
+tests: |-
+  - A changed test function whose docstring cites a row is that row's evidence; a module docstring citation and an unchanged test are not; row 2's identifier does not match row 21's (D-1).
+  - A row whose citing test is red on base and green on the candidate is proved; one whose only citing test passes on base is not; a row with a `check` is not run by `evidence` (D-2).
+  - A behavioural row with no proving test and no check fails the gate and is named; a row whose paths are all documentation does not count; a battery of documentation rows skips (D-3).
+  - The sabotage case fails and its twin passes under `torve gates check` (D-4).
+  - The join pairs each row with its decision gate, the survivors and findings in its paths, and nothing outside them (D-5).
+  - The composed body carries the evidence columns for a table measured on the tip it publishes, and today's table when there is none or it was measured on another tip (D-6, D-7).
+docs: >-
+  `pages/docs/operating.md` describes the `evidence` gate and the decisions table's
+  evidence columns. The working rules and the spec-writer skill say to cite, in each
+  test's docstring, the row it proves.
+out_of_scope: |-
+  - Validating citations in tests (Q-2).
+  - Promoting `red-on-base` (Q-1).
+  - An independent test author, drafted as its own document.
+risks: |-
+  - `evidence` runs every citing test twice, once on a fresh base tree. On a document with many rows it is the dearest gate after `mutation`; its timeout matches `red-on-base`'s.
+  - A test that cites a row it does not exercise is counted as evidence when it happens to be red on base. The red-on-base requirement makes an incidental citation rare, and the reviewer reads the table.
+  - A flaky test can prove a row on one run and not the next. The gate is shadow until its record shows otherwise.
+alternatives:
+  - option: >-
+      Have `spec check` scan tests and report their citations.
+    rejected_because: >-
+      LOCKED S-0057/D-9 keeps tests out of the scan, and a citation that resolves
+      is not evidence: the question is whether the cited test needed the change.
+  - option: Widen `red-on-base` to judge row by row.
+    rejected_because: >-
+      LOCKED S-0081/D-2 fixes its input and its verdict means "no changed test needed
+      the change". A per-row rule is a different question with a different red, and
+      keeping it separate keeps both readable.
+  - option: >-
+      Take the evidence from the attempt's execution log.
+    rejected_because: >-
+      The implementer writes the log. `decisions-reported` already locates its claims;
+      evidence the owner accepts on has to come from a run on the tree.
+  - option: >-
+      Count only rows whose paths sit under the source root as behavioural.
+    rejected_because: >-
+      Rows over `sandboxes/**` or `.github/**` have tests that prove them, such as
+      `tests/test_sandbox_defs.py`, and would be exempt for no reason.
+questions:
+  - id: Q-1
+    text: >-
+      Should `red-on-base` move to blocking now? Its 166 recorded runs show no false
+      conviction and no catch: it fails only when every changed test passes on base,
+      so one red test clears the rest. Lean: leave it shadow, and promote `evidence`,
+      whose per-row rule is stricter, after it soaks.
+  - id: Q-2
+    text: >-
+      Should an unknown row identifier in a test be a `spec check` problem? That amends
+      LOCKED S-0057/D-9 ("tests and skills are not scanned"), which S-0113/Q-1 also
+      reopens; the two are best settled together. Lean: no, because a mistyped identifier
+      leaves its row unproved, and `evidence` already names that.
+  - id: Q-3
+    text: >-
+      Should `evidence` run in every attempt's battery or only in the whole-document
+      battery? In an attempt it tells the implementer early that a row has no proving
+      test, at the cost of a base run of the citing tests per attempt. Lean: every
+      battery, since it is shadow either way.
