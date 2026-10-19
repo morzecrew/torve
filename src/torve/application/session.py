@@ -68,6 +68,7 @@ from torve.config.runconfig import (
     tier_for,
     tier_name_for,
 )
+from torve.config.spec import write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason
 from torve.domain.task import Task
@@ -494,6 +495,10 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
     attempt_started_at = stamp()
     attempt_clock = time.monotonic()
+    # S-0113/D-2: the attempt's sandbox has no git, so the host leaves the
+    # worktree's tracked files where the citation scan reads them, before the
+    # sandbox starts.
+    write_tracked_files(worktree)
     handle = deps.runtime.create(spec, worktree)
     state.sandbox_id = handle.id
     state.save()

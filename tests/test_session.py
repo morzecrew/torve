@@ -528,6 +528,94 @@ def test_the_attempt_sandbox_is_not_nested_when_only_gates_is(tmp_path):
     assert seen["nested"] is None
 
 
+# ....................... #
+# The attempt's sandbox runs no git (S-0113/D-2): the host leaves the
+# worktree's tracked files where the citation scan reads them, before the
+# sandbox starts.
+
+
+def test_the_session_leaves_the_tracked_list_before_the_attempt_sandbox(tmp_path):
+    import asyncio
+    import subprocess
+
+    from torve.application.ports import AgentResult, SandboxHandle
+    from torve.application.runner import drive_attempts, real_hooks
+    from torve.config.runconfig import RuntimeConfig
+    from torve.domain.states import TaskState
+
+    seen: dict = {}
+
+    class LookingAgent:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(exit_code=1, output="", cost_usd=0.0, model_version="m")
+
+    class ListRecordingRuntime:
+        def create(self, spec, workspace):
+            seen["tracked"] = (workspace / ".torve" / "tmp" / "tracked-files").read_text(
+                encoding="utf-8"
+            )
+
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def resolve_image(self, image):
+            return None
+
+        def sync_out(self, handle, worktree):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+    worktree = tmp_path / "wt"
+    (worktree / ".torve" / "skills").mkdir(parents=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+    (worktree / "src").mkdir()
+    (worktree / "src" / "thing.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
+    subprocess.run(["git", "-C", str(worktree), "add", "-A"], check=True)
+
+    config = RunnerConfig(
+        poison_ceiling=1,
+        runtime=RuntimeConfig(),
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="harness", provider="p", model="m"),
+        },
+    )
+    task = Task(id=TASK_ID, decisions=[], intent="make the thing work, and say why")
+    deps = RunDeps(
+        workspace=None,  # type: ignore[arg-type]
+        runtime=ListRecordingRuntime(),  # type: ignore[arg-type]
+        agent=LookingAgent(),  # type: ignore[arg-type]
+        vcs=None,  # type: ignore[arg-type]
+        scm=None,  # type: ignore[arg-type]
+        store=None,  # type: ignore[arg-type]
+    )
+    state = RunState(task_id=task.id, path=tmp_path / "state.json")
+    state.transition(TaskState.CLAIMED, "test claim")
+
+    asyncio.run(
+        drive_attempts(
+            state, task, config, real_hooks(tmp_path, task, config, deps, worktree, shadow=True)
+        )
+    )
+
+    expected = subprocess.run(
+        ["git", "-C", str(worktree), "ls-files", "-z"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    assert seen["tracked"] == expected
+    assert "src/thing.py" in expected
+
+
 # ----------------------- #
 
 

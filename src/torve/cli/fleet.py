@@ -138,7 +138,7 @@ async def _serve_fleet(
     from forze.application.execution import DepsRegistry, ExecutionRuntime
     from forze.base.logging import configure_logging
 
-    from torve.adapters.eventstore.document import mock_module, postgres_module
+    from torve.adapters.eventstore.document import closing_module, mock_module, postgres_module
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
     from torve.application.fleet import serve_fleet
@@ -157,7 +157,9 @@ async def _serve_fleet(
     module = await postgres_module(dsn) if dsn else mock_module()
     runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
 
-    async with runtime.scope():
+    # `closing_module` is entered first, so its client close runs after the
+    # scope it guards has shut down (S-0113/D-4).
+    async with closing_module(module), runtime.scope():
         log = event_log(runtime.get_context())
 
         async def run_pass(repo: FleetRepository, paused: bool) -> str | None:

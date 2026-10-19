@@ -17,11 +17,14 @@ the two drifting.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from torve.application.eventlog import ResourceName, TxRoute
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from forze.application.execution import DepsModule
 
 # ----------------------- #
@@ -71,3 +74,27 @@ async def postgres_module(
         },
         tx={TxRoute.DEFAULT},
     )
+
+
+# ....................... #
+
+
+@asynccontextmanager
+async def closing_module(module: DepsModule) -> AsyncGenerator[DepsModule]:
+    """Yield a deps module and close the Postgres client it opened when the
+    block ends.
+
+    `postgres_module` opens its client before any runtime scope exists, so
+    the runtime has nothing of its own to close when that scope shuts down.
+    A verb enters this *before* the scope it guards, so the client is closed
+    once the scope is gone (S-0113/D-4). A mock module opened no client, and
+    closing it is a no-op."""
+
+    try:
+        yield module
+
+    finally:
+        client: Any = getattr(module, "client", None)
+
+        if client is not None:
+            await client.close()

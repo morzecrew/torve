@@ -382,6 +382,95 @@ def test_the_citation_scan_reads_the_layout_source_root(tmp_path) -> None:
     assert scan_roots(tmp_path) == ("app/src/", "pages/")
 
 
+def test_the_scan_reads_the_left_list_when_git_fails(tmp_path, monkeypatch) -> None:
+    """S-0113/D-1: a sandbox can run no git, so the host leaves the tracked
+    files in the worktree's `.torve/tmp/tracked-files`; the scan reads the
+    same entries git would have answered, filtered by the scan's own roots
+    and names."""
+
+    import subprocess
+
+    from torve.config.spec import tracked_files, write_tracked_files
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    write_tracked_files(tmp_path)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+
+    assert tracked_files(tmp_path) == ["src/a.py"]
+
+
+def test_the_left_list_keeps_a_name_plain_ls_files_would_quote(tmp_path, monkeypatch) -> None:
+    """S-0113/D-2: plain `git ls-files` quotes a name with non-ASCII bytes
+    (`"src/\\303\\251.py"`), which the scan in a sandbox could not open; the
+    list carries the name as git tracks it."""
+
+    import subprocess
+
+    from torve.config.spec import tracked_files, write_tracked_files
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "é.py").write_text("", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    write_tracked_files(tmp_path)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+
+    assert tracked_files(tmp_path) == ["src/é.py"]
+
+
+def test_a_write_git_cannot_answer_leaves_no_stale_list(tmp_path, monkeypatch) -> None:
+    """S-0113/D-2: the worktree outlives an attempt, so a list an earlier
+    write left would be read as current; a write git cannot answer removes
+    it, and the scan says it did not run."""
+
+    import subprocess
+
+    from torve.config.spec import tracked_files, tracked_list_file, write_tracked_files
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    write_tracked_files(tmp_path)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+    write_tracked_files(tmp_path)
+
+    assert not tracked_list_file(tmp_path).exists()
+    assert tracked_files(tmp_path) is None
+
+
+def test_the_scan_with_no_list_where_git_fails_says_so(tmp_path, monkeypatch) -> None:
+    """S-0113/D-1: git failing in a root that carries a `.git` and no list is
+    not an empty tree — the scan hands back `None`, which the check reports
+    rather than passing silently."""
+
+    import subprocess
+
+    from torve.config.spec import tracked_files
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+
+    assert tracked_files(tmp_path) is None
+
+
+def test_a_root_with_no_git_scans_nothing(tmp_path) -> None:
+    """S-0113/D-1: a root that is no repository carries no `.git`, so it
+    scans nothing — the list rule never fires there."""
+
+    from torve.config.spec import tracked_files
+
+    assert tracked_files(tmp_path) == []
+
+
 def test_old_grammar_in_prose_is_silent_without_a_map_and_refused_with_one(tmp_path) -> None:
     from test_decisions import corpus, document
 
