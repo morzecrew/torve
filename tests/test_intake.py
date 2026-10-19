@@ -236,7 +236,13 @@ def test_lint_refuses_an_acceptance_command_that_needs_the_host(tree: Path):
 
     # Any other verb that reaches past the tree — the daemon directly, the
     # record, a run that needs credentials.
-    for command in ("docker ps", "uv run torve status", "torve ledger", "uv run torve run T-1"):
+    for command in (
+        "docker ps",
+        "uv run docker compose up",
+        "uv run torve status",
+        "torve ledger",
+        "uv run torve run T-1",
+    ):
         assert any(
             "reads the host" in e
             for e in lint_drafts(tree, document(draft_dict(acceptance=[command])), 4)
@@ -1712,10 +1718,13 @@ def test_the_lint_admits_docker_when_the_gates_role_is_nested(tmp_path: Path):
     config.write_text("runtime:\n  docker: nested\n", encoding="utf-8")
     assert lint_drafts(tmp_path, document(draft_dict(acceptance=command)), 4) == []
 
+    wrapped = ["uv run docker compose up -d --wait"]
+    assert lint_drafts(tmp_path, document(draft_dict(acceptance=wrapped)), 4) == []
+
     # The nested daemon is Docker's: podman still has nothing to run on.
-    podman = ["podman compose up -d"]
-    refused = lint_drafts(tmp_path, document(draft_dict(acceptance=podman)), 4)
-    assert any("reads the host" in e for e in refused)
+    for podman in ("podman compose up -d", "uv run podman compose up -d"):
+        refused = lint_drafts(tmp_path, document(draft_dict(acceptance=[podman])), 4)
+        assert any("reads the host" in e for e in refused), podman
 
     # Nested, but the gates role is not among the nested roles: no daemon where
     # the battery runs, so the refusal stands.
