@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: gates
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0113]
 informed_by: [S-0055, S-0083, S-0106, S-0111, S-0113]

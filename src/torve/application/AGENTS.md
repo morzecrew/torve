@@ -123,7 +123,7 @@ Models never decide what work exists or whether it is finished; the runner execu
 
 ### S-0055/D-2 — `LOCKED` (Standing decisions)
 
-Gates execute outside the agent session against the working tree it leaves behind; an agent cannot report a gate outcome
+Gates execute outside the agent session, inside a sandbox, against a standalone checkout of what the attempt leaves committed; an agent cannot report a gate outcome
 
 - Paths: `src/torve/gates/**` `src/torve/application/runner.py`
 - Consequence: The battery is the acceptance; a green the agent claims is not one
@@ -192,7 +192,7 @@ Scope is a contract: `allow` and `deny` globs make a touch outside them a red ga
 
 ### S-0055/D-20 — `ASSUMED` (Standing decisions)
 
-Acceptance is a list of shell commands, exit 0 meaning satisfied, run in the battery sandbox over a worktree without a repository; a command that needs git cannot be an acceptance command
+Acceptance is a list of shell commands, exit 0 meaning satisfied, run in the battery sandbox over a standalone checkout of the attempt's commit; a command that needs git cannot be an acceptance command, because the attempt first runs it in its own sandbox, which has no repository
 
 - Paths: `src/torve/gates/acceptance.py` `src/torve/application/intake.py`
 - Consequence: The lint refuses such a command at mint rather than after three attempts
@@ -2185,6 +2185,41 @@ Before a fast-forward, the lane runs the engine's citation scan over the candida
 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/feedback.py`
 - Consequence: the next attempt is briefed by the person who requeued it
+
+### S-0114/D-1 — `ASSUMED` (The judge reads only the commit) — implementation: none
+
+Before an attempt's battery, the host commits what `git add -A` would stage in the worktree to a snapshot under `refs/torve/judge/<task>`, leaving the worktree's index and branch untouched, and clones the snapshot into a standalone checkout at `.wt/<task>.judge/` whose history ends at the snapshot.
+
+- Paths: `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py`
+- Consequence: a gate reads only what the commit would carry, and can run git over the candidate's history
+
+### S-0114/D-2 — `ASSUMED` (The judge reads only the commit) — implementation: none
+
+An attempt's gate pass builds its context over the judge checkout and mounts the checkout, not the worktree, into the gates sandbox; the toolchain cache volume mounts as before.
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: nothing an attempt leaves outside its commit reaches a verdict
+
+### S-0114/D-3 — `ASSUMED` (The judge reads only the commit) — implementation: none
+
+The lane's re-gate of a rebased candidate and the whole-document battery run their shell gates in a gates sandbox, under the default executor seat's image, over a judge checkout of the rebased tip; `process_lane` is handed the sandbox factory by `torve merge` and the manager's lane leg.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
+- Consequence: no gate battery runs a candidate's code on the host
+
+### S-0114/D-4 — `ASSUMED` (The judge reads only the commit) — implementation: none
+
+Before the snapshot, the host lists the ignored files under the worktree that the attempt created or changed, outside the engine's own files under `.torve/tmp/` and the toolchain caches, and records a list that is not empty as the shadow result `ignored-writes` in the attempt's battery; the reviewer does not read it.
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: an attempt that writes outside its commit shows in its record without changing a verdict
+
+### S-0114/D-5 — `ASSUMED` (The judge reads only the commit) — implementation: none
+
+A gate pass removes its judge checkout and ref when the battery ends, and `torve reap` removes any a killed pass left, with the rest of the task's footprint.
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/reaper.py`
+- Consequence: a judge checkout outlives no battery
 
 ## Invariants holding over `src/torve/application/`
 
