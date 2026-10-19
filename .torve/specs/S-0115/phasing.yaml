@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: A test proves the row it cites
+    intent: >-
+      Add the builtin `evidence` gate in `src/torve/gates/row_evidence.py`, registered
+      in `BUILTINS` with its input kind and timeout in `src/torve/config/manifest.py`:
+      it reads the changed test functions that cite a row the battery carries, runs
+      them on the base tree and the candidate, and fails, naming each behavioural
+      row with no proving test and no check. Add its sabotage case and twin. No manifest
+      entry: the completion pull request adds it. Tests: citation matching, the red-on-base
+      and green-on-candidate rule, the documentation exemption and the skip (`tests/test_row_evidence.py`);
+      the registry (`tests/test_gates.py`, `tests/test_manifest.py`); the case and
+      twin (`tests/test_sabotage.py`). Settles D-1 to D-4.
+    scope:
+      - src/torve/gates/row_evidence.py
+      - src/torve/gates/__init__.py
+      - src/torve/gates/sabotage.py
+      - src/torve/config/manifest.py
+      - tests/test_row_evidence.py
+      - tests/test_gates.py
+      - tests/test_sabotage.py
+      - tests/test_manifest.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_row_evidence.py tests/test_gates.py tests/test_sabotage.py
+        tests/test_manifest.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: routine
+  - phase: 2
+    title: The pull request shows each row's evidence
+    intent: >-
+      After the whole-document battery, join per row the `evidence` verdict, the decision
+      gate's outcome, the mutation survivors and the review findings in the row's
+      paths (`src/torve/application/evidence_matrix.py`), carry the table to the composer
+      for the tip it was measured on, and add its columns to the decisions table in
+      `compose_document_pr`. A battery with no `evidence` result leaves the body as
+      today. Tests: the join (`tests/test_evidence_matrix.py`); the lane hands the
+      table only for its own tip (`tests/test_lane.py`); the composed body with and
+      without a table (`tests/test_forge.py`). Settles D-5 to D-7.
+    scope:
+      - src/torve/application/evidence_matrix.py
+      - src/torve/application/lane.py
+      - src/torve/application/forge.py
+      - src/torve/cli/merge.py
+      - tests/test_evidence_matrix.py
+      - tests/test_lane*.py
+      - tests/test_forge.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_evidence_matrix.py tests/test_lane.py tests/test_lane_prevention.py
+        tests/test_forge.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: The rules say to cite the row a test proves
+    intent: >-
+      The working rules and the spec-writer skill tell an implementer to cite, in
+      each test's docstring, the row it proves; `pages/docs/operating.md` describes
+      the `evidence` gate and the decisions table's columns. Tests: the docs and skills
+      suites (`tests/test_docs.py`, `tests/test_skills.py`). Settles D-8.
+    scope:
+      - skills/working-rules/SKILL.md
+      - skills/spec-writer/SKILL.md
+      - pages/docs/operating.md
+      - tests/test_docs.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+      - uv run torve spec check
+    depends_on:
+      - 2
+    character: routine
