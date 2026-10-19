@@ -48,12 +48,13 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      With the pilot on, the planner mints a verify task ahead of a phase when the
-      document's `change.type` is in `verify.types` and an entry of the phase's scope,
-      a path or a glob, starts with the project's source prefix: `src/`, or `<layout.root>/src/`.
-      The verify task allows only `<tests_dir>/test_sNNNN_pN.py`, accepts on `<tests.run>
-      --collect-only` over it, and its intent is a fixed preamble followed by the
-      phase's intent.
+      With the pilot on, the planner mints a verify task ahead of each phasing entry
+      when the document's `change.type` is in `verify.types` and a path or glob in
+      the entry's scope starts with the project's source prefix: `src/`, or `<layout.root>/src/`.
+      The verify task allows only `<tests_dir>/test_sNNNN_pN.py`, or `<tests_dir>/test_sNNNN_pN_<k>.py`
+      for the k-th of several phasing entries sharing phase N, counted in phasing
+      order, accepts on `<tests.run> --collect-only` over it, and its intent is a
+      fixed preamble followed by the entry's intent.
     paths: [src/torve/application/planner.py]
     consequence: >-
       documentation, configuration and refactor work never pays for a verifier
@@ -64,10 +65,11 @@ decisions:
   - id: D-5
     grade: ASSUMED
     text: >-
-      The implement task of a phase with a verifier depends on the verify task, denies
-      the verifier's file and appends `<tests.run> <file>` to the phase's acceptance;
-      all three are fixed at mint. The verify candidate lands first, and the document
-      branch carries its failing tests until the implement candidate lands.
+      The implement task of an entry with a verifier depends on that entry's verify
+      task, denies the verifier's file and appends `<tests.run> <file>` to the phase's
+      acceptance; all three are fixed at mint. The verify candidate lands first, and
+      the document branch carries its failing tests until the implement candidate
+      lands.
     paths: [src/torve/application/planner.py]
     consequence: >-
       the implementer runs the verifier's tests and any edit to them is a red scope
@@ -124,11 +126,11 @@ decisions:
     grade: ASSUMED
     text: >-
       After a verify attempt the host records the files under `.torve/tmp/holdout/`
-      of its worktree on the implement task as one `verify.holdout` event of names
-      and texts, at most 64 KiB, empty when it wrote none, and deletes them from the
-      worktree. The event registry gains the kind, its payload and the worker as its
-      actor. The latest event on the task is the held-out set; it replaces every earlier
-      one.
+      of its worktree on its entry's implement task as one `verify.holdout` event
+      of names and texts, at most 64 KiB, empty when it wrote none, and deletes them
+      from the worktree. The event registry gains the kind, its payload and the worker
+      as its actor. The latest event on the task is the held-out set; it replaces
+      every earlier one.
     paths: [src/torve/application/runner.py, src/torve/domain/events.py]
     consequence: >-
       held-out properties live in the record that every host of the fleet reads, never
@@ -156,7 +158,7 @@ decisions:
     grade: ASSUMED
     text: >-
       A builtin `verify-tests` convicts a verify candidate whose file does not collect,
-      whose phase settles a row no test cites, or one of whose visible or held-out
+      whose entry settles a row no test cites, or one of whose visible or held-out
       tests passes on the candidate; its output names each such row and test.
     paths: [src/torve/gates/verify_tests.py]
     consequence: >-
@@ -204,9 +206,9 @@ decisions:
     text: >-
       When a document's last phase lands, the lane commits the held-out properties
       recorded for its tasks to the document branch under `<tests_dir>/holdout/`,
-      each file named for its document and phase, before the whole-document battery
-      runs. `torve merge` and the manager's lane leg hand `process_lane` the reader
-      of the recorded events.
+      each file named for its document, phase and entry, before the whole-document
+      battery runs. `torve merge` and the manager's lane leg hand `process_lane` the
+      reader of the recorded events.
     paths:
       - src/torve/application/lane.py
       - src/torve/cli/merge.py
