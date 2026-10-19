@@ -267,10 +267,11 @@ def _needs_host(words: list[str], nested_gates: bool = False) -> bool:
     """
 
     # The nested daemon is Docker's: a gates sandbox has no podman to run.
-    if words[0] == "podman":
+    # Either word anywhere, as `torve` below: `uv run docker compose` names it.
+    if "podman" in words:
         return True
 
-    if words[0] == "docker":
+    if "docker" in words:
         return not nested_gates
 
     if "torve" not in words:
