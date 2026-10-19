@@ -6,6 +6,8 @@ FROM ${BASE}
 # one-line reviewed diff, never a rebuild side effect.
 # 0.1.13 is no longer on the registry (only 0.1.15 is), so the build failed at
 # this line until the pin moved.
+# S-0112/D-7: the annotation is what turns the bump into a pull request.
+# renovate: datasource=npm depName=@mimo-ai/cli
 ARG MIMO_VERSION=0.1.15
 RUN npm install -g @mimo-ai/cli@${MIMO_VERSION} && mimo --version
 # What this definition puts inside the image (S-0063/D-14): `toolkit/` is

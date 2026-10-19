@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0633
+phase: 1
+base: 5edd6569cd994df56ef43f8f5698e4e3cc64ec31
+commit: 00a4330db5b12c7e6dc7b948e6f96679027bfaa6
+at: '2026-10-19T07:24:01Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-19T07:12:01Z'
+    claim: >-
+      The bake labels claude, codex, dsh and mimo with io.morze.torve.harness.version,
+      but not opencode: its definition installs an unpinned `opencode-ai`, so there
+      is no version to name and a label would either be invented or lie. D-5 says
+      every seat image carries the label; opencode gets the three common labels only
+      until its install is pinned.
+    evidence: >-
+      bake.hcl:136 — the opencode target sets no harness-version label while the four
+      pinned seats do; sandboxes/opencode/Dockerfile:5 installs opencode-ai with no
+      version ARG to mirror
+    action: departed
+    proposal: >-
+      D-5 should read: every seat image carries io.morze.torve.harness.version once
+      its definition pins the harness version, and the bake mirrors that pin into
+      both the build and the label. Until D-7 pins opencode, its image carries the
+      source, version and revision labels alone.
+    notes: >-
+      The four labels the bake sets for the pinned seats mirror the version their
+      definition's ARG installs; the pin stays in the Dockerfile (D-7), the bake repeats
+      it for the label, and keeping the two in step is Renovate's job once D-7 lands.

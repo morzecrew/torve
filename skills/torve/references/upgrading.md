@@ -20,10 +20,13 @@ changed. One release to the next, in order:
    torve outside the range stops, naming the installed version, the range and
    the install command for a release inside it — so a stale install fails
    before it serves a night rather than after.
-3. **Rebuild the seat images.** `just images` on a checkout of the release
-   stamps every image with that tree's version. `torve doctor` runs each
-   seat image's `torve --version` and goes red when it differs from the
-   host's; rebuild before a night spends an attempt finding out.
+3. **Take the release's seat images.** Each release publishes them to
+   `ghcr.io/morzecrew/`, tagged with its version, so a harness manifest that
+   names `{torve}` resolves to the release at load and nothing needs editing:
+   docker pulls the tag the first run asks for. `torve doctor` runs each seat
+   image's `torve --version` and goes red when it differs from the host's —
+   check before a night spends an attempt finding out. An image you derive
+   yourself rebuilds from `ghcr.io/morzecrew/sandbox-base:<version>`.
 4. **Run `torve init`.** It rewrites `.torve/schemas/` from the engine you
    just installed and adds any ignore pattern minted since. It never
    overwrites a file that exists: a configuration, a gate manifest or a role
@@ -50,7 +53,7 @@ and delete the copied `.torve/agents/hooks/implement/` directory.
 
 A release whose changelog entry carries no Upgrade note moves no format, adds
 no record migration and changes no hooks; every step but the migration (5) is
-then the whole upgrade, the image rebuild included. A release that moves a
+then the whole upgrade, the seat images included. A release that moves a
 `schema_version`, adds a record migration or changes the hooks carries an
 Upgrade note naming what moved on either side and the conversion.
 

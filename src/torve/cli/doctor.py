@@ -236,6 +236,35 @@ def _image_torve_version(image: str) -> str | None:
     return _in_image(image, ["torve", "--version"])
 
 
+def _image_labels(image: str) -> dict[str, str]:
+    """The labels a locally-present image carries (S-0112/D-5), read with
+    `docker image inspect` rather than by running it: what a pulled image says
+    about where it was built is all doctor has when no definition sits beside
+    it (S-0112/D-6). Empty when the image cannot answer — absent, no runtime,
+    an unreadable body."""
+
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", "--format", "{{json .Config.Labels}}", image],
+            capture_output=True,
+            text=True,
+            timeout=_IMAGE_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+
+    if result.returncode != 0:
+        return {}
+
+    try:
+        labels = json.loads(result.stdout.strip() or "{}")
+    except ValueError:
+        return {}
+
+    return labels if isinstance(labels, dict) else {}
+
+
 def _image_version_check(image: str, host: str) -> tuple[str, bool, str] | None:
     """Red when a seat image runs a different torve than the host (S-0110/D-4):
     a sandbox on another engine is a red check before a night, not a mystery
@@ -455,7 +484,7 @@ def _engine_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
 def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     from torve.cli.options import runtime_for
-    from torve.cli.sandbox import definitions_root, harness_kind
+    from torve.cli.sandbox import definitions_root, harness_kind, published_by_torve
     from torve.config.runconfig import configured_images, installed_version
 
     config = load_config(root, config_path)
@@ -468,7 +497,8 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
         runtime = runtime_for(config, None) if config.runtime.adapter == "docker" else None
 
         for image in configured_images(config):
-            digest = runtime.resolve_image(image) if runtime is not None else None
+            local = runtime.resolve_image(image) if runtime is not None else None
+            digest = local
 
             if digest is None:
                 # S-0033/doctor: a registry reference the runtime cannot
@@ -509,17 +539,50 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
             if name:
                 if not (definitions_root(root) / name / "Dockerfile").is_file():
-                    checks.append(
-                        (
-                            f"image {image}",
-                            False,
+                    # S-0112/D-6: a definition-less `<name>-sandbox` image is
+                    # still torve's own when its labels say so — the source
+                    # names this repository and the version equals the running
+                    # torve. An image with neither a definition nor those
+                    # labels is the ambient regime this check exists to catch.
+                    if runtime is not None and local is None:
+                        # Its labels are read off a local copy, and the registry
+                        # answered for an image this host has not pulled.
+                        checks.append(
                             (
-                                f"{image}: exists but has no definition under "
-                                f"{definitions_root(root) / name} — an image without "
-                                "a reviewed definition is an ambient regime"
-                            ),
+                                f"image {image}",
+                                False,
+                                (
+                                    f"{image}: has no definition under "
+                                    f"{definitions_root(root) / name} and is not pulled, so "
+                                    "its labels cannot be read — pull it"
+                                ),
+                            )
                         )
-                    )
+
+                        continue
+
+                    labels = _image_labels(image) if runtime is not None else {}
+                    version = installed_version()
+
+                    if not published_by_torve(labels, version):
+                        checks.append(
+                            (
+                                f"image {image}",
+                                False,
+                                (
+                                    f"{image}: exists but has no definition under "
+                                    f"{definitions_root(root) / name} and carries none "
+                                    "of the labels that would make it torve's own — an "
+                                    "image without a reviewed definition is an ambient "
+                                    "regime"
+                                ),
+                            )
+                        )
+
+                        continue
+
+                    detail += " (published by torve, with no definition beside it)"
+                    checks.append((f"image {image}", True, detail))
 
                     continue
 

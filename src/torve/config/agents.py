@@ -106,6 +106,28 @@ class AgentProfile(BaseModel):
         return self
 
 
+# The placeholder a manifest names the host's torve with (S-0112/D-2).
+TORVE_PLACEHOLDER = "{torve}"
+
+
+def resolve_image(image: str) -> str:
+    """`{torve}` in an image reference, replaced with the installed torve's
+    version written as a tag (S-0112/D-2).
+
+    A tag may not hold `+`, so a development version's local part takes `-`:
+    `0.4.1.dev3+g1a2b3c4` resolves to `0.4.1.dev3-g1a2b3c4`, the tag the bake
+    wrote. An upgrade then moves `engine` and no image reference, and a seat
+    runs the host's torve by construction.
+    """
+
+    if TORVE_PLACEHOLDER not in image:
+        return image
+
+    import torve
+
+    return image.replace(TORVE_PLACEHOLDER, torve.__version__.replace("+", "-"))
+
+
 class HarnessManifest(BaseModel):
     """How a model is reached (S-0061/D-2) — and never which model.
 
@@ -186,6 +208,14 @@ class HarnessManifest(BaseModel):
                     f"`kinds` names {kind!r}, which is no equipment kind — "
                     f"the kinds are {', '.join(KINDS)}"
                 )
+
+        return self
+
+    @model_validator(mode="after")
+    def _image(self) -> HarnessManifest:
+        """`{torve}` in the image names the installed torve (S-0112/D-2)."""
+
+        self.image = resolve_image(self.image)
 
         return self
 
@@ -601,6 +631,13 @@ def resolve_seats(
             del merged[own]
 
         merged.update(entry)
+
+        # S-0112/D-2: the merge is of raw bodies, so the placeholder the manifest
+        # wrote survives it and is resolved here, before the load check reads the
+        # harness directory off the image.
+        if "image" in merged:
+            merged["image"] = resolve_image(str(merged["image"]))
+
         _equipped(key, harness_name, profile_name, merged, root, default_image)
         tiers[key] = merged
         named[key] = (harness_name, profile_name)

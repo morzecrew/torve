@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0636
+phase: 4
+attempt: 2
+base: a975baf4b615d0235fb4e17acc0fc9c3e85befd2
+commit: 38eeb39aecc8e1ef32d83a0c3ae046929d579fc9
+at: '2026-10-19T11:18:47Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-19T11:13:27Z'
+    claim: >-
+      D-7 confines Renovate to sandboxes/**, but the harness version a seat image
+      labels is a second copy of the same pin, in bake.hcl at the repository root
+      — outside the paths Renovate reads (S-0112/D-5). A bump to a definition's annotated
+      ARG therefore moves the image's harness without moving its label, and the release
+      check that a seat's harness prints the version its label carries (D-4) then
+      fails, so D-7's consequence — a harness update reaching adopters with the next
+      release — does not hold from D-7 alone.
+    evidence: >-
+      bake.hcl:44-58 — the CLAUDE_VERSION, CODEX_VERSION, DSH_VERSION and MIMO_VERSION
+      variables the seat labels read, unannotated and outside sandboxes/**; sandboxes/claude/Dockerfile:11
+      is the ARG a bump would move, and .github/renovate.json:7-9 confines the managers
+      to sandboxes/**, so the regex manager cannot reach the bake file
+    action: decided
+    proposal: >-
+      Either annotate bake.hcl's *_VERSION variables with '# renovate:' and add bake.hcl
+      to the paths Renovate reads, or make the definition's ARG the single source
+      and have the bake read the label's version from it, so the two copies D-5 and
+      D-7 each hold cannot drift.
+    notes: >-
+      T-0633's D-5 departure already recorded that keeping the two in step 'is Renovate's
+      job once D-7 lands'; D-7's sandboxes/** limit leaves that job with no reader.

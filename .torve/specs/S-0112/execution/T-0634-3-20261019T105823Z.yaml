@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0634
+phase: 2
+attempt: 3
+base: ecf35f4861dbcd92d9c1037f37b709b94f552147
+commit: f65479f1f107059a49cfaeeb6675b40b10b1e02b
+at: '2026-10-19T10:58:23Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: S-0063/D-6
+    grade: LOCKED
+    at: '2026-10-19T08:01:36Z'
+    claim: >-
+      S-0063/D-6 is amended, as the contract's own words and the owner's 2026-10-18
+      agreement direct, to add the label rule doctor applies to a <name>-sandbox image
+      with no definition beside it, and to add src/torve/cli/doctor.py to its paths.
+    evidence: >-
+      .torve/specs/S-0063/amendments.yaml:178 — A-15 records the text and paths change
+      and the row's new fingerprint
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-19T08:03:55Z'
+    claim: >-
+      Amending S-0063/D-6 changes the row's text and paths, the inputs the managed
+      projection renders, so 'torve spec project' also re-renders sandboxes/AGENTS.md;
+      that file is outside this task's scope, so it is left stale while src/torve/cli/AGENTS.md
+      was regenerated.
+    evidence: >-
+      .torve/specs/S-0063/amendments.yaml:178 — A-15 changes D-6's text and paths
+    action: decided
+    proposal: >-
+      Name sandboxes/AGENTS.md in a scope (this task's or a follow-up) so its managed
+      section is re-rendered from the amended row
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-19T08:27:44Z'
+    attempt: 3
+    claim: >-
+      Amending S-0063/D-6 (A-15) re-renders its managed projection into sandboxes/AGENTS.md
+      as well as into src/torve/cli/AGENTS.md, and sandboxes/AGENTS.md is outside
+      this task's scope: no allow glob, no contingent literal and no derived rider
+      reaches it, so the write that would clear the drift is refused before it lands
+      and the scope gate would convict on it. The contract instructs the amendment
+      and the amendment cannot be completed without that file, so the attempt halts
+      rather than edit outside the scope.
+    evidence: >-
+      .torve/specs/S-0063/decisions.yaml:83 — the amended D-6 whose paths include
+      sandboxes/**, the projection input that renders sandboxes/AGENTS.md; `uv run
+      torve spec project --check` prints DRIFT sandboxes/AGENTS.md and then FAIL 45
+      governed directories, 1 drifting
+    action: halted
+    proposal: >-
+      Name sandboxes/AGENTS.md in this task's scope, or re-mint the contract naming
+      the projection of every row an amendment renders, so the re-render lands beside
+      the amendment.
+    notes: >-
+      Supersedes the attempt-1 entry that recorded the same finding and decided to
+      carry on: leaving the row amended with its projection stale is what the reviewer's
+      thread convicts, and the fix is out of scope, so this attempt halts. The implementation
+      and the amendment stay in the tree for the next dispatch to continue from.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-10-19T08:33:11Z'
+    attempt: 3
+    claim: >-
+      Amending S-0063/D-6 (A-15) re-renders its managed projection into sandboxes/AGENTS.md
+      as well as into src/torve/cli/AGENTS.md, and sandboxes/AGENTS.md is outside
+      this task's scope: no allow glob, no contingent literal and no derived rider
+      reaches it, so the write that would clear the drift is refused before it lands
+      and the scope gate would convict on it. The contract instructs the amendment
+      and the amendment cannot be completed without that file, so the attempt halts
+      rather than edit outside the scope.
+    evidence: >-
+      .torve/specs/S-0063/decisions.yaml:83 — the amended D-6 whose paths include
+      sandboxes/**, the projection input that renders sandboxes/AGENTS.md; `uv run
+      torve spec project --check` prints DRIFT sandboxes/AGENTS.md and then FAIL 45
+      governed directories, 1 drifting
+    action: halted
+    proposal: >-
+      Name sandboxes/AGENTS.md in this task's scope, or re-mint the contract naming
+      the projection of every row an amendment renders, so the re-render lands beside
+      the amendment.
+    notes: >-
+      Supersedes the attempt-1 entry that recorded the same finding and decided to
+      carry on: leaving the row amended with its projection stale is what the reviewer's
+      thread convicts, and the fix is out of scope, so this attempt halts. The implementation
+      and the amendment stay in the tree for the next dispatch to continue from.
