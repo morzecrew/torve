@@ -6,7 +6,7 @@ change:
   type: fix
   scope: gates
 status: accepted
-implementation: none
+implementation: complete
 depends_on: []
 informed_by: [S-0057, S-0101, S-0106, S-0110, S-0111]
 supersedes: []

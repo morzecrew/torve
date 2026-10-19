@@ -2165,21 +2165,21 @@ The mint-time lint admits an acceptance command naming `docker` when the configu
 - Paths: `src/torve/application/intake.py`
 - Consequence: a phase can name its e2e suite as acceptance once its gates can run it
 
-### S-0113/D-2 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-2 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 Before the engine starts an attempt's sandbox or a gate battery's sandbox over a worktree, the host writes `git ls-files` of that worktree to `.torve/tmp/tracked-files` in it.
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py`
 - Consequence: a tool in the sandbox that cannot run git reads the repository's file list, and the sandbox never sees the git directory
 
-### S-0113/D-3 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-3 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 Before a fast-forward, the lane runs the engine's citation scan over the candidate's committed tree on the host, in a disposable worktree. A problem sends the candidate back as a red re-gate does, and the candidate is not landed.
 
 - Paths: `src/torve/application/lane.py`
 - Consequence: a citation in a file the attempt created, untracked while the battery ran, is judged before it lands
 
-### S-0113/D-5 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-5 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 `torve manager resolve --resolution requeued --note` adds the note to the task's feedback record as an operator thread, after the threads and before the diff the record already holds.
 

@@ -141,14 +141,14 @@ torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/subs
 - Paths: `pages/docs/reference/stability.md` `README.md` `skills/torve/references/upgrading.md`
 - Consequence: an adopter upgrades from one page, and a session from one reference
 
-### S-0112/D-3 — `ASSUMED` (A release publishes its seat images) — implementation: none
+### S-0112/D-3 — `ASSUMED` (A release publishes its seat images)
 
 The bake tags every image, the base included, with the version it stamps, written as a tag; `:latest` is gone, and the base is in the `default` group.
 
 - Paths: `bake.hcl` `justfile`
 - Consequence: `just images` produces exactly the tags `{torve}` resolves to, and a derived image finds a base that runs the same torve
 
-### S-0112/D-5 — `ASSUMED` (A release publishes its seat images) — implementation: none
+### S-0112/D-5 — `ASSUMED` (A release publishes its seat images)
 
 Every image carries `org.opencontainers.image.source`, `org.opencontainers.image.version` and `org.opencontainers.image.revision`, and a seat image `io.morze.torve.harness.version`.
 

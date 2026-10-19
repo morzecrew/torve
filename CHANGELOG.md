@@ -31,6 +31,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The base sandbox image carries the Docker CLI with its compose and buildx plugins,
   `just` and `openssl`. The seat images need rebuilding.
 
+- Each release publishes the base and seat images to `ghcr.io/morzecrew`, tagged with
+  its version, after checking that each one runs that version of torve. An adopter
+  pulls them instead of copying torve's image definitions.
+
+- `{torve}` in a harness manifest's image or in `runtime.image` resolves to the
+  installed torve's version, so an upgrade moves the images with the engine. torve's
+  own manifests name their images that way.
+
+- `torve doctor` accepts a published seat image with no local definition when its
+  labels name torve's repository and the host's torve version.
+
+- `torve manager resolve --resolution requeued --note` adds the note to the task's
+  feedback record, so the next attempt reads it.
+
+### Changed
+
+- `just images` tags every image, the base included, with the version it stamps, and
+  no longer writes `:latest`.
+
+- An invariant gate whose check selects no test fails as "the check selected nothing",
+  as a decision gate does. It stays shadow.
+
+### Fixed
+
+- `torve spec check` in a sandbox, where git cannot run, reads the host's list of
+  tracked files instead of reading the tree as empty and passing. With no list, it
+  warns that the scan did not run.
+
+- The lane checks citations on the host before a fast-forward, so a candidate that
+  cites a row no document defines goes back instead of landing.
+
+- `torve manager board --until-change` holds one store connection pool for its whole
+  wait, and every store a command opens closes when the command ends.
+
+- `torve manager return` moves the candidate's run state back to queued under the
+  lane's lock, so the lane no longer lands a candidate an operator sent back.
+
+- `torve review corpus` replays reach their seat through the configured broker, so a
+  credentialed route no longer fails as logged out. A seat that gives no verdict is
+  reported as a seat error.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added

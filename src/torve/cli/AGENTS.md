@@ -768,21 +768,21 @@ In a nested sandbox's environment, a proxy whose host is loopback is rewritten t
 - Paths: `src/torve/adapters/runtime/docker.py` `src/torve/cli/doctor.py`
 - Consequence: an attempt in a nested sandbox reaches its model, or the doctor says why not
 
-### S-0112/D-6 — `ASSUMED` (A release publishes its seat images) — implementation: none
+### S-0112/D-6 — `ASSUMED` (A release publishes its seat images)
 
 `torve doctor` accepts a `<name>-sandbox` image with no definition beside it when its `org.opencontainers.image.source` names torve's repository and its version label equals the host's torve. An image with neither a definition nor those labels stays red.
 
 - Paths: `src/torve/cli/doctor.py` `src/torve/cli/sandbox.py`
 - Consequence: an adopter keeps `.torve/sandbox/<name>/` only for an image it builds itself
 
-### S-0113/D-4 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-4 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 A store runtime a CLI verb opens closes its Postgres client when the runtime's scope ends, and `torve manager board --until-change` opens one runtime for the whole wait.
 
 - Paths: `src/torve/adapters/eventstore/document.py` `src/torve/cli/manager.py` `src/torve/cli/decisions.py` `src/torve/cli/fleet.py` `src/torve/cli/options.py`
 - Consequence: a watcher holds one connection pool however long it waits
 
-### S-0113/D-5 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-5 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 `torve manager resolve --resolution requeued --note` adds the note to the task's feedback record as an operator thread, after the threads and before the diff the record already holds.
 

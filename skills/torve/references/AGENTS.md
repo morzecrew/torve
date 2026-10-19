@@ -9,7 +9,7 @@
 - Paths: `pages/docs/reference/stability.md` `README.md` `skills/torve/references/upgrading.md`
 - Consequence: an adopter upgrades from one page, and a session from one reference
 
-### S-0112/D-8 — `ASSUMED` (A release publishes its seat images) — implementation: none
+### S-0112/D-8 — `ASSUMED` (A release publishes its seat images)
 
 The adoption and upgrading references and the configuration reference say to pull the published images, name them with `{torve}`, and derive from `ghcr.io/morzecrew/sandbox-base`.
 

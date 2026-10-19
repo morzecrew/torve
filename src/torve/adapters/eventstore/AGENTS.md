@@ -2,7 +2,7 @@
 
 ## Decisions governing `src/torve/adapters/eventstore/`
 
-### S-0113/D-4 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-4 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 A store runtime a CLI verb opens closes its Postgres client when the runtime's scope ends, and `torve manager board --until-change` opens one runtime for the whole wait.
 
