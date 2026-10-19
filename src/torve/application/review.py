@@ -373,8 +373,10 @@ def elide_diff_bulk(diff_text: str, prefixes: tuple[str, ...] = ELIDED_DIFF_PATH
 
 def seat_api_error(output: str) -> str | None:
     """The provider's error when the seat's last envelope is one and nothing
-    else — is_error, with an API Error as its result — else None. Judged from
-    the recorded output alone, so what the escalation says is auditable."""
+    else — is_error, with an API Error as its result or an `api_error` as its
+    terminal reason — else None. Judged from the recorded output alone, so
+    what the escalation says is auditable. A seat with no credential ends on
+    "Not logged in" and `api_error`, which read as unparseable before."""
 
     for line in reversed(output.strip().splitlines()):
         try:
@@ -389,7 +391,9 @@ def seat_api_error(output: str) -> str | None:
         envelope = cast("dict[str, Any]", document)
         result = str(envelope.get("result", ""))
 
-        return result if envelope.get("is_error") and "API Error" in result else None
+        api_error = "API Error" in result or envelope.get("terminal_reason") == "api_error"
+
+        return result if envelope.get("is_error") and api_error else None
 
     return None
 

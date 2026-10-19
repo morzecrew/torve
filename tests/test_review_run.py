@@ -454,6 +454,25 @@ def test_a_rate_limit_is_waited_out_once_and_a_refusal_is_not():
     assert seat_api_error('{"findings": []}') is None
 
 
+def test_a_seat_with_no_credential_is_a_seat_error():
+    # The claude harness without a credential ends on this envelope; it read
+    # as "review output unparseable" while the seat had never been reached.
+    logged_out = (
+        json.dumps(
+            {
+                "type": "result",
+                "is_error": True,
+                "result": "Not logged in · Please run /login",
+                "terminal_reason": "api_error",
+            }
+        )
+        + "\n"
+    )
+
+    assert seat_api_error(logged_out) == "Not logged in · Please run /login"
+    assert not transient_api_failure(logged_out)
+
+
 def test_a_seat_that_gives_no_verdict_escalates_naming_its_error(review_rig, monkeypatch):
     # A reviewer at its usage limit answered every ask with a 429 and the
     # escalation said "review output unparseable": the operator read a broken
