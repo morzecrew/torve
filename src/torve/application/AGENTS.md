@@ -2221,6 +2221,55 @@ Each battery removes its judge checkout and ref when it ends, green or red: the 
 - Paths: `src/torve/application/runner.py` `src/torve/application/lane.py` `src/torve/application/reaper.py`
 - Consequence: a judge checkout outlives no battery, and no reap removes one a battery is reading
 
+### S-0116/D-1 — `ASSUMED` (An independent verifier) — implementation: none
+
+`verify` is a role in the closed vocabulary and a dispatchable one. A verify contract carries acceptance commands and no targets, and the reaper keeps a verify task's worktree as it keeps an implement task's.
+
+- Paths: `src/torve/domain/vocabulary.py` `src/torve/domain/task.py` `src/torve/application/reaper.py`
+- Consequence: a worker claims a verify task off the board like an implement task, and every reader of `DISPATCHABLE_ROLES` offers it
+
+### S-0116/D-4 — `ASSUMED` (An independent verifier) — implementation: none
+
+With the pilot on, the planner mints a verify task ahead of each phasing entry when the document's `change.type` is in `verify.types` and a path or glob in the entry's scope starts with the project's source prefix: `src/`, or `<layout.root>/src/`. The verify task allows only `<tests_dir>/test_sNNNN_pN.py`, or `<tests_dir>/test_sNNNN_pN_<k>.py` for the k-th of several phasing entries sharing phase N, counted in phasing order, accepts on `<tests.run> --collect-only` over it, and its intent is a fixed preamble followed by the entry's intent.
+
+- Paths: `src/torve/application/planner.py`
+- Consequence: documentation, configuration and refactor work never pays for a verifier
+
+### S-0116/D-5 — `ASSUMED` (An independent verifier) — implementation: none
+
+The implement task of an entry with a verifier depends on that entry's verify task, denies the verifier's file and appends `<tests.run> <file>` to the phase's acceptance; all three are fixed at mint. The verify candidate lands first, and the document branch carries its failing tests until the implement candidate lands.
+
+- Paths: `src/torve/application/planner.py`
+- Consequence: the implementer runs the verifier's tests and any edit to them is a red scope gate
+
+### S-0116/D-7 — `ASSUMED` (An independent verifier) — implementation: none
+
+The task-gated review runs for verify tasks as for implement tasks, and reads the verifier's tests for vacuity and for over-specification.
+
+- Paths: `src/torve/application/dispatch.py`
+- Consequence: a test that asserts nothing, or one that pins an internal no row names, is a finding before it judges any implementation
+
+### S-0116/D-9 — `ASSUMED` (An independent verifier) — implementation: none
+
+After a verify attempt the host records the files under `.torve/tmp/holdout/` of its worktree on its entry's implement task as one `verify.holdout` event of names and texts, at most 64 KiB, empty when it wrote none, and deletes them from the worktree. The event registry gains the kind, its payload and the worker as its actor. The latest event on the task is the held-out set; it replaces every earlier one.
+
+- Paths: `src/torve/application/runner.py` `src/torve/domain/events.py`
+- Consequence: held-out properties live in the record that every host of the fleet reads, never in an attempt's commit and never in an implementer's sandbox
+
+### S-0116/D-12 — `ASSUMED` (An independent verifier) — implementation: none
+
+`torve eval --task T --verifier` replays T as an incumbent arm and as a candidate arm that first replays a verify task from T's parent; `--oracle` runs a command, written by hand for each replayed task from the fix that caught its escape, on each arm's candidate and records a non-zero exit as that arm's escape.
+
+- Paths: `src/torve/application/evals.py` `src/torve/application/shadow.py` `src/torve/cli/evals.py`
+- Consequence: the pilot's default is decided from the eval ledger, not from a belief
+
+### S-0116/D-14 — `ASSUMED` (An independent verifier) — implementation: none
+
+When a document's last phase lands, the lane commits the held-out properties recorded for its tasks to the document branch under `<tests_dir>/holdout/`, each file named for its document, phase and entry, before the whole-document battery runs. `torve merge` and the manager's lane leg hand `process_lane` the reader of the recorded events.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
+- Consequence: the held-out properties keep guarding the document's rows as visible tests after it merges
+
 ## Invariants holding over `src/torve/application/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

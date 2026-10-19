@@ -1,4 +1,5 @@
 # yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0114]
 phasing:
   - phase: 1
     title: The verify role and its configuration
@@ -85,22 +86,25 @@ phasing:
       Add the `verify.holdout` event kind, its payload and its actor to the event
       registry. After a verify attempt the runner records the files under `.torve/tmp/holdout/`
       as one `verify.holdout` event on its entry's implement task, empty when there
-      are none, and deletes them; before a battery it writes the files of the task's
-      latest event into the gate checkout under `<tests_dir>/holdout/`. Add the builtins
-      `held-out`, whose output keeps only each failing test's identifier, message
-      and cited rows, and `verify-tests`, whose output names each uncited row and
-      passing test, with their sabotage cases; their `.torve/gates.yaml` entries wait
-      for the completion pull request. Tests: the event kind (`tests/test_events.py`),
-      recording and removal, the latest event replacing earlier ones, injection (`tests/test_runner.py`),
-      the redacted output (`tests/test_held_out.py`), each conviction of `verify-tests`
-      (`tests/test_verify_tests.py`), the sabotage cases (`tests/test_sabotage.py`).
-      Settles D-9, D-10 and D-11.
+      are none, and deletes them; before a battery it hands the gate context the files
+      of the task's latest event. Add the builtins `held-out`, which writes those
+      files under `<tests_dir>/holdout/` for its own run only and removes them when
+      it ends, and whose output keeps only each failing test's identifier, message
+      and cited rows, and `verify-tests`, which does the same with them and whose
+      output names each uncited row and passing test, with their sabotage cases; their
+      `.torve/gates.yaml` entries wait for the completion pull request. Tests: the
+      event kind (`tests/test_events.py`), recording and removal, the latest event
+      replacing earlier ones, the gate context carrying the event's files (`tests/test_runner.py`),
+      no other gate seeing them (`tests/test_gates.py`), the redacted output (`tests/test_held_out.py`),
+      each conviction of `verify-tests` (`tests/test_verify_tests.py`), the sabotage
+      cases (`tests/test_sabotage.py`). Settles D-9, D-10 and D-11.
     scope:
       - src/torve/application/runner.py
       - src/torve/domain/events.py
       - src/torve/gates/held_out.py
       - src/torve/gates/verify_tests.py
       - src/torve/gates/__init__.py
+      - src/torve/gates/context.py
       - src/torve/gates/sabotage.py
       - tests/test_runner*.py
       - tests/test_events.py

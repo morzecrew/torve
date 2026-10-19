@@ -9,4 +9,11 @@ How to write a divergence entry lives in working-rules, matching `torve log dive
 - Paths: `skills/working-rules/**` `skills/flag-dont-flip/**`
 - Consequence: the two skills an executing agent reads cannot contradict each other on the log
 
+### S-0116/D-8 — `ASSUMED` (An independent verifier) — implementation: none
+
+An implementer that disputes a verifier test halts with a divergence entry naming the test and the row, and never edits the file; `torve:flag-dont-flip` says so.
+
+- Paths: `skills/flag-dont-flip/**`
+- Consequence: a wrong test reaches a person as an `underspecified` escalation instead of being quietly rewritten
+
 <!-- /torve:managed -->
