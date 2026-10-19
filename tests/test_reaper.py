@@ -758,3 +758,27 @@ def test_requeue_returned_leaves_other_states_and_missing_files_alone(tmp_path):
     assert requeue_returned(tmp_path, "T-9805", "too early") is False
     assert RunState.load(state.path).state is TaskState.RUNNING
     assert requeue_returned(tmp_path, "T-9806", "no file") is False
+
+
+def test_the_lane_lock_is_waited_for_while_a_pass_holds_it(tmp_path):
+    """A return made while a lane pass runs waits for the pass, so the pass
+    never lands from a ready file read before the return."""
+    import threading
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.application.lane import lane_held, process_lane
+
+    entered = threading.Event()
+
+    def second() -> None:
+        with lane_held(tmp_path):
+            entered.set()
+
+    with lane_held(tmp_path):
+        assert [r.action for r in process_lane(tmp_path, GitLane())] == ["lane busy"]
+        waiter = threading.Thread(target=second)
+        waiter.start()
+        assert not entered.wait(0.2)
+
+    assert entered.wait(5)
+    waiter.join()
