@@ -344,22 +344,43 @@ def test_review_lists_the_pr_verb_beside_the_corpus(tmp_path):
 
 
 def test_the_replay_reaches_the_seat_through_the_configured_broker(tmp_path, monkeypatch):
-    # `review pr` hands run_review a broker and the corpus replay did not, so
-    # under `broker: local` the replayed reviewer ran with no credential.
+    # `review pr` opens a broker handle for its review and the corpus replay
+    # did not, so under `broker: local` the replayed reviewer ran with no
+    # credential and its "Not logged in" read as unparseable.
     import torve.adapters.broker as broker_module
     import torve.application.review as review_module
 
+    class RecordingBroker:
+        name = "recording"
+
+        def __init__(self) -> None:
+            self.opened: list[str] = []
+            self.closed: list[object] = []
+
+        def open(self, run_id, routing, budget):
+            self.opened.append(run_id)
+            return f"handle-{run_id}"
+
+        def close(self, handle) -> None:
+            self.closed.append(handle)
+
+        def usage(self, handle):
+            return None
+
     root = seed_corpus(tmp_path)
-    sentinel = object()
-    seen: list[object] = []
+    broker = RecordingBroker()
+    handles: list[object] = []
     replay = review_module.run_review
 
     def recording(*args, **kwargs):
-        seen.append(kwargs.get("broker"))
+        handles.append(kwargs.get("broker_handle"))
         return replay(*args, **kwargs)
 
-    monkeypatch.setattr(broker_module, "build_broker", lambda config: sentinel)
+    monkeypatch.setattr(broker_module, "build_broker", lambda config: broker)
     monkeypatch.setattr(review_module, "run_review", recording)
     result = invoke_corpus(root, monkeypatch, json.dumps({"findings": []}))
 
-    assert seen == [sentinel], result.output
+    assert broker.opened == ["corpus-seeded-review"], result.output
+    assert handles == ["handle-corpus-seeded-review"]
+    assert broker.closed == ["handle-corpus-seeded-review"]
+    assert json.loads(result.stdout)["cases"][0]["seat_error"] is None

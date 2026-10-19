@@ -179,6 +179,8 @@ def _case_outcome(
     root: Path,
     broker: Any = None,
 ) -> dict[str, Any]:
+    from torve.application.dispatch import run_routing
+    from torve.application.ports import BrokerBudget
     from torve.application.review import run_review
     from torve.domain.task import Budget, Task
 
@@ -200,20 +202,39 @@ def _case_outcome(
         tier="reviewer",
     )
 
-    outcome = run_review(
-        root,
-        case_dir / "tree",
-        target,
-        review,
-        config,
-        runtime,
-        agent,
-        (case_dir / "diff.patch").read_text(encoding="utf-8"),
-        [],
-        "corpus",
-        degraded=bool(document.get("degraded", False)),
-        broker=broker,
+    # The seat reaches its provider through a handle the broker opens for this
+    # review, as `review pr` opens one (S-0021): the sandbox sees the broker's
+    # URL and a run-scoped token, never a key.
+    handle = (
+        broker.open(
+            review.id,
+            run_routing(config, review, review_on=False),
+            BrokerBudget(tokens=review.budget.tokens),
+        )
+        if broker is not None
+        else None
     )
+
+    try:
+        outcome = run_review(
+            root,
+            case_dir / "tree",
+            target,
+            review,
+            config,
+            runtime,
+            agent,
+            (case_dir / "diff.patch").read_text(encoding="utf-8"),
+            [],
+            "corpus",
+            degraded=bool(document.get("degraded", False)),
+            broker=broker,
+            broker_handle=handle,
+        )
+
+    finally:
+        if broker is not None and handle is not None:
+            broker.close(handle)
 
     missed: list[str] = []
 
@@ -236,6 +257,7 @@ def _case_outcome(
         "findings": [f.model_dump() for f in outcome.kept],
         "discarded": len(outcome.discarded),
         "unparseable": outcome.unparseable,
+        "seat_error": outcome.seat_error,
         "ok": not missed and not false_blockers and not outcome.unparseable,
     }
 
@@ -319,7 +341,10 @@ def _replay(
         if result["false_blockers"]:
             notes.append(f"invented blocker(s): {len(result['false_blockers'])}")
 
-        if result["unparseable"]:
+        if result["seat_error"]:
+            notes.append(f"seat gave no verdict: {result['seat_error']}")
+
+        elif result["unparseable"]:
             notes.append("output unparseable")
 
         if result["discarded"]:
