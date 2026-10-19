@@ -426,8 +426,15 @@ def test_the_bake_tags_every_image_with_the_stamped_release() -> None:
     assert 'variable "TAG"' not in baked
     assert '"latest"' not in baked
     assert 'replace(VERSION, "+", "-")' in baked
-    # the base has a tag of its own, not only a build context.
-    assert 'name("sandbox-base")' in baked
+    # every target in the release's group, the base included, is tagged through
+    # `name()`, so none carries a tag that skips the stamped version.
+    group = baked.split('group "default"', 1)[1].split("}", 1)[0]
+
+    for target in re.findall(r'"(\w+)"', group.split("=", 1)[1]):
+        block = baked.split(f'target "{target}"', 1)[1].split("}", 1)[0]
+        tags = block.split("tags", 1)[1].split("\n", 1)[0]
+
+        assert re.fullmatch(r'\s*=\s*\[name\("[\w-]+"\)\]', tags), (target, tags)
 
 
 def test_the_base_is_in_the_default_group() -> None:
@@ -454,18 +461,46 @@ def test_every_image_carries_the_source_version_and_revision_labels() -> None:
     assert "REVISION=$(git rev-parse HEAD)" in Path("justfile").read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("name", ["claude", "codex", "dsh", "mimo"])
+@pytest.mark.parametrize("name", ["claude", "codex", "dsh", "mimo", "opencode"])
 def test_a_seat_image_labels_the_harness_version_it_carries(name: str) -> None:
     """S-0112/D-5: a seat image names the version its harness prints, so a
-    pulled image is checked against its label before anyone runs it.
+    pulled image is checked against its label before anyone runs it. The
+    label's value is the definition's own ARG, which Renovate bumps: the bake
+    keeps no copy of the pin to go stale behind it (S-0112/D-7)."""
 
-    opencode is not here: its definition pinned `opencode-ai` only with
-    S-0112/D-7, and the bake does not carry its version label yet."""
-
+    variable = f"{name.upper()}_VERSION"
     baked = BAKE.read_text(encoding="utf-8")
     target = baked.split(f'target "{name}"', 1)[1].split("}", 1)[0]
 
-    assert "io.morze.torve.harness.version" in target
+    assert f'"io.morze.torve.harness.version" = {variable}' in target
+    assert re.search(rf'variable "{variable}" {{\s*default = ""\s*}}', baked)
+
+    printed = subprocess.run(
+        ["bash", ".github/scripts/harness-versions.sh"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    pinned = re.search(
+        rf"^ARG {variable}=(\S+)$",
+        (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8"),
+        re.M,
+    )
+
+    assert pinned is not None
+    assert f"{variable}={pinned.group(1)}" in printed
+
+
+def test_every_bake_entry_point_passes_the_harness_versions() -> None:
+    """S-0112/D-5: the label carries the ARG only when whoever bakes passes it."""
+
+    recipes = Path("justfile").read_text(encoding="utf-8")
+    release = Path(".github/scripts/release-images.sh").read_text(encoding="utf-8")
+
+    for text in (recipes, release):
+        bakes = text.count("docker buildx bake")
+
+        assert bakes and text.count("env $(bash .github/scripts/harness-versions.sh)") == bakes
 
 
 # S-0112/D-7: the two things Renovate reads off a definition — the image refs it

@@ -9,15 +9,14 @@
 # between the build and the first push. One script rather than three because
 # the images it acts on are one list, derived here once.
 #
-# Reads VERSION (the tag's version), REVISION (the commit being built),
-# REGISTRY (where the images are published) and, for `check`, GH_TOKEN so the
-# registry can be asked what is already published.
+# Reads VERSION (the tag's version), REGISTRY (where the images are published),
+# for `build` REVISION (the commit being built) and, for `check`, GH_TOKEN so
+# the registry can be asked what is already published.
 set -euo pipefail
 
 verb="${1:?usage: release-images.sh <build|check|push>}"
 
 VERSION="${VERSION:?VERSION must be set to the version the tag names}"
-REVISION="${REVISION:?REVISION must be the commit being built}"
 REGISTRY="${REGISTRY:?REGISTRY must name where the images are published}"
 
 # A tag may not hold `+` (S-0112/D-3), so the reference carries the version
@@ -69,9 +68,17 @@ harness_of() {
 # tagged, so a rerun after a partial push stops here rather than moving a tag
 # a digest already has.
 refuse_published() {
-	local package="$1" tag="$2" existing
-	existing="$(gh api "orgs/${REGISTRY##*/}/packages/container/${package}/versions" \
-		--jq '.[].metadata.container.tags[]' 2>/dev/null || true)"
+	local package="$1" tag="$2" owner="${REGISTRY##*/}" existing
+	if ! existing="$(gh api --paginate "orgs/${owner}/packages/container/${package}/versions" \
+		--jq '.[].metadata.container.tags[]' 2>&1)"; then
+		# Only a package the organisation has never published is a first
+		# release; any other failure leaves the question unanswered.
+		if grep -q 'HTTP 404' <<<"$existing" && gh api "orgs/${owner}" >/dev/null 2>&1; then
+			return 0
+		fi
+		echo "::error::cannot ask the registry what ${package} has published: ${existing}" >&2
+		exit 1
+	fi
 	if printf '%s\n' "$existing" | grep -qx "$tag"; then
 		echo "::error::${package}:${tag} is already published; a tag is never pushed twice" >&2
 		exit 1
@@ -83,7 +90,10 @@ build)
 	# Every target, the base included, with the tag's version and the commit
 	# the revision label carries. `--load` and no `--push`: what is checked
 	# below is the image this runner would push, and nothing has left it yet.
+	REVISION="${REVISION:?REVISION must be the commit being built}"
+	# shellcheck disable=SC2046 # the assignments split on purpose, one per seat.
 	VERSION="$VERSION" REVISION="$REVISION" REGISTRY="$REGISTRY" \
+		env $(bash .github/scripts/harness-versions.sh) \
 		docker buildx bake --file bake.hcl --load default
 	;;
 check)

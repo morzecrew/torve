@@ -10,11 +10,15 @@ proves is that the checks cannot be reordered after a push without turning this
 red.
 """
 
+import os
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 RELEASE = Path(".github/workflows/release.yaml")
+SCRIPT = Path(".github/scripts/release-images.sh")
 
 
 def _steps() -> list[dict]:
@@ -93,3 +97,85 @@ def test_the_build_loads_and_never_pushes() -> None:
 
     assert "release-images.sh build" in built
     assert "push" not in built
+
+    # The flags live in the script's own `build` branch, not the step's text;
+    # its comment says why, so only the commands are read.
+    branch = SCRIPT.read_text(encoding="utf-8").split("\nbuild)", 1)[1].split(";;", 1)[0]
+    commands = "\n".join(line for line in branch.splitlines() if not line.strip().startswith("#"))
+
+    assert "--load" in commands
+    assert "--push" not in commands
+
+
+# The script's `check` against a fake `docker` and `gh` on the PATH: every image
+# runs the release, carries no harness label, and the registry answers as each
+# case sets it.
+
+_FAKE_DOCKER = """#!/bin/sh
+case "$1" in
+run) echo "$FAKE_VERSION" ;;
+inspect) echo "<no value>" ;;
+esac
+"""
+
+_FAKE_GH = """#!/bin/sh
+for last; do :; done
+case "$FAKE_GH:$last" in
+*:orgs/morzecrew) exit 0 ;;
+empty:*) exit 0 ;;
+published:*) echo "$FAKE_VERSION" ;;
+missing:*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+*) echo "gh: Server Error (HTTP 502)" >&2; exit 1 ;;
+esac
+"""
+
+
+def _check(tmp_path: Path, registry_answer: str) -> subprocess.CompletedProcess[str]:
+    fakes = tmp_path / "bin"
+    fakes.mkdir()
+
+    for name, body in (("docker", _FAKE_DOCKER), ("gh", _FAKE_GH)):
+        (fakes / name).write_text(body, encoding="utf-8")
+        (fakes / name).chmod(0o755)
+
+    env = {
+        "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}",
+        "VERSION": "0.5.0",
+        "REGISTRY": "ghcr.io/morzecrew",
+        "FAKE_VERSION": "0.5.0",
+        "FAKE_GH": registry_answer,
+    }
+
+    return subprocess.run(
+        ["bash", str(SCRIPT), "check"], capture_output=True, text=True, env=env, check=False
+    )
+
+
+@pytest.mark.parametrize("answer", ["empty", "missing"])
+def test_the_check_runs_without_a_revision_and_passes_a_first_release(
+    tmp_path: Path, answer: str
+) -> None:
+    """The workflow passes REVISION to `build` only; `check` must not stop on
+    it. A package the organisation never published answers 404, which is a
+    first release, not a failure."""
+
+    done = _check(tmp_path, answer)
+
+    assert done.returncode == 0, done.stderr
+
+
+def test_the_check_refuses_a_tag_already_published(tmp_path: Path) -> None:
+    done = _check(tmp_path, "published")
+
+    assert done.returncode == 1
+    assert "already published" in done.stderr
+
+
+def test_the_check_stops_when_the_registry_cannot_answer(tmp_path: Path) -> None:
+    """A failed registry query once read as an empty tag list, so the check
+    passed and `push` could move a published tag."""
+
+    done = _check(tmp_path, "broken")
+
+    assert done.returncode == 1
+    assert "cannot ask the registry" in done.stderr

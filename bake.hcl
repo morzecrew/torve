@@ -38,23 +38,29 @@ variable "SOURCE" {
   default = "https://github.com/morzecrew/torve"
 }
 
-# S-0112/D-5: the version each seat's harness prints, mirrored into its label
+# S-0112/D-5: the version each seat's harness prints, carried into its label
 # so a pulled seat says which harness it carries. The definition's own ARG
-# installs this same version and is where the pin is reviewed.
+# (S-0112/D-7) is the one source: every entry point that bakes passes it in
+# through `.github/scripts/harness-versions.sh`, so a Renovate bump of the ARG
+# moves the label too. A bake run without them labels an empty version.
 variable "CLAUDE_VERSION" {
-  default = "2.1.283"
+  default = ""
 }
 
 variable "CODEX_VERSION" {
-  default = "0.147.0"
+  default = ""
 }
 
 variable "DSH_VERSION" {
-  default = "0.1.2-rc.1"
+  default = ""
 }
 
 variable "MIMO_VERSION" {
-  default = "0.1.15"
+  default = ""
+}
+
+variable "OPENCODE_VERSION" {
+  default = ""
 }
 
 function "name" {
@@ -137,4 +143,5 @@ target "opencode" {
   inherits   = ["_definition"]
   context    = "sandboxes/opencode"
   tags       = [name("opencode-sandbox")]
+  labels     = { "io.morze.torve.harness.version" = OPENCODE_VERSION }
 }
