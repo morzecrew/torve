@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The verify role and its configuration
+    intent: >-
+      Add `verify` to `Role` and `DISPATCHABLE_ROLES`, let a verify contract carry
+      acceptance and no targets, and keep its worktree in the reaper. Add the `verify`
+      block to the runner configuration with its defaults and the load-time refusal
+      when `enabled` names no `executor.<variant>` tier, and the doctor line that
+      goes red on the executor's own model. Regenerate `.torve/schemas/` with `torve
+      init`. Tests: the role's shape and dispatchability (`tests/test_domain.py`,
+      `tests/test_task_records.py`), the reaper (`tests/test_reaper.py`), the configuration
+      (`tests/test_runconfig.py`), the doctor (`tests/test_doctor.py`), the schemas
+      (`tests/test_cli.py`). Settles D-1, D-2 and D-3.
+    scope:
+      - src/torve/domain/vocabulary.py
+      - src/torve/domain/task.py
+      - src/torve/application/reaper.py
+      - src/torve/config/runconfig.py
+      - src/torve/cli/doctor.py
+      - .torve/schemas/*.json
+      - tests/test_domain.py
+      - tests/test_task*.py
+      - tests/test_reaper.py
+      - tests/test_runconfig.py
+      - tests/test_doctor.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_domain.py tests/test_task_records.py tests/test_reaper.py
+        tests/test_runconfig.py tests/test_doctor.py tests/test_cli.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: routine
+  - phase: 2
+    title: >-
+      The planner mints a verifier ahead of a behavioural phase
+    intent: >-
+      With the pilot on, `plan_document` mints a verify task ahead of a phase whose
+      document's change type is in `verify.types` and whose scope matches a source
+      path, allowing only `<tests_dir>/test_sNNNN_pN.py` and accepting on a collect-only
+      run of it; the phase's implement task depends on it, denies its file and appends
+      a run of it to the acceptance. With the pilot off the planner mints exactly
+      today's tasks. Tests: a feat document's source phase, a docs-only phase, a refactor
+      document and the pilot off (`tests/test_plan.py`). Settles D-4 and D-5.
+    scope: [src/torve/application/planner.py, tests/test_plan*.py]
+    acceptance:
+      - uv run pytest tests/test_plan.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: A verify attempt is briefed and reviewed
+    intent: >-
+      Ship the `torve:verifier` skill with the rules of D-6, add the verify profile
+      to `torve init --starter`, run the task-gated review for verify tasks, and add
+      the disputed-test case to `torve:flag-dont-flip`. Tests: the skill ships and
+      the starter profile equips it (`tests/test_skills.py`, `tests/test_cli.py`),
+      the review runs for a verify task (`tests/test_dispatch.py`). Settles D-6, D-7
+      and D-8.
+    scope:
+      - skills/verifier/**
+      - skills/flag-dont-flip/**
+      - src/torve/cli/init.py
+      - src/torve/application/dispatch.py
+      - tests/test_skills.py
+      - tests/test_cli.py
+      - tests/test_dispatch*.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_skills.py tests/test_cli.py tests/test_dispatch.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
+  - phase: 4
+    title: Held-out properties and the verifier's gates
+    intent: >-
+      After a verify attempt the runner records the files under `.torve/tmp/holdout/`
+      as one `verify.holdout` event on the implement task and deletes them; before
+      a battery it writes a phase's recorded files into the gate checkout under `<tests_dir>/holdout/`.
+      Add the builtins `held-out`, whose output keeps only each failing test's identifier,
+      message and cited rows, and `verify-tests`, with their sabotage cases; their
+      `.torve/gates.yaml` entries wait for the completion pull request. Tests: recording
+      and removal, injection, the redacted output, each conviction of `verify-tests`
+      (`tests/test_runner.py`, `tests/test_gates.py`, `tests/test_sabotage.py`). Settles
+      D-9, D-10 and D-11.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/gates/held_out.py
+      - src/torve/gates/verify_tests.py
+      - src/torve/gates/__init__.py
+      - src/torve/gates/sabotage.py
+      - tests/test_runner*.py
+      - tests/test_gates.py
+      - tests/test_held_out.py
+      - tests/test_verify_tests.py
+      - tests/test_sabotage.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_gates.py tests/test_sabotage.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+  - phase: 5
+    title: A paired eval measures the verifier
+    intent: >-
+      `torve eval --task T --verifier` replays T as the incumbent and as a candidate
+      that first replays a verify task from T's parent, with the held-out properties
+      injected; `--oracle` records each arm's escape. `--report` shows the pair. Tests:
+      both arms recorded, the oracle's escape, the report (`tests/test_evals.py`,
+      `tests/test_shadow.py`). Settles D-12.
+    scope:
+      - src/torve/application/evals.py
+      - src/torve/application/shadow.py
+      - src/torve/cli/evals.py
+      - tests/test_evals.py
+      - tests/test_shadow.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_evals.py tests/test_shadow.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 2
+      - 4
+  - phase: 6
+    title: The references say when to turn the verifier on
+    intent: >-
+      The operating guide and the torve skill's night reference describe turning the
+      pilot on, reading a held-out failure and handling a disputed test; the spec-writer
+      guide asks a phase's intent to name the public surface its tests drive. Tests:
+      the docs and skills tests that read these pages (`tests/test_docs.py`, `tests/test_skills.py`).
+      Settles D-13.
+    scope:
+      - pages/docs/operating.md
+      - skills/torve/references/night.md
+      - skills/spec-writer/**
+      - tests/test_docs.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+      - uv run torve spec check
+    depends_on:
+      - 3
+      - 5
+    character: routine
