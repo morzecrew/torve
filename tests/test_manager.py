@@ -2583,3 +2583,85 @@ def test_a_watch_of_one_document_ignores_anothers_tasks():
 
     assert _moved(*mine) == []
     assert [view.task_id for view in _moved(*theirs)] == ["T-2"]
+
+
+def test_a_return_waits_for_a_running_lane_pass(tmp_path, monkeypatch):
+    """A pass that read a candidate ready ends before its return lands in the
+    log or the run-state file, so the pass never lands what was sent back."""
+    import threading
+
+    from typer.testing import CliRunner
+
+    from torve.application.lane import lane_held
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.domain.states import TaskState
+
+    recorded: list[str] = []
+
+    async def record(*args, **_kwargs) -> None:
+        recorded.append(args[2])
+
+    monkeypatch.setattr(cli_manager, "_return", record)
+
+    state = RunState(task_id="T-9812", path=naming.state_file(tmp_path, "T-9812"))
+    state.state = TaskState.READY
+    state.save()
+
+    def ret() -> None:
+        CliRunner().invoke(
+            app, [*("manager", "return", PARTITION, "T-9812"), *("--root", str(tmp_path))]
+        )
+
+    with lane_held(tmp_path):
+        returning = threading.Thread(target=ret)
+        returning.start()
+        returning.join(0.3)
+
+        assert recorded == []
+        assert RunState.load(state.path).state is TaskState.READY
+
+    returning.join(10)
+
+    assert recorded == ["T-9812"]
+    assert RunState.load(state.path).state is TaskState.QUEUED
+
+
+def test_a_return_whose_log_write_fails_leaves_nothing_to_land(tmp_path, monkeypatch):
+    """The run-state file moves before the log: a return that stops between
+    the two leaves the candidate queued, and running it again records it."""
+    from typer.testing import CliRunner
+
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.domain.states import TaskState
+
+    async def unreachable(*_args, **_kwargs) -> None:
+        raise ConnectionError("the log is unreachable")
+
+    monkeypatch.setattr(cli_manager, "_return", unreachable)
+
+    state = RunState(task_id="T-9813", path=naming.state_file(tmp_path, "T-9813"))
+    state.state = TaskState.READY
+    state.save()
+
+    args = [*("manager", "return", PARTITION, "T-9813"), *("--root", str(tmp_path))]
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code != 0
+    assert RunState.load(state.path).state is TaskState.QUEUED
+
+    recorded: list[str] = []
+
+    async def record(*args, **_kwargs) -> None:
+        recorded.append(args[2])
+
+    monkeypatch.setattr(cli_manager, "_return", record)
+
+    assert CliRunner().invoke(app, args).exit_code == 0
+    assert recorded == ["T-9813"]
+    assert RunState.load(state.path).state is TaskState.QUEUED

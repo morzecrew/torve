@@ -1276,9 +1276,19 @@ def return_cmd(
     """
 
     from torve.application.feedback import capture_feedback
+    from torve.application.lane import lane_held
+    from torve.application.reaper import requeue_returned
 
     root = root.resolve()
-    asyncio.run(_return(dsn_to_write(root, dsn) or None, partition, task_id, reason, note))
+
+    # The lane reads the run-state file, not the log: left ready, it lands
+    # the candidate this return sent back. Moved under the lane's lock, so a
+    # pass that read the file ready ends before it changes, and before the
+    # log: a return that stops between the two leaves a queued file nothing
+    # lands, and running it again records it.
+    with lane_held(root):
+        requeued = requeue_returned(root, task_id, reason)
+        asyncio.run(_return(dsn_to_write(root, dsn) or None, partition, task_id, reason, note))
 
     # The critique travels the way a blocker's does (S-0043/D-2, S-0005/D-13): the
     # note is a thread, and an empty one captures nothing rather than
@@ -1291,7 +1301,15 @@ def return_cmd(
     )
 
     if fmt is Format.JSON:
-        emit_json({"partition": partition, "task": task_id, "reason": reason, "briefed": briefed})
+        emit_json(
+            {
+                "partition": partition,
+                "task": task_id,
+                "reason": reason,
+                "briefed": briefed,
+                "run_state_requeued": requeued,
+            }
+        )
         raise typer.Exit(EXIT_OK)
 
     console = out(fmt)
