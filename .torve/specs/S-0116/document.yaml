@@ -1,0 +1,205 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0116
+title: An independent verifier
+kind: design
+change:
+  type: feat
+  scope: verify
+status: draft
+implementation: none
+depends_on: []
+informed_by: [S-0055, S-0081, S-0096, S-0106, S-0113]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A behavioural phase can get a verify task ahead of its implement task: an agent on another model family writes the phase's tests from its decision rows before any code exists, and the implementer may run those tests but never change them.
+
+  It is a pilot behind configuration, off by default. The verifier also writes held-out properties, which the host keeps outside every worktree and runs only in the gate checkout, so the implementer learns which row failed and the assertion message, never the test. `torve eval` gains a paired comparison, so the pilot earns the default or stays off on evidence.
+motivation: |-
+  The agent that implements a phase also writes the tests that judge it. A phase's scope names its paired test files, because the planner refuses a contract that allows a module without its test, so the implement contract allows the tests beside the code. On 2026-10-19 T-0638 and T-0639 passed spec-valid by writing the list of files that gate trusts, 218 names from a `find` walk where `git ls-files` lists 1224. Nothing stopped an agent from shaping its judge, because the judge was its own to write.
+
+  Outside evidence points the same way. A test designer kept away from the code raised test accuracy from 61% to 88% on HumanEval in AgentCoder ([arXiv 2312.13010](https://arxiv.org/abs/2312.13010)), with the same base model. ImpossibleBench ([arXiv 2510.20270](https://arxiv.org/abs/2510.20270)) found that read-only tests stop test edits while special-casing continues, and that hidden tests take cheating to about 0% at some cost in solve rate. Asking agents to write more of their own tests did not change SWE-bench outcomes ([arXiv 2602.07900](https://arxiv.org/abs/2602.07900)). Two models that are both wrong agree about 60% of the time, more so within one provider ([arXiv 2506.07962](https://arxiv.org/abs/2506.07962)), so the verifier's seat matters and is measured, not assumed.
+current_state: |-
+  - `Role` in `src/torve/domain/vocabulary.py` is `implement`, `review`, `revert` and `draft`. `DISPATCHABLE_ROLES` in `src/torve/domain/task.py` is `implement` and `revert`; dispatch, residency, the manager and the projections read it. `reaper.py` keeps the worktrees of those two roles.
+  - `plan_document` in `src/torve/application/planner.py` mints one implement task per phasing entry. Its `scope.allow` is the entry's scope, which names the phase's paired tests.
+  - `no-test-tampering` protects existing tests outside a task's allow. `red-on-base`, `mutation` and `coverage-delta` run in shadow (`.torve/gates.yaml`).
+  - A contract's seat is `tier` plus an optional `tier_variant`, resolved as `tier.variant` in `tiers` (`tier_name_for` in `src/torve/config/runconfig.py`); an unconfigured variant refuses dispatch. An agent profile claims a role (`src/torve/config/agents.py`), and `torve init --starter` writes the implement, revert and review profiles (`STARTER_PROFILES` in `src/torve/cli/init.py`).
+  - A halted divergence entry escalates as `underspecified`, or `locked_conflict` when it cites a LOCKED row (`_halt_reason` in `src/torve/application/session.py`, S-0096/D-1).
+  - A red gate reaches the next attempt as its output tail in the context pack (`last_red_gates` in `src/torve/application/contextpack.py`), read from the host's telemetry.
+  - The task-gated review runs for implement tasks only (`review_gated` in `src/torve/application/dispatch.py`).
+  - `torve eval` replays one completed task in shadow from its parent, across the apparatus arms or as an incumbent and candidate pair with `--image` or `--variant` (`src/torve/application/evals.py`, `src/torve/application/shadow.py`). It cannot replay a pair of tasks.
+  - Gates run over the attempt's worktree. The clean gate checkout this document's held-out properties need is drafted beside it (Q-5).
+goals: |-
+  - A behavioural phase's judging tests come from an agent that never saw the implementation, on a seat the configuration names.
+  - The implementer runs those tests and cannot change them; it disputes one only by halting.
+  - Some properties never enter the implementer's sandbox, and their failures reach it as a row and a message.
+  - A paired eval decides, on recorded evidence, whether the verifier becomes the default.
+non_goals: |-
+  - Not the default. It stays off until an eval record clears the bar in exit-criteria.
+  - Not for documentation, repository configuration or refactor phases. They have no behaviour for a verifier to prove; configuration code under the source prefix is behaviour and gets one, and a refactor is judged by red-on-base's refactor mode (S-0106/D-6).
+  - Not a replacement for the reviewer or any gate. The verifier adds a judge and removes none.
+  - Not a channel between agents. Nothing flows from the implementer to the verifier.
+design:
+  - key: the-verify-role
+    md: |-
+      `verify` joins `Role` and `DISPATCHABLE_ROLES`. A verify contract carries acceptance commands and no targets, and its `scope.allow` names one file: the phase's verifier test file. It runs on the executor tier under a configured variant, so role semantics still key on the tier (S-0027/D-3).
+
+      ```yaml
+      # .torve/config.yaml
+      verify:
+        enabled: false          # the pilot is off until the eval clears its bar
+        variant: verify         # the seat is tiers["executor.verify"]
+        types: [feat, fix]      # document change types whose phases get a verifier
+        tests_dir: tests/verify # where the visible verifier tests land
+      ```
+
+      The configuration refuses to load with `enabled: true` when `executor.<variant>` is not a configured tier. `torve doctor` goes red when the verify seat names the executor's own model: the same model is not an independent author. Two models of one provider are allowed, and the eval measures whether that matters.
+  - key: minting-the-verifier
+    md: |-
+      With the pilot on, the planner mints a verify task ahead of each phasing entry when the document's `change.type` is in `verify.types` and a path or glob in the entry's scope starts with the project's source prefix: `src/`, or `<layout.root>/src/` (S-0110/D-8). An entry whose paths all fall outside it, such as tests, docs, skills or repository configuration, gets none. Each entry is its own pair, so sibling entries sharing a phase never share a verifier. For the k-th entry of phase N of S-NNNN:
+
+      - The verify task allows only `<tests_dir>/test_sNNNN_pN.py`, or `<tests_dir>/test_sNNNN_pN_<k>.py` when several entries share phase N, counted in phasing order. Its acceptance is `<tests.run> --collect-only` over that file, the manifest's test command. Its intent is a fixed preamble followed by the phase's intent.
+      - The implement task depends on the verify task, denies the verifier's file and appends `<tests.run> <file>` to the phase's acceptance.
+
+      Everything is fixed at mint, so neither contract changes afterwards (S-0055/D-7). The verifier's file sits apart from the paired tests, so the implementer keeps writing its own tests where it always has.
+  - key: the-verifier-brief
+    md: |-
+      The verify role's profile equips a shipped skill, `torve:verifier`. It says:
+
+      - Write the tests from the rows and the intent alone. Each row the entry settles gets at least one test whose docstring cites `S-NNNN/D-n`. A row settled by the entry is a contract row whose paths fall inside the entry's scope.
+      - Import the code under test inside each test body, so the file collects before the code exists and each test fails for the right reason.
+      - Prefer a property over inputs where the row is quantified over inputs, as the spec-writer guide asks of checks.
+      - Write held-out properties under `.torve/tmp/holdout/` by the same rules.
+      - Never write implementation. When the intent names no public surface to test, halt; that is an underspecified phase.
+
+      The task-gated review covers verify tasks too. The reviewer reads the verifier's tests for vacuity and for over-specification, meaning tests that pin internals no row names.
+  - key: held-out-properties
+    md: |-
+      After a verify attempt the host reads `.torve/tmp/holdout/*.py` from the verify worktree, records them on its entry's implement task as one `verify.holdout` event of file names and texts, at most 64 KiB, and deletes them. A verify attempt that wrote none records an empty event. The latest event on the task is the held-out set and replaces every earlier one, so a retried verifier's properties never mix with a previous attempt's. `.torve/tmp/` is ignored, so no attempt's commit carries them, and the event, not a host directory, is what any host of the fleet reads.
+
+      Before a battery runs for the implement task, or for the verify task itself, the host writes the files of the latest event into the gate checkout under `<tests_dir>/holdout/`. A new builtin, `held-out`, runs them with `<tests.run> -q -rf --tb=no` and keeps only the `FAILED <test> - <message>` lines and the rows their docstrings cite. That redacted output is the gate's output, so the next attempt's pack carries a row and a message and never the test's source. With no files in the latest event the gate is skipped. The files live only in the gate checkout, which the clean-checkout document makes a fresh copy of the candidate commit (Q-5).
+
+      When the document's last phase lands, the lane commits every recorded held-out file to the document branch under `<tests_dir>/holdout/`, named for its document, phase and entry, before the whole-document battery runs. From then on they are ordinary tests: no implementer is left to hide them from, and they keep guarding the rows after the merge (Q-3).
+  - key: the-verifiers-own-gates
+    md: |-
+      A second builtin, `verify-tests`, judges a verify candidate. It convicts when the file does not collect, when a row the entry settles has no test citing it, or when any visible or held-out test passes on the candidate. Before the implementation exists a passing test proves nothing about it. Its output names each uncited row and each passing test, held-out ones included: the verifier wrote them, so naming them hides nothing from an implementer, and a retried verifier learns what to change.
+
+      Both builtins enter in shadow. Their `.torve/gates.yaml` entries and sabotage twins land in the completion pull request, not in a phase, so no phase needs the new engine to pass in its own sandbox.
+  - key: disputes
+    md: >-
+      An implementer that believes a verifier test is wrong halts with a divergence
+      entry naming the test and the row. That escalates as `underspecified`, through
+      the existing path (S-0096/D-1). The owner then amends the row, fixes or removes
+      the test by hand on the document branch, or requeues the implement task. `torve:flag-dont-flip`
+      gains that case. The implementer never edits the file; the scope gate and `no-test-tampering`
+      refuse it.
+  - key: measuring-the-pilot
+    md: |-
+      `torve eval --task T --verifier` replays T twice in shadow. The incumbent arm is today's replay. The candidate arm replays a verify task from T's parent commit on the verify seat, then replays T cut from the parent plus the verifier's file, with its held-out properties injected. `--oracle "<command>"` runs a command on each arm's candidate in the gate sandbox; a non-zero exit records the arm's escape. Each record carries first-attempt green, attempts, reviewer blockers, mutation score, tokens, wall time and the escape. When the clean-checkout document's trace flags exist, it also carries their count as gaming incidents.
+
+      The four arms of the strategy are configurations of this one pair: A is the incumbent, B a verify variant on the executor's provider, C one on another provider, and D is C with held-out properties.
+tests: |-
+  - The role: a verify contract loads with acceptance and without targets; `DISPATCHABLE_ROLES` offers it; the reaper keeps its worktree (`tests/test_domain.py`, `tests/test_reaper.py`).
+  - The configuration: `enabled: true` with no `executor.<variant>` refuses to load; the doctor goes red on the executor's own model (`tests/test_runconfig.py`, `tests/test_doctor.py`).
+  - Minting: a feat document's source phase mints verify then implement with the dependency, deny and acceptance above; two sibling entries of one phase mint two pairs with distinct files; a docs-only phase and a refactor document mint no verifier; the pilot off mints exactly today's tasks (`tests/test_plan.py`).
+  - The brief and review: the starter profile equips `torve:verifier`; the task-gated review runs for a verify task (`tests/test_skills.py`, `tests/test_cli.py`, `tests/test_dispatch.py`).
+  - Held-out: a verify attempt's held-out files are recorded and removed from the worktree; the latest event replaces earlier ones and an empty one skips the gate; the battery injects them; the gate's output carries the row and message and not the source (`tests/test_runner.py`, `tests/test_events.py`, `tests/test_held_out.py`).
+  - `verify-tests` convicts an uncited row, a passing test and a file that does not collect, and names the row or test (`tests/test_verify_tests.py`, `tests/test_sabotage.py`).
+  - The eval: a verifier pair records both arms and the oracle's escape (`tests/test_evals.py`, `tests/test_shadow.py`).
+  - Completion: the last phase's landing commits the recorded held-out files under `<tests_dir>/holdout/` before the whole-document battery, and a document with none commits nothing (`tests/test_lane.py`).
+
+  Not tested: whether the verifier helps. That is the eval's job, on real phases, and no fixture can answer it.
+docs: >-
+  `pages/docs/operating.md` and the torve skill's night reference say how to turn
+  the pilot on, how to read a held-out failure and how to handle a disputed test.
+  The spec-writer guide asks a phase's intent to name the public surface its tests
+  drive.
+out_of_scope: ''
+risks: |-
+  - The verifier and implementer share a blind spot and agree on a wrong reading of a row. The doctor stops only the identical model, and the eval's B and C arms measure the rest.
+  - Over-specified tests force the implementer into the verifier's guess at an API. The intent naming the public surface and the reviewer's audit are the defences; a halt is the escape.
+  - Between the verify task's landing and its implement task's landing, the document branch carries tests that fail. A repository whose battery runs the whole suite as a blocking gate reddens every other candidate in that window. The pilot accepts the window (Q-1); torve's own blocking gates run no whole suite.
+  - Once committed at completion, the held-out properties are visible to later documents' implementers. By then they guard settled rows, as any committed test does (Q-3).
+  - Each behavioural phase costs one more task. The bar caps the cost the pilot may add.
+sections:
+  - key: locked-rows-kept
+    md: |-
+      - S-0055/D-5, agents do not communicate: the verifier's tests reach the implementer as committed files on the document branch, as an earlier phase's code does. Held-out properties never reach it at all, only a gate's output.
+      - S-0055/D-7, contracts are immutable: the dependency, the deny and the extra acceptance command are all fixed at mint. Held-out properties ride their own event, never a contract edit.
+      - S-0055/D-17, scope is a contract: the deny glob is the existing mechanism, and the two tasks never run in parallel, because one depends on the other.
+      - S-0055/D-3, no agent code on the host: the host only stores and copies the held-out texts, and they run in the gates sandbox.
+      - S-0059/D-5, one vocabulary: `verify` is added in `src/torve/domain/vocabulary.py` and imported.
+      - S-0055/D-2, gates run against the tree the agent leaves: the clean-checkout document amends it; this document only injects files into that checkout.
+  - key: exit-criteria
+    md: >-
+      Run `torve eval --verifier` over about 20 past behavioural phases, including
+      T-0624, T-0634 and T-0638. Turn `verify.enabled` on by default for behavioural
+      phases only if the candidate arm cuts escapes by 30% or more, at no more than
+      1.6 times the incumbent's tokens, with first-attempt green down by no more than
+      10 points. If B matches C, the provider does not matter and the cheaper seat
+      wins. torve's own first run puts Opus, on the Anthropic route, in the verify
+      seat: arm C, another family on another provider. Arm B, qwen on ModelStudio
+      beside the deepseek executor, runs after it, to see whether a cheaper seat on
+      the same provider holds the result.
+alternatives:
+  - option: >-
+      The implementer writes its tests first, then its code, in one session.
+    rejected_because: >-
+      That is test-first, not independent. The same context writes both, and a test
+      written while the implementation is in mind encodes what the code will do rather
+      than what the row says.
+  - option: Hide every verifier test from the implementer.
+    rejected_because: >-
+      ImpossibleBench measured a lower solve rate when all tests were hidden. Visible
+      read-only tests keep the implementer able to debug, and the held-out share keeps
+      special-casing from paying.
+  - option: >-
+      Hold the verify candidate and land it with the implement candidate.
+    rejected_because: >-
+      A dependency is satisfied by a landing alone (S-0019/A-3), so the implement
+      task could not dispatch. The owner kept the window for the pilot instead (Q-1).
+  - option: >-
+      Give the verifier a seat of its own instead of an executor variant.
+    rejected_because: >-
+      A seat is what varies per run (S-0061/D-3), and a variant already names one;
+      a new tier would add a word to the closed vocabulary for no new semantics.
+questions:
+  - id: Q-1
+    text: >-
+      The document branch carries failing verifier tests between the verify landing
+      and the implement landing. torve's own blocking gates run no whole suite, so
+      it is harmless here, but an adopter's may. Accept the window for the pilot,
+      or hold the verify candidate and land it with the implement candidate, which
+      amends S-0019's dependency rule (S-0019/A-3)? Lean: accept for the pilot.
+    status: settled
+    settled_by: D-5
+  - id: Q-2
+    text: >-
+      Which seat runs torve's own verifier: Opus on the Anthropic route, a different
+      family from deepseek, or qwen on ModelStudio, a different family on the same
+      provider? The eval's B and C arms answer it; which goes first is the owner's
+      call.
+    status: settled
+    settled_by: exit-criteria
+  - id: Q-3
+    text: >-
+      Held-out properties vanish when the document merges, because they are never
+      committed. Should the document's completion pull request commit them as visible
+      tests, so they keep guarding the rows afterwards? Lean: yes.
+    status: settled
+    settled_by: D-14
+  - id: Q-4
+    text: >-
+      The escape oracle is one command per replayed task, written by hand from the
+      fix that caught the escape. Is a hand-written oracle per task acceptable for
+      the eval, or should `torve review corpus add` scaffold it?
+    status: settled
+    settled_by: D-12
+  - id: Q-5
+    text: >-
+      Phase 4 needs the clean gate checkout drafted beside this document, which is
+      not on main yet, so it cannot be named here. At acceptance, add it to `after`
+      and cite it in place of "the clean-checkout document"; it amends LOCKED S-0055/D-2,
+      which is the owner's act there, not here.

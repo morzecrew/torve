@@ -1,0 +1,222 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `verify` is a role in the closed vocabulary and a dispatchable one. A verify
+      contract carries acceptance commands and no targets, and the reaper keeps a
+      verify task's worktree as it keeps an implement task's.
+    paths:
+      - src/torve/domain/vocabulary.py
+      - src/torve/domain/task.py
+      - src/torve/application/reaper.py
+    consequence: >-
+      a worker claims a verify task off the board like an implement task, and every
+      reader of `DISPATCHABLE_ROLES` offers it
+    rationale: >-
+      A verifier is an attempt in its own sandbox that leaves a candidate to land,
+      which is what the dispatchable roles already are.
+    cites: [S-0059/D-5]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `verify` in the runner configuration holds `enabled` (default false), `variant`
+      (default `verify`), `types` (default `[feat, fix]`) and `tests_dir` (default
+      `tests/verify`). With `enabled: true`, a configuration whose tiers hold no `executor.<variant>`
+      refuses to load.
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      an adopter that never sets the block mints exactly today's tasks, and one that
+      turns it on without a seat finds out at load, not at dispatch
+    rationale: >-
+      The pilot earns the default through the eval; until then configuring nothing
+      decides nothing (S-0001/D-10).
+    cites: [S-0027/D-3]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `torve doctor` goes red when the pilot is on and the verify seat names the executor
+      seat's own model.
+    paths: [src/torve/cli/doctor.py]
+    consequence: >-
+      the verifier is at least a different model; whether a different provider matters
+      is the eval's question
+    rationale: >-
+      Two instances of one model share its misreadings, and the evidence on correlated
+      errors is strongest within one model.
+    cites: [D-2]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      With the pilot on, the planner mints a verify task ahead of each phasing entry
+      when the document's `change.type` is in `verify.types` and a path or glob in
+      the entry's scope starts with the project's source prefix: `src/`, or `<layout.root>/src/`.
+      The verify task allows only `<tests_dir>/test_sNNNN_pN.py`, or `<tests_dir>/test_sNNNN_pN_<k>.py`
+      for the k-th of several phasing entries sharing phase N, counted in phasing
+      order, accepts on `<tests.run> --collect-only` over it, and its intent is a
+      fixed preamble followed by the entry's intent.
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      documentation, configuration and refactor work never pays for a verifier
+    rationale: >-
+      Only behaviour has something for an independent test to prove; a refactor is
+      judged by red-on-base's refactor mode.
+    cites: [S-0106/D-6, S-0110/D-8]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The implement task of an entry with a verifier depends on that entry's verify
+      task, denies the verifier's file and appends `<tests.run> <file>` to the phase's
+      acceptance; all three are fixed at mint. The verify candidate lands first, and
+      the document branch carries its failing tests until the implement candidate
+      lands.
+    paths: [src/torve/application/planner.py]
+    consequence: >-
+      the implementer runs the verifier's tests and any edit to them is a red scope
+      gate
+    rationale: >-
+      Read-only tests keep the implementer able to debug against them while removing
+      the cheapest way to pass them.
+    cites: [S-0055/D-7, S-0055/D-17]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A shipped skill, `torve:verifier`, briefs the verify role: tests from the rows
+      and the intent alone, at least one per settled row citing it, imports inside
+      test bodies, properties where a row is quantified over inputs, held-out properties
+      under `.torve/tmp/holdout/`, no implementation, and a halt when the intent names
+      no public surface. `torve init --starter` writes a verify profile that equips
+      it.
+    paths: [skills/verifier/**, src/torve/cli/init.py]
+    consequence: >-
+      a verify attempt is told what an independent test is, in the same place every
+      other role is told its rules
+    rationale: >-
+      The rules that make a test independent are easy to break by habit; a written
+      brief is what the reviewer can hold a verifier to.
+    cites: [S-0061/D-1]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The task-gated review runs for verify tasks as for implement tasks, and reads
+      the verifier's tests for vacuity and for over-specification.
+    paths: [src/torve/application/dispatch.py]
+    consequence: >-
+      a test that asserts nothing, or one that pins an internal no row names, is a
+      finding before it judges any implementation
+    rationale: >-
+      An over-specified test forces the implementer into the verifier's guess at an
+      API; the reviewer is the check on the checker.
+    cites: [S-0005/D-11]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      An implementer that disputes a verifier test halts with a divergence entry naming
+      the test and the row, and never edits the file; `torve:flag-dont-flip` says
+      so.
+    paths: [skills/flag-dont-flip/**]
+    consequence: >-
+      a wrong test reaches a person as an `underspecified` escalation instead of being
+      quietly rewritten
+    rationale: >-
+      ImpossibleBench's abort tool cut cheating sharply; the halt is torve's sanctioned
+      abort and already escalates.
+    cites: [S-0096/D-1]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      After a verify attempt the host records the files under `.torve/tmp/holdout/`
+      of its worktree on its entry's implement task as one `verify.holdout` event
+      of names and texts, at most 64 KiB, empty when it wrote none, and deletes them
+      from the worktree. The event registry gains the kind, its payload and the worker
+      as its actor. The latest event on the task is the held-out set; it replaces
+      every earlier one.
+    paths: [src/torve/application/runner.py, src/torve/domain/events.py]
+    consequence: >-
+      held-out properties live in the record that every host of the fleet reads, never
+      in an attempt's commit and never in an implementer's sandbox
+    rationale: >-
+      `.torve/tmp/` is ignored, so nothing there reaches a commit; the record, not
+      a host directory, is what the fleet shares.
+    cites: [S-0055/D-5]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      Before a battery runs for a task whose implement task's latest `verify.holdout`
+      event holds files, the host writes them into the gate checkout under `<tests_dir>/holdout/`.
+      A builtin `held-out` runs them and its output keeps only each failing test's
+      identifier, message and cited rows; with no files in that event it is skipped.
+    paths: [src/torve/gates/held_out.py, src/torve/gates/__init__.py]
+    consequence: >-
+      the next attempt's pack learns which row failed and why, and never the test's
+      source
+    rationale: >-
+      Hidden tests are what stop special-casing; visible read-only tests alone do
+      not.
+    cites: [D-9, S-0055/D-3]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      A builtin `verify-tests` convicts a verify candidate whose file does not collect,
+      whose entry settles a row no test cites, or one of whose visible or held-out
+      tests passes on the candidate; its output names each such row and test.
+    paths: [src/torve/gates/verify_tests.py]
+    consequence: >-
+      a verifier cannot land a test that proves nothing before the implementation
+      exists
+    rationale: >-
+      A test green before the code exists measures nothing about that code.
+    cites: [S-0081]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `torve eval --task T --verifier` replays T as an incumbent arm and as a candidate
+      arm that first replays a verify task from T's parent; `--oracle` runs a command,
+      written by hand for each replayed task from the fix that caught its escape,
+      on each arm's candidate and records a non-zero exit as that arm's escape.
+    paths:
+      - src/torve/application/evals.py
+      - src/torve/application/shadow.py
+      - src/torve/cli/evals.py
+    consequence: >-
+      the pilot's default is decided from the eval ledger, not from a belief
+    rationale: >-
+      The research gives direction, not magnitude for this engine; only paired replays
+      of its own phases can.
+    cites: [S-0027/D-7]
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The operating guide and the torve skill's night reference say how to turn the
+      pilot on, read a held-out failure and handle a disputed test, and the spec-writer
+      guide asks a phase's intent to name the public surface its tests drive.
+    paths:
+      - pages/docs/operating.md
+      - skills/torve/references/night.md
+      - skills/spec-writer/**
+    consequence: >-
+      a phase written for a verifier names what to test, so the verifier does not
+      invent an API
+    rationale: >-
+      An intent that names no surface leaves the verifier guessing, which is the over-specification
+      risk.
+    cites: [D-6]
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      When a document's last phase lands, the lane commits the held-out properties
+      recorded for its tasks to the document branch under `<tests_dir>/holdout/`,
+      each file named for its document, phase and entry, before the whole-document
+      battery runs. `torve merge` and the manager's lane leg hand `process_lane` the
+      reader of the recorded events.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+    consequence: >-
+      the held-out properties keep guarding the document's rows as visible tests after
+      it merges
+    rationale: >-
+      Never committed, they would vanish with the merge; once every phase has landed,
+      no implementer is left to hide them from.
+    cites: [D-9, S-0106/D-2]
