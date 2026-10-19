@@ -171,7 +171,13 @@ def _load_case(case_dir: Path) -> dict[str, Any]:
 
 
 def _case_outcome(
-    case_dir: Path, document: dict[str, Any], config: Any, runtime: Any, agent: Any, root: Path
+    case_dir: Path,
+    document: dict[str, Any],
+    config: Any,
+    runtime: Any,
+    agent: Any,
+    root: Path,
+    broker: Any = None,
 ) -> dict[str, Any]:
     from torve.application.review import run_review
     from torve.domain.task import Budget, Task
@@ -206,6 +212,7 @@ def _case_outcome(
         [],
         "corpus",
         degraded=bool(document.get("degraded", False)),
+        broker=broker,
     )
 
     missed: list[str] = []
@@ -276,6 +283,12 @@ def _replay(
 
     runtime = runtime_for(config, runtime_name)
 
+    from torve.adapters.broker import build_broker
+
+    # The seat reaches its provider the way `review pr` has it reach it: under
+    # a local broker, a replay without one runs a reviewer with no credential.
+    broker = build_broker(config.broker)
+
     def replayed(case_dir: Path) -> dict[str, Any]:
         try:
             document = _load_case(case_dir)
@@ -283,7 +296,7 @@ def _replay(
         except UnwrittenFinding as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-        return _case_outcome(case_dir, document, config, runtime, agent, root)
+        return _case_outcome(case_dir, document, config, runtime, agent, root, broker)
 
     results = [replayed(case_dir) for case_dir in cases]
 

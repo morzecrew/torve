@@ -341,3 +341,25 @@ def test_review_lists_the_pr_verb_beside_the_corpus(tmp_path):
     assert result.exit_code == 0, result.output
     assert "pr" in result.output
     assert "corpus" in result.output
+
+
+def test_the_replay_reaches_the_seat_through_the_configured_broker(tmp_path, monkeypatch):
+    # `review pr` hands run_review a broker and the corpus replay did not, so
+    # under `broker: local` the replayed reviewer ran with no credential.
+    import torve.adapters.broker as broker_module
+    import torve.application.review as review_module
+
+    root = seed_corpus(tmp_path)
+    sentinel = object()
+    seen: list[object] = []
+    replay = review_module.run_review
+
+    def recording(*args, **kwargs):
+        seen.append(kwargs.get("broker"))
+        return replay(*args, **kwargs)
+
+    monkeypatch.setattr(broker_module, "build_broker", lambda config: sentinel)
+    monkeypatch.setattr(review_module, "run_review", recording)
+    result = invoke_corpus(root, monkeypatch, json.dumps({"findings": []}))
+
+    assert seen == [sentinel], result.output
