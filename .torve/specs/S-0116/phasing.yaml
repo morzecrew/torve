@@ -37,12 +37,13 @@ phasing:
       The planner mints a verifier ahead of a behavioural phase
     intent: >-
       With the pilot on, `plan_document` mints a verify task ahead of a phase whose
-      document's change type is in `verify.types` and whose scope matches a source
-      path, allowing only `<tests_dir>/test_sNNNN_pN.py` and accepting on a collect-only
-      run of it; the phase's implement task depends on it, denies its file and appends
-      a run of it to the acceptance. With the pilot off the planner mints exactly
-      today's tasks. Tests: a feat document's source phase, a docs-only phase, a refactor
-      document and the pilot off (`tests/test_plan.py`). Settles D-4 and D-5.
+      document's change type is in `verify.types` and an entry of whose scope, a path
+      or a glob, starts with the project's source prefix (S-0110/D-8), allowing only
+      `<tests_dir>/test_sNNNN_pN.py` and accepting on a collect-only run of it; the
+      phase's implement task depends on it, denies its file and appends a run of it
+      to the acceptance. With the pilot off the planner mints exactly today's tasks.
+      Tests: a feat document's source phase, a docs-only phase, a refactor document
+      and the pilot off (`tests/test_plan.py`). Settles D-4 and D-5.
     scope: [src/torve/application/planner.py, tests/test_plan*.py]
     acceptance:
       - uv run pytest tests/test_plan.py
@@ -79,29 +80,36 @@ phasing:
   - phase: 4
     title: Held-out properties and the verifier's gates
     intent: >-
-      After a verify attempt the runner records the files under `.torve/tmp/holdout/`
-      as one `verify.holdout` event on the implement task and deletes them; before
-      a battery it writes a phase's recorded files into the gate checkout under `<tests_dir>/holdout/`.
-      Add the builtins `held-out`, whose output keeps only each failing test's identifier,
-      message and cited rows, and `verify-tests`, with their sabotage cases; their
-      `.torve/gates.yaml` entries wait for the completion pull request. Tests: recording
-      and removal, injection, the redacted output, each conviction of `verify-tests`
-      (`tests/test_runner.py`, `tests/test_gates.py`, `tests/test_sabotage.py`). Settles
-      D-9, D-10 and D-11.
+      Add the `verify.holdout` event kind, its payload and its actor to the event
+      registry. After a verify attempt the runner records the files under `.torve/tmp/holdout/`
+      as one `verify.holdout` event on the implement task, empty when there are none,
+      and deletes them; before a battery it writes the files of the task's latest
+      event into the gate checkout under `<tests_dir>/holdout/`. Add the builtins
+      `held-out`, whose output keeps only each failing test's identifier, message
+      and cited rows, and `verify-tests`, whose output names each uncited row and
+      passing test, with their sabotage cases; their `.torve/gates.yaml` entries wait
+      for the completion pull request. Tests: the event kind (`tests/test_events.py`),
+      recording and removal, the latest event replacing earlier ones, injection (`tests/test_runner.py`),
+      the redacted output (`tests/test_held_out.py`), each conviction of `verify-tests`
+      (`tests/test_verify_tests.py`), the sabotage cases (`tests/test_sabotage.py`).
+      Settles D-9, D-10 and D-11.
     scope:
       - src/torve/application/runner.py
+      - src/torve/domain/events.py
       - src/torve/gates/held_out.py
       - src/torve/gates/verify_tests.py
       - src/torve/gates/__init__.py
       - src/torve/gates/sabotage.py
       - tests/test_runner*.py
+      - tests/test_events.py
       - tests/test_gates.py
       - tests/test_held_out.py
       - tests/test_verify_tests.py
       - tests/test_sabotage.py
     acceptance:
       - >-
-        uv run pytest tests/test_runner.py tests/test_gates.py tests/test_sabotage.py
+        uv run pytest tests/test_runner.py tests/test_events.py tests/test_gates.py
+        tests/test_held_out.py tests/test_verify_tests.py tests/test_sabotage.py
       - uv run mypy src
       - uv run torve spec check
     depends_on:

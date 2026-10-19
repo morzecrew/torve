@@ -49,17 +49,18 @@ decisions:
     grade: ASSUMED
     text: >-
       With the pilot on, the planner mints a verify task ahead of a phase when the
-      document's `change.type` is in `verify.types` and the phase's scope matches
-      a source path under the project root. The verify task allows only `<tests_dir>/test_sNNNN_pN.py`,
-      accepts on `<tests.run> --collect-only` over it, and its intent is a fixed preamble
-      followed by the phase's intent.
+      document's `change.type` is in `verify.types` and an entry of the phase's scope,
+      a path or a glob, starts with the project's source prefix: `src/`, or `<layout.root>/src/`.
+      The verify task allows only `<tests_dir>/test_sNNNN_pN.py`, accepts on `<tests.run>
+      --collect-only` over it, and its intent is a fixed preamble followed by the
+      phase's intent.
     paths: [src/torve/application/planner.py]
     consequence: >-
       documentation, configuration and refactor work never pays for a verifier
     rationale: >-
       Only behaviour has something for an independent test to prove; a refactor is
       judged by red-on-base's refactor mode.
-    cites: [S-0106/D-6]
+    cites: [S-0106/D-6, S-0110/D-8]
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -124,8 +125,11 @@ decisions:
     text: >-
       After a verify attempt the host records the files under `.torve/tmp/holdout/`
       of its worktree on the implement task as one `verify.holdout` event of names
-      and texts, at most 64 KiB, and deletes them from the worktree.
-    paths: [src/torve/application/runner.py]
+      and texts, at most 64 KiB, empty when it wrote none, and deletes them from the
+      worktree. The event registry gains the kind, its payload and the worker as its
+      actor. The latest event on the task is the held-out set; it replaces every earlier
+      one.
+    paths: [src/torve/application/runner.py, src/torve/domain/events.py]
     consequence: >-
       held-out properties live in the record that every host of the fleet reads, never
       in an attempt's commit and never in an implementer's sandbox
@@ -136,10 +140,10 @@ decisions:
   - id: D-10
     grade: ASSUMED
     text: >-
-      Before a battery runs for a task whose phase has recorded held-out properties,
-      the host writes them into the gate checkout under `<tests_dir>/holdout/`. A
-      builtin `held-out` runs them and its output keeps only each failing test's identifier,
-      message and cited rows; with no record it is skipped.
+      Before a battery runs for a task whose implement task's latest `verify.holdout`
+      event holds files, the host writes them into the gate checkout under `<tests_dir>/holdout/`.
+      A builtin `held-out` runs them and its output keeps only each failing test's
+      identifier, message and cited rows; with no files in that event it is skipped.
     paths: [src/torve/gates/held_out.py, src/torve/gates/__init__.py]
     consequence: >-
       the next attempt's pack learns which row failed and why, and never the test's
@@ -153,7 +157,7 @@ decisions:
     text: >-
       A builtin `verify-tests` convicts a verify candidate whose file does not collect,
       whose phase settles a row no test cites, or one of whose visible or held-out
-      tests passes on the candidate.
+      tests passes on the candidate; its output names each such row and test.
     paths: [src/torve/gates/verify_tests.py]
     consequence: >-
       a verifier cannot land a test that proves nothing before the implementation

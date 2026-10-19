@@ -38,7 +38,7 @@ goals: |-
   - A paired eval decides, on recorded evidence, whether the verifier becomes the default.
 non_goals: |-
   - Not the default. It stays off until an eval record clears the bar in exit-criteria.
-  - Not for documentation, configuration or refactor phases. They have no behaviour for a verifier to prove, and a refactor is judged by red-on-base's refactor mode (S-0106/D-6).
+  - Not for documentation, repository configuration or refactor phases. They have no behaviour for a verifier to prove; configuration code under the source prefix is behaviour and gets one, and a refactor is judged by red-on-base's refactor mode (S-0106/D-6).
   - Not a replacement for the reviewer or any gate. The verifier adds a judge and removes none.
   - Not a channel between agents. Nothing flows from the implementer to the verifier.
 design:
@@ -58,7 +58,7 @@ design:
       The configuration refuses to load with `enabled: true` when `executor.<variant>` is not a configured tier. `torve doctor` goes red when the verify seat names the executor's own model: the same model is not an independent author. Two models of one provider are allowed, and the eval measures whether that matters.
   - key: minting-the-verifier
     md: |-
-      With the pilot on, the planner mints a verify task ahead of a phase when the document's `change.type` is in `verify.types` and the phase's scope matches a source path under the project root, not only tests, docs or configuration. For phase N of S-NNNN:
+      With the pilot on, the planner mints a verify task ahead of a phase when the document's `change.type` is in `verify.types` and an entry of the phase's scope, a path or a glob, starts with the project's source prefix: `src/`, or `<layout.root>/src/` (S-0110/D-8). A phase whose entries all fall outside it, such as tests, docs, skills or repository configuration, gets none. For phase N of S-NNNN:
 
       - The verify task allows only `<tests_dir>/test_sNNNN_pN.py`. Its acceptance is `<tests.run> --collect-only` over that file, the manifest's test command. Its intent is a fixed preamble followed by the phase's intent.
       - The implement task depends on the verify task, denies the verifier's file and appends `<tests.run> <file>` to the phase's acceptance.
@@ -77,14 +77,14 @@ design:
       The task-gated review covers verify tasks too. The reviewer reads the verifier's tests for vacuity and for over-specification, meaning tests that pin internals no row names.
   - key: held-out-properties
     md: |-
-      After a verify attempt the host reads `.torve/tmp/holdout/*.py` from the verify worktree, records them on the implement task as one `verify.holdout` event of file names and texts, at most 64 KiB, and deletes them. `.torve/tmp/` is ignored, so no attempt's commit carries them, and the event, not a host directory, is what any host of the fleet reads.
+      After a verify attempt the host reads `.torve/tmp/holdout/*.py` from the verify worktree, records them on the implement task as one `verify.holdout` event of file names and texts, at most 64 KiB, and deletes them. A verify attempt that wrote none records an empty event. The latest event on the task is the held-out set and replaces every earlier one, so a retried verifier's properties never mix with a previous attempt's. `.torve/tmp/` is ignored, so no attempt's commit carries them, and the event, not a host directory, is what any host of the fleet reads.
 
-      Before a battery runs for the implement task, or for the verify task itself, the host writes the recorded files into the gate checkout under `<tests_dir>/holdout/`. A new builtin, `held-out`, runs them with `<tests.run> -q -rf --tb=no` and keeps only the `FAILED <test> - <message>` lines and the rows their docstrings cite. That redacted output is the gate's output, so the next attempt's pack carries a row and a message and never the test's source. With no record the gate is skipped. The files live only in the gate checkout, which the clean-checkout document makes a fresh copy of the candidate commit (Q-5).
+      Before a battery runs for the implement task, or for the verify task itself, the host writes the files of the latest event into the gate checkout under `<tests_dir>/holdout/`. A new builtin, `held-out`, runs them with `<tests.run> -q -rf --tb=no` and keeps only the `FAILED <test> - <message>` lines and the rows their docstrings cite. That redacted output is the gate's output, so the next attempt's pack carries a row and a message and never the test's source. With no files in the latest event the gate is skipped. The files live only in the gate checkout, which the clean-checkout document makes a fresh copy of the candidate commit (Q-5).
 
       When the document's last phase lands, the lane commits every recorded held-out file to the document branch under `<tests_dir>/holdout/`, named for its document and phase, before the whole-document battery runs. From then on they are ordinary tests: no implementer is left to hide them from, and they keep guarding the rows after the merge (Q-3).
   - key: the-verifiers-own-gates
     md: |-
-      A second builtin, `verify-tests`, judges a verify candidate. It convicts when the file does not collect, when a row the phase settles has no test citing it, or when any visible or held-out test passes on the candidate. Before the implementation exists a passing test proves nothing about it.
+      A second builtin, `verify-tests`, judges a verify candidate. It convicts when the file does not collect, when a row the phase settles has no test citing it, or when any visible or held-out test passes on the candidate. Before the implementation exists a passing test proves nothing about it. Its output names each uncited row and each passing test, held-out ones included: the verifier wrote them, so naming them hides nothing from an implementer, and a retried verifier learns what to change.
 
       Both builtins enter in shadow. Their `.torve/gates.yaml` entries and sabotage twins land in the completion pull request, not in a phase, so no phase needs the new engine to pass in its own sandbox.
   - key: disputes
@@ -105,8 +105,8 @@ tests: |-
   - The configuration: `enabled: true` with no `executor.<variant>` refuses to load; the doctor goes red on the executor's own model (`tests/test_runconfig.py`, `tests/test_doctor.py`).
   - Minting: a feat document's source phase mints verify then implement with the dependency, deny and acceptance above; a docs-only phase and a refactor document mint no verifier; the pilot off mints exactly today's tasks (`tests/test_plan.py`).
   - The brief and review: the starter profile equips `torve:verifier`; the task-gated review runs for a verify task (`tests/test_skills.py`, `tests/test_cli.py`, `tests/test_dispatch.py`).
-  - Held-out: a verify attempt's held-out files are recorded and removed from the worktree; the battery injects them; the gate's output carries the row and message and not the source (`tests/test_runner.py`, `tests/test_gates.py`).
-  - `verify-tests` convicts an uncited row, a passing test and a file that does not collect (`tests/test_gates.py`, `tests/test_sabotage.py`).
+  - Held-out: a verify attempt's held-out files are recorded and removed from the worktree; the latest event replaces earlier ones and an empty one skips the gate; the battery injects them; the gate's output carries the row and message and not the source (`tests/test_runner.py`, `tests/test_events.py`, `tests/test_held_out.py`).
+  - `verify-tests` convicts an uncited row, a passing test and a file that does not collect, and names the row or test (`tests/test_verify_tests.py`, `tests/test_sabotage.py`).
   - The eval: a verifier pair records both arms and the oracle's escape (`tests/test_evals.py`, `tests/test_shadow.py`).
   - Completion: the last phase's landing commits the recorded held-out files under `<tests_dir>/holdout/` before the whole-document battery, and a document with none commits nothing (`tests/test_lane.py`).
 
