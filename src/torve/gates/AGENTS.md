@@ -357,14 +357,14 @@ An invariant gate whose check selects no test fails as "the check selected nothi
 
 ### S-0116/D-10 — `ASSUMED` (An independent verifier) — implementation: none
 
-Before a battery runs for a task whose implement task's latest `verify.holdout` event holds files, the host writes them into the gate checkout under `<tests_dir>/holdout/`. A builtin `held-out` runs them and its output keeps only each failing test's identifier, message and cited rows; with no files in that event it is skipped.
+The runner hands a battery's gate context the files of the latest `verify.holdout` event on the task's implement task. A builtin `held-out` writes them into the gate checkout under `<tests_dir>/holdout/`, runs only them and removes them when it ends, so no other gate collects or reports them; its output keeps only each failing test's identifier, message and cited rows, and with no files in that event it is skipped.
 
-- Paths: `src/torve/gates/held_out.py` `src/torve/gates/__init__.py`
+- Paths: `src/torve/gates/held_out.py` `src/torve/gates/__init__.py` `src/torve/gates/context.py`
 - Consequence: the next attempt's pack learns which row failed and why, and never the test's source
 
 ### S-0116/D-11 — `ASSUMED` (An independent verifier) — implementation: none
 
-A builtin `verify-tests` convicts a verify candidate whose file does not collect, whose entry settles a row no test cites, or one of whose visible or held-out tests passes on the candidate; its output names each such row and test.
+A builtin `verify-tests` convicts a verify candidate whose file does not collect, whose entry settles a row no test cites, or one of whose visible or held-out tests passes on the candidate; it writes and removes the held-out files for its own run as `held-out` does, and its output names each such row and test.
 
 - Paths: `src/torve/gates/verify_tests.py`
 - Consequence: a verifier cannot land a test that proves nothing before the implementation exists
