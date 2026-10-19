@@ -737,14 +737,14 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 - Paths: `src/torve/application/sizing.py` `src/torve/config/manifest.py`
 - Consequence: a change that pairs code with its migration counts one module, as one that pairs code with its tests does
 
-### S-0111/D-1 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
+### S-0111/D-1 — `ASSUMED` (A task gets a Docker daemon of its own)
 
 `runtime.docker: nested` gives each sandbox of a role in `runtime.nested.roles` a Docker daemon in a privileged side container from `runtime.nested.image`, a pinned dind image. The sandbox joins the side container's network namespace and reaches the daemon at `tcp://127.0.0.1:2375`.
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/adapters/runtime/docker.py` `src/torve/application/ports.py` `.torve/schemas/**`
 - Consequence: a task's containers, ports and volumes are its own, and published ports answer on `localhost`
 
-### S-0111/D-4 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
+### S-0111/D-4 — `ASSUMED` (A task gets a Docker daemon of its own)
 
 `runtime.nested.roles` defaults to `[gates]`. The review role is refused, and so are OpenSandbox, sealed broker mode and every fleet trust class but `own`.
 

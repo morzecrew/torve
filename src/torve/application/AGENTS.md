@@ -2151,14 +2151,14 @@ Three readings come from configuration a repository already has: the coverage pr
 - Paths: `src/torve/application/contextpack.py` `src/torve/application/review.py`
 - Consequence: a nested lock is not reviewed line by line, and a nested test tree is not packed as source
 
-### S-0111/D-1 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
+### S-0111/D-1 — `ASSUMED` (A task gets a Docker daemon of its own)
 
 `runtime.docker: nested` gives each sandbox of a role in `runtime.nested.roles` a Docker daemon in a privileged side container from `runtime.nested.image`, a pinned dind image. The sandbox joins the side container's network namespace and reaches the daemon at `tcp://127.0.0.1:2375`.
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/adapters/runtime/docker.py` `src/torve/application/ports.py` `.torve/schemas/**`
 - Consequence: a task's containers, ports and volumes are its own, and published ports answer on `localhost`
 
-### S-0111/D-7 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
+### S-0111/D-7 — `ASSUMED` (A task gets a Docker daemon of its own)
 
 The mint-time lint admits an acceptance command naming `docker` when the configuration nests the gates role, and refuses it otherwise.
 

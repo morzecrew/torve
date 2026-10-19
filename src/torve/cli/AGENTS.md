@@ -761,7 +761,7 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 - Paths: `src/torve/cli/manager.py`
 - Consequence: an operator session waits on a night without a script of its own
 
-### S-0111/D-6 — `ASSUMED` (A task gets a Docker daemon of its own) — implementation: none
+### S-0111/D-6 — `ASSUMED` (A task gets a Docker daemon of its own)
 
 In a nested sandbox's environment, a proxy whose host is loopback is rewritten to the side container's network gateway. `torve doctor` checks, from a bridge container, that the rewritten proxy answers whenever any role is nested: the side daemon of every nested sandbox, the gates included, pulls its images through it.
 

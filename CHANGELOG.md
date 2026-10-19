@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `runtime.docker: nested` gives each sandbox of a role in `runtime.nested.roles`
+  (default `[gates]`) a Docker daemon of its own, in a privileged side container from
+  `runtime.nested.image`. Tests that start containers or compose stacks run in the
+  sandbox.
+
+- A nested daemon keeps its images in the worker slot's cache volume and starts each
+  task with no container, volume or network a previous task left. One that does not
+  answer within `runtime.nested.ready_s` seconds fails the sandbox's creation.
+
+- The review role, OpenSandbox, sealed broker mode and every fleet trust class but
+  `own` refuse a nested sandbox.
+
+- An acceptance command may name `docker` when the configuration nests the gates role;
+  the mint-time lint refuses it otherwise.
+
+- `torve doctor` checks, whenever any role is nested, that a proxy on the host's
+  loopback answers from the bridge gateway a nested sandbox reaches it through. A proxy
+  that listens on `127.0.0.1` only fails every image pull inside a nested sandbox.
+
+- The base sandbox image carries the Docker CLI with its compose and buildx plugins,
+  `just` and `openssl`. The seat images need rebuilding.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
