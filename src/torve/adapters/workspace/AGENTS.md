@@ -31,4 +31,11 @@ Every git command torve runs carries `core.hooksPath=/dev/null`, so no repositor
 - Paths: `src/torve/adapters/vcs/**` `src/torve/adapters/workspace/**` `src/torve/application/lane.py`
 - Consequence: configuration an agent wrote never runs on the host through a hook
 
+### S-0114/D-1 — `ASSUMED` (The judge reads only the commit) — implementation: none
+
+Before an attempt's battery, the host commits what `git add -A` would stage in the worktree to a snapshot under `refs/torve/judge/<task>`, leaving the worktree's index and branch untouched, and builds a standalone checkout at `.wt/<task>.judge/` the way a shadow replay builds its clone: a fresh repository that fetches the snapshot alone, so it holds only the objects the snapshot reaches, checked out detached at the snapshot's commit, which the host verifies before any gate runs.
+
+- Paths: `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py`
+- Consequence: a gate reads only what the commit would carry, and can run git over the candidate's history
+
 <!-- /torve:managed -->

@@ -17,12 +17,14 @@ decisions:
   - id: D-2
     grade: LOCKED
     text: >-
-      Gates execute outside the agent session against the working tree it leaves behind;
-      an agent cannot report a gate outcome
+      Gates execute outside the agent session, inside a sandbox, against a standalone
+      checkout of what the attempt leaves committed; an agent cannot report a gate
+      outcome
     paths: [src/torve/gates/**, src/torve/application/runner.py]
     consequence: >-
       The battery is the acceptance; a green the agent claims is not one
     cites: [S-0001/D-11]
+    fingerprint: 58ce771cf3d70fe8/ad95bd7b3f1cab28
   - id: D-3
     grade: LOCKED
     text: >-
@@ -200,12 +202,14 @@ decisions:
     grade: ASSUMED
     text: >-
       Acceptance is a list of shell commands, exit 0 meaning satisfied, run in the
-      battery sandbox over a worktree without a repository; a command that needs git
-      cannot be an acceptance command
+      battery sandbox over a standalone checkout of the attempt's commit; a command
+      that needs git cannot be an acceptance command, because the attempt first runs
+      it in its own sandbox, which has no repository
     paths: [src/torve/gates/acceptance.py, src/torve/application/intake.py]
     consequence: >-
       The lint refuses such a command at mint rather than after three attempts
     cites: [S-0052/A-2]
+    fingerprint: 9ceea13f88bb61e2/876b16189f3cb60f
   - id: D-21
     grade: ASSUMED
     text: >-

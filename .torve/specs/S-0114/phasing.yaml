@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0113]
+phasing:
+  - phase: 1
+    title: A worktree's state becomes a standalone checkout
+    intent: >-
+      The workspace adapter snapshots a worktree's stageable state into `refs/torve/judge/<task>`
+      through a temporary index and builds `.wt/<task>.judge/` from it by init and
+      a fetch of the snapshot alone, checked out detached and verified against the
+      snapshot, behind a port method; the reaper removes a `<task>.judge` checkout
+      and its ref only when its task's run is no longer live, and leaves the lane's.
+      Tests: the snapshot holds a tracked change and a new file but no ignored file
+      and leaves the index and branch as they were; git runs in the checkout, its
+      HEAD is the snapshot, its history ends there and it holds no object the snapshot
+      does not reach (`tests/test_judge_checkout.py`); the reaper sweeps a left checkout
+      and ref and keeps a live battery's (`tests/test_reaper.py`). Settles D-1 and
+      the reaper half of D-5.
+    scope:
+      - src/torve/adapters/workspace/git.py
+      - src/torve/application/ports.py
+      - src/torve/application/reaper.py
+      - tests/test_judge_checkout.py
+      - tests/test_reaper.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_judge_checkout.py tests/test_reaper.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: routine
+  - phase: 2
+    title: The attempt's battery judges the checkout
+    intent: >-
+      `run_gate_pass` snapshots after the contract copy, builds the gate context over
+      the judge checkout, mounts the checkout into the gates sandbox and removes it
+      when the battery ends; when the attempt ends, before writing into the worktree,
+      it records `ignored-writes` as a shadow result when the attempt wrote ignored
+      files outside the caches, counting a file the engine wrote only when its content
+      changed. The test doubles that stand in for the workspace gain the new port
+      method. Tests: a tampered `.venv` and `.torve/tmp/tracked-files` never reach
+      a gate; `ignored-writes` names a written ignored file and a rewritten `.torve/tmp/tracked-files`,
+      and stays silent for caches and the engine's untouched files (`tests/test_runner.py`,
+      `tests/test_run_loop.py`). Settles D-2, D-4 and the gate-pass half of D-5.
+    scope:
+      - src/torve/application/runner.py
+      - tests/test_runner*.py
+      - tests/test_run_loop.py
+      - tests/test_run_integration.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runner.py tests/test_run_loop.py tests/test_run_integration.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
+  - phase: 3
+    title: The lane's batteries run in a sandbox
+    intent: >-
+      `process_lane` takes a factory that opens a gates sandbox over a judge checkout
+      of the rebased tip, and `_regate` hands its shell gates to it for the candidate
+      re-gate and the whole-document battery, removing the lane's judge checkout when
+      each battery ends, green or red; `torve merge` and the manager's lane leg build
+      the factory from the configuration's runtime. Tests: both batteries run their
+      shell gates through the factory and never on the host, and leave no judge checkout
+      behind (`tests/test_lane.py`, `tests/test_lane_prevention.py`, `tests/test_manager.py`).
+      Settles D-3 and the lane's half of D-5.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_lane*.py
+      - tests/test_manager*.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py tests/test_manager.py
+        tests/test_cli.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
+  - phase: 4
+    title: The docs say what the judge reads
+    intent: >-
+      `pages/docs/operating.md` and `pages/docs/architecture/overview.md` say every
+      battery judges a standalone checkout of the commit inside a sandbox, and what
+      an `ignored-writes` result means for the person reading a night. Tests: the
+      docs suite (`tests/test_docs.py`).
+    scope: [pages/docs/operating.md, pages/docs/architecture/overview.md]
+    acceptance:
+      - uv run pytest tests/test_docs.py
+      - uv run torve spec check
+    depends_on:
+      - 2
+      - 3
+    character: routine

@@ -92,3 +92,53 @@ amendments:
       CI and the acceptance fallback, and neither runs `basedpyright`. The check and
       the row now say what D-14 names. The findings are the editor's to clear over
       time; no gate waits on them.
+  - id: A-5
+    at: '2026-10-19T15:25:28Z'
+    title: >-
+      The battery judges a standalone checkout of the commit
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          Gates execute outside the agent session against the working tree it leaves
+          behind; an agent cannot report a gate outcome
+        after: >-
+          Gates execute outside the agent session, inside a sandbox, against a standalone
+          checkout of what the attempt leaves committed; an agent cannot report a
+          gate outcome
+      - subject: D-2
+        field: fingerprint
+        after: 58ce771cf3d70fe8/ad95bd7b3f1cab28
+    md: >-
+      On 2026-10-19 T-0638 and T-0639 passed spec-valid by writing `.torve/tmp/tracked-files`,
+      an ignored file the gate read from the worktree they left behind and no commit
+      carried. The same reading of "the working tree it leaves behind" let the lane's
+      re-gate and the document battery run a candidate's tests on the host, against
+      D-3. S-0114 has every battery judge a standalone checkout of what the attempt
+      leaves committed, inside a gates sandbox; the row now says so. Until its phases
+      land, the attempt's battery still reads the worktree. The owner settled S-0114/Q-1
+      on 2026-10-19.
+  - id: A-6
+    at: '2026-10-19T15:25:33Z'
+    title: >-
+      Acceptance runs over the commit's checkout; the lint still refuses git
+    changes:
+      - subject: D-20
+        field: text
+        before: >-
+          Acceptance is a list of shell commands, exit 0 meaning satisfied, run in
+          the battery sandbox over a worktree without a repository; a command that
+          needs git cannot be an acceptance command
+        after: >-
+          Acceptance is a list of shell commands, exit 0 meaning satisfied, run in
+          the battery sandbox over a standalone checkout of the attempt's commit;
+          a command that needs git cannot be an acceptance command, because the attempt
+          first runs it in its own sandbox, which has no repository
+      - subject: D-20
+        field: fingerprint
+        after: 9ceea13f88bb61e2/876b16189f3cb60f
+    md: >-
+      Under S-0114/D-2 the battery's checkout has a repository, so "over a worktree
+      without a repository" no longer describes where acceptance runs. The lint stays:
+      an attempt runs its acceptance in its own sandbox before the battery does, and
+      that sandbox still has none. The owner settled S-0114/Q-3 on 2026-10-19.
