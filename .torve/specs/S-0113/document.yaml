@@ -43,7 +43,7 @@ design:
     md: |-
       Before the engine starts a sandbox over a worktree, for an attempt or for a gate battery, the host writes the repository's tracked files to `.torve/tmp/tracked-files` in that worktree. `.torve/tmp/` is ignored, so the list never reaches a commit, and the battery's list is written after the attempt, so it is current.
 
-      `tracked_files` uses git when git answers. When git fails in a root that has a `.git`, it reads the list. With neither, `torve spec check` reports a problem saying the citation scan did not run. A root with no `.git` still scans nothing, as today.
+      `tracked_files` uses git when git answers. When git fails in a root that has a `.git`, it reads the list. With neither, `torve spec check` warns that the citation scan did not run (S-0113/A-1). A root with no `.git` still scans nothing, as today.
   - key: the-fast-forward
     md: >-
       A file the attempt created is untracked while the battery runs, so neither the
@@ -66,7 +66,7 @@ design:
       An invariant gate whose check selects no test fails as "the check selected nothing",
       as a decision gate already does. It stays shadow (S-0106/D-2).
 tests: |-
-  - With git failing in a root that has a `.git`, the scan reads `.torve/tmp/tracked-files` and reports a citation problem in a listed file; with no list it reports that the scan did not run; a root with no `.git` reports nothing (D-1).
+  - With git failing in a root that has a `.git`, the scan reads `.torve/tmp/tracked-files` and reports a citation problem in a listed file; with no list it warns that the scan did not run; a root with no `.git` reports nothing (D-1).
   - The runner writes the list before the gates sandbox starts and the session before the attempt's sandbox starts, and the list matches `git ls-files` (D-2).
   - A fast-forward candidate whose committed tree carries an unknown citation is not landed and is sent back; a clean one lands as before (D-3).
   - A runtime the CLI opens closes its client on exit, and `--until-change` opens one runtime across several reads (D-4).
