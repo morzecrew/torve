@@ -553,6 +553,42 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
     assert report.exit_code == 0  # shadow still convicts nothing by itself
 
 
+def test_an_invariant_check_that_selects_nothing_fails_as_vacuous(tmp_path):
+    """D-6: an invariant gate reads an empty selection the way a decision gate
+    does — pytest's exit 5 is "the check selected nothing", still shadow, so a
+    stale `-k` filter records rather than reads as a broken rule."""
+    from torve.config.manifest import Manifest
+    from torve.domain.spec import Invariant
+    from torve.gates.context import DiffEntry, GateContext
+    from torve.gates.runner import run_gates
+
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[]),
+        head_sha="",
+        base=None,
+        merge_base=None,
+        diff=[DiffEntry(status="M", path="src/app.py")],
+        invariants=[
+            Invariant(
+                id="S-0009/I-1",
+                statement="the rule holds",
+                paths=["src/**"],
+                check="uv run pytest -k nothing",
+            )
+        ],
+        execute=lambda command, timeout: (5, "no tests ran in 0.01s\n"),
+    )
+
+    report = run_gates(ctx)
+    gate = next(r for r in report.results if r.name == "invariant:S-0009/I-1")
+
+    assert gate.outcome == "fail"
+    assert "the check selected nothing" in gate.output
+    assert gate.state == "shadow"
+    assert report.exit_code == 0  # shadow still convicts nothing by itself
+
+
 def test_the_no_tests_ran_reading_is_vacuous_too():
     """D-1: the second reading — a summary that ran no test — is vacuous as
     well, whether or not the command exited non-zero."""
