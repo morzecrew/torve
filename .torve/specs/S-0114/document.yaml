@@ -55,7 +55,10 @@ design:
       their shell gates in a gates sandbox over a judge checkout of the rebased tip,
       the same way. `process_lane` is handed a factory that opens that sandbox, built
       by its two callers, `torve merge` and the manager's lane leg, from the configuration's
-      runtime. The rebase stays on the host, in git, where no candidate code runs.
+      runtime. Both batteries run under the default executor seat's image: a document
+      battery has no task whose seat it could reuse, and one image keeps the lane's
+      two verdicts comparable. The rebase stays on the host, in git, where no candidate
+      code runs.
   - key: ignored-writes
     md: >-
       Before the snapshot, the host lists every ignored file under the worktree that
@@ -65,7 +68,9 @@ design:
       is not empty is recorded as a shadow result, `ignored-writes`, in the attempt's
       battery. It changes no verdict and reaches the record, `torve why` and the next
       attempt's feedback like any shadow result. The judge never reads those files;
-      the flag is for the person reading the night.
+      the flag is for the person reading the night. The reviewer does not read it
+      either: what the reviewer reads stays as LOCKED S-0054/D-13 has it, until nights
+      show how often the flag fires.
 tests: |-
   - The snapshot of a worktree with a tracked change, a new file and an ignored file holds the first two and not the third, and leaves the worktree's index and branch as they were (D-1).
   - The judge checkout runs `git log` and `git diff` against the attempt's base and holds no commit after the snapshot (D-1).
@@ -78,8 +83,8 @@ docs: >-
   battery judges a standalone checkout of the commit inside a sandbox, and what `ignored-writes`
   means.
 out_of_scope: |-
-  - Letting the reviewer read `ignored-writes` (Q-2).
-  - Relaxing the acceptance lint now that the battery has git (Q-3).
+  - Letting the reviewer read `ignored-writes` (Q-2), until nights show how often it fires.
+  - Relaxing the acceptance lint now that the battery has git (Q-3): the attempt's own sandbox still has none.
 risks: |-
   - A fresh environment per battery costs a `uv sync` from the cache, seconds with a warm cache, and each lane battery adds a container start per landing.
   - A gate that leaned on an ignored file the attempt built, a generated artifact the repository does not commit, now fails. That is the point, but an adopter's gates may surface it first.
@@ -108,20 +113,28 @@ questions:
       "against the working tree it leaves behind". Amend it to "against a standalone
       checkout of what it leaves committed, inside a sandbox"? Amending a LOCKED row
       is the owner's act.
+    status: settled
+    settled_by: S-0055/A-5
   - id: Q-2
     text: >-
       Should the reviewer read `ignored-writes`? It is a fact the host computes, not
       the author's trace that LOCKED S-0055/D-49 keeps from the reviewer, but adding
       it to what the reviewer reads amends LOCKED S-0054/D-13. Lean: not yet; first
       see how often it fires.
+    status: settled
+    settled_by: D-4
   - id: Q-3
     text: >-
       S-0055/D-20 (ASSUMED) says acceptance runs over a worktree without a repository,
       which D-2 makes untrue for the battery. Reword it at acceptance, and keep the
       lint refusing a command that needs git because the attempt's own sandbox still
       has none? Lean: yes.
+    status: settled
+    settled_by: S-0055/A-6
   - id: Q-4
     text: >-
       Which image runs the lane's batteries? The attempt's battery uses the seat image
       the attempt ran under; the lane knows a candidate's task, but a document battery
       has none. Lean: the default executor seat's image for both.
+    status: settled
+    settled_by: D-3
