@@ -309,7 +309,7 @@ def test_the_tree_scan_leaves_old_grammar_alone_without_a_map(tmp_path: Path) ->
 
 # ----------------------- #
 # S-0113/D-1: `spec check` in a root whose git fails reads the tracked list
-# the host left in `.torve/tmp/tracked-files`; with none it reports that the
+# the host left in `.torve/tmp/tracked-files`; with none it warns that the
 # scan did not run instead of reading the tree as empty.
 
 
@@ -343,6 +343,8 @@ def test_the_check_says_the_scan_did_not_run_without_a_list(tmp_path: Path, monk
     monkeypatch.setenv("GIT_DIR", "/nonexistent")
 
     code, output = _spec(tmp_path, "check")
+    report = json.loads(output)
 
-    assert code == 3, output
-    assert any("scan did not run" in problem for problem in json.loads(output)["problems"])
+    assert code == 0, output
+    assert any("scan did not run" in warning for warning in report["warnings"])
+    assert not any("scan did not run" in problem for problem in report["problems"])

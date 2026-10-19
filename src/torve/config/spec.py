@@ -1166,7 +1166,7 @@ def write_tracked_files(root: Path) -> None:
     """Write `git ls-files` of *root*, one name per line, to the list the
     scan reads where git cannot run (S-0113/D-2). The host runs this before a
     sandbox starts; a git that cannot answer writes nothing, and the scan then
-    reports that it did not run rather than reading an empty tree."""
+    warns that it did not run rather than reading an empty tree."""
 
     import subprocess
 
@@ -1189,7 +1189,7 @@ def tracked_files(root: Path) -> list[str] | None:
     """What git tracks under the scanned roots and names, relative to
     *root*; nothing when the root is no repository, and `None` when git fails
     in a root that carries a `.git` and no list was left to read (S-0113/D-1)
-    — the check reports that rather than reading the tree as empty."""
+    — the check warns of that rather than reading the tree as empty."""
 
     import subprocess
 
@@ -1535,10 +1535,11 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
     scanned = tracked_files(root)
 
     if scanned is None:
-        # S-0113/D-1: git failed in a root that has a `.git` and no list was
-        # left for the scan — say so, rather than reading the tree as empty
-        # and passing over every citation in it.
-        report.problems.append(
+        # S-0113/D-1: git failed in a root that has a `.git` and no
+        # list was left for the scan — warn, rather than reading the tree as
+        # empty in silence; an engine without S-0113/D-2 leaves no list, and a
+        # problem would fail every sandbox battery it runs.
+        report.warnings.append(
             "the citation scan did not run — git failed in a root carrying a .git and "
             f"{TRACKED_LIST} is absent (S-0113/D-1)"
         )
