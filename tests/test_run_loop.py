@@ -619,6 +619,28 @@ def test_existing_non_terminal_run_refuses_a_second_claim(rig):
         run_task(repo.root, task_for(repo), RunnerConfig(), deps)
 
 
+def test_an_attempt_that_raises_leaves_its_run_escalated_not_running(rig):
+    """T-0655, 2026-10-19: the seat image would not start, the exception left
+    the state file running, and the requeue that resolved the escalation was
+    refused as an existing run until a reap."""
+
+    repo, deps, runtime, _, _ = rig
+
+    def no_image(spec, workspace):
+        raise RuntimeError("Unable to find image 'claude-sandbox:0.4.0' locally")
+
+    runtime.create = no_image
+
+    with pytest.raises(RuntimeError, match="claude-sandbox"):
+        run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+    state = RunState.load(naming.state_file(repo.root, "T-9001"))
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "gate_infrastructure_failure"
+    assert "claude-sandbox" in state.escalation.detail
+
+
 def test_an_active_review_run_blocks_no_dispatch(rig):
     """T-0180, the incident's shape: a running review-role task carries an
     empty allow-set (it writes nothing by construction) — the overlap gate

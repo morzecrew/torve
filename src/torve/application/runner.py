@@ -1503,6 +1503,21 @@ async def _run_task_async(
 
             raise
 
+        except BlockedDispatch:
+            # A wait, not a failure: the gate pass already removed the state
+            # file (S-0104/D-3), and escalating would write it back.
+            raise
+
+        except Exception as exc:
+            # A hook that raises ends the run. Left running, the state file
+            # refused the task's requeued dispatch until a reap (T-0655,
+            # 2026-10-19, a seat image that would not start); escalated, the
+            # requeue that resolves it clears the file (S-0094/D-5).
+            if state.state not in (TaskState.READY, TaskState.ABANDONED, TaskState.ESCALATED):
+                state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
+
+            raise
+
         return {
             "task_id": task.id,
             "state": str(final.state),

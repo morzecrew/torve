@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A run whose attempt raises, such as a seat image that does not start, ends escalated
+  instead of running. Requeueing the escalation now dispatches the task again, without a
+  `torve reap` first.
+
 ## [0.5.0] - 2026-10-19
 
 ### Added
