@@ -901,9 +901,11 @@ def _gate_dispatch(
     worker_slot=0,
     shadow=False,
     base="main",
+    runtime=None,
 ):
     """A dispatch with nothing running behind it — enough for the steps that
-    only read the regime off it (S-0046)."""
+    only read the regime off it (S-0046). *runtime* is for the passes that do
+    open a sandbox."""
 
     from pathlib import Path
 
@@ -911,7 +913,7 @@ def _gate_dispatch(
 
     deps = RunDeps(
         workspace=None,  # type: ignore[arg-type]  # unreached: no sandbox is opened
-        runtime=_NoSandboxRuntime(),  # type: ignore[arg-type]
+        runtime=runtime or _NoSandboxRuntime(),  # type: ignore[arg-type]
         agent=object(),  # type: ignore[arg-type]
         vcs=object(),  # type: ignore[arg-type]
         scm=None,  # type: ignore[arg-type]
@@ -935,7 +937,7 @@ def _gate_dispatch(
     )
 
 
-def _gate_pass(repo, worktree, *, base="main"):
+def _gate_pass(repo, worktree, *, base="main", runtime=None):
     """The shipped gate pass over a cut worktree (S-0046): the pass reads
     its regime off a dispatch now, so the test builds one instead of
     threading thirteen positional arguments and hoping the order held."""
@@ -943,7 +945,7 @@ def _gate_pass(repo, worktree, *, base="main"):
     from torve.application.runner import run_gate_pass
     from torve.application.runstate import RunState
 
-    run = _gate_dispatch(root=repo.root, worktree=worktree, base=base)
+    run = _gate_dispatch(root=repo.root, worktree=worktree, base=base, runtime=runtime)
     state = RunState(task_id=TASK_ID, path=repo.root / "state.json", run_id="run-1")
 
     return run_gate_pass(run, state)
@@ -1059,6 +1061,58 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
     records = [json.loads(line) for line in telemetry.read_text().splitlines()]
     assert len(records) == 1
     assert records[0]["exit_code"] == 0
+
+
+def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
+    """S-0113/D-2: the battery's sandbox runs no git, so the host writes the
+    worktree's tracked files into `.torve/tmp/tracked-files` before the shell
+    gates open a sandbox, and the list is what `git ls-files` answers."""
+
+    import subprocess
+
+    from torve.application.ports import SandboxHandle
+
+    seen: dict = {}
+
+    class ListRecordingRuntime:
+        def create(self, spec, workspace):
+            seen["tracked"] = (workspace / ".torve" / "tmp" / "tracked-files").read_text(
+                encoding="utf-8"
+            )
+
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            return 0, ""
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    repo.seed()
+    manifest = manifest_with(
+        [{"name": "acceptance", "run": "true", "axis": "functional"}],
+    )
+    worktree = _cut_worktree(repo, manifest, base_task(allow=["src/**"]))
+    (worktree / "src" / "torve").mkdir(parents=True, exist_ok=True)
+    (worktree / "src" / "torve" / "new.py").write_text("x = 1\n", encoding="utf-8")
+
+    _gate_pass(repo, worktree, runtime=ListRecordingRuntime())
+
+    expected = subprocess.run(
+        ["git", "-C", str(worktree), "ls-files"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    assert seen["tracked"] == expected
+    assert ".torve/gates.yaml" in expected
 
 
 # ....................... #

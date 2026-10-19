@@ -305,3 +305,44 @@ def test_the_tree_scan_leaves_old_grammar_alone_without_a_map(tmp_path: Path) ->
     cited = {ident for _name, _line, ident, legacy in tree_citations(tmp_path, spec_dir) if legacy}
 
     assert cited == {"RFC 0052 §4.2", "D-3.2", "Q-4.2", "A-7"}
+
+
+# ----------------------- #
+# S-0113/D-1: `spec check` in a root whose git fails reads the tracked list
+# the host left in `.torve/tmp/tracked-files`; with none it reports that the
+# scan did not run instead of reading the tree as empty.
+
+
+def test_the_check_reads_the_left_list_when_git_fails(tmp_path: Path, monkeypatch) -> None:
+    import subprocess
+
+    from torve.config.spec import write_tracked_files
+
+    _seed(tmp_path)
+    (tmp_path / "src" / "torve" / "cli" / "new.py").write_text(
+        "# cites S-9999/D-9, which no document defines\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    write_tracked_files(tmp_path)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+
+    code, output = _spec(tmp_path, "check")
+
+    assert code == 3, output
+    assert any("S-9999/D-9" in problem for problem in json.loads(output)["problems"])
+
+
+def test_the_check_says_the_scan_did_not_run_without_a_list(tmp_path: Path, monkeypatch) -> None:
+    import subprocess
+
+    _seed(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+
+    code, output = _spec(tmp_path, "check")
+
+    assert code == 3, output
+    assert any("scan did not run" in problem for problem in json.loads(output)["problems"])

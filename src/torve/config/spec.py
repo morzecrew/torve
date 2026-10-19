@@ -1149,9 +1149,47 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
     return problems, warnings
 
 
-def tracked_files(root: Path) -> list[str]:
+# S-0113/D-1: a sandbox can run no git, so the host leaves the list of
+# tracked files here, ignored and outside every commit. Composed from the
+# torve directory constant, as `channel.py` and `divergence.py` do.
+TRACKED_LIST = f"{TORVE_DIR}/tmp/tracked-files"
+
+
+def tracked_list_file(root: Path) -> Path:
+    """Where the host leaves the tracked-file list a scan in a sandbox reads
+    (S-0113/D-1, D-2)."""
+
+    return root / TORVE_DIR / "tmp" / "tracked-files"
+
+
+def write_tracked_files(root: Path) -> None:
+    """Write `git ls-files` of *root*, one name per line, to the list the
+    scan reads where git cannot run (S-0113/D-2). The host runs this before a
+    sandbox starts; a git that cannot answer writes nothing, and the scan then
+    reports that it did not run rather than reading an empty tree."""
+
+    import subprocess
+
+    done = subprocess.run(
+        ["git", "-C", str(root), "ls-files"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if done.returncode != 0:
+        return
+
+    path = tracked_list_file(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(done.stdout, encoding="utf-8")
+
+
+def tracked_files(root: Path) -> list[str] | None:
     """What git tracks under the scanned roots and names, relative to
-    *root*; nothing when the root is no repository."""
+    *root*; nothing when the root is no repository, and `None` when git fails
+    in a root that carries a `.git` and no list was left to read (S-0113/D-1)
+    — the check reports that rather than reading the tree as empty."""
 
     import subprocess
 
@@ -1163,9 +1201,18 @@ def tracked_files(root: Path) -> list[str]:
             check=False,
         )
     except OSError:
-        return []
+        done = None
 
-    if done.returncode != 0:
+    if done is not None and done.returncode == 0:
+        names = [one for one in done.stdout.split("\0") if one]
+    elif (root / ".git").exists():
+        listed = tracked_list_file(root)
+
+        if not listed.is_file():
+            return None
+
+        names = listed.read_text(encoding="utf-8").splitlines()
+    else:
         return []
 
     roots = scan_roots(root)
@@ -1173,23 +1220,27 @@ def tracked_files(root: Path) -> list[str]:
 
     return [
         name
-        for name in done.stdout.split("\0")
+        for name in names
         if name
         and name not in excluded
         and (name.startswith(roots) or Path(name).name in SCAN_NAMES)
     ]
 
 
-def tree_citations(root: Path, spec_dir: Path | None = None) -> list[tuple[str, int, str, bool]]:
+def tree_citations(
+    root: Path, spec_dir: Path | None = None, names: list[str] | None = None
+) -> list[tuple[str, int, str, bool]]:
     """Every citation in the scanned files, as (file, line, identifier,
     legacy), in file order: the global grammar, and — only when the archive
     holds the renumbering map (S-0095/D-4) — what stood before it; without
-    the map that old-grammar text is prose."""
+    the map that old-grammar text is prose. *names* is the scanned file list
+    when the caller already resolved it."""
 
     found: list[tuple[str, int, str, bool]] = []
     legacy_checked = spec_dir is not None and legacy_grammar_checked(spec_dir)
+    scanned = tracked_files(root) if names is None else names
 
-    for name in tracked_files(root):
+    for name in scanned or []:
         try:
             text = (root / name).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -1223,14 +1274,18 @@ def tree_citations(root: Path, spec_dir: Path | None = None) -> list[tuple[str, 
 
 
 def check_backlinks(
-    root: Path, corpus: Corpus, citations: list[tuple[str, int, str, bool]]
+    root: Path,
+    corpus: Corpus,
+    citations: list[tuple[str, int, str, bool]],
+    names: list[str] | None = None,
 ) -> list[str]:
     """S-0058/D-8: a LOCKED row of a standing document whose declared paths
     match scanned files, none of which cites it, is a warning — the comment
     an agent deleted is heard; a row over files the scan never reads is
-    silent, having nowhere to be cited from."""
+    silent, having nowhere to be cited from. *names* is the scanned file list
+    when the caller already resolved it."""
 
-    scanned = tracked_files(root)
+    scanned = (tracked_files(root) if names is None else names) or []
     citing: dict[str, set[str]] = {}
 
     for name, _line, ident, legacy in citations:
@@ -1477,11 +1532,22 @@ def check_corpus(spec_dir: Path, root: Path) -> CheckReport:
     graph_problems, graph_warnings = check_graph(documents)
     report.problems += graph_problems
     report.warnings += graph_warnings
-    citations = tree_citations(root, spec_dir)
+    scanned = tracked_files(root)
+
+    if scanned is None:
+        # S-0113/D-1: git failed in a root that has a `.git` and no list was
+        # left for the scan — say so, rather than reading the tree as empty
+        # and passing over every citation in it.
+        report.problems.append(
+            "the citation scan did not run — git failed in a root carrying a .git and "
+            f"{TRACKED_LIST} is absent (S-0113/D-1)"
+        )
+
+    citations = tree_citations(root, spec_dir, scanned or [])
     tree_problems, tree_warnings = check_tree(root, corpus, spec_dir, citations)
     report.problems += tree_problems
     report.warnings += tree_warnings
-    report.warnings += check_backlinks(root, corpus, citations)
+    report.warnings += check_backlinks(root, corpus, citations, scanned or [])
     schema_problems, schema_warnings = check_schema(spec_dir)
     report.problems += schema_problems
     report.warnings += schema_warnings
