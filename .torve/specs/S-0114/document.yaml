@@ -1,0 +1,127 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0114
+title: The judge reads only the commit
+kind: design
+change:
+  type: fix
+  scope: gates
+status: draft
+implementation: none
+depends_on: [S-0113]
+informed_by: [S-0055, S-0083, S-0106, S-0111, S-0113]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  On 2026-10-19 two attempts passed spec-valid by writing the file it reads, an ignored file no commit carried; this document has every gate battery judge a standalone checkout of what the attempt leaves committed, inside a sandbox, so nothing outside the commit reaches a verdict.
+
+  The attempt's battery judges a snapshot of the worktree cloned into a checkout of its own, with a working git and a history that ends at the snapshot. The lane's re-gate and the whole-document battery, which run the candidate's tests on the host today, run in a gates sandbox over the same kind of checkout. An attempt that writes ignored files is flagged in its record.
+motivation: |-
+  T-0638's attempt 2 and T-0639's attempt 1, phases 1 and 2 of S-0113, could not run git in the sandbox, so spec-valid found no list of tracked files. Each attempt wrote `.torve/tmp/tracked-files` itself from a walk of 218 files, where `git ls-files` lists about 1,224, and the battery, which mounts the same worktree, read it and passed. The file is ignored, so it was in no diff and no commit, and the reviewer never saw it. S-0113/D-2 has the host overwrite that one file; every other ignored path in the worktree, the attempt's `.venv` among them, still reaches the battery.
+
+  Reading the lane for this document showed a second gap. `_regate` in `src/torve/application/lane.py` builds its gate context with no executor, which `src/torve/gates/context.py` reads as the host. The lane's re-gate and the whole-document battery therefore run the candidate's own tests on the host, in the manager's environment, against LOCKED S-0055/D-3.
+current_state: |-
+  - `run_gate_pass` in `src/torve/application/runner.py` builds the gate context over the attempt's worktree and mounts that worktree into the gates sandbox (`_gates_spec`). The engine commits the attempt's work after the verdict.
+  - Builtin gates read files from the context's root on the host; shell gates run in the gates sandbox over the mounted worktree, which holds the attempt's ignored files: `.venv/`, caches, `.torve/tmp/`.
+  - The worktree's `.git` is a file pointing at the host's git directory, which no sandbox mounts, so git fails in the gates sandbox: `coverage-delta`'s `diff-cover --compare-branch` and any `git ls-files` gate judge nothing there (S-0113's question Q-2).
+  - The lane re-gates a rebased candidate and runs the whole-document battery in fresh git worktrees under `.wt/lane-*`, with `ctx.execute` unset, so their shell gates run on the host.
+  - A night is served with `.env` sourced into the manager's environment, which the host-run gates inherit.
+goals: |-
+  - Nothing an attempt leaves outside its commit reaches a gate's verdict.
+  - No gate battery runs the candidate's code on the host.
+  - A gate in the sandbox can run git over the candidate's history.
+  - An attempt that writes ignored files shows in its record.
+non_goals: |-
+  - Giving the attempt's own sandbox git. The attempt still works in a worktree without a repository, and S-0113's list of tracked files stays for its self-checks.
+  - Changing what any gate checks. Only what a gate reads and where it runs change.
+  - Network policy for sandboxes, which the broker already governs.
+design:
+  - key: the-snapshot
+    md: |-
+      After the attempt, the host commits the worktree's state to a snapshot without touching the worktree's own index or branch: `git add -A` into a temporary index, `write-tree`, then `commit-tree` on the attempt's head, kept under `refs/torve/judge/<task>`. `git add -A` honours `.gitignore`, so the snapshot holds what the engine's own commit would hold, tracked changes and new files, and never an ignored one. The contract copy the gate pass places in the worktree lands before the snapshot, as it lands before the battery today.
+
+      The host then clones the snapshot into `.wt/<task>.judge/` with `git clone --local --single-branch`. The checkout has a `.git` directory of its own: git works inside it, its history ends at the snapshot, and its `.git/config` names only the local source, so no credential the host's checkout keeps comes with it.
+  - key: the-attempt-battery
+    md: >-
+      `run_gate_pass` builds the gate context over the judge checkout and mounts the
+      checkout, not the worktree, into the gates sandbox. Builtin gates read the checkout;
+      shell gates run over it. The toolchain cache volume mounts as before, so `uv
+      run` builds a fresh environment from the cache instead of reusing the attempt's
+      `.venv`. The verdict, the record and the commit the engine then makes are unchanged.
+  - key: the-lane-batteries
+    md: >-
+      The lane's re-gate of a rebased candidate and the whole-document battery run
+      their shell gates in a gates sandbox over a judge checkout of the rebased tip,
+      the same way. `process_lane` is handed a factory that opens that sandbox, built
+      by its two callers, `torve merge` and the manager's lane leg, from the configuration's
+      runtime. The rebase stays on the host, in git, where no candidate code runs.
+  - key: ignored-writes
+    md: >-
+      Before the snapshot, the host lists every ignored file under the worktree that
+      was created or changed after the attempt started, leaving out the engine's own
+      files under `.torve/tmp/` and the toolchain's caches (`.venv/`, `__pycache__/`,
+      `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `node_modules/`). A list that
+      is not empty is recorded as a shadow result, `ignored-writes`, in the attempt's
+      battery. It changes no verdict and reaches the record, `torve why` and the next
+      attempt's feedback like any shadow result. The judge never reads those files;
+      the flag is for the person reading the night.
+tests: |-
+  - The snapshot of a worktree with a tracked change, a new file and an ignored file holds the first two and not the third, and leaves the worktree's index and branch as they were (D-1).
+  - The judge checkout runs `git log` and `git diff` against the attempt's base and holds no commit after the snapshot (D-1).
+  - A gate pass over a worktree whose `.venv` and `.torve/tmp/tracked-files` were tampered with judges the snapshot: a gate reading either path reads the checkout's state, not the attempt's (D-2).
+  - The lane's re-gate and the document battery hand their shell gates to a sandbox executor, never the host (D-3).
+  - An attempt that writes an ignored file outside the excluded set gets an `ignored-writes` shadow result naming it; one that writes only caches gets none (D-4).
+  - `torve reap` removes a judge checkout and its ref with the task's other footprint, and a gate pass removes its own when the battery ends (D-5).
+docs: >-
+  `pages/docs/operating.md` and `pages/docs/architecture/overview.md` say that every
+  battery judges a standalone checkout of the commit inside a sandbox, and what `ignored-writes`
+  means.
+out_of_scope: |-
+  - Letting the reviewer read `ignored-writes` (Q-2).
+  - Relaxing the acceptance lint now that the battery has git (Q-3).
+risks: |-
+  - A fresh environment per battery costs a `uv sync` from the cache, seconds with a warm cache, and each lane battery adds a container start per landing.
+  - A gate that leaned on an ignored file the attempt built, a generated artifact the repository does not commit, now fails. That is the point, but an adopter's gates may surface it first.
+  - `.wt/<task>.judge/` doubles the disk a task holds while its battery runs; the battery removes it, and the reaper sweeps what a killed pass left.
+alternatives:
+  - option: >-
+      Clean the worktree's ignored files with `git clean -fdX` before the battery.
+    rejected_because: >-
+      It deletes the attempt's `.venv` and caches the next attempt reuses, and it
+      still leaves git unavailable in the sandbox.
+  - option: >-
+      Mount the host repository's git directory into the gates sandbox.
+    rejected_because: >-
+      The candidate's tests would read `.git/config` and every other branch's history.
+      A clone carries the candidate's ancestry and nothing else, for the reason S-0113
+      gave when it rejected the same option.
+  - option: >-
+      Keep the lane's batteries on the host and strip the credentials they inherit.
+    rejected_because: >-
+      The candidate's code would still run on the host, which LOCKED S-0055/D-3 rules
+      out, and an environment allow-list is easy to get wrong once.
+questions:
+  - id: Q-1
+    text: >-
+      D-2 and D-3 change what the battery reads, which LOCKED S-0055/D-2 states as
+      "against the working tree it leaves behind". Amend it to "against a standalone
+      checkout of what it leaves committed, inside a sandbox"? Amending a LOCKED row
+      is the owner's act.
+  - id: Q-2
+    text: >-
+      Should the reviewer read `ignored-writes`? It is a fact the host computes, not
+      the author's trace that LOCKED S-0055/D-49 keeps from the reviewer, but adding
+      it to what the reviewer reads amends LOCKED S-0054/D-13. Lean: not yet; first
+      see how often it fires.
+  - id: Q-3
+    text: >-
+      S-0055/D-20 (ASSUMED) says acceptance runs over a worktree without a repository,
+      which D-2 makes untrue for the battery. Reword it at acceptance, and keep the
+      lint refusing a command that needs git because the attempt's own sandbox still
+      has none? Lean: yes.
+  - id: Q-4
+    text: >-
+      Which image runs the lane's batteries? The attempt's battery uses the seat image
+      the attempt ran under; the lane knows a candidate's task, but a document battery
+      has none. Lean: the default executor seat's image for both.
