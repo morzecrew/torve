@@ -1821,6 +1821,66 @@ def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, mon
     assert state.path.exists()
 
 
+def test_a_requeued_resolution_briefs_the_next_attempt_from_the_record(tmp_path, monkeypatch):
+    """S-0113/D-5: `manager resolve --resolution requeued --note` puts the note
+    in the task's feedback record as an operator thread, after the threads and
+    before the diff the record already holds; a resolve with no note leaves the
+    record as it was."""
+    from typer.testing import CliRunner
+
+    from torve.application.feedback import capture_feedback, feedback_file
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    repo.write("a.txt", "x\n")
+    repo.commit("init")
+
+    threads = [
+        {
+            "path": "src/a/app.py",
+            "line": 4,
+            "comments": [{"author": "bot", "body": "the guard is missing"}],
+        }
+    ]
+    assert capture_feedback(repo.root, "T-9820", "diff --git a/a b/a\n+1\n", threads) is True
+
+    result = CliRunner().invoke(
+        app,
+        [
+            *("manager", "resolve", PARTITION, "T-9820"),
+            *("--note", "the guard is a helper you can import", "--root", str(repo.root)),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    text = feedback_file(repo.root, "T-9820").read_text(encoding="utf-8")
+    assert "the guard is missing" in text and "diff --git a/a b/a" in text
+    assert (
+        text.index("the guard is missing")
+        < text.index("the guard is a helper you can import")
+        < text.index("## The superseded candidate's diff")
+    )
+
+    before = feedback_file(repo.root, "T-9820").read_bytes()
+    again = CliRunner().invoke(
+        app, [*("manager", "resolve", PARTITION, "T-9820"), *("--root", str(repo.root))]
+    )
+
+    assert again.exit_code == 0, again.output
+    assert feedback_file(repo.root, "T-9820").read_bytes() == before
+
+
 # ....................... #
 # The lane leg's rounds (S-0096/D-2): the lane mints a red completion
 # battery's round only where the review leg reads recorded findings, so the

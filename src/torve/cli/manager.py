@@ -1395,6 +1395,10 @@ def resolve_cmd(
     takes it off, `landed` records that it was finished by hand. Only an
     operator may write this — an agent that could close its own escalation
     could escalate its way out of every rule it dislikes.
+
+    On a requeue, `--note` joins the task's feedback record as an operator
+    thread, after the threads and before the diff the record already holds,
+    so the next attempt is briefed by the person who requeued it.
     """
 
     if resolution not in ("requeued", "abandoned", "landed"):
@@ -1450,12 +1454,19 @@ def resolve_cmd(
         _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
     )
 
+    briefed = False
+
     if resolution == "requeued":
+        from torve.application.feedback import record_operator_note
         from torve.application.reviewleg import rescope
         from torve.config import layout
         from torve.gates.context import load_task
 
         root = root.resolve()
+        # S-0113/D-5: the note briefs the next attempt the way a surviving
+        # blocker's critique does — an operator thread in the record, keeping
+        # the threads and the diff it already holds.
+        briefed = record_operator_note(root, task_id, note)
         contract = layout.task_file(root, task_id)
         round_task = None
 
@@ -1483,10 +1494,17 @@ def resolve_cmd(
             _refresh_phase(root, task_id, fmt)
 
     if fmt is Format.JSON:
-        emit_json({"partition": partition, "task": task_id, "resolution": resolution})
+        emit_json(
+            {"partition": partition, "task": task_id, "resolution": resolution, "briefed": briefed}
+        )
         raise typer.Exit(EXIT_OK)
 
-    closing(out(fmt), f"{task_id}: {resolution}")
+    console = out(fmt)
+    closing(console, f"{task_id}: {resolution}")
+
+    if briefed:
+        closing(console, "the note is in the task's feedback record", STYLE_DIM)
+
     raise typer.Exit(EXIT_OK)
 
 

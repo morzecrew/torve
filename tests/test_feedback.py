@@ -13,6 +13,7 @@ from torve.application.feedback import (
     FEEDBACK_CAP,
     capture_feedback,
     feedback_file,
+    record_operator_note,
     render_feedback,
     threads_file,
 )
@@ -140,6 +141,40 @@ def test_an_empty_capture_clears_the_stale_record(root):
     assert capture_feedback(root, "T-8006", "", []) is False
     assert not feedback_file(root, "T-8006").exists()
     assert not threads_file(root, "T-8006").exists()
+
+
+def test_an_operator_note_joins_the_record_after_the_threads_before_the_diff(root):
+    # S-0113/D-5: the person who requeued an escalation briefs the next
+    # attempt — an operator thread in the record the blocker left behind,
+    # keeping every thread and the diff it already holds.
+    assert capture_feedback(root, "T-8010", "diff --git a/x b/x\n+1\n", THREADS) is True
+    assert record_operator_note(root, "T-8010", "the scope was widened, retry") is True
+
+    text = feedback_file(root, "T-8010").read_text(encoding="utf-8")
+    assert "the scope was widened, retry" in text
+    assert "coderabbitai[bot]" in text and "Missing empty-list case." in text
+    assert "diff --git a/x b/x" in text
+    assert (
+        text.index("Missing empty-list case.")
+        < text.index("the scope was widened, retry")
+        < text.index("## The superseded candidate's diff")
+    )
+    assert "**operator:**" in text
+
+
+def test_a_note_with_no_record_writes_one_holding_only_it(root):
+    assert record_operator_note(root, "T-8011", "start over on the guard") is True
+    text = feedback_file(root, "T-8011").read_text(encoding="utf-8")
+    assert "start over on the guard" in text
+    assert "## Review threads" in text
+    assert "## The superseded candidate's diff" in text
+
+
+def test_no_note_leaves_the_record_as_it_was(root):
+    assert capture_feedback(root, "T-8012", "diff --git a/x b/x\n+1\n", THREADS) is True
+    before = feedback_file(root, "T-8012").read_bytes()
+    assert record_operator_note(root, "T-8012", "   ") is False
+    assert feedback_file(root, "T-8012").read_bytes() == before
 
 
 def test_a_fresh_capture_supersedes_stale_reply_addresses(root):

@@ -21,6 +21,8 @@ from torve.config import layout
 
 FEEDBACK_FILE = "feedback.md"
 FEEDBACK_THREADS = "feedback-threads.json"
+DIFF_HEADING = "## The superseded candidate's diff"
+OPERATOR = "operator"
 # Bytes of rendered threads-and-diff a record may hold; past it the
 # record says so (S-0005/D-12) — a silently dropped finding makes it lie.
 FEEDBACK_CAP = 24_000
@@ -46,6 +48,19 @@ def threads_file(root: Path, task_id: str) -> Path:
 # ....................... #
 
 
+def _thread_block(thread: dict[str, Any]) -> list[str]:
+    anchor = f"{thread.get('path', '?')}:{thread.get('line') or '-'}"
+    lines = [f"### {anchor}", ""]
+
+    for comment in thread.get("comments", []):
+        lines += [f"**{comment.get('author', 'unknown')}:**", str(comment.get("body", "")), ""]
+
+    return lines
+
+
+# ....................... #
+
+
 def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> str:
     """One markdown record: threads first (the critique is the point),
     the superseded diff after. Threads arrive already allow-listed by
@@ -66,14 +81,10 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
         lines.append("- none captured.")
 
     for thread in threads:
-        anchor = f"{thread.get('path', '?')}:{thread.get('line') or '-'}"
-        lines += [f"### {anchor}", ""]
-
-        for comment in thread.get("comments", []):
-            lines += [f"**{comment.get('author', 'unknown')}:**", str(comment.get("body", "")), ""]
+        lines += _thread_block(thread)
 
     lines += [
-        "## The superseded candidate's diff",
+        DIFF_HEADING,
         "",
         "```diff",
         diff.rstrip() or "(no diff captured)",
@@ -122,5 +133,37 @@ def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str
 
     if addresses:
         addresses_path.write_text(json.dumps(addresses, ensure_ascii=False), encoding="utf-8")
+
+    return True
+
+
+# ....................... #
+
+
+def record_operator_note(root: Path, task_id: str, note: str) -> bool:
+    """A person requeueing an escalation briefs the next attempt (S-0113/D-5,
+    "the next attempt is briefed by the person who requeued it"): the note joins
+    the task's record as an operator thread, after the review threads and before
+    the superseded diff, keeping every thread and the diff the record already
+    holds. A resolve with no note writes nothing — silence must not rewrite a
+    record that still briefs the next attempt."""
+
+    if not note.strip():
+        return False
+
+    thread: dict[str, Any] = {"comments": [{"author": OPERATOR, "body": note}]}
+    path = feedback_file(root, task_id)
+
+    if not path.exists():
+        capture_feedback(root, task_id, "", [thread])
+        return True
+
+    text = path.read_text(encoding="utf-8")
+    head, found, tail = text.partition(DIFF_HEADING)
+    block = "\n".join(_thread_block(thread)) + "\n"
+    path.write_text(
+        f"{head}{block}\n{DIFF_HEADING}{tail}" if found else f"{text.rstrip()}\n\n{block}",
+        encoding="utf-8",
+    )
 
     return True

@@ -29,6 +29,11 @@ candidates on their branches. Resolve escalations until the queue is below
 takes `--note` (why, for whoever reads it later) and `--sha` (for `landed`: the
 commit on the document branch).
 
+On a requeue the note briefs the next attempt: it joins the task's feedback
+record as an operator thread, after the review threads and before the diff the
+record already holds, so whoever picks the task up reads your reason beside the
+critique that stalled it. A resolve with no note leaves the record as it was.
+
 To requeue, always reap first:
 
 ```bash
