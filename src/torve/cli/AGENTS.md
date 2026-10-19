@@ -775,6 +775,20 @@ In a nested sandbox's environment, a proxy whose host is loopback is rewritten t
 - Paths: `src/torve/cli/doctor.py` `src/torve/cli/sandbox.py`
 - Consequence: an adopter keeps `.torve/sandbox/<name>/` only for an image it builds itself
 
+### S-0113/D-4 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+
+A store runtime a CLI verb opens closes its Postgres client when the runtime's scope ends, and `torve manager board --until-change` opens one runtime for the whole wait.
+
+- Paths: `src/torve/adapters/eventstore/document.py` `src/torve/cli/manager.py` `src/torve/cli/decisions.py` `src/torve/cli/fleet.py` `src/torve/cli/options.py`
+- Consequence: a watcher holds one connection pool however long it waits
+
+### S-0113/D-5 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+
+`torve manager resolve --resolution requeued --note` adds the note to the task's feedback record as an operator thread, after the threads and before the diff the record already holds.
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/feedback.py`
+- Consequence: the next attempt is briefed by the person who requeued it
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's
