@@ -83,16 +83,18 @@ quality strict="false":
 _release := "uv run --no-project --quiet --with setuptools-scm python -m setuptools_scm"
 
 # Build every sandbox image; `just images agents` skips the gates-side one.
+# S-0112/D-3: the tag is the stamped release, written as a tag, and
+# S-0112/D-5: REVISION is the commit the revision label carries.
 images group='default':
-    v=$({{ _release }}) && test -n "$v" && VERSION=$v docker buildx bake --file bake.hcl {{ group }}
+    v=$({{ _release }}) && test -n "$v" && VERSION=$v REVISION=$(git rev-parse HEAD) docker buildx bake --file bake.hcl {{ group }}
 
 # Build one image by its definition name, e.g. `just image claude`
 image name:
-    v=$({{ _release }}) && test -n "$v" && VERSION=$v docker buildx bake --file bake.hcl {{ name }}
+    v=$({{ _release }}) && test -n "$v" && VERSION=$v REVISION=$(git rev-parse HEAD) docker buildx bake --file bake.hcl {{ name }}
 
-# Build and push under a registry, e.g. `just images-push ghcr.io/morzecrew v1`
-images-push registry tag='latest' group='default':
-    v=$({{ _release }}) && test -n "$v" && VERSION=$v REGISTRY={{ registry }} TAG={{ tag }} \
+# Build and push under a registry, e.g. `just images-push ghcr.io/morzecrew`
+images-push registry group='default':
+    v=$({{ _release }}) && test -n "$v" && VERSION=$v REVISION=$(git rev-parse HEAD) REGISTRY={{ registry }} \
       docker buildx bake --file bake.hcl --push {{ group }}
 
 # ----------------------- #

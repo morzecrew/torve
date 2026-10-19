@@ -31,6 +31,7 @@ from torve.config import layout
 from torve.config.agents import (
     AgentError,
     all_harnesses,
+    resolve_image,
     resolve_seats,
     role_skills,
 )
@@ -2064,9 +2065,15 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     tiers = config.get("tiers")
     named: dict[str, tuple[str, str]] = {}
 
+    runtime = config.get("runtime")
+
+    # S-0112/D-2: `{torve}` in `runtime.image` names the installed torve, so a
+    # seat that names no image of its own runs the host's release.
+    if isinstance(runtime, dict) and "image" in runtime:
+        runtime["image"] = resolve_image(str(runtime.get("image") or ""))
+
     if isinstance(tiers, dict):
         try:
-            runtime = config.get("runtime")
             default_image = runtime.get("image") if isinstance(runtime, dict) else None
             named = resolve_seats(cast("dict[str, Any]", tiers), root, str(default_image or ""))
 

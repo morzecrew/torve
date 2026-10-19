@@ -415,6 +415,70 @@ def test_every_image_is_stamped_with_the_tree_s_release() -> None:
     assert 'SETUPTOOLS_SCM_PRETEND_VERSION="${SETUPTOOLS_SCM_PRETEND_VERSION}"' in base
 
 
+def test_the_bake_tags_every_image_with_the_stamped_release() -> None:
+    """S-0112/D-3: the bake tags every target, the base included, with the
+    version it stamps, written as a tag — a tag may not hold `+`, so a local
+    part takes `-` — and `:latest` is gone. `just images` then produces exactly
+    the tags a `{torve}` reference resolves to."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+
+    assert 'variable "TAG"' not in baked
+    assert '"latest"' not in baked
+    assert 'replace(VERSION, "+", "-")' in baked
+    # the base has a tag of its own, not only a build context.
+    assert 'name("sandbox-base")' in baked
+
+
+def test_the_base_is_in_the_default_group() -> None:
+    """S-0112/D-3: `just images` builds the base too, so a derived image finds a
+    base that runs the same torve rather than a five-week-old `:latest`."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+    group = baked.split('group "default"', 1)[1].split("}", 1)[0]
+
+    assert '"base"' in group
+
+
+def test_every_image_carries_the_source_version_and_revision_labels() -> None:
+    """S-0112/D-5: a pulled image says which repository, release and commit
+    built it without its definition beside it."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+
+    assert "org.opencontainers.image.source" in baked
+    assert "org.opencontainers.image.version" in baked
+    assert "org.opencontainers.image.revision" in baked
+
+    # the revision is the commit `just images` passes, not a constant.
+    assert "REVISION=$(git rev-parse HEAD)" in Path("justfile").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "dsh", "mimo"])
+def test_a_seat_image_labels_the_harness_version_it_carries(name: str) -> None:
+    """S-0112/D-5: a seat image names the version its harness prints, so a
+    pulled image is checked against its label before anyone runs it.
+
+    opencode is not here: its definition installs an unpinned `opencode-ai`, so
+    there is no version to label until one is pinned beside it."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+    target = baked.split(f'target "{name}"', 1)[1].split("}", 1)[0]
+
+    assert "io.morze.torve.harness.version" in target
+
+
+def test_torve_s_own_manifests_name_their_images_with_the_placeholder() -> None:
+    """S-0112/D-2: the repository's own seats say `claude-sandbox:{torve}`, so
+    an upgrade moves `engine` and no image reference."""
+
+    for path in sorted(MANIFESTS.glob("*.yaml")):
+        body = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+        if body.get("image"):
+            assert "{torve}" in body["image"], f"{path} does not name torve"
+
+
 def test_the_base_installs_both_interpreters_a_project_may_run_under() -> None:
     """S-0110/D-5: 3.13 and 3.14 into the read-only interpreter directory, so a
     project on either runs its gates in a seat image without deriving one; the

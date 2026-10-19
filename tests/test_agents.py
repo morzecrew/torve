@@ -94,6 +94,38 @@ def test_a_seat_naming_no_harness_is_refused(root: Path):
         load(root, "tiers:\n  executor:\n    model: m\n")
 
 
+# ....................... #
+# The placeholder that names the host's torve (S-0112/D-2)
+
+
+def test_a_torve_placeholder_in_a_harness_image_resolves(root: Path, monkeypatch):
+    """`{torve}` names the installed torve's version, written as a tag — a `+`
+    becomes `-` — so an upgrade moves `engine` and no image reference."""
+
+    import torve
+
+    monkeypatch.setattr(torve, "__version__", "0.4.1.dev3+g1a2b3c4")
+    write(harnesses_dir(root) / "seated.yaml", "adapter: fake\nimage: claude-sandbox:{torve}\n")
+
+    assert load_harness(root, "seated").image == "claude-sandbox:0.4.1.dev3-g1a2b3c4"
+
+
+def test_a_torve_placeholder_reaches_the_seat(root: Path, monkeypatch):
+    """The resolved image is the seat's, so nothing downstream reads the
+    placeholder."""
+
+    import torve
+
+    monkeypatch.setattr(torve, "__version__", "0.5.0")
+    write(
+        harnesses_dir(root) / "seated.yaml",
+        "adapter: fake\nimage: ghcr.io/morzecrew/claude-sandbox:{torve}\n",
+    )
+    config = load(root, "tiers:\n  executor:\n    harness: seated\n")
+
+    assert config.tiers["executor"].image == "ghcr.io/morzecrew/claude-sandbox:0.5.0"
+
+
 def test_a_plugin_is_a_source_and_a_ref(root: Path):
     write(
         agents_dir(root) / "equipped.yaml",
