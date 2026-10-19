@@ -75,7 +75,7 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
     from forze.application.execution import DepsRegistry, ExecutionRuntime
     from forze.base.logging import configure_logging
 
-    from torve.adapters.eventstore.document import mock_module, postgres_module
+    from torve.adapters.eventstore.document import closing_module, mock_module, postgres_module
 
     # The runtime narrates itself on stdout by default, and stdout is where
     # this verb's JSON goes. Warnings and worse, on stderr: a machine-read
@@ -85,7 +85,9 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
     module = await postgres_module(dsn) if dsn else mock_module()
     runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
 
-    async with runtime.scope():
+    # `closing_module` is entered first, so its client close runs after the
+    # scope it guards has shut down (S-0113/D-4).
+    async with closing_module(module), runtime.scope():
         yield runtime
 
 
@@ -105,15 +107,24 @@ async def _board_and_night(
     dsn: str | None, partition: str, night_id: str = ""
 ) -> tuple[Board, NightReport | None]:
     """The board and a night's window — the one `night_id` names, else the
-    latest — folded from one read of the same log: what `--until-change` polls
-    (S-0110/D-13). The night is what tells a watcher that a night ended, which
-    the board alone cannot say."""
+    latest — folded from one read of the same log (S-0110/D-13). The night is
+    what tells a watcher that a night ended, which the board alone cannot
+    say. One read opens one runtime and closes it with the read."""
+
+    async with _runtime(dsn) as runtime:
+        return await _read_board(runtime, partition, night_id)
+
+
+async def _read_board(
+    runtime: ExecutionRuntime, partition: str, night_id: str = ""
+) -> tuple[Board, NightReport | None]:
+    """One read of the board and the night's window through a runtime the
+    caller holds open — the watch's read on every interval (S-0110/D-13)."""
 
     from torve.application.eventlog import event_log
     from torve.application.manager import night_report, project
 
-    async with _runtime(dsn) as runtime:
-        records = list(await event_log(runtime.get_context()).since(partition=partition))
+    records = list(await event_log(runtime.get_context()).since(partition=partition))
 
     return project(records), night_report(records, night_id=night_id)
 
@@ -145,7 +156,8 @@ def _moved(before: Board, now: Board) -> list[TaskView]:
 
 
 async def _watch(
-    read: Callable[[str], Awaitable[tuple[Board, NightReport | None]]],
+    dsn: str,
+    partition: str,
     *,
     interval: float,
     document: str | None,
@@ -156,37 +168,42 @@ async def _watch(
     finds a task's state, attempts or escalation moved returns those rows,
     and one that finds the watched night closed returns the night. The
     watched night is the one open at the first read, or the first to open
-    after it, and `read` is handed its id: a newer night opening between two
-    reads cannot hide its close. Nothing is written and no leg is run — this
-    is a reader for a person's terminal.
+    after it, and each read is handed its id: a newer night opening between
+    two reads cannot hide its close. Nothing is written and no leg is run —
+    this is a reader for a person's terminal.
+
+    One runtime is opened for the whole wait and every read goes through it
+    (S-0113/D-4): a watcher holds one connection pool however many intervals
+    it sleeps through, not a fresh one per read.
     """
 
     before: Board | None = None
     was: NightReport | None = None
     watched = ""
 
-    while True:
-        board, night = await read(watched)
+    async with _runtime(dsn) as runtime:
+        while True:
+            board, night = await _read_board(runtime, partition, watched)
 
-        if document is not None:
-            board = _of_document(board, document)
+            if document is not None:
+                board = _of_document(board, document)
 
-        if before is not None:
-            if moved := _moved(before, board):
-                return moved, None
+            if before is not None:
+                if moved := _moved(before, board):
+                    return moved, None
 
-            if (
-                night is not None
-                and night.close is not None
-                and (was is None or was.close is None or was.night_id != night.night_id)
-            ):
-                return [], night
+                if (
+                    night is not None
+                    and night.close is not None
+                    and (was is None or was.close is None or was.night_id != night.night_id)
+                ):
+                    return [], night
 
-        if not watched and night is not None and night.close is None:
-            watched = night.night_id
+            if not watched and night is not None and night.close is None:
+                watched = night.night_id
 
-        before, was = board, night
-        await asyncio.sleep(interval)
+            before, was = board, night
+            await asyncio.sleep(interval)
 
 
 # ....................... #
@@ -942,7 +959,8 @@ def board_cmd(
 
         moved, night = asyncio.run(
             _watch(
-                lambda night_id: _board_and_night(dsn_value, partition, night_id),
+                dsn_value,
+                partition,
                 interval=interval,
                 document=document or None,
             )

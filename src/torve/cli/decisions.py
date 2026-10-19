@@ -82,7 +82,7 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
     from forze.application.execution import DepsRegistry, ExecutionRuntime
     from forze.base.logging import configure_logging
 
-    from torve.adapters.eventstore.document import mock_module, postgres_module
+    from torve.adapters.eventstore.document import closing_module, mock_module, postgres_module
 
     # The runtime narrates itself on stdout, and stdout is where this verb's
     # JSON goes. Warnings and worse, on stderr (S-0015/D-6).
@@ -91,7 +91,9 @@ async def _runtime(dsn: str | None) -> AsyncGenerator[ExecutionRuntime]:
     module = await postgres_module(dsn) if dsn else mock_module()
     runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
 
-    async with runtime.scope():
+    # `closing_module` is entered first, so its client close runs after the
+    # scope it guards has shut down (S-0113/D-4).
+    async with closing_module(module), runtime.scope():
         yield runtime
 
 
