@@ -459,13 +459,120 @@ def test_a_seat_image_labels_the_harness_version_it_carries(name: str) -> None:
     """S-0112/D-5: a seat image names the version its harness prints, so a
     pulled image is checked against its label before anyone runs it.
 
-    opencode is not here: its definition installs an unpinned `opencode-ai`, so
-    there is no version to label until one is pinned beside it."""
+    opencode is not here: its definition pinned `opencode-ai` only with
+    S-0112/D-7, and the bake does not carry its version label yet."""
 
     baked = BAKE.read_text(encoding="utf-8")
     target = baked.split(f'target "{name}"', 1)[1].split("}", 1)[0]
 
     assert "io.morze.torve.harness.version" in target
+
+
+# S-0112/D-7: the two things Renovate reads off a definition — the image refs it
+# pins and the annotated ARGs it bumps. Both are read off the Dockerfile's own
+# text, so an unpinned ref or an unannotated ARG is a red test rather than a
+# definition that only moves when someone remembers to.
+_IMAGE_REF = re.compile(r"^\s*(?:FROM\s+(\S+)|COPY\s+--from=(\S+))")
+_VERSION_ARG = re.compile(r"^\s*ARG\s+(\w+)=(\S+)\s*$")
+_VERSION_LITERAL = re.compile(r"\d+\.\d+\.\d+")
+_ANNOTATION = re.compile(r"^# renovate: datasource=\S+ depName=\S+$")
+
+
+def _instructions(path: Path) -> list[str]:
+    """A definition's lines that are instructions, not prose."""
+
+    return [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+
+
+@pytest.mark.parametrize("name", (*EVERY, "base"))
+def test_every_image_a_definition_names_is_pinned(name: str) -> None:
+    """S-0112/D-7: every `FROM` and `COPY --from` names a pinned tag — an exact
+    version, never `latest`, which a released tag could not be rebuilt from. The
+    one ref that is not literal is `FROM ${BASE}`, the build arg bake resolves to
+    the base target's tag."""
+
+    path = DEFINITIONS / name / "Dockerfile"
+    instructions = _instructions(path)
+    refs = []
+    for line in instructions:
+        found = _IMAGE_REF.match(line)
+        if found:
+            refs.append(found.group(1) or found.group(2))
+
+    assert refs, f"{path} names no image"
+    assert ":latest" not in "\n".join(instructions), f"{path} names the floating tag"
+    for ref in refs:
+        if ref.startswith("${"):
+            assert ref == "${BASE}", f"{path} names the unpinned ref {ref!r}"
+            continue
+        assert ":" in ref, f"{path} names {ref!r} with no tag"
+        tag = ref.rsplit(":", 1)[1]
+        assert re.fullmatch(r"\d+(?:\.\d+){1,2}(?:-\w+)*", tag), (
+            f"{path} names {ref!r}, whose tag {tag!r} is not a pinned version"
+        )
+
+
+@pytest.mark.parametrize("name", (*EVERY, "base"))
+def test_every_installed_version_is_a_renovate_annotated_arg(name: str) -> None:
+    """S-0112/D-7: every version a definition installs is an `ARG` whose line
+    above carries a `# renovate:` annotation, because Renovate has no manager for
+    an ARG — the annotation is how the regex manager finds both the pin and the
+    dependency it names. An ARG that carries no version (`BASE`, the release bake
+    stamps) takes none, and an annotation above anything but an ARG is a
+    misplacement this catches. A version written straight into an instruction —
+    a tarball URL, an install command — is neither, and is caught too: `battery`
+    carried its Docker CLI as `docker-27.3.1.tgz` in an `ADD`, which no ARG scan
+    sees."""
+
+    lines = (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8").splitlines()
+
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("#") or _IMAGE_REF.match(line):
+            continue
+        found = _VERSION_ARG.match(line)
+        if found and found.group(2)[0].isdigit():
+            above = lines[i - 1].strip() if i else ""
+            assert _ANNOTATION.match(above), (
+                f"{name}/Dockerfile:{i + 1} installs {found.group(2)!r} as "
+                f"{found.group(1)} with no `# renovate:` annotation above it"
+            )
+            continue
+        assert not _VERSION_LITERAL.search(line), (
+            f"{name}/Dockerfile:{i + 1} writes a version into an instruction "
+            f"rather than an annotated ARG: {line.strip()!r}"
+        )
+
+    for i, line in enumerate(lines):
+        if line.strip().startswith("# renovate:") and i + 1 < len(lines):
+            assert _VERSION_ARG.match(lines[i + 1]), (
+                f"{name}/Dockerfile:{i + 1} annotates what is not a version ARG"
+            )
+
+
+def test_renovate_is_confined_to_the_sandbox_definitions() -> None:
+    """S-0112/D-7: `.github/renovate.json` configures Renovate for `sandboxes/**`
+    alone, beside the Dependabot config that keeps uv and the actions. The regex
+    manager reads the annotated ARGs, the dockerfile manager the pinned image
+    refs, and the npm manager the dsh harness's lock; everything else is out of
+    Renovate's reach, which is what the owner settled (Q-1)."""
+
+    config = json.loads(Path(".github/renovate.json").read_text(encoding="utf-8"))
+
+    assert config["includePaths"] == ["sandboxes/**"]
+    assert set(config["enabledManagers"]) == {"dockerfile", "npm", "custom.regex"}
+
+    managers = config["customManagers"]
+    assert managers, "no regex manager reads the annotated ARGs"
+    for manager in managers:
+        assert "# renovate:" in "".join(manager["matchStrings"])
+        for pattern in manager["managerFilePatterns"]:
+            assert pattern.startswith("sandboxes/"), (
+                f"the regex manager reads {pattern!r}, outside the sandboxes"
+            )
 
 
 def test_torve_s_own_manifests_name_their_images_with_the_placeholder() -> None:

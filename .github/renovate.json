@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Renovate keeps the sandbox definitions' versions current (S-0112/D-7).",
+    "It is confined to `sandboxes/**`: Dependabot keeps uv and the GitHub actions."
+  ],
+  "includePaths": [
+    "sandboxes/**"
+  ],
+  "enabledManagers": [
+    "dockerfile",
+    "npm",
+    "custom.regex"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": [
+        "The annotated version ARGs a definition installs through.",
+        "Renovate has no manager for an ARG, so this reads the `# renovate:`",
+        "annotation a definition writes above it (S-0112/D-7)."
+      ],
+      "managerFilePatterns": [
+        "sandboxes/*/Dockerfile"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)\\nARG [A-Z0-9_]+=(?<currentValue>[^\\s]+)"
+      ]
+    }
+  ]
+}

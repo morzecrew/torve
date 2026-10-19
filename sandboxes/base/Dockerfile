@@ -4,19 +4,23 @@
 # for the workspace, `python3` for the acceptance commands that call it
 # bare, `uv` for the ones that do not, and the engine's own CLI.
 #
-# node:24-slim rather than a python base because four of the six harnesses
+# node:24.22.0-slim rather than a python base because four of the six harnesses
 # are npm packages and the fifth would have had to install node anyway. The
 # CLI layer below installs its own interpreter through uv, so nothing here
 # depends on the base's python — `python3` is present for a repository
 # whose battery calls it directly, not for torve.
-FROM node:24-slim
+#
+# S-0112/D-7: this base and every `COPY --from` below name a pinned tag, and
+# Renovate's dockerfile manager proposes the next one; nothing here floats on
+# `latest`, which a released tag could never be rebuilt from.
+FROM node:24.22.0-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       git curl ca-certificates python3 zstd openssl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /uvx /usr/local/bin/
 
 # The Docker CLI with its compose and buildx plugins, and `just`, so a
 # repository's own Docker recipes run in a seat image without deriving one
