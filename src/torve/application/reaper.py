@@ -420,6 +420,33 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
 # ....................... #
 
 
+def requeue_returned(root: Path, task_id: str, reason: str) -> bool:
+    """A returned candidate's run-state file moved from ready to queued. The
+    lane takes its candidates from the ready run-state files and the board
+    from the log, so a return the log alone holds leaves the file ready and
+    the lane lands the candidate the operator sent back (T-0638,
+    2026-10-19). The worktree stays: the next attempt revises what is in it.
+    A task whose file is not ready, or that has none, is left as it is."""
+
+    state_path = naming.state_file(root, task_id)
+
+    if not state_path.is_file():
+        return False
+
+    state = RunState.load(state_path)
+
+    if state.state is not TaskState.READY:
+        return False
+
+    state.transition(TaskState.QUEUED, f"returned by an operator: {reason}")
+    state.save()
+
+    return True
+
+
+# ....................... #
+
+
 async def _durable_reap(
     root: Path,
     config: RunnerConfig,

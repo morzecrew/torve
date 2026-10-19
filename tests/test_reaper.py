@@ -732,3 +732,29 @@ def test_clear_escalated_with_no_state_file_at_all_is_a_true_noop(tmp_path):
 
     assert runtime.destroyed == []
     assert workspace.removed == []
+
+
+# A returned candidate's run-state file goes back to queued, so the lane, which
+# lands from the ready files, does not land what the operator sent back.
+
+
+def test_requeue_returned_moves_a_ready_file_to_queued(tmp_path):
+    from torve.application.reaper import requeue_returned
+
+    state = state_at(tmp_path, "T-9804", TaskState.READY)
+
+    assert requeue_returned(tmp_path, "T-9804", "gamed a gate") is True
+
+    reloaded = RunState.load(state.path)
+    assert reloaded.state is TaskState.QUEUED
+    assert reloaded.history[-1]["fact"] == "returned by an operator: gamed a gate"
+
+
+def test_requeue_returned_leaves_other_states_and_missing_files_alone(tmp_path):
+    from torve.application.reaper import requeue_returned
+
+    state = state_at(tmp_path, "T-9805", TaskState.RUNNING)
+
+    assert requeue_returned(tmp_path, "T-9805", "too early") is False
+    assert RunState.load(state.path).state is TaskState.RUNNING
+    assert requeue_returned(tmp_path, "T-9806", "no file") is False
