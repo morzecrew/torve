@@ -4,6 +4,8 @@ Definitions live under `sandboxes/<name>/` in the repository root and build to
 `<name>-sandbox` (S-0063/D-6). They are torve's own source, published for other
 repositories to pull; `.torve/sandbox/` stays the hook for a consuming
 repository that defines an image of its own, and this reads whichever is there.
+A published image carries the labels that say it is torve's own without a
+definition beside it (S-0112/D-6), which is what `doctor` reads for one.
 
 The engine does not build. `docker buildx bake` does, through `just images`
 (S-0063/D-8), and `RuntimePort.build_image` retired with the verb that called it
@@ -125,6 +127,28 @@ def image_tag(name: str) -> str:
     """
 
     return f"{name}-sandbox"
+
+
+# S-0112/D-5: the labels every published image carries, and the repository the
+# source label names — `bake.hcl`'s SOURCE default, held here so `doctor` can
+# recognise a pulled image with no definition beside it (S-0112/D-6).
+SOURCE_LABEL = "org.opencontainers.image.source"
+VERSION_LABEL = "org.opencontainers.image.version"
+PUBLISHED_SOURCE = "https://github.com/morzecrew/torve"
+
+
+def published_by_torve(labels: dict[str, str], version: str) -> bool:
+    """Whether an image with no definition beside it is one torve published.
+
+    The source label names this repository and the version label equals the
+    running torve. An image failing either is nobody's to vouch for: it stays
+    an ambient regime, which is what the check exists to catch.
+
+    The labels are what a pulled image says about itself; an adopter keeps no
+    definition for what it did not build.
+    """
+
+    return labels.get(SOURCE_LABEL) == PUBLISHED_SOURCE and labels.get(VERSION_LABEL) == version
 
 
 def project_inputs(root: Path) -> list[str]:

@@ -80,8 +80,11 @@ decisions:
     text: >-
       Image definitions live at `sandboxes/<name>/` in the repository root and build
       to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming repository's
-      own.
-    paths: [sandboxes/**, src/torve/cli/sandbox.py]
+      own. `torve doctor` accepts a `<name>-sandbox` image with no definition beside
+      it when its `org.opencontainers.image.source` names torve's repository and its
+      version label equals the host's torve; an image with neither a definition nor
+      those labels stays red.
+    paths: [sandboxes/**, src/torve/cli/sandbox.py, src/torve/cli/doctor.py]
     consequence: >-
       torve's own source stops living in the directory torve creates inside repositories
       it works on, and an image gets a name worth publishing
@@ -90,6 +93,7 @@ decisions:
       manifests, task state; these images are torve's own source, built here and pulled
       elsewhere, and S-0017/D-2 that put them under `.torve/` is archived
     cites: [S-0055/D-30, S-0017/D-2]
+    fingerprint: 76d0bddddd0f415f/1e854bfd0db1173f
   - id: D-7
     grade: LOCKED
     text: >-

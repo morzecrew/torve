@@ -12,6 +12,9 @@ FROM ${BASE}
 # with `npm ci`, and the build refuses a lock whose dsh is not this ARG.
 # A bump: set the ARG and the dependency in `harness/package.json`, regenerate
 # the lock with `npm install` in the base image, and rebuild.
+# S-0112/D-7: the annotation turns the bump into a pull request; the npm manager
+# reads `harness/` with it, so the ARG, the manifest and the lock move together.
+# renovate: datasource=npm depName=@deepseek-ai/dsh
 ARG DSH_VERSION=0.1.2-rc.1
 COPY harness/ /opt/harness/
 RUN cd /opt/harness && npm ci --no-audit --no-fund \
@@ -21,6 +24,7 @@ RUN cd /opt/harness && npm ci --no-audit --no-fund \
 # `dsh plugin add` shells out to pnpm and exits 127 without it, which is how
 # every `routine` attempt died once the hook branch stopped dying first
 # (S-0072/D-3). Pinned like the harness above it, for the same reason.
+# renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.4.1
 RUN npm install -g pnpm@${PNPM_VERSION} && pnpm --version
 # What this definition puts inside the image (S-0063/D-14): `toolkit/` is

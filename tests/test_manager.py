@@ -1821,6 +1821,66 @@ def test_an_abandoned_resolution_leaves_the_tasks_host_state_alone(tmp_path, mon
     assert state.path.exists()
 
 
+def test_a_requeued_resolution_briefs_the_next_attempt_from_the_record(tmp_path, monkeypatch):
+    """S-0113/D-5: `manager resolve --resolution requeued --note` puts the note
+    in the task's feedback record as an operator thread, after the threads and
+    before the diff the record already holds; a resolve with no note leaves the
+    record as it was."""
+    from typer.testing import CliRunner
+
+    from torve.application.feedback import capture_feedback, feedback_file
+    from torve.cli import manager as cli_manager
+    from torve.cli.main import app
+    from torve.gates.sabotage import Repo
+
+    async def recorded(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(cli_manager, "_resolve", recorded)
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Operator")
+    repo.git("config", "user.email", "operator@example.invalid")
+    repo.write("a.txt", "x\n")
+    repo.commit("init")
+
+    threads = [
+        {
+            "path": "src/a/app.py",
+            "line": 4,
+            "comments": [{"author": "bot", "body": "the guard is missing"}],
+        }
+    ]
+    assert capture_feedback(repo.root, "T-9820", "diff --git a/a b/a\n+1\n", threads) is True
+
+    result = CliRunner().invoke(
+        app,
+        [
+            *("manager", "resolve", PARTITION, "T-9820"),
+            *("--note", "the guard is a helper you can import", "--root", str(repo.root)),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    text = feedback_file(repo.root, "T-9820").read_text(encoding="utf-8")
+    assert "the guard is missing" in text and "diff --git a/a b/a" in text
+    assert (
+        text.index("the guard is missing")
+        < text.index("the guard is a helper you can import")
+        < text.index("## The superseded candidate's diff")
+    )
+
+    before = feedback_file(repo.root, "T-9820").read_bytes()
+    again = CliRunner().invoke(
+        app, [*("manager", "resolve", PARTITION, "T-9820"), *("--root", str(repo.root))]
+    )
+
+    assert again.exit_code == 0, again.output
+    assert feedback_file(repo.root, "T-9820").read_bytes() == before
+
+
 # ....................... #
 # The lane leg's rounds (S-0096/D-2): the lane mints a red completion
 # battery's round only where the review leg reads recorded findings, so the
@@ -2247,9 +2307,10 @@ def _watch_cli(tmp_path, monkeypatch, boards, nights, interval="1", dsn="postgre
     """Invoke `manager board --until-change` over a scripted sequence of
     reads — each poll takes the next board and night, holding the last once
     the script runs out, so the loop always has an answer to exit on. The
-    wait between reads is skipped."""
+    wait between reads is skipped, and the store runtime is a stand-in."""
 
     import itertools
+    from contextlib import asynccontextmanager
 
     from typer.testing import CliRunner
 
@@ -2258,14 +2319,19 @@ def _watch_cli(tmp_path, monkeypatch, boards, nights, interval="1", dsn="postgre
 
     polls = itertools.count()
 
-    async def fake(_dsn, _partition, _night_id=""):
+    @asynccontextmanager
+    async def fake_runtime(_dsn):
+        yield object()
+
+    async def fake(_runtime, _partition, _night_id=""):
         index = min(next(polls), len(boards) - 1)
         return boards[index], nights[index]
 
     async def no_wait(_seconds):
         return None
 
-    monkeypatch.setattr(manager_cli, "_board_and_night", fake)
+    monkeypatch.setattr(manager_cli, "_runtime", fake_runtime)
+    monkeypatch.setattr(manager_cli, "_read_board", fake)
     monkeypatch.setattr(manager_cli, "dsn_for", lambda root, _typed: dsn)
     monkeypatch.setattr(manager_cli.asyncio, "sleep", no_wait)
 
@@ -2348,11 +2414,14 @@ def test_the_board_exits_when_the_night_closes(tmp_path, monkeypatch):
     assert "closed" in result.output
 
 
-def test_the_watch_follows_its_own_night_past_a_newer_one():
+def test_the_watch_follows_its_own_night_past_a_newer_one(monkeypatch):
     """S-0110/D-13: the watch pins the night open when it began. Night A
     closing and night B opening between two reads still ends the wait on A's
     close; following "the latest night" would see only B, open, and wait on."""
 
+    from contextlib import asynccontextmanager
+
+    from torve.cli import manager as manager_cli
     from torve.cli.manager import _watch
 
     opened = datetime(2026, 9, 17, 22, 0, tzinfo=UTC)
@@ -2367,16 +2436,112 @@ def test_the_watch_follows_its_own_night_past_a_newer_one():
     logs = [[a_open], [a_open, a_closed, b_open]]
     asked: list[str] = []
 
-    async def read(night_id: str):
+    @asynccontextmanager
+    async def fake_runtime(_dsn):
+        yield object()
+
+    async def read(_runtime, _partition, night_id=""):
         asked.append(night_id)
         assert len(asked) <= len(logs), "the watch missed the close of the night it began on"
         return Board(), night_report(logs[len(asked) - 1], night_id=night_id)
 
-    moved, night = asyncio.run(_watch(read, interval=0, document=None))
+    monkeypatch.setattr(manager_cli, "_runtime", fake_runtime)
+    monkeypatch.setattr(manager_cli, "_read_board", read)
+
+    moved, night = asyncio.run(_watch("postgresql://log/db", PARTITION, interval=0, document=None))
 
     assert moved == []
     assert night is not None and night.night_id == "N-A" and night.close is not None
     assert asked == ["", "N-A"]
+
+
+def test_the_watch_reads_every_interval_through_one_runtime(monkeypatch):
+    """S-0113/D-4: `--until-change` opens the store runtime once and reads
+    through it on every interval — a watcher waits on one connection pool,
+    however many reads it makes, rather than standing up a new one each
+    time."""
+
+    from contextlib import asynccontextmanager
+
+    from torve.cli import manager as manager_cli
+
+    opened: list[str] = []
+    reads: list[object] = []
+
+    @asynccontextmanager
+    async def fake_runtime(dsn):
+        opened.append(dsn)
+        yield "the-runtime"
+
+    boards = [
+        Board(tasks={"T-1": TaskView(task_id="T-1", state=TaskState.QUEUED)}),
+        Board(tasks={"T-1": TaskView(task_id="T-1", state=TaskState.RUNNING, attempts=1)}),
+    ]
+
+    async def fake(_runtime, _partition, _night_id=""):
+        reads.append(_runtime)
+        return boards[min(len(reads) - 1, len(boards) - 1)], None
+
+    monkeypatch.setattr(manager_cli, "_runtime", fake_runtime)
+    monkeypatch.setattr(manager_cli, "_read_board", fake)
+
+    moved, night = asyncio.run(
+        manager_cli._watch("postgresql://log/db", PARTITION, interval=0, document=None)
+    )
+
+    assert opened == ["postgresql://log/db"]
+    assert reads == ["the-runtime", "the-runtime"]
+    assert [view.task_id for view in moved] == ["T-1"]
+    assert night is None
+
+
+def test_a_runtime_closes_its_client_when_the_scope_ends(monkeypatch):
+    """S-0113/D-4: the Postgres client a CLI runtime opened is closed when
+    the runtime's scope ends, so a verb does not leak a connection pool. The
+    client is the one the deps module holds; a mock module holds none and is
+    closed without complaint."""
+
+    from forze_mock import MockDepsModule
+
+    from torve.adapters.eventstore import document
+    from torve.cli import manager as manager_cli
+
+    closed: list[bool] = []
+
+    class Client:
+        async def close(self) -> None:
+            closed.append(True)
+
+    class Module:
+        def __init__(self) -> None:
+            self.client = Client()
+            self._inner = MockDepsModule()
+
+        def __call__(self):
+            return self._inner()
+
+    async def fake_postgres(_dsn, **_kwargs):
+        return Module()
+
+    monkeypatch.setattr(document, "postgres_module", fake_postgres)
+
+    async def use() -> None:
+        async with manager_cli._runtime("postgresql://log/db"):
+            # The client is held for the life of the scope, not closed at open.
+            assert closed == []
+
+        # S-0113/D-4: the scope ended, so the client it opened is closed.
+        assert closed == [True]
+
+        # A mock module holds no client, and closing it is a no-op.
+        async with manager_cli._runtime(None):
+            pass
+
+        assert closed == [True]
+
+    asyncio.run(use())
+
+    assert closed == [True]
 
 
 def test_a_watch_of_one_document_ignores_anothers_tasks():

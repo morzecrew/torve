@@ -87,6 +87,7 @@ from torve.base.clock import parse
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
+from torve.config.spec import write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
@@ -751,6 +752,11 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         # holds refuses the attempt here (S-0104/D-3), and judging a tree
         # about to be handed back to the queue buys nothing.
         _record_promotions(run, state, ctx)
+
+        # S-0113/D-2: the battery runs inside a sandbox that has no git, so
+        # the host leaves the worktree's tracked files where the citation
+        # scan reads them — current as of the attempt that just ran.
+        write_tracked_files(run.worktree)
 
         report = run_gates(ctx)
 

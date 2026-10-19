@@ -4,7 +4,10 @@
 ARG BASE=sandbox-base
 FROM ${BASE}
 # The harness version rides a pinned-default ARG (S-0033/D-3): a bump is a
-# one-line reviewed diff, never a rebuild side effect.
+# one-line reviewed diff, never a rebuild side effect. S-0112/D-7: Renovate has
+# no manager for an ARG, so the annotation above it is what turns the bump into
+# a pull request.
+# renovate: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_VERSION=2.1.283
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION} && claude --version
 

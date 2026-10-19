@@ -175,11 +175,16 @@ def _execute(gate: Gate, ctx: GateContext, checks: dict[str, str] | None = None)
     command = _substitute_base(gate, ctx)
     result = run_command(command, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
 
-    # A decision gate whose command selects no test proves nothing about its
-    # row: pytest's exit 5, or a summary reporting no test ran — the reading
-    # `acceptance` makes — is a failure by its own name, under the row's own
-    # state (S-0106/D-1). Any other shell gate keeps the plain exit-code verdict.
-    if gate.name.startswith(DECISION_PREFIX) and selected_nothing(result.exit_code, result.output):
+    # A contract-borne gate whose command selects no test proves nothing: for a
+    # decision gate, nothing about its row (S-0106/D-1); for an invariant gate,
+    # nothing about the rule, so a stale `-k` selection reads as stale rather
+    # than as a broken rule (S-0113/D-6). pytest's exit 5, or a summary
+    # reporting no test ran — the reading `acceptance` makes — is a failure by
+    # its own name, under the gate's own state. Any other shell gate keeps the
+    # plain exit-code verdict.
+    if gate.name.startswith((DECISION_PREFIX, INVARIANT_PREFIX)) and selected_nothing(
+        result.exit_code, result.output
+    ):
         return BuiltinOutcome(
             "fail",
             f"the check selected nothing\n\n{result.output}",

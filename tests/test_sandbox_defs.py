@@ -415,6 +415,212 @@ def test_every_image_is_stamped_with_the_tree_s_release() -> None:
     assert 'SETUPTOOLS_SCM_PRETEND_VERSION="${SETUPTOOLS_SCM_PRETEND_VERSION}"' in base
 
 
+def test_the_bake_tags_every_image_with_the_stamped_release() -> None:
+    """S-0112/D-3: the bake tags every target, the base included, with the
+    version it stamps, written as a tag — a tag may not hold `+`, so a local
+    part takes `-` — and `:latest` is gone. `just images` then produces exactly
+    the tags a `{torve}` reference resolves to."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+
+    assert 'variable "TAG"' not in baked
+    assert '"latest"' not in baked
+    assert 'replace(VERSION, "+", "-")' in baked
+    # every target in the release's group, the base included, is tagged through
+    # `name()`, so none carries a tag that skips the stamped version.
+    group = baked.split('group "default"', 1)[1].split("}", 1)[0]
+
+    for target in re.findall(r'"(\w+)"', group.split("=", 1)[1]):
+        block = baked.split(f'target "{target}"', 1)[1].split("}", 1)[0]
+        tags = block.split("tags", 1)[1].split("\n", 1)[0]
+
+        assert re.fullmatch(r'\s*=\s*\[name\("[\w-]+"\)\]', tags), (target, tags)
+
+
+def test_the_base_is_in_the_default_group() -> None:
+    """S-0112/D-3: `just images` builds the base too, so a derived image finds a
+    base that runs the same torve rather than a five-week-old `:latest`."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+    group = baked.split('group "default"', 1)[1].split("}", 1)[0]
+
+    assert '"base"' in group
+
+
+def test_every_image_carries_the_source_version_and_revision_labels() -> None:
+    """S-0112/D-5: a pulled image says which repository, release and commit
+    built it without its definition beside it."""
+
+    baked = BAKE.read_text(encoding="utf-8")
+
+    assert "org.opencontainers.image.source" in baked
+    assert "org.opencontainers.image.version" in baked
+    assert "org.opencontainers.image.revision" in baked
+
+    # the revision is the commit `just images` passes, not a constant.
+    assert "REVISION=$(git rev-parse HEAD)" in Path("justfile").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "dsh", "mimo", "opencode"])
+def test_a_seat_image_labels_the_harness_version_it_carries(name: str) -> None:
+    """S-0112/D-5: a seat image names the version its harness prints, so a
+    pulled image is checked against its label before anyone runs it. The
+    label's value is the definition's own ARG, which Renovate bumps: the bake
+    keeps no copy of the pin to go stale behind it (S-0112/D-7)."""
+
+    variable = f"{name.upper()}_VERSION"
+    baked = BAKE.read_text(encoding="utf-8")
+    target = baked.split(f'target "{name}"', 1)[1].split("}", 1)[0]
+
+    assert f'"io.morze.torve.harness.version" = {variable}' in target
+    assert re.search(rf'variable "{variable}" {{\s*default = ""\s*}}', baked)
+
+    printed = subprocess.run(
+        ["bash", ".github/scripts/harness-versions.sh"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    pinned = re.search(
+        rf"^ARG {variable}=(\S+)$",
+        (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8"),
+        re.M,
+    )
+
+    assert pinned is not None
+    assert f"{variable}={pinned.group(1)}" in printed
+
+
+def test_every_bake_entry_point_passes_the_harness_versions() -> None:
+    """S-0112/D-5: the label carries the ARG only when whoever bakes passes it."""
+
+    recipes = Path("justfile").read_text(encoding="utf-8")
+    release = Path(".github/scripts/release-images.sh").read_text(encoding="utf-8")
+
+    for text in (recipes, release):
+        bakes = text.count("docker buildx bake")
+
+        assert bakes and text.count("env $(bash .github/scripts/harness-versions.sh)") == bakes
+
+
+# S-0112/D-7: the two things Renovate reads off a definition — the image refs it
+# pins and the annotated ARGs it bumps. Both are read off the Dockerfile's own
+# text, so an unpinned ref or an unannotated ARG is a red test rather than a
+# definition that only moves when someone remembers to.
+_IMAGE_REF = re.compile(r"^\s*(?:FROM\s+(\S+)|COPY\s+--from=(\S+))")
+_VERSION_ARG = re.compile(r"^\s*ARG\s+(\w+)=(\S+)\s*$")
+_VERSION_LITERAL = re.compile(r"\d+\.\d+\.\d+")
+_ANNOTATION = re.compile(r"^# renovate: datasource=\S+ depName=\S+$")
+
+
+def _instructions(path: Path) -> list[str]:
+    """A definition's lines that are instructions, not prose."""
+
+    return [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+
+
+@pytest.mark.parametrize("name", (*EVERY, "base"))
+def test_every_image_a_definition_names_is_pinned(name: str) -> None:
+    """S-0112/D-7: every `FROM` and `COPY --from` names a pinned tag — an exact
+    version, never `latest`, which a released tag could not be rebuilt from. The
+    one ref that is not literal is `FROM ${BASE}`, the build arg bake resolves to
+    the base target's tag."""
+
+    path = DEFINITIONS / name / "Dockerfile"
+    instructions = _instructions(path)
+    refs = []
+    for line in instructions:
+        found = _IMAGE_REF.match(line)
+        if found:
+            refs.append(found.group(1) or found.group(2))
+
+    assert refs, f"{path} names no image"
+    assert ":latest" not in "\n".join(instructions), f"{path} names the floating tag"
+    for ref in refs:
+        if ref.startswith("${"):
+            assert ref == "${BASE}", f"{path} names the unpinned ref {ref!r}"
+            continue
+        assert ":" in ref, f"{path} names {ref!r} with no tag"
+        tag = ref.rsplit(":", 1)[1]
+        assert re.fullmatch(r"\d+(?:\.\d+){1,2}(?:-\w+)*", tag), (
+            f"{path} names {ref!r}, whose tag {tag!r} is not a pinned version"
+        )
+
+
+@pytest.mark.parametrize("name", (*EVERY, "base"))
+def test_every_installed_version_is_a_renovate_annotated_arg(name: str) -> None:
+    """S-0112/D-7: every version a definition installs is an `ARG` whose line
+    above carries a `# renovate:` annotation, because Renovate has no manager for
+    an ARG — the annotation is how the regex manager finds both the pin and the
+    dependency it names. An ARG that carries no version (`BASE`, the release bake
+    stamps) takes none, and an annotation above anything but an ARG is a
+    misplacement this catches. A version written straight into an instruction —
+    a tarball URL, an install command — is neither, and is caught too: `battery`
+    carried its Docker CLI as `docker-27.3.1.tgz` in an `ADD`, which no ARG scan
+    sees."""
+
+    lines = (DEFINITIONS / name / "Dockerfile").read_text(encoding="utf-8").splitlines()
+
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("#") or _IMAGE_REF.match(line):
+            continue
+        found = _VERSION_ARG.match(line)
+        if found and found.group(2)[0].isdigit():
+            above = lines[i - 1].strip() if i else ""
+            assert _ANNOTATION.match(above), (
+                f"{name}/Dockerfile:{i + 1} installs {found.group(2)!r} as "
+                f"{found.group(1)} with no `# renovate:` annotation above it"
+            )
+            continue
+        assert not _VERSION_LITERAL.search(line), (
+            f"{name}/Dockerfile:{i + 1} writes a version into an instruction "
+            f"rather than an annotated ARG: {line.strip()!r}"
+        )
+
+    for i, line in enumerate(lines):
+        if line.strip().startswith("# renovate:") and i + 1 < len(lines):
+            assert _VERSION_ARG.match(lines[i + 1]), (
+                f"{name}/Dockerfile:{i + 1} annotates what is not a version ARG"
+            )
+
+
+def test_renovate_is_confined_to_the_sandbox_definitions() -> None:
+    """S-0112/D-7: `.github/renovate.json` configures Renovate for `sandboxes/**`
+    alone, beside the Dependabot config that keeps uv and the actions. The regex
+    manager reads the annotated ARGs, the dockerfile manager the pinned image
+    refs, and the npm manager the dsh harness's lock; everything else is out of
+    Renovate's reach, which is what the owner settled (Q-1)."""
+
+    config = json.loads(Path(".github/renovate.json").read_text(encoding="utf-8"))
+
+    assert config["includePaths"] == ["sandboxes/**"]
+    assert set(config["enabledManagers"]) == {"dockerfile", "npm", "custom.regex"}
+
+    managers = config["customManagers"]
+    assert managers, "no regex manager reads the annotated ARGs"
+    for manager in managers:
+        assert "# renovate:" in "".join(manager["matchStrings"])
+        for pattern in manager["managerFilePatterns"]:
+            assert pattern.startswith("sandboxes/"), (
+                f"the regex manager reads {pattern!r}, outside the sandboxes"
+            )
+
+
+def test_torve_s_own_manifests_name_their_images_with_the_placeholder() -> None:
+    """S-0112/D-2: the repository's own seats say `claude-sandbox:{torve}`, so
+    an upgrade moves `engine` and no image reference."""
+
+    for path in sorted(MANIFESTS.glob("*.yaml")):
+        body = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+        if body.get("image"):
+            assert "{torve}" in body["image"], f"{path} does not name torve"
+
+
 def test_the_base_installs_both_interpreters_a_project_may_run_under() -> None:
     """S-0110/D-5: 3.13 and 3.14 into the read-only interpreter directory, so a
     project on either runs its gates in a seat image without deriving one; the
@@ -515,6 +721,44 @@ def test_the_name_is_what_survives_a_push(image: str, kind: str) -> None:
     from torve.cli.sandbox import harness_kind
 
     assert harness_kind(image) == kind
+
+
+def test_a_published_image_is_recognised_by_its_labels() -> None:
+    """S-0112/D-6: an image with no definition beside it is torve's own when
+    its source label names this repository and its version label equals the
+    running torve; anything else — another version, another source, no labels
+    at all — is an ambient regime."""
+
+    from torve.cli.sandbox import (
+        PUBLISHED_SOURCE,
+        SOURCE_LABEL,
+        VERSION_LABEL,
+        published_by_torve,
+    )
+
+    own = {SOURCE_LABEL: PUBLISHED_SOURCE, VERSION_LABEL: "0.3.2"}
+
+    assert published_by_torve(own, "0.3.2")
+    # another version: a pulled image on an engine other than the host's.
+    assert not published_by_torve(own, "0.2.9")
+    # another source: someone else's `claude-sandbox`, not torve's.
+    assert not published_by_torve({**own, SOURCE_LABEL: "https://github.com/someone/else"}, "0.3.2")
+    # no labels: a local build nobody can vouch for.
+    assert not published_by_torve({}, "0.3.2")
+
+
+def test_the_source_label_names_the_repository_bake_stamps() -> None:
+    """S-0112/D-5/D-6: `doctor` recognises a pulled image by the source label
+    `bake.hcl` stamps, so the constant and the bake default are one value — a
+    test holds them together, the way the label names are held to the bake."""
+
+    from torve.cli.sandbox import PUBLISHED_SOURCE
+
+    source_block = (
+        BAKE.read_text(encoding="utf-8").split('variable "SOURCE"', 1)[1].split("}", 1)[0]
+    )
+
+    assert f'default = "{PUBLISHED_SOURCE}"' in source_block
 
 
 def test_the_claude_image_keeps_no_bookkeeping() -> None:

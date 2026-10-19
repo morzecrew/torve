@@ -4,7 +4,13 @@
 # mounted by runtime.docker: socket. Thin per D-17.8 — no harness.
 ARG BASE=sandbox-base
 FROM ${BASE}
-ADD https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz /tmp/docker.tgz
+# The Docker CLI, pinned like every other version in these definitions
+# (S-0112/D-7). The static release tarball carries its version in the URL, so
+# the version rides an ARG and the annotation above it lets Renovate bump both
+# the ARG and the URL together.
+# renovate: datasource=github-releases depName=docker/docker
+ARG DOCKER_VERSION=27.3.1
+ADD https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz /tmp/docker.tgz
 RUN tar -xzf /tmp/docker.tgz -C /tmp && mv /tmp/docker/docker /usr/local/bin/docker \
  && rm -rf /tmp/docker /tmp/docker.tgz
 

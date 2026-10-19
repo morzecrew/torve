@@ -175,14 +175,20 @@ def read_log(dsn: str, reader: Callable[[EventLog], Awaitable[Read]]) -> Read:
         from forze.application.execution import DepsRegistry, ExecutionRuntime
         from forze.base.logging import configure_logging
 
-        from torve.adapters.eventstore.document import mock_module, postgres_module
+        from torve.adapters.eventstore.document import (
+            closing_module,
+            mock_module,
+            postgres_module,
+        )
         from torve.application.eventlog import event_log
 
         configure_logging(level="warning", stream=sys.stderr)
         module = await postgres_module(dsn) if dsn else mock_module()
         runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(module).freeze())
 
-        async with runtime.scope():
+        # `closing_module` is entered first, so its client close runs after the
+        # scope it guards has shut down (S-0113/D-4).
+        async with closing_module(module), runtime.scope():
             return await reader(event_log(runtime.get_context()))
 
     return asyncio.run(opened())
