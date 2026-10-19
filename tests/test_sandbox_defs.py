@@ -581,6 +581,44 @@ def test_the_name_is_what_survives_a_push(image: str, kind: str) -> None:
     assert harness_kind(image) == kind
 
 
+def test_a_published_image_is_recognised_by_its_labels() -> None:
+    """S-0112/D-6: an image with no definition beside it is torve's own when
+    its source label names this repository and its version label equals the
+    running torve; anything else — another version, another source, no labels
+    at all — is an ambient regime."""
+
+    from torve.cli.sandbox import (
+        PUBLISHED_SOURCE,
+        SOURCE_LABEL,
+        VERSION_LABEL,
+        published_by_torve,
+    )
+
+    own = {SOURCE_LABEL: PUBLISHED_SOURCE, VERSION_LABEL: "0.3.2"}
+
+    assert published_by_torve(own, "0.3.2")
+    # another version: a pulled image on an engine other than the host's.
+    assert not published_by_torve(own, "0.2.9")
+    # another source: someone else's `claude-sandbox`, not torve's.
+    assert not published_by_torve({**own, SOURCE_LABEL: "https://github.com/someone/else"}, "0.3.2")
+    # no labels: a local build nobody can vouch for.
+    assert not published_by_torve({}, "0.3.2")
+
+
+def test_the_source_label_names_the_repository_bake_stamps() -> None:
+    """S-0112/D-5/D-6: `doctor` recognises a pulled image by the source label
+    `bake.hcl` stamps, so the constant and the bake default are one value — a
+    test holds them together, the way the label names are held to the bake."""
+
+    from torve.cli.sandbox import PUBLISHED_SOURCE
+
+    source_block = (
+        BAKE.read_text(encoding="utf-8").split('variable "SOURCE"', 1)[1].split("}", 1)[0]
+    )
+
+    assert f'default = "{PUBLISHED_SOURCE}"' in source_block
+
+
 def test_the_claude_image_keeps_no_bookkeeping() -> None:
     """The hand-kept copy of the harness's own installed-plugins state is gone:
     `--plugin-dir` reaches the same result through a supported flag, so

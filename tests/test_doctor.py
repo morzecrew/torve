@@ -445,6 +445,96 @@ def test_the_image_version_check_asks_the_image_for_its_torve_version(monkeypatc
 
 
 # ----------------------- #
+# S-0112/D-6: a `<name>-sandbox` image with no definition beside it is torve's
+# own when its labels say so (S-0112/D-5) — the source names this repository and
+# the version equals the host's torve. The runtime and the label read are faked,
+# the way the version probe above is.
+
+
+def _published_image_checks(
+    tmp_path, monkeypatch, labels, *, image="claude-sandbox:0.3.2", host="0.3.2"
+):
+    from torve.cli import doctor
+    from torve.config import runconfig
+
+    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker", "image": image}})
+
+    class _Runtime:
+        def resolve_image(self, reference: str) -> str:
+            return "sha256:" + "ab" * 32
+
+    monkeypatch.setattr("torve.cli.options.runtime_for", lambda config, override: _Runtime())
+    monkeypatch.setattr(runconfig, "installed_version", lambda: host)
+    monkeypatch.setattr(doctor, "_image_labels", lambda reference: labels)
+
+    return doctor._image_checks(root, None)
+
+
+def test_a_published_image_with_no_definition_beside_it_is_accepted(tmp_path, monkeypatch):
+    from torve.cli.sandbox import PUBLISHED_SOURCE, SOURCE_LABEL, VERSION_LABEL
+
+    labels = {SOURCE_LABEL: PUBLISHED_SOURCE, VERSION_LABEL: "0.3.2"}
+
+    (name, ok, detail) = _published_image_checks(tmp_path, monkeypatch, labels)[0]
+
+    assert (name, ok) == ("image claude-sandbox:0.3.2", True)
+    assert "published by torve" in detail
+
+
+def test_a_published_image_on_another_version_is_red(tmp_path, monkeypatch):
+    from torve.cli.sandbox import PUBLISHED_SOURCE, SOURCE_LABEL, VERSION_LABEL
+
+    labels = {SOURCE_LABEL: PUBLISHED_SOURCE, VERSION_LABEL: "0.2.9"}
+
+    (name, ok, detail) = _published_image_checks(tmp_path, monkeypatch, labels)[0]
+
+    assert (name, ok) == ("image claude-sandbox:0.3.2", False)
+    assert "ambient regime" in detail
+
+
+def test_a_published_image_from_another_source_is_red(tmp_path, monkeypatch):
+    from torve.cli.sandbox import SOURCE_LABEL, VERSION_LABEL
+
+    labels = {SOURCE_LABEL: "https://github.com/someone/else", VERSION_LABEL: "0.3.2"}
+
+    (name, ok, detail) = _published_image_checks(tmp_path, monkeypatch, labels)[0]
+
+    assert (name, ok) == ("image claude-sandbox:0.3.2", False)
+    assert "ambient regime" in detail
+
+
+def test_a_local_image_with_no_definition_and_no_labels_is_red(tmp_path, monkeypatch):
+    (name, ok, detail) = _published_image_checks(tmp_path, monkeypatch, {})[0]
+
+    assert (name, ok) == ("image claude-sandbox:0.3.2", False)
+    assert "ambient regime" in detail
+
+
+def test_the_image_labels_are_read_without_running_the_image(monkeypatch):
+    import subprocess
+
+    from torve.cli import doctor
+
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout='{"a": "b"}', stderr="")
+
+    monkeypatch.setattr(doctor.subprocess, "run", run)
+
+    assert doctor._image_labels("claude-sandbox:t") == {"a": "b"}
+    assert calls[0] == [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{json .Config.Labels}}",
+        "claude-sandbox:t",
+    ]
+
+
+# ----------------------- #
 # S-0110/D-2: doctor still runs on a configuration naming an engine outside this
 # build — it reports the refusal rather than dying on the same load.
 

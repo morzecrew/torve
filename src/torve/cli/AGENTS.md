@@ -292,9 +292,9 @@ S-0061/D-5 is superseded by D-1 and S-0061/D-6's renderer retires; the harness i
 
 ### S-0063/D-6 — `LOCKED` (The image knows how to equip itself)
 
-Image definitions live at `sandboxes/<name>/` in the repository root and build to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming repository's own.
+Image definitions live at `sandboxes/<name>/` in the repository root and build to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming repository's own. `torve doctor` accepts a `<name>-sandbox` image with no definition beside it when its `org.opencontainers.image.source` names torve's repository and its version label equals the host's torve; an image with neither a definition nor those labels stays red.
 
-- Paths: `sandboxes/**` `src/torve/cli/sandbox.py`
+- Paths: `sandboxes/**` `src/torve/cli/sandbox.py` `src/torve/cli/doctor.py`
 - Consequence: torve's own source stops living in the directory torve creates inside repositories it works on, and an image gets a name worth publishing
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 

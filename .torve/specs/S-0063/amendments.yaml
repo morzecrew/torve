@@ -175,3 +175,32 @@ amendments:
       D-19 needs the engine and the image to agree on one path, and a path written in two places is a path that drifts. The manifest declares it once: the engine excludes it in the worktree and names it to the image, and `equip` writes where it was told.
 
       claude needs none — `--add-dir` points at the read-only mount itself, which is why it never hit this. A harness that reads equipment out of the workspace is the case the variable exists for, and a harness that declares no root and writes anyway lands visible, where the scope gate convicts loudly. Failing safe is the point: silent is what this cost.
+  - id: A-15
+    at: '2026-10-19T07:59:33Z'
+    title: >-
+      Doctor accepts a published image with no definition beside it
+    changes:
+      - subject: D-6
+        field: paths
+        before: [sandboxes/**, src/torve/cli/sandbox.py]
+        after: [sandboxes/**, src/torve/cli/sandbox.py, src/torve/cli/doctor.py]
+      - subject: D-6
+        field: text
+        before: >-
+          Image definitions live at `sandboxes/<name>/` in the repository root and
+          build to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming
+          repository's own.
+        after: >-
+          Image definitions live at `sandboxes/<name>/` in the repository root and
+          build to `<name>-sandbox`; `.torve/sandbox/` stays the hook for a consuming
+          repository's own. `torve doctor` accepts a `<name>-sandbox` image with no
+          definition beside it when its `org.opencontainers.image.source` names torve's
+          repository and its version label equals the host's torve; an image with
+          neither a definition nor those labels stays red.
+      - subject: D-6
+        field: fingerprint
+        after: 76d0bddddd0f415f/1e854bfd0db1173f
+    md: |-
+      The row said where a definition lives and what it builds to, and left unstated how `doctor` tells one image from another when the definition is not beside it — which is the ordinary case for an adopter who pulls what a release published and keeps no source.
+
+      S-0112/D-5 is what makes that answerable: every published image carries its source, version and revision. This row now says doctor reads the source and version labels, accepts the image when the source names this repository and the version is the host's torve, and stays red when it has neither a definition nor those labels. The owner agreed on 2026-10-18.
