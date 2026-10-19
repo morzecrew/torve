@@ -1070,7 +1070,7 @@ def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
 
     import subprocess
 
-    from torve.application.ports import SandboxHandle
+    from torve.application.ports import ExecResult, SandboxHandle
 
     seen: dict = {}
 
@@ -1083,7 +1083,7 @@ def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
             return SandboxHandle(id="h-1", name=spec.name)
 
         def exec(self, handle, command, timeout_s):
-            return 0, ""
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
 
         def sync_out(self, handle, workspace):
             pass
@@ -1102,10 +1102,13 @@ def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
     (worktree / "src" / "torve").mkdir(parents=True, exist_ok=True)
     (worktree / "src" / "torve" / "new.py").write_text("x = 1\n", encoding="utf-8")
 
-    _gate_pass(repo, worktree, runtime=ListRecordingRuntime())
+    exit_code, summary, *_ = _gate_pass(repo, worktree, runtime=ListRecordingRuntime())
+
+    # The shell gate ran in the recording sandbox and passed there.
+    assert exit_code == 0, summary
 
     expected = subprocess.run(
-        ["git", "-C", str(worktree), "ls-files"],
+        ["git", "-C", str(worktree), "ls-files", "-z"],
         capture_output=True,
         text=True,
         check=True,

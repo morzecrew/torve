@@ -606,7 +606,7 @@ def test_the_session_leaves_the_tracked_list_before_the_attempt_sandbox(tmp_path
     )
 
     expected = subprocess.run(
-        ["git", "-C", str(worktree), "ls-files"],
+        ["git", "-C", str(worktree), "ls-files", "-z"],
         capture_output=True,
         text=True,
         check=True,

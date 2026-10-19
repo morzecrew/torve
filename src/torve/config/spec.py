@@ -1163,15 +1163,17 @@ def tracked_list_file(root: Path) -> Path:
 
 
 def write_tracked_files(root: Path) -> None:
-    """Write `git ls-files` of *root*, one name per line, to the list the
-    scan reads where git cannot run (S-0113/D-2). The host runs this before a
-    sandbox starts; a git that cannot answer writes nothing, and the scan then
-    warns that it did not run rather than reading an empty tree."""
+    """Write `git ls-files -z` of *root*, names NUL-separated as the scan's
+    own git read takes them, to the list the scan reads where git cannot run
+    (S-0113/D-2). Plain `ls-files` quotes a name with non-ASCII bytes, which
+    the scan could not open. The host runs this before a sandbox starts; a
+    git that cannot answer writes nothing, and the scan then warns that it
+    did not run rather than reading an empty tree."""
 
     import subprocess
 
     done = subprocess.run(
-        ["git", "-C", str(root), "ls-files"],
+        ["git", "-C", str(root), "ls-files", "-z"],
         capture_output=True,
         text=True,
         check=False,
@@ -1211,7 +1213,7 @@ def tracked_files(root: Path) -> list[str] | None:
         if not listed.is_file():
             return None
 
-        names = listed.read_text(encoding="utf-8").splitlines()
+        names = [one for one in listed.read_text(encoding="utf-8").split("\0") if one]
     else:
         return []
 

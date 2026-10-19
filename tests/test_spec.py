@@ -404,6 +404,26 @@ def test_the_scan_reads_the_left_list_when_git_fails(tmp_path, monkeypatch) -> N
     assert tracked_files(tmp_path) == ["src/a.py"]
 
 
+def test_the_left_list_keeps_a_name_plain_ls_files_would_quote(tmp_path, monkeypatch) -> None:
+    """S-0113/D-2: plain `git ls-files` quotes a name with non-ASCII bytes
+    (`"src/\\303\\251.py"`), which the scan in a sandbox could not open; the
+    list carries the name as git tracks it."""
+
+    import subprocess
+
+    from torve.config.spec import tracked_files, write_tracked_files
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "é.py").write_text("", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    write_tracked_files(tmp_path)
+
+    monkeypatch.setenv("GIT_DIR", "/nonexistent")
+
+    assert tracked_files(tmp_path) == ["src/é.py"]
+
+
 def test_the_scan_with_no_list_where_git_fails_says_so(tmp_path, monkeypatch) -> None:
     """S-0113/D-1: git failing in a root that carries a `.git` and no list is
     not an empty tree — the scan hands back `None`, which the check reports
