@@ -751,14 +751,14 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 - Paths: `src/torve/config/runconfig.py` `src/torve/config/fleet.py`
 - Consequence: a judge never starts containers, and nested mode runs only where socket mode could
 
-### S-0112/D-2 — `ASSUMED` (A release publishes its seat images) — implementation: none
+### S-0112/D-2 — `ASSUMED` (A release publishes its seat images)
 
 `{torve}` in a harness manifest's `image` or in `runtime.image` is replaced when the configuration loads with the installed torve's version, with `+` written `-`. torve's own harness manifests name their images that way.
 
 - Paths: `src/torve/config/agents.py` `src/torve/config/runconfig.py` `.torve/harnesses/**`
 - Consequence: an upgrade moves `engine` and no image reference, and a seat runs the host's torve by construction
 
-### S-0113/D-1 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
+### S-0113/D-1 — `ASSUMED` (A gate in the sandbox sees what the host sees)
 
 When git fails in a root that has a `.git`, the citation scan reads the tracked files from `.torve/tmp/tracked-files`. With no list there, `torve spec check` warns that the scan did not run; it never reads the tree as empty without saying so. A root with no `.git` scans nothing, as before.
 

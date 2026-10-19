@@ -37,7 +37,7 @@ A repository installs torve as a uv tool, not as a project dependency, and every
 - Paths: `src/torve/cli/init.py` `skills/torve/**` `skills/hooks/**` `pages/docs/**`
 - Consequence: torve's pins and an application's never meet in one lock
 
-### S-0112/D-8 — `ASSUMED` (A release publishes its seat images) — implementation: none
+### S-0112/D-8 — `ASSUMED` (A release publishes its seat images)
 
 The adoption and upgrading references and the configuration reference say to pull the published images, name them with `{torve}`, and derive from `ghcr.io/morzecrew/sandbox-base`.
 
