@@ -464,6 +464,12 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     volumes = {**volumes, **cache_volumes(run)}
     infra_id = naming.shadow_id(task.id) if shadow else task.id
 
+    # A sandbox of a nested role gets a Docker daemon of its own (S-0111/D-1,
+    # D-4), exactly as the gates sandbox does: the configuration resolves the
+    # role membership, so an attempt is nested only when `implement` (or the
+    # task's own role) is named in `runtime.nested.roles`.
+    from torve.application.runner import _nested_docker
+
     spec = SandboxSpec(
         name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
         image=run.image,
@@ -479,6 +485,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         readonly_binds=(
             {str(equipment_mount): EQUIPMENT_MOUNT} if equipment_mount is not None else {}
         ),
+        nested=_nested_docker(run, task.role),
     )
 
     withheld = _withhold_never_send(worktree, config.providers.never_send)

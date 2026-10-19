@@ -74,14 +74,16 @@ decisions:
     text: >-
       In a nested sandbox's environment, a proxy whose host is loopback is rewritten
       to the side container's network gateway. `torve doctor` checks, from a bridge
-      container, that the rewritten proxy answers when a role other than gates is
-      nested.
+      container, that the rewritten proxy answers whenever any role is nested: the
+      side daemon of every nested sandbox, the gates included, pulls its images through
+      it.
     paths: [src/torve/adapters/runtime/docker.py, src/torve/cli/doctor.py]
     consequence: >-
       an attempt in a nested sandbox reaches its model, or the doctor says why not
     rationale: >-
       From the bridge, PyPI, ghcr.io, GitHub and the Docker Hub mirror answer directly,
       and api.anthropic.com does not (probe, 2026-10-16).
+    fingerprint: de73237daa356786/0e3c926c74d862e3
   - id: D-7
     grade: ASSUMED
     text: >-

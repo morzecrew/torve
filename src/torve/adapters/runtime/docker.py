@@ -13,7 +13,9 @@ from __future__ import annotations
 import contextlib
 import os
 import subprocess
+import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from torve.application.ports import (
     PROXY_ENV,
@@ -69,6 +71,85 @@ SEALED_PROXY_ENV = ("http_proxy", "https_proxy", "all_proxy")
 # ....................... #
 
 
+# The hosts that mean "this machine's own loopback": a proxy on one of them is
+# reachable from the host and, under a chosen network mode, from the sandbox —
+# but not from a nested sandbox, which holds the side container's namespace
+# instead of the host's (S-0111/D-6).
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+# The proxy variables that carry a URL, as opposed to `no_proxy`'s host list:
+# only a proxy a loopback host names is rewritten, never the host list.
+PROXY_URL_ENV = tuple(name for name in PROXY_ENV if name != "no_proxy")
+
+
+# ....................... #
+
+
+def _proxy_host(value: str) -> str | None:
+    return urlsplit(value).hostname
+
+
+def host_loopback_proxies() -> dict[str, str]:
+    """The host environment's proxy variables whose host is loopback, by the
+    spelling the variable carries — the ones a nested sandbox cannot reach at
+    that address (S-0111/D-6)."""
+
+    found: dict[str, str] = {}
+
+    for name in PROXY_URL_ENV:
+        for variant in (name, name.upper()):
+            value = os.environ.get(variant)
+
+            if value and _proxy_host(value) in LOOPBACK_HOSTS:
+                found[variant] = value
+
+    return found
+
+
+# ....................... #
+
+
+def rewrite_loopback(url: str, gateway: str) -> str:
+    """*url* with a loopback host replaced by *gateway* (S-0111/D-6), preserving
+    scheme, credentials and port. Anything not a loopback URL is returned
+    unchanged: the rewrite is for the one address a nested sandbox lost, never a
+    general rewrite of what the host forwards."""
+
+    parts = urlsplit(url)
+
+    if parts.hostname not in LOOPBACK_HOSTS:
+        return url
+
+    host = f"[{gateway}]" if ":" in gateway else gateway
+    netloc = f"{host}:{parts.port}" if parts.port else host
+
+    if parts.username:
+        credentials = parts.username + (f":{parts.password}" if parts.password else "")
+        netloc = f"{credentials}@{netloc}"
+
+    return urlunsplit(parts._replace(netloc=netloc))
+
+
+# ....................... #
+
+
+# A nested sandbox (S-0111/D-1): the side container's name is the
+# sandbox's plus this, and the sandbox reaches the daemon over the namespace it
+# shares with it. The address is the one the side container's own dockerd serves:
+# the dind image's entrypoint enables TLS on 2376 unless `DOCKER_TLS_CERTDIR` is
+# cleared, so the side container is started with it empty and plain 2375 is where
+# the daemon listens — the same address the readiness probe dials, so a daemon that
+# answers to the probe is one the sandbox's CLI can actually reach.
+NESTED_SUFFIX = "-dockerd"
+DOCKER_HOST = "tcp://127.0.0.1:2375"
+
+# The dockerd entrypoint's own switch for a registry mirror; one per mirror.
+REGISTRY_MIRROR_FLAG = "--registry-mirror"
+
+
+# ....................... #
+
+
 class DockerRuntime:
     def __init__(
         self, docker_bin: str = "docker", network: str = "", docker_mode: str = ""
@@ -83,8 +164,14 @@ class DockerRuntime:
     # ....................... #
 
     def _run(
-        self, *args: str, timeout: float | None = None, stdin: str | None = None
+        self,
+        *args: str,
+        timeout: float | None = None,
+        stdin: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
+        # *env* overlays the docker CLI's own environment, so a value an `-e NAME`
+        # argument forwards never shows in the process's argument list.
         return subprocess.run(
             [self.docker, *args],
             capture_output=True,
@@ -92,6 +179,7 @@ class DockerRuntime:
             timeout=timeout,
             check=False,
             input=stdin,
+            env={**os.environ, **env} if env else None,
         )
 
     # ....................... #
@@ -125,6 +213,21 @@ class DockerRuntime:
 
     # ....................... #
 
+    def _loopback_gateway(self) -> str:
+        """The address a nested sandbox's loopback proxy is rewritten to
+        (S-0111/D-6): the side container — and so the sandbox sharing its
+        namespace — sits on the daemon's default bridge, whose gateway is the
+        host side of that network, where the host's proxy must answer. Resolved
+        only when a forwarded proxy is on loopback, so a host with no such proxy
+        asks docker nothing."""
+
+        if not host_loopback_proxies():
+            return ""
+
+        return self._network_gateway("bridge")
+
+    # ....................... #
+
     @staticmethod
     def _mounts_cache(spec: SandboxSpec) -> bool:
         """A spec carrying the fixed cache mount is the whole signal: the
@@ -136,9 +239,49 @@ class DockerRuntime:
 
     # ....................... #
 
-    def _run_args(self, spec: SandboxSpec, workspace: Path) -> list[str]:
+    @staticmethod
+    def _proxy_args() -> list[str]:
+        """The host's proxy variables, name-only, for a container's own tools
+        and its daemon. An ordinary non-sealed sandbox forwards them under a
+        chosen network mode; a nested sandbox takes the side container's
+        namespace instead of a mode, so it and the side container forward them
+        here rather than losing egress to the branch they no longer take. Name-only
+        always: a rewritten value travels in the docker CLI's environment
+        (`_proxy_env`), so a proxy's credentials never reach an argument list."""
+
+        return [
+            arg
+            for name in PROXY_ENV
+            for variant in (name, name.upper())
+            if variant in os.environ
+            for arg in ("-e", variant)
+        ]
+
+    # ....................... #
+
+    @staticmethod
+    def _proxy_env(gateway: str) -> dict[str, str]:
+        """The loopback proxies rewritten to *gateway*, the host side of the side
+        container's network (S-0111/D-6), by the variable that carries each: the
+        values a nested sandbox's `-e NAME` arguments forward in place of the
+        host's. A proxy that needs no rewrite keeps the host's own value."""
+
+        if not gateway:
+            return {}
+
+        return {
+            variant: rewrite_loopback(value, gateway)
+            for variant, value in host_loopback_proxies().items()
+        }
+
+    # ....................... #
+
+    def _run_args(self, spec: SandboxSpec, workspace: Path, side: str = "") -> list[str]:
         """The `docker run` argument list for a spec — pure, so the mount
-        and env wiring is testable without a daemon."""
+        and env wiring is testable without a daemon. *side* names the nested
+        side container this sandbox joins (S-0111/D-1), when it has one: then the
+        sandbox shares the side container's network namespace and reaches its
+        daemon at `DOCKER_HOST`, and the run's own network mode does not apply."""
 
         mount_mode = ":ro" if spec.workspace_read_only else ""
 
@@ -172,7 +315,14 @@ class DockerRuntime:
             with contextlib.suppress(OSError):
                 args += ["--group-add", str(os.stat(sock).st_gid)]
 
-        if self.network:
+        if side:
+            # A nested sandbox joins the side container's namespace instead of
+            # taking a network mode of its own (S-0111/D-1): its loopback then holds
+            # the daemon, so published ports answer on `localhost`.
+            args += ["--network", f"container:{side}", "-e", f"DOCKER_HOST={DOCKER_HOST}"]
+            args += self._proxy_args()
+
+        elif self.network:
             args += ["--network", self.network]
 
             if self._network_is_internal(self.network):
@@ -193,10 +343,7 @@ class DockerRuntime:
                     args += ["-e", f"{variant}=127.0.0.1,localhost,{gateway}"]
 
             else:
-                for name in PROXY_ENV:
-                    for variant in (name, name.upper()):
-                        if variant in os.environ:
-                            args += ["-e", variant]
+                args += self._proxy_args()
 
         if self._mounts_cache(spec):
             # The adapter points the toolchain cache homes at the mount
@@ -234,13 +381,179 @@ class DockerRuntime:
 
     # ....................... #
 
-    def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
-        proc = self._run(*self._run_args(spec, workspace))
+    def _side_args(self, spec: SandboxSpec, workspace: Path, side: str) -> list[str]:
+        """The `docker run` argument list for a nested sandbox's side container
+        (S-0111/D-2): privileged, carrying the sandbox's labels so the reaper
+        removes it with the sandbox, the worktree at the sandbox's own workdir
+        so a compose file's relative binds resolve to the same files, and the
+        slot's docker-state volume at `/var/lib/docker` so pulled images
+        survive the task.
+
+        `DOCKER_TLS_CERTDIR` is cleared: the dind image's entrypoint otherwise
+        generates certificates and serves TLS on 2376, where the sandbox's
+        `DOCKER_HOST` never looks — the daemon must listen plain on 2375, the
+        address the sandbox and the readiness probe both dial."""
+
+        assert spec.nested is not None
+
+        mount_mode = ":ro" if spec.workspace_read_only else ""
+
+        args = [
+            "run",
+            "-d",
+            "--init",
+            "--name",
+            side,
+            "--privileged",
+            "-e",
+            "DOCKER_TLS_CERTDIR=",
+            "-v",
+            f"{workspace.resolve()}:{spec.workdir}{mount_mode}",
+            "-w",
+            spec.workdir,
+            "-v",
+            # No volume name is an anonymous volume, which `rm -v` removes with
+            # the side container: a shadow run's daemon starts and ends cold.
+            f"{spec.nested.volume}:/var/lib/docker" if spec.nested.volume else "/var/lib/docker",
+        ]
+
+        # The side daemon pulls the task's images itself, so it needs the host's
+        # proxy too (S-0111/D-2): without it a mirrored or proxied registry is
+        # unreachable and every `docker pull` in the sandbox fails. A loopback
+        # proxy is rewritten for the side container as well, since it shares the
+        # namespace the rewrite is meant for (S-0111/D-6).
+        args += self._proxy_args()
+
+        for key, value in spec.labels.items():
+            args += ["--label", f"{key}={value}"]
+
+        args += [spec.nested.image]
+
+        for mirror in spec.nested.registry_mirrors:
+            args += [f"{REGISTRY_MIRROR_FLAG}={mirror}"]
+
+        return args
+
+    # ....................... #
+
+    def _await_daemon(self, side: str, ready_s: float) -> bool:
+        """Whether the side container's daemon answers at the sandbox's own
+        address, `DOCKER_HOST`, within *ready_s* (S-0111/D-3): a sandbox that asked
+        for Docker either has it or does not run, so a daemon that never comes
+        up fails the creation rather than letting a Docker-bound test skip
+        green.
+
+        The probe dials `DOCKER_HOST` from inside the side container rather than
+        the local unix socket: it is the exact endpoint the sandbox reaches, so a
+        daemon answering it is one the sandbox's CLI can use — a TLS-only daemon
+        on 2376 answers the unix socket and nothing else, and would read ready
+        here while the sandbox's Docker-bound gate failed."""
+
+        deadline = time.monotonic() + ready_s
+
+        while True:
+            # Each probe gets only what is left of the clock: a stalled dockerd
+            # hangs `docker info`, and an unbounded call would never come back to
+            # the deadline check below.
+            try:
+                proc = self._run(
+                    "exec",
+                    side,
+                    "sh",
+                    "-c",
+                    f"DOCKER_HOST={DOCKER_HOST} docker info",
+                    timeout=max(0.1, deadline - time.monotonic()),
+                )
+            except subprocess.TimeoutExpired:
+                return False
+
+            if proc.returncode == 0:
+                return True
+
+            if time.monotonic() >= deadline:
+                return False
+
+            time.sleep(max(0.0, min(0.5, deadline - time.monotonic())))
+
+    # ....................... #
+
+    # What a nested daemon is cleared of before a task starts (S-0111/D-2): the
+    # containers, volumes and networks a previous task in this slot left, never
+    # the images — what was pulled stays pulled. Run once the daemon answers, so
+    # the task's own names and ports cannot collide with a corpse. Every container
+    # goes, running ones too: the daemon restarts a `restart: always` service
+    # from the last task, and a prune skips what runs. `volume prune -a` takes
+    # named volumes, which a plain prune keeps since Docker 23. Chained with
+    # `&&` and stderr kept, so a failed step fails the clearing and says why.
+    NESTED_PRUNE = (
+        'ids=$(docker ps -aq) && { [ -z "$ids" ] || docker rm -f -v $ids >/dev/null; } && '
+        "docker volume prune -a -f >/dev/null && "
+        "docker network prune -f >/dev/null"
+    )
+
+    # ....................... #
+
+    def _create_nested(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+        """Start the daemon, join the sandbox to it, or fail the creation and
+        remove what was started (S-0111/D-1..D-3)."""
+
+        assert spec.nested is not None
+
+        side = f"{spec.name}{NESTED_SUFFIX}"
+        proxies = self._proxy_env(self._loopback_gateway())
+
+        started = self._run(*self._side_args(spec, workspace, side), env=proxies)
+
+        if started.returncode != 0:
+            raise DockerError(started.stderr.strip() or "nested side container failed to start")
+
+        if not self._await_daemon(side, spec.nested.ready_s):
+            self._run("rm", "-f", "-v", side)
+            raise DockerError(
+                f"nested sandbox {spec.name}: its daemon did not answer `docker info` "
+                f"within {spec.nested.ready_s:.0f}s — the side container was removed"
+            )
+
+        try:
+            pruned = self._run("exec", side, "sh", "-c", self.NESTED_PRUNE, timeout=120)
+        except subprocess.TimeoutExpired:
+            # A stalled prune fails the creation like any other: the side
+            # container is removed below rather than left running.
+            pruned = subprocess.CompletedProcess(
+                [], 1, "", "nested sandbox: the side daemon's prune timed out"
+            )
+
+        if pruned.returncode != 0:
+            self._run("rm", "-f", "-v", side)
+            raise DockerError(
+                pruned.stderr.strip() or "nested sandbox: the side daemon would not prune"
+            )
+
+        proc = self._run(*self._run_args(spec, workspace, side), env=proxies)
 
         if proc.returncode != 0:
+            # D-3: both containers are removed — the sandbox never came up, and
+            # the side container is a daemon nothing will use.
+            self._run("rm", "-f", "-v", side)
             raise DockerError(proc.stderr.strip() or "docker run failed")
 
-        handle = SandboxHandle(id=proc.stdout.strip(), name=spec.name)
+        return SandboxHandle(id=proc.stdout.strip(), name=spec.name)
+
+    # ....................... #
+
+    def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle:
+        if spec.nested is not None:
+            # A nested sandbox mounts the same cache volume, so it takes the
+            # same ownership step below.
+            handle = self._create_nested(spec, workspace)
+
+        else:
+            proc = self._run(*self._run_args(spec, workspace))
+
+            if proc.returncode != 0:
+                raise DockerError(proc.stderr.strip() or "docker run failed")
+
+            handle = SandboxHandle(id=proc.stdout.strip(), name=spec.name)
 
         if self._mounts_cache(spec):
             # A named volume Docker creates on first use is root-owned, and
@@ -310,6 +623,9 @@ class DockerRuntime:
 
     def destroy(self, handle: SandboxHandle) -> None:
         self._run("rm", "-f", "-v", handle.id)
+        # A nested sandbox's side container goes with it (S-0111/D-2); `-f` makes
+        # the removal a no-op for the ordinary sandbox that never had one.
+        self._run("rm", "-f", "-v", f"{handle.name}{NESTED_SUFFIX}")
 
     # ....................... #
 

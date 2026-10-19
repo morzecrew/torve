@@ -10,8 +10,10 @@ until one exists.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
+import time
 import uuid
 from pathlib import Path
 
@@ -325,3 +327,250 @@ def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch
     finally:
         runtime.destroy(handle)
     opensandbox_stub.REGISTRY.clear()
+
+
+# ....................... #
+# Nested mode (S-0111/D-1..D-3): a privileged side container running its own
+# daemon, the sandbox joined to its network namespace. The arguments and the
+# readiness failure are exercised against a fake docker — the live round trip is
+# behind TORVE_IMAGE_TESTS in tests/test_sandbox_images.py.
+
+
+FAKE_DOCKER_SRC = r"""#!/usr/bin/env python3
+import json, os, sys, time
+
+with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
+    f.write(json.dumps(sys.argv[1:]) + "\n")
+
+args = sys.argv[1:]
+
+if args and args[0] == "run":
+    # What an `-e NAME` argument would forward: the CLI's own environment.
+    with open(os.environ["FAKE_DOCKER_LOG"] + ".env", "a", encoding="utf-8") as f:
+        f.write(json.dumps(os.environ.get("https_proxy")) + "\n")
+    print("fakecontainerid")
+    sys.exit(0)
+
+if args and args[0] == "exec":
+    if "info" in " ".join(args):
+        time.sleep(float(os.environ.get("FAKE_DOCKER_INFO_HANG_S", "0")))
+        sys.exit(int(os.environ.get("FAKE_DOCKER_INFO_RC", "0")))
+    sys.exit(0)
+
+if args and args[0] == "network":
+    print(os.environ.get("FAKE_DOCKER_GATEWAY", "172.17.0.1"))
+    sys.exit(0)
+
+sys.exit(0)
+"""
+
+
+class FakeDocker:
+    def __init__(self, tmp_path: Path) -> None:
+        self.log_file = tmp_path / "fake-docker.log"
+        self.script = tmp_path / "docker"
+        self.script.write_text(FAKE_DOCKER_SRC, encoding="utf-8")
+        self.script.chmod(0o755)
+
+    def invocations(self) -> list[list[str]]:
+        if not self.log_file.exists():
+            return []
+
+        return [json.loads(line) for line in self.log_file.read_text().splitlines()]
+
+
+@pytest.fixture
+def fake_docker(tmp_path: Path, monkeypatch) -> FakeDocker:
+    fake = FakeDocker(tmp_path)
+    monkeypatch.setenv("FAKE_DOCKER_LOG", str(fake.log_file))
+    monkeypatch.setenv("FAKE_DOCKER_INFO_RC", "0")
+    return fake
+
+
+def nested_spec(*, ready_s: float = 0.2) -> SandboxSpec:
+    from torve.application.ports import NestedDocker
+
+    return SandboxSpec(
+        name=f"torve-nested-{uuid.uuid4().hex[:8]}",
+        image=TEST_IMAGE,
+        labels=naming.labels("T-9906", "r", Path.cwd()),
+        timeout_s=120,
+        nested=NestedDocker(
+            image="docker:27.5.1-dind",
+            volume="torve-dind-2",
+            registry_mirrors=("https://mirror.example",),
+            ready_s=ready_s,
+        ),
+    )
+
+
+def test_the_side_container_clears_tls_and_mounts_the_slot_daemon(fake_docker, tmp_path):
+    """S-0111/D-1, D-2 — and the bug the review caught: the dind image's entrypoint
+    serves TLS on 2376 unless `DOCKER_TLS_CERTDIR` is cleared, so the side
+    container is started with it empty and the daemon listens plain on the 2375
+    the sandbox is told to dial."""
+
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    args = runtime._side_args(nested_spec(), tmp_path, "torve-nested-x-dockerd")
+
+    assert args[:1] == ["run"]
+    assert "torve-nested-x-dockerd" in args
+    assert "--privileged" in args
+    assert "DOCKER_TLS_CERTDIR=" in args
+    assert f"{tmp_path.resolve()}:/work" in args
+    assert "torve-dind-2:/var/lib/docker" in args
+    assert "--registry-mirror=https://mirror.example" in args
+    assert "--label" in args and "torve.task=T-9906" in args
+
+
+def test_a_nested_sandbox_joins_the_side_container_and_keeps_no_network_of_its_own(tmp_path):
+    """S-0111/D-1: the sandbox shares the side container's namespace, so its
+    loopback holds the daemon and published ports answer on `localhost`. The
+    run's own network mode does not apply — a nested sandbox takes the
+    namespace, never a mode of its own."""
+
+    runtime = DockerRuntime(network="host")
+    args = runtime._run_args(nested_spec(), tmp_path, "torve-nested-x-dockerd")
+
+    assert "container:torve-nested-x-dockerd" in args
+    assert "DOCKER_HOST=tcp://127.0.0.1:2375" in args
+    assert "host" not in args
+
+
+def test_a_nested_sandbox_and_its_side_container_keep_the_host_proxies(monkeypatch, tmp_path):
+    """S-0111/D-1, D-2 — the review's other catch: a nested sandbox takes the
+    side container's namespace in place of a network mode, so neither it nor
+    the side daemon may lose the host's proxy to the branch it no longer takes.
+    A proxy that needs no rewrite (S-0111/D-6) is forwarded name-only, exactly
+    as an ordinary non-sealed sandbox gets it."""
+
+    monkeypatch.setenv("https_proxy", "http://proxy.example:3128")
+
+    runtime = DockerRuntime()
+    spec = nested_spec()
+
+    joined = runtime._run_args(spec, tmp_path, "torve-nested-x-dockerd")
+    side = runtime._side_args(spec, tmp_path, "torve-nested-x-dockerd")
+
+    assert "https_proxy" in joined
+    assert "https_proxy" in side
+
+
+def test_a_loopback_proxy_is_rewritten_to_the_side_containers_gateway(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-6: a nested sandbox holds the side container's namespace, so the
+    host's loopback proxy is out of reach. The sandbox — and the side daemon
+    beside it — are handed that proxy at the side container's network gateway
+    instead, resolved from the daemon's default bridge."""
+
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:7890")
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    spec = nested_spec()
+
+    handle = runtime.create(spec, tmp_path)
+
+    runs = [a for a in fake_docker.invocations() if a[0] == "run"]
+    side, joined = runs[0], runs[1]
+    # Named only in the arguments, so a proxy's credentials never show in a
+    # process listing; the rewritten value is the docker CLI's environment.
+    assert "https_proxy" in side and "https_proxy" in joined
+    assert not any("7890" in arg for arg in side + joined)
+    forwarded = (fake_docker.log_file.parent / "fake-docker.log.env").read_text().split()
+    assert forwarded[:2] == ['"http://172.17.0.1:7890"'] * 2
+
+    runtime.destroy(handle)
+
+
+def test_create_starts_the_side_container_readies_it_then_joins_the_sandbox(fake_docker, tmp_path):
+    """S-0111/D-1..D-3, end to end against the fake daemon: the side container
+    runs first, the daemon is probed at the sandbox's own address (not the
+    side's unix socket — the review's point), then the sandbox is started
+    joined to it. Destroying the sandbox destroys the side container too."""
+
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    spec = nested_spec()
+    handle = runtime.create(spec, tmp_path)
+
+    invocations = fake_docker.invocations()
+    runs = [a for a in invocations if a[0] == "run"]
+    assert len(runs) == 2
+    assert f"{spec.name}-dockerd" in runs[0]
+    assert f"container:{spec.name}-dockerd" in runs[1]
+
+    probes = [a for a in invocations if a[0] == "exec" and "info" in " ".join(a)]
+    assert probes, "the daemon was never probed"
+    assert "DOCKER_HOST=tcp://127.0.0.1:2375" in " ".join(probes[0])
+
+    runtime.destroy(handle)
+    assert any(
+        a[:4] == ["rm", "-f", "-v", f"{spec.name}-dockerd"] for a in fake_docker.invocations()
+    )
+
+
+def test_a_daemon_that_never_answers_fails_the_creation_and_removes_both(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-3: a sandbox that asked for Docker either has it or does not
+    run — no green skip. The side container is removed and no sandbox is
+    started."""
+
+    from torve.adapters.runtime.docker import DockerError
+
+    monkeypatch.setenv("FAKE_DOCKER_INFO_RC", "1")
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    spec = nested_spec(ready_s=0.2)
+
+    with pytest.raises(DockerError, match="did not answer"):
+        runtime.create(spec, tmp_path)
+
+    invocations = fake_docker.invocations()
+    joins = [a for a in invocations if a[0] == "run" and f"container:{spec.name}-dockerd" in a]
+    assert not joins, "the sandbox was joined to a daemon that never answered"
+    assert any(a[:4] == ["rm", "-f", "-v", f"{spec.name}-dockerd"] for a in invocations)
+
+
+def test_a_probe_that_hangs_still_fails_the_creation_on_the_clock(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-3: a stalled dockerd hangs `docker info` itself, so each probe is
+    bounded by what is left of `ready_s` — the creation fails on time instead of
+    waiting on the hung call."""
+
+    from torve.adapters.runtime.docker import DockerError
+
+    monkeypatch.setenv("FAKE_DOCKER_INFO_HANG_S", "30")
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    started = time.monotonic()
+
+    with pytest.raises(DockerError, match="did not answer"):
+        runtime.create(nested_spec(ready_s=0.5), tmp_path)
+
+    assert time.monotonic() - started < 10
+
+
+def test_a_prune_that_times_out_fails_the_creation_and_removes_the_side(
+    fake_docker, tmp_path, monkeypatch
+):
+    """S-0111/D-2, D-3: a prune that never returns fails the creation as a
+    DockerError, and the privileged side container is removed, not leaked."""
+
+    from torve.adapters.runtime.docker import DockerError
+
+    runtime = DockerRuntime(docker_bin=str(fake_docker.script))
+    spec = nested_spec()
+    run = runtime._run
+
+    def stalled_prune(*args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if DockerRuntime.NESTED_PRUNE in args:
+            raise subprocess.TimeoutExpired(list(args), 120)
+        return run(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(runtime, "_run", stalled_prune)
+
+    with pytest.raises(DockerError, match="prune timed out"):
+        runtime.create(spec, tmp_path)
+
+    assert any(
+        a[:4] == ["rm", "-f", "-v", f"{spec.name}-dockerd"] for a in fake_docker.invocations()
+    )

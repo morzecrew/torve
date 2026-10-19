@@ -1,0 +1,154 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0624
+phase: 1
+attempt: 4
+base: 41f51a2e22844fa9bc3de0b17715af999071469c
+commit: 94be6d95cba5e639be91a0a47e6e739bae183247
+at: '2026-10-18T21:20:20Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-18T18:40:02Z'
+    claim: >-
+      S-0111/D-1 pins the nested side container's image to 'a pinned dind image' but
+      names no tag; the default had to be a concrete value for the runtime to start
+      at all.
+    evidence: >-
+      src/torve/config/runconfig.py:1030 — the default is docker:27.6.0-dind, matching
+      the 27.6.0-cli the base image copies its Docker CLI and plugins from (sandboxes/base/Dockerfile).
+    action: decided
+    proposal: >-
+      S-0111/D-1 should name the default dind tag and the constraint that it match
+      the CLI image the base copies from, so a version skew between the sandbox's
+      CLI and the side daemon is a row rather than a coincidence.
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-18T18:41:27Z'
+    claim: >-
+      Superseding the tag named a moment ago: the default dind pin is docker:27.5.1-dind,
+      a release tag known to exist, matching the docker:27.5.1-cli the base image
+      copies from. The earlier entry's 27.6.0 does not.
+    evidence: >-
+      src/torve/config/runconfig.py:1030 — image defaults to docker:27.5.1-dind; sandboxes/base/Dockerfile:28
+      copies the CLI and plugins from docker:27.5.1-cli, so the sandbox's client and
+      the side daemon agree.
+    action: decided
+    proposal: >-
+      S-0111/D-1 should name the default dind tag and the constraint that it match
+      the CLI image the base copies from, so a version skew between the sandbox's
+      client and the side daemon is a row rather than a coincidence.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-18T18:42:22Z'
+    claim: >-
+      Amending S-0071/D-5's text (per S-0111 Q-1) leaves its managed projection stale
+      in a file the contract's scope does not allow: src/torve/application/AGENTS.md
+      still carries the old sentence, and the shadow spec-projection gate reports
+      the directory drifting.
+    evidence: >-
+      src/torve/application/AGENTS.md:832 — the managed section still reads 'a sandbox
+      has no Docker daemon', where the row now reads 'unless the repository runs one
+      nested (S-0111)'.
+    action: decided
+    proposal: >-
+      Regenerate the projection for src/torve/application in the same change that
+      amends a row governing it, or add the governed AGENTS.md files to the scope
+      of a spec-amending phase, so a sanctioned amendment never lands the shadow spec-projection
+      gate red.
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-18T18:43:30Z'
+    claim: >-
+      Closed: the projection was regenerated with 44 governed directories, 0 written,
+      0 removed and src/torve/application/AGENTS.md now carries the amended D-5, so
+      the earlier entry's drift is gone and OK    44 governed directories, 0 drifting
+      is clean over all 44 governed directories.
+    evidence: >-
+      src/torve/application/AGENTS.md:832 — the managed section reads 'no Docker daemon
+      unless the repository runs one nested (S-0111)'.
+    action: decided
+    proposal: >-
+      No row needed: the projection is regenerated in-scope by 44 governed directories,
+      0 written, 0 removed and the finishing check enforces it, so an amendment that
+      governs a projected directory is already covered.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-18T18:52:24Z'
+    attempt: 2
+    claim: >-
+      The side container's daemon served TLS on 2376, not the plain 2375 the sandbox
+      is told: the dind image sets DOCKER_TLS_CERTDIR and its entrypoint only serves
+      plain HTTP when the variable is empty, so the sandbox's docker CLI had no listener
+      at DOCKER_HOST while readiness passed over the side container's own unix socket.
+      The fix clears DOCKER_TLS_CERTDIR in the side container's environment, so the
+      daemon listens where the sandbox looks.
+    evidence: >-
+      src/torve/adapters/runtime/docker.py:289 — the side container's run args carry
+      '-e DOCKER_TLS_CERTDIR=', the variable whose emptying turns the image's TLS
+      off; docker.py:81 is the DOCKER_HOST the sandbox is given.
+    action: decided
+    proposal: >-
+      S-0111/D-1 should say that the side daemon must be started so it serves its
+      API in the clear on 2375 — naming the DOCKER_TLS_CERTDIR clearing (or an equivalent)
+      — rather than only naming the address the sandbox reaches it at, so a dind image
+      whose default is TLS cannot silently leave the stated address dead.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-18T18:58:12Z'
+    attempt: 2
+    claim: >-
+      The side container's daemon served TLS on 2376, not the plain 2375 the sandbox
+      is told: the dind image sets DOCKER_TLS_CERTDIR and its entrypoint only serves
+      plain HTTP when the variable is empty, so the sandbox's docker CLI had no listener
+      at DOCKER_HOST while readiness passed over the side container's own unix socket.
+      The fix clears DOCKER_TLS_CERTDIR in the side container's environment, so the
+      daemon listens where the sandbox looks.
+    evidence: >-
+      src/torve/adapters/runtime/docker.py:289 — the side container's run args carry
+      '-e DOCKER_TLS_CERTDIR=', the variable whose emptying turns the image's TLS
+      off; docker.py:81 is the DOCKER_HOST the sandbox is given.
+    action: decided
+    proposal: >-
+      S-0111/D-1 should say that the side daemon must be started so it serves its
+      API in the clear on 2375 — naming the DOCKER_TLS_CERTDIR clearing (or an equivalent)
+      — rather than only naming the address the sandbox reaches it at, so a dind image
+      whose default is TLS cannot silently leave the stated address dead.
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-18T21:07:20Z'
+    attempt: 2
+    claim: >-
+      Correcting the third entry of this log: it claimed src/torve/application/AGENTS.md
+      lies outside the contract's scope. It does not. The scope gate promotes a managed
+      AGENTS.md whose parent directory holds a path the allow list admits, and src/torve/application/intake.py
+      is in the allow list, so the regenerated projection is admitted as a projection
+      rather than convicted as an escape. The entry's finding (the projection was
+      stale) stands; its scope claim does not.
+    evidence: >-
+      src/torve/gates/scope.py:125-127 — a changed AGENTS.md whose parent directory
+      is in scoped_dirs is promoted, and scoped_dirs is built from the diff's own
+      allow-listed paths (src/torve/gates/scope.py:93-103), which include src/torve/application/intake.py.
+    action: decided
+    proposal: >-
+      No row needed: the scope gate already says this (S-0104/D-6); the earlier entry
+      simply read the contract's allow list without reading the promotion beside it.

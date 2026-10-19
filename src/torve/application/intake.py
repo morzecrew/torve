@@ -252,17 +252,26 @@ TREE_ONLY_VERBS = frozenset(
 )
 
 
-def _needs_host(words: list[str]) -> bool:
+def _needs_host(words: list[str], nested_gates: bool = False) -> bool:
     """Whether this acceptance command reads the host rather than the tree.
 
     `torve doctor` is the one that burned T-0377: it reports on the Docker
     daemon, `$TORVE_PG_DSN` and the provider credentials, none of which a
     sandbox has by design, so all three attempts failed on the same two
-    lines and the contract could never have gone green (S-0071/D-5).
+    lines and the contract could never have gone green (S-0071/D-5, S-0111/D-7).
+
+    A command naming `docker` is refused unless the configuration nests the
+    gates role (`nested_gates`, S-0111/D-7): then the gates sandbox runs a
+    daemon of its own, and a Docker-bound suite named as acceptance runs
+    rather than skipping.
     """
 
-    if words[0] in {"docker", "podman"}:
+    # The nested daemon is Docker's: a gates sandbox has no podman to run.
+    if words[0] == "podman":
         return True
+
+    if words[0] == "docker":
+        return not nested_gates
 
     if "torve" not in words:
         return False
@@ -271,6 +280,31 @@ def _needs_host(words: list[str]) -> bool:
     verb = next((w for w in rest if not w.startswith("-")), None)
 
     return verb is not None and verb not in TREE_ONLY_VERBS
+
+
+# ....................... #
+
+
+def _nests_gates(tree: Path) -> bool:
+    """Whether the tree's committed configuration gives a gates sandbox a
+    Docker daemon of its own (S-0111/D-7), which is the one condition under
+    which an acceptance command naming `docker` can run where it is judged.
+    A missing or unreadable configuration is not nested: the lint refuses
+    where it cannot prove the daemon is there."""
+
+    path = tree / ".torve" / "config.yaml"
+
+    if not path.is_file():
+        return False
+
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        config = RunnerConfig.model_validate(raw or {})
+
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValidationError):
+        return False
+
+    return config.runtime.nests("gates")
 
 
 # ....................... #
@@ -359,6 +393,7 @@ def lint_drafts(
     tree_paths = _tree_paths(tree)
     all_paths = [p.as_posix() for p in tree_paths]
     drafts = document.drafts
+    nested_gates = _nests_gates(tree)
 
     if not drafts:
         return ["the document holds no drafts — an empty batch is a refusal, not a result"]
@@ -408,7 +443,7 @@ def lint_drafts(
                     "spec check` — and drop this one: the gate battery runs outside the sandbox "
                     "on the candidate already"
                 )
-            elif _needs_host(words):
+            elif _needs_host(words, nested_gates):
                 errors.append(
                     f"{ref}: acceptance command {command!r} reads the host, and a sandbox has "
                     "no Docker daemon, no database and no credentials — it reports on the "

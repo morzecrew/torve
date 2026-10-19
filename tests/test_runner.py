@@ -3216,3 +3216,50 @@ def test_a_held_contingent_write_is_not_a_gate_infrastructure_escalation(tmp_pat
     target = telemetry_target(run)
 
     assert not target.exists() or "gate_infrastructure" not in target.read_text(encoding="utf-8")
+
+
+def test_the_gates_sandbox_is_marked_nested_only_when_the_configuration_nests_gates():
+    """S-0111/D-4: the runner marks the gates sandbox when the configuration
+    nests the gates role — the daemon is the gates leg's first, and the volume
+    is slot-suffixed like every other per-slot volume."""
+
+    from torve.application.ports import NestedDocker
+    from torve.application.runner import _gates_spec
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import RuntimeConfig
+
+    run = _gate_dispatch(worker_slot=2)
+    state = RunState(task_id=TASK_ID, path=Path("state.json"), run_id="run-1")
+
+    # The default configuration nests nothing: an ordinary gates sandbox.
+    assert _gates_spec(run, state).nested is None
+
+    run.config = RunnerConfig(worker_slot=2, runtime=RuntimeConfig(docker="nested"))
+    spec = _gates_spec(run, state)
+
+    assert spec.nested == NestedDocker(
+        image="docker:27.5.1-dind", volume="torve-dind-2", registry_mirrors=(), ready_s=60
+    )
+    assert spec.name.endswith("-gates")
+
+    # A shadow run starts cold (S-0035/D-3): never the slot's daemon state.
+    run.shadow = True
+    shadow = _gates_spec(run, state).nested
+    assert shadow is not None and shadow.volume == ""
+
+
+def test_a_nested_implement_role_does_not_mark_the_gates_sandbox():
+    """The default nests the gates alone (S-0111/D-4): a configuration nesting
+    another role still runs the battery in an ordinary sandbox."""
+
+    from torve.application.runner import _gates_spec
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import NestedConfig, RuntimeConfig
+
+    run = _gate_dispatch(worker_slot=0)
+    run.config = RunnerConfig(
+        runtime=RuntimeConfig(docker="nested", nested=NestedConfig(roles=["implement"]))
+    )
+    state = RunState(task_id=TASK_ID, path=Path("state.json"), run_id="run-1")
+
+    assert _gates_spec(run, state).nested is None

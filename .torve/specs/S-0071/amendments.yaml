@@ -167,3 +167,30 @@ amendments:
       `sys.monitoring` tracer: measured on this suite, 25s plain, 47s under
       coverage, 30s under sysmon. The bar stays where it is until the median
       moves, and D-1's parallel suite is why holding it is now affordable.
+  - id: A-5
+    at: '2026-10-18T18:40:00Z'
+    title: >-
+      A gates sandbox can hold a daemon; the refusal holds everywhere else
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          A phase's acceptance commands are runnable in the environment that judges
+          them: a sandbox has no Docker daemon, no host credentials and no operational
+          state, so a command that reads any of those can never go green there and
+          the contract is unlandable by construction
+        after: >-
+          A phase's acceptance commands are runnable in the environment that judges
+          them: a sandbox has no Docker daemon unless the repository runs one nested
+          (S-0111), no host credentials and no operational state, so a command that
+          reads any of those can never go green there and the contract is unlandable
+          by construction
+    md: >-
+      S-0111 gives a sandbox a daemon of its own when the configuration runs one nested,
+      and the gates sandbox gets it first. So the sentence D-5's refusal rests on
+      — "a sandbox has no Docker daemon" — is no longer literally true, and an acceptance
+      command naming `docker` is runnable exactly when the repository nests its gates
+      role (S-0111/D-7). The owner agreed on 2026-10-18 (S-0111 Q-1). The refusal
+      itself is unchanged for every other configuration: the lint admits `docker`
+      only where `runtime.nested.roles` contains `gates`, and a sandbox with no daemon
+      still cannot run it.

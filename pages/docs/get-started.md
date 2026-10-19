@@ -133,6 +133,50 @@ What these settings mean:
   `torve run`; a served manager needs Postgres, as
   [Operating the engine](operating.md) says.
 
+### Docker inside a sandbox
+
+`runtime.docker` decides whether a sandbox gets a Docker daemon of its own:
+
+- `""` — none. The default.
+- `socket` — the host daemon's socket is mounted into every sandbox of the
+  run, attempt and gates alike. Host-equivalent capability, granted knowingly
+  per repository.
+- `nested` — a privileged side container runs its own daemon and each sandbox
+  of a role in `runtime.nested.roles` joins its network namespace and reaches
+  the daemon at `tcp://127.0.0.1:2375`. A task's containers, ports and volumes
+  are its own, and nothing it starts outlives it.
+
+`nested` needs the `docker` runtime; OpenSandbox and sealed broker mode refuse
+it, and the review role is refused — a judge never starts containers. The
+sandbox image must carry the Docker CLI: `sandboxes/base` does, so derive the
+gates image from it rather than from a stock language image.
+
+```yaml
+runtime:
+  adapter: docker
+  image: sandbox-base:latest    # carries the docker CLI; a stock image does not
+  docker: nested
+  nested:
+    image: docker:27.5.1-dind   # the pinned dind image the side container runs
+    cache_volume: torve-dind    # base name of the slot's /var/lib/docker volume
+    registry_mirrors: []        # mirrors dockerd is started with
+    roles: [gates]              # whose sandboxes get the daemon; review is refused
+    ready_s: 60                 # how long `docker info` may take to answer
+```
+
+- **`nested.image`.** The side container's image, a pinned dind image. It
+  should match the Docker CLI the sandbox image carries.
+- **`nested.cache_volume`.** The base name of the volume holding the side
+  daemon's `/var/lib/docker`; the worker slot is appended, so what a task
+  pulled stays pulled for that slot and two workers never share a daemon's
+  state.
+- **`nested.registry_mirrors`.** Registry mirrors passed to `dockerd` as
+  `--registry-mirror=<url>`.
+- **`nested.roles`.** The roles whose sandboxes get the daemon, defaulting to
+  `[gates]`. Adding `implement` lets an attempt run what its gates will run.
+- **`nested.ready_s`.** How long the sandbox's creation waits for the side
+  daemon's `docker info` before failing as a runtime error, defaulting to 60.
+
 `torve doctor` checks the configuration and the environment, including that
 every configured seat's provider is one this repository may reach.
 

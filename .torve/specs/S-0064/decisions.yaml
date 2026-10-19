@@ -194,7 +194,9 @@ invariants:
       Every dispatchable seat names a model its provider's roster lists and a dialect
       its harness speaks; neither is discovered by an attempt.
     paths: [src/torve/config/runconfig.py, src/torve/config/providers.py]
-    check: uv run pytest tests/test_providers.py -k pairing
+    check: >-
+      uv run pytest tests/test_runconfig.py tests/test_dispatch.py -k "cannot_speak
+      or declaring_no_dialect or roster_does_not_list"
   - id: I-2
     statement: >-
       No sandbox definition tests whether a broker is in force.

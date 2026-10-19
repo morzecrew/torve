@@ -46,6 +46,23 @@ PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy", "socks_proxy
 
 
 @dataclass(frozen=True)
+class NestedDocker:
+    """A sandbox's own daemon (S-0111/D-1): the image the privileged side
+    container runs, the worker slot's docker-state volume, the registry
+    mirrors, and how long its `docker info` may take to answer. The runner
+    composes it from `runtime.nested` — the config resolves role membership,
+    the runtime adapter derives nothing."""
+
+    image: str
+    volume: str  # the slot-suffixed docker-state volume; "" for a shadow run's throwaway one
+    registry_mirrors: tuple[str, ...] = ()
+    ready_s: float = 60.0
+
+
+# ....................... #
+
+
+@dataclass(frozen=True)
 class SandboxSpec:
     name: str
     image: str
@@ -69,6 +86,11 @@ class SandboxSpec:
     # with, and the description of that equipment sits inside the same mount so
     # it cannot be rewritten either (S-0063/D-12).
     readonly_binds: dict[str, str] = field(default_factory=dict)
+    # Set when this sandbox gets a daemon of its own (S-0111/D-1): the runner
+    # marks the sandboxes of a nested role, and the runtime starts the side
+    # container and joins this one to it. None is the ordinary sandbox, with
+    # no daemon and no side container.
+    nested: NestedDocker | None = None
 
 
 # ....................... #

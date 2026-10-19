@@ -170,3 +170,18 @@ def test_untrusted_permits_a_sealed_broker():
         broker=BrokerConfig(adapter="local", mode="sealed", network="fleet-internal"),
     )
     enforce_trust(repo, config)  # no raise
+
+
+def test_own_permits_nested_and_every_other_class_refuses_it():
+    """S-0111/D-4: nested mode runs only where socket mode could — a privileged
+    side container is host-equivalent capability, granted to `own` alone."""
+
+    own = FleetRepository(root="/x", trust="own")
+    enforce_trust(own, RunnerConfig(runtime=RuntimeConfig(docker="nested")))  # no raise
+
+    for trust in ("reviewed", "untrusted"):
+        repo = FleetRepository(root="/x", trust=trust)
+        config = RunnerConfig(runtime=RuntimeConfig(docker="nested"))
+
+        with pytest.raises(TrustRefused, match=rf"{trust}.*runtime\.docker: nested"):
+            enforce_trust(repo, config)

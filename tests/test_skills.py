@@ -436,6 +436,20 @@ def test_the_operator_skill_states_the_rails_and_ships_its_references():
         assert f"torve guide torve {name}" in text, name
 
 
+def test_the_adopting_reference_says_when_to_nest_a_docker_daemon():
+    """An operator choosing how a sandbox gets Docker reads from `adopting.md`
+    when `nested` beats the host socket, that a nested attempt's proxy must
+    answer on the side container's network gateway, and that the first task in
+    a worker slot pays a cold-cache pull."""
+
+    text = (skills_root() / "torve" / "references" / "adopting.md").read_text(encoding="utf-8")
+
+    assert "nested" in text
+    assert "socket" in text
+    assert "gateway" in text, "the host proxy prerequisite for a nested attempt is not stated"
+    assert "cold cache" in text, "the cold-cache cost of a slot's first task is not stated"
+
+
 def test_every_verb_the_operator_skill_names_exists():
     """The skill defers to `--help` for flags, so what it can drift on is a verb:
     every `torve <group> <verb>` it names resolves in the CLI."""

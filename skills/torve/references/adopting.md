@@ -65,6 +65,31 @@ nothing and changes nothing.
   network, a proxy variable) is fixed or excluded first. Otherwise every
   attempt inherits the red.
 
+### Docker inside the sandbox
+
+A repository whose tests start containers — testcontainers, `docker compose`,
+an e2e suite — needs a Docker daemon inside the gates sandbox. `runtime.docker`
+chooses how:
+
+- `socket` mounts the host daemon's socket into every sandbox. It is the host's
+  own Docker: a container the agent starts can mount any host path, and every
+  task's compose projects collide with the owner's and with each other on fixed
+  names and ports. Grant it knowingly, per repository.
+- `nested` runs a privileged side container with its own daemon and joins each
+  sandbox of a role in `runtime.nested.roles` to it, so a task's containers,
+  ports and volumes are its own and nothing it starts outlives it. Choose it
+  over `socket` when an unattended agent, or tasks that run in parallel, would
+  otherwise share the host's daemon. `roles` defaults to `[gates]`; adding
+  `implement` lets an attempt run what its gates will run. The review role is
+  refused.
+
+Two costs to plan for. A nested attempt reaches the outside world over the side
+container's network gateway, so a proxy the attempt's model needs must listen
+on that gateway, not on loopback alone — a proxy bound to `127.0.0.1` leaves
+the attempt unable to reach its model. And the side daemon keeps its images in
+a per-worker cache volume: a slot's first task pays a cold cache and pulls
+everything its compose project names, several gigabytes for a large one.
+
 ## 5. The sandbox image
 
 The starter names a plain image. Real runs use torve's harness image, which

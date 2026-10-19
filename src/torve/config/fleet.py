@@ -115,9 +115,9 @@ def enforce_trust(repo: FleetRepository, config: RunnerConfig) -> None:
     class (§5.3):
 
     | class     | permits                          | requires                |
-    | own       | runtime.docker: socket, any network | —                     |
-    | reviewed  | no socket                        | providers.default empty |
-    | untrusted | no socket, no network: host      | broker.mode: sealed     |
+    | own       | runtime.docker: socket or nested, any network | —            |
+    | reviewed  | no docker inside the sandbox     | providers.default empty |
+    | untrusted | no docker inside the sandbox, no network: host | broker.mode: sealed |
 
     `own` is unchecked by design — it is the class that already trusts the
     repository as its own shell. Every other class refuses with `TrustRefused`
@@ -128,11 +128,11 @@ def enforce_trust(repo: FleetRepository, config: RunnerConfig) -> None:
     if repo.trust == "own":
         return
 
-    if config.runtime.docker == "socket":
+    if config.runtime.docker in ("socket", "nested"):
         raise TrustRefused(
             f"root {repo.root!r} is trust class {repo.trust!r}, which permits no "
-            "runtime.docker: socket — host-equivalent capability is granted to "
-            "'own' repositories only (S-0017 S-0017/D-10)"
+            f"runtime.docker: {config.runtime.docker} — host-equivalent capability "
+            "is granted to 'own' repositories only (S-0017 S-0017/D-10, S-0111/D-4)"
         )
 
     if repo.trust == "untrusted":
