@@ -41,6 +41,18 @@ StoreFactory = Callable[["StoreConfig"], Awaitable["DurableRunStorePort"]]
 # the values ride the runtime's own environment, never a spec.
 PROXY_ENV = ("http_proxy", "https_proxy", "ftp_proxy", "all_proxy", "socks_proxy", "no_proxy")
 
+# The judge checkout (S-0114/D-1): the host snapshots a candidate's stageable
+# state under this ref and builds a standalone checkout beside the worktree it
+# came from, named by this suffix. Both live in the application layer because
+# the reaper reads the name and refs the adapter writes, and neither may
+# import the other (S-0015: application does not import adapters).
+JUDGE_SUFFIX = ".judge"
+JUDGE_REF_PREFIX = "refs/torve/judge/"
+
+
+def judge_ref(task_id: str) -> str:
+    return f"{JUDGE_REF_PREFIX}{task_id}"
+
 
 # ....................... #
 
@@ -167,6 +179,14 @@ class WorkspacePort(Protocol):
     def remove(self, task_id: str) -> None: ...
 
     def list_worktrees(self) -> list[tuple[str, Path]]: ...
+
+    # The judge checkout (S-0114/D-1): commit what `git add -A` would stage in
+    # the task's worktree — the index and branch untouched — to the task's
+    # judge ref, and build a standalone, detached checkout of that snapshot at
+    # `.wt/<task>.judge/`, verified before it is returned.
+    def judge_checkout(self, task_id: str) -> Path: ...
+
+    def remove_judge(self, task_id: str) -> None: ...
 
 
 # ....................... #

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
 from datetime import UTC, datetime, timedelta
 
 from test_run_loop import MockRuntime
 
-from torve.application.ports import SandboxInfo
+from torve.adapters.workspace.git import GitWorkspace
+from torve.application.ports import SandboxInfo, judge_ref
 from torve.application.reaper import reap
 from torve.application.runstate import RunState
 from torve.base import naming
@@ -19,12 +21,16 @@ class ListingWorkspace:
     def __init__(self, entries):
         self.entries = entries
         self.removed: list[str] = []
+        self.removed_judge: list[str] = []
 
     def create(self, task_id, base_ref):
         raise AssertionError("reap never creates")
 
     def remove(self, task_id):
         self.removed.append(task_id)
+
+    def remove_judge(self, task_id):
+        self.removed_judge.append(task_id)
 
     def list_worktrees(self):
         return self.entries
@@ -181,6 +187,53 @@ def test_the_lane_s_checkouts_survive_every_sweep(tmp_path):
         assert report.worktrees_removed == []
 
     assert workspace.removed == []
+
+
+def test_a_left_judge_checkout_and_its_ref_are_swept_a_live_battery_s_kept(tmp_path):
+    # S-0114/D-5: a judge checkout has no state file of its own, so its
+    # liveness is its task's run state — a live battery's survives, and a
+    # killed pass's goes with the rest of the task's footprint.
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    (root / "f.txt").write_text("one\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "base")
+
+    workspace = GitWorkspace(root)
+    # A killed pass left its checkout behind and no state file: pure debris.
+    workspace.create("T-9701", "HEAD")
+    dead = workspace.judge_checkout("T-9701")
+    # A live battery: the task's run is active with a fresh heartbeat.
+    state_at(root, "T-9702", TaskState.RUNNING)
+    workspace.create("T-9702", "HEAD")
+    live = workspace.judge_checkout("T-9702")
+
+    report = reap(root, RunnerConfig(), MockRuntime(), workspace)
+
+    assert "T-9701.judge" in report.worktrees_removed
+    assert not dead.exists()
+    assert ref_missing(root, "T-9701")
+    assert "T-9702.judge" not in report.worktrees_removed
+    assert live.exists()
+    assert not ref_missing(root, "T-9702")
+
+
+def ref_missing(root, task_id):
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", judge_ref(task_id)],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    )
 
 
 def test_worktrees_are_removed_only_for_terminal_or_stateless_tasks(tmp_path):

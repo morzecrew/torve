@@ -3,12 +3,15 @@ task's own branch, derived entirely from the task id (S-0003/D-4)."""
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import tempfile
 import threading
 from contextlib import suppress
 from pathlib import Path
 
+from torve.application.ports import JUDGE_SUFFIX, judge_ref
 from torve.base import naming
 
 # ----------------------- #
@@ -25,12 +28,44 @@ _WORKTREE_LOCK = threading.Lock()
 # covered by the one flag on the parent command.
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
 
+# The judge snapshot is an engine commit: no person is claimed for it, so it
+# is committed under the same `Torve <torve@local>` identity `GitVcs` uses for
+# an unsigned landing (S-0010).
+COMMITTER = ("-c", "user.name=Torve", "-c", "user.email=torve@local")
+
+# The upload-pack a judge fetch asks for: the snapshot is not an advertised
+# ref, so the source must serve an arbitrary sha, exactly as a shadow clone's
+# fetch does (S-0004/D-7).
+_UPLOAD_PACK = "git -c core.hooksPath=/dev/null -c uploadpack.allowanysha1inwant=true upload-pack"
+
 
 # ....................... #
 
 
 class WorkspaceError(RuntimeError):
     pass
+
+
+# ....................... #
+
+
+def _git_at(path: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    """One git call in `path`, raising on failure; the shape every helper
+    here shares, so a judge snapshot's temporary-index calls read like the
+    adapter's own."""
+
+    proc = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(path), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    if proc.returncode != 0:
+        raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
+
+    return proc.stdout
 
 
 # ....................... #
@@ -43,17 +78,7 @@ class GitWorkspace:
     # ....................... #
 
     def _git(self, *args: str) -> str:
-        proc = subprocess.run(
-            ["git", *NO_HOOKS, "-C", str(self.root), *args],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if proc.returncode != 0:
-            raise WorkspaceError(proc.stderr.strip() or f"git {' '.join(args)} failed")
-
-        return proc.stdout
+        return _git_at(self.root, *args)
 
     # ....................... #
 
@@ -184,6 +209,102 @@ class GitWorkspace:
             return []
 
         return [(p.name, p) for p in sorted(wt_root.iterdir()) if p.is_dir()]
+
+    # ....................... #
+
+    def judge_checkout(self, task_id: str) -> Path:
+        """The candidate the gates read (S-0114/D-1): commit what `git add -A`
+        would stage in the task's worktree to `refs/torve/judge/<task>`, then
+        build a standalone checkout at `.wt/<task>.judge/` — the way a shadow
+        clone stands alone (S-0004/D-7) — detached at the snapshot and
+        verified before any gate runs over it.
+
+        The snapshot stages through a temporary index (`GIT_INDEX_FILE`), so
+        the worktree's own index is exactly as it was and its branch never
+        moves. The commit's parent is the worktree's HEAD, so its history is
+        the candidate's real history, and the fetch at depth 1 transfers only
+        the objects the snapshot reaches."""
+
+        snapshot = self._snapshot(task_id)
+        path = self.root / naming.WORKTREE_DIR / f"{task_id}{JUDGE_SUFFIX}"
+
+        if path.exists():
+            shutil.rmtree(path)
+
+        path.mkdir(parents=True)
+
+        _git_at(path, "init", "-q")
+        proc = subprocess.run(
+            [
+                "git",
+                *NO_HOOKS,
+                "-C",
+                str(path),
+                "fetch",
+                "-q",
+                "--depth=1",
+                "--upload-pack",
+                _UPLOAD_PACK,
+                str(self.root),
+                snapshot,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if proc.returncode != 0:
+            raise WorkspaceError(proc.stderr.strip() or f"judge fetch for {task_id} failed")
+
+        _git_at(path, "checkout", "-q", "--detach", "FETCH_HEAD")
+
+        head = _git_at(path, "rev-parse", "HEAD").strip()
+
+        if head != snapshot:
+            raise WorkspaceError(
+                f"judge checkout for {task_id} is at {head}, not the snapshot {snapshot}"
+            )
+
+        return path
+
+    # ....................... #
+
+    def _snapshot(self, task_id: str) -> str:
+        """The commit `git add -A` would carry, written to the judge ref. The
+        worktree's index and branch are untouched: staging happens through a
+        temporary index, and the ref is written directly, never through a
+        checkout."""
+
+        worktree = naming.worktree(self.root, task_id)
+        head = _git_at(worktree, "rev-parse", "HEAD").strip()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
+
+            def stage(*args: str) -> str:
+                return _git_at(worktree, *COMMITTER, *args, env=env)
+
+            stage("read-tree", head)
+            stage("add", "-A")
+            tree = stage("write-tree").strip()
+            snapshot = stage("commit-tree", tree, "-p", head, "-m", "judge snapshot").strip()
+
+        self._git("update-ref", judge_ref(task_id), snapshot)
+
+        return snapshot
+
+    # ....................... #
+
+    def remove_judge(self, task_id: str) -> None:
+        """Take the judge checkout and its ref (S-0114/D-5): the checkout is a
+        standalone repository, not a worktree of the root, so it goes with
+        `rmtree`; the ref is the one thing here the root owns."""
+
+        path = self.root / naming.WORKTREE_DIR / f"{task_id}{JUDGE_SUFFIX}"
+        shutil.rmtree(path, ignore_errors=True)
+
+        if self._ref_exists(judge_ref(task_id)):
+            self._git("update-ref", "-d", judge_ref(task_id))
 
 
 # ....................... #
