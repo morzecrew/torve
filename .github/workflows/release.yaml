@@ -159,9 +159,11 @@ jobs:
 
   # S-0112/D-1, S-0112/D-4: once PyPI has the package, build every image from
   # the tag, prove each one runs this release, and push only then. A failure
-  # here leaves the package published and no image tagged — a half-released
-  # state the job can be rerun from, rather than a tag that names another
-  # torve.
+  # in the build or the checks leaves the package published and no image
+  # tagged — a half-released state the job can be rerun from, rather than a
+  # tag that names another torve. A failure partway through the push leaves
+  # some tags published, and a rerun stops at the first of them, because a
+  # published tag is never pushed twice: those tags are removed by hand first.
   images:
     name: Build and publish the sandbox images
     needs: publish
