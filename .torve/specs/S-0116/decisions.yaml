@@ -153,7 +153,7 @@ decisions:
     rationale: >-
       Hidden tests are what stop special-casing; visible read-only tests alone do
       not.
-    cites: [D-9, S-0055/D-3]
+    cites: [D-9, S-0055/D-3, S-0114/D-2]
   - id: D-11
     grade: ASSUMED
     text: >-

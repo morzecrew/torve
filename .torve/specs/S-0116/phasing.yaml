@@ -1,4 +1,5 @@
 # yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0114]
 phasing:
   - phase: 1
     title: The verify role and its configuration
