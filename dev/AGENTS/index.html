@@ -866,10 +866,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#s-0112d-8-assumed-a-release-publishes-its-seat-images-implementation-none" class="md-nav__link">
+  <a href="#s-0112d-8-assumed-a-release-publishes-its-seat-images" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        S-0112/D-8 — <code>ASSUMED</code> (A release publishes its seat images) — implementation: none
+        S-0112/D-8 — <code>ASSUMED</code> (A release publishes its seat images)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-0116d-13-assumed-an-independent-verifier-implementation-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S-0116/D-13 — <code>ASSUMED</code> (An independent verifier) — implementation: none
       </span>
     </span>
   </a>
@@ -944,11 +955,17 @@
 <li>Paths: <code>src/torve/cli/init.py</code> <code>skills/torve/**</code> <code>skills/hooks/**</code> <code>pages/docs/**</code></li>
 <li>Consequence: torve's pins and an application's never meet in one lock</li>
 </ul>
-<h3 id="s-0112d-8-assumed-a-release-publishes-its-seat-images-implementation-none">S-0112/D-8 — <code>ASSUMED</code> (A release publishes its seat images) — implementation: none<a class="headerlink" href="#s-0112d-8-assumed-a-release-publishes-its-seat-images-implementation-none" title="Permanent link">&para;</a></h3>
+<h3 id="s-0112d-8-assumed-a-release-publishes-its-seat-images">S-0112/D-8 — <code>ASSUMED</code> (A release publishes its seat images)<a class="headerlink" href="#s-0112d-8-assumed-a-release-publishes-its-seat-images" title="Permanent link">&para;</a></h3>
 <p>The adoption and upgrading references and the configuration reference say to pull the published images, name them with <code>{torve}</code>, and derive from <code>ghcr.io/morzecrew/sandbox-base</code>.</p>
 <ul>
 <li>Paths: <code>skills/torve/references/**</code> <code>pages/docs/**</code></li>
 <li>Consequence: an adopter's first image step is a pull, not a copy</li>
+</ul>
+<h3 id="s-0116d-13-assumed-an-independent-verifier-implementation-none">S-0116/D-13 — <code>ASSUMED</code> (An independent verifier) — implementation: none<a class="headerlink" href="#s-0116d-13-assumed-an-independent-verifier-implementation-none" title="Permanent link">&para;</a></h3>
+<p>The operating guide and the torve skill's night reference say how to turn the pilot on, read a held-out failure and handle a disputed test, and the spec-writer guide asks a phase's intent to name the public surface its tests drive.</p>
+<ul>
+<li>Paths: <code>pages/docs/operating.md</code> <code>skills/torve/references/night.md</code> <code>skills/spec-writer/**</code></li>
+<li>Consequence: a phase written for a verifier names what to test, so the verifier does not invent an API</li>
 </ul>
 <!-- /torve:managed -->
 
