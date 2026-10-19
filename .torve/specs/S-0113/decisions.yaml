@@ -5,8 +5,8 @@ decisions:
     text: >-
       When git fails in a root that has a `.git`, the citation scan reads the tracked
       files from `.torve/tmp/tracked-files`. With no list there, `torve spec check`
-      reports a problem saying the scan did not run; it never reads the tree as empty.
-      A root with no `.git` scans nothing, as before.
+      warns that the scan did not run; it never reads the tree as empty without saying
+      so. A root with no `.git` scans nothing, as before.
     paths: [src/torve/config/spec.py]
     consequence: >-
       spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations
@@ -15,6 +15,7 @@ decisions:
       In the S-0111 night `tracked_files` returned an empty list in the gates sandbox,
       and spec-valid passed three attempts that carried an undefined citation.
     cites: [S-0057/D-9]
+    fingerprint: d8a87f95e6c8cc63/92df5eff8127f735
   - id: D-2
     grade: ASSUMED
     text: >-

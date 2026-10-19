@@ -760,7 +760,7 @@ The pre-write, read and finish hooks and their `claude/settings.json` live in `s
 
 ### S-0113/D-1 — `ASSUMED` (A gate in the sandbox sees what the host sees) — implementation: none
 
-When git fails in a root that has a `.git`, the citation scan reads the tracked files from `.torve/tmp/tracked-files`. With no list there, `torve spec check` reports a problem saying the scan did not run; it never reads the tree as empty. A root with no `.git` scans nothing, as before.
+When git fails in a root that has a `.git`, the citation scan reads the tracked files from `.torve/tmp/tracked-files`. With no list there, `torve spec check` warns that the scan did not run; it never reads the tree as empty without saying so. A root with no `.git` scans nothing, as before.
 
 - Paths: `src/torve/config/spec.py`
 - Consequence: spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations they judge on the host

@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-19T07:41:41Z'
+    title: >-
+      With no list, the check warns that the scan did not run
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          When git fails in a root that has a `.git`, the citation scan reads the
+          tracked files from `.torve/tmp/tracked-files`. With no list there, `torve
+          spec check` reports a problem saying the scan did not run; it never reads
+          the tree as empty. A root with no `.git` scans nothing, as before.
+        after: >-
+          When git fails in a root that has a `.git`, the citation scan reads the
+          tracked files from `.torve/tmp/tracked-files`. With no list there, `torve
+          spec check` warns that the scan did not run; it never reads the tree as
+          empty without saying so. A root with no `.git` scans nothing, as before.
+      - subject: D-1
+        field: fingerprint
+        after: d8a87f95e6c8cc63/92df5eff8127f735
+    md: >-
+      Phase 1 could not go green. The engine that runs a battery writes the list only
+      once it carries S-0113/D-2, so under any older engine, the one serving this
+      document included, a gates sandbox has no list and a problem fails spec-valid
+      on every attempt. A warning names the skipped scan without failing a battery
+      the sandbox cannot repair. Citations stay guarded on the host, where the whole-document
+      battery runs with git and, once S-0113/D-3 lands, the lane scans before every
+      fast-forward.

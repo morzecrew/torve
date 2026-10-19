@@ -5,7 +5,7 @@ phasing:
     title: A sandbox scans the host's list of tracked files
     intent: >-
       `tracked_files` reads `.torve/tmp/tracked-files` when git fails in a root that
-      has a `.git`, and the check reports a problem when it has neither; the runner
+      has a `.git`, and the check warns when it has neither (S-0113/A-1); the runner
       writes the list before the gates sandbox starts and the session before the attempt's
       sandbox starts. Tests: the scan with git failing, with and without the list,
       and with no `.git` (`tests/test_spec.py`, `tests/test_cli_spec.py`); the list
