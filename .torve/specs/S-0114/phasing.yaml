@@ -5,12 +5,16 @@ phasing:
     title: A worktree's state becomes a standalone checkout
     intent: >-
       The workspace adapter snapshots a worktree's stageable state into `refs/torve/judge/<task>`
-      through a temporary index and clones it into `.wt/<task>.judge/`, behind a port
-      method; the reaper removes judge checkouts and refs. Tests: the snapshot holds
-      a tracked change and a new file but no ignored file and leaves the index and
-      branch as they were; git runs in the checkout and its history ends at the snapshot
-      (`tests/test_judge_checkout.py`); the reaper sweeps a left checkout and ref
-      (`tests/test_reaper.py`). Settles D-1 and the reaper half of D-5.
+      through a temporary index and builds `.wt/<task>.judge/` from it by init and
+      a fetch of the snapshot alone, checked out detached and verified against the
+      snapshot, behind a port method; the reaper removes a `<task>.judge` checkout
+      and its ref only when its task's run is no longer live, and leaves the lane's.
+      Tests: the snapshot holds a tracked change and a new file but no ignored file
+      and leaves the index and branch as they were; git runs in the checkout, its
+      HEAD is the snapshot, its history ends there and it holds no object the snapshot
+      does not reach (`tests/test_judge_checkout.py`); the reaper sweeps a left checkout
+      and ref and keeps a live battery's (`tests/test_reaper.py`). Settles D-1 and
+      the reaper half of D-5.
     scope:
       - src/torve/adapters/workspace/git.py
       - src/torve/application/ports.py
@@ -28,11 +32,13 @@ phasing:
     intent: >-
       `run_gate_pass` snapshots after the contract copy, builds the gate context over
       the judge checkout, mounts the checkout into the gates sandbox and removes it
-      when the battery ends; before the snapshot it records `ignored-writes` as a
-      shadow result when the attempt wrote ignored files outside the excluded set.
-      The test doubles that stand in for the workspace gain the new port method. Tests:
-      a tampered `.venv` and `.torve/tmp/tracked-files` never reach a gate; `ignored-writes`
-      names a written ignored file and stays silent for caches (`tests/test_runner.py`,
+      when the battery ends; when the attempt ends, before writing into the worktree,
+      it records `ignored-writes` as a shadow result when the attempt wrote ignored
+      files outside the caches, counting a file the engine wrote only when its content
+      changed. The test doubles that stand in for the workspace gain the new port
+      method. Tests: a tampered `.venv` and `.torve/tmp/tracked-files` never reach
+      a gate; `ignored-writes` names a written ignored file and a rewritten `.torve/tmp/tracked-files`,
+      and stays silent for caches and the engine's untouched files (`tests/test_runner.py`,
       `tests/test_run_loop.py`). Settles D-2, D-4 and the gate-pass half of D-5.
     scope:
       - src/torve/application/runner.py
@@ -52,10 +58,12 @@ phasing:
     intent: >-
       `process_lane` takes a factory that opens a gates sandbox over a judge checkout
       of the rebased tip, and `_regate` hands its shell gates to it for the candidate
-      re-gate and the whole-document battery; `torve merge` and the manager's lane
-      leg build the factory from the configuration's runtime. Tests: both batteries
-      run their shell gates through the factory and never on the host (`tests/test_lane.py`,
-      `tests/test_lane_prevention.py`, `tests/test_manager.py`). Settles D-3.
+      re-gate and the whole-document battery, removing the lane's judge checkout when
+      each battery ends, green or red; `torve merge` and the manager's lane leg build
+      the factory from the configuration's runtime. Tests: both batteries run their
+      shell gates through the factory and never on the host, and leave no judge checkout
+      behind (`tests/test_lane.py`, `tests/test_lane_prevention.py`, `tests/test_manager.py`).
+      Settles D-3 and the lane's half of D-5.
     scope:
       - src/torve/application/lane.py
       - src/torve/cli/merge.py

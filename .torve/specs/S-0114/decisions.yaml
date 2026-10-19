@@ -5,8 +5,10 @@ decisions:
     text: >-
       Before an attempt's battery, the host commits what `git add -A` would stage
       in the worktree to a snapshot under `refs/torve/judge/<task>`, leaving the worktree's
-      index and branch untouched, and clones the snapshot into a standalone checkout
-      at `.wt/<task>.judge/` whose history ends at the snapshot.
+      index and branch untouched, and builds a standalone checkout at `.wt/<task>.judge/`
+      the way a shadow replay builds its clone: a fresh repository that fetches the
+      snapshot alone, so it holds only the objects the snapshot reaches, checked out
+      detached at the snapshot's commit, which the host verifies before any gate runs.
     paths: [src/torve/adapters/workspace/git.py, src/torve/application/ports.py]
     consequence: >-
       a gate reads only what the commit would carry, and can run git over the candidate's
@@ -14,7 +16,7 @@ decisions:
     rationale: >-
       On 2026-10-19 two attempts passed spec-valid with an ignored file they wrote
       themselves; an ignored file is in no commit.
-    cites: [S-0055/D-2, S-0113/D-2]
+    cites: [S-0055/D-2, S-0113/D-2, S-0004/D-7]
   - id: D-2
     grade: ASSUMED
     text: >-
@@ -33,8 +35,8 @@ decisions:
     text: >-
       The lane's re-gate of a rebased candidate and the whole-document battery run
       their shell gates in a gates sandbox, under the default executor seat's image,
-      over a judge checkout of the rebased tip; `process_lane` is handed the sandbox
-      factory by `torve merge` and the manager's lane leg.
+      over a judge checkout of the rebased tip under the lane's `lane-` prefix; `process_lane`
+      is handed the sandbox factory by `torve merge` and the manager's lane leg.
     paths:
       - src/torve/application/lane.py
       - src/torve/cli/merge.py
@@ -48,11 +50,12 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      Before the snapshot, the host lists the ignored files under the worktree that
-      the attempt created or changed, outside the engine's own files under `.torve/tmp/`
-      and the toolchain caches, and records a list that is not empty as the shadow
-      result `ignored-writes` in the attempt's battery; the reviewer does not read
-      it.
+      When the attempt ends, before the gate pass writes into the worktree, the host
+      lists the ignored files under the worktree that the attempt created or changed,
+      outside the toolchain caches and the files the engine wrote there whose content
+      is still what the engine wrote, and records a list that is not empty as the
+      shadow result `ignored-writes` in the attempt's battery; the reviewer does not
+      read it.
     paths: [src/torve/application/runner.py]
     consequence: >-
       an attempt that writes outside its commit shows in its record without changing
@@ -60,15 +63,24 @@ decisions:
     rationale: >-
       The judge no longer reads those files, but a write to one is how an attempt
       tried to steer the verdict, and the night's reader should see it.
-    cites: [S-0055/D-1, S-0054/D-13]
+    cites: [S-0055/D-1, S-0054/D-13, S-0113/D-2]
   - id: D-5
     grade: ASSUMED
     text: >-
-      A gate pass removes its judge checkout and ref when the battery ends, and `torve
-      reap` removes any a killed pass left, with the rest of the task's footprint.
-    paths: [src/torve/application/runner.py, src/torve/application/reaper.py]
-    consequence: a judge checkout outlives no battery
+      Each battery removes its judge checkout and ref when it ends, green or red:
+      the attempt's gate pass its `.wt/<task>.judge/`, the lane the one it opened
+      under its own `lane-` prefix. `torve reap` reads a `<task>.judge` checkout's
+      liveness from its task's run state, keeps a live battery's checkout, removes
+      one a killed pass left with the rest of the task's footprint, and leaves the
+      lane's to the lane.
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/lane.py
+      - src/torve/application/reaper.py
+    consequence: >-
+      a judge checkout outlives no battery, and no reap removes one a battery is reading
     rationale: >-
       A checkout per battery doubles a task's disk while it runs, and a killed pass
-      would leave it behind.
+      would leave it behind. The sweep reads each directory under `.wt/` by its name,
+      so a checkout named for no state file would read as debris mid-battery.
     cites: [D-1]

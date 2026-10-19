@@ -41,7 +41,7 @@ design:
     md: |-
       After the attempt, the host commits the worktree's state to a snapshot without touching the worktree's own index or branch: `git add -A` into a temporary index, `write-tree`, then `commit-tree` on the attempt's head, kept under `refs/torve/judge/<task>`. `git add -A` honours `.gitignore`, so the snapshot holds what the engine's own commit would hold, tracked changes and new files, and never an ignored one. The contract copy the gate pass places in the worktree lands before the snapshot, as it lands before the battery today.
 
-      The host then clones the snapshot into `.wt/<task>.judge/` with `git clone --local --single-branch`. The checkout has a `.git` directory of its own: git works inside it, its history ends at the snapshot, and its `.git/config` names only the local source, so no credential the host's checkout keeps comes with it.
+      The host then builds `.wt/<task>.judge/` the way a shadow replay builds its clone (S-0004/D-7): `git init`, a fetch of `refs/torve/judge/<task>` alone from the host repository's upload-pack, which transfers only the objects the snapshot reaches, and a detached checkout of the fetched commit, whose HEAD the host checks against the snapshot's sha before any gate runs. The checkout has a `.git` directory of its own: git works inside it, and its history ends at the snapshot and holds the attempt's base, which `{base}` names by sha. Nothing the snapshot does not reach comes with it, and its `.git/config` names no remote, so no credential the host's checkout keeps comes with it either.
   - key: the-attempt-battery
     md: >-
       `run_gate_pass` builds the gate context over the judge checkout and mounts the
@@ -57,15 +57,19 @@ design:
       by its two callers, `torve merge` and the manager's lane leg, from the configuration's
       runtime. Both batteries run under the default executor seat's image: a document
       battery has no task whose seat it could reuse, and one image keeps the lane's
-      two verdicts comparable. The rebase stays on the host, in git, where no candidate
-      code runs.
+      two verdicts comparable. The lane names that checkout under its `lane-` prefix
+      and removes it when each battery ends, green or red, as it does its other checkouts.
+      The rebase stays on the host, in git, where no candidate code runs.
   - key: ignored-writes
     md: >-
-      Before the snapshot, the host lists every ignored file under the worktree that
-      was created or changed after the attempt started, leaving out the engine's own
-      files under `.torve/tmp/` and the toolchain's caches (`.venv/`, `__pycache__/`,
-      `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `node_modules/`). A list that
-      is not empty is recorded as a shadow result, `ignored-writes`, in the attempt's
+      When the attempt ends, before the gate pass writes into the worktree, the host
+      lists every ignored file under the worktree that was created or changed after
+      the attempt's sandbox started, leaving out the toolchain's caches (`.venv/`,
+      `__pycache__/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `node_modules/`).
+      A file the engine wrote there itself, `.torve/tmp/tracked-files` among them
+      (S-0113/D-2), is left out only while its content is still what the engine wrote:
+      an attempt that rewrites the list, as T-0638 and T-0639 did, is flagged. A list
+      that is not empty is recorded as a shadow result, `ignored-writes`, in the attempt's
       battery. It changes no verdict and reaches the record, `torve why` and the next
       attempt's feedback like any shadow result. The judge never reads those files;
       the flag is for the person reading the night. The reviewer does not read it
@@ -73,11 +77,11 @@ design:
       show how often the flag fires.
 tests: |-
   - The snapshot of a worktree with a tracked change, a new file and an ignored file holds the first two and not the third, and leaves the worktree's index and branch as they were (D-1).
-  - The judge checkout runs `git log` and `git diff` against the attempt's base and holds no commit after the snapshot (D-1).
+  - The judge checkout's HEAD is the snapshot's commit; it runs `git log` and `git diff` against the attempt's base, and holds no commit after the snapshot and no object the snapshot does not reach (D-1).
   - A gate pass over a worktree whose `.venv` and `.torve/tmp/tracked-files` were tampered with judges the snapshot: a gate reading either path reads the checkout's state, not the attempt's (D-2).
   - The lane's re-gate and the document battery hand their shell gates to a sandbox executor, never the host (D-3).
-  - An attempt that writes an ignored file outside the excluded set gets an `ignored-writes` shadow result naming it; one that writes only caches gets none (D-4).
-  - `torve reap` removes a judge checkout and its ref with the task's other footprint, and a gate pass removes its own when the battery ends (D-5).
+  - An attempt that writes an ignored file outside the excluded set gets an `ignored-writes` shadow result naming it; one that rewrites `.torve/tmp/tracked-files` gets one naming it; one that writes only caches, or leaves the engine's own files as the engine wrote them, gets none (D-4).
+  - `torve reap` removes a judge checkout and its ref with the task's other footprint, keeps the checkout of a battery still running and leaves the lane's; a gate pass and the lane each remove their own when the battery ends, green or red (D-5).
 docs: >-
   `pages/docs/operating.md` and `pages/docs/architecture/overview.md` say that every
   battery judges a standalone checkout of the commit inside a sandbox, and what `ignored-writes`
@@ -86,7 +90,7 @@ out_of_scope: |-
   - Letting the reviewer read `ignored-writes` (Q-2), until nights show how often it fires.
   - Relaxing the acceptance lint now that the battery has git (Q-3): the attempt's own sandbox still has none.
 risks: |-
-  - A fresh environment per battery costs a `uv sync` from the cache, seconds with a warm cache, and each lane battery adds a container start per landing.
+  - A fresh environment per battery costs a `uv sync` from the cache, seconds with a warm cache; the fetch packs the snapshot's ancestry, seconds for this repository and more for a large one; and each lane battery adds a container start per landing.
   - A gate that leaned on an ignored file the attempt built, a generated artifact the repository does not commit, now fails. That is the point, but an adopter's gates may surface it first.
   - `.wt/<task>.judge/` doubles the disk a task holds while its battery runs; the battery removes it, and the reaper sweeps what a killed pass left.
 alternatives:
