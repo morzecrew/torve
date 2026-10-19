@@ -765,6 +765,13 @@ When git fails in a root that has a `.git`, the citation scan reads the tracked 
 - Paths: `src/torve/config/spec.py`
 - Consequence: spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations they judge on the host
 
+### S-0116/D-2 — `ASSUMED` (An independent verifier) — implementation: none
+
+`verify` in the runner configuration holds `enabled` (default false), `variant` (default `verify`), `types` (default `[feat, fix]`) and `tests_dir` (default `tests/verify`). With `enabled: true`, a configuration whose tiers hold no `executor.<variant>` refuses to load.
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: an adopter that never sets the block mints exactly today's tasks, and one that turns it on without a seat finds out at load, not at dispatch
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

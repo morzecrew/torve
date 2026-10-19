@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: verify
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0114]
 informed_by: [S-0055, S-0081, S-0096, S-0106, S-0113]

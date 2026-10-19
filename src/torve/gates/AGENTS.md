@@ -355,6 +355,20 @@ An invariant gate whose check selects no test fails as "the check selected nothi
 - Paths: `src/torve/gates/runner.py`
 - Consequence: a stale `-k` selection reads as stale, not as a broken rule
 
+### S-0116/D-10 — `ASSUMED` (An independent verifier) — implementation: none
+
+Before a battery runs for a task whose implement task's latest `verify.holdout` event holds files, the host writes them into the gate checkout under `<tests_dir>/holdout/`. A builtin `held-out` runs them and its output keeps only each failing test's identifier, message and cited rows; with no files in that event it is skipped.
+
+- Paths: `src/torve/gates/held_out.py` `src/torve/gates/__init__.py`
+- Consequence: the next attempt's pack learns which row failed and why, and never the test's source
+
+### S-0116/D-11 — `ASSUMED` (An independent verifier) — implementation: none
+
+A builtin `verify-tests` convicts a verify candidate whose file does not collect, whose entry settles a row no test cites, or one of whose visible or held-out tests passes on the candidate; its output names each such row and test.
+
+- Paths: `src/torve/gates/verify_tests.py`
+- Consequence: a verifier cannot land a test that proves nothing before the implementation exists
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail
