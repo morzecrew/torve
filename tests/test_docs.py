@@ -169,6 +169,23 @@ def test_the_upgrade_page_and_the_readme_name_only_verbs_that_exist():
                 assert second in group.commands, f"{first} {second}"
 
 
+def test_the_configuration_reference_names_the_published_sandbox_images():
+    """S-0112/D-8: the page that documents `runtime.image` names the published
+    base and a seat image, each with the `{torve}` placeholder the
+    configuration resolves at load — so an upgrade moves `engine` and no image
+    reference — and names no image a moving tag would reach instead."""
+
+    page = (PAGES / "get-started.md").read_text(encoding="utf-8")
+
+    assert "ghcr.io/morzecrew/sandbox-base:{torve}" in page
+    assert "ghcr.io/morzecrew/claude-sandbox:{torve}" in page
+    assert "sandbox-base:latest" not in page, "the reference still names a moving tag"
+
+    upgrade = (PAGES / "reference" / "stability.md").read_text(encoding="utf-8")
+    assert "ghcr.io/morzecrew/" in upgrade
+    assert "{torve}" in upgrade
+
+
 def test_no_page_claims_the_retired_truth_boundary():
     # The site taught "git holds what SHOULD be, the store holds what
     # HAPPENED" as the organising rule until S-0044/D-1 inverted it. The pages

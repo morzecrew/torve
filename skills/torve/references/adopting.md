@@ -92,18 +92,37 @@ everything its compose project names, several gigabytes for a large one.
 
 ## 5. The sandbox image
 
-The starter names a plain image. Real runs use torve's harness image, which
-carries CPython 3.13 and 3.14. Derive an image only for what the base lacks —
-a system library, another toolchain:
+Every release publishes the base and each seat image under
+`ghcr.io/morzecrew/`, public, tagged with the release's version. Pull the
+image a seat names rather than building or copying one; the published seat
+image is torve's harness image, carrying CPython 3.13 and 3.14. A harness
+manifest names it with `{torve}`, the placeholder the configuration writes as
+the installed torve's version:
+
+```yaml
+image: ghcr.io/morzecrew/claude-sandbox:{torve}
+```
+
+`{torve}` resolves at load, so an upgrade moves `engine` alone and no image
+reference; the seat runs the host's torve by construction. `torve doctor`
+accepts a pulled seat image with no definition beside it when its
+`org.opencontainers.image.source` names torve's repository and its version
+label equals the host's, so a repository keeps `.torve/sandbox/<name>/` only
+for an image it builds itself.
+
+Derive an image only for what the base lacks — a system library, another
+toolchain — and derive it from the published base, at the release you
+installed:
 
 ```dockerfile
-FROM torve-base:latest
+FROM ghcr.io/morzecrew/sandbox-base:X.Y.Z
 RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev
 ```
 
-Copied definitions drift behind the image they came from; a `FROM` line adds
-without copying. `torve doctor` runs each seat image's `torve --version` and
-goes red when a rebuilt image runs another torve than the host's.
+A definition copied from torve's drifts behind the image it came from; a
+`FROM` line adds without copying. `torve doctor` runs each seat image's
+`torve --version` and goes red when a rebuilt image runs another torve than
+the host's.
 
 ## 6. Equip the shipped hooks, and move the old ones to CI
 

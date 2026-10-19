@@ -100,9 +100,11 @@ below the next minor. One release to the next is these steps, in order:
    naming the installed version, the range and the install command for a
    release inside it; `torve --version`, `torve guide` and `torve doctor`
    still run.
-3. Rebuild the seat images from a checkout of that release (`just images`).
-   An image whose torve version differs from the host's is a red finding in
-   `torve doctor`, and the rebuild is what clears it.
+3. Take the release's seat images from `ghcr.io/morzecrew/`, public and
+   tagged with its version. A harness manifest that names `{torve}` resolves
+   to the release at load, so the reference needs no edit; an image whose
+   torve version differs from the host's is a red finding in `torve doctor`,
+   cleared by pulling the release's tag.
 4. Run `torve init` in the repository. It rewrites `.torve/schemas/` from the
    engine you just installed and adds any ignore pattern minted since. It
    writes a configuration, a gate manifest or a role profile only under
@@ -125,9 +127,9 @@ A release that moves a `schema_version` in the table above, adds a record
 migration, or changes the shipped hooks, carries an Upgrade note in its
 changelog entry, naming the files whose shape moved, the versions on either
 side, and the conversion. A release whose entry carries no Upgrade note moves
-none of them, and the upgrade is the common steps: install the release and
-raise `engine`, rebuild the seat images, run `torve init` and `torve doctor`,
-and commit.
+none of them, and the upgrade is the common steps: install the release,
+raise `engine`, take the release's seat images, run `torve init` and
+`torve doctor`, and commit.
 
 ## Internal
 
@@ -145,4 +147,6 @@ These change without notice, in any release:
   module may move or change in a minor.
 - **Sandbox images and the toolkit they bake.** A seat names an image by
   tag. What that tag contains is its definition under `sandboxes/`, and the
-  regime digest recorded on every attempt says when it moved.
+  regime digest recorded on every attempt says when it moved. A tag a seat
+  names with `{torve}` resolves to the installed release at load, so its
+  meaning moves with the engine.

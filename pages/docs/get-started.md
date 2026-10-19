@@ -148,13 +148,13 @@ What these settings mean:
 
 `nested` needs the `docker` runtime; OpenSandbox and sealed broker mode refuse
 it, and the review role is refused — a judge never starts containers. The
-sandbox image must carry the Docker CLI: `sandboxes/base` does, so derive the
-gates image from it rather than from a stock language image.
+sandbox image must carry the Docker CLI: the published base does, so pull it
+rather than a stock language image, or derive from it for what it lacks.
 
 ```yaml
 runtime:
   adapter: docker
-  image: sandbox-base:latest    # carries the docker CLI; a stock image does not
+  image: ghcr.io/morzecrew/sandbox-base:{torve}   # carries the docker CLI; a stock image does not
   docker: nested
   nested:
     image: docker:27.5.1-dind   # the pinned dind image the side container runs
@@ -313,26 +313,21 @@ with exit 4. Two commits appear, both made by `torve run` on `torve/T-0001`:
 
 A seat joins three files to a model. These steps set up a Claude Code seat.
 
-**1. Build the image.** No image is published to a registry yet. From a
-checkout of Torve at the release you installed:
+**1. Pull the image.** Every release publishes the base and each seat image
+under `ghcr.io/morzecrew/`, public and tagged with its version. A harness
+manifest names one with `{torve}`, which the configuration writes as the
+installed torve's version at load — docker pulls the tag on the first run
+and an upgrade moves `engine` alone, so a repository copies no definition
+into `.torve/sandbox/` for an image it only pulls.
 
-```bash
-TAG=2.1.283 just image claude   # tags claude-sandbox:2.1.283, the Claude Code version the definition pins
-```
-
-**2. Copy the definitions.** Copy `sandboxes/base` and `sandboxes/claude`
-into your repository under `.torve/sandbox/`. `torve doctor` refuses an
-image that has no reviewed definition beside the configuration that names
-it.
-
-**3. Write the harness, provider and seat files.** Two files describe the
+**2. Write the harness, provider and seat files.** Two files describe the
 harness and the provider. Then add the seat and the broker to
 `config.yaml`.
 
 ```yaml title=".torve/harnesses/claude.yaml"
 # yaml-language-server: $schema=../schemas/harness.json
 adapter: subscription
-image: claude-sandbox:2.1.283
+image: ghcr.io/morzecrew/claude-sandbox:{torve}
 equip_root: ~/.claude/skills
 kinds: [skill, plugin, mcp, hook, agent]
 env:
@@ -378,7 +373,7 @@ Each block does one thing:
   sandbox reaches the provider through a loopback route the broker serves,
   so no key enters the sandbox.
 
-**4. Run it.**
+**3. Run it.**
 
 ```bash
 export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`

@@ -450,6 +450,22 @@ def test_the_adopting_reference_says_when_to_nest_a_docker_daemon():
     assert "cold cache" in text, "the cold-cache cost of a slot's first task is not stated"
 
 
+def test_the_adopting_and_upgrading_references_name_the_published_images():
+    """S-0112/D-8: the adoption reference derives from the published base and
+    the upgrading reference takes the release's seat images, both under
+    `ghcr.io/morzecrew/`, and both name an image with the `{torve}`
+    placeholder the configuration resolves."""
+
+    refs = skills_root() / "torve" / "references"
+    adopting = (refs / "adopting.md").read_text(encoding="utf-8")
+    upgrading = (refs / "upgrading.md").read_text(encoding="utf-8")
+
+    assert "ghcr.io/morzecrew/sandbox-base" in adopting
+    assert "ghcr.io/morzecrew/" in upgrading
+    for text in (adopting, upgrading):
+        assert "{torve}" in text
+
+
 def test_every_verb_the_operator_skill_names_exists():
     """The skill defers to `--help` for flags, so what it can drift on is a verb:
     every `torve <group> <verb>` it names resolves in the CLI."""
