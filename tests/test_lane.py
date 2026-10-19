@@ -173,6 +173,7 @@ def test_an_unknown_citation_in_a_new_file_stops_the_fast_forward(lane_repo):
     the battery ran, is judged before it lands — and a candidate with a
     problem goes back as a red re-gate does, not onto the base."""
 
+    corpus(lane_repo)
     (lane_repo / "src").mkdir()
     candidate(lane_repo, "T-7050", "src/new.py", "new = 1  # S-9999/D-1\n")
 
@@ -187,6 +188,48 @@ def test_an_unknown_citation_in_a_new_file_stops_the_fast_forward(lane_repo):
         lane_repo, "rev-parse", "main"
     )
     assert not (lane_repo / "src" / "new.py").exists()
+
+
+def corpus(root: Path, path: str = ".torve/specs") -> None:
+    """An empty corpus directory committed on main, so the candidate's tree
+    holds one for the scan to read."""
+    (root / path).mkdir(parents=True)
+    (root / path / ".gitkeep").write_text("", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "corpus")
+
+
+def test_a_tree_with_no_corpus_lands_through_the_citation_scan(lane_repo):
+    """S-0113/D-3: a corpus the candidate's tree does not hold contributes
+    nothing. A missing directory loads as an empty corpus, which read every
+    citation in the tree as undefined and sent the candidate back."""
+
+    (lane_repo / "src").mkdir()
+    candidate(lane_repo, "T-7052", "src/cites.py", "cites = 1  # S-9999/D-1\n")
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["results"][0]["action"] == "landed"
+
+
+def test_the_citation_scan_reads_the_configured_corpus_path(lane_repo):
+    """S-0113/D-3, S-0013/D-3: the scan reads the corpus where the runner's
+    configuration says it lives, not at the default path."""
+
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\nspecs:\n  path: docs/specs\n", encoding="utf-8"
+    )
+    corpus(lane_repo, "docs/specs")
+    (lane_repo / "src").mkdir()
+    candidate(lane_repo, "T-7053", "src/new.py", "new = 1  # S-9999/D-1\n")
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code == 1, result.output
+    report = json.loads(result.stdout)
+    assert report["results"][0]["action"] == "gates red"
+    assert "S-9999/D-1" in report["results"][0]["detail"]
 
 
 def test_a_clean_candidate_lands_through_the_citation_scan(lane_repo):

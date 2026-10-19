@@ -291,6 +291,7 @@ def _lane_leg(
                 store=config.store.adapter,
                 # The board's resolutions, read by the caller (S-0101/D-2).
                 resolved=set(await resolved()) if resolved is not None else set(),
+                specs=config.specs.path,
             )
 
         finally:

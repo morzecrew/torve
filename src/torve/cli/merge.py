@@ -531,6 +531,7 @@ def merge_cmd(
             store=config.store.adapter,
             # The board's resolutions, read by the caller (S-0101/D-2).
             resolved=_resolved(root, config) if config.promotion.unit == "document" else set(),
+            specs=config.specs.path,
         )
 
     except RuntimeError as exc:

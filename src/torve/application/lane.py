@@ -2314,7 +2314,9 @@ def _record_red(
 # ....................... #
 
 
-def _candidate_citations(root: Path, vcs: LaneVcs, task_id: str, head: str) -> list[str]:
+def _candidate_citations(
+    root: Path, vcs: LaneVcs, task_id: str, head: str, specs: str = layout.SPECS_DIR
+) -> list[str]:
     """The engine's citation scan over the candidate's committed tree, in a
     disposable worktree on the host (S-0113/D-3): a citation in a file the
     attempt created, untracked while the battery ran, is judged before it
@@ -2345,7 +2347,12 @@ def _candidate_citations(root: Path, vcs: LaneVcs, task_id: str, head: str) -> l
         return [f"the citation scan did not run — {added.stderr.strip() or 'worktree add failed'}"]
 
     try:
-        spec_dir = workdir / layout.SPECS_DIR
+        spec_dir = workdir / specs
+
+        # A missing directory loads as an empty corpus, which would read every
+        # citation in the tree as undefined.
+        if not spec_dir.is_dir():
+            return []
 
         try:
             corpus = spec.load_corpus(spec_dir)
@@ -2387,6 +2394,7 @@ def _land_fast_forward(
     rounds: bool = False,
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
+    specs: str = layout.SPECS_DIR,
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -2427,7 +2435,7 @@ def _land_fast_forward(
     # files were committed, so the candidate's committed tree is scanned for
     # citations once more before it lands — a citation in a new file goes back
     # as a red re-gate does.
-    problems = _candidate_citations(root, vcs, task_id, branch_tip)
+    problems = _candidate_citations(root, vcs, task_id, branch_tip, specs)
 
     if problems:
         _record_red(
@@ -2638,6 +2646,7 @@ def _land_candidate(
     rounds: bool = False,
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
+    specs: str = layout.SPECS_DIR,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -2660,6 +2669,7 @@ def _land_candidate(
             rounds,
             status,
             resolved,
+            specs,
         )
         return
 
@@ -2753,6 +2763,7 @@ def process_lane(
     status: StatusScm | None = None,
     store: str = "",
     resolved: Collection[str] = (),
+    specs: str = layout.SPECS_DIR,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -2779,7 +2790,10 @@ def process_lane(
     only then may the lane mint a red completion battery's round, and the
     callers derive it from the threads configuration. Off, a red battery
     escalates the completing task `blocker_finding` at once and records no
-    finding."""
+    finding.
+
+    `specs` is the configured corpus path the citation scan before a
+    fast-forward reads (S-0113/D-3)."""
 
     base = vcs.current_branch(root)
 
@@ -2952,6 +2966,7 @@ def process_lane(
             rounds,
             status,
             resolved,
+            specs,
         )
 
     return results
