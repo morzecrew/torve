@@ -452,7 +452,7 @@ def test_the_image_version_check_asks_the_image_for_its_torve_version(monkeypatc
 
 
 def _published_image_checks(
-    tmp_path, monkeypatch, labels, *, image="claude-sandbox:0.3.2", host="0.3.2"
+    tmp_path, monkeypatch, labels, *, image="claude-sandbox:0.3.2", host="0.3.2", pulled=True
 ):
     from torve.cli import doctor
     from torve.config import runconfig
@@ -460,8 +460,11 @@ def _published_image_checks(
     root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker", "image": image}})
 
     class _Runtime:
-        def resolve_image(self, reference: str) -> str:
-            return "sha256:" + "ab" * 32
+        def resolve_image(self, reference: str) -> str | None:
+            return "sha256:" + "ab" * 32 if pulled else None
+
+    # The registry answers for an image the runtime does not hold.
+    monkeypatch.setattr(doctor, "_registry_digest", lambda reference: "sha256:" + "cd" * 32)
 
     monkeypatch.setattr("torve.cli.options.runtime_for", lambda config, override: _Runtime())
     monkeypatch.setattr(runconfig, "installed_version", lambda: host)
@@ -501,6 +504,21 @@ def test_a_published_image_from_another_source_is_red(tmp_path, monkeypatch):
 
     assert (name, ok) == ("image claude-sandbox:0.3.2", False)
     assert "ambient regime" in detail
+
+
+def test_a_published_image_not_yet_pulled_says_to_pull_it(tmp_path, monkeypatch):
+    """Its labels are read off a local copy: an image only the registry answers
+    for is not pulled, not an ambient regime."""
+
+    from torve.cli.sandbox import PUBLISHED_SOURCE, SOURCE_LABEL, VERSION_LABEL
+
+    labels = {SOURCE_LABEL: PUBLISHED_SOURCE, VERSION_LABEL: "0.3.2"}
+
+    (name, ok, detail) = _published_image_checks(tmp_path, monkeypatch, labels, pulled=False)[0]
+
+    assert (name, ok) == ("image claude-sandbox:0.3.2", False)
+    assert "pull it" in detail
+    assert "ambient regime" not in detail
 
 
 def test_a_local_image_with_no_definition_and_no_labels_is_red(tmp_path, monkeypatch):

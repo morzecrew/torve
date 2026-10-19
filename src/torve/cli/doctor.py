@@ -497,7 +497,8 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
         runtime = runtime_for(config, None) if config.runtime.adapter == "docker" else None
 
         for image in configured_images(config):
-            digest = runtime.resolve_image(image) if runtime is not None else None
+            local = runtime.resolve_image(image) if runtime is not None else None
+            digest = local
 
             if digest is None:
                 # S-0033/doctor: a registry reference the runtime cannot
@@ -543,6 +544,23 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                     # names this repository and the version equals the running
                     # torve. An image with neither a definition nor those
                     # labels is the ambient regime this check exists to catch.
+                    if runtime is not None and local is None:
+                        # Its labels are read off a local copy, and the registry
+                        # answered for an image this host has not pulled.
+                        checks.append(
+                            (
+                                f"image {image}",
+                                False,
+                                (
+                                    f"{image}: has no definition under "
+                                    f"{definitions_root(root) / name} and is not pulled, so "
+                                    "its labels cannot be read — pull it"
+                                ),
+                            )
+                        )
+
+                        continue
+
                     labels = _image_labels(image) if runtime is not None else {}
                     version = installed_version()
 
