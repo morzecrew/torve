@@ -77,9 +77,11 @@ design:
       The task-gated review covers verify tasks too. The reviewer reads the verifier's tests for vacuity and for over-specification, meaning tests that pin internals no row names.
   - key: held-out-properties
     md: |-
-      After a verify attempt the host reads `.torve/tmp/holdout/*.py` from the verify worktree, records them on the implement task as one `verify.holdout` event of file names and texts, at most 64 KiB, and deletes them. `.torve/tmp/` is ignored, so they never reach a commit, and the event, not a host directory, is what any host of the fleet reads.
+      After a verify attempt the host reads `.torve/tmp/holdout/*.py` from the verify worktree, records them on the implement task as one `verify.holdout` event of file names and texts, at most 64 KiB, and deletes them. `.torve/tmp/` is ignored, so no attempt's commit carries them, and the event, not a host directory, is what any host of the fleet reads.
 
       Before a battery runs for the implement task, or for the verify task itself, the host writes the recorded files into the gate checkout under `<tests_dir>/holdout/`. A new builtin, `held-out`, runs them with `<tests.run> -q -rf --tb=no` and keeps only the `FAILED <test> - <message>` lines and the rows their docstrings cite. That redacted output is the gate's output, so the next attempt's pack carries a row and a message and never the test's source. With no record the gate is skipped. The files live only in the gate checkout, which the clean-checkout document makes a fresh copy of the candidate commit (Q-5).
+
+      When the document's last phase lands, the lane commits every recorded held-out file to the document branch under `<tests_dir>/holdout/`, named for its document and phase, before the whole-document battery runs. From then on they are ordinary tests: no implementer is left to hide them from, and they keep guarding the rows after the merge (Q-3).
   - key: the-verifiers-own-gates
     md: |-
       A second builtin, `verify-tests`, judges a verify candidate. It convicts when the file does not collect, when a row the phase settles has no test citing it, or when any visible or held-out test passes on the candidate. Before the implementation exists a passing test proves nothing about it.
@@ -106,6 +108,7 @@ tests: |-
   - Held-out: a verify attempt's held-out files are recorded and removed from the worktree; the battery injects them; the gate's output carries the row and message and not the source (`tests/test_runner.py`, `tests/test_gates.py`).
   - `verify-tests` convicts an uncited row, a passing test and a file that does not collect (`tests/test_gates.py`, `tests/test_sabotage.py`).
   - The eval: a verifier pair records both arms and the oracle's escape (`tests/test_evals.py`, `tests/test_shadow.py`).
+  - Completion: the last phase's landing commits the recorded held-out files under `<tests_dir>/holdout/` before the whole-document battery, and a document with none commits nothing (`tests/test_lane.py`).
 
   Not tested: whether the verifier helps. That is the eval's job, on real phases, and no fixture can answer it.
 docs: >-
@@ -117,8 +120,8 @@ out_of_scope: ''
 risks: |-
   - The verifier and implementer share a blind spot and agree on a wrong reading of a row. The doctor stops only the identical model, and the eval's B and C arms measure the rest.
   - Over-specified tests force the implementer into the verifier's guess at an API. The intent naming the public surface and the reviewer's audit are the defences; a halt is the escape.
-  - Between the verify task's landing and its implement task's landing, the document branch carries tests that fail. A repository whose battery runs the whole suite as a blocking gate reddens every other candidate in that window (Q-1).
-  - Held-out properties exist only until the document merges, because they are never committed (Q-3).
+  - Between the verify task's landing and its implement task's landing, the document branch carries tests that fail. A repository whose battery runs the whole suite as a blocking gate reddens every other candidate in that window. The pilot accepts the window (Q-1); torve's own blocking gates run no whole suite.
+  - Once committed at completion, the held-out properties are visible to later documents' implementers. By then they guard settled rows, as any committed test does (Q-3).
   - Each behavioural phase costs one more task. The bar caps the cost the pilot may add.
 sections:
   - key: locked-rows-kept
@@ -136,7 +139,10 @@ sections:
       phases only if the candidate arm cuts escapes by 30% or more, at no more than
       1.6 times the incumbent's tokens, with first-attempt green down by no more than
       10 points. If B matches C, the provider does not matter and the cheaper seat
-      wins.
+      wins. torve's own first run puts Opus, on the Anthropic route, in the verify
+      seat: arm C, another family on another provider. Arm B, qwen on ModelStudio
+      beside the deepseek executor, runs after it, to see whether a cheaper seat on
+      the same provider holds the result.
 alternatives:
   - option: >-
       The implementer writes its tests first, then its code, in one session.
@@ -153,7 +159,7 @@ alternatives:
       Hold the verify candidate and land it with the implement candidate.
     rejected_because: >-
       A dependency is satisfied by a landing alone (S-0019/A-3), so the implement
-      task could not dispatch. Q-1 keeps the option open for the owner.
+      task could not dispatch. The owner kept the window for the pilot instead (Q-1).
   - option: >-
       Give the verifier a seat of its own instead of an executor variant.
     rejected_because: >-
@@ -167,22 +173,30 @@ questions:
       it is harmless here, but an adopter's may. Accept the window for the pilot,
       or hold the verify candidate and land it with the implement candidate, which
       amends S-0019's dependency rule (S-0019/A-3)? Lean: accept for the pilot.
+    status: settled
+    settled_by: D-5
   - id: Q-2
     text: >-
       Which seat runs torve's own verifier: Opus on the Anthropic route, a different
       family from deepseek, or qwen on ModelStudio, a different family on the same
       provider? The eval's B and C arms answer it; which goes first is the owner's
       call.
+    status: settled
+    settled_by: exit-criteria
   - id: Q-3
     text: >-
       Held-out properties vanish when the document merges, because they are never
       committed. Should the document's completion pull request commit them as visible
       tests, so they keep guarding the rows afterwards? Lean: yes.
+    status: settled
+    settled_by: D-14
   - id: Q-4
     text: >-
       The escape oracle is one command per replayed task, written by hand from the
       fix that caught the escape. Is a hand-written oracle per task acceptable for
       the eval, or should `torve review corpus add` scaffold it?
+    status: settled
+    settled_by: D-12
   - id: Q-5
     text: >-
       Phase 4 needs the clean gate checkout drafted beside this document, which is

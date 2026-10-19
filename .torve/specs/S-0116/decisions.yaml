@@ -65,7 +65,8 @@ decisions:
     text: >-
       The implement task of a phase with a verifier depends on the verify task, denies
       the verifier's file and appends `<tests.run> <file>` to the phase's acceptance;
-      all three are fixed at mint.
+      all three are fixed at mint. The verify candidate lands first, and the document
+      branch carries its failing tests until the implement candidate lands.
     paths: [src/torve/application/planner.py]
     consequence: >-
       the implementer runs the verifier's tests and any edit to them is a red scope
@@ -127,7 +128,7 @@ decisions:
     paths: [src/torve/application/runner.py]
     consequence: >-
       held-out properties live in the record that every host of the fleet reads, never
-      in a commit and never in an implementer's sandbox
+      in an attempt's commit and never in an implementer's sandbox
     rationale: >-
       `.torve/tmp/` is ignored, so nothing there reaches a commit; the record, not
       a host directory, is what the fleet shares.
@@ -164,7 +165,8 @@ decisions:
     grade: ASSUMED
     text: >-
       `torve eval --task T --verifier` replays T as an incumbent arm and as a candidate
-      arm that first replays a verify task from T's parent; `--oracle` runs a command
+      arm that first replays a verify task from T's parent; `--oracle` runs a command,
+      written by hand for each replayed task from the fix that caught its escape,
       on each arm's candidate and records a non-zero exit as that arm's escape.
     paths:
       - src/torve/application/evals.py
@@ -193,3 +195,22 @@ decisions:
       An intent that names no surface leaves the verifier guessing, which is the over-specification
       risk.
     cites: [D-6]
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      When a document's last phase lands, the lane commits the held-out properties
+      recorded for its tasks to the document branch under `<tests_dir>/holdout/`,
+      each file named for its document and phase, before the whole-document battery
+      runs. `torve merge` and the manager's lane leg hand `process_lane` the reader
+      of the recorded events.
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+    consequence: >-
+      the held-out properties keep guarding the document's rows as visible tests after
+      it merges
+    rationale: >-
+      Never committed, they would vanish with the merge; once every phase has landed,
+      no implementer is left to hide them from.
+    cites: [D-9, S-0106/D-2]

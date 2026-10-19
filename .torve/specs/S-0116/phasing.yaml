@@ -129,6 +129,30 @@ phasing:
       - 2
       - 4
   - phase: 6
+    title: The completion commits the held-out properties
+    intent: >-
+      When a document's last phase lands, `process_lane` commits the held-out properties
+      recorded for its tasks to the document branch under `<tests_dir>/holdout/`,
+      each file named for its document and phase, before the whole-document battery;
+      `torve merge` and the manager's lane leg hand it the reader of the recorded
+      events. Tests: the commit precedes the battery and holds every recorded file;
+      a document with no record commits nothing (`tests/test_lane.py`, `tests/test_manager.py`).
+      Settles D-14.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_lane*.py
+      - tests/test_manager*.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_manager.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 4
+    character: routine
+  - phase: 7
     title: The references say when to turn the verifier on
     intent: >-
       The operating guide and the torve skill's night reference describe turning the
@@ -149,4 +173,5 @@ phasing:
     depends_on:
       - 3
       - 5
+      - 6
     character: routine
