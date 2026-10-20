@@ -406,6 +406,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-a-battery-judges" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a battery judges
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1152,6 +1163,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-a-battery-judges" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a battery judges
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1673,6 +1695,48 @@ The mode and the pack function that fills it are both built; no dispatch
 path passes a conviction to the prompt yet, so a repair attempt today is an
 ordinary prompt run against the convicted tree with the convicting gate's
 command in its acceptance.</p>
+<h2 id="what-a-battery-judges">What a battery judges<a class="headerlink" href="#what-a-battery-judges" title="Permanent link">&para;</a></h2>
+<p>A battery never reads the worktree an attempt leaves behind. It reads a
+standalone checkout of the commit. When the attempt ends, the host commits
+what <code>git add -A</code> would stage — so <code>.gitignore</code> decides, and an ignored file
+is never in the snapshot — to <code>refs/torve/judge/&lt;task&gt;</code>, leaving the
+worktree's index and branch untouched, and builds <code>.wt/&lt;task&gt;.judge/</code> the way
+a shadow replay builds its clone: a fresh repository that fetches the
+snapshot alone, so it holds the attempt's ancestry and no other branch, no
+remote and no credential it could borrow, checked out detached at the
+snapshot's commit, which the host verifies before any gate runs (S-0114/D-1).
+The gate pass builds its context over that checkout and mounts the checkout,
+not the worktree, into the gates sandbox (S-0114/D-2); the toolchain cache
+volume mounts as before, so <code>uv run</code> builds a fresh environment from the
+cache rather than reusing the attempt's <code>.venv</code>.</p>
+<p>The lane's re-gate of a rebased candidate and the whole-document battery run
+their shell gates in a gates sandbox the same way, over a judge checkout of
+the rebased tip under the lane's <code>lane-</code> prefix and under the default
+executor seat's image (S-0114/D-3); the rebase itself stays on the host, in
+git, where no candidate code runs. Each battery removes its own checkout and
+ref when it ends, green or red. <code>torve reap</code> reads a <code>&lt;task&gt;.judge</code>
+checkout's liveness from its task's run state: it keeps the checkout of a
+battery still running, removes one a killed pass left with the rest of the
+task's footprint, and leaves the lane's to the lane (S-0114/D-5).</p>
+<p><strong><code>ignored-writes</code>.</strong> Nothing an attempt leaves outside its commit reaches a
+verdict — and a reader who wants it still gets a fact. Before the gate pass
+writes into the worktree, the host lists every ignored file under it the
+attempt created or changed, leaving out the toolchain's caches (<code>.venv/</code>,
+<code>__pycache__/</code>, <code>.pytest_cache/</code>, <code>.mypy_cache/</code>, <code>.ruff_cache/</code>,
+<code>node_modules/</code>) and the files the engine wrote there itself while their
+content is still what the engine wrote: an attempt that rewrites
+<code>.torve/tmp/tracked-files</code> is flagged, one that leaves it as it was is not
+(S-0114/D-4). A list that is not empty is recorded as the shadow result
+<code>ignored-writes</code>, naming the files. It changes no verdict, and it reaches the
+record, <code>torve why</code> and the next attempt's feedback like any other shadow
+result.</p>
+<p>Read one as a question about the attempt rather than about its work. The
+judge saw the checkout, so the write is invisible to every gate — a green
+battery beside an <code>ignored-writes</code> result says the commit is clean, not that
+the attempt stayed inside it. The reviewer does not read the flag either
+(S-0114/D-4): it is for the person reading the night, to see how often an
+attempt works outside what it commits before the question of what to do about
+it is worth asking.</p>
 <h2 id="a-rows-check-its-twin-and-the-invariants-the-battery-runs">A row's check, its twin, and the invariants the battery runs<a class="headerlink" href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" title="Permanent link">&para;</a></h2>
 <p>A decision row may carry a <code>check</code> — a command whose exit code judges the
 row — and the battery runs each as a <code>decision:&lt;id&gt;</code> gate under the row's

@@ -1072,6 +1072,14 @@ the tracker — is derived from the record.</p>
 would be a worker whose memory could disagree with the record, and a manager
 that carried state between passes would be a manager whose restart is a
 recovery procedure rather than a re-read.</p>
+<p>An actor's own sandbox is not where the verdict comes from. Every battery —
+the attempt's gate pass, the lane's re-gate of a rebased candidate, the
+whole-document battery at completion — judges a standalone checkout of the
+commit, inside a gates sandbox: the trees the attempt left behind reach no
+gate, and the checkout holds only the objects the commit reaches (S-0114).
+What an attempt wrote <em>outside</em> its commit is therefore outside its verdict,
+and is recorded as the shadow result <code>ignored-writes</code> for whoever reads the
+night (S-0114/D-4).</p>
 <h2 id="the-layers-s-0015">The layers (S-0015)<a class="headerlink" href="#the-layers-s-0015" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
