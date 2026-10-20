@@ -167,3 +167,29 @@ def test_a_night_stop_class_must_be_one_the_engine_escalates():
 
     with pytest.raises(ValidationError):
         validate_payload(EventKind.NIGHT_CLOSED, {"reason": "morning"})
+
+
+def test_verify_holdout_is_a_workers_event_of_named_files():
+    """S-0116/D-9: the event registry gains a kind, a payload of names and
+    texts, and the worker as its actor — the held-out set is an execution
+    fact like the attempt that produced it."""
+
+    from torve.domain.events import HoldoutFile, VerifyHoldout
+
+    assert AUTHORITY[EventKind.VERIFY_HOLDOUT] == frozenset({ActorKind.WORKER})
+
+    empty = validate_payload(EventKind.VERIFY_HOLDOUT, {})
+    assert isinstance(empty, VerifyHoldout) and empty.files == []
+
+    one = validate_payload(
+        EventKind.VERIFY_HOLDOUT, {"files": [{"name": "test_p4.py", "text": "assert False\n"}]}
+    )
+    assert isinstance(one, VerifyHoldout)
+    assert isinstance(one.files[0], HoldoutFile)
+    assert one.files[0].name == "test_p4.py"
+
+    with pytest.raises(ValidationError):
+        validate_payload(EventKind.VERIFY_HOLDOUT, {"files": [{"name": "x"}]})
+
+    with pytest.raises(ValidationError):
+        validate_payload(EventKind.VERIFY_HOLDOUT, {"files": [], "surprise": 1})

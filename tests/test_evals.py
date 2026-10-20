@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from functools import partial
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -36,15 +38,20 @@ from torve.application.dispatch import RunDeps
 from torve.application.evals import (
     ARMS,
     EVAL_LEDGER,
+    VERIFIER_ARMS,
     candidate_config,
     eligible_tasks,
     run_arm_eval,
     run_arm_shadow,
     run_config_eval,
     run_skill_eval,
+    run_verifier_eval,
     three_arm_table,
+    verifier_table,
+    verify_task_of,
     without_skill,
 )
+from torve.application.runner import HOLDOUT_REL
 from torve.application.shadow import ShadowSource, run_shadow
 from torve.cli import app
 from torve.config import layout
@@ -1229,3 +1236,488 @@ def test_eval_cli_narrows_the_arms_and_takes_the_seat_from_tier(tmp_path, monkey
     assert seen["arms"] == ("bare", "gated")
     assert "seat lean" in result.stdout
     assert "2 replay(s) about to start" in result.stdout
+
+
+# ....................... #
+# The verifier pair (S-0116/D-12): T as today's engine replays it, and again
+# with its verify task replayed first, its file in the tree and its held-out
+# properties injected — one row per arm, with the oracle's escape beside it.
+
+
+def _verifier_repo(root, task="T-0042", verifier="T-0041", tier="executor"):
+    """A corpus where *task* depends on a verify task (S-0116/D-5): the link
+    the pair is discovered through, written as the planner mints it."""
+
+    tasks = root / layout.TORVE_DIR / "tasks"
+    harness(root)
+
+    for tid, role, depends, acceptance in (
+        (task, "implement", f"[{verifier}]", ""),
+        # A verify task carries the tests that prove its rows (S-0116/D-1): a
+        # contract with none is refused at load, so the fixture writes one.
+        (verifier, "verify", "[]", '\nacceptance: ["true"]'),
+    ):
+        (tasks / tid).mkdir(parents=True, exist_ok=True)
+        (tasks / tid / "contract.yaml").write_text(
+            f"schema_version: 1\nid: {tid}\nrole: {role}\ntier: {tier}\n"
+            f"depends_on: {depends}{acceptance}\ndecisions: []\n",
+            encoding="utf-8",
+        )
+
+
+class _HeldTree:
+    """The vcs a verifier pair holds the verify replay's tree with: a commit of
+    the clone, recorded here rather than written, since nothing in the tests
+    reaches a real repository."""
+
+    def __init__(self) -> None:
+        self.worktrees: list[Path] = []
+
+    def commit_all(
+        self, worktree: Path, message: str, author: str | None = None, sign_key: str | None = None
+    ) -> str:
+        self.worktrees.append(worktree)
+
+        return "c" * 40
+
+
+def _deps(agent=None, vcs=None) -> RunDeps:
+    """A dependency bag with inert ports: what the replay does with it is the
+    eval's composition, and nothing here reaches a sandbox."""
+
+    return RunDeps(
+        workspace=None,
+        runtime=None,
+        agent=agent,
+        vcs=vcs if vcs is not None else _HeldTree(),
+        scm=None,
+        store=None,
+    )
+
+
+class _NoJudge:
+    def judge_checkout(self, task_id: str) -> Path:
+        return Path(f"/tmp/{task_id}.judge")
+
+    def remove_judge(self, task_id: str) -> None:
+        return None
+
+
+def _shadow_source(tmp_path):
+    """A source whose every host callable is inert: the composition under test
+    is the eval's, not the clone's."""
+
+    return ShadowSource(
+        create_workspace=lambda task_id, _base: tmp_path / f"shadow-{task_id}",
+        shipped_commit=lambda _task: "a" * 40,
+        parent_of=lambda sha: "b" * 40 if sha == "a" * 40 else sha,
+        diff_range=lambda _sha: {},
+        diff_worktree=lambda _ws, _base: {},
+        judge=_NoJudge(),
+    )
+
+
+def _verifier_replays(monkeypatch, tmp_path):
+    """`shadow_workspace` and `shadow_replay` replaced — the pair's composition
+    and what each arm's replay carries are the eval's, not the clone's. The
+    verifier's replay leaves a held-out property in its worktree, as a verifier
+    agent would. Returns what each replay saw."""
+
+    replayed: list[dict] = []
+    sockets = [tmp_path / "incumbent-ws", tmp_path / "candidate-ws"]
+    order = iter(sockets)
+
+    def workspace(source, task_id):
+        path = next(order)
+        path.mkdir(parents=True, exist_ok=True)
+        return path, "a" * 40, "b" * 40
+
+    def replay(root, task, config, deps, source, workspace, parent, resolved, annotation=None):
+        replayed.append(
+            {
+                "task": task.id,
+                "deps": deps,
+                "workspace": workspace,
+                "parent": parent,
+                "annotation": annotation,
+            }
+        )
+
+        if task.role == "verify":
+            holdout = workspace / HOLDOUT_REL
+            holdout.mkdir(parents=True, exist_ok=True)
+            (holdout / "props.py").write_text("ESCAPED = True\n", encoding="utf-8")
+
+        return {"task_id": task.id, "state": "ready", "attempts": 1, "cost_usd_total": 0.02}
+
+    monkeypatch.setattr(evals, "shadow_workspace", workspace)
+    monkeypatch.setattr(evals, "shadow_replay", replay)
+
+    return replayed
+
+
+def test_verifier_eval_replays_the_verifier_first_and_injects_what_it_held_out(
+    tmp_path, monkeypatch
+):
+    """D-12: the candidate arm is one arm of two replays — the verifier from
+    T's parent, then T with the verifier's file present and its held-out
+    properties in the battery. Both arms land, and the incumbent carries no
+    holdout: nothing was invented for it."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    replayed = _verifier_replays(monkeypatch, tmp_path)
+    task = load_task(layout.task_file(root, "T-0042"))
+
+    record = run_verifier_eval(root, [task], RunnerConfig(), _deps(), _shadow_source(tmp_path))
+
+    assert [seen["task"] for seen in replayed] == ["T-0042", "T-0041", "T-0042"]
+    assert replayed[1]["annotation"] == {"verifier": "candidate-verify"}
+    assert replayed[0]["deps"].holdout == []
+    assert [prop.name for prop in replayed[2]["deps"].holdout] == ["props.py"]
+    assert replayed[2]["deps"].holdout[0].text == "ESCAPED = True\n"
+
+    assert record["kind"] == "verifier-eval" and record["tasks"] == ["T-0042"]
+    assert record["oracle"] is None
+    assert set(record["arms"]) == set(VERIFIER_ARMS)
+    assert record["arms"]["incumbent"] == [
+        {
+            "arm": "incumbent",
+            "task": "T-0042",
+            "state": "ready",
+            "attempts": 1,
+            "cost_usd": 0.02,
+            "escape": None,
+        }
+    ]
+    assert record["summary"]["candidate"]["green"] == 1
+
+
+def test_verifier_eval_holds_the_verify_replay_as_the_implement_replays_base(tmp_path, monkeypatch):
+    """S-0116/D-5, D-12: the verify candidate lands before its implementer, so
+    the implement replay starts from the commit the verify replay was held as.
+    Rerun from T's parent instead, the verifier's file is an added path in the
+    implement replay's diff — a path the planner denies it — and no candidate
+    arm could ever go green."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    replayed = _verifier_replays(monkeypatch, tmp_path)
+    held = _HeldTree()
+    task = load_task(layout.task_file(root, "T-0042"))
+
+    run_verifier_eval(root, [task], RunnerConfig(), _deps(vcs=held), _shadow_source(tmp_path))
+
+    # The verify replay is held in the candidate clone, once, after the
+    # verifier ran and before the implementer does.
+    assert held.worktrees == [tmp_path / "candidate-ws"]
+    # Both the incumbent and the verify replay start from T's parent; only the
+    # implement replay of the candidate arm starts from the held commit.
+    assert [seen["parent"] for seen in replayed] == ["b" * 40, "b" * 40, "c" * 40]
+
+
+def test_verifier_eval_refuses_a_pair_with_no_vcs_to_hold_the_verify_tree(tmp_path, monkeypatch):
+    """Nothing is replayed when there is no vcs: the arm's base is a commit
+    that cannot be made."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    replayed = _verifier_replays(monkeypatch, tmp_path)
+    task = load_task(layout.task_file(root, "T-0042"))
+    deps = _deps()
+    deps = replace(deps, vcs=None)
+
+    with pytest.raises(ValueError, match="needs a vcs"):
+        run_verifier_eval(root, [task], RunnerConfig(), deps, _shadow_source(tmp_path))
+
+    assert replayed == []
+
+
+def test_verifier_eval_records_the_oracles_escape_on_the_arm_it_ran_against(tmp_path, monkeypatch):
+    """D-12: `--oracle` runs one command on each arm's candidate; a non-zero
+    exit is that arm's escape. The command is run once per arm, over the
+    workspace that arm's candidate was built in."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    _verifier_replays(monkeypatch, tmp_path)
+    task = load_task(layout.task_file(root, "T-0042"))
+    ran: list[tuple[Path, str]] = []
+
+    def escape(workspace, command):
+        ran.append((workspace, command))
+        return workspace.name == "candidate-ws"
+
+    record = run_verifier_eval(
+        root,
+        [task],
+        RunnerConfig(),
+        _deps(),
+        _shadow_source(tmp_path),
+        oracle="uv run pytest holdout",
+        escape=escape,
+    )
+
+    assert ran == [
+        (tmp_path / "incumbent-ws", "uv run pytest holdout"),
+        (tmp_path / "candidate-ws", "uv run pytest holdout"),
+    ]
+    assert record["oracle"] == "uv run pytest holdout"
+    assert [(row["arm"], row["escape"]) for row in record["arms"]["incumbent"]] == [
+        ("incumbent", False)
+    ]
+    assert [(row["arm"], row["escape"]) for row in record["arms"]["candidate"]] == [
+        ("candidate", True)
+    ]
+    # The count is the pair's headline: how often the verifier's hole was
+    # walked through, per arm and never pooled (S-0082/D-6).
+    assert record["summary"]["incumbent"]["escapes"] == 0
+    assert record["summary"]["candidate"]["escapes"] == 1
+
+
+def test_an_oracle_with_no_runner_refuses_before_anything_replays(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    replayed = _verifier_replays(monkeypatch, tmp_path)
+    task = load_task(layout.task_file(root, "T-0042"))
+
+    with pytest.raises(ValueError, match="the oracle needs a runner"):
+        run_verifier_eval(
+            root, [task], RunnerConfig(), _deps(), _shadow_source(tmp_path), oracle="true"
+        )
+
+    assert replayed == []
+    assert not (root / layout.TORVE_DIR / EVAL_LEDGER).exists()
+
+
+def test_a_task_with_no_verifier_refuses(tmp_path, monkeypatch):
+    """D-5: the pair is discovered through the corpus's own link. A task
+    minted without one has no candidate arm to build, and says so rather than
+    measuring an arm that is the incumbent twice over."""
+
+    root = tmp_path / "repo"
+    (root / layout.TORVE_DIR / "tasks" / "T-0042").mkdir(parents=True)
+    (root / layout.TORVE_DIR / "tasks" / "T-0042" / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0042\ndecisions: []\n", encoding="utf-8"
+    )
+    _verifier_replays(monkeypatch, tmp_path)
+    task = load_task(layout.task_file(root, "T-0042"))
+
+    assert verify_task_of(root, task) is None
+
+    with pytest.raises(ValueError, match="depends on no verify task"):
+        run_verifier_eval(root, [task], RunnerConfig(), _deps(), _shadow_source(tmp_path))
+
+
+def test_verifier_table_rebuilds_the_pair_from_the_ledger_alone(tmp_path):
+    root = tmp_path / "repo"
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+    ledger.parent.mkdir(parents=True)
+
+    def row(arm, state, escape):
+        return {**_arm_row(arm, "T-0042", state=state), "escape": escape}
+
+    ledger.write_text(
+        json.dumps({"schema_version": 1, "kind": "arm-eval", "arms": {"bare": []}})
+        + "\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "verifier-eval",
+                "arms": {"incumbent": [row("incumbent", "escalated", True)]},
+            }
+        )
+        + "\n"
+        # The ledger is append-only: the last line for a task-arm pair wins.
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "verifier-eval",
+                "arms": {"incumbent": [row("incumbent", "ready", False)]},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    table = verifier_table(root)
+
+    assert set(table) == {"T-0042"}
+    assert table["T-0042"]["incumbent"]["escape"] is False
+    assert table["T-0042"]["incumbent"]["state"] == "ready"
+    assert "candidate" not in table["T-0042"]
+
+
+def test_eval_cli_reports_the_verifier_pair_from_the_ledger(tmp_path):
+    root = tmp_path / "repo"
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+    ledger.parent.mkdir(parents=True)
+    rows = {
+        "incumbent": [{**_arm_row("incumbent", "T-0042"), "escape": False}],
+        "candidate": [{**_arm_row("candidate", "T-0042", attempts=2), "escape": True}],
+    }
+    ledger.write_text(
+        json.dumps({"schema_version": 1, "kind": "verifier-eval", "arms": rows}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(app, ["eval", "--verifier", "--report", "--root", str(root)])
+
+    assert result.exit_code == 0, result.stderr
+    assert "verifier pair" in result.stdout
+    # One row per arm, and the escape beside the measures every arm carries.
+    assert "incumbent" in result.stdout and "candidate" in result.stdout
+    assert "True" in result.stdout and "False" in result.stdout
+
+
+def test_eval_cli_verifier_report_with_an_empty_ledger_says_so_and_exits_zero(tmp_path):
+    root = tmp_path / "repo"
+    (root / layout.TORVE_DIR).mkdir(parents=True)
+
+    result = CliRunner().invoke(app, ["eval", "--verifier", "--report", "--root", str(root)])
+
+    assert result.exit_code == 0, result.stderr
+    assert "no verifier results" in result.stdout
+
+
+def test_eval_cli_refuses_verifier_together_with_the_other_modes(tmp_path):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+
+    for extra in (["--arm", "bare"], ["--tier", "lean", "--image", "x"]):
+        result = CliRunner().invoke(
+            app, ["eval", "--verifier", "--task", "T-0042", *extra, "--root", str(root)]
+        )
+
+        assert result.exit_code == 3
+        assert "--verifier measures the pilot alone" in result.stderr
+
+
+def test_eval_cli_refuses_an_oracle_without_verifier(tmp_path):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+
+    result = CliRunner().invoke(
+        app, ["eval", "--task", "T-0042", "--oracle", "true", "--root", str(root)]
+    )
+
+    assert result.exit_code == 3
+    assert "--oracle needs --verifier" in result.stderr
+
+
+def _verifier_run_recorded(monkeypatch, root):
+    """run_verifier_eval replaced by a record that lands in the ledger — the
+    launcher under test is the seat, the verifier lookup and the reading."""
+
+    seen: dict = {}
+
+    def fake(
+        run_root, tasks, config, deps, source, *, verifier_agent=None, oracle=None, escape=None
+    ):
+        seen["tasks"] = [task.id for task in tasks]
+        seen["verifier"] = getattr(verifier_agent, "kind", "unknown")
+        seen["agent"] = getattr(deps.agent, "kind", "unknown")
+        seen["oracle"] = oracle
+        seen["escape"] = escape
+        rows = {
+            arm: [{**_arm_row(arm, task.id), "escape": None}]
+            for arm in VERIFIER_ARMS
+            for task in tasks
+        }
+        record = {"schema_version": 1, "kind": "verifier-eval", "arms": rows}
+        ledger = run_root / layout.TORVE_DIR / EVAL_LEDGER
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        ledger.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+        return record
+
+    monkeypatch.setattr(evals, "run_verifier_eval", fake)
+
+    return seen
+
+
+def test_eval_cli_verifier_mode_runs_the_pair_on_the_verify_seat(tmp_path, monkeypatch):
+    """D-12: the verify seat is the verifier's own contract, built once before
+    any replay spends; the reading is the pair read back from the ledger."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    _landing(root, "T-0042", commit="a" * 40)
+    _verifier_run_recorded(monkeypatch, root)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "--verifier",
+            "--oracle",
+            "uv run pytest",
+            "--task",
+            "T-0042",
+            "--root",
+            str(root),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert "verifier pair" in result.stdout
+
+
+def test_eval_cli_verifier_mode_refuses_a_task_with_no_verifier(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    _arm_run_repo(root)
+    _verifier_run_recorded(monkeypatch, root)
+
+    result = CliRunner().invoke(
+        app, ["eval", "--verifier", "--task", "T-0042", "--root", str(root)]
+    )
+
+    assert result.exit_code == 3
+    assert "depends on no verify task" in result.stderr
+
+
+def test_an_oracle_that_times_out_is_infrastructure_never_an_escape(tmp_path):
+    """Review of #155, S-0116/D-12: a timed-out oracle judged nothing, so it
+    raises rather than recording an escape against the arm."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+    from torve.cli.evals import _escape_runner
+
+    class TimingOut:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            return ExecResult(exit_code=None, output="", duration_s=timeout_s)
+
+        def destroy(self, handle):
+            pass
+
+    escape = _escape_runner(tmp_path, RunnerConfig(), TimingOut())
+
+    with pytest.raises(RuntimeError, match="timed out"):
+        escape(tmp_path, "uv run pytest")
+
+
+def test_eval_cli_verifier_mode_refuses_tasks_on_two_implement_seats(tmp_path, monkeypatch):
+    """Review of #155: both arms replay every task on one implement agent,
+    so tasks naming different seats are refused before anything spends, as
+    an arm run refuses them."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    _verifier_repo(root, task="T-0044", verifier="T-0043")
+    contract = root / layout.TORVE_DIR / "tasks" / "T-0044" / "contract.yaml"
+    contract.write_text(
+        contract.read_text(encoding="utf-8").replace("tier: executor", "tier: reviewer"),
+        encoding="utf-8",
+    )
+    _verifier_run_recorded(monkeypatch, root)
+
+    result = CliRunner().invoke(
+        app,
+        ["eval", "--verifier", "--task", "T-0042", "--task", "T-0044", "--root", str(root)],
+    )
+
+    assert result.exit_code == 3
+    assert "one implement seat" in result.stderr

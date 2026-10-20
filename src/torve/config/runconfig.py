@@ -1576,6 +1576,34 @@ class IntakeConfig(BaseModel):
 # ....................... #
 
 
+class VerifyConfig(BaseModel):
+    """The verify pilot's terms (S-0116/D-2): off by default, so an adopter
+    that never sets the block mints exactly the tasks it minted before.
+
+    `variant` names the seat under `executor` the verify role runs on, and a
+    configuration that turns the pilot on without that seat refuses at load —
+    while a person is still at the terminal, not at the first dispatch of a
+    verify task. `types` and `tests_dir` are what the planner reads when it
+    mints a verifier; they carry the defaults the decision names.
+    """
+
+    model_config = STRICT
+
+    enabled: bool = False
+    """Whether the planner mints verify tasks ahead of phasing entries (S-0116/D-2)."""
+    variant: str = "verify"
+    """The dotted variant under `executor` the verify role runs on: the seat is
+    `executor.<variant>`, and a configuration with `enabled` and no such tier is
+    refused at load."""
+    types: list[str] = Field(default_factory=lambda: ["feat", "fix"])
+    """The document `change.type` values that earn a verifier (S-0116/D-4)."""
+    tests_dir: str = "tests/verify"
+    """Where a verifier writes the tests it mints (S-0116/D-4)."""
+
+
+# ....................... #
+
+
 # ....................... #
 # The seat's four refusals (S-0064/D-4, S-0064/D-5). Free functions rather than
 # methods: they are about a seat and a record together, and neither owns the pair.
@@ -1799,6 +1827,8 @@ class RunnerConfig(BaseModel):
     """The terms a served night runs under (S-0079/D-5)."""
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     """The drafting run's knobs (S-0020)."""
+    verify: VerifyConfig = Field(default_factory=VerifyConfig)
+    """The verify pilot's terms (S-0116/D-2), off by default."""
     worker_slot: int = 0
     """Names this worker's auth volume (S-0004/D-2); slots are stable, tasks are not."""
 
@@ -1892,6 +1922,30 @@ class RunnerConfig(BaseModel):
             )
 
             raise ValueError(f"character_routing names no configured tier: {named}")
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _the_verify_seat_is_configured(self) -> RunnerConfig:
+        """S-0116/D-2: turning the pilot on without a seat for the verify role
+        is a configuration error at load, not a dispatch-time surprise — the
+        same rung `retry_variant` and `character_routing` already stand on.
+        The seat is `executor.<variant>`, so the refusal names the exact tier
+        the planner would route a verify task to and that nothing configures.
+        """
+
+        if not self.verify.enabled:
+            return self
+
+        seat = f"executor.{self.verify.variant}"
+
+        if seat not in self.tiers:
+            raise ValueError(
+                f"verify.enabled names no configured tier: {seat} — add it under "
+                "tiers, or set verify.enabled: false"
+            )
 
         return self
 

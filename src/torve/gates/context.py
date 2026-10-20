@@ -18,6 +18,7 @@ from torve.base.shell import ExecuteOnce
 from torve.config import layout
 from torve.config.manifest import Manifest
 from torve.domain.attempt import BypassRecord
+from torve.domain.events import HoldoutFile
 from torve.domain.spec import ChangeType, Invariant
 from torve.domain.task import InheritedDecision, Task
 
@@ -100,6 +101,18 @@ class GateContext:
     # a specification document (S-0007/D-18). None outside a document, or for
     # one that declares no change, and `red-on-base` then reads it as before.
     change_type: ChangeType | None = None
+
+    # S-0116/D-10: the held-out properties of the task's latest
+    # `verify.holdout` event, handed to the battery by the runner. Empty for
+    # every task with no such event — the ordinary attempt. A gate writes them
+    # into its own checkout and removes them when it ends, so no other gate
+    # collects or reports them.
+    holdout: list[HoldoutFile] = field(default_factory=list)
+
+    # S-0116/D-10: where a verifier's tests live (`verify.tests_dir`,
+    # S-0116/D-2), so `held-out` finds the directory to write under. Set from
+    # the runner configuration; the default is D-2's.
+    tests_dir: str = "tests/verify"
 
     # ....................... #
 

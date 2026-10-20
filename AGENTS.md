@@ -193,6 +193,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `skills/spec-writer/` — 3 decision(s)
 - `skills/torve/` — 4 decision(s)
 - `skills/torve/references/` — 3 decision(s)
+- `skills/verifier/` — 1 decision(s)
 - `skills/working-rules/` — 8 decision(s)
 - `src/` — 1 decision(s)
 - `src/torve/` — 3 decision(s)

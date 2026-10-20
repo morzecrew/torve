@@ -5,17 +5,23 @@ shadow doctrine: a completed eval exits 0 whatever the arms measured, 3
 is a configuration problem, 4 an infrastructure failure. The paired
 configuration eval takes the candidate arm's override — an image (S-0027
 S-0027/D-7) or a tier variant (S-0034 S-0034/D-10) — and both arms run the agent
-their own configuration resolves, through the CLI's factory.
+their own configuration resolves, through the CLI's factory. `--verifier`
+measures the verifier pilot instead (S-0116/D-12): each named task is replayed
+as today, and again with its verify task replayed first and its held-out
+properties injected, with `--oracle` recording each arm's escape.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 from rich.text import Text
 
+from torve.application.ports import Runtime
+from torve.base import naming
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_PASS,
@@ -39,6 +45,7 @@ from torve.cli.options import (
     runtime_for,
 )
 from torve.config import layout
+from torve.config.runconfig import RunnerConfig
 from torve.domain.states import EXIT_CONFIG, EXIT_INFRASTRUCTURE, EXIT_OK
 from torve.gates.context import load_task
 
@@ -133,6 +140,119 @@ def _report_arms(root: Path, task_ids: list[str], fmt: Format) -> None:
 # ....................... #
 
 
+def _report_verifier(root: Path, task_ids: list[str], fmt: Format) -> None:
+    """The verifier pair reading (S-0116/D-12): one table per task, the two
+    arms and the oracle's escape on each — rebuilt from the eval ledger alone,
+    never from the run that just landed."""
+
+    from torve.application.evals import VERIFIER_ARMS, verifier_table
+
+    table = verifier_table(root)
+
+    if task_ids:
+        table = {task: arms for task, arms in table.items() if task in task_ids}
+
+    if fmt is Format.JSON:
+        emit_json({"tasks": table})
+        raise typer.Exit(EXIT_OK)
+
+    console = out(fmt)
+    header(console, "eval", "verifier pair")
+
+    if not table:
+        closing(console, "no verifier results in the eval ledger — nothing to report", STYLE_WARN)
+        raise typer.Exit(EXIT_OK)
+
+    for task in sorted(table):
+        rows = make_table("arm", "state", "attempts", "cost usd", "escape", title=task)
+
+        for arm in VERIFIER_ARMS:
+            row = table[task].get(arm)
+            rows.add_row(
+                arm,
+                _cell(row, "state"),
+                _cell(row, "attempts"),
+                _cell(row, "cost_usd"),
+                _cell(row, "escape"),
+            )
+
+        console.print(rows)
+
+    closing(
+        console,
+        "the escape is a non-zero exit of the oracle on that arm's candidate — one command "
+        "per task, written from the fix that caught what the phase escaped",
+        STYLE_DIM,
+    )
+    raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+def _escape_runner(
+    root: Path, config: RunnerConfig, runtime: Runtime
+) -> Callable[[Path, str], bool]:
+    """The oracle's execution (S-0116/D-12): the command runs in a sandbox over
+    the arm's candidate, as a battery's shell gate runs, and a non-zero exit is
+    that arm's escape."""
+
+    from uuid import uuid4
+
+    from torve.application.ports import NestedDocker, SandboxSpec
+    from torve.config.runconfig import CACHE_MOUNT, TierConfig, image_for
+
+    seat = config.tiers.get("executor") or TierConfig()
+    # The sandbox a replay's own gates run under: the seat's image, its cache
+    # and, where the configuration nests the gates role, a daemon of its own.
+    nested = (
+        NestedDocker(
+            image=config.runtime.nested.image,
+            # A replay starts cold (S-0035/D-3), so its daemon gets no slot volume.
+            volume="",
+            registry_mirrors=tuple(config.runtime.nested.registry_mirrors),
+            ready_s=config.runtime.nested.ready_s,
+        )
+        if config.runtime.nests("gates")
+        else None
+    )
+
+    def escape(workspace: Path, command: str) -> bool:
+        spec = SandboxSpec(
+            # One probe, its own name: two evals on one host never share a
+            # container (the conformance rule every sandbox here follows).
+            name=f"torve-eval-oracle-{uuid4().hex[:8]}",
+            image=image_for(config, seat),
+            labels=naming.labels("eval-oracle", "eval", root),
+            timeout_s=config.runtime.sandbox_timeout,
+            volumes=(
+                {f"{seat.cache_volume}-{config.worker_slot}": CACHE_MOUNT}
+                if seat.cache_volume
+                else {}
+            ),
+            nested=nested,
+        )
+        handle = runtime.create(spec, workspace)
+
+        try:
+            result = runtime.exec(handle, command, config.runtime.sandbox_timeout)
+
+        finally:
+            runtime.destroy(handle)
+
+        if result.exit_code is None:
+            # A timeout judged nothing: an infrastructure failure, never an
+            # escape recorded against the arm (S-0116/D-12).
+            raise RuntimeError(f"the oracle timed out after {config.runtime.sandbox_timeout}s")
+
+        return result.exit_code != 0
+
+    return escape
+
+
+# ....................... #
+
+
 def _preflight(arms: list[str], costs: dict[str, dict[str, Any]], seat: str, fmt: Format) -> None:
     """What an arm run is about to do, before it does it (S-0082/D-11): which arms
     over which tasks on which seat, and what those tasks' recorded attempts
@@ -192,9 +312,28 @@ def eval_cmd(
         typer.Option(
             "--report",
             help="Report the recorded arms per task — one table per task, one row per arm — "
-            "from the eval ledger alone, and run nothing.",
+            "from the eval ledger alone, and run nothing. With --verifier it reports the "
+            "verifier pairs instead.",
         ),
     ] = False,
+    verifier: Annotated[
+        bool,
+        typer.Option(
+            "--verifier",
+            help="Measure the verifier pilot: replay each --task as today's engine does, and "
+            "again with its verify task replayed first and its held-out properties injected. "
+            "With --report it reads the pairs already recorded.",
+        ),
+    ] = False,
+    oracle: Annotated[
+        str | None,
+        typer.Option(
+            "--oracle",
+            help="A command run on each verifier arm's candidate — written by hand from the "
+            "fix that caught the escape; a non-zero exit is that arm's escape. Needs "
+            "--verifier.",
+        ),
+    ] = None,
     tier: Annotated[
         str | None,
         typer.Option(
@@ -231,11 +370,18 @@ def eval_cmd(
     three unless --arm narrows them, on the task's own seat unless --tier
     names another. Nothing a replay produces is ever merged. With --report
     nothing runs: the arms already recorded are read back from the ledger,
-    one table per task."""
+    one table per task.
+
+    `--verifier` measures the pilot instead: each named task is replayed as
+    today, and again with its verify task replayed first and its held-out
+    properties injected, with `--oracle` recording each arm's escape."""
 
     if report:
         # The reading needs the ledger and nothing else — no configuration,
         # no contracts, no agent (S-0074/D-1).
+        if verifier:
+            _report_verifier(root.resolve(), task_ids, fmt)
+
         _report_arms(root.resolve(), task_ids, fmt)
 
     from functools import partial
@@ -259,6 +405,8 @@ def eval_cmd(
         run_arm_eval,
         run_config_eval,
         run_skill_eval,
+        run_verifier_eval,
+        verify_task_of,
         without_skill,
     )
     from torve.application.ports import Agent
@@ -273,7 +421,23 @@ def eval_cmd(
     # neither of the other two's, since the axis is the three arms and an
     # invocation that names no comparison inside the apparatus is a run of it.
     # `--tier` here is the seat the arms run on (S-0082/D-10), never a candidate.
-    arm_mode = bool(arm_names) or (skill is None and not config_mode)
+    verifier_mode = verifier
+    arm_mode = (bool(arm_names) or (skill is None and not config_mode)) and not verifier_mode
+
+    if verifier_mode:
+        if skill is not None or arm_names or config_mode:
+            raise fail(
+                "configuration error: --verifier measures the pilot alone — give it --task "
+                "and --oracle, not a skill, an arm or a configuration override",
+                EXIT_CONFIG,
+            )
+
+    elif oracle is not None:
+        raise fail(
+            "configuration error: --oracle needs --verifier — its command runs on each "
+            "verifier arm's candidate",
+            EXIT_CONFIG,
+        )
 
     if arm_mode:
         if skill is not None:
@@ -308,6 +472,7 @@ def eval_cmd(
     if (
         skill is None
         and not arm_mode
+        and not verifier_mode
         and not (tier is not None and (image is not None or variant is not None))
     ):
         raise fail(
@@ -373,6 +538,7 @@ def eval_cmd(
         tasks.append(load_task(task_file))
 
     seat = ""
+    verifier_agent: Agent | None = None
 
     try:
         if arm_mode:
@@ -399,6 +565,41 @@ def eval_cmd(
 
             incumbent_agent = build_tier_agent(config, root, seat)
             candidate_agent: Agent | None = None
+        elif verifier_mode:
+            # The verify seat is the verifier's own — its contract's tier and
+            # variant — resolved and refused here, before any replay spends
+            # (S-0116/D-12). Every verifier of the invocation resolves to one
+            # seat, as an arm run's tasks do.
+            verifiers = [(t, verify_task_of(root, t)) for t in tasks]
+            missing = [t.id for t, found in verifiers if found is None]
+
+            if missing:
+                raise ValueError(
+                    f"{missing[0]} depends on no verify task — there is no verifier to replay"
+                )
+
+            seats = {tier_name_for(found) for _, found in verifiers if found is not None}
+
+            if len(seats) > 1:
+                raise ValueError(
+                    f"these verifiers name {', '.join(sorted(seats))} — one invocation "
+                    "replays on one verify seat"
+                )
+
+            # Both arms replay every task on one implement agent, built once:
+            # tasks naming different seats would run the second on the first's.
+            implementers = {tier_name_for(task) for task in tasks}
+
+            if len(implementers) > 1:
+                raise ValueError(
+                    f"these tasks name {', '.join(sorted(implementers))} — one invocation "
+                    "replays on one implement seat"
+                )
+
+            verify_seat = seats.pop()
+            verifier_agent = build_tier_agent(config, root, verify_seat)
+            incumbent_agent = build_tier_agent(config, root, implementers.pop())
+            candidate_agent = None
         elif skill is not None:
             without_skill(config, skill)  # refuse before any spend
             incumbent_agent = build_tier_agent(config, root, tasks[0].tier)
@@ -412,7 +613,12 @@ def eval_cmd(
             incumbent_agent = build_tier_agent(config, root, tier)
             candidate_agent = build_tier_agent(candidate, root, tier)
 
-        tiers = {task.tier for task in tasks}
+        tiers: set[str] = {task.tier for task in tasks}
+
+        if verifier_agent is not None:
+            # The verify seat spends first, so its route is refused before any
+            # replay does, as the implement seats' are.
+            tiers.add(verify_seat)
 
         for name in tiers:
             resolved = tier_for(config, name)
@@ -426,15 +632,19 @@ def eval_cmd(
     # override through the CLI's factory — a candidate differing in model,
     # command, adapter or image runs as itself in every respect, never as
     # the incumbent's agent under a candidate label (S-0034/D-10).
+    runtime = runtime_for(config, None)
     deps = RunDeps(
         workspace=GitWorkspace(root),
-        runtime=runtime_for(config, None),
+        runtime=runtime,
         agent=incumbent_agent,
         vcs=GitVcs(),
         scm=NullScm(),
         store=open_store,
         broker=build_broker(config.broker),
     )
+    # The oracle (S-0116/D-12) runs in a sandbox over each arm's candidate;
+    # nothing is built for it when no command was named.
+    escape = _escape_runner(root, config, runtime) if oracle is not None else None
 
     shadow_ws = ShadowWorkspace(root, depth=depth)
 
@@ -453,6 +663,20 @@ def eval_cmd(
 
             with live_status(f"{len(arms)} arm(s) over {len(tasks)} task(s) on {seat}", fmt):
                 record = run_arm_eval(root, tasks, config, deps, source, tuple(arms))
+        elif verifier_mode:
+            status = f"verifier eval over {len(tasks)} task(s), incumbent vs candidate"
+
+            with live_status(status, fmt):
+                record = run_verifier_eval(
+                    root,
+                    tasks,
+                    config,
+                    deps,
+                    source,
+                    verifier_agent=verifier_agent,
+                    oracle=oracle,
+                    escape=escape,
+                )
         elif skill is not None:
             with live_status(f"eval of {skill} over {len(tasks)} task(s), two arms", fmt):
                 record = run_skill_eval(root, skill, tasks, config, deps, source)
@@ -487,6 +711,10 @@ def eval_cmd(
         # The reading is the one already built: the record just landed is read
         # back out of the ledger it landed in, per task and never as a mean.
         _report_arms(root, task_ids, fmt)
+
+    if record["kind"] == "verifier-eval":
+        # The pair, read back from the ledger it landed in (S-0116/D-12).
+        _report_verifier(root, task_ids, fmt)
 
     console = out(fmt)
 

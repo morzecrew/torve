@@ -182,6 +182,61 @@ def test_dispatch_seals_the_contract_acceptance_and_holds_the_once_bound(tmp_pat
 # ....................... #
 
 
+def test_the_task_gated_review_runs_for_a_verify_task():
+    """S-0116/D-7: the task-gated review follows a verify task as it follows an
+    implement one, so a reviewer reads the verifier's tests — one that asserts
+    nothing, or one pinning an internal no row names — before they judge any
+    implementation. A replay is still no review, whichever role its target
+    carries, and a role the trigger does not cover is still no review."""
+
+    from torve.application.dispatch import review_gated
+    from torve.config.runconfig import ReviewConfig
+
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"]))
+    verify = Task(id=TASK_ID, role="verify", decisions=[], acceptance=["uv run pytest"])
+
+    assert review_gated(config, verify, False) is True
+    assert review_gated(config, Task(id=TASK_ID, decisions=[]), False) is True
+
+    # A replay measures the harness, not the reviewer (S-0005/D-11).
+    assert review_gated(config, verify, True) is False
+    # A role the trigger does not cover is no review.
+    assert review_gated(config, Task(id=TASK_ID, role="draft", decisions=[]), False) is False
+
+
+# ....................... #
+
+
+def test_the_verify_review_prompt_reads_the_tests_for_vacuity_and_over_specification():
+    """S-0116/D-7: a verify target's diff is tests and no implementation, so the
+    reviewer is told what to read them for — a test that asserts nothing, and one
+    pinning an internal no inherited row names. An implement target keeps the
+    generic prompt, because its diff is code to judge against its rows."""
+
+    from torve.application.review import build_review_prompt
+
+    verify = Task(
+        id=TASK_ID,
+        role="verify",
+        intent="Prove the widget.",
+        decisions=[],
+        acceptance=["uv run pytest --collect-only tests/verify/test_s0116_p1.py"],
+    )
+    prompt = " ".join(build_review_prompt(verify, "diff --git", []).split())
+
+    assert "The verifier's tests" in prompt
+    assert "A vacuous test asserts nothing" in prompt
+    assert "pins an internal no inherited row names" in prompt
+
+    # The generic prompt is what a change that is code gets.
+    implement = Task(id=TASK_ID, intent="Build the widget.", decisions=[])
+
+    assert "The verifier's tests" not in build_review_prompt(implement, "diff --git", [])
+
+
+# ....................... #
+
+
 def test_the_attempt_row_is_rendered_from_the_record_it_reports(tmp_path):
     """One record, both carriers (A-85). The stream is written from the
     record rather than built beside it, so a field added to one carrier and

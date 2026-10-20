@@ -106,6 +106,9 @@ class EventKind(StrEnum):
     NOTIFICATION_SENT = "notification.sent"
     NIGHT_OPENED = "night.opened"
     NIGHT_CLOSED = "night.closed"
+    # S-0116/D-9: a verify attempt's held-out properties, recorded on the
+    # implement task of its entry and never on the verify task's own commit.
+    VERIFY_HOLDOUT = "verify.holdout"
 
 
 # ....................... #
@@ -156,6 +159,10 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     # queue facts' reason — the loop is the only actor that can know them.
     EventKind.NIGHT_OPENED: frozenset({ActorKind.MANAGER}),
     EventKind.NIGHT_CLOSED: frozenset({ActorKind.MANAGER}),
+    # S-0116/D-9: the host records the held-out properties the verify attempt
+    # wrote, on the implement task of its entry — an execution fact, the
+    # worker's, exactly as the attempt it came from is.
+    EventKind.VERIFY_HOLDOUT: frozenset({ActorKind.WORKER}),
 }
 
 
@@ -660,6 +667,40 @@ class NightClosed(BaseModel):
 
 # ....................... #
 
+
+class HoldoutFile(BaseModel):
+    """One held-out property file: its name under the holdout directory and
+    its text."""
+
+    model_config = STRICT
+
+    name: str
+    text: str
+
+
+# ....................... #
+
+
+class VerifyHoldout(BaseModel):
+    """The held-out properties one verify attempt wrote (S-0116/D-9): each
+    file's path relative to the attempt's holdout directory and its whole
+    text. At most one such event per verify attempt, empty when it wrote
+    none, and the latest one on a task is the held-out set — it replaces
+    every earlier one.
+
+    The texts are here so a host that did not run the verifier can still
+    write them into its own checkout; the cap that keeps one event under 64
+    KiB, and the deletion of the files from the verify worktree, are the
+    host's to enforce when it records.
+    """
+
+    model_config = STRICT
+
+    files: list[HoldoutFile] = Field(default_factory=list)
+
+
+# ....................... #
+
 PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.SOURCE_IMPORTED: SourceImported,
     EventKind.DECISION_RECORDED: DecisionRecorded,
@@ -686,6 +727,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.NOTIFICATION_SENT: NotificationSent,
     EventKind.NIGHT_OPENED: NightOpened,
     EventKind.NIGHT_CLOSED: NightClosed,
+    EventKind.VERIFY_HOLDOUT: VerifyHoldout,
 }
 
 

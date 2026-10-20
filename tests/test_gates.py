@@ -6,7 +6,9 @@ import pytest
 from conftest import context_for
 
 from torve.config.manifest import Gate
+from torve.domain.events import HoldoutFile
 from torve.gates.decisions_reported import check_decisions_reported, parse_log
+from torve.gates.runner import run_gates
 from torve.gates.sabotage import (
     BASE_MANIFEST,
     MUTATION_APP,
@@ -1599,3 +1601,49 @@ def test_the_source_layout_gate_reads_the_layout_source_root(repo):
 
     assert inside.outcome == "fail", inside.output
     assert "app/src/torve/models.py" in inside.output
+
+
+# ....................... #
+
+
+def test_no_other_gate_in_the_battery_sees_the_held_out_files(repo):
+    """S-0116/D-10: the held-out files exist for the held-out gate's run and
+    no other. A gate that comes after it in the same battery, told to look
+    for them, finds nothing — and the directory is gone from the checkout."""
+
+    repo.seed(
+        {
+            "schema_version": 1,
+            "scope": {"allow": [], "deny": []},
+            "tests": {"run": "pytest -q -p no:cacheprovider"},
+            "gates": [
+                {
+                    "name": "held-out",
+                    "run": "@held-out",
+                    "state": "blocking",
+                    "origin": "S-0116",
+                    "timeout": 5,
+                },
+                {
+                    "name": "watches-the-holdout",
+                    "run": "! test -e tests/verify/holdout",
+                    "state": "blocking",
+                    "origin": "S-0116",
+                },
+            ],
+        }
+    )
+    repo.task(base_task(allow=["tests/**"]), None)
+    repo.commit("a candidate that satisfies the held-out property")
+
+    context = context_for(repo, base="main")
+    context.holdout = [
+        HoldoutFile(name="test_p4.py", text="# S-0116/D-10\ndef test_row():\n    assert True\n")
+    ]
+
+    report = run_gates(context)
+    outcomes = {one.name: one.outcome for one in report.results}
+
+    assert outcomes["held-out"] == "pass"
+    assert outcomes["watches-the-holdout"] == "pass"
+    assert not (repo.root / "tests" / "verify" / "holdout").exists()

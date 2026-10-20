@@ -1960,6 +1960,44 @@ def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch)
     assert seen == [False, False, False, False, True]
 
 
+def test_the_lane_leg_hands_the_lane_the_recorded_holdouts(tmp_path, monkeypatch):
+    """S-0116/D-14: `_lane_leg` folds the recorded held-out properties on the
+    loop and hands `process_lane` the reader over them, so a document's
+    completion commits what a verifier recorded on any host."""
+
+    import torve.application.lane as lane_module
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+    from torve.domain.events import HoldoutFile
+
+    seen: dict[str, object] = {}
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+
+    files = [HoldoutFile(name="test_p.py", text="# S-0116/D-14\n")]
+
+    async def holdouts():
+        return {"T-1": files}
+
+    leg = _lane_leg(
+        tmp_path,
+        RunnerConfig(promotion=PromotionConfig(auto_merge=True)),
+        only=None,
+        holdouts=holdouts,
+    )
+    assert leg is not None
+
+    asyncio.run(leg())
+
+    reader = seen["holdout"]
+    assert reader("T-1") == files
+    assert reader("T-2") == []
+
+
 def test_the_lane_leg_builds_the_sandbox_factory_from_the_configurations_runtime(
     tmp_path, monkeypatch
 ):

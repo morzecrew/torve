@@ -122,6 +122,31 @@ def test_the_operating_guide_documents_the_mutation_gate_and_how_to_read_a_survi
     assert "tests pin each line scores 1" in guide
 
 
+def test_the_operating_guide_documents_the_verify_pilot_and_its_held_out_failures():
+    """S-0116/D-13: the page an operator reads says how to turn the pilot on
+    (each name one the engine parses, so a renamed key cannot leave the page
+    teaching a setting nothing reads), how to read a held-out failure, and how
+    a disputed verifier test reaches a person."""
+
+    from torve.config.runconfig import VerifyConfig
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+
+    assert "verify:" in guide
+    for key in VerifyConfig.model_fields:
+        assert key in guide, f"the operating guide does not name verify.{key}"
+    assert "executor.<variant>" in guide, "the seat a variant names is not stated"
+
+    # Reading a held-out failure: the event, the gate, and what its output keeps.
+    assert "verify.holdout" in guide
+    assert "the test's identifier, its message and the rows it cites" in guide
+    assert "cites: " in guide
+
+    # A disputed verifier test: the halt, the entry it leaves, and who decides.
+    assert "naming the test and the row it claims to decide" in guide
+    assert "underspecified" in guide
+
+
 def test_the_configuration_reference_names_the_nested_docker_block_the_engine_parses():
     """The page that documents `.torve/config.yaml` names `runtime.docker` and
     every field of its `runtime.nested` block, and each name is one the engine

@@ -132,7 +132,12 @@ arrives first, invisibly.
    number, title, one-paragraph intent, the file globs it will touch, its
    acceptance commands, the phases it waits on — not prose about sequence.
    If `torve plan` cannot derive a task from an entry, the entry was written
-   wrong.
+   wrong. **The intent names the public surface the phase's tests drive** —
+   the functions, types or commands the phase introduces or changes. Where
+   the verify pilot is on, a verifier writes that phase's tests from the rows
+   and the intent alone, before any implementation exists; an intent naming
+   only a file leaves it to invent an API, and a phase written for a verifier
+   names what to test.
 
 3. **Non-overlapping scope within a phase.** Entries with the same phase
    number must not share globs — overlapping tasks cannot run in parallel and

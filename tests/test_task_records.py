@@ -390,3 +390,26 @@ def test_a_contracts_contingent_set_reads_back_off_the_board(tmp_path):
         assert view.contract.scope.contingent == ["src/b.py", "tests/test_a.py"]
 
     run(scenario)
+
+
+# ....................... #
+
+
+def test_a_verify_contract_is_offered_to_a_worker(tmp_path):
+    """S-0116/D-1: a worker claims a verify task off the board like an implement
+    task, so every reader of `DISPATCHABLE_ROLES` offers it."""
+
+    task_dir = tmp_path / ".torve" / "tasks" / "T-0001"
+    task_dir.mkdir(parents=True)
+    (task_dir / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0001\nrole: verify\nintent: prove the rows\n"
+        "scope: {allow: ['tests/verify/**']}\n"
+        "acceptance: ['uv run pytest tests/verify']\ndecisions: []\n",
+        encoding="utf-8",
+    )
+
+    async def scenario(log):
+        await sync(log, tmp_path)
+        assert dispatchable(await board_of(log), PARTITION) == ["T-0001"]
+
+    run(scenario)

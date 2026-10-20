@@ -53,6 +53,7 @@ if TYPE_CHECKING:
 
     from torve.application.eventlog import EventLog
     from torve.application.manager import Board
+    from torve.config.runconfig import VerifyConfig
 
 # ----------------------- #
 
@@ -274,6 +275,129 @@ def change_type_of(spec_dir: Path, task: Task | None) -> ChangeType | None:
         return None
 
     return document.change.type if document.change else None
+
+
+# S-0116/D-4: the fixed preamble every verify task's intent opens with, before
+# the phase's own intent — the verifier writes the tests from the rows and this
+# intent alone, so the contract it reads says so before it reads the intent.
+VERIFY_PREAMBLE = (
+    "Write this phase's tests from its decisions and this intent alone, before "
+    "any implementation exists. Give every row the phase settles at least one "
+    "test whose docstring cites it, and import the code under test inside each "
+    "test body so the file collects before the code exists.\n\n"
+)
+
+
+def _verify_terms(root: Path) -> VerifyConfig:
+    """The verify pilot's terms (S-0116/D-2, D-4): off by default. A
+    configuration the loader refuses reads as off here — `torve plan` has
+    already refused it by name, and the planner is not the place that reports
+    a broken configuration (the same reading `change_type_of` takes of a corpus
+    `spec check` owns)."""
+
+    from torve.config.runconfig import VerifyConfig, load_runner_config
+
+    try:
+        return load_runner_config(root).verify
+
+    except ValueError:
+        return VerifyConfig()
+
+
+def _test_run(root: Path) -> str:
+    """The manifest's `tests.run` launcher (S-0106/D-7) a verify task appends
+    its file to; the engine default when the tree carries no manifest, or one
+    the loader refuses."""
+
+    from torve.config.manifest import DEFAULT_TEST_RUN, load_manifest
+
+    path = layout.gates_file(root)
+
+    if not path.is_file():
+        return DEFAULT_TEST_RUN
+
+    try:
+        return load_manifest(path).tests.run
+
+    except ValueError:
+        return DEFAULT_TEST_RUN
+
+
+def _verify_file(tests_dir: str, number: str, phase: int, k: int) -> str:
+    """The one file a verifier may write (S-0116/D-4): `<tests_dir>/test_sNNNN_pN.py`,
+    or `..._pN_<k>.py` for the k-th entry of several sharing phase N."""
+
+    base = f"{tests_dir.rstrip('/')}/test_s{number_of(number)}_p{phase}"
+
+    return f"{base}.py" if k == 1 else f"{base}_{k}.py"
+
+
+def _minted_without_a_verifier(task: Task) -> Task:
+    """An implement derivation with its verifier stripped (S-0116/D-5): the
+    verifier's file is the whole of `deny` and its run the last of
+    `acceptance` on the derivation a fresh mint writes, and both leave it.
+    A refresh mints nothing, so a phase that holds no verify contract is
+    diffed against the derivation it can actually be dispatched under."""
+
+    if not task.scope.deny:
+        return task
+
+    return task.model_copy(
+        update={
+            "scope": task.scope.model_copy(update={"deny": []}),
+            "acceptance": task.acceptance[:-1],
+        }
+    )
+
+
+def _verifier_runs(task: Task) -> list[str]:
+    """The acceptance lines that are the verifier's: those naming a file it
+    denies. Every other line is the phase's own, and a refresh takes it from
+    the derivation rather than the minted contract (S-0116/D-5)."""
+
+    return [line for line in task.acceptance if any(file in line for file in task.scope.deny)]
+
+
+def _verify_derivation(
+    current: Task,
+    implements: list[Task],
+    implement_derived: dict[str, PlannedTask],
+    deriveds: list[PlannedTask],
+) -> PlannedTask | None:
+    """The derivation a minted verify contract is refreshed against: the
+    verify derivation of the entry whose implement contract depends on it
+    (S-0116/D-5). None when no implement contract names it, or when that
+    entry's derivation earns no verifier now."""
+
+    owner = next((one for one in implements if current.id in one.depends_on), None)
+
+    if owner is None or owner.id not in implement_derived:
+        return None
+
+    wanted = set(implement_derived[owner.id].task.depends_on)
+
+    return next((one for one in deriveds if one.task.id in wanted), None)
+
+
+def _minted_with_a_verifier(derived: Task, current: Task) -> Task:
+    """An implement derivation wearing the verifier its minted contract carries
+    (S-0116/D-5): the three wirings are fixed at mint, so a refresh whose
+    derivation no longer earns a verifier — the pilot is off, or the document's
+    change type left `verify.types` — still denies the verifier's file and runs
+    it. The file and its run come from the contract, never re-derived."""
+
+    # The verifier's run is the one acceptance line naming its file; every
+    # other line is the phase's own, and the derivation supplies it, so a
+    # command edited or dropped in the document leaves with it (S-0088/D-1).
+    runs = _verifier_runs(current)
+    kept = [line for line in derived.acceptance if line not in _verifier_runs(derived)]
+
+    return derived.model_copy(
+        update={
+            "scope": derived.scope.model_copy(update={"deny": list(current.scope.deny)}),
+            "acceptance": kept + runs,
+        }
+    )
 
 
 def _already_minted(
@@ -543,12 +667,54 @@ def plan_document(
     after_tasks = sorted(set(after_tasks))
     ordered = sorted(entries, key=lambda e: e.phase)  # stable: document order within a phase
     next_number = next_task_number(root, board.tasks if board is not None else ())
-    ids_by_phase: dict[int, list[str]] = {}
-    planned: list[PlannedTask] = []
 
-    for offset, entry in enumerate(ordered):
+    # S-0116/D-4: with the pilot on, a behavioural entry mints a verifier ahead
+    # of it — the one file it may write, and the collect-only run that proves it.
+    pilot = _verify_terms(root)
+    source_prefix = read_layout(root).source_prefix()
+    test_run = _test_run(root)
+
+    def earns_verifier(entry: Phase) -> bool:
+        if not pilot.enabled or doc.change is None or doc.change.type not in pilot.types:
+            return False
+
+        return any(one.startswith(source_prefix) for one in entry.scope)
+
+    seen: dict[int, int] = {}
+    verify_files: dict[int, str] = {}
+
+    for entry in ordered:
+        if not earns_verifier(entry):
+            continue
+
+        seen[entry.phase] = seen.get(entry.phase, 0) + 1
+        verify_files[id(entry)] = _verify_file(
+            pilot.tests_dir, number, entry.phase, seen[entry.phase]
+        )
+
+    # The verify task precedes its implement task; ids run in phasing order.
+    emissions: list[tuple[str, Phase, str | None]] = []
+
+    for entry in ordered:
+        file = verify_files.get(id(entry))
+
+        if file is not None:
+            emissions.append(("verify", entry, file))
+
+        emissions.append(("implement", entry, None))
+
+    ids_by_phase: dict[int, list[str]] = {}
+    verify_id_of: dict[int, str] = {}
+    emitted: list[tuple[str, str, Phase, str | None]] = []
+
+    for offset, (role, entry, file) in enumerate(emissions):
         task_id = f"T-{next_number + offset:04d}"
-        ids_by_phase.setdefault(entry.phase, []).append(task_id)
+        emitted.append((task_id, role, entry, file))
+
+        if role == "verify":
+            verify_id_of[id(entry)] = task_id
+        else:
+            ids_by_phase.setdefault(entry.phase, []).append(task_id)
 
     if phases is not None:
         for entry in ordered:
@@ -562,29 +728,52 @@ def plan_document(
     from torve.application.intake import test_pairs
 
     pairs = test_pairs(root)
+    planned: list[PlannedTask] = []
 
-    for offset, entry in enumerate(ordered):
+    for task_id, role, entry, file in emitted:
         # A task with an in-document predecessor waits through it; one with
         # none is where the other document's landing has to be waited on.
         within = [tid for p in entry.depends_on for tid in ids_by_phase.get(p, [])]
-        task = Task(
-            id=f"T-{next_number + offset:04d}",
-            spec=document,
-            phase=entry.phase,
-            role="implement",  # review tasks are minted by the runner at `gated` (§3)
-            intent=entry.intent.strip(),
-            depends_on=within or list(after_tasks),
-            scope=Scope(
-                allow=list(entry.scope),
-                contingent=neighbours.contingent_paths(
-                    root, entry.scope, document=doc, phase=entry.phase, pair=pairs
+        depends = within or list(after_tasks)
+
+        if role == "verify":
+            assert file is not None
+            task = Task(
+                id=task_id,
+                spec=document,
+                phase=entry.phase,
+                role="verify",
+                intent=VERIFY_PREAMBLE + entry.intent.strip(),
+                depends_on=depends,
+                scope=Scope(allow=[file]),
+                acceptance=[f"{test_run} --collect-only {file}"],
+                decisions=decisions,
+                tier_variant=pilot.variant or None,
+            )
+        else:
+            verifier = verify_files.get(id(entry))
+            # S-0116/D-5: the implementer depends on the verifier, runs its
+            # tests, and may never edit the file they live in.
+            task = Task(
+                id=task_id,
+                spec=document,
+                phase=entry.phase,
+                role="implement",  # review tasks are minted by the runner at `gated` (§3)
+                intent=entry.intent.strip(),
+                depends_on=([verify_id_of[id(entry)]] if verifier else []) + depends,
+                scope=Scope(
+                    allow=list(entry.scope),
+                    deny=[verifier] if verifier else [],
+                    contingent=neighbours.contingent_paths(
+                        root, entry.scope, document=doc, phase=entry.phase, pair=pairs
+                    ),
                 ),
-            ),
-            acceptance=list(entry.acceptance),
-            decisions=decisions,
-            tier_variant=entry.tier_variant or None,
-            character=entry.character or None,
-        )
+                acceptance=list(entry.acceptance)
+                + ([f"{test_run} {verifier}"] if verifier else []),
+                decisions=decisions,
+                tier_variant=entry.tier_variant or None,
+                character=entry.character or None,
+            )
 
         planned.append(
             PlannedTask(
@@ -886,12 +1075,15 @@ def refresh_document(
     contract compared with the derivation field by field (S-0088/D-1). Dry:
     nothing is written and nothing is recorded.
 
-    A phase's contracts are paired with its phasing entries in id order,
-    which is mint order — the planner numbers the entries of a phase in
-    document order, so the nth contract of a phase is the nth entry's. A
-    contract whose entry the phasing no longer carries is left alone and
-    named; a phase never minted is not minted here (that is `plan`'s job,
-    refused while any phase is minted, unchanged).
+    A phase's contracts are paired, role by role, with the derivations of
+    their own role in id order, which is mint order — the planner numbers a
+    phase's entries in document order, so the nth contract of a role is the
+    nth derivation of it, and a phase minted under the verify pilot holds two
+    contracts per entry. A contract whose entry the phasing no longer carries
+    is left alone and named; a phase never minted is not minted here (that is
+    `plan`'s job, refused while any phase is minted, unchanged). A refresh
+    mints no verifier, so an implement contract of a phase that holds no
+    verify contract is diffed against the derivation without one.
 
     With *remote_branch*, the document is read from the remote's copy of that
     branch after a fetch the caller made, and the rest of the corpus from the
@@ -922,16 +1114,63 @@ def _refresh(
 
     for phase, contracts in sorted(existing.items()):
         entries = [planned for planned in report.tasks if planned.task.phase == phase]
+        # S-0116/D-4: a phase minted under the pilot holds a verify task beside
+        # its implement ones, and the two roles are paired with the derivation
+        # of their own role, in id order — the nth contract of a role with the
+        # nth derivation of it, never positionally across both.
+        by_role: dict[str, list[PlannedTask]] = {}
 
-        for offset, current in enumerate(contracts):
-            if offset >= len(entries):
+        for planned in entries:
+            by_role.setdefault(planned.task.role, []).append(planned)
+
+        # S-0116/D-5: the verifier's wiring is fixed at mint, so the derivation
+        # is aligned with the contract before the diff: an implement contract
+        # minted with a verifier keeps its file and run whichever way the
+        # derivation moves, and one minted without stays without — a file
+        # name a later derivation gives its entry may be another entry's.
+        seen_role: dict[str, int] = {}
+        # A verify contract is paired through the implement contract that
+        # depends on it (S-0116/D-5), never by offset: the entries that earn a
+        # verifier can change after mint, and the nth verifier would then take
+        # another entry's intent.
+        implements = [one for one in contracts if one.role == "implement"]
+        implement_derived = dict(
+            zip([one.id for one in implements], by_role.get("implement", []), strict=False)
+        )
+
+        for current in contracts:
+            offset = seen_role.get(current.role, 0)
+            seen_role[current.role] = offset + 1
+            deriveds = by_role.get(current.role, [])
+
+            if current.role == "verify":
+                pairing = _verify_derivation(current, implements, implement_derived, deriveds)
+            else:
+                pairing = deriveds[offset] if offset < len(deriveds) else None
+
+            if pairing is None:
                 found.append(
                     RefreshedTask(current.id, phase, current.title, [], "no phasing entry")
                 )
 
                 continue
 
-            derived = entries[offset].task
+            derived = pairing.task
+
+            if current.role == "verify":
+                # The verifier's file, and the run that collects it, are fixed
+                # at mint like the implementer's wiring to them (S-0116/D-5):
+                # only what the entry says follows the derivation.
+                derived = derived.model_copy(
+                    update={"scope": current.scope, "acceptance": current.acceptance}
+                )
+
+            if current.role == "implement":
+                if current.scope.deny:
+                    derived = _minted_with_a_verifier(derived, current)
+                else:
+                    derived = _minted_without_a_verifier(derived)
+
             changed = [
                 field
                 for field in REFRESHED_FIELDS
@@ -946,9 +1185,7 @@ def _refresh(
                 else None
             )
 
-            found.append(
-                RefreshedTask(current.id, phase, entries[offset].title, changed, held, rewritten)
-            )
+            found.append(RefreshedTask(current.id, phase, pairing.title, changed, held, rewritten))
 
     return RefreshReport(document=report.document, tasks=found)
 

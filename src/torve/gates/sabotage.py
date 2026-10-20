@@ -21,6 +21,7 @@ import yaml
 
 from torve.config import layout
 from torve.config.manifest import load_manifest
+from torve.domain.events import HoldoutFile
 from torve.gates.context import build_context
 from torve.gates.runner import run_gates
 
@@ -216,6 +217,12 @@ class Case:
     # falsely convicting the environment (the layering suite's skipif, moved
     # into the shipped set's data).
     requires: tuple[str, ...] = ()
+    # S-0116/D-10, D-11: the held-out files the runner would hand the gate in
+    # the task's latest event, for the builtins whose subject is that record
+    # rather than the tree alone.
+    holdout: tuple[dict[str, str], ...] = ()
+    # Where a verifier's tests live (S-0116/D-2), when a case needs one.
+    tests_dir: str | None = None
 
 
 # ----------------------- #
@@ -717,6 +724,136 @@ def _mutation_strong(repo: Repo) -> None:
 
 # ....................... #
 
+# The `held-out` and `verify-tests` builtins (S-0116/D-10, D-11). Both read the
+# task's latest held-out record — which the sabotage suite hands the context
+# directly, having no store to record one in — and run the files in a scratch
+# repository, so the launcher is the installed `pytest`.
+
+VERIFY_MANIFEST_RUN = "pytest -q -p no:cacheprovider"
+VERIFY_REQUIRES = ("pytest",)
+
+HELD_OUT_MANIFEST: dict[str, Any] = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "tests": {"run": VERIFY_MANIFEST_RUN},
+    "gates": [
+        {
+            "name": "held-out",
+            "run": "@held-out",
+            "state": "blocking",
+            "origin": "S-0116",
+            "timeout": 120,
+        }
+    ],
+}
+
+VERIFY_TESTS_MANIFEST: dict[str, Any] = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "tests": {"run": VERIFY_MANIFEST_RUN},
+    "gates": [
+        {
+            "name": "verify-tests",
+            "run": "@verify-tests",
+            "state": "blocking",
+            "origin": "S-0116",
+            "timeout": 120,
+        }
+    ],
+}
+
+VERIFY_ROW = [
+    {
+        "id": "S-0001/D-1",
+        "grade": "ASSUMED",
+        "text": "the entry's public surface is settled",
+        "paths": ["src/**"],
+    }
+]
+
+# A failing test that cites the row: what a verifier must write.
+VERIFY_FAILING_TEST = "# S-0001/D-1\ndef test_row():\n    assert False, 'not yet implemented'\n"
+# The same test citing nothing: an entry row nothing proves.
+VERIFY_UNCITED_TEST = "def test_row():\n    assert False, 'not yet implemented'\n"
+# A test that already passes: it proves nothing about the work still to come.
+VERIFY_PASSING_TEST = "# S-0001/D-1\ndef test_row():\n    assert True\n"
+# A file that will not parse: it does not collect.
+VERIFY_BROKEN_TEST = "# S-0001/D-1\ndef test_row(:\n    assert False\n"
+
+
+def verify_task(file: str, *, decisions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """A verify contract (S-0116/D-1): acceptance commands, no targets."""
+
+    return {
+        "schema_version": 1,
+        "id": TASK_ID,
+        "role": "verify",
+        "scope": {"allow": [file], "deny": []},
+        "acceptance": [f"{VERIFY_MANIFEST_RUN} --collect-only {file}"],
+        "decisions": decisions or VERIFY_ROW,
+    }
+
+
+# ....................... #
+
+
+def _held_out_red(repo: Repo) -> None:
+    repo.seed(HELD_OUT_MANIFEST)
+    repo.task(base_task(allow=["tests/**"]), None)
+    repo.commit("a candidate the held-out property contradicts")
+
+
+# ....................... #
+
+
+def _held_out_green(repo: Repo) -> None:
+    repo.seed(HELD_OUT_MANIFEST)
+    repo.task(base_task(allow=["tests/**"]), None)
+    repo.commit("a candidate that satisfies the held-out property")
+
+
+# ....................... #
+
+
+def _verify_tests_broken(repo: Repo) -> None:
+    repo.seed(VERIFY_TESTS_MANIFEST)
+    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
+    repo.write("tests/verify/test_s0001_p1.py", VERIFY_BROKEN_TEST)
+    repo.commit("a verifier file that does not collect")
+
+
+# ....................... #
+
+
+def _verify_tests_uncited(repo: Repo) -> None:
+    repo.seed(VERIFY_TESTS_MANIFEST)
+    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
+    repo.write("tests/verify/test_s0001_p1.py", VERIFY_UNCITED_TEST)
+    repo.commit("a verifier test citing no row")
+
+
+# ....................... #
+
+
+def _verify_tests_passing(repo: Repo) -> None:
+    repo.seed(VERIFY_TESTS_MANIFEST)
+    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
+    repo.write("tests/verify/test_s0001_p1.py", VERIFY_PASSING_TEST)
+    repo.commit("a verifier test that passes on the candidate")
+
+
+# ....................... #
+
+
+def _verify_tests_green(repo: Repo) -> None:
+    repo.seed(VERIFY_TESTS_MANIFEST)
+    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
+    repo.write("tests/verify/test_s0001_p1.py", VERIFY_FAILING_TEST)
+    repo.commit("a verifier test that fails and cites its row")
+
+
+# ....................... #
+
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
@@ -815,6 +952,54 @@ CASES: list[Case] = [
         _mutation_strong,
         requires=MUTATION_REQUIRES,
     ),
+    Case(
+        "held-out: a property the candidate contradicts",
+        "held-out",
+        "fail",
+        _held_out_red,
+        requires=VERIFY_REQUIRES,
+        holdout=(
+            {"name": "test_hold.py", "text": "# S-0001/D-1\ndef test_row():\n    assert False\n"},
+        ),
+    ),
+    Case(
+        "held-out: a property the candidate satisfies",
+        "held-out",
+        "pass",
+        _held_out_green,
+        requires=VERIFY_REQUIRES,
+        holdout=(
+            {"name": "test_hold.py", "text": "# S-0001/D-1\ndef test_row():\n    assert True\n"},
+        ),
+    ),
+    Case(
+        "verify-tests: a verifier file that does not collect",
+        "verify-tests",
+        "fail",
+        _verify_tests_broken,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "verify-tests: an entry row no test cites",
+        "verify-tests",
+        "fail",
+        _verify_tests_uncited,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "verify-tests: a test that passes on the candidate",
+        "verify-tests",
+        "fail",
+        _verify_tests_passing,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "verify-tests: a failing test citing its row",
+        "verify-tests",
+        "pass",
+        _verify_tests_green,
+        requires=VERIFY_REQUIRES,
+    ),
 ]
 
 
@@ -839,6 +1024,11 @@ def run_case(case: Case) -> CaseOutcome:
         case.build(repo)
         manifest = load_manifest(layout.gates_file(repo.root))
         ctx = build_context(repo.root, manifest, base="main")
+        ctx.holdout = [HoldoutFile(**one) for one in case.holdout]
+
+        if case.tests_dir is not None:
+            ctx.tests_dir = case.tests_dir
+
         report = run_gates(ctx, only={case.gate})
         result = report.results[0]
         ok = result.outcome == case.expected

@@ -1,0 +1,201 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0666
+phase: 3
+attempt: 3
+base: cb2bd4a792d25490fc71e72c9f9f4fb22a1f3b0c
+commit: 29ff1c323c0a2947d35ff9cf0e99dfe76dd15cde
+at: '2026-10-20T10:32:48Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+entries:
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-20T08:33:16Z'
+    attempt: 2
+    claim: >-
+      D-7 asks the review to read a verifier's tests for vacuity and over-specification,
+      but the reviewer's whole input is built by build_review_prompt, and the row's
+      paths name src/torve/application/dispatch.py alone — widening the review_gated
+      predicate there adds no text to the prompt, so the requirement cannot be met
+      inside the declared surface. The change carries it in src/torve/application/review.py,
+      which the task scope admits as a contingent path but the row does not name.
+    evidence: >-
+      src/torve/application/dispatch.py:255 — review_gated is the row's declared surface
+      and a predicate only; the prompt that would carry the reading is built in src/torve/application/review.py:171
+    action: departed
+    proposal: >-
+      add src/torve/application/review.py to D-7's paths, since the reviewer's input
+      is the row's real surface
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T08:33:54Z'
+    attempt: 2
+    claim: >-
+      Accepting S-0116/D-6 makes skills/verifier/ a governed directory, and the root
+      AGENTS.md index is rendered from the corpus — so the projection is stale until
+      that index gains its line. Regenerating it means writing AGENTS.md, which this
+      task scope does not name, so the drift is left standing rather than fixed out
+      of scope. The projection gate is shadow, so nothing blocks on it, but the index
+      must be regenerated with the rest of the corpus.
+    evidence: >-
+      `uv run torve spec project --check` — output: DRIFT   AGENTS.md / FAIL  46 governed
+      directories, 1 drifting
+    action: decided
+    proposal: >-
+      add AGENTS.md to the scope of whichever task lands S-0116, or run torve spec
+      project as a standing regeneration after the landing
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-20T08:44:44Z'
+    attempt: 3
+    claim: >-
+      D-7 asks the review to read a verifier's tests for vacuity and over-specification,
+      but the row's paths name src/torve/application/dispatch.py alone, and that surface
+      is a predicate: widening it adds no text to the reviewer's input, which build_review_prompt
+      assembles in src/torve/application/review.py. The requirement is carried in
+      review.py, which this task's scope admits as a contingent path while the row
+      does not name it. The prompt-text test sits in tests/test_dispatch.py rather
+      than tests/test_review_run.py, because tests/test_review_run.py is an existing
+      test this scope does not license and editing it convicted the previous attempt.
+    evidence: >-
+      src/torve/application/dispatch.py:255 — review_gated is the row's entire declared
+      surface and a predicate only; the prompt that would carry the reading is built
+      at src/torve/application/review.py:171
+    action: departed
+    proposal: >-
+      add src/torve/application/review.py to D-7's paths, since the reviewer's input
+      is where the row's reading is carried, not the predicate that turns review on
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-20T08:46:48Z'
+    attempt: 2
+    claim: >-
+      D-7 asks the review to read a verifier's tests for vacuity and over-specification,
+      but the reviewer's whole input is built by build_review_prompt, and the row's
+      paths name src/torve/application/dispatch.py alone — widening the review_gated
+      predicate there adds no text to the prompt, so the requirement cannot be met
+      inside the declared surface. The change carries it in src/torve/application/review.py,
+      which the task scope admits as a contingent path but the row does not name.
+    evidence: >-
+      src/torve/application/dispatch.py:255 — review_gated is the row's declared surface
+      and a predicate only; the prompt that would carry the reading is built in src/torve/application/review.py:171
+    action: departed
+    proposal: >-
+      add src/torve/application/review.py to D-7's paths, since the reviewer's input
+      is the row's real surface
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T08:46:48Z'
+    attempt: 2
+    claim: >-
+      Accepting S-0116/D-6 makes skills/verifier/ a governed directory, and the root
+      AGENTS.md index is rendered from the corpus — so the projection is stale until
+      that index gains its line. Regenerating it means writing AGENTS.md, which this
+      task scope does not name, so the drift is left standing rather than fixed out
+      of scope. The projection gate is shadow, so nothing blocks on it, but the index
+      must be regenerated with the rest of the corpus.
+    evidence: >-
+      `uv run torve spec project --check` — output: DRIFT   AGENTS.md / FAIL  46 governed
+      directories, 1 drifting
+    action: decided
+    proposal: >-
+      add AGENTS.md to the scope of whichever task lands S-0116, or run torve spec
+      project as a standing regeneration after the landing
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-20T08:51:25Z'
+    attempt: 3
+    claim: >-
+      D-7 asks the review to read a verifier's tests for vacuity and over-specification,
+      but the row's paths name src/torve/application/dispatch.py alone, and that surface
+      is a predicate: widening it adds no text to the reviewer's input, which build_review_prompt
+      assembles in src/torve/application/review.py. The requirement is carried in
+      review.py, which this task's scope admits as a contingent path while the row
+      does not name it. The prompt-text test sits in tests/test_dispatch.py rather
+      than tests/test_review_run.py, because tests/test_review_run.py is an existing
+      test this scope does not license and editing it convicted the previous attempt.
+    evidence: >-
+      src/torve/application/dispatch.py:255 — review_gated is the row's entire declared
+      surface and a predicate only; the prompt that would carry the reading is built
+      at src/torve/application/review.py:171
+    action: departed
+    proposal: >-
+      add src/torve/application/review.py to D-7's paths, since the reviewer's input
+      is where the row's reading is carried, not the predicate that turns review on
+  - decision: D-7
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-20T08:51:25Z'
+    attempt: 2
+    claim: >-
+      D-7 asks the review to read a verifier's tests for vacuity and over-specification,
+      but the reviewer's whole input is built by build_review_prompt, and the row's
+      paths name src/torve/application/dispatch.py alone — widening the review_gated
+      predicate there adds no text to the prompt, so the requirement cannot be met
+      inside the declared surface. The change carries it in src/torve/application/review.py,
+      which the task scope admits as a contingent path but the row does not name.
+    evidence: >-
+      src/torve/application/dispatch.py:255 — review_gated is the row's declared surface
+      and a predicate only; the prompt that would carry the reading is built in src/torve/application/review.py:171
+    action: departed
+    proposal: >-
+      add src/torve/application/review.py to D-7's paths, since the reviewer's input
+      is the row's real surface
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T08:51:25Z'
+    attempt: 2
+    claim: >-
+      Accepting S-0116/D-6 makes skills/verifier/ a governed directory, and the root
+      AGENTS.md index is rendered from the corpus — so the projection is stale until
+      that index gains its line. Regenerating it means writing AGENTS.md, which this
+      task scope does not name, so the drift is left standing rather than fixed out
+      of scope. The projection gate is shadow, so nothing blocks on it, but the index
+      must be regenerated with the rest of the corpus.
+    evidence: >-
+      `uv run torve spec project --check` — output: DRIFT   AGENTS.md / FAIL  46 governed
+      directories, 1 drifting
+    action: decided
+    proposal: >-
+      add AGENTS.md to the scope of whichever task lands S-0116, or run torve spec
+      project as a standing regeneration after the landing

@@ -18,20 +18,28 @@ quasi-experiment (§6a) — direction, never magnitude.
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from torve.application.dispatch import RunDeps
 from torve.application.ports import AgentResult, JudgePort
-from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
+from torve.application.runner import (
+    HOLDOUT_REL,
+    AttemptHooks,
+    drive_attempts,
+    holdout_files,
+    real_hooks,
+)
 from torve.application.runstate import RunState
 from torve.application.telemetry import RECORD_SCHEMA_VERSION, append_record, config_hash
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig, image_for, tier_for, tier_name_for
+from torve.domain.events import HoldoutFile
 from torve.domain.states import TaskState
 from torve.domain.task import Task
 
@@ -58,6 +66,72 @@ class ShadowSource:
 # ....................... #
 
 
+@dataclass
+class SharedJudge:
+    """One clone, judged under one name (S-0116/D-12): a composed arm replays
+    more than one task in the same workspace, and every judge lookup names the
+    task the clone belongs to rather than the task being replayed."""
+
+    inner: JudgePort
+    label: str
+
+    def judge_checkout(self, _task_id: str) -> Path:
+        return self.inner.judge_checkout(self.label)
+
+    def remove_judge(self, _task_id: str) -> None:
+        self.inner.remove_judge(self.label)
+
+
+# ....................... #
+
+
+def replay_source(source: ShadowSource, label: str) -> ShadowSource:
+    """`source` judging under *label* — the composed arm's own source."""
+
+    return replace(source, judge=SharedJudge(source.judge, label))
+
+
+# ....................... #
+
+
+def shadow_workspace(source: ShadowSource, task_id: str) -> tuple[Path, str, str]:
+    """(workspace, resolved, parent) — a clone cut at the parent of the commit
+    the task's landing names, the tree every arm starts from (S-0116/D-12).
+    Raises ValueError when no landing names a commit."""
+
+    resolved = source.shipped_commit(task_id)
+
+    if resolved is None:
+        raise ValueError(
+            f"no shipped commit found for {task_id} — no landing of it names a "
+            "commit (S-0059/D-12); pass --commit explicitly"
+        )
+
+    parent = source.parent_of(resolved)
+
+    return source.create_workspace(task_id, parent), resolved, parent
+
+
+# ....................... #
+
+
+def take_holdout(worktree: Path) -> list[HoldoutFile]:
+    """The held-out properties a verifier left in its worktree, read and
+    removed (S-0116/D-9's directory, D-12): the candidate arm injects them into
+    the implement replay's battery, and the implementer's own tree never
+    carries them. Read by the runner's own collector, so a replay and a live
+    attempt refuse the same symlinks."""
+
+    try:
+        return holdout_files(worktree)
+
+    finally:
+        shutil.rmtree(worktree / HOLDOUT_REL, ignore_errors=True)
+
+
+# ....................... #
+
+
 async def _drive(
     state: RunState, task: Task, config: RunnerConfig, hooks: AttemptHooks
 ) -> RunState:
@@ -75,12 +149,14 @@ def run_shadow(
     source: ShadowSource,
     commit: str | None = None,
     annotation: dict[str, Any] | None = None,
+    workspace: Path | None = None,
 ) -> dict[str, Any]:
     """One shadow replay; returns the telemetry record it appended. Raises
     ValueError when no shipped commit is findable (a configuration problem),
-    RuntimeError on infrastructure failure."""
+    RuntimeError on infrastructure failure.
 
-    import asyncio
+    *workspace* replays into a clone the caller already cut (S-0116/D-12, a
+    composed arm) instead of building one from the commit's parent."""
 
     resolved = commit or source.shipped_commit(task.id)
 
@@ -91,7 +167,31 @@ def run_shadow(
         )
 
     parent = source.parent_of(resolved)
-    workspace = source.create_workspace(task.id, parent)
+    clone = workspace if workspace is not None else source.create_workspace(task.id, parent)
+
+    return shadow_replay(root, task, config, deps, source, clone, parent, resolved, annotation)
+
+
+# ....................... #
+
+
+def shadow_replay(
+    root: Path,
+    task: Task,
+    config: RunnerConfig,
+    deps: RunDeps,
+    source: ShadowSource,
+    workspace: Path,
+    parent: str,
+    resolved: str,
+    annotation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One replay inside *workspace*, cut at *parent* and recorded against
+    *resolved*. The shared body of every replay — `run_shadow`'s and the
+    composed verifier arm's, which drives two of them in one clone
+    (S-0116/D-12)."""
+
+    import asyncio
 
     state = RunState(
         task_id=naming.shadow_id(task.id),

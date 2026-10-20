@@ -37,7 +37,14 @@ from torve.application.dispatch import RunDeps
 from torve.application.ports import Agent, AgentResult
 from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
 from torve.application.runstate import RunState
-from torve.application.shadow import ShadowSource, run_shadow
+from torve.application.shadow import (
+    ShadowSource,
+    replay_source,
+    run_shadow,
+    shadow_replay,
+    shadow_workspace,
+    take_holdout,
+)
 from torve.application.telemetry import RECORD_SCHEMA_VERSION, append_record, config_hash
 from torve.base import naming
 from torve.base.clock import stamp
@@ -611,5 +618,234 @@ def run_arm_eval(
         }
 
         append_record(root / layout.TORVE_DIR / EVAL_LEDGER, record)
+
+    return record
+
+
+# ....................... #
+# The verifier pair (S-0116/D-12): today's replay of a task against one that
+# first replays its verifier, so whether the pilot earns its default is read
+# off the ledger like every other measurement. The escape is a hand-written
+# oracle's non-zero exit on the arm's candidate — one command per replayed
+# task, from the fix that caught what the phase escaped.
+
+
+VERIFIER_ARMS: tuple[str, str] = ("incumbent", "candidate")
+
+
+# ....................... #
+
+
+def verify_task_of(root: Path, task: Task) -> Task | None:
+    """The verify task *task* depends on (S-0116/D-5) — the one the candidate
+    arm replays, read off the corpus by the link the planner mints. None when
+    the corpus holds none: the task was minted without a verifier."""
+
+    from torve.gates.context import load_task
+
+    tasks = root / layout.TORVE_DIR / "tasks"
+
+    if not tasks.is_dir():
+        return None
+
+    for path in sorted(tasks.glob("*/contract.yaml")):
+        try:
+            other = load_task(path)
+
+        except ValueError:
+            continue
+
+        if other.role == "verify" and other.id in task.depends_on:
+            return other
+
+    return None
+
+
+# ....................... #
+
+
+def verifier_table(root: Path) -> dict[str, dict[str, dict[str, Any]]]:
+    """The verifier pairs rebuilt from the eval ledger alone (S-0116/D-12):
+    per task, per arm, the latest row that arm produced. A record of another
+    kind contributes nothing; the ledger is append-only, so the last line for
+    a task-arm pair is the most recent."""
+
+    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
+
+    if not ledger.is_file():
+        return {}
+
+    table: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        try:
+            record: Any = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        arms = record.get("arms")
+
+        if record.get("kind") != "verifier-eval" or not isinstance(arms, dict):
+            continue
+
+        for arm, rows in arms.items():
+            if arm not in VERIFIER_ARMS:
+                continue
+
+            for row in rows:
+                task = row.get("task")
+
+                if isinstance(task, str):
+                    table.setdefault(task, {})[arm] = row
+
+    return table
+
+
+# ....................... #
+
+
+def _verifier_row(record: dict[str, Any], arm: str, escape: bool | None) -> dict[str, Any]:
+    """One arm's row, with its escape beside the measures every arm carries."""
+
+    return {**_arm_row(record, arm), "escape": escape}
+
+
+# ....................... #
+
+
+def _escaped(workspace: Path, oracle: str | None, escape: Any) -> bool | None:
+    """The arm's escape: the oracle's non-zero exit on its candidate, or None
+    when no oracle was named — an absent measurement, never a false one."""
+
+    if oracle is None or escape is None:
+        return None
+
+    return bool(escape(workspace, oracle))
+
+
+# ....................... #
+
+
+def run_verifier_eval(
+    root: Path,
+    tasks: list[Task],
+    config: RunnerConfig,
+    deps: RunDeps,
+    source: ShadowSource,
+    *,
+    verifier_agent: Agent | None = None,
+    oracle: str | None = None,
+    escape: Any = None,
+) -> dict[str, Any]:
+    """The verifier pair (S-0116/D-12): T replayed as today's engine replays it,
+    and again with its verify task replayed first in the same clone, held there
+    as a commit, then T cut from that commit with the verifier's file already in
+    its base and its held-out properties injected into the battery. `oracle`
+    names a command `escape` runs on each arm's candidate; a non-zero exit is
+    that arm's escape. One eval record appended and returned.
+
+    `verifier_agent` is the verify seat's agent; None falls back to the
+    incumbent's. Raises ValueError for a task whose corpus holds no verify task
+    or whose landing names no commit, for an oracle with no runner, and for a
+    pair with no vcs to hold the verify replay's tree; RuntimeError on
+    infrastructure failure — as run_shadow does."""
+
+    if oracle is not None and escape is None:
+        raise ValueError("the oracle needs a runner to execute its command")
+
+    vcs = deps.vcs
+
+    if vcs is None:
+        # The candidate arm holds the verify replay's tree as a commit the
+        # implement replay is based on; without a vcs there is no landing to
+        # cut it from.
+        raise ValueError("the verifier pair needs a vcs to hold the verify replay's tree")
+
+    verifier_deps = replace(deps, agent=verifier_agent) if verifier_agent is not None else deps
+    results: dict[str, list[dict[str, Any]]] = {arm: [] for arm in VERIFIER_ARMS}
+
+    for task in tasks:
+        verifier = verify_task_of(root, task)
+
+        if verifier is None:
+            raise ValueError(
+                f"{task.id} depends on no verify task — there is no verifier to replay"
+            )
+
+        # The incumbent arm: today's replay, from the task's parent (S-0116/D-12).
+        incumbent_ws, resolved, parent = shadow_workspace(source, task.id)
+        incumbent = shadow_replay(
+            root,
+            task,
+            config,
+            deps,
+            source,
+            incumbent_ws,
+            parent,
+            resolved,
+            annotation={"verifier": "incumbent", "arm": "incumbent"},
+        )
+        results["incumbent"].append(
+            _verifier_row(incumbent, "incumbent", _escaped(incumbent_ws, oracle, escape))
+        )
+
+        # The candidate arm: the verifier replays from the same parent into the
+        # same clone, and the implementer then runs with its file present and
+        # its held-out properties in the battery. Both replays are one arm, so
+        # one row (S-0116/D-12).
+        candidate_ws, _, _ = shadow_workspace(source, task.id)
+        shadow_replay(
+            root,
+            verifier,
+            config,
+            verifier_deps,
+            replay_source(source, task.id),
+            candidate_ws,
+            parent,
+            source.shipped_commit(verifier.id) or resolved,
+            annotation={"verifier": "candidate-verify"},
+        )
+        holdout = take_holdout(candidate_ws)
+        # The verify candidate lands before its implementer (S-0116/D-5), so
+        # the clone carries its tree as a commit and the implement replay reads
+        # it as base. Left uncommitted, the verifier's file is an added path in
+        # the implement replay's diff, and the scope gate convicts every
+        # attempt of it on the deny the planner set. The commit stays in this
+        # throwaway clone; nothing of a shadow run reaches a branch (S-0004/D-4).
+        landed = vcs.commit_all(
+            candidate_ws, f"torve({verifier.id}): shadow replay held for {task.id}"
+        )
+        candidate = shadow_replay(
+            root,
+            task,
+            config,
+            replace(deps, holdout=holdout),
+            source,
+            candidate_ws,
+            landed or parent,
+            resolved,
+            annotation={"verifier": "candidate", "arm": "candidate"},
+        )
+        results["candidate"].append(
+            _verifier_row(candidate, "candidate", _escaped(candidate_ws, oracle, escape))
+        )
+
+    summary: dict[str, dict[str, Any]] = {}
+
+    for arm in VERIFIER_ARMS:
+        escapes = sum(1 for row in results[arm] if row["escape"])
+        summary[arm] = {**_summary(results[arm]), "escapes": escapes}
+
+    record: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "verifier-eval",
+        "at": stamp(),
+        "oracle": oracle,
+        "tasks": [task.id for task in tasks],
+        "arms": results,
+        "summary": summary,
+    }
+
+    append_record(root / layout.TORVE_DIR / EVAL_LEDGER, record)
 
     return record

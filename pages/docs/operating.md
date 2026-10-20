@@ -371,6 +371,95 @@ any depth under `tests/` and `python3 -m pytest -q -p no:cacheprovider`. A
 changed test file the gate cannot parse into functions qualifies whole
 rather than silently not qualifying.
 
+## An independent verifier
+
+A test written by the same model that wrote the code shares its blind spots.
+The verify pilot puts a second attempt ahead of the first: a **verify task**
+writes the phase's tests from the rows and the intent alone, before any
+implementation exists; those tests land on the document branch failing; and
+the implement task that depends on the verifier runs them (S-0116/D-1). It is
+off unless a configuration turns it on:
+
+```yaml
+verify:
+  enabled: true            # default false: nothing changes until this says so
+  variant: verify          # the seat under `executor` the verifier runs on
+  types: [feat, fix]       # the document `change.type` values that earn one
+  tests_dir: tests/verify  # where a verifier writes the tests it mints
+```
+
+`enabled` defaults to false, so an adopter that never sets the block mints
+exactly the tasks it minted before. With `enabled: true` and no
+`executor.<variant>` tier the configuration refuses to load, while a person
+is still at the terminal rather than at the first dispatch of a verify task
+(S-0116/D-2). `torve doctor` goes red when the pilot is on and the verify
+seat names the executor seat's own model: a verifier on the executor's model
+brings the same blind spots to the tests it writes, which undoes the point of
+the pilot (S-0116/D-3).
+
+With the pilot on, the planner mints a verify task ahead of a phasing entry
+when the document's `change.type` is in `verify.types` and a path or glob in
+the entry's scope starts with the project's source prefix, `src/` or
+`<layout.root>/src/` — documentation, configuration and refactor work never
+pays for a verifier (S-0116/D-4). The verify task allows only
+`<tests_dir>/test_sNNNN_pN.py` (and `..._pN_<k>.py` for the k-th of several
+entries sharing phase N) and accepts on `<tests.run> --collect-only` over it,
+so its own battery proves the file collects rather than collecting nothing.
+The implement task of that entry depends on it, denies the verifier's file
+and appends `<tests.run> <file>` to the phase's acceptance — all three fixed
+at mint, so an edit to the test is a red scope gate (S-0116/D-5). The verify
+candidate lands first, and the document branch carries its failing tests
+until the implement candidate lands. A verify candidate whose test already
+passes convicts on `verify-tests`: a test that is green before the
+implementation exists has proved nothing about the work still to come
+(S-0116/D-11), as does an entry row no test cites or a file that does not
+collect.
+
+### Reading a held-out failure
+
+A verifier may hold properties out of the visible suite: it writes them under
+`.torve/tmp/holdout/` in its worktree, and the host records them on the
+entry's implement task as one `verify.holdout` event of names and texts — at
+most 64 KiB, empty when it wrote none — and deletes them from the worktree
+(S-0116/D-9). They never reach the implementer's sandbox, and the latest
+event on the task replaces every earlier one.
+
+The `held-out` gate runs the latest event's files on the candidate: it writes
+them into its own checkout under `<tests_dir>/holdout/`, runs only them and
+removes them when it ends, so no other gate collects or reports them
+(S-0116/D-10). Its output is deliberately thin — a held-out property is the
+row's proof, and reading its source is reading the answer:
+
+```
+held-out: 1 failing of 2 file(s)
+
+FAILED tests/verify/holdout/test_s0116_p3.py::test_the_lane_keeps_the_ref - assert ...
+  cites: S-0116/D-14
+```
+
+Read it as the row that failed and the reason, and fix the implementation the
+row governs: the test's identifier, its message and the rows it cites, never
+its source, are what the gate hands the next attempt. A task whose latest
+event carries no files skips the gate rather than passing it — the gate
+judged nothing. When the document's last phase lands, the lane commits the
+held-out properties its tasks recorded to the document branch under
+`<tests_dir>/holdout/`, each file named for its document, phase and entry,
+before the whole-document battery runs, so they keep guarding the rows as
+visible tests after the branch merges (S-0116/D-14).
+
+### A disputed verifier test
+
+An implementer that reads a verifier's test and believes it wrong — it pins
+an internal no row names, or it asserts what the row does not say — does not
+edit it: the file is denied to the implement task, and rewriting the test
+would decide the disagreement in the implementer's favour. It halts with a
+divergence entry naming the test and the row it claims to decide, and reaches
+you as `underspecified` (S-0116/D-8). Decide which is wrong: amend the row or
+the phase's intent and requeue, or resolve the entry and requeue with a note
+that shows why the test stands. A verifier writes the phase's tests from the
+rows and the intent alone, which is why the intent must name the public
+surface those tests drive (S-0116/D-13).
+
 ## Where the working rules live
 
 The rules an attempt works by — where the engine's facts are, which verbs

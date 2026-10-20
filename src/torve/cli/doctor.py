@@ -26,6 +26,11 @@ never turn doctor red, and a tier or profile file nobody referenced gets
 no line and no warning. S-0028/A-1: a tier composed from a list of profiles
 carries its chain, in order, in that same field and line.
 
+The verify line is S-0116/D-3: when the pilot is on and the verify seat names
+the executor seat's own model, doctor goes red — a verifier on the executor's
+model is no independent check. Like the reviewer bias line it compares two
+seats' `model` fields; unlike it, this one is a red rather than a warning.
+
 The equipment check is S-0029 S-0029/D-5: each tier whose resolved `skills`
 or `prompt_extras` differ from its role default gets one provenance line —
 no check attached, dispatch already owns the refusals (S-0029/D-2).
@@ -948,6 +953,51 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
 
 # ....................... #
 
+
+def _verify_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """S-0116/D-3: a verifier sharing the executor's own model is not an
+    independent check — it brings the same blind spots to the tests it writes,
+    so the pilot's whole point is undone. Red, unlike the reviewer's same-model
+    warning: the reviewer is still better than none, whereas a verifier on the
+    executor's model proves nothing the executor would not.
+
+    No line when the pilot is off, when either seat is absent (the load already
+    refuses a pilot with no verify seat), or when a fake adapter answers — a
+    fake has no model to compare.
+    """
+
+    config = load_config(root, config_path)
+
+    if not config.verify.enabled:
+        return []
+
+    executor = config.tiers.get("executor")
+    verifier = config.tiers.get(f"executor.{config.verify.variant}")
+
+    if executor is None or verifier is None:
+        return []
+
+    if executor.adapter == "fake" or verifier.adapter == "fake":
+        return []
+
+    if executor.model and executor.model == verifier.model:
+        return [
+            (
+                "verify",
+                False,
+                (
+                    f"verifier runs the executor's own model ({executor.model}) — the "
+                    "verify pilot needs an independent check; seat the verifier on a "
+                    "different model"
+                ),
+            )
+        ]
+
+    return []
+
+
+# ....................... #
+
 # The four criteria the landing lane refuses on, in the order the settings
 # table in the operating page lists them (S-0068/D-1's "armed" set).
 _PROMOTION_CRITERIA = ("require_ci", "require_review", "approvals", "quiet_window")
@@ -1349,6 +1399,7 @@ def doctor(
         checks += _store_checks(root, config_path)
         checks += _broker_check(root, config_path)
         checks += _review_bias_check(root, config_path)
+        checks += _verify_check(root, config_path)
         checks += _promotion_check(root, config_path)
         checks += _profile_checks(root, config_path)
         checks += _route_checks(root, config_path)

@@ -66,6 +66,7 @@ from torve.config.runconfig import (
     tier_name_for,
 )
 from torve.domain.attempt import GateResult
+from torve.domain.events import HoldoutFile
 from torve.domain.task import Task
 
 # ----------------------- #
@@ -120,6 +121,12 @@ class RunDeps:
     # Read when the contract is minted, not when the run began: another slot
     # may mint while an attempt runs. None is a run without a store.
     taken: Callable[[], Iterable[str]] | None = None
+    # S-0116/D-12: held-out properties a caller injects into this run's battery
+    # directly, instead of the `verify.holdout` event the host records. The
+    # verifier eval's candidate arm carries a replayed verifier's set this way:
+    # a shadow replay writes no event of its own to read it back from. Empty
+    # for every ordinary dispatch, which reads the latest event instead.
+    holdout: list[HoldoutFile] = field(default_factory=list)
 
 
 # ....................... #
@@ -244,11 +251,15 @@ class Dispatch:
 
 
 def review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
-    """Review follows execution (S-0005/D-11) only for live implement runs with
-    the task-gated trigger configured — one predicate, shared by the review
-    hook and the broker's routing derivation so they cannot disagree."""
+    """Review follows execution (S-0005/D-11) only for live implement and verify
+    runs with the task-gated trigger configured — one predicate, shared by the
+    review hook and the broker's routing derivation so they cannot disagree.
 
-    return not shadow and task.role == "implement" and "task_gated" in config.review.on
+    S-0116/D-7: a verify task is reviewed as an implement task is, so a reviewer
+    reads the verifier's tests — a test that asserts nothing, or one pinning an
+    internal no row names — before they judge any implementation."""
+
+    return not shadow and task.role in ("implement", "verify") and "task_gated" in config.review.on
 
 
 # ....................... #

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 from test_decisions import landed
@@ -28,11 +29,21 @@ from torve.adapters.workspace.git import (
     shipped_commit,
 )
 from torve.application.dispatch import RunDeps
-from torve.application.shadow import ShadowSource, run_shadow
+from torve.application.runner import HOLDOUT_REL
+from torve.application.shadow import (
+    ShadowSource,
+    replay_source,
+    run_shadow,
+    shadow_replay,
+    shadow_workspace,
+    take_holdout,
+)
 from torve.cli import app
 from torve.config import layout
+from torve.config.manifest import load_manifest
 from torve.config.runconfig import RunnerConfig, RuntimeConfig
-from torve.gates.context import load_task
+from torve.gates.context import build_context, git, load_task
+from torve.gates.runner import run_gates
 from torve.gates.sabotage import TASK_ID, base_task
 
 # ----------------------- #
@@ -388,3 +399,217 @@ def test_replay_never_mounts_the_cache_volume_even_when_the_tier_names_one(
     assert specs, "the replay created no sandbox to inspect"
     assert all(spec.volumes == {} for spec in specs)
     assert gate_caches and all(caches == {} for caches in gate_caches)
+
+
+# ....................... #
+# The composed arm (S-0116/D-12): one clone replaying more than one task, the
+# judge lookup that has to name the clone rather than the task, and the
+# held-out properties the verifier left behind for the implementer's battery.
+
+
+def test_a_shared_judge_judges_under_the_clones_name():
+    """Every judge lookup goes through the workspace, and the workspace is
+    keyed by task — so a clone replaying two tasks hands the judge the one
+    task the clone belongs to, never the task being replayed."""
+
+    class Recording:
+        def __init__(self):
+            self.calls: list[tuple[str, str]] = []
+
+        def judge_checkout(self, task_id: str) -> Path:
+            self.calls.append(("open", task_id))
+            return Path(f"/tmp/{task_id}.judge")
+
+        def remove_judge(self, task_id: str) -> None:
+            self.calls.append(("close", task_id))
+
+    inner = Recording()
+    source = ShadowSource(
+        create_workspace=lambda _task, _base: Path("/tmp/clone"),
+        shipped_commit=lambda _task: None,
+        parent_of=lambda sha: sha,
+        diff_range=lambda _sha: {},
+        diff_worktree=lambda _ws, _base: {},
+        judge=inner,
+    )
+
+    composed = replay_source(source, "T-0042")
+
+    assert composed.judge.judge_checkout("T-0041") == Path("/tmp/T-0042.judge")
+    composed.judge.remove_judge("T-0041")
+
+    assert inner.calls == [("open", "T-0042"), ("close", "T-0042")]
+    # The source the composed arm was built from is untouched.
+    assert source.judge.judge_checkout("T-0041") == Path("/tmp/T-0041.judge")
+
+
+def test_shadow_workspace_cuts_at_the_parent_of_the_commit_the_landing_names(tmp_path):
+    root = tmp_path / "repo"
+    root.mkdir()
+    cuts: list[tuple[str, str]] = []
+
+    def create_workspace(task_id: str, base: str) -> Path:
+        cuts.append((task_id, base))
+        return root / ".wt" / f"shadow-{task_id}"
+
+    source = ShadowSource(
+        create_workspace=create_workspace,
+        shipped_commit=lambda task: "a" * 40 if task == "T-0042" else None,
+        parent_of=lambda sha: "b" * 40 if sha == "a" * 40 else sha,
+        diff_range=lambda _sha: {},
+        diff_worktree=lambda _ws, _base: {},
+        judge=None,
+    )
+
+    workspace, resolved, parent = shadow_workspace(source, "T-0042")
+
+    assert (resolved, parent) == ("a" * 40, "b" * 40)
+    assert cuts == [("T-0042", "b" * 40)]
+    assert workspace == root / ".wt" / "shadow-T-0042"
+
+    # A task no landing names has no tree to cut from — a configuration
+    # problem, refused by name rather than replayed from nowhere.
+    with pytest.raises(ValueError, match="no shipped commit found for T-0043"):
+        shadow_workspace(source, "T-0043")
+
+
+def test_take_holdout_reads_the_verifier_files_and_removes_the_directory(tmp_path):
+    worktree = tmp_path / "clone"
+    holdout = worktree / HOLDOUT_REL
+    (holdout / "nested").mkdir(parents=True)
+    (holdout / "props.py").write_text("ESCAPED = True\n", encoding="utf-8")
+    (holdout / "nested" / "case.txt").write_text("one\n", encoding="utf-8")
+
+    files = take_holdout(worktree)
+
+    # Read by name, in a stable order, so the injected battery is the same
+    # battery twice over.
+    assert [(f.name, f.text) for f in files] == [
+        ("nested/case.txt", "one\n"),
+        ("props.py", "ESCAPED = True\n"),
+    ]
+    # And gone from the worktree: the implementer's tree never carries them,
+    # in the replay as in a live run (S-0116/D-9).
+    assert not holdout.exists()
+    assert take_holdout(worktree) == []
+
+
+def test_the_verify_replays_tree_is_held_as_the_implement_replays_base(repo):
+    """S-0116/D-5, T-0680: the verify candidate lands before its implementer, so
+    the file it wrote is base for the implement replay — its own commit in the
+    pair's one clone, cut after the verifier ran. Read against T's parent
+    instead, that file is an added path in the implementer's diff and the deny
+    the planner minted against it (S-0116/D-5) convicts every attempt."""
+
+    verifier_file = "tests/verify/test_s0001_p1.py"
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    task_doc["scope"]["deny"] = [verifier_file]
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+    parent = git(repo.root, "rev-parse", "HEAD").strip()
+
+    workspace = ShadowWorkspace(repo.root, depth=10).create(TASK_ID, parent)
+    (workspace / verifier_file).parent.mkdir(parents=True, exist_ok=True)
+    (workspace / verifier_file).write_text("def test_row():\n    assert False\n", encoding="utf-8")
+
+    manifest = load_manifest(layout.gates_file(workspace))
+    task_path = layout.task_file(workspace, TASK_ID)
+
+    def scope(base: str):
+        ctx = build_context(workspace, manifest, base=base, task_path=task_path)
+
+        return run_gates(ctx, only={"scope"}).results[0]
+
+    # Uncommitted, the verifier's file is a path the implementer's scope denies.
+    unheld = scope(parent)
+
+    assert unheld.outcome == "fail"
+    assert f"denied path: {verifier_file}" in unheld.output
+
+    # Held as the verify candidate's landing would be, it is base: the
+    # implementer's own diff is what the scope gate reads.
+    held = GitVcs().commit_all(workspace, f"torve({TASK_ID}): hold the verify replay")
+
+    assert held is not None
+    assert scope(held).outcome == "pass"
+
+
+@pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
+def test_a_caller_cut_workspace_replays_twice_in_one_clone(repo):
+    """D-12: the candidate arm is two replays in one clone — the verifier,
+    then the task. The clone is cut once and never again, the judge snapshot
+    names the clone both times, and neither replay merges anything."""
+
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    task_doc["acceptance"] = ["test -f src/feature.py"]
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+    sha = ship(repo)
+
+    config = RunnerConfig(
+        runtime=RuntimeConfig(sandbox_timeout=300, agent_timeout=90), poison_ceiling=2
+    )
+    deps = RunDeps(
+        workspace=GitWorkspace(repo.root),
+        runtime=DockerRuntime(),
+        agent=FakeAgent([{"writes": {"src/feature.py": "FEATURE = 'replayed'\n"}, "exit": 0}]),
+        vcs=GitVcs(),
+        scm=NullScm(),
+        store=open_store,
+    )
+    opened: list[str] = []
+
+    class OpeningShadow(ShadowWorkspace):
+        def judge_checkout(self, task_id: str):
+            opened.append(task_id)
+            return super().judge_checkout(task_id)
+
+    shadow_ws = OpeningShadow(repo.root, depth=10)
+    from functools import partial
+
+    source = ShadowSource(
+        create_workspace=shadow_ws.create,
+        shipped_commit=partial(shipped_commit, repo.root),
+        parent_of=partial(parent_of, repo.root),
+        diff_range=partial(diff_range, repo.root),
+        diff_worktree=diff_worktree,
+        judge=shadow_ws,
+    )
+    task = load_task(layout.task_file(repo.root, TASK_ID))
+    workspace, _resolved, parent = shadow_workspace(source, TASK_ID)
+
+    shadow_replay(repo.root, task, config, deps, source, workspace, parent, sha)
+
+    assert (repo.root / ".wt" / f"shadow-{TASK_ID}").is_dir()
+
+    # The verifier's work, left where a verifier agent leaves it: a file in the
+    # tree, and its held-out properties in the holdout directory (S-0116/D-9).
+    holdout = workspace / HOLDOUT_REL
+    holdout.mkdir(parents=True, exist_ok=True)
+    (holdout / "props.py").write_text("ESCAPED = True\n", encoding="utf-8")
+
+    held = take_holdout(workspace)
+    record = shadow_replay(
+        repo.root,
+        task,
+        config,
+        deps,
+        replay_source(source, TASK_ID),
+        workspace,
+        parent,
+        sha,
+        annotation={"verifier": "candidate"},
+    )
+
+    # Read once, removed from the tree, and the file the verifier wrote is what
+    # the second replay measured.
+    assert [(prop.name, prop.text) for prop in held] == [("props.py", "ESCAPED = True\n")]
+    assert not holdout.exists()
+    assert "src/feature.py" in record["shadow_diff"]["files"]
+    # One clone, judged twice under its own name, and the judge checkout went
+    # with the battery — no second clone was ever cut.
+    assert opened == [TASK_ID, TASK_ID]
+    assert not (repo.root / ".wt" / f"shadow-{TASK_ID}.judge").exists()
+    assert record["parent"] == parent
