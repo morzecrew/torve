@@ -108,14 +108,15 @@ phasing:
       - src/torve/gates/sabotage.py
       - tests/test_runner*.py
       - tests/test_events.py
+      - tests/test_context.py
       - tests/test_gates.py
       - tests/test_held_out.py
       - tests/test_verify_tests.py
       - tests/test_sabotage.py
     acceptance:
       - >-
-        uv run pytest tests/test_runner.py tests/test_events.py tests/test_gates.py
-        tests/test_held_out.py tests/test_verify_tests.py tests/test_sabotage.py
+        uv run pytest tests/test_runner.py tests/test_events.py tests/test_context.py
+        tests/test_gates.py tests/test_held_out.py tests/test_verify_tests.py tests/test_sabotage.py
       - uv run mypy src
       - uv run torve spec check
     depends_on:
