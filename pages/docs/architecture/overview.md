@@ -21,6 +21,15 @@ would be a worker whose memory could disagree with the record, and a manager
 that carried state between passes would be a manager whose restart is a
 recovery procedure rather than a re-read.
 
+An actor's own sandbox is not where the verdict comes from. Every battery —
+the attempt's gate pass, the lane's re-gate of a rebased candidate, the
+whole-document battery at completion — judges a standalone checkout of the
+commit, inside a gates sandbox: the trees the attempt left behind reach no
+gate, and the checkout holds only the objects the commit reaches (S-0114).
+What an attempt wrote *outside* its commit is therefore outside its verdict,
+and is recorded as the shadow result `ignored-writes` for whoever reads the
+night (S-0114/D-4).
+
 ## The layers (S-0015)
 
 | Layer | Contents | Rule |

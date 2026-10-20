@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0656
+phase: 2
+base: 750aa25cbec2ebbd86aa6947545286036947b165
+commit: c22d966f8d51262028bea0c1485de60feb69a540
+at: '2026-10-19T22:09:15Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-19T22:03:59Z'
+    claim: >-
+      S-0114/D-2 builds the attempt's gate context over the judge checkout, but D-1
+      builds that checkout from a shallow fetch that transfers only the objects the
+      snapshot reaches, so the base is absent from it and every gate that resolves
+      `{base}`, merges against it or reads `{base}:path` fails there. The pass deepens
+      the checkout from the snapshot ref before it builds the context; the objects
+      that fetches are exactly the snapshot's ancestry, so the checkout still carries
+      no object the candidate did not.
+    evidence: >-
+      src/torve/application/runner.py:801 — `_deepen_judge` returns at once unless
+      the checkout is shallow, and unshallows it from `judge_ref` otherwise; tests/test_judge_checkout.py:107
+      pins the checkout shallow ("rev-list --count HEAD" == 1) before the pass ever
+      sees it.
+    action: decided
+    proposal: >-
+      S-0114/D-2 should say the pass hands the judge checkout its ancestry from the
+      snapshot ref before building the context over it, so the base the context diffs
+      against is present; or S-0114/D-1's fetch should not cut the history at the
+      snapshot.
+  - decision: unlisted
+    grade: UNLISTED
+    at: '2026-10-19T22:03:59Z'
+    claim: >-
+      S-0114/D-4 counts an ignored file the engine wrote in the worktree only while
+      its content is still what the engine wrote, but the engine's own context pack
+      under .torve/context/ carries the attempt's live state and so has no reproducible
+      canonical the way .torve/tmp/tracked-files has git ls-files -z. The pass treats
+      a file whose mtime is at or before the attempt's start instant as the engine's
+      own and one the attempt outlived as a write, keeping the content comparison
+      for the tracked-file list alone.
+    evidence: >-
+      src/torve/application/runner.py:757 — the second-resolution mtime line (`int(path.stat().st_mtime)
+      <= int(started)`), where the content comparison above it is applied to `TRACKED_LIST`
+      only.
+    action: decided
+    proposal: >-
+      S-0114/D-4 should name the attempt's start instant as the line for engine-written
+      files with no reproducible canonical, keeping the content comparison for .torve/tmp/tracked-files,
+      whose canonical is git ls-files -z.

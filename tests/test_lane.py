@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -2689,9 +2690,9 @@ def _counting_regate(monkeypatch) -> list[str | None]:
     calls: list[str | None] = []
     real = lane._regate
 
-    def regate(workdir: Path, base_ref: str, task_id: str | None):
+    def regate(workdir: Path, base_ref: str, task_id: str | None, gates=None):
         calls.append(task_id)
-        return real(workdir, base_ref, task_id)
+        return real(workdir, base_ref, task_id, gates)
 
     monkeypatch.setattr(lane, "_regate", regate)
     return calls
@@ -2784,8 +2785,8 @@ def test_completion_runs_checks_the_document_inherited_and_the_reached_invariant
     seen: list[str] = []
     real = lane._regate
 
-    def regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str]:
-        exit_code, summary = real(workdir, base_ref, task_id)
+    def regate(workdir: Path, base_ref: str, task_id: str | None, gates=None) -> tuple[int, str]:
+        exit_code, summary = real(workdir, base_ref, task_id, gates)
         seen.append(summary)
         return exit_code, summary
 
@@ -2896,7 +2897,7 @@ def test_a_red_battery_at_completion_publishes_the_landing_and_keeps_the_draft(
     monkeypatch.setattr(
         lane,
         "_regate",
-        lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t),
+        lambda w, b, t, gates=None: (1, "tests=fail") if t is None else real(w, b, t, gates),
     )
     published: list[tuple[str, str]] = []
     status = _Status()
@@ -3008,7 +3009,9 @@ def test_the_verdict_is_written_after_the_push_and_a_refusal_never_ends_the_pass
     _phase_contract(lane_repo, "T-7341", 2)
     real = lane._regate
     monkeypatch.setattr(
-        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+        lane,
+        "_regate",
+        lambda w, b, t, gates=None: (1, "tests=fail") if t is None else real(w, b, t, gates),
     )
     document = naming.document_branch("S-0930")
     published: list[tuple[str, str]] = []
@@ -3039,7 +3042,9 @@ def test_a_refused_verdict_leaves_the_landing_published(lane_repo, tmp_path, mon
     _phase_contract(lane_repo, "T-7343", 2)
     real = lane._regate
     monkeypatch.setattr(
-        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+        lane,
+        "_regate",
+        lambda w, b, t, gates=None: (1, "tests=fail") if t is None else real(w, b, t, gates),
     )
     document = naming.document_branch("S-0930")
     published: list[tuple[str, str]] = []
@@ -3183,7 +3188,9 @@ def test_the_publisher_keeps_the_draft_while_the_tip_carries_a_recorded_red(
     _phase_contract(lane_repo, "T-7321", 2)
     real = lane._regate
     monkeypatch.setattr(
-        lane, "_regate", lambda w, b, t: (1, "tests=fail") if t is None else real(w, b, t)
+        lane,
+        "_regate",
+        lambda w, b, t, gates=None: (1, "tests=fail") if t is None else real(w, b, t, gates),
     )
     (lane_repo / ".torve" / "config.yaml").write_text(
         "schema_version: 1\npromotion:\n  landing: pull_request\n"
@@ -3232,9 +3239,9 @@ def _red_completion(lane_repo, tmp_path, monkeypatch, verdicts: list[int]) -> li
     real = lane._regate
     calls: list[str | None] = []
 
-    def regate(w: Path, b: str, t: str | None):
+    def regate(w: Path, b: str, t: str | None, gates=None):
         if t is not None:
-            return real(w, b, t)
+            return real(w, b, t, gates)
 
         calls.append(t)
         code = verdicts.pop(0)
@@ -3688,3 +3695,155 @@ def test_a_branch_is_read_under_its_own_document_only(lane_repo, tmp_path):
     _landing_on_branch(lane_repo, branch, "S-0952", "T-9002")
 
     assert document_tasks(lane_repo, branch) == []
+
+
+# ....................... #
+# S-0114/D-3, D-5 (T-0657): the lane's batteries run in a gates sandbox over a
+# judge checkout of the rebased tip, and no battery leaves its checkout behind.
+
+
+def _shell_gate_manifest(root: Path, command: str) -> None:
+    """The checkout's manifest replaced by one shell gate whose command only
+    the sandbox can answer: run on the host, this battery is red."""
+
+    (root / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "scope": {"allow": [], "deny": []},
+                "gates": [
+                    {
+                        "name": "sandboxed",
+                        "run": command,
+                        "state": "blocking",
+                        "origin": "structural",
+                        "sabotage": "tests/test_lane.py",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "the sandboxed gate")
+
+
+class _RecordingGates:
+    """One battery's judge checkout and the sandbox over it (S-0114/D-3): the
+    checkout is the lane's own, and every command the battery hands the sandbox
+    is recorded and answered green."""
+
+    def __init__(self, seen: dict, root: Path, workdir: Path, label: str) -> None:
+        from torve.cli.merge import _judge_checkout
+
+        self.seen = seen
+        self.root = _judge_checkout(root, workdir, label)
+        seen["roots"].append(self.root)
+
+    def execute(self, command: str, timeout: float) -> tuple[int | None, str]:
+        self.seen["commands"].append(command)
+        return 0, ""
+
+    def close(self) -> None:
+        self.seen["closed"].append(self.root)
+        shutil.rmtree(self.root, ignore_errors=True)
+
+
+def _recording_factory(root: Path):
+    """A `SandboxFactory` recording what the lane did with it."""
+
+    seen: dict = {"commands": [], "roots": [], "closed": []}
+
+    def open_(workdir: Path, label: str) -> _RecordingGates:
+        return _RecordingGates(seen, root, workdir, label)
+
+    return open_, seen
+
+
+def test_the_rebased_candidates_battery_runs_in_the_sandbox_and_leaves_no_checkout(lane_repo):
+    _shell_gate_manifest(lane_repo, "exit 7")
+    candidate(lane_repo, "T-7401", "one.py", "one = 1\n")
+    candidate(lane_repo, "T-7402", "two.py", "two = 2\n")
+    gates, seen = _recording_factory(lane_repo)
+
+    results = process_lane(lane_repo, GitLane(), gates=gates)
+
+    # Both landed: the rebased candidate's battery read the command in the
+    # sandbox, so its green is the sandbox's answer, never the host's.
+    assert [r.action for r in results] == ["landed", "landed"]
+    assert seen["commands"] == ["exit 7"]
+    assert seen["roots"] == [lane_repo / ".wt" / "lane-T-7402.judge"]
+    # The checkout is not the lane's worktree, and no checkout outlives its
+    # battery (S-0114/D-5).
+    assert seen["closed"] == seen["roots"]
+    assert not seen["roots"][0].exists()
+
+
+def test_the_completion_battery_runs_in_the_sandbox_and_leaves_no_checkout(lane_repo, tmp_path):
+    _phased(lane_repo)
+    _shell_gate_manifest(lane_repo, "exit 7")
+    _origin(lane_repo, tmp_path)
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+
+    candidate(lane_repo, "T-7411", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7411", 1)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7412"), document)
+    (lane_repo / "two.py").write_text("two = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "two.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work (T-7412)")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7412", path=naming.state_file(lane_repo, "T-7412"))
+    state.state = TaskState.READY
+    state.save()
+    _phase_contract(lane_repo, "T-7412", 2)
+
+    gates, seen = _recording_factory(lane_repo)
+    results = process_lane(
+        lane_repo, GitLane(), publish=publish, unit="document", only="T-7412", gates=gates
+    )
+
+    # The last phase fast-forwards the document, so the whole-document battery
+    # over its tip is the one that ran — through the sandbox, green.
+    assert [r.action for r in results] == ["landed"]
+    assert published[-1] == ("T-7412", document)
+    assert seen["commands"] == ["exit 7"]
+    assert [p.name for p in seen["roots"]] == ["lane-S-0930.judge"]
+    assert seen["closed"] == seen["roots"]
+    assert not seen["roots"][0].exists()
+
+
+@pytest.mark.parametrize(("commits", "base_moves"), [(1, True), (60, False)])
+def test_the_battery_names_a_merge_base_its_checkout_holds(lane_repo, commits, base_moves):
+    """S-0114/D-1, D-3: the checkout holds the tip's ancestry and the battery
+    names its merge base with the base — so neither a base that moved past the
+    branch nor a merge base far down a long branch is a commit it lacks."""
+
+    from torve.application.lane import _regate
+
+    _shell_gate_manifest(lane_repo, "echo {base}")
+    fork = git(lane_repo, "rev-parse", "HEAD")
+    git(lane_repo, "checkout", "-q", "-b", "long")
+
+    for n in range(commits):
+        (lane_repo / "long.py").write_text(f"n = {n}\n", encoding="utf-8")
+        git(lane_repo, "add", "long.py")
+        git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", f"step {n}")
+
+    if base_moves:
+        git(lane_repo, "checkout", "-q", "main")
+        (lane_repo / "later.py").write_text("later = 1\n", encoding="utf-8")
+        git(lane_repo, "add", "later.py")
+        git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "main moves on")
+        git(lane_repo, "checkout", "-q", "long")
+
+    gates, seen = _recording_factory(lane_repo)
+
+    exit_code, summary = _regate(lane_repo, "main", None, gates)
+
+    assert exit_code == 0, summary
+    assert seen["commands"] == [f"echo {fork}"]

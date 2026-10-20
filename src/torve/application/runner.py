@@ -27,7 +27,7 @@ from collections.abc import Awaitable, Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import partial
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -62,6 +62,7 @@ from torve.application.ports import (
     Runtime,
     SandboxHandle,
     SandboxSpec,
+    judge_ref,
 )
 from torve.application.review import review_step, reviewer_for
 from torve.application.runstate import Escalation, RunState
@@ -87,7 +88,7 @@ from torve.base.clock import parse
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
-from torve.config.spec import write_tracked_files
+from torve.config.spec import TRACKED_LIST, write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
@@ -668,6 +669,143 @@ def _gates_spec(run: Dispatch, state: RunState) -> SandboxSpec:
 
 # ....................... #
 
+# The toolchain caches an attempt's own run leaves behind (S-0114/D-4): never
+# an ignored write, whichever path they sit under.
+_IGNORED_CACHES = frozenset(
+    {".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules"}
+)
+
+
+def _attempt_started(run: Dispatch) -> float | None:
+    """When the attempt's sandbox started, as a POSIX timestamp — the line
+    between an ignored file the attempt left and one already there. None
+    when the run stamped nothing (a test pass, a replay)."""
+
+    raw = run.meta.get("started_at")
+
+    if not raw:
+        return None
+
+    try:
+        return parse(str(raw)).timestamp()
+
+    except ValueError:
+        return None
+
+
+def _canonical_tracked(worktree: Path) -> str:
+    """What the engine's own `write_tracked_files` would leave in the
+    worktree's list right now — the content an engine-written file is
+    compared against (S-0114/D-4)."""
+
+    try:
+        return git(worktree, "ls-files", "-z")
+
+    except GitError:
+        return ""
+
+
+def _ignored_writes(run: Dispatch) -> list[str]:
+    """The ignored files the attempt left in the worktree, by path
+    (S-0114/D-4): the toolchain caches its own run wrote are not writes, and
+    a file the engine wrote there counts only once its content differs from
+    what the engine wrote. An empty list is an attempt that wrote nothing
+    outside its commit.
+
+    A file the host cannot stat — a broken symlink, a path that vanished
+    between the listing and the read — is left out rather than reported."""
+
+    worktree = run.worktree
+
+    try:
+        listed = git(worktree, "ls-files", "--others", "--ignored", "--exclude-standard")
+
+    except GitError:
+        return []
+
+    started = _attempt_started(run)
+    engine = _task_bookkeeping(run.task.id)
+    canonical: str | None = None
+    found: list[str] = []
+
+    for name in listed.splitlines():
+        name = name.strip()
+
+        if not name or name in engine:
+            continue
+
+        if any(part in _IGNORED_CACHES for part in PurePosixPath(name).parts):
+            continue
+
+        path = worktree / name
+
+        try:
+            if not path.is_file():
+                continue
+
+            if name == TRACKED_LIST:
+                if canonical is None:
+                    canonical = _canonical_tracked(worktree)
+
+                if path.read_text(encoding="utf-8", errors="replace") == canonical:
+                    continue
+
+            # The instant's resolution is the second (S-0058/D-7), so a file
+            # the engine wrote in the attempt's starting second reads as
+            # before it: the engine writes the pack and the tracked list in
+            # that window, and an attempt's own run outlives it.
+            if started is not None and int(path.stat().st_mtime) <= int(started):
+                continue
+
+        except OSError:
+            continue
+
+        found.append(name)
+
+    return sorted(found)
+
+
+def _ignored_write_result(names: list[str]) -> GateResult:
+    """The attempt's ignored writes as a shadow result (S-0114/D-4): it
+    changes no verdict and the reviewer never reads it (S-0054/D-13) — the
+    record, `torve why` and the next attempt's feedback carry it."""
+
+    return GateResult(
+        name="ignored-writes",
+        outcome="fail",
+        state="shadow",
+        sha="",
+        output="the attempt wrote ignored files outside its commit:\n" + "\n".join(names),
+    )
+
+
+def _with_ignored_writes(report: RunReport, names: list[str]) -> RunReport:
+    """The battery as the record carries it: the same results, with the
+    ignored-writes fact beside them when there is one to record."""
+
+    if not names:
+        return report
+
+    return RunReport(
+        results=[*report.results, _ignored_write_result(names)], exit_code=report.exit_code
+    )
+
+
+def _deepen_judge(judge: Path, root: Path, task_id: str) -> None:
+    """Hand the checkout its ancestry, the attempt's base among it
+    (S-0114/D-1): the snapshot fetch cuts the history at the snapshot, and a
+    gate that diffs against `{base}` or reads a file as the base tree holds
+    it needs the commit the snapshot came from. Every object this fetches is
+    one the snapshot reaches."""
+
+    if not (judge / ".git" / "shallow").exists():
+        return
+
+    git(judge, "fetch", "--unshallow", "--no-tags", str(root), judge_ref(task_id))
+
+
+# ....................... #
+
 
 def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[GateResult], str]:
     """(exit_code, summary, config_hash, results, patch) — the results and
@@ -678,6 +816,11 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     ran under (S-0003/D-8) and the same derived cache (S-0035/D-3), because a pass
     that judged a different regime than the attempt ran in is judging
     something else.
+
+    What it judges is the judge checkout (S-0114/D-2): the snapshot of what
+    the commit would carry, mounted in place of the worktree, so nothing the
+    attempt left outside its commit reaches a verdict. The checkout is
+    removed when the battery ends, green or red (S-0114/D-5).
 
     The attempt record is built once here and written to both carriers from
     that one object (S-0044/A-4): the telemetry row every projection reads, and
@@ -700,71 +843,110 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         task_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(source, task_file)
 
-    executor = _SandboxExecutor(run.deps.runtime, _gates_spec(run, state), run.worktree)
+    # S-0114/D-4: the attempt is over and the gate pass has not written into
+    # the worktree again — the ignored files it left there are listed once,
+    # here, and recorded as a shadow fact beside the battery.
+    ignored = _ignored_writes(run)
+
+    # A shadow replay's clone is already a repository of its own (S-0004/D-7)
+    # and no worktree of the root, so there is nothing at `.wt/<task>` to
+    # snapshot: the replay judges its clone as it did before S-0114.
+    # shortcut: the clone's ignored files still reach a replay's gates; judge a
+    # snapshot of the clone once a document decides it for replays.
+    judge = run.worktree if run.shadow else run.deps.workspace.judge_checkout(run.task.id)
 
     try:
-        ctx = build_context(
-            run.worktree,
-            manifest,
-            base=resolve_base(run.worktree, run.gates_base or run.config.base),
-            task_path=task_file if task_file.is_file() else None,
-            specs=run.config.specs.path,
+        if not run.shadow:
+            _deepen_judge(judge, run.root, run.task.id)
+
+        # The base is resolved on the host and named to the checkout by the sha
+        # of its merge base with the attempt (S-0114/D-1): an ancestor of the
+        # snapshot, so the checkout holds it even when the base ref has moved
+        # since the cut. The gates read only the merge base, `{base}` included.
+        host_base = resolve_base(run.worktree, run.gates_base or run.config.base)
+        base = (
+            git(run.worktree, "merge-base", host_base, "HEAD").strip()
+            if host_base is not None
+            else None
         )
 
-        ctx.execute = executor
-        # S-0106/D-6: a phase of a refactor document is judged by whether
-        # behaviour held, so the battery is told the type `red-on-base` re-aims
-        # on. Read here, not in the gate: the corpus is the planner's (S-0015/A-1).
-        ctx.change_type = change_type_of(run.worktree / run.config.specs.path, run.task)
+        executor = _SandboxExecutor(run.deps.runtime, _gates_spec(run, state), judge)
 
-        if _is_empty_implement_diff(ctx, run.root):
-            # T-0172: an implement attempt that changed nothing against the
-            # merge base is a no-op — refusing it here makes the loop read a
-            # red gates fact and retry toward the poison ceiling, instead of
-            # blessing an unchanged tree green. The attempt already spent
-            # (S-0004/telemetry-staged), so the red record carries that cost and names
-            # the refusal; the battery itself would only repeat the same
-            # verdicts over a tree the agent never touched.
-            digest = config_hash(
-                manifest_path, run.worktree, run.config, image_digest=run.image_digest
+        try:
+            judge_task = layout.task_file(judge, run.task.id)
+
+            ctx = build_context(
+                judge,
+                manifest,
+                base=base,
+                task_path=judge_task if judge_task.is_file() else None,
+                specs=run.config.specs.path,
             )
-            summary = "empty diff against base — no changes produced"
-            # Named in the results, so the record and the next attempt's
-            # feedback carry the refusal rather than a red with no gate
-            # (bloomery T-0006 repeated the same no-op against a verdict it
-            # could not read).
-            refusal = GateResult(
-                name="empty-diff",
-                outcome="fail",
-                state="blocking",
-                exit_code=1,
-                sha=ctx.head_sha,
-                output=summary,
-            )
-            record = build_record(
-                ctx, RunReport(results=[refusal], exit_code=1), digest, agent=run.meta
-            )
-            _write_attempt_record(run, record, state.attempts)
 
-            return 1, summary, digest, [refusal], ctx.patch
+            ctx.execute = executor
+            # S-0106/D-6: a phase of a refactor document is judged by whether
+            # behaviour held, so the battery is told the type `red-on-base` re-aims
+            # on. Read here, not in the gate: the corpus is the planner's (S-0015/A-1).
+            ctx.change_type = change_type_of(judge / run.config.specs.path, run.task)
 
-        # Before the battery: a written contingent path an in-flight run
-        # holds refuses the attempt here (S-0104/D-3), and judging a tree
-        # about to be handed back to the queue buys nothing.
-        _record_promotions(run, state, ctx)
+            if _is_empty_implement_diff(ctx, run.root):
+                # T-0172: an implement attempt that changed nothing against the
+                # merge base is a no-op — refusing it here makes the loop read a
+                # red gates fact and retry toward the poison ceiling, instead of
+                # blessing an unchanged tree green. The attempt already spent
+                # (S-0004/telemetry-staged), so the red record carries that cost and names
+                # the refusal; the battery itself would only repeat the same
+                # verdicts over a tree the agent never touched.
+                digest = config_hash(
+                    manifest_path, run.worktree, run.config, image_digest=run.image_digest
+                )
+                summary = "empty diff against base — no changes produced"
+                # Named in the results, so the record and the next attempt's
+                # feedback carry the refusal rather than a red with no gate
+                # (bloomery T-0006 repeated the same no-op against a verdict it
+                # could not read).
+                refusal = GateResult(
+                    name="empty-diff",
+                    outcome="fail",
+                    state="blocking",
+                    exit_code=1,
+                    sha=ctx.head_sha,
+                    output=summary,
+                )
+                record = build_record(
+                    ctx,
+                    _with_ignored_writes(RunReport(results=[refusal], exit_code=1), ignored),
+                    digest,
+                    agent=run.meta,
+                )
+                _write_attempt_record(run, record, state.attempts)
 
-        # S-0113/D-2: the battery runs inside a sandbox that has no git, so
-        # the host leaves the worktree's tracked files where the citation
-        # scan reads them — current as of the attempt that just ran.
-        write_tracked_files(run.worktree)
+                return 1, summary, digest, [refusal], ctx.patch
 
-        report = run_gates(ctx)
+            # Before the battery: a written contingent path an in-flight run
+            # holds refuses the attempt here (S-0104/D-3), and judging a tree
+            # about to be handed back to the queue buys nothing.
+            _record_promotions(run, state, ctx)
+
+            # S-0113/D-2: the battery runs inside a sandbox that has no git, so
+            # the host leaves the checkout's tracked files where the citation
+            # scan reads them — current as of the attempt that just ran.
+            write_tracked_files(judge)
+
+            report = run_gates(ctx)
+
+        finally:
+            executor.close()
 
     finally:
-        executor.close()
+        # S-0114/D-5: a judge checkout outlives no battery. The record is
+        # built below from the context, so this runs after the battery ends,
+        # green or red.
+        if not run.shadow:
+            run.deps.workspace.remove_judge(run.task.id)
 
     digest = config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
-    record = build_record(ctx, report, digest, agent=run.meta)
+    record = build_record(ctx, _with_ignored_writes(report, ignored), digest, agent=run.meta)
     _write_attempt_record(run, record, state.attempts)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 

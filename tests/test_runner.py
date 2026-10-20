@@ -224,11 +224,27 @@ class _StubRuntime:
         return self.digest
 
 
-def _dispatch_deps(runtime: _StubRuntime):
+class _WorktreeJudge:
+    """The workspace double for a pass whose worktree is already its own
+    checkout: the gates read the worktree and nothing is removed (S-0114/D-2).
+    For a test whose worktree is a hand-built repository at a path the naming
+    does not derive, so the real `GitWorkspace` cannot find it."""
+
+    def __init__(self, workspace):
+        self.workspace = workspace
+
+    def judge_checkout(self, task_id):
+        return self.workspace
+
+    def remove_judge(self, task_id):
+        pass
+
+
+def _dispatch_deps(runtime: _StubRuntime, workspace=None):
     from torve.application.dispatch import RunDeps
 
     return RunDeps(
-        workspace=None,  # type: ignore[arg-type]  # unreached: the guard fires at real_hooks() construction
+        workspace=workspace,  # type: ignore[arg-type]
         runtime=runtime,
         agent=object(),  # type: ignore[arg-type]
         vcs=object(),  # type: ignore[arg-type]
@@ -902,17 +918,19 @@ def _gate_dispatch(
     shadow=False,
     base="main",
     runtime=None,
+    workspace=None,
 ):
     """A dispatch with nothing running behind it — enough for the steps that
     only read the regime off it (S-0046). *runtime* is for the passes that do
-    open a sandbox."""
+    open a sandbox; *workspace* is for the passes that need a judge checkout
+    (S-0114/D-2)."""
 
     from pathlib import Path
 
     from torve.application.dispatch import Dispatch, RunDeps
 
     deps = RunDeps(
-        workspace=None,  # type: ignore[arg-type]  # unreached: no sandbox is opened
+        workspace=workspace,  # type: ignore[arg-type]  # unreached: no sandbox is opened
         runtime=runtime or _NoSandboxRuntime(),  # type: ignore[arg-type]
         agent=object(),  # type: ignore[arg-type]
         vcs=object(),  # type: ignore[arg-type]
@@ -940,12 +958,21 @@ def _gate_dispatch(
 def _gate_pass(repo, worktree, *, base="main", runtime=None):
     """The shipped gate pass over a cut worktree (S-0046): the pass reads
     its regime off a dispatch now, so the test builds one instead of
-    threading thirteen positional arguments and hoping the order held."""
+    threading thirteen positional arguments and hoping the order held. The
+    workspace is the real one — the pass snapshots a judge checkout and the
+    gates read it (S-0114/D-2)."""
 
+    from torve.adapters.workspace.git import GitWorkspace
     from torve.application.runner import run_gate_pass
     from torve.application.runstate import RunState
 
-    run = _gate_dispatch(root=repo.root, worktree=worktree, base=base, runtime=runtime)
+    run = _gate_dispatch(
+        root=repo.root,
+        worktree=worktree,
+        base=base,
+        runtime=runtime,
+        workspace=GitWorkspace(repo.root),
+    )
     state = RunState(task_id=TASK_ID, path=repo.root / "state.json", run_id="run-1")
 
     return run_gate_pass(run, state)
@@ -1064,11 +1091,11 @@ def test_a_nonempty_untracked_diff_never_triggers_the_refusal(repo):
 
 
 def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
-    """S-0113/D-2: the battery's sandbox runs no git, so the host writes the
-    worktree's tracked files into `.torve/tmp/tracked-files` before the shell
-    gates open a sandbox, and the list is what `git ls-files` answers."""
-
-    import subprocess
+    """S-0113/D-2, S-0114/D-2: the battery's sandbox runs no git, so the host
+    writes the checkout's tracked files into `.torve/tmp/tracked-files` before
+    the shell gates open a sandbox, and the sandbox it opens is the judge
+    checkout — the list is the snapshot's, the file the worktree's `git
+    ls-files` would leave as untracked among it."""
 
     from torve.application.ports import ExecResult, SandboxHandle
 
@@ -1076,6 +1103,7 @@ def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
 
     class ListRecordingRuntime:
         def create(self, spec, workspace):
+            seen["workspace"] = workspace
             seen["tracked"] = (workspace / ".torve" / "tmp" / "tracked-files").read_text(
                 encoding="utf-8"
             )
@@ -1107,15 +1135,199 @@ def test_the_runner_leaves_the_tracked_list_before_the_gates_sandbox(repo):
     # The shell gate ran in the recording sandbox and passed there.
     assert exit_code == 0, summary
 
-    expected = subprocess.run(
+    # The sandbox mounts the judge checkout, not the worktree (S-0114/D-2),
+    # and the list is the snapshot's: the untracked file the snapshot stages
+    # is tracked there, so it rides a list `git ls-files` in the worktree
+    # would not answer.
+    assert seen["workspace"] != worktree
+    assert seen["workspace"].name.endswith(".judge")
+    assert ".torve/gates.yaml" in seen["tracked"]
+    assert "src/torve/new.py" in seen["tracked"]
+
+
+# ....................... #
+# S-0114/D-2, D-4 (T-0656): the battery judges the judge checkout, so nothing
+# an attempt left outside its commit reaches a gate; what it did leave is
+# listed as a shadow fact, and the toolchain caches and the engine's own files
+# are not writes.
+
+_IGNORED_GITIGNORE = (
+    ".torve/telemetry.jsonl\n.torve/skills/\n.torve/tmp/\n.venv/\n*.log\n__pycache__/\n"
+)
+
+
+def _ignored_repo(repo, manifest=None):
+    """A seeded repository whose ignore file covers a cache, a log and the
+    toolchain directories, cut into a worktree at `main`."""
+
+    repo.seed()
+    repo.write(".gitignore", _IGNORED_GITIGNORE)
+    return _cut_worktree(repo, manifest or manifest_with([]), base_task(allow=["src/**"]))
+
+
+def test_a_tampered_cache_and_tracked_list_never_reach_the_battery(repo):
+    """S-0114/D-2: the sandbox mounts the checkout, and the checkout is what
+    `git add -A` would commit — so an attempt's `.venv` shim and its rewrite
+    of the engineered tracked-file list are in no commit and reach no gate."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+
+    seen: dict = {}
+
+    class ListRecordingRuntime:
+        def create(self, spec, workspace):
+            seen["workspace"] = workspace
+            seen["tracked"] = (workspace / ".torve" / "tmp" / "tracked-files").read_text(
+                encoding="utf-8"
+            )
+
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    manifest = manifest_with([{"name": "acceptance", "run": "true", "axis": "functional"}])
+    worktree = _ignored_repo(repo, manifest)
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    # An ignored cache the attempt could have shimmed, and the engine's own
+    # list rewritten with a lie about what is tracked.
+    (worktree / ".venv" / "lib").mkdir(parents=True, exist_ok=True)
+    (worktree / ".venv" / "lib" / "site.py").write_text("tampered\n", encoding="utf-8")
+    (worktree / ".torve" / "tmp").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "tmp" / "tracked-files").write_text("src/secret.py\0", encoding="utf-8")
+
+    exit_code, summary, *_ = _gate_pass(repo, worktree, runtime=ListRecordingRuntime())
+
+    assert exit_code == 0, summary
+    assert seen["workspace"].name.endswith(".judge")
+    assert not (seen["workspace"] / ".venv").exists()
+    # The list the sandbox reads is the checkout's own, not the tampered one.
+    assert seen["tracked"] != "src/secret.py\0"
+    assert ".torve/gates.yaml" in seen["tracked"]
+
+
+def test_a_base_that_moved_since_the_cut_is_named_by_its_merge_base(repo):
+    """S-0114/D-1: the checkout's history ends at the snapshot, so a base ref
+    that moved after the cut names a commit it does not hold. The host names
+    the merge base instead, an ancestor of the snapshot — what the gates read
+    as the base anyway."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+    from torve.gates.context import git
+
+    commands: list[str] = []
+
+    class CommandRecordingRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            commands.append(command)
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    manifest = manifest_with([{"name": "acceptance", "run": "echo {base}", "axis": "functional"}])
+    worktree = _ignored_repo(repo, manifest)
+    cut = git(repo.root, "rev-parse", "main").strip()
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    repo.write("src/later.py", "LATER = True\n")
+    repo.commit("main moves on after the cut")
+
+    exit_code, summary, *_ = _gate_pass(repo, worktree, runtime=CommandRecordingRuntime())
+
+    assert exit_code == 0, summary
+    assert commands == [f"echo {cut}"]
+
+
+def test_ignored_writes_names_a_written_file_and_a_rewritten_tracked_list(repo):
+    """S-0114/D-4: an ignored file the attempt wrote is a divergence from the
+    commit, and the engine's own tracked-file list is one too once its content
+    is no longer what the engine wrote."""
+
+    from torve.application.runner import _ignored_writes
+
+    worktree = _ignored_repo(repo)
+    (worktree / "agent.log").write_text("steering the verdict\n", encoding="utf-8")
+    (worktree / ".torve" / "tmp").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "tmp" / "tracked-files").write_text("a lie\n", encoding="utf-8")
+
+    run = _gate_dispatch(root=repo.root, worktree=worktree, base="main")
+
+    assert _ignored_writes(run) == [".torve/tmp/tracked-files", "agent.log"]
+
+
+def test_ignored_writes_stays_silent_for_caches_and_the_engines_own_files(repo):
+    """S-0114/D-4: the toolchain caches an attempt's own run leaves are not
+    writes, and the engine's files count only once their content changed — an
+    untouched tracked-file list reads as the engine left it."""
+
+    from torve.application.runner import _ignored_writes
+
+    worktree = _ignored_repo(repo)
+    (worktree / ".venv" / "lib").mkdir(parents=True, exist_ok=True)
+    (worktree / ".venv" / "lib" / "site.py").write_text("cache\n", encoding="utf-8")
+    (worktree / "__pycache__").mkdir(parents=True, exist_ok=True)
+    (worktree / "__pycache__" / "app.cpython-312.pyc").write_bytes(b"\x00")
+    # The engine's own list, at the content `git ls-files -z` answers.
+    (worktree / ".torve" / "tmp").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "tmp" / "tracked-files").write_text(
+        _canonical(worktree), encoding="utf-8"
+    )
+
+    run = _gate_dispatch(root=repo.root, worktree=worktree, base="main")
+
+    assert _ignored_writes(run) == []
+
+
+def _canonical(worktree) -> str:
+    import subprocess
+
+    return subprocess.run(
         ["git", "-C", str(worktree), "ls-files", "-z"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout
 
-    assert seen["tracked"] == expected
-    assert ".torve/gates.yaml" in expected
+
+def test_the_ignored_writes_fact_is_a_shadow_result_the_reviewer_never_reads(repo):
+    """S-0114/D-4, S-0054/D-13: the write shows in the attempt's record as a
+    `shadow` result, and the results the review reads carry it not — a fact
+    beside the verdict, never a change to it."""
+
+    worktree = _ignored_repo(repo)
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    (worktree / "agent.log").write_text("steering the verdict\n", encoding="utf-8")
+
+    exit_code, _summary, _digest, results, _patch = _gate_pass(repo, worktree)
+
+    assert exit_code == 0  # a shadow result convicts nothing
+    assert [r.name for r in results] == []  # the reviewer reads no ignored-writes
+
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    written = [r for r in records[0]["results"] if r["name"] == "ignored-writes"]
+    assert written[0]["state"] == "shadow"
+    assert "agent.log" in written[0]["output"]
 
 
 # ....................... #
@@ -1197,6 +1409,7 @@ def _drive_endings(
 
     from test_run_loop import MockRuntime, MockScm, MockVcs
 
+    from torve.adapters.workspace.git import GitWorkspace
     from torve.application.runner import RunDeps, drive_attempts, real_hooks
     from torve.application.runstate import RunState
     from torve.domain.states import TaskState
@@ -1207,7 +1420,7 @@ def _drive_endings(
     task = Task(id=TASK_ID, role="implement", scope=Scope(allow=["src/**"]), decisions=[])
 
     deps = RunDeps(
-        workspace=None,  # type: ignore[arg-type]
+        workspace=GitWorkspace(repo.root),
         runtime=MockRuntime(),
         agent=_EndingsAgent(results, write_on=write_on, halted_on=halted_on),
         vcs=vcs if vcs is not None else MockVcs(),  # an escalation checkpoints through it
@@ -2704,7 +2917,7 @@ def test_the_gated_arm_removes_the_prompt_and_keeps_the_battery(tmp_path):
     git = ["git", "-C", str(worktree), "-c", "user.name=t", "-c", "user.email=t@t"]
     subprocess.run([*git, "commit", "-q", "--no-gpg-sign", "-m", "seed"], check=True)
 
-    deps = _dispatch_deps(_StubRuntime("sha256:whatever"))
+    deps = _dispatch_deps(_StubRuntime("sha256:whatever"), _WorktreeJudge(worktree))
     hooks = real_hooks(
         tmp_path, _executor_task(), RunnerConfig(), deps, worktree, shadow=True, arm="gated"
     )

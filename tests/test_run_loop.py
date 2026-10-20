@@ -81,6 +81,14 @@ class MockWorkspace:
     def list_worktrees(self):
         return []
 
+    # S-0114/D-2: the gates read the judge checkout, not the worktree. This
+    # double has no snapshot of its own, so the worktree stands in for it.
+    def judge_checkout(self, task_id):
+        return self.root / ".wt" / task_id
+
+    def remove_judge(self, task_id):
+        pass
+
 
 class ScriptedAgent:
     """AgentResults per attempt; optionally writes a halted log entry."""
@@ -1204,6 +1212,57 @@ def test_a_phase_decided_away_in_its_log_is_not_an_empty_diff(repo):
     state = run_task(repo.root, task_for(repo), RunnerConfig(poison_ceiling=2), deps)
     assert state.state is TaskState.READY, [event["fact"] for event in state.history]
     assert state.attempts == 1
+
+
+def test_the_judge_checkout_does_not_outlive_the_battery(repo):
+    """S-0114/D-5: the attempt's gate pass opens a judge checkout to judge and
+    removes it when the battery ends — green here — leaving no `.wt` directory
+    and no snapshot ref behind. Driven through the run loop over the real
+    workspace, so the removal is the shipped `remove_judge`, not a double's."""
+    import subprocess
+
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.application.ports import judge_ref
+    from torve.gates.sabotage import base_task, entry, log_document
+
+    class Recording(GitWorkspace):
+        def __init__(self, root):
+            super().__init__(root)
+            self.opened = None
+
+        def judge_checkout(self, task_id):
+            self.opened = super().judge_checkout(task_id)
+            return self.opened
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    locked = {"id": "S-0001/D-1", "grade": "LOCKED", "text": "a row", "paths": ["src/**"]}
+    repo.task(
+        base_task(allow=["src/**"], decisions=[locked]),
+        log_document(entry(decision="S-0001/D-1", grade="LOCKED", action="decided")),
+    )
+    repo.commit("task minted with its decision logged")
+
+    workspace = Recording(repo.root)
+    deps = RunDeps(
+        workspace=workspace,
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+    )
+
+    state = run_task(repo.root, task_for(repo), RunnerConfig(poison_ceiling=2), deps)
+
+    assert state.state is TaskState.READY, [event["fact"] for event in state.history]
+    assert workspace.opened is not None, "the battery judged a judge checkout"
+    assert not workspace.opened.exists()
+    ref = subprocess.run(
+        ["git", "-C", str(repo.root), "rev-parse", "--verify", "--quiet", judge_ref("T-9001")],
+        capture_output=True,
+    )
+    assert ref.returncode != 0
 
 
 def test_a_refused_seat_escalates_at_once_and_counts_no_attempt(rig):

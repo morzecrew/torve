@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0657
+phase: 3
+attempt: 3
+base: b8e92a9f6e03f16e3acd90007852f4a6180e8b03
+commit: 6723f1fcef82058f5f3c5fc5e27813e23fed4e2b
+at: '2026-10-20T04:29:33Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-1
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-19T22:32:24Z'
+    claim: >-
+      The lane's battery needs a judge checkout whose history reaches the base, because
+      its shell gates run git against the base and the battery resolves the base commit,
+      but the landed checkout is fetched at depth 1 — one commit, no base to resolve.
+      judge_checkout gained an opt-in history that deepens the fetch to the snapshot's
+      whole ancestry; the lane's battery passes it, and the attempt battery's depth-1
+      checkout and its tests are unchanged.
+    evidence: >-
+      src/torve/adapters/workspace/git.py:242 — the fetch depth is the snapshot's
+      commit count when history is asked for and 1 otherwise, so the lane's checkout
+      carries the history its gates read while the attempt's stays a bare diff.
+    action: departed
+    proposal: >-
+      S-0114/D-1 should say the checkout is fetched at depth 1 where the battery judges
+      a bare diff, and at the snapshot's full ancestry where it runs git against the
+      base — the lane's battery, which resolves and reads the base commit.
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-19T22:32:29Z'
+    claim: >-
+      The lane's re-gate of a rebased candidate and its whole-document battery run
+      their shell gates through the factory that torve merge and the manager's lane
+      leg build from the configuration's runtime, over a judge checkout of the rebased
+      tip under the lane's own lane- prefix — so no lane battery runs a candidate's
+      code on the host.
+    evidence: >-
+      src/torve/application/lane.py:297-298 — _regate opens the factory's sandbox
+      over the rebased worktree and builds the battery's context over the checkout
+      it hands back; src/torve/cli/merge.py:372 builds the factory from the configuration's
+      runtime and merge.py:614 and src/torve/cli/manager.py:297 hand it to process_lane.
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-19T22:32:29Z'
+    claim: >-
+      The lane's half of the removal rule: each lane battery removes the judge checkout
+      and ref it opened when it ends, green or red, and the reaper's half is left
+      to the attempt batteries' checkouts.
+    evidence: >-
+      src/torve/application/lane.py:332-334 — the battery's finally closes the sandbox,
+      which destroys the container and removes the lane's judge checkout and its ref,
+      whether the battery came out green or red; tests/test_lane.py:3734 and tests/test_lane.py:3790
+      assert nothing under .wt/*.judge survives either battery.
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-10-20T04:17:45Z'
+    attempt: 3
+    claim: >-
+      D-3's factory had to be built in the CLI and had to own the lane's judge checkout
+      as well as the sandbox: lane.py is application-layer and may not import the
+      workspace adapter, so the act the two callers hand process_lane opens both.
+      The lane's checkout is built by fetching the rebased tip alone from the checkout
+      at bounded depth (the way a shadow replay builds its clone, S-0004/D-7), not
+      by the snapshot-and-ref machinery the attempt's .wt/<task>.judge/ uses: the
+      lane judges a commit the repository already holds, and no worktree's 'git add
+      -A' is the tip. Because that checkout stands detached, the document branch a
+      document battery is named by is read off the rebased lane worktree rather than
+      from the tree the battery reads.
+    evidence: >-
+      src/torve/cli/merge.py:337 — the lane's judge checkout fetches the rebased tip
+      at bounded depth and stands detached; src/torve/cli/merge.py:414 is the factory
+      both callers build; src/torve/application/lane.py:316 reads the branch off the
+      lane worktree because the checkout is detached
+    action: decided
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-20T04:17:45Z'
+    attempt: 3
+    claim: >-
+      The lane's half of D-5 removes a checkout and no ref, because the lane's judge
+      checkout is fetched from the rebased tip and never snapshotted, so nothing is
+      written to refs/torve/judge/<task> for it. Removal is the act's close, called
+      from _regate's finally, so the checkout goes on the red path as it does on the
+      green one and the sandbox comes down before the checkout does. torve reap already
+      leaves every lane-prefixed checkout to the lane, and a killed lane's lane-<label>.judge
+      is cleared by the next battery that opens that same path.
+    evidence: >-
+      src/torve/cli/merge.py:401 — close destroys the sandbox and removes the checkout;
+      src/torve/application/lane.py:326 is the finally that runs it on both verdicts;
+      src/torve/application/reaper.py:112 leaves every lane-prefixed checkout to the
+      lane
+    action: decided

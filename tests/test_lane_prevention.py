@@ -152,3 +152,32 @@ def test_route_classes_follow_the_attention_table():
     assert escalation_route("gate_infrastructure_failure") == "harness owner"
     assert escalation_route("poison_ceiling") == "batch"
     assert escalation_route("budget_exhausted") == "batch"
+
+
+# ....................... #
+# S-0114/D-3 (T-0657): the lane never runs a candidate's shell gates on the
+# host. Every caller hands it the factory its batteries run through — a lane
+# reachable without one would run the candidate's code where the host does.
+
+
+def test_the_merge_verb_always_hands_the_lane_a_sandbox_factory(repo, monkeypatch):
+    """`torve merge` builds the lane's factory from the configuration's
+    runtime; the manager's lane leg is the other caller and builds the same.
+    A pass invoked with no factory executes a candidate's shell gates on the
+    host, so the verb must never reach one."""
+
+    from torve.application import lane as lane_module
+
+    captured: dict = {}
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    repo.seed()
+
+    result = CliRunner().invoke(app, ["merge", "--root", str(repo.root), "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    assert callable(captured["gates"])
