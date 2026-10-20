@@ -1148,6 +1148,41 @@ def test_sibling_entries_of_one_phase_get_their_own_verifiers(pilot_repo):
     ]
 
 
+def test_a_verifier_carries_only_the_rows_its_entry_settles(pilot_repo):
+    # S-0116/D-11: `verify-tests` convicts on every row a verify contract
+    # carries, so another phase's row would convict a verifier citing its own.
+    root, write_doc, git = pilot_repo
+    a_feat_doc(
+        write_doc,
+        git,
+        "0094",
+        [
+            {"phase": 1, "title": "widget", "intent": "W.", "scope": ["src/widget/**"]},
+            {
+                "phase": 2,
+                "title": "frob",
+                "intent": "F.",
+                "scope": ["src/frob/**"],
+                "depends_on": [1],
+            },
+        ],
+    )
+
+    report = plan_document(root, root / ".torve" / "specs", "0094")
+    verifiers = {
+        p.task.phase: [d.id for d in p.task.decisions]
+        for p in report.tasks
+        if p.task.role == "verify"
+    }
+    implementers = [
+        [d.id for d in p.task.decisions] for p in report.tasks if p.task.role == "implement"
+    ]
+
+    # The table's first row names `src/widget/**`; its pathless row is no entry's.
+    assert verifiers == {1: ["S-0090/D-1"], 2: []}
+    assert implementers == [["S-0090/D-1", "S-0090/D-2"]] * 2
+
+
 def test_a_docs_only_phase_earns_no_verifier(pilot_repo):
     root, write_doc, git = pilot_repo
     a_feat_doc(
