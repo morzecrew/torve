@@ -68,6 +68,73 @@ def _git_at(path: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return proc.stdout
 
 
+def _snapshot_commit(worktree: Path) -> str:
+    """The commit `git add -A` would carry in `worktree`, on its HEAD
+    (S-0114/D-1). Staging goes through a temporary index, so the worktree's
+    own index is exactly as it was, and no ref moves here."""
+
+    head = _git_at(worktree, "rev-parse", "HEAD").strip()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
+
+        def stage(*args: str) -> str:
+            return _git_at(worktree, *COMMITTER, *args, env=env)
+
+        stage("read-tree", head)
+        stage("add", "-A")
+        tree = stage("write-tree").strip()
+
+        return stage("commit-tree", tree, "-p", head, "-m", "judge snapshot").strip()
+
+
+def _standalone_checkout(path: Path, source: Path, snapshot: str, depth: int | None) -> Path:
+    """A fresh repository at `path` holding `snapshot` fetched from `source`,
+    checked out detached and verified before it is returned — the way a
+    shadow clone stands alone (S-0004/D-7). `depth` bounds the fetch; None
+    takes every commit the source holds behind the snapshot."""
+
+    if path.exists():
+        shutil.rmtree(path)
+
+    path.mkdir(parents=True)
+
+    _git_at(path, "init", "-q")
+    bound = [f"--depth={depth}"] if depth is not None else []
+    proc = subprocess.run(
+        [
+            "git",
+            *NO_HOOKS,
+            "-C",
+            str(path),
+            "fetch",
+            "-q",
+            *bound,
+            "--upload-pack",
+            _UPLOAD_PACK,
+            str(source),
+            snapshot,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if proc.returncode != 0:
+        raise WorkspaceError(proc.stderr.strip() or f"judge fetch into {path.name} failed")
+
+    _git_at(path, "checkout", "-q", "--detach", "FETCH_HEAD")
+
+    head = _git_at(path, "rev-parse", "HEAD").strip()
+
+    if head != snapshot:
+        raise WorkspaceError(
+            f"judge checkout {path.name} is at {head}, not the snapshot {snapshot}"
+        )
+
+    return path
+
+
 # ....................... #
 
 
@@ -225,73 +292,12 @@ class GitWorkspace:
         the candidate's real history, and the fetch at depth 1 transfers only
         the objects the snapshot reaches."""
 
-        snapshot = self._snapshot(task_id)
+        snapshot = _snapshot_commit(naming.worktree(self.root, task_id))
+        # The ref is written directly, never through a checkout.
+        self._git("update-ref", judge_ref(task_id), snapshot)
         path = self.root / naming.WORKTREE_DIR / f"{task_id}{JUDGE_SUFFIX}"
 
-        if path.exists():
-            shutil.rmtree(path)
-
-        path.mkdir(parents=True)
-
-        _git_at(path, "init", "-q")
-        proc = subprocess.run(
-            [
-                "git",
-                *NO_HOOKS,
-                "-C",
-                str(path),
-                "fetch",
-                "-q",
-                "--depth=1",
-                "--upload-pack",
-                _UPLOAD_PACK,
-                str(self.root),
-                snapshot,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if proc.returncode != 0:
-            raise WorkspaceError(proc.stderr.strip() or f"judge fetch for {task_id} failed")
-
-        _git_at(path, "checkout", "-q", "--detach", "FETCH_HEAD")
-
-        head = _git_at(path, "rev-parse", "HEAD").strip()
-
-        if head != snapshot:
-            raise WorkspaceError(
-                f"judge checkout for {task_id} is at {head}, not the snapshot {snapshot}"
-            )
-
-        return path
-
-    # ....................... #
-
-    def _snapshot(self, task_id: str) -> str:
-        """The commit `git add -A` would carry, written to the judge ref. The
-        worktree's index and branch are untouched: staging happens through a
-        temporary index, and the ref is written directly, never through a
-        checkout."""
-
-        worktree = naming.worktree(self.root, task_id)
-        head = _git_at(worktree, "rev-parse", "HEAD").strip()
-
-        with tempfile.TemporaryDirectory() as tmp:
-            env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
-
-            def stage(*args: str) -> str:
-                return _git_at(worktree, *COMMITTER, *args, env=env)
-
-            stage("read-tree", head)
-            stage("add", "-A")
-            tree = stage("write-tree").strip()
-            snapshot = stage("commit-tree", tree, "-p", head, "-m", "judge snapshot").strip()
-
-        self._git("update-ref", judge_ref(task_id), snapshot)
-
-        return snapshot
+        return _standalone_checkout(path, self.root, snapshot, depth=1)
 
     # ....................... #
 
@@ -390,6 +396,33 @@ class ShadowWorkspace:
 
     def remove(self, task_id: str) -> None:
         shutil.rmtree(self.path_for(task_id), ignore_errors=True)
+
+    # ....................... #
+
+    def judge_checkout(self, task_id: str) -> Path:
+        """A replay's judge checkout (S-0114/D-1, D-2): what `git add -A` would
+        stage in the replay's clone, written to the clone's own judge ref and
+        fetched into `.wt/shadow-<task>.judge/`. The fetch is unbounded: the
+        clone's history already ends at the replayed parent, so the checkout
+        holds the base and nothing past it. Named for the replay's run state,
+        so `torve reap` reads its liveness as it reads an attempt's."""
+
+        clone = self.path_for(task_id)
+        snapshot = _snapshot_commit(clone)
+        _git_at(clone, "update-ref", judge_ref(task_id), snapshot)
+
+        return _standalone_checkout(self._judge_path(task_id), clone, snapshot, depth=None)
+
+    # ....................... #
+
+    def remove_judge(self, task_id: str) -> None:
+        # The judge ref is the clone's own and goes with the clone.
+        shutil.rmtree(self._judge_path(task_id), ignore_errors=True)
+
+    # ....................... #
+
+    def _judge_path(self, task_id: str) -> Path:
+        return self.root / naming.WORKTREE_DIR / f"{naming.shadow_id(task_id)}{JUDGE_SUFFIX}"
 
     # ....................... #
 

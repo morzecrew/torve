@@ -214,7 +214,14 @@ def test_shadow_replay_end_to_end(repo):
         scm=NullScm(),
         store=open_store,
     )
-    shadow_ws = ShadowWorkspace(repo.root, depth=10)
+    opened: list[str] = []
+
+    class OpeningShadow(ShadowWorkspace):
+        def judge_checkout(self, task_id: str):
+            opened.append(task_id)
+            return super().judge_checkout(task_id)
+
+    shadow_ws = OpeningShadow(repo.root, depth=10)
     from functools import partial
 
     source = ShadowSource(
@@ -223,10 +230,13 @@ def test_shadow_replay_end_to_end(repo):
         parent_of=partial(parent_of, repo.root),
         diff_range=partial(diff_range, repo.root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
     record = run_shadow(repo.root, task, config, deps, source)
+
+    assert opened == [TASK_ID]
 
     assert record["kind"] == "shadow"
     assert record["state"] == "ready"
@@ -242,6 +252,9 @@ def test_shadow_replay_end_to_end(repo):
         check=False,
     )
     assert unreachable.returncode != 0
+    # The battery judged a snapshot of the clone (S-0114/D-2), and its
+    # checkout went with the battery (S-0114/D-5).
+    assert not (repo.root / ".wt" / f"shadow-{TASK_ID}.judge").exists()
     # Comparison recorded; the replay touched the same file.
     assert record["overlap_files"] == ["src/feature.py"]
     # Never merged: the source repository's head is untouched, the shipped
@@ -359,6 +372,7 @@ def test_replay_never_mounts_the_cache_volume_even_when_the_tier_names_one(
         parent_of=partial(parent_of, repo.root),
         diff_range=partial(diff_range, repo.root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 

@@ -203,6 +203,7 @@ def test_skill_eval_runs_both_arms_and_ledgers(repo):
         parent_of=partial(parent_of, repo.root),
         diff_range=partial(diff_range, repo.root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
@@ -304,6 +305,7 @@ def test_config_eval_runs_both_arms_and_ledgers(repo, tmp_path):
         parent_of=partial(parent_of, repo.root),
         diff_range=partial(diff_range, repo.root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
@@ -395,6 +397,7 @@ def test_variant_eval_runs_both_arms_and_ledgers(repo):
         parent_of=partial(parent_of, repo.root),
         diff_range=partial(diff_range, repo.root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 
@@ -487,6 +490,7 @@ def test_bare_arm_replays_without_the_battery_and_still_merges_nothing(repo):
         parent_of=partial(parent_of, repo.root),
         diff_range=partial(diff_range, repo.root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
     task = load_task(layout.task_file(repo.root, TASK_ID))
 

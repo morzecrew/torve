@@ -122,3 +122,41 @@ def test_remove_judge_takes_the_checkout_and_its_ref(tmp_path):
 
     assert not path.exists()
     assert code(root, "rev-parse", "--verify", "--quiet", judge_ref("T-1003")) != 0
+
+
+# ....................... #
+
+
+def test_a_shadow_replay_judges_a_snapshot_of_its_own_clone(tmp_path):
+    """S-0114/D-2: a replay's clone is a repository of its own, not a worktree
+    of the root, so it opens its own judge checkout: the clone's stageable
+    state, written to the clone's judge ref, with the replayed parent in its
+    history and the ignored file the replay wrote nowhere in it."""
+
+    from torve.adapters.workspace.git import ShadowWorkspace
+
+    root = repo(tmp_path)
+    parent = out(root, "rev-parse", "HEAD")
+    shadow = ShadowWorkspace(root, depth=10)
+    clone = shadow.create("T-2001", parent)
+    (clone / "tracked.txt").write_text("changed\n", encoding="utf-8")
+    (clone / "added.txt").write_text("new\n", encoding="utf-8")
+    (clone / "ignored.txt").write_text("not staged\n", encoding="utf-8")
+    before_status = out(clone, "status", "--porcelain")
+
+    path = shadow.judge_checkout("T-2001")
+
+    assert path == root / naming.WORKTREE_DIR / f"{naming.shadow_id('T-2001')}{JUDGE_SUFFIX}"
+    assert out(path, "rev-parse", "HEAD") == out(clone, "rev-parse", judge_ref("T-2001"))
+    assert (path / "tracked.txt").read_text(encoding="utf-8") == "changed\n"
+    assert (path / "added.txt").read_text(encoding="utf-8") == "new\n"
+    assert not (path / "ignored.txt").exists()
+    # The replayed parent is the gates' base, and the checkout holds it.
+    assert code(path, "cat-file", "-e", f"{parent}^{{commit}}") == 0
+    # The clone's index is untouched, and the root holds no ref of the replay.
+    assert out(clone, "status", "--porcelain") == before_status
+    assert code(root, "rev-parse", "--verify", "--quiet", judge_ref("T-2001")) != 0
+
+    shadow.remove_judge("T-2001")
+
+    assert not path.exists()

@@ -444,6 +444,7 @@ def eval_cmd(
         parent_of=partial(parent_of, root),
         diff_range=partial(diff_range, root),
         diff_worktree=diff_worktree,
+        judge=shadow_ws,
     )
 
     try:
