@@ -58,6 +58,7 @@ from torve.application.manager import in_flight_fences, project
 from torve.application.planner import change_type_of
 from torve.application.ports import (
     AgentResult,
+    JudgePort,
     NestedDocker,
     Runtime,
     SandboxHandle,
@@ -848,14 +849,12 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     # here, and recorded as a shadow fact beside the battery.
     ignored = _ignored_writes(run)
 
-    # A shadow replay's clone is already a repository of its own (S-0004/D-7)
-    # and no worktree of the root, so there is nothing at `.wt/<task>` to
-    # snapshot: the replay judges its clone as it did before S-0114.
-    # shortcut: the clone's ignored files still reach a replay's gates; judge a
-    # snapshot of the clone once a document decides it for replays.
-    judge = run.worktree if run.shadow else run.deps.workspace.judge_checkout(run.task.id)
+    opener = run.judge or run.deps.workspace
+    judge = opener.judge_checkout(run.task.id)
 
     try:
+        # A replay's checkout is fetched whole from its clone, whose history
+        # already ends at the replayed parent; the root holds no ref of it.
         if not run.shadow:
             _deepen_judge(judge, run.root, run.task.id)
 
@@ -942,8 +941,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         # S-0114/D-5: a judge checkout outlives no battery. The record is
         # built below from the context, so this runs after the battery ends,
         # green or red.
-        if not run.shadow:
-            run.deps.workspace.remove_judge(run.task.id)
+        opener.remove_judge(run.task.id)
 
     digest = config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
     record = build_record(ctx, _with_ignored_writes(report, ignored), digest, agent=run.meta)
@@ -1529,6 +1527,7 @@ def real_hooks(
     resume: bool = False,
     bare: bool = False,
     arm: str | None = None,
+    judges: JudgePort | None = None,
 ) -> AttemptHooks:
     """Bind one dispatch's steps into the hooks the loop drives (S-0046).
 
@@ -1567,6 +1566,7 @@ def real_hooks(
         gates_base=gates_base,
         resume=resume,
         arm=arm,
+        judge=judges,
     )
 
     # Revert is mechanical (S-0010/revert-as-a-role, S-0010/D-7): no agent, no attempt

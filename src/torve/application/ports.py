@@ -168,7 +168,18 @@ class Runtime(Protocol):
 # ....................... #
 
 
-class WorkspacePort(Protocol):
+class JudgePort(Protocol):
+    # The judge checkout (S-0114/D-1): commit what `git add -A` would stage in
+    # the task's worktree — the index and branch untouched — to the task's
+    # judge ref, and build a standalone, detached checkout of that snapshot at
+    # `.wt/<task>.judge/`, verified before it is returned. A shadow replay's
+    # clone opens its own (S-0114/D-2).
+    def judge_checkout(self, task_id: str) -> Path: ...
+
+    def remove_judge(self, task_id: str) -> None: ...
+
+
+class WorkspacePort(JudgePort, Protocol):
     # `fetch` updates the remote's refs before the cut (S-0083/D-9): a base
     # that names the remote's main is a local copy, stale from the first merge
     # onward, until it is fetched.
@@ -179,14 +190,6 @@ class WorkspacePort(Protocol):
     def remove(self, task_id: str) -> None: ...
 
     def list_worktrees(self) -> list[tuple[str, Path]]: ...
-
-    # The judge checkout (S-0114/D-1): commit what `git add -A` would stage in
-    # the task's worktree — the index and branch untouched — to the task's
-    # judge ref, and build a standalone, detached checkout of that snapshot at
-    # `.wt/<task>.judge/`, verified before it is returned.
-    def judge_checkout(self, task_id: str) -> Path: ...
-
-    def remove_judge(self, task_id: str) -> None: ...
 
 
 # ....................... #

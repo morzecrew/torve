@@ -37,6 +37,7 @@ from torve.application.ports import (
     BrokerRouting,
     BurnSink,
     JournalSync,
+    JudgePort,
     RunChannel,
     Runtime,
     Scm,
@@ -205,6 +206,11 @@ class Dispatch:
     # name, so the leg that composes the prompt and the leg that runs the
     # battery can never disagree about which arm produced the numbers.
     arm: str = CONFIGURED
+
+    # Who opens the battery's judge checkout (S-0114/D-2) when it is not the
+    # workspace: a shadow replay's clone is no worktree of the root, so the
+    # replay hands its own.
+    judge: JudgePort | None = None
 
     # ....................... #
 
@@ -401,6 +407,7 @@ def open_dispatch(
     gates_base: str | None = None,
     resume: bool = False,
     arm: str = CONFIGURED,
+    judge: JudgePort | None = None,
 ) -> Dispatch:
     """Settle the regime this run starts under, refusing what must be
     refused first. Every fallible step of setup happens here; the broker
@@ -487,6 +494,7 @@ def open_dispatch(
         gates_base=gates_base,
         resume=resume,
         arm=arm,
+        judge=judge,
         contract_acceptance=tuple(task.acceptance),
         tier_name=tier_name,
         tier=tier,

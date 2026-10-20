@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from torve.application.dispatch import RunDeps
-from torve.application.ports import AgentResult
+from torve.application.ports import AgentResult, JudgePort
 from torve.application.runner import AttemptHooks, drive_attempts, real_hooks
 from torve.application.runstate import RunState
 from torve.application.telemetry import RECORD_SCHEMA_VERSION, append_record, config_hash
@@ -50,6 +50,9 @@ class ShadowSource:
     # What the replay produced vs the parent — never vs HEAD, which the
     # agent can move by committing inside the self-contained clone.
     diff_worktree: Callable[[Path, str], dict[str, Any]]
+    # Opens the replay's judge checkout from its clone (S-0114/D-2): the clone
+    # is no worktree of the root, so the workspace's own cannot snapshot it.
+    judge: JudgePort
 
 
 # ....................... #
@@ -101,7 +104,9 @@ def run_shadow(
     # hooks below compose no cache mount under it, so the replay measures
     # the cold truth and an eval comparing arms never compares caches —
     # whatever cache_volume the task's tier names.
-    inner = real_hooks(root, task, config, deps, workspace, shadow=True, gates_base=parent)
+    inner = real_hooks(
+        root, task, config, deps, workspace, shadow=True, gates_base=parent, judges=source.judge
+    )
     costs: list[float] = []
     traces: list[str] = []
     model_versions: list[str] = []
