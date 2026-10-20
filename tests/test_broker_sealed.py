@@ -169,9 +169,27 @@ def fake_docker(tmp_path: Path, monkeypatch) -> FakeDocker:
 @pytest.fixture
 def sealed_network() -> str:
     """A per-test internal network name: the sealed broker's port derives
-    from it, so tests never contend for one another's ports."""
+    from it, so tests never contend for one another's ports. The derived range
+    overlaps the kernel's ephemeral one, so a name whose port another process
+    holds right now — an outbound connection, a local service — is drawn
+    again rather than failing the test with "Address already in use"."""
 
-    return f"torve-sealed-{uuid.uuid4().hex[:8]}"
+    for _ in range(50):
+        name = f"torve-sealed-{uuid.uuid4().hex[:8]}"
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        try:
+            probe.bind(("127.0.0.1", sealed_broker_port(name)))
+
+        except OSError:
+            continue
+
+        finally:
+            probe.close()
+
+        return name
+
+    raise RuntimeError("fifty network names in a row derived a port already in use")
 
 
 # ....................... #
