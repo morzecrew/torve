@@ -858,6 +858,16 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         if not run.shadow:
             _deepen_judge(judge, run.root, run.task.id)
 
+        # The engine's own files for the task — its contract, the agent's log —
+        # live under an ignored directory, so no snapshot carries them. The
+        # battery reads them, and without them judged the attempt as no task's.
+        for rel in _task_bookkeeping(run.task.id):
+            held, carried = run.worktree / rel, judge / rel
+
+            if held.is_file() and not carried.exists():
+                carried.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(held, carried)
+
         # The base is resolved on the host and named to the checkout by the sha
         # of its merge base with the attempt (S-0114/D-1): an ancestor of the
         # snapshot, so the checkout holds it even when the base ref has moved
