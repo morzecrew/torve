@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from torve.application.residency import Lane, Threads
     from torve.application.runstate import Escalation
     from torve.config.runconfig import RunnerConfig
-    from torve.domain.events import EventRecord
+    from torve.domain.events import EventRecord, HoldoutFile
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -216,6 +216,7 @@ def _lane_leg(
     *,
     only: str | None,
     resolved: Callable[[], Awaitable[set[str]]] | None = None,
+    holdouts: Callable[[], Awaitable[dict[str, list[HoldoutFile]]]] | None = None,
     requeue: Callable[[list[tuple[str, str]]], Awaitable[None]] | None = None,
     escalate: Callable[[list[tuple[str, Escalation]]], Awaitable[None]] | None = None,
 ) -> Lane | None:
@@ -232,6 +233,11 @@ def _lane_leg(
     holds the store (S-0101/D-2): a round a person abandoned releases the
     wave on every host because the resolution rides the log, not a row on
     the host that minted the round.
+
+    `holdouts` is the recorded held-out properties per task (S-0116/D-14),
+    read by the same caller that holds the store: a document's completion
+    commits what a verifier recorded on any host, because the files ride the
+    log and not the verifier's own worktree.
 
     `requeue` is handed, after every lane pass and whether or not the pass
     raised, each run the conflict disposal left `queued` with the base it
@@ -261,6 +267,11 @@ def _lane_leg(
         from torve.adapters.vcs.git import GitLane
         from torve.application.lane import conflict_disposal, process_lane
         from torve.cli.merge import _forge, _lane_gates, _publisher, _resolve_ci, _status
+
+        # S-0116/D-14: the recorded held-out properties, folded on the loop
+        # before the lane runs off it, then handed as the reader the lane's
+        # completion commits from.
+        held = await holdouts() if holdouts is not None else {}
 
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
@@ -306,6 +317,9 @@ def _lane_leg(
                 # neither the served lane nor the manual verb runs a
                 # candidate's shell gates on the host.
                 gates=_lane_gates(root, config),
+                # S-0116/D-14: the recorded held-out properties the document's
+                # completion commits, read from the store this pass holds.
+                holdout=lambda task_id: held.get(task_id, []),
             )
 
         finally:
@@ -689,6 +703,16 @@ async def _serve(
 
         return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
 
+    async def holdouts() -> dict[str, list[HoldoutFile]]:
+        """The held-out properties a task's verifier recorded (S-0116/D-14):
+        the reader the lane is handed, folded from the store this pass already
+        holds, so a document's completion commits what a verifier recorded on
+        any host."""
+
+        from torve.application.lane import recorded_holdouts
+
+        return recorded_holdouts(await log.of_subject_type(SubjectType.TASK, partition=partition))
+
     async def requeue(candidates: list[tuple[str, str]]) -> None:
         """Record the served lane's own re-queues (S-0109/D-1): the disposal
         writes the task's run-state file and the lane moves on, and the board
@@ -754,7 +778,13 @@ async def _serve(
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
     lane_leg = _lane_leg(
-        root, config, only=only, resolved=resolutions, requeue=requeue, escalate=escalate
+        root,
+        config,
+        only=only,
+        resolved=resolutions,
+        holdouts=holdouts,
+        requeue=requeue,
+        escalate=escalate,
     )
 
     if lane_leg is not None:

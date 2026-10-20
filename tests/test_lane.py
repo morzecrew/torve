@@ -2647,6 +2647,154 @@ def _phase_contract(root: Path, task_id: str, phase: int) -> None:
     _carry_landing(root, task_id, "S-0930")
 
 
+def _completing_phase(
+    root: Path, task_id: str, phase: int, filename: str, verify_file: str
+) -> None:
+    """The document's last phase as a candidate: a branch cut from the document,
+    a READY run state, and a contract denying the verifier's file — the link a
+    held-out property is named from (S-0116/D-14)."""
+
+    document = naming.document_branch("S-0930")
+    git(root, "checkout", "-q", "-b", naming.branch(task_id), document)
+    (root / filename).write_text(f"# {task_id}\n", encoding="utf-8")
+    # Only this phase's file: `-A` would fold the other task's contract, an
+    # engine record on disk, into the branch and delete it on the way back.
+    git(root, "add", "--", filename)
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", f"work ({task_id})")
+    git(root, "checkout", "-q", "main")
+    state = RunState(task_id=task_id, path=naming.state_file(root, task_id))
+    state.state = TaskState.READY
+    state.save()
+    path = root / ".torve" / "tasks" / task_id / "contract.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"schema_version: 2\nid: {task_id}\ndecisions: []\nspec: S-0930\nphase: {phase}\n"
+        f"scope:\n  deny:\n  - {verify_file}\n",
+        encoding="utf-8",
+    )
+    _carry_landing(root, task_id, "S-0930")
+
+
+def test_completion_commits_the_recorded_held_out_properties_before_the_battery(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0116/D-14: the last phase's landing commits every held-out file the
+    document's tasks recorded to its branch, named for its document, phase and
+    entry, before the whole-document battery runs."""
+
+    from torve.application import lane as lane_module
+    from torve.domain.events import HoldoutFile
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7401", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7401", 1)
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    document = naming.document_branch("S-0930")
+
+    _completing_phase(lane_repo, "T-7402", 2, "two.py", "tests/verify/test_s0930_p2.py")
+
+    files = [
+        HoldoutFile(name="test_p2.py", text="# S-0930/D-1\n"),
+        HoldoutFile(name="test_extra.py", text="# S-0930/D-1\ndef test_x():\n    assert True\n"),
+    ]
+    seen: dict[str, list[str]] = {}
+    real = lane_module._regate
+
+    def regate(workdir, base_ref, task_id, gates=None):
+        directory = workdir / "tests" / "verify" / "holdout"
+        seen["files"] = sorted(one.name for one in directory.glob("*.py"))
+        return real(workdir, base_ref, task_id, gates)
+
+    monkeypatch.setattr(lane_module, "_regate", regate)
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=publish,
+        unit="document",
+        only="T-7402",
+        holdout=lambda task_id: files if task_id == "T-7402" else [],
+    )
+
+    assert [r.action for r in results] == ["landed"]
+    # The commit precedes the battery: the whole-document run read the files.
+    assert seen["files"] == ["test_s0930_p2.py", "test_s0930_p2_2.py"]
+    # And from then on they are ordinary tests on the document branch.
+    tree = git(lane_repo, "ls-tree", "-r", "--name-only", document)
+    assert "tests/verify/holdout/test_s0930_p2.py" in tree
+    assert "tests/verify/holdout/test_s0930_p2_2.py" in tree
+    assert (
+        git(lane_repo, "show", f"{document}:tests/verify/holdout/test_s0930_p2.py")
+        == "# S-0930/D-1"
+    )
+
+
+def test_a_document_with_no_record_commits_nothing(lane_repo, tmp_path):
+    """S-0116/D-14: a document whose tasks recorded no held-out properties
+    commits nothing — its tip is exactly the completing candidate's, with no
+    empty commit."""
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7411", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7411", 1)
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    _completing_phase(lane_repo, "T-7412", 2, "two.py", "tests/verify/test_s0930_p2.py")
+    candidate_tip = git(lane_repo, "rev-parse", naming.branch("T-7412"))
+    document = naming.document_branch("S-0930")
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=publish,
+        unit="document",
+        only="T-7412",
+        holdout=lambda _task_id: [],
+    )
+
+    assert [r.action for r in results] == ["landed"]
+    assert git(lane_repo, "rev-parse", document) == candidate_tip
+    assert "holdout" not in git(lane_repo, "ls-tree", "-r", "--name-only", document)
+
+
+def test_recorded_holdouts_keeps_the_latest_event_per_task():
+    """S-0116/D-9, D-14: the reader folds one read of the log, and the latest
+    `verify.holdout` on a task replaces every earlier one."""
+
+    import uuid
+    from datetime import UTC, datetime
+
+    from torve.application.lane import recorded_holdouts
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    now = datetime.now(UTC)
+
+    def event(task_id: str, name: str) -> EventRecord:
+        return EventRecord(
+            id=uuid.uuid4().hex,
+            rev=1,
+            created_at=now,
+            last_update_at=now,
+            kind=EventKind.VERIFY_HOLDOUT,
+            partition="morzecrew/torve",
+            subject_type=SubjectType.TASK,
+            subject_id=task_id,
+            actor_kind=ActorKind.WORKER,
+            actor_id="seat-1",
+            payload={"files": [{"name": name, "text": "# S-0116/D-14\n"}]},
+        )
+
+    table = recorded_holdouts([event("T-1", "old.py"), event("T-1", "new.py")])
+
+    assert [one.name for one in table["T-1"]] == ["new.py"]
+
+
 def _checked_phased(root: Path) -> None:
     """S-0106/D-2: a document whose one row carries a shadow check, with two
     invariants — one over a file its phases touch, one over a file no phase
