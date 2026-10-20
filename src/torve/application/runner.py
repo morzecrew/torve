@@ -788,9 +788,12 @@ def _board_implement_task(run: Dispatch) -> str | None:
     for view in sorted(project(records).tasks.values(), key=lambda one: one.task_id):
         contract = view.contract
 
-        if contract is not None and contract.role == "implement":
-            if run.task.id in contract.depends_on:
-                return view.task_id
+        if (
+            contract is not None
+            and contract.role == "implement"
+            and run.task.id in contract.depends_on
+        ):
+            return view.task_id
 
     return None
 
