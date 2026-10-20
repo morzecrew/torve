@@ -1544,10 +1544,17 @@ def test_init_starter_equips_the_role_skills(tmp_path):
     assert set(sets["implement"]) == {"working-rules", "flag-dont-flip"}
     assert set(sets["revert"]) == {"working-rules", "flag-dont-flip"}
     assert set(sets["review"]) == {"working-rules"}
+    # S-0116/D-6: the verify seat is equipped with the verifier's brief.
+    assert set(sets["verify"]) == {"working-rules", "verifier"}
 
     written = materialize("implement", root / ".torve" / "skills", sets)
 
     assert sorted(written) == ["flag-dont-flip", "working-rules"]
+
+    verifier = materialize("verify", root / ".torve" / "skills", sets)
+
+    assert sorted(verifier) == ["verifier", "working-rules"]
+    assert (root / ".torve" / "skills" / "verifier" / "SKILL.md").is_file()
 
     # S-0110/D-6: the starter implement profile also equips the shipped hooks,
     # so a fresh adopter's seat reaches its guard without a copy in the tree.

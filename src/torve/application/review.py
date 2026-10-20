@@ -232,6 +232,34 @@ def build_review_prompt(
         f"inherited decisions:\n{decisions}{promotions_block}"
     )
 
+    # S-0116/D-7: a verify target's diff is the tests, and no implementation
+    # to judge them against. The reviewer is the check on the checker, so it is
+    # told what to read the tests for — a test that asserts nothing, and one
+    # pinning an internal no inherited row names. An implement target keeps the
+    # generic prompt; nothing here applies to a change that is code.
+    verify_block = (
+        "\n\n## The verifier's tests\n\n"
+        "This target writes tests and no implementation, and its tests are "
+        "what you judge it on. Read them for the two ways a test can be "
+        "worthless before it ever meets code.\n\n"
+        "A vacuous test asserts nothing: it collects, it runs green, and it "
+        "would stay green on a tree that contradicts the row it claims to "
+        "decide. A test whose assertions are conclusions the test itself "
+        "fabricates, or which never reaches the surface the row names, is "
+        "that test. Say which row it was meant to decide, and what it fails "
+        "to hold that row to.\n\n"
+        "An over-specified test pins an internal no inherited row names — a "
+        "private helper, an exact call order, an exception type or a message "
+        "the rows never fixed. It binds the implementer to the verifier's "
+        "guess at an API instead of to the decision, so a correct "
+        "implementation fails it. Name the assertion that goes beyond the "
+        "rows, and the reading of the row it overruns.\n\n"
+        "Both are findings, at the severity the change deserves, cited "
+        "against the test file as it arrived here."
+        if target.role == "verify"
+        else ""
+    )
+
     return f"""# Review
 
 You are reviewing a change, not landing one. This workspace is a copy of the
@@ -253,7 +281,7 @@ repository, so `torve gates` and anything else needing git fails at the
 door — the battery runs outside the sandbox, on the candidate, after the
 attempt. Do not spend the window discovering that.
 
-{spec_block}
+{spec_block}{verify_block}
 
 ## Gate results
 

@@ -244,11 +244,15 @@ class Dispatch:
 
 
 def review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
-    """Review follows execution (S-0005/D-11) only for live implement runs with
-    the task-gated trigger configured — one predicate, shared by the review
-    hook and the broker's routing derivation so they cannot disagree."""
+    """Review follows execution (S-0005/D-11) only for live implement and verify
+    runs with the task-gated trigger configured — one predicate, shared by the
+    review hook and the broker's routing derivation so they cannot disagree.
 
-    return not shadow and task.role == "implement" and "task_gated" in config.review.on
+    S-0116/D-7: a verify task is reviewed as an implement task is, so a reviewer
+    reads the verifier's tests — a test that asserts nothing, or one pinning an
+    internal no row names — before they judge any implementation."""
+
+    return not shadow and task.role in ("implement", "verify") and "task_gated" in config.review.on
 
 
 # ....................... #

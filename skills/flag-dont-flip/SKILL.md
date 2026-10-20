@@ -62,6 +62,23 @@ A file outside the contract's scope that the change cannot avoid is the same
 kind of finding. Name the file in the entry's claim and its proposal, and halt;
 do not edit outside the scope.
 
+## A verifier test you dispute
+
+A verified phase lands a verifier's tests before the implementation does: your
+contract denies you their file and runs them as acceptance. When you believe
+one of those tests is wrong — it asserts a rule no row states, or pins an
+internal the rows leave free — you do not rewrite it. Editing a verifier's
+test, even to correct it, is the quiet rewrite this skill exists to forbid:
+the test was written to judge the implementation, and an implementation that
+edits its own judge has graded itself.
+
+Halt instead, with the entry this skill already describes for an
+underspecification — kind `blocked`, class `spec-gap`, action `halted` —
+naming the test and the row it claims to decide, and the reading of the row
+that disagrees with it. That is an `underspecified` escalation: a person
+decides whether the test or the row is wrong, and re-mints what has to change.
+Never edit the file.
+
 ## What an entry must say
 
 - **Write the entry before you act.** An entry written afterwards is a

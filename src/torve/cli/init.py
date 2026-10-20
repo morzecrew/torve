@@ -155,6 +155,17 @@ equipment:
 - kind: skill
   source: torve:working-rules
 """,
+    # S-0116/D-6: the verify seat is equipped with the verifier's brief beside
+    # the working rules every role that runs a contract reads.
+    "verify": """\
+role: verify
+
+equipment:
+- kind: skill
+  source: torve:working-rules
+- kind: skill
+  source: torve:verifier
+""",
 }
 
 
