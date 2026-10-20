@@ -723,9 +723,19 @@ async def _serve(
         if all(task in landings for task, _ in candidates):
             return
 
-        board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
+        events = await log.of_subject_type(SubjectType.TASK, partition=partition)
+        # A hand finish reads on the board as a landing reads, `ready`, and
+        # leaves its escalated run-state file behind: it owes nothing.
+        finished = {
+            event.subject_id
+            for event in events
+            if event.kind is EventKind.ESCALATION_RESOLVED
+            and event.payload.get("resolution") == "landed"
+        }
 
-        for task_id, escalation in _requeues_owed(candidates, board, landings):
+        for task_id, escalation in _requeues_owed(
+            candidates, project(events), {*landings, *finished}
+        ):
             await log.record(
                 EventKind.ESCALATION_RAISED,
                 partition=partition,
