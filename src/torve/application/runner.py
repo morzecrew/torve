@@ -828,10 +828,16 @@ def _latest_holdout(run: Dispatch, subject_id: str) -> list[HoldoutFile]:
 
 def _attach_holdout(run: Dispatch, ctx: GateContext) -> None:
     """Hand a battery the held-out properties of the task's latest event, and
-    the directory a verifier's tests live under (S-0116/D-10)."""
+    the directory a verifier's tests live under (S-0116/D-10, D-12): a caller
+    that injected a set on the deps — the verifier eval's candidate arm, whose
+    replay writes no event — is handed that set instead."""
 
-    subject = _holdout_subject(run)
-    ctx.holdout = _latest_holdout(run, subject) if subject is not None else []
+    if run.deps.holdout:
+        ctx.holdout = list(run.deps.holdout)
+    else:
+        subject = _holdout_subject(run)
+        ctx.holdout = _latest_holdout(run, subject) if subject is not None else []
+
     ctx.tests_dir = run.config.verify.tests_dir
 
 

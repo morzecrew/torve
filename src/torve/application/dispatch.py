@@ -66,6 +66,7 @@ from torve.config.runconfig import (
     tier_name_for,
 )
 from torve.domain.attempt import GateResult
+from torve.domain.events import HoldoutFile
 from torve.domain.task import Task
 
 # ----------------------- #
@@ -120,6 +121,12 @@ class RunDeps:
     # Read when the contract is minted, not when the run began: another slot
     # may mint while an attempt runs. None is a run without a store.
     taken: Callable[[], Iterable[str]] | None = None
+    # S-0116/D-12: held-out properties a caller injects into this run's battery
+    # directly, instead of the `verify.holdout` event the host records. The
+    # verifier eval's candidate arm carries a replayed verifier's set this way:
+    # a shadow replay writes no event of its own to read it back from. Empty
+    # for every ordinary dispatch, which reads the latest event instead.
+    holdout: list[HoldoutFile] = field(default_factory=list)
 
 
 # ....................... #
