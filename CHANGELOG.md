@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of running. Requeueing the escalation now dispatches the task again, without a
   `torve reap` first.
 
+- A served night records on the board a candidate the lane escalates, such as one red
+  again at the same base and head. The board no longer shows it as `ready` while the
+  night waits on it, and `torve manager resolve` can answer it.
+
 ## [0.5.0] - 2026-10-19
 
 ### Added
