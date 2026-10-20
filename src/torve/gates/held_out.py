@@ -127,6 +127,12 @@ def remove_holdout(ctx: GateContext, previous: dict[str, bytes | None]) -> None:
 
 
 def check_held_out(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
+    if ctx.task is not None and ctx.task.role == "verify":
+        # A verifier's own held-out properties fail by design until its entry's
+        # implement candidate lands; `verify-tests` judges them for it
+        # (S-0116/D-11), and a red here would refuse every verify candidate.
+        return BuiltinOutcome("skipped", "a verify task's properties are verify-tests' to judge")
+
     if not ctx.holdout:
         # S-0116/D-10: no files in the latest event means nothing to hold out —
         # a skipped gate, never a green one, because the gate judged nothing.

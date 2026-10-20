@@ -2699,6 +2699,8 @@ def test_completion_commits_the_recorded_held_out_properties_before_the_battery(
     files = [
         HoldoutFile(name="test_p2.py", text="# S-0930/D-1\n"),
         HoldoutFile(name="test_extra.py", text="# S-0930/D-1\ndef test_x():\n    assert True\n"),
+        # A data file keeps its suffix, so no test module is made of it.
+        HoldoutFile(name="data/case.txt", text="raw\n"),
     ]
     seen: dict[str, list[str]] = {}
     real = lane_module._regate
@@ -2726,6 +2728,7 @@ def test_completion_commits_the_recorded_held_out_properties_before_the_battery(
     tree = git(lane_repo, "ls-tree", "-r", "--name-only", document)
     assert "tests/verify/holdout/test_s0930_p2.py" in tree
     assert "tests/verify/holdout/test_s0930_p2_2.py" in tree
+    assert "tests/verify/holdout/test_s0930_p2_3.txt" in tree
     assert (
         git(lane_repo, "show", f"{document}:tests/verify/holdout/test_s0930_p2.py")
         == "# S-0930/D-1"

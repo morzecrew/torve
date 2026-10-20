@@ -26,7 +26,7 @@ import re
 import subprocess
 from collections.abc import Callable, Collection, Iterable, Iterator
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, ParamSpec, Protocol
 
 from torve.application.feedback import capture_feedback
@@ -1171,11 +1171,18 @@ def _holdout_targets(root: Path, document: str, reader: HoldoutReader) -> dict[s
         directory = f"{parent}/holdout" if parent else "holdout"
 
         for index, one in enumerate(files):
-            path = f"{directory}/{stem}.py" if index == 0 else f"{directory}/{stem}_{index + 1}.py"
+            # The recorded file keeps its suffix: a data file renamed to `.py`
+            # under a `test_` stem would be collected as a test module.
+            suffix = PurePosixPath(one.name).suffix
+            path = (
+                f"{directory}/{stem}{suffix}"
+                if index == 0
+                else f"{directory}/{stem}_{index + 1}{suffix}"
+            )
 
             while path in taken:
                 index += 1
-                path = f"{directory}/{stem}_{index + 1}.py"
+                path = f"{directory}/{stem}_{index + 1}{suffix}"
 
             taken.add(path)
             targets[path] = one.text

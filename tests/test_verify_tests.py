@@ -130,3 +130,19 @@ def test_a_task_that_is_not_a_verifier_is_left_alone(repo):
     context = context_for(repo, base="main")
 
     assert check_verify_tests(_gate(context), context).outcome == "skipped"
+
+
+def test_a_test_that_errors_in_setup_is_not_read_as_passing(repo):
+    """Review of #155: a setup error is a test that did not pass. Read off the
+    `FAILED` lines alone, it was counted as passing on the candidate and
+    convicted a verifier whose test could not pass."""
+
+    erroring = (
+        "import pytest\n\n\n@pytest.fixture\ndef surface():\n"
+        "    raise RuntimeError('not yet implemented')\n\n\n"
+        "# S-0001/D-1\ndef test_row(surface):\n    assert surface\n"
+    )
+
+    _context, result = _run(repo, erroring)
+
+    assert result.outcome == "pass", result.output

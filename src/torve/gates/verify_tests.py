@@ -30,7 +30,8 @@ from torve.gates.held_out import cited_rows, remove_holdout, write_holdout
 TEST_COMMAND = DEFAULT_TEST_RUN
 
 # pytest's short-summary failure line, and a collected node id.
-_FAILED = re.compile(r"^FAILED\s+(\S+)\s+-\s+(.*)$", re.MULTILINE)
+# A setup or teardown error is a test that did not pass, as a failure is.
+_FAILED = re.compile(r"^(?:FAILED|ERROR)\s+(\S+)(?:\s+-\s+(.*))?$", re.MULTILINE)
 
 
 # ....................... #
@@ -123,8 +124,10 @@ def check_verify_tests(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
                 exit_code=collect.exit_code,
             )
 
+        # `-rfE` names every failure and error in the short summary whatever
+        # the manifest's own command asks for, so the parse below sees them.
         result = run_command(
-            f"{_command(ctx)} {' '.join(shlex.quote(path) for path in paths)}",
+            f"{_command(ctx)} -rfE {' '.join(shlex.quote(path) for path in paths)}",
             ctx.root,
             gate.timeout or 600.0,
             retry_flaky=False,
@@ -134,8 +137,17 @@ def check_verify_tests(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     finally:
         remove_holdout(ctx, previous)
 
+    collected = _collected(collect.output)
+
+    if not collected:
+        # A collection that names no test — a manifest command whose output
+        # lists none — would read every test as failing and pass the gate.
+        return BuiltinOutcome(
+            "fail", f"no collected test could be read from:\n{collect.output}", exit_code=1
+        )
+
     failed = {nodeid for nodeid, _message in _FAILED.findall(result.output)}
-    passing = [nodeid for nodeid in _collected(collect.output) if nodeid not in failed]
+    passing = [nodeid for nodeid in collected if nodeid not in failed]
 
     cited: set[str] = set()
 

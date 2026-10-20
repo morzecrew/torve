@@ -168,3 +168,22 @@ def test_no_recorded_files_is_skipped_not_green(tmp_path):
     result = check_held_out(GATE, _context(tmp_path, []))
 
     assert result.outcome == "skipped"
+
+
+def test_a_verify_tasks_own_properties_are_left_to_verify_tests(tmp_path):
+    """Review of #155: a verifier's held-out properties fail by design until
+    its entry's implement candidate lands, so run on the verify task's own
+    battery they would refuse every verifier. `verify-tests` judges them."""
+
+    from torve.domain.task import Scope, Task
+
+    context = _context(
+        tmp_path, [{"name": "test_p.py", "text": "def test_p():\n    assert False\n"}]
+    )
+    context.task = Task(
+        id="T-0001", role="verify", scope=Scope(), decisions=[], acceptance=["pytest -q"]
+    )
+
+    result = check_held_out(GATE, context)
+
+    assert result.outcome == "skipped"
