@@ -3920,3 +3920,122 @@ def test_a_symlink_is_never_read_as_a_held_out_property(tmp_path):
     (linked / HOLDOUT_REL).symlink_to(secret, target_is_directory=True)
 
     assert holdout_files(linked) == []
+
+
+# ....................... #
+# Review of #155: the entry's implement task is found where a live run keeps it,
+# and a verify retry starts from the set its entry already holds.
+
+
+def test_the_entry_is_read_off_the_roots_corpus_not_the_worktrees(tmp_path):
+    """`.torve/tasks/` is ignored, so a live worktree holds only the verify
+    task's own contract; the sibling implement contract is in the root's."""
+
+    from torve.application.runner import _entry_implement_task
+
+    run = _verify_dispatch(tmp_path)
+    run.worktree = tmp_path / "wt"
+    run.worktree.mkdir()
+
+    assert _entry_implement_task(run) == ENTRY_TASK
+
+
+def test_the_entry_is_read_off_the_board_when_no_file_holds_it(tmp_path):
+    """With a store the board holds the contracts (S-0056/D-9): the entry is
+    the implement task whose minted contract depends on the verifier."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _entry_implement_task
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    run = _gate_dispatch(root=tmp_path, worktree=tmp_path)
+    run.task = Task(
+        id=VERIFY_TASK,
+        decisions=[],
+        role="verify",
+        spec="S-0116",
+        phase=4,
+        acceptance=["pytest -q"],
+    )
+
+    async def main() -> str | None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            contract = Task(
+                id=ENTRY_TASK,
+                decisions=[],
+                spec="S-0116",
+                phase=4,
+                depends_on=[VERIFY_TASK],
+                acceptance=["pytest -q"],
+            )
+            await log.record(
+                EventKind.TASK_MINTED,
+                partition=PARTITION,
+                subject_type=SubjectType.TASK,
+                subject_id=ENTRY_TASK,
+                actor_kind=ActorKind.MANAGER,
+                actor_id="manager-1",
+                payload={
+                    "title": ENTRY_TASK,
+                    "source_id": "0116",
+                    "contract": contract.model_dump(mode="json"),
+                },
+            )
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+
+            return await asyncio.to_thread(_entry_implement_task, run)
+
+    assert asyncio.run(main()) == ENTRY_TASK
+
+
+def test_a_verify_retry_starts_from_the_set_its_entry_holds(tmp_path):
+    """S-0116/D-9: the files are removed after every attempt and the latest
+    event replaces every earlier one, so a retry that rewrote only its
+    visible test would record an empty set. The recorded set goes back first;
+    a name that leaves the directory never does."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import HOLDOUT_REL, _record_holdout, _restore_holdout
+    from torve.application.runstate import RunState
+
+    text = "# S-0116/D-10\ndef test_row():\n    assert False\n"
+    _leave_holdout(tmp_path, "test_p4.py", text)
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            run = _verify_dispatch(tmp_path)
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+            state = RunState(task_id=VERIFY_TASK, path=naming.state_file(tmp_path, VERIFY_TASK))
+
+            await asyncio.to_thread(_record_holdout, run, state)
+            assert not (tmp_path / HOLDOUT_REL).exists()
+
+            await asyncio.to_thread(_restore_holdout, run)
+
+    asyncio.run(main())
+
+    assert (tmp_path / HOLDOUT_REL / "test_p4.py").read_text(encoding="utf-8") == text

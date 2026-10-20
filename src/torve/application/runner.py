@@ -740,24 +740,57 @@ def _entry_implement_task(run: Dispatch) -> str | None:
     implement contract that depends on this verify task. Several phasing
     entries share a document and a phase (D-4), so spec and phase alone name
     the wrong task — every entry's implement task does, and the held-out set
-    would land on a foreign one. None when the corpus holds none."""
+    would land on a foreign one. None when the corpus holds none.
+
+    The root holds every minted contract where the files are the record; the
+    worktree holds only this task's own copy, because `.torve/tasks/` is
+    ignored. With a store, the board holds them (S-0056/D-9)."""
 
     from torve.gates.context import load_task
 
-    tasks = run.worktree / layout.TORVE_DIR / "tasks"
+    for corpus in (run.root, run.worktree):
+        tasks = corpus / layout.TORVE_DIR / "tasks"
 
-    if not tasks.is_dir():
-        return None
-
-    for path in sorted(tasks.glob("*/contract.yaml")):
-        try:
-            other = load_task(path)
-
-        except ValueError:
+        if not tasks.is_dir():
             continue
 
-        if other.role == "implement" and run.task.id in other.depends_on:
-            return other.id
+        for path in sorted(tasks.glob("*/contract.yaml")):
+            try:
+                other = load_task(path)
+
+            except ValueError:
+                continue
+
+            if other.role == "implement" and run.task.id in other.depends_on:
+                return other.id
+
+    return _board_implement_task(run)
+
+
+# ....................... #
+
+
+def _board_implement_task(run: Dispatch) -> str | None:
+    """The entry's implement task off the board the run's record projects —
+    the store-backed half of `_entry_implement_task`. None without a record."""
+
+    from torve.application.manager import project
+
+    channel = _log_channel(run)
+
+    if channel is None:
+        return None
+
+    records = asyncio.run_coroutine_threadsafe(
+        channel.log.of_subject_type(SubjectType.TASK, partition=channel.partition), channel.loop
+    ).result(channel.timeout_s)
+
+    for view in sorted(project(records).tasks.values(), key=lambda one: one.task_id):
+        contract = view.contract
+
+        if contract is not None and contract.role == "implement":
+            if run.task.id in contract.depends_on:
+                return view.task_id
 
     return None
 
@@ -825,6 +858,41 @@ def _latest_holdout(run: Dispatch, subject_id: str) -> list[HoldoutFile]:
         return []
 
     return VerifyHoldout.model_validate(latest[-1].payload).files
+
+
+# ....................... #
+
+
+def _restore_holdout(run: Dispatch) -> None:
+    """Before a verify attempt, put its entry's latest recorded held-out set
+    back where the verifier writes it (S-0116/D-9). `_record_holdout` removes
+    the files after every attempt and the latest event replaces every earlier
+    one, so a retry that rewrote only its visible test would record an empty
+    set over the real one. A name that leaves the directory is skipped."""
+
+    subject = _holdout_subject(run)
+
+    if subject is None:
+        return
+
+    directory = _holdout_dir(run.worktree)
+
+    for one in _latest_holdout(run, subject):
+        target = directory / one.name
+
+        if not target.resolve().is_relative_to(directory.resolve()):
+            continue
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(one.text, encoding="utf-8")
+
+
+async def _verify_attempt(
+    run: Dispatch, attempt: Callable[[RunState], Awaitable[AgentResult]], state: RunState
+) -> AgentResult:
+    _restore_holdout(run)
+
+    return await attempt(state)
 
 
 # ....................... #
@@ -1814,6 +1882,9 @@ def real_hooks(
     # the revert's own provenance. Its targets resolve now, so an
     # unresolvable one fails here rather than at attempt three.
     attempt = revert_leg(run) if task.role == "revert" else partial(run_agent_session, run)
+
+    if task.role == "verify" and not shadow:
+        attempt = partial(_verify_attempt, run, attempt)
 
     # Review follows execution (S-0005/D-11): minted by the run, never by the
     # planner, and never for a shadow replay — a replay measures the
