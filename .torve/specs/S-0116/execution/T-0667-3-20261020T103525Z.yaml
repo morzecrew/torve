@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0667
+phase: 4
+attempt: 3
+base: cb2bd4a792d25490fc71e72c9f9f4fb22a1f3b0c
+commit: 8a6c9f516075dbf693475ef50cbd5d00db96316e
+at: '2026-10-20T10:35:25Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+entries:
+  - decision: D-10
+    grade: ASSUMED
+    kind: departed
+    at: '2026-10-20T09:23:27Z'
+    claim: >-
+      D-10's 'removes them when it ends' cannot be read as clearing <tests_dir>/holdout/:
+      D-14 commits a landed document's held-out properties to that same path, so the
+      gate removes the files it wrote, restores any it overwrote, and takes the directory
+      only when this run left it empty.
+    evidence: >-
+      src/torve/gates/held_out.py:97-125 — write_holdout remembers what each path
+      held and remove_holdout puts it back; the pycache the run's import left goes
+      with the files
+    action: departed
+    proposal: >-
+      Say the builtin removes the files it wrote and restores what was already under
+      <tests_dir>/holdout/.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T09:23:27Z'
+    claim: >-
+      Neither the task nor S-0116 says how a verify task is linked to 'its entry's
+      implement task'; the runner reads the worktree corpus for the implement-role
+      contract carrying the same spec and phase.
+    evidence: >-
+      src/torve/application/runner.py:733-760 — _entry_implement_task scans .torve/tasks/*/contract.yaml
+      for role implement, same spec, same phase
+    action: decided
+    proposal: >-
+      Give the verify contract the entry it serves (an entry id or the implement task
+      id) at mint, and have the runner link by it.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T09:23:27Z'
+    claim: >-
+      S-0116 never says what makes a test cite a row; both builtins read the decision
+      ids (S-NNNN/D-NN) out of the test's text and treat those as the rows it proves.
+    evidence: >-
+      src/torve/gates/held_out.py:38 — _ROW matches a decision id in the test's text;
+      cited_rows is the gate's whole notion of citing
+    action: decided
+    proposal: >-
+      State that a verifier's test cites its row by naming the decision id in the
+      file, which is what the redacted failure report and the uncited-row conviction
+      both read.
+  - decision: D-11
+    grade: ASSUMED
+    kind: departed
+    class: spec-gap
+    at: '2026-10-20T09:23:27Z'
+    claim: >-
+      D-11 lists three convictions and presupposes a file exists; a verify candidate
+      whose only tests are held-out passes all three while proving nothing, so the
+      gate also convicts a verifier that wrote no visible test file.
+    evidence: >-
+      src/torve/gates/verify_tests.py:104-105 — the no-visible-file branch, before
+      any run
+    action: departed
+    proposal: >-
+      Add the fourth conviction: a verify candidate with no test file of its own.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T09:41:58Z'
+    attempt: 2
+    claim: >-
+      Adding verify.holdout to the event registry reddens the documentation's own
+      authority-table test, and the page that test reads is outside this contract's
+      scope: tests/test_docs.py:38 asserts the marked table on pages/docs/architecture/record.md
+      equals EventKind, and pages/docs/architecture/record.md is in neither scope.allow
+      nor scope.contingent, so the row the test demands cannot be written without
+      a scope conviction. The table is hand-written — no command in src/, scripts/
+      or skills/ emits it, and the manifest's scope.derived map is absent.
+    evidence: >-
+      pages/docs/architecture/record.md:60-90 — the marked authority table holds one
+      row per EventKind and no generator writes it, so it drifts the moment a kind
+      is added; tests/test_docs.py:38 is the parity assertion
+    action: decided
+    proposal: >-
+      Add pages/docs/architecture/record.md to the task scope (allow, or the manifest's
+      scope.derived beside src/torve/domain/events.py) and mint the row '| verify.holdout
+      | worker |' with it; until then the suite stays red on the doc-parity test,
+      which only the shadow coverage-delta gate reports.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T09:58:57Z'
+    attempt: 2
+    claim: >-
+      Adding verify.holdout to the event registry reddens the documentation's own
+      authority-table test, and the page that test reads is outside this contract's
+      scope: tests/test_docs.py:38 asserts the marked table on pages/docs/architecture/record.md
+      equals EventKind, and pages/docs/architecture/record.md is in neither scope.allow
+      nor scope.contingent, so the row the test demands cannot be written without
+      a scope conviction. The table is hand-written — no command in src/, scripts/
+      or skills/ emits it, and the manifest's scope.derived map is absent.
+    evidence: >-
+      pages/docs/architecture/record.md:60-90 — the marked authority table holds one
+      row per EventKind and no generator writes it, so it drifts the moment a kind
+      is added; tests/test_docs.py:38 is the parity assertion
+    action: decided
+    proposal: >-
+      Add pages/docs/architecture/record.md to the task scope (allow, or the manifest's
+      scope.derived beside src/torve/domain/events.py) and mint the row '| verify.holdout
+      | worker |' with it; until then the suite stays red on the doc-parity test,
+      which only the shadow coverage-delta gate reports.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T10:07:58Z'
+    attempt: 2
+    claim: >-
+      Adding verify.holdout to the event registry reddens the documentation's own
+      authority-table test, and the page that test reads is outside this contract's
+      scope: tests/test_docs.py:38 asserts the marked table on pages/docs/architecture/record.md
+      equals EventKind, and pages/docs/architecture/record.md is in neither scope.allow
+      nor scope.contingent, so the row the test demands cannot be written without
+      a scope conviction. The table is hand-written — no command in src/, scripts/
+      or skills/ emits it, and the manifest's scope.derived map is absent.
+    evidence: >-
+      pages/docs/architecture/record.md:60-90 — the marked authority table holds one
+      row per EventKind and no generator writes it, so it drifts the moment a kind
+      is added; tests/test_docs.py:38 is the parity assertion
+    action: decided
+    proposal: >-
+      Add pages/docs/architecture/record.md to the task scope (allow, or the manifest's
+      scope.derived beside src/torve/domain/events.py) and mint the row '| verify.holdout
+      | worker |' with it; until then the suite stays red on the doc-parity test,
+      which only the shadow coverage-delta gate reports.
