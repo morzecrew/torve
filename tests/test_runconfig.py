@@ -19,6 +19,7 @@ from torve.config.runconfig import (
     RunnerConfig,
     TierConfig,
     TracesConfig,
+    VerifyConfig,
     agent_timeout_for,
     load_runner_config,
     remote_broker_proxy,
@@ -452,6 +453,49 @@ def test_the_review_role_loads_a_shipped_skill_by_default() -> None:
 
     declared = role_skills(Path(__file__).resolve().parents[1])["review"]
     assert set(declared) & set(available()), "review equips no shipped skill"
+
+
+def test_the_verify_block_defaults_to_off_with_the_decisions_terms() -> None:
+    # S-0116/D-2: an adopter that never sets the block mints exactly today's
+    # tasks, and one that turns it on finds the terms it named or the defaults.
+    config = RunnerConfig()
+
+    assert config.verify.enabled is False
+    assert config.verify.variant == "verify"
+    assert config.verify.types == ["feat", "fix"]
+    assert config.verify.tests_dir == "tests/verify"
+
+
+def test_the_verify_block_loads_from_yaml(tmp_path: Path) -> None:
+    config = load(
+        tmp_path,
+        "schema_version: 1\n"
+        "verify: {enabled: true, variant: verify, types: [feat], tests_dir: tests/verify}\n"
+        "tiers:\n"
+        "  executor.verify: {harness: fake}\n",
+    )
+
+    assert config.verify.enabled is True
+    assert config.verify.types == ["feat"]
+    assert config.verify.tests_dir == "tests/verify"
+
+
+def test_a_verify_pilot_with_no_verify_seat_is_refused_at_load() -> None:
+    # S-0116/D-2: one that turns the pilot on without a seat finds out at load,
+    # not at the first dispatch of a verify task.
+    with pytest.raises(ValidationError, match=r"verify\.enabled names no configured tier"):
+        RunnerConfig(verify=VerifyConfig(enabled=True))
+
+
+def test_a_verify_pilot_naming_a_configured_seat_loads() -> None:
+    plain = RunnerConfig()
+
+    config = RunnerConfig(
+        verify=VerifyConfig(enabled=True, variant="verifier"),
+        tiers={**plain.tiers, "executor.verifier": TierConfig()},
+    )
+
+    assert config.verify.variant == "verifier"
 
 
 def test_the_corpus_path_defaults_beside_everything_else_under_torve() -> None:

@@ -380,6 +380,8 @@ def implement_contract(tmp_path, task_id, role="implement"):
     (task_dir / "contract.yaml").write_text(
         f"schema_version: 1\nid: {task_id}\nrole: {role}\nintent: work\n"
         + ("targets: ['T-0001']\n" if role == "review" else "")
+        # A verify task's shape is its acceptance commands (S-0116/D-1).
+        + ("acceptance: ['true']\n" if role == "verify" else "")
         + "decisions: []\n",
         encoding="utf-8",
     )
@@ -426,6 +428,33 @@ def test_without_a_landed_oracle_the_reaper_keeps_conservatively(tmp_path):
     state_at(tmp_path, "T-9113", TaskState.READY)
     report = reap(tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]))
     assert report.states_removed == []
+
+
+def test_a_landed_ready_verify_state_is_swept(tmp_path):
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9115", role="verify")
+    state_at(tmp_path, "T-9115", TaskState.READY)
+    report = reap(
+        tmp_path,
+        RunnerConfig(),
+        MockRuntime(),
+        ListingWorkspace([]),
+        landed=lambda t: t == "T-9115",
+    )
+    assert report.states_removed == ["T-9115"]
+
+
+def test_an_unlanded_ready_verify_state_survives_the_sweep(tmp_path):
+    # S-0116/D-1: the reaper keeps a verify task's worktree as it keeps an
+    # implement task's — an unlanded verify run is the lane's input.
+    (tmp_path / ".torve").mkdir()
+    implement_contract(tmp_path, "T-9116", role="verify")
+    state_at(tmp_path, "T-9116", TaskState.READY)
+    report = reap(
+        tmp_path, RunnerConfig(), MockRuntime(), ListingWorkspace([]), landed=lambda _t: False
+    )
+    assert report.states_removed == []
+    assert (tmp_path / ".wt" / "T-9116.state.json").exists()
 
 
 def test_a_ready_draft_state_survives_unconditionally(tmp_path):

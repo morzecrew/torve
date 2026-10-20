@@ -1242,6 +1242,29 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
     assert {p: p.read_text(encoding="utf-8") for p in root.rglob("*") if p.is_file()} == before
 
 
+def test_init_writes_the_verify_role_and_block_into_the_schemas(tmp_path):
+    """S-0116/D-1, S-0116/D-2: the schemas are derived from the models, so the
+    verify role and the verify block reach an editor validating a contract or a
+    configuration."""
+
+    root = _bare_repo(tmp_path)
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+
+    schemas = root / ".torve" / "schemas"
+    contract = json.loads((schemas / "contract.json").read_text(encoding="utf-8"))
+    config = json.loads((schemas / "config.json").read_text(encoding="utf-8"))
+
+    assert contract["properties"]["role"]["enum"] == [
+        "implement",
+        "review",
+        "revert",
+        "draft",
+        "verify",
+    ]
+    assert config["properties"]["verify"]["$ref"] == "#/$defs/VerifyConfig"
+    assert config["$defs"]["VerifyConfig"]["properties"]["variant"]["default"] == "verify"
+
+
 def test_init_appends_a_missing_pattern_below_the_operators_lines_and_rewrites_a_stale_schema(
     tmp_path,
 ):

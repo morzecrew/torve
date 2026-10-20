@@ -126,3 +126,24 @@ def test_a_refused_seat_exits_as_infrastructure():
     from torve.domain.states import EXIT_BY_REASON, EXIT_INFRASTRUCTURE, EscalationReason
 
     assert EXIT_BY_REASON[EscalationReason.SEAT_REFUSED] == EXIT_INFRASTRUCTURE == 4
+
+
+def test_a_verify_contract_carries_acceptance_and_names_no_targets():
+    """S-0116/D-1: `verify` is a role in the closed vocabulary, its output is
+    the acceptance commands it writes, and it acts on the code rather than on a
+    named task — so it carries no target."""
+
+    from torve.domain.task import DISPATCHABLE_ROLES, Task
+    from torve.domain.vocabulary import ROLES
+
+    assert "verify" in ROLES
+    assert "verify" in DISPATCHABLE_ROLES
+
+    task = Task(id="T-1", role="verify", acceptance=["uv run pytest tests/verify"], decisions=[])
+    assert task.role == "verify"
+
+    with pytest.raises(ValueError, match="verify task carries acceptance"):
+        Task(id="T-2", role="verify", decisions=[])
+
+    with pytest.raises(ValueError, match="targets is not meaningful for role 'verify'"):
+        Task(id="T-3", role="verify", acceptance=["true"], targets=["T-1"], decisions=[])

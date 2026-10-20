@@ -1222,6 +1222,40 @@
       },
       "title": "VcsConfig",
       "type": "object"
+    },
+    "VerifyConfig": {
+      "additionalProperties": false,
+      "description": "The verify pilot's terms (S-0116/D-2): off by default, so an adopter\nthat never sets the block mints exactly the tasks it minted before.\n\n`variant` names the seat under `executor` the verify role runs on, and a\nconfiguration that turns the pilot on without that seat refuses at load \u2014\nwhile a person is still at the terminal, not at the first dispatch of a\nverify task. `types` and `tests_dir` are what the planner reads when it\nmints a verifier; they carry the defaults the decision names.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Whether the planner mints verify tasks ahead of phasing entries (S-0116/D-2).",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "tests_dir": {
+          "default": "tests/verify",
+          "description": "Where a verifier writes the tests it mints (S-0116/D-4).",
+          "title": "Tests Dir",
+          "type": "string"
+        },
+        "types": {
+          "description": "The document `change.type` values that earn a verifier (S-0116/D-4).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "variant": {
+          "default": "verify",
+          "description": "The dotted variant under `executor` the verify role runs on: the seat is\n`executor.<variant>`, and a configuration with `enabled` and no such tier is\nrefused at load.",
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "title": "VerifyConfig",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1350,6 +1384,10 @@
     "vcs": {
       "$ref": "#/$defs/VcsConfig",
       "description": "Local git at the runner boundary \u2014 the commit signing key (S-0010/signing)."
+    },
+    "verify": {
+      "$ref": "#/$defs/VerifyConfig",
+      "description": "The verify pilot's terms (S-0116/D-2), off by default."
     },
     "worker_slot": {
       "default": 0,
