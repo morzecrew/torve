@@ -1,0 +1,131 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0668
+phase: 5
+attempt: 3
+base: c2da0a657fc123512f78714cef70826e9ac45864
+commit: 94aadf5aefa4c93b7e6d1ab8238c05b70a3eb1ff
+at: '2026-10-20T11:26:24Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T10:50:52Z'
+    claim: >-
+      S-0116/D-12's candidate arm is told to replay T 'with its held-out properties
+      injected', but D-10 gives held-out properties exactly one route into a battery:
+      the latest verify.holdout event on the task's implement task, and a shadow replay
+      records no such event — it is a no-op there. A replay's battery therefore had
+      no way to see an injected set at all, and the composition needed a seam the
+      contract does not name.
+    evidence: >-
+      src/torve/application/dispatch.py:129 — RunDeps gains a holdout field beside
+      taken; src/torve/application/runner.py:835-836 is the only reader
+    action: decided
+    proposal: >-
+      Say which route a replay's injected set takes: either that RunDeps carries the
+      held-out files into the battery's context for a composed arm (a replay records
+      no verify.holdout event, so the event is not the route), or that the lane records
+      an event for the replayed verifier and the runner reads it as D-10 says. The
+      first is what is built.
+    notes: >-
+      Contingent paths promoted by this: src/torve/application/dispatch.py and src/torve/application/runner.py,
+      both on the contract's contingent list. The seam is one field and one early
+      branch, and _attach_holdout is otherwise unchanged.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T10:51:00Z'
+    claim: >-
+      S-0116/D-12 says the candidate arm replays 'a verify task from T's parent' and
+      settles neither the commit that replay is recorded against nor the base its
+      battery judges from. D-12's literal parent is used for the clone the verifier
+      replays in, but a shadow record compares what the replay produced against a
+      resolved commit and judges from a parent, and neither is T's for a task that
+      shipped elsewhere.
+    evidence: >-
+      src/torve/application/evals.py:787-798 — the candidate clone is cut by shadow_workspace
+      and the verify replay is recorded against the verifier's own shipped commit,
+      falling back to T's
+    action: decided
+    proposal: >-
+      Say in D-12 that a composed arm's verify replay is cut at and judged from T's
+      parent, and recorded against the verifier's own shipped commit when its landing
+      names one, so the record's comparison is the verifier's rather than T's.
+    notes: >-
+      The two replay records the candidate arm produces carry annotations verifier=candidate-verify
+      and verifier=candidate; only the second is a row of the pair.
+  - decision: D-12
+    grade: ASSUMED
+    at: '2026-10-20T10:51:10Z'
+    claim: >-
+      A composed arm replays two tasks in one clone, but every judge lookup is keyed
+      by the task id of the clone — the workspace's judge_checkout names its own worktree
+      — so the verifier's replay would have judged (and then deleted) a checkout named
+      for the verifier, which has no clone. The judge is remapped onto the clone's
+      own name for that replay instead.
+    evidence: >-
+      src/torve/application/shadow.py:69-91 — SharedJudge and replay_source; src/torve/adapters/workspace/git.py:334-340
+      keys every clone by shadow_id(task_id)
+    action: decided
+    notes: >-
+      Forced by the workspace's keying rather than chosen: the clone is T's, the replay
+      in it is the verifier's, and the judge has to open the one the battery will
+      read.
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-10-20T11:08:48Z'
+    attempt: 3
+    claim: >-
+      Review T-0680 found what neither the pair nor its tests exercised: the candidate
+      arm's implement replay judged from T's parent while the verify replay's test
+      file sat uncommitted in the same clone, so the file entered the implement diff
+      as an added path — the very path the planner mints into that task's scope.deny
+      (S-0116/D-5) — and the scope gate convicted every attempt of the arm. D-5 settles
+      it: the verify candidate lands before its implementer, so the verify replay's
+      tree is held as a commit in the clone and the implement replay is cut from that
+      commit, its file base rather than an addition.
+    evidence: >-
+      src/torve/application/evals.py:808-817 — the verify replay's tree is committed
+      in the candidate clone once the held-out files are taken, and that commit is
+      the implement replay's parent, so its gates read the verifier's file as base
+    action: decided
+    proposal: >-
+      Say in D-12 which tree a composed candidate arm's implement replay is cut from
+      and judged against: the commit its verify replay is held as, not T's parent.
+      The pair's denial of the verifier's file is only ever a diff against that commit.
+    notes: >-
+      Supersedes the attempt-1 unlisted proposal that the composed arm be judged from
+      T's parent. tests/test_shadow.py:497-530 proves the mechanism on a real clone
+      without a sandbox: uncommitted, the scope gate reports denied path tests/verify/test_s0001_p1.py;
+      held, it passes. tests/test_evals.py:1334-1362 pins the composition — the commit
+      is made in the candidate clone and the implement replay's parent is it.
