@@ -2,7 +2,7 @@
 
 ## Decisions governing `skills/verifier/`
 
-### S-0116/D-6 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-6 — `ASSUMED` (An independent verifier)
 
 A shipped skill, `torve:verifier`, briefs the verify role: tests from the rows and the intent alone, at least one per settled row citing it, imports inside test bodies, properties where a row is quantified over inputs, held-out properties under `.torve/tmp/holdout/`, no implementation, and a halt when the intent names no public surface. `torve init --starter` writes a verify profile that equips it.
 

@@ -211,6 +211,30 @@ gates:
     # and 300 is the headroom a contract that rewrites every test file wants.
     timeout: 300
     sabotage: tests/test_gates.py
+  # The verify pilot's two builtins (S-0116/D-10, D-11). They enter at shadow
+  # with the document's completion, as its phasing says, so no phase needed
+  # the new engine to pass in its own sandbox. Both skip until the pilot is on:
+  # `held-out` runs only when the task's implement task recorded held-out
+  # properties, and `verify-tests` judges only a verify task.
+  #
+  # A held-out run is one pytest pass over the recorded files: a 13-test file
+  # measured 3.2-3.4s over three runs on the host. A property draws many
+  # examples per test, so 120 is the headroom a large held-out set wants.
+  - name: held-out
+    run: "@held-out"
+    state: shadow
+    origin: S-0116
+    timeout: 120
+    sabotage: held-out
+  # A collection pass over the verifier's file and its held-out properties,
+  # then one run of both: 0.65s and 3.5-3.7s over three runs on the host. Each
+  # pass gets the whole timeout, with the same headroom as `held-out`.
+  - name: verify-tests
+    run: "@verify-tests"
+    state: shadow
+    origin: S-0116
+    timeout: 120
+    sabotage: verify-tests
   # Does the attempt's own test code notice its source going wrong (S-0107/D-1,
   # D-2)? One edit to one node on a changed line, applied in a scratch copy of
   # the worktree, scored by whether the paired tests fail. Enters at shadow and

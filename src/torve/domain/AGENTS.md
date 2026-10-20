@@ -379,14 +379,14 @@ A contingent path is promoted on its first write when no in-flight task's `allow
 - Consequence: the record tells a mechanical disposal apart from a person sending judged work back
 - Check: `uv run pytest tests/test_events.py tests/test_docs.py -q` (shadow; runs as `decision:S-0109/D-2`, no log entry owed)
 
-### S-0116/D-1 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-1 — `ASSUMED` (An independent verifier)
 
 `verify` is a role in the closed vocabulary and a dispatchable one. A verify contract carries acceptance commands and no targets, and the reaper keeps a verify task's worktree as it keeps an implement task's.
 
 - Paths: `src/torve/domain/vocabulary.py` `src/torve/domain/task.py` `src/torve/application/reaper.py`
 - Consequence: a worker claims a verify task off the board like an implement task, and every reader of `DISPATCHABLE_ROLES` offers it
 
-### S-0116/D-9 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-9 — `ASSUMED` (An independent verifier)
 
 After a verify attempt the host records the files under `.torve/tmp/holdout/` of its worktree on its entry's implement task as one `verify.holdout` event of names and texts, at most 64 KiB, empty when it wrote none, and deletes them from the worktree. The event registry gains the kind, its payload and the worker as its actor. The latest event on the task is the held-out set; it replaces every earlier one.
 

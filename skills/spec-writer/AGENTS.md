@@ -17,7 +17,7 @@ A row's `check` may name a property test: a Hypothesis test stating the decision
 - Paths: `pyproject.toml` `skills/spec-writer/SKILL.md`
 - Consequence: a decision is checked over the inputs it governs, not over the one example its author thought of
 
-### S-0116/D-13 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-13 — `ASSUMED` (An independent verifier)
 
 The operating guide and the torve skill's night reference say how to turn the pilot on, read a held-out failure and handle a disputed test, and the spec-writer guide asks a phase's intent to name the public surface its tests drive.
 
