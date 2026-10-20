@@ -747,7 +747,10 @@ def plan_document(
                 depends_on=depends,
                 scope=Scope(allow=[file]),
                 acceptance=[f"{test_run} --collect-only {file}"],
-                decisions=decisions,
+                # S-0116/D-11: `verify-tests` convicts on every row the contract
+                # carries, so a verifier carries only the rows its entry settles,
+                # those whose paths fall inside the entry's scope.
+                decisions=[row for row in decisions if overlap(row.paths, entry.scope)],
                 tier_variant=pilot.variant or None,
             )
         else:
