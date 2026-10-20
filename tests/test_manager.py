@@ -2158,6 +2158,120 @@ def test_a_serve_records_the_requeued_conflict_in_the_log(tmp_path, monkeypatch)
     assert requeued[0].payload == {"reason": "merge_conflict", "base_tip": "base123"}
 
 
+@pytest.mark.parametrize("finished_by_hand", [False, True])
+def test_a_serve_records_the_lanes_escalation_in_the_log(tmp_path, monkeypatch, finished_by_hand):
+    """T-0657, 2026-10-19: the lane escalated a candidate red again at the same
+    base and head in its run-state file alone. The board kept it `ready`, the
+    phase behind it never dispatched, and the night idled for hours with
+    nothing on the board. The served lane now records the escalation once,
+    with the manager as the actor, so the board reads the task as a person's.
+
+    A task a person finished by hand (`resolve --resolution landed`) reads
+    `ready` with its escalated file still on disk, and is never escalated
+    again."""
+
+    from forze_mock import MockDepsModule, MockState
+
+    from torve.adapters.eventstore import document as eventstore
+    from torve.application import lane as lane_module
+    from torve.application.runstate import Escalation, RunState
+    from torve.base import naming
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    state = MockState()
+    monkeypatch.setattr(eventstore, "mock_module", lambda: MockDepsModule(state=state))
+
+    def runtime() -> ExecutionRuntime:
+        return ExecutionRuntime(
+            deps=DepsRegistry.from_modules(MockDepsModule(state=state)).freeze()
+        )
+
+    async def seed() -> None:
+        held = runtime()
+
+        async with held.scope():
+            log = event_log(held.get_context())
+            await mint(log, "T-1")
+            await land(log, "T-1")
+
+            if finished_by_hand:
+                for kind, actor, payload in (
+                    (
+                        EventKind.ESCALATION_RAISED,
+                        ActorKind.WORKER,
+                        {"reason": "poison_ceiling", "detail": "red"},
+                    ),
+                    (
+                        EventKind.ESCALATION_RESOLVED,
+                        ActorKind.OPERATOR,
+                        {"resolution": "landed", "sha": "abc"},
+                    ),
+                ):
+                    await log.record(
+                        kind,
+                        partition=PARTITION,
+                        subject_type=SubjectType.TASK,
+                        subject_id="T-1",
+                        actor_kind=actor,
+                        actor_id="someone",
+                        payload=payload,
+                    )
+
+    asyncio.run(seed())
+    stuck = RunState(task_id="T-1", path=naming.state_file(tmp_path, "T-1"))
+    stuck.state = TaskState.ESCALATED
+    stuck.escalation = Escalation(
+        reason="poison_ceiling", detail="red again at the same base and head: acceptance=fail"
+    )
+    stuck.save()
+
+    monkeypatch.setattr(lane_module, "process_lane", lambda _root, _vcs, **kwargs: [])
+    terms = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: terms)
+
+    asyncio.run(
+        manager_cli._serve(
+            None,
+            PARTITION,
+            root=tmp_path,
+            config_path=None,
+            worker="w-1",
+            passes=2,
+            interval=0,
+            only=None,
+            dispatch=False,
+        )
+    )
+
+    async def read() -> list:
+        held = runtime()
+
+        async with held.scope():
+            return await event_log(held.get_context()).since(partition=PARTITION)
+
+    events = asyncio.run(read())
+    raised = [
+        event
+        for event in events
+        if event.kind is EventKind.ESCALATION_RAISED and event.actor_kind is ActorKind.MANAGER
+    ]
+
+    if finished_by_hand:
+        assert raised == []
+        assert project(events).tasks["T-1"].state is TaskState.READY
+
+        return
+
+    assert len(raised) == 1
+    assert raised[0].subject_id == "T-1"
+    assert raised[0].payload == {
+        "reason": "poison_ceiling",
+        "detail": "red again at the same base and head: acceptance=fail",
+    }
+    assert project(events).tasks["T-1"].state is TaskState.ESCALATED
+
+
 # ....................... #
 # The night waits for its document's review (S-0097/D-4).
 

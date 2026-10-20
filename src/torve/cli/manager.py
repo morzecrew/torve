@@ -14,7 +14,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
 
@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from torve.adapters.vcs.git import GhScm
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
+    from torve.application.runstate import Escalation
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord
     from torve.domain.task import Task
@@ -216,6 +217,7 @@ def _lane_leg(
     only: str | None,
     resolved: Callable[[], Awaitable[set[str]]] | None = None,
     requeue: Callable[[list[tuple[str, str]]], Awaitable[None]] | None = None,
+    escalate: Callable[[list[tuple[str, Escalation]]], Awaitable[None]] | None = None,
 ) -> Lane | None:
     """The pass's landing leg, or None when the switch is off.
 
@@ -238,6 +240,13 @@ def _lane_leg(
     log write that failed, is offered again on the next pass; the caller writes
     only what the log does not hold yet. The manual `torve merge` path passes
     none and keeps escalating to the person at the terminal.
+
+    `escalate` is handed, the same way, each run escalated in its run-state
+    file. The lane escalates a candidate red again at the same base and head,
+    and the task a red document battery completes, only there; the board reads
+    the log, so without the fact it kept such a task `ready`, nothing behind it
+    dispatched, and the night waited on a candidate nobody was told about
+    (T-0657, 2026-10-19).
     """
 
     if not config.promotion.auto_merge:
@@ -298,6 +307,9 @@ def _lane_leg(
             if requeue is not None:
                 await requeue(_conflict_requeues(root))
 
+            if escalate is not None:
+                await escalate(_lane_escalations(root))
+
         return [result.task for result in results if result.landed]
 
     return lane
@@ -318,21 +330,40 @@ def _conflict_requeues(root: Path) -> list[tuple[str, str]]:
     ]
 
 
+def _lane_escalations(root: Path) -> list[tuple[str, Escalation]]:
+    """Every run escalated in its run-state file, with its escalation. Read
+    whole, as the re-queues are, so a log write that failed is offered again;
+    which of them the log does not hold yet is `_requeues_owed`'s to say."""
+
+    from torve.application.runstate import RunState
+    from torve.base import naming
+
+    return [
+        (state.task_id, state.escalation)
+        for state in RunState.load_all(root / naming.WORKTREE_DIR)
+        if state.state is TaskState.ESCALATED and state.escalation is not None
+    ]
+
+
+_Fact = TypeVar("_Fact")
+
+
 def _requeues_owed(
-    candidates: list[tuple[str, str]], board: Board, landed: Container[str]
-) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, _Fact]], board: Board, landed: Container[str]
+) -> list[tuple[str, _Fact]]:
     """The re-queues the log does not hold yet (S-0109/D-1): a task the board
     still reads as a `ready` candidate. A task already landed is not one —
     run-state files of disposals whose work landed later outlive them — and
-    one the board already reads as queued or further on has its fact."""
+    one the board already reads as queued or further on has its fact. The
+    lane's escalations are owed by the same rule."""
 
     owed = []
 
-    for task_id, base_tip in candidates:
+    for task_id, fact in candidates:
         view = board.tasks.get(task_id)
 
         if task_id not in landed and view is not None and view.state is TaskState.READY:
-            owed.append((task_id, base_tip))
+            owed.append((task_id, fact))
 
     return owed
 
@@ -681,9 +712,45 @@ async def _serve(
                 payload={"reason": "merge_conflict", "base_tip": base_tip},
             )
 
+    async def escalate(candidates: list[tuple[str, Escalation]]) -> None:
+        """Record the served lane's own escalations, as `requeue` records its
+        re-queues: once, for a task the board still reads as a `ready`
+        candidate, with the manager as the actor. On the board the task is a
+        person's, and `manager resolve` can answer it."""
+
+        from torve.domain.events import ActorKind, EventKind
+
+        if all(task in landings for task, _ in candidates):
+            return
+
+        events = await log.of_subject_type(SubjectType.TASK, partition=partition)
+        # A hand finish reads on the board as a landing reads, `ready`, and
+        # leaves its escalated run-state file behind: it owes nothing.
+        finished = {
+            event.subject_id
+            for event in events
+            if event.kind is EventKind.ESCALATION_RESOLVED
+            and event.payload.get("resolution") == "landed"
+        }
+
+        for task_id, escalation in _requeues_owed(
+            candidates, project(events), {*landings, *finished}
+        ):
+            await log.record(
+                EventKind.ESCALATION_RAISED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id=worker,
+                payload={"reason": escalation.reason, "detail": escalation.detail[:300]},
+            )
+
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
-    lane_leg = _lane_leg(root, config, only=only, resolved=resolutions, requeue=requeue)
+    lane_leg = _lane_leg(
+        root, config, only=only, resolved=resolutions, requeue=requeue, escalate=escalate
+    )
 
     if lane_leg is not None:
         lane_leg = _refreshing(lane_leg, landings, root)
