@@ -358,6 +358,27 @@ def _verifier_runs(task: Task) -> list[str]:
     return [line for line in task.acceptance if any(file in line for file in task.scope.deny)]
 
 
+def _verify_derivation(
+    current: Task,
+    implements: list[Task],
+    implement_derived: dict[str, PlannedTask],
+    deriveds: list[PlannedTask],
+) -> PlannedTask | None:
+    """The derivation a minted verify contract is refreshed against: the
+    verify derivation of the entry whose implement contract depends on it
+    (S-0116/D-5). None when no implement contract names it, or when that
+    entry's derivation earns no verifier now."""
+
+    owner = next((one for one in implements if current.id in one.depends_on), None)
+
+    if owner is None or owner.id not in implement_derived:
+        return None
+
+    wanted = set(implement_derived[owner.id].task.depends_on)
+
+    return next((one for one in deriveds if one.task.id in wanted), None)
+
+
 def _minted_with_a_verifier(derived: Task, current: Task) -> Task:
     """An implement derivation wearing the verifier its minted contract carries
     (S-0116/D-5): the three wirings are fixed at mint, so a refresh whose
@@ -1104,32 +1125,50 @@ def _refresh(
 
         # S-0116/D-5: the verifier's wiring is fixed at mint, so the derivation
         # is aligned with the contract before the diff: an implement contract
-        # that already denies a verifier's file keeps it and its run whichever
-        # way the derivation moves, and a phase that holds no verify contract
-        # is diffed against the derivation it can actually be dispatched under.
-        verifiers = {
-            allow for one in contracts if one.role == "verify" for allow in one.scope.allow
-        }
+        # minted with a verifier keeps its file and run whichever way the
+        # derivation moves, and one minted without stays without — a file
+        # name a later derivation gives its entry may be another entry's.
         seen_role: dict[str, int] = {}
+        # A verify contract is paired through the implement contract that
+        # depends on it (S-0116/D-5), never by offset: the entries that earn a
+        # verifier can change after mint, and the nth verifier would then take
+        # another entry's intent.
+        implements = [one for one in contracts if one.role == "implement"]
+        implement_derived = dict(
+            zip([one.id for one in implements], by_role.get("implement", []), strict=False)
+        )
 
         for current in contracts:
             offset = seen_role.get(current.role, 0)
             seen_role[current.role] = offset + 1
             deriveds = by_role.get(current.role, [])
 
-            if offset >= len(deriveds):
+            if current.role == "verify":
+                pairing = _verify_derivation(current, implements, implement_derived, deriveds)
+            else:
+                pairing = deriveds[offset] if offset < len(deriveds) else None
+
+            if pairing is None:
                 found.append(
                     RefreshedTask(current.id, phase, current.title, [], "no phasing entry")
                 )
 
                 continue
 
-            derived = deriveds[offset].task
+            derived = pairing.task
+
+            if current.role == "verify":
+                # The verifier's file, and the run that collects it, are fixed
+                # at mint like the implementer's wiring to them (S-0116/D-5):
+                # only what the entry says follows the derivation.
+                derived = derived.model_copy(
+                    update={"scope": current.scope, "acceptance": current.acceptance}
+                )
 
             if current.role == "implement":
                 if current.scope.deny:
                     derived = _minted_with_a_verifier(derived, current)
-                elif not all(one in verifiers for one in derived.scope.deny):
+                else:
                     derived = _minted_without_a_verifier(derived)
 
             changed = [
@@ -1146,9 +1185,7 @@ def _refresh(
                 else None
             )
 
-            found.append(
-                RefreshedTask(current.id, phase, deriveds[offset].title, changed, held, rewritten)
-            )
+            found.append(RefreshedTask(current.id, phase, pairing.title, changed, held, rewritten))
 
     return RefreshReport(document=report.document, tasks=found)
 

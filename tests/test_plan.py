@@ -1228,6 +1228,40 @@ def test_refresh_pairs_a_role_with_its_own_derivation(pilot_repo):
     assert keeper.acceptance == ["make test", f"{RUN} tests/verify/test_s0095_p1.py"]
 
 
+def test_refresh_pairs_a_verifier_with_its_own_entry_when_another_earns_one(pilot_repo):
+    """Review of #155, S-0116/D-5: a phase holds a docs entry X and a source
+    entry Y, so only Y mints a verifier. An amendment gives X a source path,
+    and the derivation now emits X's verifier first. Each contract keeps the
+    entry and the file it was minted with: Y's verifier is not handed X's
+    intent, and X's implementer is not wired to Y's file."""
+
+    from torve.application.planner import refresh_document
+
+    root, write_doc, git = pilot_repo
+    x = {"phase": 1, "title": "x", "intent": "Write the docs.", "scope": ["pages/**"]}
+    y = {"phase": 1, "title": "y", "intent": "Build the core.", "scope": ["src/core/**"]}
+    a_feat_doc(write_doc, git, "0099", [x, y])
+    spec_dir = root / ".torve" / "specs"
+    planned = plan_document(root, spec_dir, "0099")
+    write_contracts(root, planned)
+    minted = {one.task.id: contract_of(root, one.task.id) for one in planned.tasks}
+    verifier = next(one for one in minted.values() if one.role == "verify")
+    implementer_y = next(one for one in minted.values() if verifier.id in one.depends_on)
+    implementer_x = next(
+        one for one in minted.values() if one.role == "implement" and one.id != implementer_y.id
+    )
+
+    a_feat_doc(write_doc, git, "0099", [x | {"scope": ["pages/**", "src/x/**"]}, y])
+
+    report = {one.task_id: one for one in refresh_document(root, spec_dir, "0099").tasks}
+
+    assert report[verifier.id].changed == []
+    assert "intent" not in report[implementer_y.id].changed
+    rewritten_x = report[implementer_x.id].task or minted[implementer_x.id]
+    assert rewritten_x.scope.deny == []
+    assert verifier.scope.allow[0] not in " ".join(rewritten_x.acceptance)
+
+
 def test_refresh_does_not_wire_a_phase_that_holds_no_verifier(pilot_repo):
     """S-0116/D-4, D-5: a phase minted before the pilot was on holds no verify
     task, and a refresh mints none — so its implement contract is diffed
