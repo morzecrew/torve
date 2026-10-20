@@ -6,6 +6,8 @@ the queue without moving anything, per the house convention.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -13,6 +15,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 from rich.text import Text
 
+from torve.base import naming
 from torve.cli.console import (
     STYLE_DIM,
     STYLE_FAIL,
@@ -39,8 +42,8 @@ from torve.domain.states import (
 if TYPE_CHECKING:
     from rich.console import Console
 
-    from torve.application.lane import Forge, LaneResult, Publisher
-    from torve.application.ports import CiStatus, StatusScm
+    from torve.application.lane import Forge, GateSandbox, LaneResult, Publisher, SandboxFactory
+    from torve.application.ports import CiStatus, Runtime, SandboxHandle, SandboxSpec, StatusScm
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord
 
@@ -306,6 +309,163 @@ def _status(config: RunnerConfig) -> StatusScm | None:
 
 # ....................... #
 
+# Every git the lane's judge checkout runs goes in with the repository's hooks
+# off (S-0110/D-7), as the workspace adapter's does: configuration a candidate
+# wrote never executes on the host through a hook.
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
+
+# How much of the rebased tip's history the lane's judge checkout fetches: the
+# same bound a shadow replay's clone takes (S-0004/D-7), enough for the diff the
+# battery reads against the tip's base.
+_JUDGE_DEPTH = 50
+
+
+def _git_in(path: Path, *args: str) -> str:
+    """One git call in *path*, raising on failure. A checkout the lane cannot
+    build is infrastructure, never a verdict about the candidate."""
+
+    proc = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(path), *args], capture_output=True, text=True, check=False
+    )
+
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or f"git {' '.join(args)} failed")
+
+    return proc.stdout
+
+
+def _judge_checkout(root: Path, workdir: Path, label: str) -> Path:
+    """A standalone checkout of the tree under judgement (S-0114/D-3), under
+    the lane's `lane-` prefix: a fresh repository that fetches the rebased tip
+    alone — the way a shadow replay builds its clone (S-0004/D-7), so the
+    checkout holds only the objects the tip reaches — and stands detached
+    there, so nothing the host keeps beside the commit reaches a verdict. The
+    lane removes it with the battery, green or red (S-0114/D-5)."""
+
+    from torve.adapters.workspace.git import _UPLOAD_PACK
+
+    path = root / naming.WORKTREE_DIR / label
+    shutil.rmtree(path, ignore_errors=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.mkdir()
+
+    tip = _git_in(workdir, "rev-parse", "HEAD").strip()
+
+    try:
+        _git_in(path, "init", "-q")
+        _git_in(
+            path,
+            "fetch",
+            "-q",
+            f"--depth={_JUDGE_DEPTH}",
+            "--upload-pack",
+            _UPLOAD_PACK,
+            str(root),
+            tip,
+        )
+        _git_in(path, "checkout", "-q", "--detach", "FETCH_HEAD")
+
+    except RuntimeError:
+        shutil.rmtree(path, ignore_errors=True)
+        raise
+
+    return path
+
+
+class _JudgeSandbox:
+    """One battery's judge checkout and the sandbox over it (S-0114/D-3).
+
+    The sandbox is opened on the first shell gate, as the attempt's gate pass
+    opens its own: a battery with no shell gate costs no container. `close`
+    takes the sandbox down and the checkout with it — a judge checkout
+    outlives no battery (S-0114/D-5)."""
+
+    def __init__(self, root: Path, workdir: Path, label: str, runtime: Runtime, spec: SandboxSpec):
+        self._runtime = runtime
+        self._spec = spec
+        self._handle: SandboxHandle | None = None
+        self.root = _judge_checkout(root, workdir, label)
+
+    # ....................... #
+
+    def execute(self, command: str, timeout: float) -> tuple[int | None, str]:
+        if self._handle is None:
+            self._handle = self._runtime.create(self._spec, self.root)
+
+        result = self._runtime.exec(self._handle, command, timeout)
+
+        return result.exit_code, result.output
+
+    # ....................... #
+
+    def close(self) -> None:
+        try:
+            if self._handle is not None:
+                # As the attempt's own gate pass ends (_SandboxExecutor): the
+                # container's writes come back before it goes.
+                self._runtime.sync_out(self._handle, self.root)
+                self._runtime.destroy(self._handle)
+                self._handle = None
+
+        finally:
+            shutil.rmtree(self.root, ignore_errors=True)
+
+
+def _lane_gates(root: Path, config: RunnerConfig) -> SandboxFactory:
+    """The factory `process_lane` runs its batteries through (S-0114/D-3): a
+    judge checkout of the rebased tip under the lane's `lane-` prefix, and a
+    gates sandbox over it under the executor seat's image — the same image, the
+    same toolchain cache and the same nested daemon an attempt's own gate pass
+    gets, so a lane battery judges what the attempt's did without running a
+    candidate's code on the host. Built from the configuration's runtime here
+    and in the manager's lane leg, because the runtime and the checkout are
+    adapters and the lane is handed the act."""
+
+    from torve.application.ports import NestedDocker, SandboxSpec
+    from torve.cli.options import runtime_for
+    from torve.config.runconfig import CACHE_MOUNT, TierConfig, image_for
+
+    runtime = runtime_for(config, None)
+    seat = config.tiers.get("executor") or TierConfig()
+    nested = (
+        NestedDocker(
+            image=config.runtime.nested.image,
+            volume=f"{config.runtime.nested.cache_volume}-{config.worker_slot}",
+            registry_mirrors=tuple(config.runtime.nested.registry_mirrors),
+            ready_s=config.runtime.nested.ready_s,
+        )
+        if config.runtime.nests("gates")
+        else None
+    )
+
+    def open_(workdir: Path, label: str) -> GateSandbox:
+        return _JudgeSandbox(
+            root,
+            workdir,
+            label,
+            runtime,
+            SandboxSpec(
+                name=f"torve-{label}",
+                image=image_for(config, seat),
+                # A candidate's own sandbox carries the task it belongs to and
+                # the slot it runs in: a shared daemon must never read another
+                # engine's container as its own.
+                labels=naming.labels(label, "lane", root),
+                timeout_s=config.runtime.sandbox_timeout,
+                volumes=(
+                    {f"{seat.cache_volume}-{config.worker_slot}": CACHE_MOUNT}
+                    if seat.cache_volume
+                    else {}
+                ),
+                nested=nested,
+            ),
+        )
+
+    return open_
+
+
+# ....................... #
+
 
 def _resolved(root: Path, config: RunnerConfig) -> set[str]:
     """The rounds a person resolved off the board (S-0101/D-2): the merge's
@@ -532,6 +692,11 @@ def merge_cmd(
             # The board's resolutions, read by the caller (S-0101/D-2).
             resolved=_resolved(root, config) if config.promotion.unit == "document" else set(),
             specs=config.specs.path,
+            # S-0114/D-3: every battery this pass runs — the candidate's re-gate
+            # and a document's completion battery — runs its shell gates in a
+            # sandbox over a judge checkout of the rebased tip, never on the
+            # host the candidate's worktree sits on.
+            gates=_lane_gates(root, config),
         )
 
     except RuntimeError as exc:

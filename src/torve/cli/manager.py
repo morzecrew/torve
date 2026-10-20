@@ -260,7 +260,7 @@ def _lane_leg(
         # the manager unable to reclaim, mint or dispatch (T-0284).
         from torve.adapters.vcs.git import GitLane
         from torve.application.lane import conflict_disposal, process_lane
-        from torve.cli.merge import _forge, _publisher, _resolve_ci, _status
+        from torve.cli.merge import _forge, _lane_gates, _publisher, _resolve_ci, _status
 
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
@@ -301,6 +301,11 @@ def _lane_leg(
                 # The board's resolutions, read by the caller (S-0101/D-2).
                 resolved=set(await resolved()) if resolved is not None else set(),
                 specs=config.specs.path,
+                # S-0114/D-3: the pass's batteries are built from the same
+                # configuration's runtime `torve merge` builds them from, so
+                # neither the served lane nor the manual verb runs a
+                # candidate's shell gates on the host.
+                gates=_lane_gates(root, config),
             )
 
         finally:

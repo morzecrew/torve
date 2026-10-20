@@ -1960,6 +1960,95 @@ def test_the_lane_leg_mints_rounds_only_where_the_leg_reads_records(monkeypatch)
     assert seen == [False, False, False, False, True]
 
 
+def test_the_lane_leg_builds_the_sandbox_factory_from_the_configurations_runtime(
+    tmp_path, monkeypatch
+):
+    """S-0114/D-3: the served lane's batteries run in a gates sandbox built
+    from the configuration's own runtime — the executor seat's image over the
+    judge checkout under the lane's prefix — exactly as `torve merge` builds
+    them, so neither caller runs a candidate's shell gates on the host."""
+
+    import subprocess
+
+    from torve.application import lane as lane_module
+    from torve.application.ports import ExecResult, SandboxHandle
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import PromotionConfig, RunnerConfig, TierConfig
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "e@x.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "E"], check=True)
+    (repo / "app.py").write_text("base = 1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
+
+    seen: dict = {"specs": []}
+
+    class RecordingRuntime:
+        def create(self, spec, workspace):
+            seen["specs"].append(spec)
+            seen["workspace"] = workspace
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            seen["command"] = command
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            seen["destroyed"] = handle.id
+
+        def resolve_image(self, image):
+            return None
+
+    monkeypatch.setattr("torve.cli.options.runtime_for", lambda *a, **k: RecordingRuntime())
+
+    captured: dict = {}
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+
+    config = RunnerConfig(
+        promotion=PromotionConfig(auto_merge=True),
+        tiers={"executor": TierConfig(image="registry.example/torve-executor:3")},
+    )
+
+    leg = _lane_leg(repo, config, only=None)
+    assert leg is not None
+    asyncio.run(leg())
+
+    # The leg handed the lane a factory; the batteries it opens are sandboxes
+    # over a judge checkout of the run, under the seat's own image.
+    gates = captured["gates"]
+    assert callable(gates)
+
+    handle = gates(repo, "lane-T-1.judge")
+    assert handle.root == repo / ".wt" / "lane-T-1.judge"
+    assert handle.root.is_dir()
+    # A battery with no shell gate costs no container: the sandbox opens on
+    # the first one.
+    assert seen["specs"] == []
+
+    handle.execute("true", 10.0)
+    assert seen["command"] == "true"
+    assert seen["workspace"] == handle.root
+    assert [s.image for s in seen["specs"]] == ["registry.example/torve-executor:3"]
+    assert seen["specs"][0].name == "torve-lane-T-1.judge"
+    assert "lane-T-1.judge" in "\n".join(seen["specs"][0].labels.values())
+
+    # The checkout goes with the battery and the sandbox with it (S-0114/D-5).
+    handle.close()
+    assert seen["destroyed"] == "h-1"
+    assert not handle.root.exists()
+
+
 def test_the_lane_leg_hands_every_disposal_on_disk_to_the_callback_even_when_it_raises(
     tmp_path, monkeypatch
 ):

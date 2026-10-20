@@ -27,7 +27,7 @@ import subprocess
 from collections.abc import Callable, Collection, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, ParamSpec
+from typing import TYPE_CHECKING, ParamSpec, Protocol
 
 from torve.application.feedback import capture_feedback
 from torve.application.planner import change_type_of
@@ -46,6 +46,7 @@ from torve.application.threads import group_findings
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
+from torve.config.spec import write_tracked_files
 from torve.domain.states import EscalationReason, TaskState
 
 if TYPE_CHECKING:
@@ -77,6 +78,28 @@ Publisher = Callable[[str, str], str]
 # branch -> what the forge holds for it, or None when the forge knows no pull
 # request for that branch. Injected for the same reason `Publisher` is.
 Forge = Callable[[str], PrInfo | None]
+
+
+class GateSandbox(Protocol):
+    """A battery's judge checkout and the sandbox over it (S-0114/D-3). `root`
+    is the checked-out tree the gate context is built over, `execute` is the
+    seam every shell gate runs through (`torve.base.shell.ExecuteOnce`), and
+    `close` takes the sandbox down and the checkout with it — green or red, no
+    battery leaves a judge checkout behind (S-0114/D-5)."""
+
+    root: Path
+
+    def execute(self, command: str, timeout: float) -> tuple[int | None, str]: ...
+
+    def close(self) -> None: ...
+
+
+# Opening one over the tree a lane checkout holds, under a `lane-`-prefixed
+# label (S-0114/D-3). Injected because the checkout, the runtime and the sandbox
+# are adapters: `torve merge` and the manager's lane leg build it from the
+# configuration's runtime, and a caller handing none runs the battery over the
+# rebased worktree on the host, as a direct call always has.
+SandboxFactory = Callable[[Path, str], GateSandbox]
 
 # S-0101/D-8: a candidate the lane keeps finding red at the same base tip and
 # the same head is not regated for ever — the second red escalates. With a forge
@@ -227,13 +250,22 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
 # ....................... #
 
 
-def _regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str]:
+def _regate(
+    workdir: Path, base_ref: str, task_id: str | None, gates: SandboxFactory | None = None
+) -> tuple[int, str]:
     """The full battery over the rebased tree, exactly as `torve gates run`
     would judge it — fail-closed on a missing manifest.
 
     A document branch carries several tasks' work and is judged under no one
     task's contract (S-0083/D-13): `task_id` is None there, and the battery
-    reads the manifest's own scope as it does anywhere else with no task."""
+    reads the manifest's own scope as it does anywhere else with no task.
+
+    `gates` opens the judge checkout the battery reads and the sandbox its
+    shell gates run in (S-0114/D-3): the rebased tip checked out under the
+    lane's own prefix, so nothing the host holds beside the commit reaches a
+    verdict and no gate command runs where the candidate's code does. The
+    checkout goes with the battery, green or red (S-0114/D-5). Handed none,
+    the battery reads the rebased worktree and executes on the host."""
 
     from torve.gates.context import build_context, load_task, resolve_base
     from torve.gates.runner import run_gates
@@ -246,31 +278,76 @@ def _regate(workdir: Path, base_ref: str, task_id: str | None) -> tuple[int, str
     from torve.config.manifest import load_manifest
 
     manifest = load_manifest(manifest_path)
-    task_path = layout.task_file(workdir, task_id) if task_id else None
-    landed = task_path is not None and task_path.is_file()
-
-    ctx = build_context(
-        workdir,
-        manifest,
-        base=resolve_base(workdir, base_ref),
-        task_path=task_path if landed else None,
+    # S-0114/D-1: the base is resolved on the host and named to the checkout by
+    # sha, which holds it — a shell gate substituting `{base}` names it too.
+    host_base = resolve_base(workdir, base_ref)
+    base = (
+        subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(workdir), "rev-parse", f"{host_base}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        if host_base is not None
+        else None
     )
 
-    if landed and task_path is not None:
-        ctx.task = load_task(task_path)
-        # S-0106/D-6: `red-on-base` reads the document's change type.
-        ctx.change_type = change_type_of(workdir / ctx.specs, ctx.task)
+    judge = gates(workdir, f"{workdir.name}.judge") if gates is not None else None
+    root = judge.root if judge is not None else workdir
+    task_path = layout.task_file(root, task_id) if task_id else None
+    landed = task_path is not None and task_path.is_file()
 
-    if task_id is None:
-        _document_inputs(ctx)
+    try:
+        ctx = build_context(
+            root,
+            manifest,
+            base=base,
+            task_path=task_path if landed else None,
+        )
 
-    report = run_gates(ctx)
+        if landed and task_path is not None:
+            ctx.task = load_task(task_path)
+            # S-0106/D-6: `red-on-base` reads the document's change type.
+            ctx.change_type = change_type_of(root / ctx.specs, ctx.task)
+
+        if task_id is None:
+            # S-0114/D-3: the judge checkout is detached, so the branch the
+            # document is named by is read off the rebased worktree.
+            _document_inputs(ctx, _branch_of(workdir))
+
+        if judge is not None:
+            ctx.execute = judge.execute
+            # S-0113/D-2: the sandbox runs no git, so the host leaves the
+            # checkout's tracked files where a citation scan reads them.
+            write_tracked_files(root)
+
+        report = run_gates(ctx)
+
+    finally:
+        if judge is not None:
+            judge.close()
+
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary
 
 
-def _document_inputs(ctx: GateContext) -> None:
+def _branch_of(workdir: Path) -> str:
+    """The branch a lane checkout stands on, read on the host: the judge
+    checkout a battery reads is detached and holds no branch name
+    (S-0114/D-3)."""
+
+    proc = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(workdir), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _document_inputs(ctx: GateContext, branch: str) -> None:
     """What a document-branch battery judges beside the manifest (S-0106/D-2):
     the rows of the document the branch names — the table every phase inherits
     whole — and the standing invariants whose paths the branch's diff reaches.
@@ -281,19 +358,17 @@ def _document_inputs(ctx: GateContext) -> None:
     corpus, and the diff is the one the battery sees. A branch naming no
     document, a document the corpus does not hold, or a corpus the loader
     refuses contributes nothing — a corpus error is `spec check`'s to report,
-    never the battery's to die on."""
+    never the battery's to die on.
+
+    `branch` is the ref the rebased worktree stands on, read there rather than
+    from `ctx.root`, because the checkout a sandboxed battery reads is detached
+    (S-0114/D-3)."""
 
     from torve.base.globs import matches
     from torve.config import spec
     from torve.domain.task import InheritedDecision
 
-    proc = subprocess.run(
-        ["git", *NO_HOOKS, "-C", str(ctx.root), "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    match = DOCUMENT_BRANCH.match(proc.stdout.strip()) if proc.returncode == 0 else None
+    match = DOCUMENT_BRANCH.match(branch)
 
     if match is None:
         return
@@ -1039,7 +1114,9 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
     return document_complete(document.rsplit("/", 1)[-1], landings, root)
 
 
-def _completion_battery(root: Path, vcs: LaneVcs, document: str) -> str | None:
+def _completion_battery(
+    root: Path, vcs: LaneVcs, document: str, gates: SandboxFactory | None = None
+) -> str | None:
     """The fallback battery over the document branch tip (S-0093/D-1,
     S-0093/D-5): the red summary, or None when the battery is green.
 
@@ -1056,7 +1133,7 @@ def _completion_battery(root: Path, vcs: LaneVcs, document: str) -> str | None:
         return "the document branch could not be checked out"
 
     try:
-        exit_code, summary = _regate(workdir, resolve_base(root, None) or "main", None)
+        exit_code, summary = _regate(workdir, resolve_base(root, None) or "main", None, gates)
 
     finally:
         vcs.remove_worktree(root, workdir)
@@ -1204,6 +1281,7 @@ def _land_document(
     rounds: bool = False,
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
+    gates: SandboxFactory | None = None,
 ) -> None:
     """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
 
@@ -1245,7 +1323,7 @@ def _land_document(
 
         return
 
-    red = _completion_battery(root, vcs, document) if complete else None
+    red = _completion_battery(root, vcs, document, gates) if complete else None
 
     if red is not None:
         # A red completion is published all the same, with the pull request
@@ -1937,6 +2015,7 @@ def _rebase_document(
     results: list[LaneResult],
     resolved: Collection[str] = (),
     status: StatusScm | None = None,
+    gates: SandboxFactory | None = None,
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
     already shows the tree the battery judged and it is a person's turn. A
@@ -2057,7 +2136,7 @@ def _rebase_document(
 
     try:
         _restate_landings(workdir, base)
-        exit_code, summary = _regate(workdir, base, None)
+        exit_code, summary = _regate(workdir, base, None, gates)
 
     finally:
         vcs.remove_worktree(root, workdir)
@@ -2104,6 +2183,7 @@ def _document_verdicts(
     resolved: Collection[str] = (),
     named: dict[str, list[str]] | None = None,
     status: StatusScm | None = None,
+    gates: SandboxFactory | None = None,
 ) -> tuple[dict[str, tuple[str, str]], set[str]]:
     """The later pass's read-back at the document unit (S-0083/P-3, S-0099/D-3).
 
@@ -2246,6 +2326,7 @@ def _document_verdicts(
                 results,
                 resolved,
                 status,
+                gates,
             )
 
         carried.update(
@@ -2396,6 +2477,7 @@ def _land_fast_forward(
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
     specs: str = layout.SPECS_DIR,
+    gates: SandboxFactory | None = None,
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -2424,6 +2506,7 @@ def _land_fast_forward(
                 rounds,
                 status,
                 resolved,
+                gates,
             )
         else:
             _open_pull_request(
@@ -2527,6 +2610,7 @@ def _land_rebased(
     rounds: bool = False,
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
+    gates: SandboxFactory | None = None,
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -2571,7 +2655,7 @@ def _land_rebased(
 
     try:
         _restate_landings(workdir, base)
-        exit_code, summary = _regate(workdir, base, task_id)
+        exit_code, summary = _regate(workdir, base, task_id, gates)
 
     finally:
         vcs.remove_worktree(root, workdir)
@@ -2601,6 +2685,7 @@ def _land_rebased(
                 rounds,
                 status,
                 resolved,
+                gates,
             )
         else:
             _open_pull_request(
@@ -2648,6 +2733,7 @@ def _land_candidate(
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
     specs: str = layout.SPECS_DIR,
+    gates: SandboxFactory | None = None,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -2671,6 +2757,7 @@ def _land_candidate(
             status,
             resolved,
             specs,
+            gates,
         )
         return
 
@@ -2698,6 +2785,7 @@ def _land_candidate(
         rounds,
         status,
         resolved,
+        gates,
     )
 
 
@@ -2781,6 +2869,7 @@ def process_lane(
     store: str = "",
     resolved: Collection[str] = (),
     specs: str = layout.SPECS_DIR,
+    gates: SandboxFactory | None = None,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -2810,7 +2899,14 @@ def process_lane(
     finding.
 
     `specs` is the configured corpus path the citation scan before a
-    fast-forward reads (S-0113/D-3)."""
+    fast-forward reads (S-0113/D-3).
+
+    `gates` opens the sandbox a battery's shell gates run in, over a judge
+    checkout of the rebased tip (S-0114/D-3): both batteries — the candidate's
+    re-gate and the document's completion battery — go through it, and neither
+    runs a candidate's code on the host. It is built from the configuration's
+    runtime by `torve merge` and the manager's lane leg; a direct caller
+    handing none runs the battery on the host as before."""
 
     base = vcs.current_branch(root)
 
@@ -2861,7 +2957,7 @@ def process_lane(
                     named.setdefault(document_branch, []).append(state.task_id)
 
         carried, merged_documents = _document_verdicts(
-            root, vcs, forge, publish, results, resolved, named, status
+            root, vcs, forge, publish, results, resolved, named, status, gates
         )
 
     for state in ready_candidates(root):
@@ -2984,6 +3080,7 @@ def process_lane(
             status,
             resolved,
             specs,
+            gates,
         )
 
     return results
