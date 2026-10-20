@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -1264,11 +1265,34 @@ def _verifier_repo(root, task="T-0042", verifier="T-0041", tier="executor"):
         )
 
 
-def _deps(agent=None) -> RunDeps:
+class _HeldTree:
+    """The vcs a verifier pair holds the verify replay's tree with: a commit of
+    the clone, recorded here rather than written, since nothing in the tests
+    reaches a real repository."""
+
+    def __init__(self) -> None:
+        self.worktrees: list[Path] = []
+
+    def commit_all(
+        self, worktree: Path, message: str, author: str | None = None, sign_key: str | None = None
+    ) -> str:
+        self.worktrees.append(worktree)
+
+        return "c" * 40
+
+
+def _deps(agent=None, vcs=None) -> RunDeps:
     """A dependency bag with inert ports: what the replay does with it is the
     eval's composition, and nothing here reaches a sandbox."""
 
-    return RunDeps(workspace=None, runtime=None, agent=agent, vcs=None, scm=None, store=None)
+    return RunDeps(
+        workspace=None,
+        runtime=None,
+        agent=agent,
+        vcs=vcs if vcs is not None else _HeldTree(),
+        scm=None,
+        store=None,
+    )
 
 
 class _NoJudge:
@@ -1314,6 +1338,7 @@ def _verifier_replays(monkeypatch, tmp_path):
                 "task": task.id,
                 "deps": deps,
                 "workspace": workspace,
+                "parent": parent,
                 "annotation": annotation,
             }
         )
@@ -1366,6 +1391,46 @@ def test_verifier_eval_replays_the_verifier_first_and_injects_what_it_held_out(
         }
     ]
     assert record["summary"]["candidate"]["green"] == 1
+
+
+def test_verifier_eval_holds_the_verify_replay_as_the_implement_replays_base(tmp_path, monkeypatch):
+    """S-0116/D-5, D-12: the verify candidate lands before its implementer, so
+    the implement replay starts from the commit the verify replay was held as.
+    Rerun from T's parent instead, the verifier's file is an added path in the
+    implement replay's diff — a path the planner denies it — and no candidate
+    arm could ever go green."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    replayed = _verifier_replays(monkeypatch, tmp_path)
+    held = _HeldTree()
+    task = load_task(layout.task_file(root, "T-0042"))
+
+    run_verifier_eval(root, [task], RunnerConfig(), _deps(vcs=held), _shadow_source(tmp_path))
+
+    # The verify replay is held in the candidate clone, once, after the
+    # verifier ran and before the implementer does.
+    assert held.worktrees == [tmp_path / "candidate-ws"]
+    # Both the incumbent and the verify replay start from T's parent; only the
+    # implement replay of the candidate arm starts from the held commit.
+    assert [seen["parent"] for seen in replayed] == ["b" * 40, "b" * 40, "c" * 40]
+
+
+def test_verifier_eval_refuses_a_pair_with_no_vcs_to_hold_the_verify_tree(tmp_path, monkeypatch):
+    """Nothing is replayed when there is no vcs: the arm's base is a commit
+    that cannot be made."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    replayed = _verifier_replays(monkeypatch, tmp_path)
+    task = load_task(layout.task_file(root, "T-0042"))
+    deps = _deps()
+    deps = replace(deps, vcs=None)
+
+    with pytest.raises(ValueError, match="needs a vcs"):
+        run_verifier_eval(root, [task], RunnerConfig(), deps, _shadow_source(tmp_path))
+
+    assert replayed == []
 
 
 def test_verifier_eval_records_the_oracles_escape_on_the_arm_it_ran_against(tmp_path, monkeypatch):

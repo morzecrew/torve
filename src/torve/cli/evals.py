@@ -5,7 +5,10 @@ shadow doctrine: a completed eval exits 0 whatever the arms measured, 3
 is a configuration problem, 4 an infrastructure failure. The paired
 configuration eval takes the candidate arm's override — an image (S-0027
 S-0027/D-7) or a tier variant (S-0034 S-0034/D-10) — and both arms run the agent
-their own configuration resolves, through the CLI's factory.
+their own configuration resolves, through the CLI's factory. `--verifier`
+measures the verifier pilot instead (S-0116/D-12): each named task is replayed
+as today, and again with its verify task replayed first and its held-out
+properties injected, with `--oracle` recording each arm's escape.
 """
 
 from __future__ import annotations
@@ -364,9 +367,9 @@ def eval_cmd(
     nothing runs: the arms already recorded are read back from the ledger,
     one table per task.
 
-    `--verifier` measures the pilot instead (S-0116/D-12): each named task is
-    replayed as today, and again with its verify task replayed first and its
-    held-out properties injected, with `--oracle` recording each arm's escape."""
+    `--verifier` measures the pilot instead: each named task is replayed as
+    today, and again with its verify task replayed first and its held-out
+    properties injected, with `--oracle` recording each arm's escape."""
 
     if report:
         # The reading needs the ledger and nothing else — no configuration,

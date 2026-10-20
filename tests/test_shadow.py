@@ -40,8 +40,10 @@ from torve.application.shadow import (
 )
 from torve.cli import app
 from torve.config import layout
+from torve.config.manifest import load_manifest
 from torve.config.runconfig import RunnerConfig, RuntimeConfig
-from torve.gates.context import load_task
+from torve.gates.context import build_context, git, load_task
+from torve.gates.runner import run_gates
 from torve.gates.sabotage import TASK_ID, base_task
 
 # ----------------------- #
@@ -490,6 +492,47 @@ def test_take_holdout_reads_the_verifier_files_and_removes_the_directory(tmp_pat
     # in the replay as in a live run (S-0116/D-9).
     assert not holdout.exists()
     assert take_holdout(worktree) == []
+
+
+def test_the_verify_replays_tree_is_held_as_the_implement_replays_base(repo):
+    """S-0116/D-5, T-0680: the verify candidate lands before its implementer, so
+    the file it wrote is base for the implement replay — its own commit in the
+    pair's one clone, cut after the verifier ran. Read against T's parent
+    instead, that file is an added path in the implementer's diff and the deny
+    the planner minted against it (S-0116/D-5) convicts every attempt."""
+
+    verifier_file = "tests/verify/test_s0001_p1.py"
+    repo.seed()
+    task_doc = base_task(allow=["src/**"])
+    task_doc["scope"]["deny"] = [verifier_file]
+    repo.task(task_doc, None)
+    repo.commit("task minted")
+    parent = git(repo.root, "rev-parse", "HEAD").strip()
+
+    workspace = ShadowWorkspace(repo.root, depth=10).create(TASK_ID, parent)
+    (workspace / verifier_file).parent.mkdir(parents=True, exist_ok=True)
+    (workspace / verifier_file).write_text("def test_row():\n    assert False\n", encoding="utf-8")
+
+    manifest = load_manifest(layout.gates_file(workspace))
+    task_path = layout.task_file(workspace, TASK_ID)
+
+    def scope(base: str):
+        ctx = build_context(workspace, manifest, base=base, task_path=task_path)
+
+        return run_gates(ctx, only={"scope"}).results[0]
+
+    # Uncommitted, the verifier's file is a path the implementer's scope denies.
+    unheld = scope(parent)
+
+    assert unheld.outcome == "fail"
+    assert f"denied path: {verifier_file}" in unheld.output
+
+    # Held as the verify candidate's landing would be, it is base: the
+    # implementer's own diff is what the scope gate reads.
+    held = GitVcs().commit_all(workspace, f"torve({TASK_ID}): hold the verify replay")
+
+    assert held is not None
+    assert scope(held).outcome == "pass"
 
 
 @pytest.mark.skipif(not docker_available(), reason="docker daemon not available")
