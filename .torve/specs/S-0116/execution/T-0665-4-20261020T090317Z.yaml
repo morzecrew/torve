@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0665
+phase: 2
+attempt: 4
+base: b672fc2f00f8b81004af390bf23dd098114413ff
+commit: 3e14575aca0134abf9a0e451b11c4f7d00777c0b
+at: '2026-10-20T09:03:17Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: D-14
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T07:51:37Z'
+    claim: >-
+      S-0116/D-4 says a verify task's intent is 'a fixed preamble followed by the
+      entry's intent' but names no words for it. The preamble is invented here so
+      the verifier reads what to do before the phase intent.
+    evidence: >-
+      src/torve/application/planner.py:283-289 — VERIFY_PREAMBLE, the fixed text every
+      verify intent opens with.
+    action: decided
+    proposal: >-
+      S-0116/D-4 should quote the preamble verbatim, so a re-mint and a fresh implementer
+      land the same words.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T07:51:37Z'
+    claim: >-
+      S-0116/D-4/D-5 fix the verify task's file, acceptance and the implement edge,
+      but say nothing of the verify task's own depends_on. It is given the entry's
+      own predecessors, so a phase-N verifier waits through phase N's predecessors
+      as the implementer does.
+    evidence: >-
+      src/torve/application/planner.py:679 — depends_on=depends, the entry's in-document
+      predecessors or its after edges.
+    action: decided
+    proposal: >-
+      S-0116/D-4 should state the verify task's depends_on: the entry's predecessors,
+      or none if a verifier may run before its phase's code.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T08:01:18Z'
+    attempt: 2
+    claim: >-
+      S-0088/D-1 pairs a phase's contracts with its phasing entries in id order, and
+      S-0116/D-4/D-5 put two contracts where an entry had one — neither says how the
+      two roles pair under --refresh, nor what a refresh does with the verifier wiring
+      on an implement contract of a phase that holds no verify task (minted before
+      the pilot was on, which a refresh mints none of). Decided here: contracts pair
+      with the derivation of their own role in id order, and a phase holding no verify
+      contract is diffed against the implement derivation without the verifier's file
+      in deny and without its run in acceptance.
+    evidence: >-
+      src/torve/application/planner.py:1068-1099 — by_role pairs each contract with
+      its own role's derivation; _minted_without_a_verifier (src/torve/application/planner.py:335)
+      strips the wiring a phase without a verify contract cannot dispatch.
+    action: decided
+    proposal: >-
+      S-0116/D-5 should state how --refresh reads a phase under the pilot: role-wise
+      pairing, and that an implement contract whose phase holds no verify task is
+      refreshed unwired.
+    notes: >-
+      Revised after review T-0672: the first attempt paired contracts with entries
+      positionally, so a phase holding [implement] was diffed against the [verify,
+      implement] derivation and rewritten with the verify task's intent, scope, acceptance
+      and tier_variant.
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-10-20T08:06:05Z'
+    attempt: 2
+    claim: >-
+      S-0088/D-1 pairs a phase's contracts with its phasing entries in id order, and
+      S-0116/D-4/D-5 put two contracts where an entry had one — neither says how the
+      two roles pair under --refresh, nor what a refresh does with the verifier wiring
+      on an implement contract of a phase that holds no verify task (minted before
+      the pilot was on, which a refresh mints none of). Decided here: contracts pair
+      with the derivation of their own role in id order, and a phase holding no verify
+      contract is diffed against the implement derivation without the verifier's file
+      in deny and without its run in acceptance.
+    evidence: >-
+      src/torve/application/planner.py:1068-1099 — by_role pairs each contract with
+      its own role's derivation; _minted_without_a_verifier (src/torve/application/planner.py:335)
+      strips the wiring a phase without a verify contract cannot dispatch.
+    action: decided
+    proposal: >-
+      S-0116/D-5 should state how --refresh reads a phase under the pilot: role-wise
+      pairing, and that an implement contract whose phase holds no verify task is
+      refreshed unwired.
+    notes: >-
+      Revised after review T-0672: the first attempt paired contracts with entries
+      positionally, so a phase holding [implement] was diffed against the [verify,
+      implement] derivation and rewritten with the verify task's intent, scope, acceptance
+      and tier_variant.
