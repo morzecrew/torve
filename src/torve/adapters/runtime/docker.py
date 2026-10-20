@@ -176,6 +176,9 @@ class DockerRuntime:
             [self.docker, *args],
             capture_output=True,
             text=True,
+            # A sandboxed command's output is whatever bytes it printed: one
+            # that is not UTF-8 is a gate's output, not an infrastructure failure.
+            errors="replace",
             timeout=timeout,
             check=False,
             input=stdin,
