@@ -81,9 +81,12 @@ gates:
     state: blocking
     origin: S-0007
     axis: form
-    # 4.4s over three runs of the whole corpus, so 41 — the dearest gate that
-    # is not one of the two suite runs, and it now sorts as one.
-    timeout: 41
+    # 4.4s over three runs of the whole corpus.
+    # Since S-0114 a battery's checkout holds no `.venv`, so the first `uv run`
+    # gate builds the environment: 2s with a warm cache, over 17s under load
+    # (S-0116's completion battery, 2026-10-20). Every `uv run` gate carries the
+    # same 120, so whichever sorts first can pay for it.
+    timeout: 120
     sabotage: tests/test_rfc_check.py
   - name: source-layout
     run: "@source-layout"
@@ -118,10 +121,12 @@ gates:
     state: blocking
     origin: S-0015
     input: worktree
-    # Both halves together measure 0.05s over three runs of the whole tree —
-    # ruff is the cheapest thing in the battery, and 120 had it sorting eleventh
-    # of thirteen. 7 is what a process start costs when nothing is cached.
-    timeout: 7
+    # Both halves together measure 0.05s over three runs of the whole tree.
+    # Since S-0114 a battery's checkout holds no `.venv`, so the first `uv run`
+    # gate builds the environment: 2s with a warm cache, over 17s under load
+    # (S-0116's completion battery, 2026-10-20). Every `uv run` gate carries the
+    # same 120, so whichever sorts first can pay for it.
+    timeout: 120
     sabotage: tests/test_lint.py
   # The layer contracts over the whole package. A self-development gate
   # (S-0015/D-10): the tool is a dev dependency and never ships.
@@ -131,7 +136,11 @@ gates:
     origin: S-0015
     input: worktree
     # 0.17s over three runs of the contracts across the package.
-    timeout: 9
+    # Since S-0114 a battery's checkout holds no `.venv`, so the first `uv run`
+    # gate builds the environment: 2s with a warm cache, over 17s under load
+    # (S-0116's completion battery, 2026-10-20). Every `uv run` gate carries the
+    # same 120, so whichever sorts first can pay for it.
+    timeout: 120
     sabotage: tests/test_layering.py
   # Does the suite meet the attempt's changed lines (S-0036/D-1)? diff-cover
   # intersects coverage with the diff against {base} — the merge-base the
@@ -178,7 +187,11 @@ gates:
     origin: S-0054
     axis: form
     # 1.5s over three runs of the projection across 32 governed directories.
-    timeout: 17
+    # Since S-0114 a battery's checkout holds no `.venv`, so the first `uv run`
+    # gate builds the environment: 2s with a warm cache, over 17s under load
+    # (S-0116's completion battery, 2026-10-20). Every `uv run` gate carries the
+    # same 120, so whichever sorts first can pay for it.
+    timeout: 120
     sabotage: tests/test_colocation.py
   # Does the attempt's own test code already pass on the tree it started from
   # (S-0081/D-1)? Not a builtin of the cheap kind: it runs the qualifying test
