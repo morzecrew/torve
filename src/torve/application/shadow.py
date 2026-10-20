@@ -27,10 +27,10 @@ from typing import Any
 from torve.application.dispatch import RunDeps
 from torve.application.ports import AgentResult, JudgePort
 from torve.application.runner import (
-    HOLDOUT_LIMIT,
     HOLDOUT_REL,
     AttemptHooks,
     drive_attempts,
+    holdout_files,
     real_hooks,
 )
 from torve.application.runstate import RunState
@@ -119,34 +119,14 @@ def take_holdout(worktree: Path) -> list[HoldoutFile]:
     """The held-out properties a verifier left in its worktree, read and
     removed (S-0116/D-9's directory, D-12): the candidate arm injects them into
     the implement replay's battery, and the implementer's own tree never
-    carries them."""
-
-    directory = worktree / HOLDOUT_REL
-    files: list[HoldoutFile] = []
+    carries them. Read by the runner's own collector, so a replay and a live
+    attempt refuse the same symlinks."""
 
     try:
-        if directory.is_dir():
-            budget = HOLDOUT_LIMIT
-
-            for path in sorted(directory.rglob("*")):
-                if not path.is_file():
-                    continue
-
-                text = path.read_text(encoding="utf-8", errors="replace")
-
-                if len(text) > budget:
-                    text = text[:budget]
-
-                files.append(HoldoutFile(name=path.relative_to(directory).as_posix(), text=text))
-                budget -= len(text)
-
-                if budget <= 0:
-                    break
+        return holdout_files(worktree)
 
     finally:
-        shutil.rmtree(directory, ignore_errors=True)
-
-    return files
+        shutil.rmtree(worktree / HOLDOUT_REL, ignore_errors=True)
 
 
 # ....................... #

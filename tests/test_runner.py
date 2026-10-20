@@ -3888,10 +3888,35 @@ def test_the_recorded_files_are_capped(tmp_path):
     """S-0116/D-9: what one event may carry is bounded, so a runaway verifier
     cannot write a record no reader wants."""
 
-    from torve.application.runner import HOLDOUT_LIMIT, _holdout_files
+    from torve.application.runner import HOLDOUT_LIMIT, holdout_files
 
     _leave_holdout(tmp_path, "test_huge.py", "x" * (HOLDOUT_LIMIT * 2))
 
-    files = _holdout_files(tmp_path)
+    files = holdout_files(tmp_path)
 
     assert files and len(files[0].text) <= HOLDOUT_LIMIT
+
+
+def test_a_symlink_is_never_read_as_a_held_out_property(tmp_path):
+    """S-0116/D-9 (review of #155): the collector runs on the host, so a link a
+    verifier leaves under its held-out directory must not carry a host file
+    into the record or a gate checkout — neither a linked file, nor a file
+    under a linked directory, nor a linked directory itself."""
+
+    from torve.application.runner import HOLDOUT_REL, holdout_files
+
+    secret = tmp_path / "secret"
+    secret.mkdir()
+    (secret / "id_rsa").write_text("PRIVATE\n", encoding="utf-8")
+    _leave_holdout(tmp_path / "wt", "test_props.py", "def test_x():\n    assert False\n")
+    directory = tmp_path / "wt" / HOLDOUT_REL
+    (directory / "id_rsa").symlink_to(secret / "id_rsa")
+    (directory / "keys").symlink_to(secret, target_is_directory=True)
+
+    assert [one.name for one in holdout_files(tmp_path / "wt")] == ["test_props.py"]
+
+    linked = tmp_path / "linked"
+    (linked / HOLDOUT_REL).parent.mkdir(parents=True)
+    (linked / HOLDOUT_REL).symlink_to(secret, target_is_directory=True)
+
+    assert holdout_files(linked) == []

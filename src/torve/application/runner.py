@@ -651,7 +651,7 @@ def _holdout_dir(worktree: Path) -> Path:
     return worktree / HOLDOUT_REL
 
 
-def _holdout_files(worktree: Path) -> list[HoldoutFile]:
+def holdout_files(worktree: Path) -> list[HoldoutFile]:
     """The held-out files a verify attempt left, as names and texts, bounded
     by `HOLDOUT_LIMIT` (S-0116/D-9). Empty when it wrote none, which is still
     a record: the latest event is the held-out set, and it replaces every
@@ -659,14 +659,18 @@ def _holdout_files(worktree: Path) -> list[HoldoutFile]:
 
     directory = _holdout_dir(worktree)
 
-    if not directory.is_dir():
+    # A symlink is never a property: following one would read a host file the
+    # verifier named into the record and a gate checkout. `rglob` does not
+    # descend through a linked directory, so the directory and each yielded
+    # path are all there is to refuse.
+    if directory.is_symlink() or not directory.is_dir():
         return []
 
     files: list[HoldoutFile] = []
     budget = HOLDOUT_LIMIT
 
     for path in sorted(directory.rglob("*")):
-        if not path.is_file():
+        if path.is_symlink() or not path.is_file():
             continue
 
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -783,7 +787,7 @@ def _record_holdout(run: Dispatch, state: RunState) -> None:
     if run.shadow or run.task.role != "verify":
         return
 
-    files = _holdout_files(run.worktree)
+    files = holdout_files(run.worktree)
     shutil.rmtree(_holdout_dir(run.worktree), ignore_errors=True)
 
     subject = _holdout_subject(run)
