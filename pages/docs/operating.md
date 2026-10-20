@@ -214,6 +214,53 @@ path passes a conviction to the prompt yet, so a repair attempt today is an
 ordinary prompt run against the convicted tree with the convicting gate's
 command in its acceptance.
 
+## What a battery judges
+
+A battery never reads the worktree an attempt leaves behind. It reads a
+standalone checkout of the commit. When the attempt ends, the host commits
+what `git add -A` would stage — so `.gitignore` decides, and an ignored file
+is never in the snapshot — to `refs/torve/judge/<task>`, leaving the
+worktree's index and branch untouched, and builds `.wt/<task>.judge/` the way
+a shadow replay builds its clone: a fresh repository that fetches the
+snapshot alone, so it holds the attempt's ancestry and no other branch, no
+remote and no credential it could borrow, checked out detached at the
+snapshot's commit, which the host verifies before any gate runs (S-0114/D-1).
+The gate pass builds its context over that checkout and mounts the checkout,
+not the worktree, into the gates sandbox (S-0114/D-2); the toolchain cache
+volume mounts as before, so `uv run` builds a fresh environment from the
+cache rather than reusing the attempt's `.venv`.
+
+The lane's re-gate of a rebased candidate and the whole-document battery run
+their shell gates in a gates sandbox the same way, over a judge checkout of
+the rebased tip under the lane's `lane-` prefix and under the default
+executor seat's image (S-0114/D-3); the rebase itself stays on the host, in
+git, where no candidate code runs. Each battery removes its own checkout and
+ref when it ends, green or red. `torve reap` reads a `<task>.judge`
+checkout's liveness from its task's run state: it keeps the checkout of a
+battery still running, removes one a killed pass left with the rest of the
+task's footprint, and leaves the lane's to the lane (S-0114/D-5).
+
+**`ignored-writes`.** Nothing an attempt leaves outside its commit reaches a
+verdict — and a reader who wants it still gets a fact. Before the gate pass
+writes into the worktree, the host lists every ignored file under it the
+attempt created or changed, leaving out the toolchain's caches (`.venv/`,
+`__pycache__/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`,
+`node_modules/`) and the files the engine wrote there itself while their
+content is still what the engine wrote: an attempt that rewrites
+`.torve/tmp/tracked-files` is flagged, one that leaves it as it was is not
+(S-0114/D-4). A list that is not empty is recorded as the shadow result
+`ignored-writes`, naming the files. It changes no verdict, and it reaches the
+record, `torve why` and the next attempt's feedback like any other shadow
+result.
+
+Read one as a question about the attempt rather than about its work. The
+judge saw the checkout, so the write is invisible to every gate — a green
+battery beside an `ignored-writes` result says the commit is clean, not that
+the attempt stayed inside it. The reviewer does not read the flag either
+(S-0114/D-4): it is for the person reading the night, to see how often an
+attempt works outside what it commits before the question of what to do about
+it is worth asking.
+
 ## A row's check, its twin, and the invariants the battery runs
 
 A decision row may carry a `check` — a command whose exit code judges the
