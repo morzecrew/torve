@@ -1215,6 +1215,47 @@ def test_a_tampered_cache_and_tracked_list_never_reach_the_battery(repo):
     assert ".torve/gates.yaml" in seen["tracked"]
 
 
+def test_a_base_that_moved_since_the_cut_is_named_by_its_merge_base(repo):
+    """S-0114/D-1: the checkout's history ends at the snapshot, so a base ref
+    that moved after the cut names a commit it does not hold. The host names
+    the merge base instead, an ancestor of the snapshot — what the gates read
+    as the base anyway."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+    from torve.gates.context import git
+
+    commands: list[str] = []
+
+    class CommandRecordingRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            commands.append(command)
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    manifest = manifest_with([{"name": "acceptance", "run": "echo {base}", "axis": "functional"}])
+    worktree = _ignored_repo(repo, manifest)
+    cut = git(repo.root, "rev-parse", "main").strip()
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    repo.write("src/later.py", "LATER = True\n")
+    repo.commit("main moves on after the cut")
+
+    exit_code, summary, *_ = _gate_pass(repo, worktree, runtime=CommandRecordingRuntime())
+
+    assert exit_code == 0, summary
+    assert commands == [f"echo {cut}"]
+
+
 def test_ignored_writes_names_a_written_file_and_a_rewritten_tracked_list(repo):
     """S-0114/D-4: an ignored file the attempt wrote is a divergence from the
     commit, and the engine's own tracked-file list is one too once its content

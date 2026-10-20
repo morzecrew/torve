@@ -859,11 +859,13 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         if not run.shadow:
             _deepen_judge(judge, run.root, run.task.id)
 
-        # The base is resolved on the host — the checkout holds it by sha
-        # (S-0114/D-1), and `{base}` a shell gate substitutes names it so.
+        # The base is resolved on the host and named to the checkout by the sha
+        # of its merge base with the attempt (S-0114/D-1): an ancestor of the
+        # snapshot, so the checkout holds it even when the base ref has moved
+        # since the cut. The gates read only the merge base, `{base}` included.
         host_base = resolve_base(run.worktree, run.gates_base or run.config.base)
         base = (
-            git(run.worktree, "rev-parse", f"{host_base}^{{commit}}").strip()
+            git(run.worktree, "merge-base", host_base, "HEAD").strip()
             if host_base is not None
             else None
         )

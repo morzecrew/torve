@@ -3815,3 +3815,35 @@ def test_the_completion_battery_runs_in_the_sandbox_and_leaves_no_checkout(lane_
     assert [p.name for p in seen["roots"]] == ["lane-S-0930.judge"]
     assert seen["closed"] == seen["roots"]
     assert not seen["roots"][0].exists()
+
+
+@pytest.mark.parametrize(("commits", "base_moves"), [(1, True), (60, False)])
+def test_the_battery_names_a_merge_base_its_checkout_holds(lane_repo, commits, base_moves):
+    """S-0114/D-1, D-3: the checkout holds the tip's ancestry and the battery
+    names its merge base with the base — so neither a base that moved past the
+    branch nor a merge base far down a long branch is a commit it lacks."""
+
+    from torve.application.lane import _regate
+
+    _shell_gate_manifest(lane_repo, "echo {base}")
+    fork = git(lane_repo, "rev-parse", "HEAD")
+    git(lane_repo, "checkout", "-q", "-b", "long")
+
+    for n in range(commits):
+        (lane_repo / "long.py").write_text(f"n = {n}\n", encoding="utf-8")
+        git(lane_repo, "add", "long.py")
+        git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", f"step {n}")
+
+    if base_moves:
+        git(lane_repo, "checkout", "-q", "main")
+        (lane_repo / "later.py").write_text("later = 1\n", encoding="utf-8")
+        git(lane_repo, "add", "later.py")
+        git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "main moves on")
+        git(lane_repo, "checkout", "-q", "long")
+
+    gates, seen = _recording_factory(lane_repo)
+
+    exit_code, summary = _regate(lane_repo, "main", None, gates)
+
+    assert exit_code == 0, summary
+    assert seen["commands"] == [f"echo {fork}"]

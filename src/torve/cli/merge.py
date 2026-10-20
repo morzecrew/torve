@@ -314,11 +314,6 @@ def _status(config: RunnerConfig) -> StatusScm | None:
 # wrote never executes on the host through a hook.
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
 
-# How much of the rebased tip's history the lane's judge checkout fetches: the
-# same bound a shadow replay's clone takes (S-0004/D-7), enough for the diff the
-# battery reads against the tip's base.
-_JUDGE_DEPTH = 50
-
 
 def _git_in(path: Path, *args: str) -> str:
     """One git call in *path*, raising on failure. A checkout the lane cannot
@@ -340,7 +335,11 @@ def _judge_checkout(root: Path, workdir: Path, label: str) -> Path:
     alone — the way a shadow replay builds its clone (S-0004/D-7), so the
     checkout holds only the objects the tip reaches — and stands detached
     there, so nothing the host keeps beside the commit reaches a verdict. The
-    lane removes it with the battery, green or red (S-0114/D-5)."""
+    lane removes it with the battery, green or red (S-0114/D-5).
+
+    The fetch takes the tip's whole ancestry, as the attempt's checkout is
+    deepened to: the merge base the battery diffs against can lie any number of
+    commits back on a long document branch."""
 
     from torve.adapters.workspace.git import _UPLOAD_PACK
 
@@ -357,7 +356,6 @@ def _judge_checkout(root: Path, workdir: Path, label: str) -> Path:
             path,
             "fetch",
             "-q",
-            f"--depth={_JUDGE_DEPTH}",
             "--upload-pack",
             _UPLOAD_PACK,
             str(root),
@@ -399,11 +397,10 @@ class _JudgeSandbox:
     # ....................... #
 
     def close(self) -> None:
+        # Nothing the container wrote is synced back: the checkout goes with
+        # it, and a sync that raised would leave the container running.
         try:
             if self._handle is not None:
-                # As the attempt's own gate pass ends (_SandboxExecutor): the
-                # container's writes come back before it goes.
-                self._runtime.sync_out(self._handle, self.root)
                 self._runtime.destroy(self._handle)
                 self._handle = None
 

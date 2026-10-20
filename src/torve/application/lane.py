@@ -279,11 +279,13 @@ def _regate(
 
     manifest = load_manifest(manifest_path)
     # S-0114/D-1: the base is resolved on the host and named to the checkout by
-    # sha, which holds it — a shell gate substituting `{base}` names it too.
+    # the sha of its merge base with the tip, an ancestor the checkout holds
+    # even when the base has moved past the branch. The gates read only the
+    # merge base, so a shell gate substituting `{base}` names it too.
     host_base = resolve_base(workdir, base_ref)
     base = (
         subprocess.run(
-            ["git", *NO_HOOKS, "-C", str(workdir), "rev-parse", f"{host_base}^{{commit}}"],
+            ["git", *NO_HOOKS, "-C", str(workdir), "merge-base", host_base, "HEAD"],
             capture_output=True,
             text=True,
             check=False,
