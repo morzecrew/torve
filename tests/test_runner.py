@@ -1165,6 +1165,55 @@ def _ignored_repo(repo, manifest=None):
     return _cut_worktree(repo, manifest or manifest_with([]), base_task(allow=["src/**"]))
 
 
+def test_the_battery_judges_the_attempt_under_its_contract_and_log(repo):
+    """T-0664, 2026-10-20: `.torve/tasks/` is ignored, as `torve init` mints
+    it, so the snapshot carried neither the contract nor the agent's log. The
+    battery judged the attempt as no task's — the task's gates skipped and
+    `acceptance` ran the manifest's fallback. Both follow the snapshot in."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+
+    commands: list[str] = []
+    seen: dict = {}
+
+    class CommandRecordingRuntime:
+        def create(self, spec, workspace):
+            seen["log"] = (workspace / ".torve" / "tasks" / TASK_ID / "log.yaml").is_file()
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            commands.append(command)
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    manifest = manifest_with(
+        [{"name": "acceptance", "run": "@task.acceptance", "commands": ["echo fallback"]}]
+    )
+    repo.seed()
+    repo.write(".gitignore", _IGNORED_GITIGNORE + ".torve/tasks/\n")
+    worktree = _cut_worktree(
+        repo, manifest, dict(base_task(allow=["src/**"]), acceptance=["echo contract"])
+    )
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    log = worktree / ".torve" / "tasks" / TASK_ID / "log.yaml"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(f"schema_version: 1\ntask: {TASK_ID}\nentries: []\n", encoding="utf-8")
+
+    exit_code, summary, *_ = _gate_pass(repo, worktree, runtime=CommandRecordingRuntime())
+
+    assert exit_code == 0, summary
+    assert commands == ["echo contract"]
+    assert seen["log"] is True
+
+
 def test_a_tampered_cache_and_tracked_list_never_reach_the_battery(repo):
     """S-0114/D-2: the sandbox mounts the checkout, and the checkout is what
     `git add -A` would commit — so an attempt's `.venv` shim and its rewrite
