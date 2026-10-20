@@ -44,7 +44,7 @@ The adoption and upgrading references and the configuration reference say to pul
 - Paths: `skills/torve/references/**` `pages/docs/**`
 - Consequence: an adopter's first image step is a pull, not a copy
 
-### S-0116/D-13 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-13 — `ASSUMED` (An independent verifier)
 
 The operating guide and the torve skill's night reference say how to turn the pilot on, read a held-out failure and handle a disputed test, and the spec-writer guide asks a phase's intent to name the public surface its tests drive.
 

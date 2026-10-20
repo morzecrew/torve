@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ignored-writes` shadow result naming them, in its record and in `torve why`. It changes
   no verdict.
 
+- An opt-in verifier, `verify.enabled` in the runner configuration, off by default. A
+  feature or fix phase that touches source gets a verify task first: an agent on the
+  verify seat writes the phase's tests from its decision rows. The implement task must
+  pass them and cannot edit them.
+
+- A verifier can also write held-out tests that never enter the implementer's sandbox.
+  The `held-out` gate runs them in the gate checkout and reports only the failing row and
+  message. When the document's last phase lands, the lane commits them to its branch.
+
+- The `verify-tests` gate rejects a verify candidate whose tests do not collect, leave a
+  settled decision row without a test citing it, or already pass before the
+  implementation exists.
+
+- `torve eval --task <id> --verifier` replays a task with and without its verifier, and
+  `--oracle` records which arm let a known bug through.
+
+- `torve doctor` fails when the verifier is on and its seat runs the executor seat's own
+  model.
+
+- `torve init --starter` writes a verify agent profile beside the implement, revert and
+  review ones.
+
 ### Changed
 
 - Every gate battery judges a standalone checkout of what the attempt would commit,

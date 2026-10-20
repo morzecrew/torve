@@ -796,28 +796,28 @@ The lane's re-gate of a rebased candidate and the whole-document battery run the
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: no gate battery runs a candidate's code on the host
 
-### S-0116/D-3 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-3 — `ASSUMED` (An independent verifier)
 
 `torve doctor` goes red when the pilot is on and the verify seat names the executor seat's own model.
 
 - Paths: `src/torve/cli/doctor.py`
 - Consequence: the verifier is at least a different model; whether a different provider matters is the eval's question
 
-### S-0116/D-6 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-6 — `ASSUMED` (An independent verifier)
 
 A shipped skill, `torve:verifier`, briefs the verify role: tests from the rows and the intent alone, at least one per settled row citing it, imports inside test bodies, properties where a row is quantified over inputs, held-out properties under `.torve/tmp/holdout/`, no implementation, and a halt when the intent names no public surface. `torve init --starter` writes a verify profile that equips it.
 
 - Paths: `skills/verifier/**` `src/torve/cli/init.py`
 - Consequence: a verify attempt is told what an independent test is, in the same place every other role is told its rules
 
-### S-0116/D-12 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-12 — `ASSUMED` (An independent verifier)
 
 `torve eval --task T --verifier` replays T as an incumbent arm and as a candidate arm that first replays a verify task from T's parent; `--oracle` runs a command, written by hand for each replayed task from the fix that caught its escape, on each arm's candidate and records a non-zero exit as that arm's escape.
 
 - Paths: `src/torve/application/evals.py` `src/torve/application/shadow.py` `src/torve/cli/evals.py`
 - Consequence: the pilot's default is decided from the eval ledger, not from a belief
 
-### S-0116/D-14 — `ASSUMED` (An independent verifier) — implementation: none
+### S-0116/D-14 — `ASSUMED` (An independent verifier)
 
 When a document's last phase lands, the lane commits the held-out properties recorded for its tasks to the document branch under `<tests_dir>/holdout/`, each file named for its document, phase and entry, before the whole-document battery runs. `torve merge` and the manager's lane leg hand `process_lane` the reader of the recorded events.
 
