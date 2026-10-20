@@ -848,10 +848,16 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     # here, and recorded as a shadow fact beside the battery.
     ignored = _ignored_writes(run)
 
-    judge = run.deps.workspace.judge_checkout(run.task.id)
+    # A shadow replay's clone is already a repository of its own (S-0004/D-7)
+    # and no worktree of the root, so there is nothing at `.wt/<task>` to
+    # snapshot: the replay judges its clone as it did before S-0114.
+    # shortcut: the clone's ignored files still reach a replay's gates; judge a
+    # snapshot of the clone once a document decides it for replays.
+    judge = run.worktree if run.shadow else run.deps.workspace.judge_checkout(run.task.id)
 
     try:
-        _deepen_judge(judge, run.root, run.task.id)
+        if not run.shadow:
+            _deepen_judge(judge, run.root, run.task.id)
 
         # The base is resolved on the host — the checkout holds it by sha
         # (S-0114/D-1), and `{base}` a shell gate substitutes names it so.
@@ -934,7 +940,8 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         # S-0114/D-5: a judge checkout outlives no battery. The record is
         # built below from the context, so this runs after the battery ends,
         # green or red.
-        run.deps.workspace.remove_judge(run.task.id)
+        if not run.shadow:
+            run.deps.workspace.remove_judge(run.task.id)
 
     digest = config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
     record = build_record(ctx, _with_ignored_writes(report, ignored), digest, agent=run.meta)

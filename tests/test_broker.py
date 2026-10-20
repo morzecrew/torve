@@ -975,7 +975,7 @@ def _runner_deps(runtime, agent, broker):
     from torve.application.dispatch import RunDeps
 
     return RunDeps(
-        workspace=None,  # type: ignore[arg-type]  # only attempt/gates/land hooks run
+        workspace=None,  # type: ignore[arg-type]  # _drive_task hands the gates their judge
         runtime=runtime,
         agent=agent,
         vcs=HostVcs(),
@@ -983,6 +983,20 @@ def _runner_deps(runtime, agent, broker):
         store=None,  # type: ignore[arg-type]
         broker=broker,
     )
+
+
+class _WorktreeJudge:
+    """The gates read the hand-built worktree itself (S-0114/D-2): it sits at
+    a path the naming does not derive, so `GitWorkspace` cannot snapshot it."""
+
+    def __init__(self, worktree: Path) -> None:
+        self.worktree = worktree
+
+    def judge_checkout(self, task_id: str) -> Path:
+        return self.worktree
+
+    def remove_judge(self, task_id: str) -> None:
+        pass
 
 
 def _drive_task(tmp_path: Path, config: RunnerConfig, task: Task, deps) -> object:
@@ -1005,6 +1019,7 @@ def _drive_task(tmp_path: Path, config: RunnerConfig, task: Task, deps) -> objec
 
     state = RunState(task_id=task.id, path=tmp_path / f"{task.id}.state.json")
     state.transition(TaskState.CLAIMED, "test claim")
+    deps.workspace = _WorktreeJudge(worktree)
     hooks = real_hooks(tmp_path, task, config, deps, worktree)
 
     return asyncio.run(drive_attempts(state, task, config, hooks)), worktree
