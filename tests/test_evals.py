@@ -1674,3 +1674,50 @@ def test_eval_cli_verifier_mode_refuses_a_task_with_no_verifier(tmp_path, monkey
 
     assert result.exit_code == 3
     assert "depends on no verify task" in result.stderr
+
+
+def test_an_oracle_that_times_out_is_infrastructure_never_an_escape(tmp_path):
+    """Review of #155, S-0116/D-12: a timed-out oracle judged nothing, so it
+    raises rather than recording an escape against the arm."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+    from torve.cli.evals import _escape_runner
+
+    class TimingOut:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            return ExecResult(exit_code=None, output="", duration_s=timeout_s)
+
+        def destroy(self, handle):
+            pass
+
+    escape = _escape_runner(tmp_path, RunnerConfig(), TimingOut())
+
+    with pytest.raises(RuntimeError, match="timed out"):
+        escape(tmp_path, "uv run pytest")
+
+
+def test_eval_cli_verifier_mode_refuses_tasks_on_two_implement_seats(tmp_path, monkeypatch):
+    """Review of #155: both arms replay every task on one implement agent,
+    so tasks naming different seats are refused before anything spends, as
+    an arm run refuses them."""
+
+    root = tmp_path / "repo"
+    _verifier_repo(root)
+    _verifier_repo(root, task="T-0044", verifier="T-0043")
+    contract = root / layout.TORVE_DIR / "tasks" / "T-0044" / "contract.yaml"
+    contract.write_text(
+        contract.read_text(encoding="utf-8").replace("tier: executor", "tier: reviewer"),
+        encoding="utf-8",
+    )
+    _verifier_run_recorded(monkeypatch, root)
+
+    result = CliRunner().invoke(
+        app,
+        ["eval", "--verifier", "--task", "T-0042", "--task", "T-0044", "--root", str(root)],
+    )
+
+    assert result.exit_code == 3
+    assert "one implement seat" in result.stderr

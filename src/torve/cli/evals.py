@@ -240,6 +240,11 @@ def _escape_runner(
         finally:
             runtime.destroy(handle)
 
+        if result.exit_code is None:
+            # A timeout judged nothing: an infrastructure failure, never an
+            # escape recorded against the arm (S-0116/D-12).
+            raise RuntimeError(f"the oracle timed out after {config.runtime.sandbox_timeout}s")
+
         return result.exit_code != 0
 
     return escape
@@ -565,7 +570,6 @@ def eval_cmd(
             # variant — resolved and refused here, before any replay spends
             # (S-0116/D-12). Every verifier of the invocation resolves to one
             # seat, as an arm run's tasks do.
-            seats = {tier_name_for(verify_task_of(root, t) or t) for t in tasks}
             verifiers = [(t, verify_task_of(root, t)) for t in tasks]
             missing = [t.id for t, found in verifiers if found is None]
 
@@ -574,14 +578,27 @@ def eval_cmd(
                     f"{missing[0]} depends on no verify task — there is no verifier to replay"
                 )
 
+            seats = {tier_name_for(found) for _, found in verifiers if found is not None}
+
             if len(seats) > 1:
                 raise ValueError(
                     f"these verifiers name {', '.join(sorted(seats))} — one invocation "
                     "replays on one verify seat"
                 )
 
-            verifier_agent = build_tier_agent(config, root, seats.pop())
-            incumbent_agent = build_tier_agent(config, root, tier_name_for(tasks[0]))
+            # Both arms replay every task on one implement agent, built once:
+            # tasks naming different seats would run the second on the first's.
+            implementers = {tier_name_for(task) for task in tasks}
+
+            if len(implementers) > 1:
+                raise ValueError(
+                    f"these tasks name {', '.join(sorted(implementers))} — one invocation "
+                    "replays on one implement seat"
+                )
+
+            verify_seat = seats.pop()
+            verifier_agent = build_tier_agent(config, root, verify_seat)
+            incumbent_agent = build_tier_agent(config, root, implementers.pop())
             candidate_agent = None
         elif skill is not None:
             without_skill(config, skill)  # refuse before any spend
@@ -596,7 +613,12 @@ def eval_cmd(
             incumbent_agent = build_tier_agent(config, root, tier)
             candidate_agent = build_tier_agent(candidate, root, tier)
 
-        tiers = {task.tier for task in tasks}
+        tiers: set[str] = {task.tier for task in tasks}
+
+        if verifier_agent is not None:
+            # The verify seat spends first, so its route is refused before any
+            # replay does, as the implement seats' are.
+            tiers.add(verify_seat)
 
         for name in tiers:
             resolved = tier_for(config, name)
