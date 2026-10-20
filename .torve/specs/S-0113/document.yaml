@@ -111,6 +111,8 @@ questions:
       --compare-branch` fails there, and an adopter's `git ls-files | xargs` gate
       passes over no files. Should the battery refuse or flag a gate command naming
       `git`, or should the list of D-2 grow a diff the gates can read?
+    status: settled
+    settled_by: S-0114
   - id: Q-3
     text: >-
       When the lane sends a candidate back on a red re-gate, should the red gates'

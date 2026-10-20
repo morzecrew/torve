@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- An attempt that writes ignored files outside the toolchain caches gets an
+  `ignored-writes` shadow result naming them, in its record and in `torve why`. It changes
+  no verdict.
+
+### Changed
+
+- Every gate battery judges a standalone checkout of what the attempt would commit,
+  inside a sandbox. Ignored files, the attempt's `.venv` among them, no longer reach a
+  gate, so a gate that leaned on one the attempt built now fails.
+
 ### Fixed
+
+- A shell gate that runs git, such as `coverage-delta`'s `diff-cover --compare-branch`,
+  judges the candidate in the sandbox. The battery's checkout is a repository of its own
+  whose history reaches the attempt's base.
 
 - A run whose attempt raises, such as a seat image that does not start, ends escalated
   instead of running. Requeueing the escalation now dispatches the task again, without a
@@ -16,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A served night records on the board a candidate the lane escalates, such as one red
   again at the same base and head. The board no longer shows it as `ready` while the
   night waits on it, and `torve manager resolve` can answer it.
+
+### Security
+
+- The lane's re-gate of a rebased candidate and the whole-document battery run their
+  shell gates in a gates sandbox under the default executor seat's image. They ran the
+  candidate's tests on the host, in the manager's environment.
 
 ## [0.5.0] - 2026-10-19
 
