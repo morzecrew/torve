@@ -1051,3 +1051,217 @@ def test_the_plan_table_shows_the_contingent_count(plan_repo):
 
     assert result.exit_code == 0, result.output
     assert "contingent" in result.output
+
+
+# ----------------------- #
+# S-0116/D-4, D-5: the verify pilot. With it on, a behavioural phase mints a
+# verifier ahead of its implement task; with it off, exactly today's tasks.
+
+PILOT = (
+    "schema_version: 1\n"
+    "verify: {enabled: true, variant: verify, types: [feat, fix], tests_dir: tests/verify}\n"
+    "tiers:\n"
+    "  executor.verify: {harness: fake}\n"
+)
+RUN = "python3 -m pytest -q -p no:cacheprovider"
+
+
+@pytest.fixture
+def pilot_repo(plan_repo):
+    """`plan_repo` with the verify pilot on — a verify seat configured, so the
+    configuration loads."""
+
+    root, write_doc, git = plan_repo
+    (root / ".torve" / "config.yaml").write_text(PILOT, encoding="utf-8")
+    harness = root / ".torve" / "harnesses"
+    harness.mkdir(parents=True)
+    (harness / "fake.yaml").write_text("adapter: fake\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "pilot on")
+
+    return root, write_doc, git
+
+
+def a_feat_doc(write_doc, git, number: str, phasing: list[dict]) -> None:
+    write_doc(number, "Feat", phasing=phasing, extra={"change": {"type": "feat"}})
+    git("add", "-A")
+    git("commit", "-qm", f"doc {number}")
+
+
+def test_a_feat_documents_source_phase_earns_a_verifier(pilot_repo):
+    root, write_doc, git = pilot_repo
+    a_feat_doc(
+        write_doc,
+        git,
+        "0091",
+        [
+            {
+                "phase": 1,
+                "title": "core",
+                "intent": "Build the core.",
+                "scope": ["src/core/**"],
+                "acceptance": ["make test"],
+            }
+        ],
+    )
+
+    report = plan_document(root, root / ".torve" / "specs", "0091")
+
+    assert [p.task.id for p in report.tasks] == ["T-0001", "T-0002"]
+    verify, implement = report.tasks[0].task, report.tasks[1].task
+
+    assert verify.role == "verify" and verify.targets == []
+    assert verify.scope.allow == ["tests/verify/test_s0091_p1.py"]
+    assert verify.scope.deny == []
+    assert verify.acceptance == [f"{RUN} --collect-only tests/verify/test_s0091_p1.py"]
+    assert verify.tier_variant == "verify"
+    assert verify.intent.endswith("Build the core.") and verify.intent != "Build the core."
+
+    # D-5: the implementer runs the verifier's tests, depends on its task, and
+    # may never edit the file they live in.
+    assert implement.depends_on == ["T-0001"]
+    assert implement.scope.deny == ["tests/verify/test_s0091_p1.py"]
+    assert implement.acceptance == [
+        "make test",
+        f"{RUN} tests/verify/test_s0091_p1.py",
+    ]
+
+
+def test_sibling_entries_of_one_phase_get_their_own_verifiers(pilot_repo):
+    root, write_doc, git = pilot_repo
+    a_feat_doc(
+        write_doc,
+        git,
+        "0092",
+        [
+            {"phase": 1, "title": "a", "intent": "A.", "scope": ["src/a/**"]},
+            {"phase": 1, "title": "b", "intent": "B.", "scope": ["src/b/**"]},
+        ],
+    )
+
+    report = plan_document(root, root / ".torve" / "specs", "0092")
+    files = [p.task.scope.allow[0] for p in report.tasks if p.task.role == "verify"]
+
+    assert files == [
+        "tests/verify/test_s0092_p1.py",
+        "tests/verify/test_s0092_p1_2.py",
+    ]
+
+
+def test_a_docs_only_phase_earns_no_verifier(pilot_repo):
+    root, write_doc, git = pilot_repo
+    a_feat_doc(
+        write_doc,
+        git,
+        "0093",
+        [{"phase": 1, "title": "docs", "intent": "Write it up.", "scope": ["docs/**"]}],
+    )
+
+    report = plan_document(root, root / ".torve" / "specs", "0093")
+
+    assert [p.task.role for p in report.tasks] == ["implement"]
+
+
+def test_a_refactor_document_earns_no_verifier(pilot_repo):
+    root, write_doc, git = pilot_repo
+    write_doc(
+        "0094",
+        "Refactor",
+        phasing=[{"phase": 1, "title": "move", "intent": "Move it.", "scope": ["src/a/**"]}],
+        extra={"change": {"type": "refactor"}},
+    )
+    git("add", "-A")
+    git("commit", "-qm", "refactor doc")
+
+    report = plan_document(root, root / ".torve" / "specs", "0094")
+
+    assert [p.task.role for p in report.tasks] == ["implement"]
+
+
+def test_the_pilot_off_mints_exactly_todays_tasks(plan_repo):
+    root, _, _ = plan_repo
+
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+
+    assert [p.task.role for p in report.tasks] == ["implement", "implement", "implement"]
+
+
+def test_refresh_pairs_a_role_with_its_own_derivation(pilot_repo):
+    """S-0116/D-4, D-5: a phase minted under the pilot holds a verifier beside
+    its implementer, and `--refresh` diffs each contract against the
+    derivation of its own role — an implement contract is never rewritten
+    with a verify task's terms, or the reverse."""
+
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, write_doc, git = pilot_repo
+    entry = {
+        "phase": 1,
+        "title": "core",
+        "intent": "Build the core.",
+        "scope": ["src/core/**"],
+        "acceptance": ["make test"],
+    }
+    a_feat_doc(write_doc, git, "0095", [entry])
+    spec_dir = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, spec_dir, "0095"))
+    a_feat_doc(write_doc, git, "0095", [entry | {"intent": "Build the core, counted."}])
+
+    report = refresh_document(root, spec_dir, "0095")
+    verify, implement = report.tasks
+
+    assert (verify.task_id, verify.phase, verify.changed) == ("T-0001", 1, ["intent"])
+    assert (implement.task_id, implement.changed) == ("T-0002", ["intent"])
+
+    assert [p.parent.name for p in refresh_contracts(root, report)] == ["T-0001", "T-0002"]
+
+    rewritten = contract_of(root, "T-0001")
+
+    assert rewritten.role == "verify" and rewritten.intent.endswith("Build the core, counted.")
+    assert rewritten.tier_variant == "verify"
+    assert rewritten.scope.allow == ["tests/verify/test_s0095_p1.py"]
+    # the verifier's file and run survive the refresh on the implementer
+    keeper = contract_of(root, "T-0002")
+
+    assert keeper.role == "implement" and keeper.intent == "Build the core, counted."
+    assert keeper.scope.deny == ["tests/verify/test_s0095_p1.py"]
+    assert keeper.acceptance == ["make test", f"{RUN} tests/verify/test_s0095_p1.py"]
+
+
+def test_refresh_does_not_wire_a_phase_that_holds_no_verifier(pilot_repo):
+    """S-0116/D-4, D-5: a phase minted before the pilot was on holds no verify
+    task, and a refresh mints none — so its implement contract is diffed
+    against the derivation without a verifier's file to deny or run, and the
+    refresh rewrites nothing."""
+
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, write_doc, git = pilot_repo
+    config = root / ".torve" / "config.yaml"
+    config.write_text("schema_version: 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "pilot off")
+    a_feat_doc(
+        write_doc,
+        git,
+        "0096",
+        [
+            {
+                "phase": 1,
+                "title": "core",
+                "intent": "Build the core.",
+                "scope": ["src/core/**"],
+                "acceptance": ["make test"],
+            }
+        ],
+    )
+    spec_dir = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, spec_dir, "0096"))
+    config.write_text(PILOT, encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "pilot on")
+
+    report = refresh_document(root, spec_dir, "0096")
+
+    assert [one.changed for one in report.tasks] == [[]]
+    assert refresh_contracts(root, report) == []
