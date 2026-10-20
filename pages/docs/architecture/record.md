@@ -86,6 +86,7 @@ executable intent without a human signature.**
 | `notification.sent` | manager |
 | `night.opened` | manager |
 | `night.closed` | manager |
+| `verify.holdout` | worker |
 
 <!-- authority-table:end -->
 

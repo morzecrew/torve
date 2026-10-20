@@ -194,6 +194,10 @@ BUILTIN_INPUTS: dict[str, str] = {
     # scratch copy of the whole worktree, so it needs the worktree, not the
     # diff alone.
     "mutation": "worktree",
+    # S-0116/D-10, D-11: both write the held-out files into the checkout and
+    # run them, so each needs the worktree rather than the diff alone.
+    "held-out": "worktree",
+    "verify-tests": "worktree",
 }
 BUILTIN_TIMEOUTS: dict[str, float] = {
     "scope": 30,
@@ -208,6 +212,10 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     # S-0107: a baseline run of the paired tests plus the sampled mutants,
     # each capped at twice that baseline — the dearest builtin when it scores.
     "mutation": 900,
+    # S-0116/D-10, D-11: one run of the held-out files, and for `verify-tests`
+    # a collect over the same set first.
+    "held-out": 600,
+    "verify-tests": 600,
 }
 SHELL_GATE_TIMEOUT = 600.0
 

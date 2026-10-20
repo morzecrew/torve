@@ -91,6 +91,7 @@ from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
 from torve.config.runconfig import RunnerConfig
 from torve.config.spec import TRACKED_LIST, write_tracked_files
 from torve.domain.attempt import GateResult
+from torve.domain.events import ActorKind, EventKind, HoldoutFile, SubjectType, VerifyHoldout
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import GateContext, GitError, build_context, git, resolve_base
@@ -111,6 +112,9 @@ class AttemptHooks:
     halted: Callable[[int], EscalationReason | None]
     gates: Callable[[RunState], Awaitable[tuple[int, str, str]]]  # exit, summary, config hash
     land: Callable[[RunState, str], Awaitable[str]]  # returns the recorded fact
+    # Right after an attempt that actually ran, before it is judged: what the
+    # host records about it (S-0116/D-9). None for a run that records nothing.
+    after_attempt: Callable[[RunState], None] | None = None
     # After green gates, before landing (S-0005, S-0005/D-11): returns the fact
     # for the reviewed transition, or None when the review escalated the
     # target. Absent -> the review-not-configured bridge.
@@ -280,6 +284,12 @@ async def _attempt_loop(
             state.escalate(EscalationReason.SEAT_REFUSED, result.refused)
 
             return state
+
+        # S-0116/D-9: a verify attempt's held-out properties are read off the
+        # worktree and recorded here, before any verdict — what the verifier
+        # wrote is a fact about the attempt whether or not its gates go green.
+        if hooks.after_attempt is not None:
+            hooks.after_attempt(state)
 
         if halt := hooks.halted(state.attempts):
             # Terminal by design, not an error: the one case where a task
@@ -621,6 +631,213 @@ def _record_promotions(run: Dispatch, state: RunState, ctx: GateContext) -> None
 # ....................... #
 
 
+# ----------------------- #
+# The verifier's held-out properties (S-0116/D-9, D-10). A verify attempt
+# leaves them under `.torve/tmp/holdout/` of its worktree; the host reads
+# them, records them once on the implement task of the entry the verifier
+# serves, and deletes them, so they never reach the verify candidate's
+# commit and never reach the implementer's sandbox.
+
+# The worktree-relative directory a verify attempt writes its held-out
+# properties under (S-0116/D-6), and the ceiling one event may carry.
+HOLDOUT_REL = f"{layout.TORVE_DIR}/tmp/holdout"
+HOLDOUT_LIMIT = 64 * 1024
+
+
+# ....................... #
+
+
+def _holdout_dir(worktree: Path) -> Path:
+    return worktree / HOLDOUT_REL
+
+
+def _holdout_files(worktree: Path) -> list[HoldoutFile]:
+    """The held-out files a verify attempt left, as names and texts, bounded
+    by `HOLDOUT_LIMIT` (S-0116/D-9). Empty when it wrote none, which is still
+    a record: the latest event is the held-out set, and it replaces every
+    earlier one. Sorted, so the same tree reads the same record."""
+
+    directory = _holdout_dir(worktree)
+
+    if not directory.is_dir():
+        return []
+
+    files: list[HoldoutFile] = []
+    budget = HOLDOUT_LIMIT
+
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file():
+            continue
+
+        text = path.read_text(encoding="utf-8", errors="replace")
+
+        if len(text) > budget:
+            text = text[:budget]
+
+        files.append(HoldoutFile(name=path.relative_to(directory).as_posix(), text=text))
+        budget -= len(text)
+
+        if budget <= 0:
+            break
+
+    return files
+
+
+# ....................... #
+
+
+def _log_channel(run: Dispatch) -> Any:
+    """The run's route into the record, when it holds one — a hand dispatch
+    and a test have none, and then there is nowhere to record."""
+
+    from torve.application.eventlog import RunLogChannel
+
+    channel = run.deps.channel
+
+    return channel if isinstance(channel, RunLogChannel) else None
+
+
+# ....................... #
+
+
+def _record_worker_event(
+    run: Dispatch, kind: EventKind, subject_id: str, payload: dict[str, Any]
+) -> None:
+    """Record one fact the worker owns about a subject that may not be this
+    run's own task — the held-out set lands on the entry's implement task
+    (S-0116/D-9). The append blocks on the loop that owns the store, so a
+    battery that reads it next sees it."""
+
+    channel = _log_channel(run)
+
+    if channel is None:
+        return
+
+    asyncio.run_coroutine_threadsafe(
+        channel.log.record(
+            kind,
+            partition=channel.partition,
+            subject_type=SubjectType.TASK,
+            subject_id=subject_id,
+            actor_kind=ActorKind.WORKER,
+            actor_id=channel.seat,
+            payload=payload,
+        ),
+        channel.loop,
+    ).result(channel.timeout_s)
+
+
+# ....................... #
+
+
+def _entry_implement_task(run: Dispatch) -> str | None:
+    """The implement task of the verify task's phasing entry (S-0116/D-9),
+    read off the worktree's corpus by the link D-5 mints at plan time: the
+    implement contract that depends on this verify task. Several phasing
+    entries share a document and a phase (D-4), so spec and phase alone name
+    the wrong task — every entry's implement task does, and the held-out set
+    would land on a foreign one. None when the corpus holds none."""
+
+    from torve.gates.context import load_task
+
+    tasks = run.worktree / layout.TORVE_DIR / "tasks"
+
+    if not tasks.is_dir():
+        return None
+
+    for path in sorted(tasks.glob("*/contract.yaml")):
+        try:
+            other = load_task(path)
+
+        except ValueError:
+            continue
+
+        if other.role == "implement" and run.task.id in other.depends_on:
+            return other.id
+
+    return None
+
+
+# ....................... #
+
+
+def _holdout_subject(run: Dispatch) -> str | None:
+    """Where this task's held-out set is recorded and read (S-0116/D-9): a
+    verify task's lives on its entry's implement task; every other task's is
+    its own."""
+
+    if run.task.role == "verify":
+        return _entry_implement_task(run)
+
+    return run.task.id
+
+
+# ....................... #
+
+
+def _record_holdout(run: Dispatch, state: RunState) -> None:
+    """After a verify attempt, record its held-out properties and delete them
+    from the worktree (S-0116/D-9). A no-op for every other role and for a
+    shadow replay, which has no record of its own to write to."""
+
+    if run.shadow or run.task.role != "verify":
+        return
+
+    files = _holdout_files(run.worktree)
+    shutil.rmtree(_holdout_dir(run.worktree), ignore_errors=True)
+
+    subject = _holdout_subject(run)
+
+    if subject is None:
+        return
+
+    _record_worker_event(
+        run,
+        EventKind.VERIFY_HOLDOUT,
+        subject,
+        VerifyHoldout(files=files).model_dump(mode="json"),
+    )
+
+
+# ....................... #
+
+
+def _latest_holdout(run: Dispatch, subject_id: str) -> list[HoldoutFile]:
+    """The held-out files of the latest `verify.holdout` event on *subject_id*
+    (S-0116/D-9, D-10). Empty when there is none — the ordinary task."""
+
+    channel = _log_channel(run)
+
+    if channel is None:
+        return []
+
+    events = asyncio.run_coroutine_threadsafe(
+        channel.log.history(subject_id, partition=channel.partition), channel.loop
+    ).result(channel.timeout_s)
+
+    latest = [event for event in events if event.kind is EventKind.VERIFY_HOLDOUT]
+
+    if not latest:
+        return []
+
+    return VerifyHoldout.model_validate(latest[-1].payload).files
+
+
+# ....................... #
+
+
+def _attach_holdout(run: Dispatch, ctx: GateContext) -> None:
+    """Hand a battery the held-out properties of the task's latest event, and
+    the directory a verifier's tests live under (S-0116/D-10)."""
+
+    subject = _holdout_subject(run)
+    ctx.holdout = _latest_holdout(run, subject) if subject is not None else []
+    ctx.tests_dir = run.config.verify.tests_dir
+
+
+# ....................... #
+
+
 def _nested_docker(run: Dispatch, role: str) -> NestedDocker | None:
     """The daemon a sandbox of *role* gets, or None (S-0111/D-1, D-4). The
     configuration resolves role membership (`nests`); the runner composes the
@@ -893,6 +1110,9 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             )
 
             ctx.execute = executor
+            # S-0116/D-10: the held-out properties of the task's latest event
+            # reach the battery here, before any gate runs.
+            _attach_holdout(run, ctx)
             # S-0106/D-6: a phase of a refactor document is judged by whether
             # behaviour held, so the battery is told the type `red-on-base` re-aims
             # on. Read here, not in the gate: the corpus is the planner's (S-0015/A-1).
@@ -1600,6 +1820,7 @@ def real_hooks(
     return AttemptHooks(
         attempt=attempt,
         halted=partial(halted, run),
+        after_attempt=partial(_record_holdout, run),
         gates=partial(_bare_gates, run) if run.battery_removed else partial(judge, run),
         land=partial(land, run),
         review=review,

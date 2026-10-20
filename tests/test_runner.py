@@ -3582,3 +3582,316 @@ def test_a_nested_implement_role_does_not_mark_the_gates_sandbox():
     state = RunState(task_id=TASK_ID, path=Path("state.json"), run_id="run-1")
 
     assert _gates_spec(run, state).nested is None
+
+
+# ....................... #
+
+# The verifier's held-out properties (S-0116/D-9, D-10). A verify attempt
+# leaves them under `.torve/tmp/holdout/`; the host records them on the
+# implement task of the entry it serves and deletes them, and every later
+# battery is handed the latest record's files.
+
+PARTITION = "morzecrew/torve"
+VERIFY_TASK = "T-8002"
+ENTRY_TASK = "T-8001"
+# Another entry's implement task, same document and phase (S-0116/D-4).
+SIBLING_TASK = "T-8000"
+
+
+def _verify_dispatch(root, *, shadow=False, tests_dir=None, sibling=False):
+    """A dispatch for a verify attempt on *root*, with the implement contract
+    of its phasing entry in the corpus beside it — the one that depends on it
+    (S-0116/D-5). With *sibling*, a second implement contract of the same
+    document and phase, sorting first and depending on nothing, is written
+    beside it: the case D-4's shared phases produce."""
+
+    from torve.config.runconfig import VerifyConfig
+
+    contracts = {
+        ENTRY_TASK: [VERIFY_TASK],
+        **({SIBLING_TASK: []} if sibling else {}),
+    }
+
+    for task_id, depends_on in contracts.items():
+        corpus = root / layout.TORVE_DIR / "tasks" / task_id
+        corpus.mkdir(parents=True, exist_ok=True)
+        (corpus / "contract.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": 1,
+                    "id": task_id,
+                    "role": "implement",
+                    "spec": "S-0116",
+                    "phase": 4,
+                    "depends_on": depends_on,
+                    "scope": {"allow": ["src/**"], "deny": []},
+                    "acceptance": ["pytest -q"],
+                    "decisions": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+    run = _gate_dispatch(root=root, worktree=root, shadow=shadow)
+    run.task = Task(
+        id=VERIFY_TASK,
+        decisions=[],
+        role="verify",
+        spec="S-0116",
+        phase=4,
+        acceptance=["pytest -q --collect-only tests/verify/test_p4.py"],
+    )
+
+    if tests_dir is not None:
+        run.config = RunnerConfig(worker_slot=0, verify=VerifyConfig(tests_dir=tests_dir))
+
+    return run
+
+
+def _leave_holdout(root, name: str, text: str) -> None:
+    target = root / layout.TORVE_DIR / "tmp" / "holdout" / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+
+
+# ....................... #
+
+
+def test_a_verify_attempt_records_its_held_out_files_on_the_entry_and_deletes_them(tmp_path):
+    """S-0116/D-9: after a verify attempt the runner records the files under
+    `.torve/tmp/holdout/` as one `verify.holdout` event on the entry's
+    implement task — the actor being the worker — and deletes them, so they
+    reach neither the verify candidate's commit nor the implementer."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _record_holdout
+    from torve.application.runstate import RunState
+    from torve.domain.events import EventKind, VerifyHoldout
+
+    _leave_holdout(tmp_path, "test_p4.py", "# S-0116/D-10\ndef test_row():\n    assert False\n")
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            run = _verify_dispatch(tmp_path)
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+            state = RunState(task_id=VERIFY_TASK, path=naming.state_file(tmp_path, VERIFY_TASK))
+
+            await asyncio.to_thread(_record_holdout, run, state)
+
+            recorded = [
+                event
+                for event in await log.history(ENTRY_TASK, partition=PARTITION)
+                if event.kind is EventKind.VERIFY_HOLDOUT
+            ]
+
+            assert len(recorded) == 1
+            assert recorded[0].actor_kind == "worker"
+            assert [
+                one.name for one in VerifyHoldout.model_validate(recorded[0].payload).files
+            ] == ["test_p4.py"]
+
+    asyncio.run(main())
+
+    assert not (tmp_path / layout.TORVE_DIR / "tmp" / "holdout").exists()
+
+
+# ....................... #
+
+
+def test_the_entry_is_the_task_that_depends_on_the_verifier(tmp_path):
+    """S-0116/D-9, D-5: the held-out set lands on the implement task of the
+    verifier's own entry — the one that depends on it — and not on a sibling
+    of the same document and phase that sorts first, whose battery would then
+    run foreign properties while the right entry never saw them."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _record_holdout
+    from torve.application.runstate import RunState
+    from torve.domain.events import EventKind
+
+    _leave_holdout(tmp_path, "test_p4.py", "# S-0116/D-10\ndef test_row():\n    assert False\n")
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            run = _verify_dispatch(tmp_path, sibling=True)
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+            state = RunState(task_id=VERIFY_TASK, path=naming.state_file(tmp_path, VERIFY_TASK))
+
+            await asyncio.to_thread(_record_holdout, run, state)
+
+            async def held_out_on(task_id: str) -> list:
+                return [
+                    event
+                    for event in await log.history(task_id, partition=PARTITION)
+                    if event.kind is EventKind.VERIFY_HOLDOUT
+                ]
+
+            assert len(await held_out_on(ENTRY_TASK)) == 1
+            assert await held_out_on(SIBLING_TASK) == []
+
+    asyncio.run(main())
+
+
+# ....................... #
+
+
+def test_the_latest_held_out_record_replaces_the_earlier_ones(tmp_path):
+    """S-0116/D-9: the latest event is the held-out set. A second verify
+    attempt's files are what the battery is handed, not the union with the
+    first's — an implementer is answered by the properties still standing."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _latest_holdout, _record_holdout
+    from torve.application.runstate import RunState
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            run = _verify_dispatch(tmp_path)
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+            state = RunState(task_id=VERIFY_TASK, path=naming.state_file(tmp_path, VERIFY_TASK))
+
+            _leave_holdout(tmp_path, "test_old.py", "# S-0116/D-10\n")
+            await asyncio.to_thread(_record_holdout, run, state)
+
+            _leave_holdout(tmp_path, "test_new.py", "# S-0116/D-11\n")
+            await asyncio.to_thread(_record_holdout, run, state)
+
+            latest = await asyncio.to_thread(_latest_holdout, run, ENTRY_TASK)
+
+            assert [one.name for one in latest] == ["test_new.py"]
+
+    asyncio.run(main())
+
+
+# ....................... #
+
+
+def test_a_verify_attempt_that_wrote_nothing_records_an_empty_set(tmp_path):
+    """S-0116/D-9: empty when there are none — still a record, because the
+    latest event is the held-out set and an attempt that wrote nothing has
+    replaced the earlier files with nothing."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _latest_holdout, _record_holdout
+    from torve.application.runstate import RunState
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            run = _verify_dispatch(tmp_path)
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+            state = RunState(task_id=VERIFY_TASK, path=naming.state_file(tmp_path, VERIFY_TASK))
+
+            _leave_holdout(tmp_path, "test_old.py", "# S-0116/D-10\n")
+            await asyncio.to_thread(_record_holdout, run, state)
+            await asyncio.to_thread(_record_holdout, run, state)
+
+            assert await asyncio.to_thread(_latest_holdout, run, ENTRY_TASK) == []
+
+    asyncio.run(main())
+
+
+# ....................... #
+
+
+def test_a_battery_is_handed_the_latest_records_files_and_the_verifier_tests_dir(tmp_path):
+    """S-0116/D-10: the gate context carries the files of the task's latest
+    `verify.holdout` event and the directory a verifier's tests live under, so
+    the builtins run them out of the checkout they were given."""
+
+    from forze.application.execution import DepsRegistry, ExecutionRuntime
+
+    from torve.adapters.eventstore.document import mock_module
+    from torve.application.eventlog import RunLogChannel, event_log
+    from torve.application.runner import _attach_holdout, _record_holdout
+    from torve.application.runstate import RunState
+
+    async def main() -> None:
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            run = _verify_dispatch(tmp_path, tests_dir="tests/verifier")
+            run.deps.channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=VERIFY_TASK,
+                seat="w-1",
+            )
+            state = RunState(task_id=VERIFY_TASK, path=naming.state_file(tmp_path, VERIFY_TASK))
+
+            _leave_holdout(tmp_path, "test_p4.py", "# S-0116/D-10\n")
+            await asyncio.to_thread(_record_holdout, run, state)
+
+            context = _promotion_context(tmp_path, run.task)
+            await asyncio.to_thread(_attach_holdout, run, context)
+
+            assert [one.name for one in context.holdout] == ["test_p4.py"]
+            assert context.tests_dir == "tests/verifier"
+
+    asyncio.run(main())
+
+
+# ....................... #
+
+
+def test_the_recorded_files_are_capped(tmp_path):
+    """S-0116/D-9: what one event may carry is bounded, so a runaway verifier
+    cannot write a record no reader wants."""
+
+    from torve.application.runner import HOLDOUT_LIMIT, _holdout_files
+
+    _leave_holdout(tmp_path, "test_huge.py", "x" * (HOLDOUT_LIMIT * 2))
+
+    files = _holdout_files(tmp_path)
+
+    assert files and len(files[0].text) <= HOLDOUT_LIMIT
