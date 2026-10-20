@@ -789,7 +789,7 @@ A store runtime a CLI verb opens closes its Postgres client when the runtime's s
 - Paths: `src/torve/cli/manager.py` `src/torve/application/feedback.py`
 - Consequence: the next attempt is briefed by the person who requeued it
 
-### S-0114/D-3 — `ASSUMED` (The judge reads only the commit) — implementation: none
+### S-0114/D-3 — `ASSUMED` (The judge reads only the commit)
 
 The lane's re-gate of a rebased candidate and the whole-document battery run their shell gates in a gates sandbox, under the default executor seat's image, over a judge checkout of the rebased tip under the lane's `lane-` prefix; `process_lane` is handed the sandbox factory by `torve merge` and the manager's lane leg.
 

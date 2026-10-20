@@ -2186,35 +2186,35 @@ Before a fast-forward, the lane runs the engine's citation scan over the candida
 - Paths: `src/torve/cli/manager.py` `src/torve/application/feedback.py`
 - Consequence: the next attempt is briefed by the person who requeued it
 
-### S-0114/D-1 — `ASSUMED` (The judge reads only the commit) — implementation: none
+### S-0114/D-1 — `ASSUMED` (The judge reads only the commit)
 
 Before an attempt's battery, the host commits what `git add -A` would stage in the worktree to a snapshot under `refs/torve/judge/<task>`, leaving the worktree's index and branch untouched, and builds a standalone checkout at `.wt/<task>.judge/` the way a shadow replay builds its clone: a fresh repository that fetches the snapshot alone, so it holds only the objects the snapshot reaches, checked out detached at the snapshot's commit, which the host verifies before any gate runs.
 
 - Paths: `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py`
 - Consequence: a gate reads only what the commit would carry, and can run git over the candidate's history
 
-### S-0114/D-2 — `ASSUMED` (The judge reads only the commit) — implementation: none
+### S-0114/D-2 — `ASSUMED` (The judge reads only the commit)
 
 An attempt's gate pass builds its context over the judge checkout and mounts the checkout, not the worktree, into the gates sandbox; the toolchain cache volume mounts as before.
 
 - Paths: `src/torve/application/runner.py`
 - Consequence: nothing an attempt leaves outside its commit reaches a verdict
 
-### S-0114/D-3 — `ASSUMED` (The judge reads only the commit) — implementation: none
+### S-0114/D-3 — `ASSUMED` (The judge reads only the commit)
 
 The lane's re-gate of a rebased candidate and the whole-document battery run their shell gates in a gates sandbox, under the default executor seat's image, over a judge checkout of the rebased tip under the lane's `lane-` prefix; `process_lane` is handed the sandbox factory by `torve merge` and the manager's lane leg.
 
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: no gate battery runs a candidate's code on the host
 
-### S-0114/D-4 — `ASSUMED` (The judge reads only the commit) — implementation: none
+### S-0114/D-4 — `ASSUMED` (The judge reads only the commit)
 
 When the attempt ends, before the gate pass writes into the worktree, the host lists the ignored files under the worktree that the attempt created or changed, outside the toolchain caches and the files the engine wrote there whose content is still what the engine wrote, and records a list that is not empty as the shadow result `ignored-writes` in the attempt's battery; the reviewer does not read it.
 
 - Paths: `src/torve/application/runner.py`
 - Consequence: an attempt that writes outside its commit shows in its record without changing a verdict
 
-### S-0114/D-5 — `ASSUMED` (The judge reads only the commit) — implementation: none
+### S-0114/D-5 — `ASSUMED` (The judge reads only the commit)
 
 Each battery removes its judge checkout and ref when it ends, green or red: the attempt's gate pass its `.wt/<task>.judge/`, the lane the one it opened under its own `lane-` prefix. `torve reap` reads a `<task>.judge` checkout's liveness from its task's run state, keeps a live battery's checkout, removes one a killed pass left with the rest of the task's footprint, and leaves the lane's to the lane.
 
