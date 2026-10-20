@@ -386,6 +386,36 @@ def test_the_built_wheel_carries_no_projection(tmp_path):
     ]
 
 
+def test_the_night_reference_covers_the_verify_pilot():
+    """S-0116/D-13: the reference an operator reads during a night says what
+    changes when the pilot is on, how a held-out failure is read, and how a
+    disputed verifier test arrives."""
+
+    raw = (skills_root() / "torve" / "references" / "night.md").read_text(encoding="utf-8")
+    text = " ".join(raw.split())
+
+    assert "verify.enabled" in text
+    assert "held-out" in text
+    assert "the failing test's identifier, its message and the rows it cites" in text
+    assert "naming the test and the row it claims to decide" in text
+    assert "underspecified" in text
+
+
+def test_the_spec_writer_asks_a_phase_intent_to_name_the_public_surface():
+    """S-0116/D-13: a phase written for a verifier names what to test, so the
+    verifier does not invent an API — the skill and the template it points at
+    both say the intent carries the surface the phase's tests drive."""
+
+    raw = (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
+    skill = " ".join(raw.split())
+    template = (skills_root() / "spec-writer" / "references" / "spec-template.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "The intent names the public surface the phase's tests drive" in skill
+    assert "the public surface its" in template
+
+
 def test_the_verifier_skill_briefs_an_independent_test():
     """S-0116/D-6: the verify role learns in one place what makes its tests
     independent — the rows and the intent alone, a test per settled row citing

@@ -81,7 +81,9 @@ phasing:
   - phase: 1
     title: <a short unit name>
     intent: >-
-      One paragraph: what changes and why. This is the contract's intent.
+      One paragraph: what changes and why, naming the public surface its
+      tests drive — the functions, types or commands it introduces or
+      changes. This is the contract's intent.
     scope: [src/example/**, tests/test_example.py]   # a module and its existing test file
     acceptance: [uv run pytest tests/test_example.py]
     depends_on: []
