@@ -1265,3 +1265,77 @@ def test_refresh_does_not_wire_a_phase_that_holds_no_verifier(pilot_repo):
 
     assert [one.changed for one in report.tasks] == [[]]
     assert refresh_contracts(root, report) == []
+
+
+def test_refresh_keeps_the_verifier_a_contract_was_minted_with(pilot_repo):
+    """S-0116/D-5: an entry's verifier wiring is fixed at mint, so a refresh
+    whose derivation no longer earns one — the pilot is off — still denies the
+    verifier's file and runs it, rather than dropping the two the derivation
+    would not have written."""
+
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, write_doc, git = pilot_repo
+    a_feat_doc(
+        write_doc,
+        git,
+        "0097",
+        [
+            {
+                "phase": 1,
+                "title": "core",
+                "intent": "Build the core.",
+                "scope": ["src/core/**"],
+                "acceptance": ["make test"],
+            }
+        ],
+    )
+    spec_dir = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, spec_dir, "0097"))
+    config = root / ".torve" / "config.yaml"
+    config.write_text("schema_version: 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "pilot off")
+
+    report = refresh_document(root, spec_dir, "0097")
+
+    assert [one.changed for one in report.tasks] == [[], []]
+    assert refresh_contracts(root, report) == []
+
+    keeper = contract_of(root, "T-0002")
+
+    assert keeper.role == "implement"
+    assert keeper.scope.deny == ["tests/verify/test_s0097_p1.py"]
+    assert keeper.acceptance == ["make test", f"{RUN} tests/verify/test_s0097_p1.py"]
+    assert keeper.depends_on == ["T-0001"]
+
+
+def test_refresh_drops_a_phase_command_edited_away_from_a_verifier_mint(pilot_repo):
+    """S-0088/D-1, S-0116/D-4, D-5: a refresh rewrites the phase's own
+    acceptance from the document. Only the verifier's run is fixed at mint, so
+    editing a phase's command replaces it in the implement contract rather than
+    leaving the old one behind beside it."""
+
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, write_doc, git = pilot_repo
+    entry = {
+        "phase": 1,
+        "title": "core",
+        "intent": "Build the core.",
+        "scope": ["src/core/**"],
+        "acceptance": ["make test"],
+    }
+    a_feat_doc(write_doc, git, "0098", [entry])
+    spec_dir = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, spec_dir, "0098"))
+    a_feat_doc(write_doc, git, "0098", [entry | {"acceptance": ["make check"]}])
+
+    report = refresh_document(root, spec_dir, "0098")
+
+    assert [one.changed for one in report.tasks] == [[], ["acceptance"]]
+    assert [p.parent.name for p in refresh_contracts(root, report)] == ["T-0002"]
+
+    keeper = contract_of(root, "T-0002")
+
+    assert keeper.acceptance == ["make check", f"{RUN} tests/verify/test_s0098_p1.py"]

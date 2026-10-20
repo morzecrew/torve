@@ -350,6 +350,35 @@ def _minted_without_a_verifier(task: Task) -> Task:
     )
 
 
+def _verifier_runs(task: Task) -> list[str]:
+    """The acceptance lines that are the verifier's: those naming a file it
+    denies. Every other line is the phase's own, and a refresh takes it from
+    the derivation rather than the minted contract (S-0116/D-5)."""
+
+    return [line for line in task.acceptance if any(file in line for file in task.scope.deny)]
+
+
+def _minted_with_a_verifier(derived: Task, current: Task) -> Task:
+    """An implement derivation wearing the verifier its minted contract carries
+    (S-0116/D-5): the three wirings are fixed at mint, so a refresh whose
+    derivation no longer earns a verifier — the pilot is off, or the document's
+    change type left `verify.types` — still denies the verifier's file and runs
+    it. The file and its run come from the contract, never re-derived."""
+
+    # The verifier's run is the one acceptance line naming its file; every
+    # other line is the phase's own, and the derivation supplies it, so a
+    # command edited or dropped in the document leaves with it (S-0088/D-1).
+    runs = _verifier_runs(current)
+    kept = [line for line in derived.acceptance if line not in _verifier_runs(derived)]
+
+    return derived.model_copy(
+        update={
+            "scope": derived.scope.model_copy(update={"deny": list(current.scope.deny)}),
+            "acceptance": kept + runs,
+        }
+    )
+
+
 def _already_minted(
     root: Path, document: str, phases: set[int] | None, board: Board | None = None
 ) -> list[str]:
@@ -1073,10 +1102,11 @@ def _refresh(
         for planned in entries:
             by_role.setdefault(planned.task.role, []).append(planned)
 
-        # A refresh mints nothing, so a verifier a fresh mint would place ahead
-        # of an entry is not there to be depended on or run: the file a phase's
-        # verify contracts already own is the test of whether an implement
-        # derivation's verifier (S-0116/D-5) exists to be diffed against.
+        # S-0116/D-5: the verifier's wiring is fixed at mint, so the derivation
+        # is aligned with the contract before the diff: an implement contract
+        # that already denies a verifier's file keeps it and its run whichever
+        # way the derivation moves, and a phase that holds no verify contract
+        # is diffed against the derivation it can actually be dispatched under.
         verifiers = {
             allow for one in contracts if one.role == "verify" for allow in one.scope.allow
         }
@@ -1096,10 +1126,11 @@ def _refresh(
 
             derived = deriveds[offset].task
 
-            if current.role == "implement" and not all(
-                one in verifiers for one in derived.scope.deny
-            ):
-                derived = _minted_without_a_verifier(derived)
+            if current.role == "implement":
+                if current.scope.deny:
+                    derived = _minted_with_a_verifier(derived, current)
+                elif not all(one in verifiers for one in derived.scope.deny):
+                    derived = _minted_without_a_verifier(derived)
 
             changed = [
                 field
