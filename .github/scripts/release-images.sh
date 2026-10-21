@@ -10,7 +10,7 @@
 # the images it acts on are one list, derived here once.
 #
 # Reads VERSION (the tag's version), REGISTRY (where the images are published),
-# for `build` REVISION (the commit being built) and, for `check`, GH_TOKEN so
+# for `build` REVISION (the commit being built) and, for `check` and `push`, GH_TOKEN so
 # the registry can be asked what is already published.
 set -euo pipefail
 
@@ -64,25 +64,42 @@ harness_of() {
 	printf '%s' "${repository##*/}" | sed 's/-sandbox$//'
 }
 
-# S-0112/D-1: a published tag is never pushed twice. Asked before anything is
-# tagged, so a rerun after a partial push stops here rather than moving a tag
-# a digest already has.
-refuse_published() {
+# S-0112/D-1: a published tag is never pushed twice. Whether the registry
+# already holds this tag: true when it does, false when it does not, and a
+# registry that cannot answer stops the script, because reading that as "not
+# published" is how `push` would move a tag a digest already has.
+published() {
 	local package="$1" tag="$2" owner="${REGISTRY##*/}" existing
 	if ! existing="$(gh api --paginate "orgs/${owner}/packages/container/${package}/versions" \
 		--jq '.[].metadata.container.tags[]' 2>&1)"; then
 		# Only a package the organisation has never published is a first
 		# release; any other failure leaves the question unanswered.
 		if grep -q 'HTTP 404' <<<"$existing" && gh api "orgs/${owner}" >/dev/null 2>&1; then
-			return 0
+			return 1
 		fi
 		echo "::error::cannot ask the registry what ${package} has published: ${existing}" >&2
 		exit 1
 	fi
-	if printf '%s\n' "$existing" | grep -qx "$tag"; then
-		echo "::error::${package}:${tag} is already published; a tag is never pushed twice" >&2
-		exit 1
+	printf '%s\n' "$existing" | grep -qx "$tag"
+}
+
+# Push one reference unless it is already published. A rerun after a partial
+# push therefore publishes what is still missing and leaves the rest as it is,
+# rather than stopping on the first tag it finds. A push the registry refuses
+# is tried three times: GHCR has answered `unknown blob` once and then accepted
+# the same push (the 0.6.0 release).
+push_missing() {
+	local reference="$1" repository="${1%%:*}" attempt
+	if published "${repository##*/}" "${reference##*:}"; then
+		echo "::notice::${reference} is already published; it is not pushed again" >&2
+		return 0
 	fi
+	for attempt in 1 2 3; do
+		docker push "$reference" && return 0
+		[ "$attempt" = 3 ] || sleep $((attempt * ${PUSH_RETRY_SECONDS:-15}))
+	done
+	echo "::error::${reference} was refused three times" >&2
+	return 1
 }
 
 case "$verb" in
@@ -114,18 +131,24 @@ check)
 		fi
 	done < <(references)
 
+	# Asked before anything is pushed, so a registry that cannot answer stops
+	# the job here; a tag already published is named, and `push` skips it.
 	while read -r image; do
 		repository="${image%%:*}"
-		refuse_published "${repository##*/}" "${image##*:}"
-
+		tags=("${image##*:}")
 		version="$(harness_version "$image")"
-		[ -z "$version" ] && continue
-		refuse_published "${repository##*/}" "${version}-torve${TAG}"
+		[ -n "$version" ] && tags+=("${version}-torve${TAG}")
+
+		for tag in "${tags[@]}"; do
+			if published "${repository##*/}" "$tag"; then
+				echo "::notice::${repository##*/}:${tag} is already published; push skips it" >&2
+			fi
+		done
 	done < <(references)
 	;;
 push)
 	while read -r image; do
-		docker push "$image"
+		push_missing "$image"
 
 		# A seat is also tagged with the version its harness prints, for a
 		# person who wants that in the reference (S-0112/D-1).
@@ -133,7 +156,7 @@ push)
 		[ -z "$version" ] && continue
 		seat="${image%:*}:${version}-torve${TAG}"
 		docker tag "$image" "$seat"
-		docker push "$seat"
+		push_missing "$seat"
 	done < <(references)
 	;;
 *)

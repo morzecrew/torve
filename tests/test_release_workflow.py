@@ -164,10 +164,13 @@ def test_the_check_runs_without_a_revision_and_passes_a_first_release(
     assert done.returncode == 0, done.stderr
 
 
-def test_the_check_refuses_a_tag_already_published(tmp_path: Path) -> None:
+def test_the_check_names_a_tag_already_published_and_passes(tmp_path: Path) -> None:
+    """A rerun after a partial push finds some tags published. The check names
+    them and passes, and `push` skips them, so the rerun publishes the rest."""
+
     done = _check(tmp_path, "published")
 
-    assert done.returncode == 1
+    assert done.returncode == 0, done.stderr
     assert "already published" in done.stderr
 
 
@@ -178,4 +181,83 @@ def test_the_check_stops_when_the_registry_cannot_answer(tmp_path: Path) -> None
     done = _check(tmp_path, "broken")
 
     assert done.returncode == 1
+    assert "cannot ask the registry" in done.stderr
+
+
+# The script's `push` against a fake `docker` that records each push and fails
+# the first `FAKE_FAILURES` of them, as GHCR's `unknown blob` failed the 0.6.0
+# release's `codex-sandbox` push once.
+
+_FAKE_PUSHING_DOCKER = """#!/bin/sh
+case "$1" in
+inspect) echo "<no value>" ;;
+push)
+  echo "$2" >> "$PUSHES"
+  count=$(wc -l < "$PUSHES")
+  [ "$count" -gt "${FAKE_FAILURES:-0}" ] || { echo "unknown blob" >&2; exit 1; }
+  ;;
+esac
+"""
+
+
+def _push(
+    tmp_path: Path, registry_answer: str, failures: int = 0
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    fakes = tmp_path / "bin"
+    fakes.mkdir()
+
+    for name, body in (("docker", _FAKE_PUSHING_DOCKER), ("gh", _FAKE_GH)):
+        (fakes / name).write_text(body, encoding="utf-8")
+        (fakes / name).chmod(0o755)
+
+    pushes = tmp_path / "pushes"
+    pushes.touch()
+    env = {
+        "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}",
+        "VERSION": "0.5.0",
+        "REGISTRY": "ghcr.io/morzecrew",
+        "FAKE_VERSION": "0.5.0",
+        "FAKE_GH": registry_answer,
+        "FAKE_FAILURES": str(failures),
+        "PUSHES": str(pushes),
+        "PUSH_RETRY_SECONDS": "0",
+    }
+
+    done = subprocess.run(
+        ["bash", str(SCRIPT), "push"], capture_output=True, text=True, env=env, check=False
+    )
+
+    return done, pushes.read_text(encoding="utf-8").split()
+
+
+def test_the_push_skips_every_tag_already_published(tmp_path: Path) -> None:
+    done, pushes = _push(tmp_path, "published")
+
+    assert done.returncode == 0, done.stderr
+    assert pushes == []
+    assert "not pushed again" in done.stderr
+
+
+def test_the_push_retries_a_push_the_registry_refuses(tmp_path: Path) -> None:
+    done, pushes = _push(tmp_path, "empty", failures=2)
+
+    assert done.returncode == 0, done.stderr
+    # The first reference is tried three times and pushed on the third.
+    assert pushes[0] == pushes[1] == pushes[2]
+    assert len(pushes) == len(set(pushes)) + 2
+
+
+def test_the_push_stops_after_three_refusals(tmp_path: Path) -> None:
+    done, pushes = _push(tmp_path, "empty", failures=1000)
+
+    assert done.returncode != 0
+    assert len(pushes) == 3
+    assert "refused three times" in done.stderr
+
+
+def test_the_push_stops_when_the_registry_cannot_answer(tmp_path: Path) -> None:
+    done, pushes = _push(tmp_path, "broken")
+
+    assert done.returncode == 1
+    assert pushes == []
     assert "cannot ask the registry" in done.stderr
