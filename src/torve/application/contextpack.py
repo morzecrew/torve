@@ -283,9 +283,9 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
     # so a Go or TS module pairs too (S-0106/D-7); the extension also keeps a
     # bare directory out of the pairing.
     modules = [
-        glob
+        glob.lstrip("/")
         for glob in task.scope.allow
-        if "*" not in glob and not glob.startswith("tests/") and Path(glob).suffix
+        if "*" not in glob and not glob.lstrip("/").startswith("tests/") and Path(glob).suffix
     ]
     modules += [
         path
@@ -756,7 +756,7 @@ def _in_scope(
     named = {str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])}
     contingent = set(task.scope.contingent)
     literal = contingent | {
-        entry for entry in task.scope.allow if not any(c in entry for c in "*?[")
+        entry.lstrip("/") for entry in task.scope.allow if not any(c in entry for c in "*?[")
     }
     found: set[str] = set()
 

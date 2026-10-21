@@ -142,6 +142,8 @@ arrives first, invisibly.
 3. **Non-overlapping scope within a phase.** Entries with the same phase
    number must not share globs — overlapping tasks cannot run in parallel and
    the plan silently serialises. Say it while writing, when it is free to fix.
+   Scopes read on the gitignore grammar, so a root file is written `/README.md`:
+   bare `README.md` matches at any depth and overlaps every other scope.
 
 3b. **A phase owns every file its acceptance can turn red.** A scope that is
    too narrow is the most common reason an attempt halts. Before you write a

@@ -560,7 +560,8 @@ class RottedRow:
 
 def _matches(root: Path, pattern: str) -> bool:
     try:
-        return next(root.glob(pattern), None) is not None
+        # `Path.glob` refuses an absolute pattern; a leading `/` is the root anchor.
+        return next(root.glob(pattern.lstrip("/")), None) is not None
     except (ValueError, NotImplementedError):
         return False
 

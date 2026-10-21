@@ -777,7 +777,8 @@ def find_comments(text: str) -> list[int]:
 
 def _glob_matches(root: Path, pattern: str) -> bool:
     try:
-        return next(root.glob(pattern), None) is not None
+        # `Path.glob` refuses an absolute pattern; a leading `/` is the root anchor.
+        return next(root.glob(pattern.lstrip("/")), None) is not None
     except (ValueError, NotImplementedError):
         return False
 
@@ -1145,6 +1146,24 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
                 f"{where}: cites {cite.group(1)}:{cite.group(2)} — line numbers rot at the "
                 "first refactor above them (S-0007/format-validation); cite the path alone"
             )
+
+    # A scope entry with no slash and no wildcard names a root file to its
+    # author, but the gitignore grammar matches it at any depth, and as a
+    # directory with anything under it, so the board reads the phase as
+    # overlapping every other task and runs the document one task at a time.
+    # Only a document still to be built is warned: a finished one schedules
+    # nothing.
+    if doc.implementation != "complete":
+        for entry in doc.phasing:
+            loose = [g for g in entry.scope if "/" not in g and not any(c in g for c in "*?[")]
+
+            if loose:
+                warnings.append(
+                    f"{where}: phase {entry.phase} scope names "
+                    f"{', '.join(repr(g) for g in loose)} with no slash, which matches at any "
+                    "depth and overlaps every other task's scope; write "
+                    f"{', '.join(repr('/' + g) for g in loose)} for the root file"
+                )
 
     return problems, warnings
 

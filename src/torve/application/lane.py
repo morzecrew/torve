@@ -1166,7 +1166,7 @@ def _holdout_targets(root: Path, document: str, reader: HoldoutReader) -> dict[s
         if not task.scope.deny:
             continue
 
-        parent, _, leaf = task.scope.deny[0].rpartition("/")
+        parent, _, leaf = task.scope.deny[0].lstrip("/").rpartition("/")
         stem = leaf.rsplit(".", 1)[0]
         directory = f"{parent}/holdout" if parent else "holdout"
 

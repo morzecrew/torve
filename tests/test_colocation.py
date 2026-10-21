@@ -98,6 +98,9 @@ def test_directory_of_a_glob_or_a_file() -> None:
     assert directory_of("src/torve/cli/") == "src/torve/cli"
     assert directory_of("pyproject.toml") == "."
     assert directory_of("*.md") == "."
+    # The root anchor names the same directory, never an absolute one.
+    assert directory_of("/src/torve/cli/**") == "src/torve/cli"
+    assert directory_of("/pyproject.toml") == "."
 
 
 def test_a_governed_directory_gets_a_section_and_an_ungoverned_one_none(tmp_path: Path) -> None:

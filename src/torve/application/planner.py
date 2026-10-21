@@ -678,7 +678,7 @@ def plan_document(
         if not pilot.enabled or doc.change is None or doc.change.type not in pilot.types:
             return False
 
-        return any(one.startswith(source_prefix) for one in entry.scope)
+        return any(one.lstrip("/").startswith(source_prefix) for one in entry.scope)
 
     seen: dict[int, int] = {}
     verify_files: dict[int, str] = {}

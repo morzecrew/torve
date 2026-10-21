@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A scope glob may start with `/`, the root anchor: `/README.md` is the root's
+  README alone, so a phase naming it no longer blocks every other task as
+  overlapping. `torve spec check` warns when a phase names a root file with no
+  slash.
+
 ## [0.6.0] - 2026-10-21
 
 ### Added

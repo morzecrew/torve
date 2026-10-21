@@ -307,10 +307,22 @@ def test_lint_refuses_unparseable_acceptance(tree: Path):
 
 def test_lint_refuses_escaping_and_dead_globs(tree: Path):
     errors = lint_drafts(
-        tree, document(draft_dict(allow=["/etc/passwd", "../up.py", "src/nothing_*.py"])), 4
+        tree, document(draft_dict(allow=["src/../../etc", "../up.py", "src/nothing_*.py"])), 4
     )
     assert sum("escapes the tree" in e for e in errors) == 2
     assert any("matches nothing" in e for e in errors)
+
+
+def test_lint_reads_a_leading_slash_as_the_root_anchor(tree: Path):
+    """A leading `/` is the gitignore grammar's root anchor, the only way to
+    name a root file that does not also match at every depth. It used to read
+    as an absolute path and was refused as escaping the tree."""
+
+    errors = lint_drafts(tree, document(draft_dict(allow=["/src/app.py", "/src/**"])), 4)
+    assert not any("/src/" in e for e in errors), errors
+
+    errors = lint_drafts(tree, document(draft_dict(allow=["/src"])), 4)
+    assert any("names a directory" in e for e in errors), errors
 
 
 def test_a_glob_with_an_inner_slash_is_anchored_not_right_anchored():
@@ -1552,6 +1564,17 @@ def test_configuration_lint_refuses_a_definition_nothing_would_build(tree):
     (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
     (tree / "bake.hcl").write_text('target "dsh" {\n}\n', encoding="utf-8")
     doc = document(draft_dict(allow=["sandboxes/ghost/Dockerfile"]))
+    errors = lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime())
+
+    assert any("names no target for it" in e for e in errors)
+
+
+def test_configuration_lint_reads_an_anchored_definition(tree):
+    definition = tree / "sandboxes" / "ghost"
+    definition.mkdir(parents=True)
+    (definition / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (tree / "bake.hcl").write_text('target "dsh" {\n}\n', encoding="utf-8")
+    doc = document(draft_dict(allow=["/sandboxes/ghost/Dockerfile"]))
     errors = lint_configuration_change(tree, doc, RunnerConfig(), StubRuntime())
 
     assert any("names no target for it" in e for e in errors)
