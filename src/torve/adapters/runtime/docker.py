@@ -178,6 +178,8 @@ class DockerRuntime:
             text=True,
             # A sandboxed command's output is whatever bytes it printed: one
             # that is not UTF-8 is a gate's output, not an infrastructure failure.
+            # UTF-8 rather than the host's locale, so a byte reads the same on every host.
+            encoding="utf-8",
             errors="replace",
             timeout=timeout,
             check=False,
