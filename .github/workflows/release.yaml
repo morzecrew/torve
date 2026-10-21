@@ -168,6 +168,12 @@ jobs:
     name: Build and publish the sandbox images
     needs: publish
     runs-on: ubuntu-latest
+    # One images job per tag at a time: `push` asks the registry before each
+    # push, and two runs over one tag could both find a tag missing and push it
+    # twice. A queued run waits rather than cancelling one mid-push.
+    concurrency:
+      group: release-images-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write

@@ -47,6 +47,17 @@ def test_the_images_job_runs_after_publish() -> None:
     assert images["needs"] == "publish"
 
 
+def test_one_images_job_runs_per_tag_and_none_is_cancelled() -> None:
+    """`push` asks the registry before each push, so two runs over one tag
+    could both find a tag missing and push it twice (S-0112/D-1)."""
+
+    workflow = yaml.safe_load(RELEASE.read_text(encoding="utf-8"))
+    concurrency = workflow["jobs"]["images"]["concurrency"]
+
+    assert "github.ref" in concurrency["group"]
+    assert concurrency["cancel-in-progress"] is False
+
+
 def test_the_job_may_write_to_the_package_registry() -> None:
     """A push needs `packages: write`; the workflow grants nothing else."""
 
@@ -124,6 +135,7 @@ case "$FAKE_GH:$last" in
 *:orgs/morzecrew) exit 0 ;;
 empty:*) exit 0 ;;
 published:*) echo "$FAKE_VERSION" ;;
+nearmiss:*) echo "$FAKE_VERSION" | tr . - ;;
 missing:*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
 *) echo "gh: Server Error (HTTP 502)" >&2; exit 1 ;;
 esac
@@ -236,6 +248,17 @@ def test_the_push_skips_every_tag_already_published(tmp_path: Path) -> None:
     assert done.returncode == 0, done.stderr
     assert pushes == []
     assert "not pushed again" in done.stderr
+
+
+def test_the_push_reads_a_published_tag_as_a_fixed_string(tmp_path: Path) -> None:
+    """`0-5-0` is not `0.5.0`: read as a pattern, the tag's dots matched it and
+    the push skipped an image nobody had published."""
+
+    done, pushes = _push(tmp_path, "nearmiss")
+
+    assert done.returncode == 0, done.stderr
+    assert pushes != []
+    assert "not pushed again" not in done.stderr
 
 
 def test_the_push_retries_a_push_the_registry_refuses(tmp_path: Path) -> None:

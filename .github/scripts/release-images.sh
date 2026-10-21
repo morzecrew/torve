@@ -80,7 +80,8 @@ published() {
 		echo "::error::cannot ask the registry what ${package} has published: ${existing}" >&2
 		exit 1
 	fi
-	printf '%s\n' "$existing" | grep -qx "$tag"
+	# A fixed string: a tag's `.` is not a wildcard, so `0-5-0` never reads as `0.5.0`.
+	printf '%s\n' "$existing" | grep -qxF -- "$tag"
 }
 
 # Push one reference unless it is already published. A rerun after a partial
