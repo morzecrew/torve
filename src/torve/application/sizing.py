@@ -37,6 +37,8 @@ def _module_of(glob: str) -> str | None:
     `*`, `?` — names no module either. `**/x.py` could be anywhere, so counting
     its `**` as a module was never a module."""
 
+    glob = glob.lstrip("/")
+
     if "/" not in glob:
         return None
 

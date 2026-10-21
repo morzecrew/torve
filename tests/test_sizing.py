@@ -41,6 +41,13 @@ def test_estimate_scope_too_large_on_module_count():
     assert "top-level modules" in verdict.reasons[0]
 
 
+def test_an_anchored_glob_counts_as_the_module_it_names():
+    """`/src/**` is `src/**` anchored at the root, not a module named `""`."""
+    verdict = sizing.estimate_scope(Scope(allow=["src/a.py", "/src/b.py", "/tests/a.py"]), [])
+    assert verdict.size == "ok"
+    assert sizing._module_of("/docker-bake.hcl") is None
+
+
 def test_tests_are_not_a_module():
     """Every minted phase carries tests/** beside its code — a count that
     included them called every task in the repository too_large, which

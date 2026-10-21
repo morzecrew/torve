@@ -343,6 +343,52 @@ def test_a_complete_rfc_citing_a_missing_area_reddens(tmp_path: Path) -> None:
     assert "matches nothing" in result.output
 
 
+def test_a_complete_rfc_citing_an_anchored_area_stays_green(tmp_path: Path) -> None:
+    """`Path.glob` refuses an absolute pattern, which once read every anchored
+    glob as matching nothing and reddened a complete document over it."""
+
+    (tmp_path / "src" / "real").mkdir(parents=True)
+    (tmp_path / "src" / "real" / "x.py").write_text("", encoding="utf-8")
+    anchored = rfc_text(
+        "0001",
+        "Widget",
+        status="accepted",
+        implementation="complete",
+        rows=[("D-1", "LOCKED", "Something is decided", "`/src/real/**`")],
+    )
+    seed(tmp_path, ("0001", anchored))
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "matches nothing" not in result.output
+
+
+def test_a_phase_naming_a_root_file_without_a_slash_is_warned(tmp_path: Path) -> None:
+    """A bare `README.md` matches at any depth on the gitignore grammar, so the
+    board reads the phase as overlapping every other task's scope."""
+
+    from test_decisions import PHASE
+
+    loose = {**PHASE, "scope": ["src/a/**", "README.md", "/pyproject.toml"]}
+    seed(
+        tmp_path,
+        (
+            "0001",
+            document(
+                "0001", [("S-0001/D-1", "OPEN", "x", "—")], phasing=[loose], implementation="none"
+            ),
+        ),
+    )
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == 0, result.output
+    assert "'README.md' with no slash" in result.output
+    assert "'/README.md'" in result.output
+    assert "'pyproject.toml'" not in result.output
+
+
 def test_a_complete_rfc_citing_an_uncommitted_area_stays_green(tmp_path: Path) -> None:
     """S-0070/D-5: a glob matching nothing because the repository deliberately
     does not commit those files is a clean tree, not governance over nothing.

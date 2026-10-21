@@ -164,7 +164,10 @@ def _glob_errors(
     errors: list[str] = []
 
     for pattern in globs:
-        if pattern.startswith("/") or ".." in pattern.split("/"):
+        # A leading `/` is the gitignore grammar's root anchor (`/README.md` is
+        # the root's README and no other), so it stays inside the tree; only a
+        # `..` segment leaves it.
+        if ".." in pattern.split("/"):
             errors.append(f"{ref}: {kind} glob {pattern!r} escapes the tree")
             continue
 
@@ -177,7 +180,7 @@ def _glob_errors(
         # write under it. The check above never saw it, because it asks only
         # about wildcards.
         if not any(ch in pattern for ch in "*?["):
-            bare = pattern.rstrip("/")
+            bare = pattern.strip("/")
             # `tree_paths` holds files, so a directory is what has files under
             # it and is not one itself.
             under = any(str(p).startswith(bare + "/") for p in tree_paths)
@@ -198,7 +201,7 @@ def _glob_errors(
             # phase puts there. A wildcard inside an existing directory that
             # matches nothing stays a refusal.
             if pattern.endswith("/**") and not any(
-                str(p).startswith(pattern[:-3] + "/") for p in tree_paths
+                str(p).startswith(pattern.lstrip("/")[:-3] + "/") for p in tree_paths
             ):
                 continue
 
@@ -678,7 +681,7 @@ def lint_configuration_change(
             continue
 
         for path in config_paths:
-            parts = Path(path).parts
+            parts = Path(path.lstrip("/")).parts
 
             if len(parts) >= 2 and parts[0] == "sandboxes":
                 touched_names.add(parts[1])

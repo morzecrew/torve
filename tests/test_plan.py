@@ -1088,6 +1088,30 @@ def a_feat_doc(write_doc, git, number: str, phasing: list[dict]) -> None:
     git("commit", "-qm", f"doc {number}")
 
 
+def test_a_root_anchored_source_scope_earns_a_verifier(pilot_repo):
+    """`/src/core/**` is `src/core/**` anchored at the root: the same source."""
+
+    root, write_doc, git = pilot_repo
+    a_feat_doc(
+        write_doc,
+        git,
+        "0091",
+        [
+            {
+                "phase": 1,
+                "title": "core",
+                "intent": "Build the core.",
+                "scope": ["/src/core/**"],
+                "acceptance": ["make test"],
+            }
+        ],
+    )
+
+    report = plan_document(root, root / ".torve" / "specs", "0091")
+
+    assert [p.task.role for p in report.tasks] == ["verify", "implement"]
+
+
 def test_a_feat_documents_source_phase_earns_a_verifier(pilot_repo):
     root, write_doc, git = pilot_repo
     a_feat_doc(

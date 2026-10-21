@@ -66,9 +66,10 @@ class Projection:
 def directory_of(glob: str) -> str:
     """The directory a path glob reaches: its literal prefix up to the first
     wildcard, or the parent of a literal file. A root-level file is the
-    root's, spelled `"."`."""
+    root's, spelled `"."`. A leading `/`, the gitignore root anchor, names the
+    same directory as the glob without it."""
 
-    literal = glob.split("*", 1)[0]
+    literal = glob.lstrip("/").split("*", 1)[0]
 
     if literal.endswith("/"):
         head = literal.rstrip("/")

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from test_decisions import corpus, document
 
@@ -298,10 +299,11 @@ def test_the_scope_does_not_pack_a_nested_test_tree_as_source(tmp_path: Path) ->
     assert "app/tests/test_mod.py" not in scope
 
 
-def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path) -> None:
+@pytest.mark.parametrize("named", ["app/tests/test_allowed.py", "/app/tests/test_allowed.py"])
+def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path, named: str) -> None:
     """S-0110/D-10 keeps out a test an allow glob sweeps in, never one the
-    scope names by path: a glob-free allow entry and a contingent literal are
-    packed though `tests.patterns` matches them."""
+    scope names by path: a glob-free allow entry, root-anchored or not, and a
+    contingent literal are packed though `tests.patterns` matches them."""
 
     (tmp_path / "app" / "tests").mkdir(parents=True)
     for name in ("test_allowed.py", "test_contingent.py", "test_swept.py"):
@@ -311,7 +313,7 @@ def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path) -> None:
         spec="S-0001",
         decisions=[],
         scope=Scope(
-            allow=["app/tests/test_allowed.py", "app/tests/*.py"],
+            allow=[named, "app/tests/*.py"],
             contingent=["app/tests/test_contingent.py"],
         ),
     )

@@ -444,6 +444,7 @@ def test_path_rot_names_rows_whose_every_glob_matches_nothing(tmp_path: Path) ->
                     ("S-0001/D-2", "LOCKED", "half", "`src/a/**` `src/gone/**`"),
                     ("S-0001/D-3", "ASSUMED", "rotted", "`src/gone/**`"),
                     ("S-0001/D-4", "OPEN", "pathless", "—"),
+                    ("S-0001/D-5", "ASSUMED", "anchored", "`/src/a/**`"),
                 ],
             ),
             "0002": document(
