@@ -7,12 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-21
+
 ### Fixed
 
 - A scope glob may start with `/`, the root anchor: `/README.md` is the root's
   README alone, so a phase naming it no longer blocks every other task as
   overlapping. `torve spec check` warns when a phase names a root file with no
   slash.
+
 - A release retries an image push the registry refuses, and a rerun after a
   partial push publishes only the images still missing. 0.6.0 published no
   `codex`, `dsh`, `mimo` or `opencode` seat image.
@@ -2407,7 +2410,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/morzecrew/torve/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/morzecrew/torve/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/morzecrew/torve/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/morzecrew/torve/compare/v0.3.2...v0.4.0
