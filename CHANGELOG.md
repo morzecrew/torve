@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A gate whose output is not valid UTF-8 reports its own verdict when it runs in a
+  sandbox. It was recorded as an infrastructure error, with its output lost.
+
 - A shell gate that runs git, such as `coverage-delta`'s `diff-cover --compare-branch`,
   judges the candidate in the sandbox. The battery's checkout is a repository of its own
   whose history reaches the attempt's base.

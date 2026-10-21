@@ -152,6 +152,19 @@ def test_docker_env_passthrough_carries_the_value_not_the_spec(docker_case, monk
         runtime.destroy(handle)
 
 
+def test_docker_exec_output_that_is_not_utf8_is_output(docker_case):
+    # A shell suite that prints a NUL-delimited wire format raised
+    # UnicodeDecodeError here, and the gate read as an infrastructure error.
+    runtime, workspace = docker_case
+    handle = runtime.create(auth_spec(), workspace)
+    try:
+        seen = runtime.exec(handle, r"printf 'ok \377\n'", 30)
+        assert seen.exit_code == 0
+        assert seen.output == "ok �\n"
+    finally:
+        runtime.destroy(handle)
+
+
 def test_docker_auth_volume_outlives_the_sandbox(docker_case):
     """The S-0004/D-2 property: sandboxes are ephemeral, the slot's volume is not —
     a token refresh written by one run is there for the next."""
