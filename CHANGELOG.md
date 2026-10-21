@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   README alone, so a phase naming it no longer blocks every other task as
   overlapping. `torve spec check` warns when a phase names a root file with no
   slash.
+- A release retries an image push the registry refuses, and a rerun after a
+  partial push publishes only the images still missing. 0.6.0 published no
+  `codex`, `dsh`, `mimo` or `opencode` seat image.
 
 ## [0.6.0] - 2026-10-21
 
