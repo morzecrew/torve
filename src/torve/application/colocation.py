@@ -25,6 +25,7 @@ files under the repository root. Nothing here reaches the record.
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -405,10 +406,14 @@ def _where_of(root: Path, path: Path) -> str:
 # ....................... #
 
 
-def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
+def project(
+    root: Path, rfc_dir: Path, *, check: bool = False, only: Collection[str] = ()
+) -> Projection:
     """Write every section into place (or, with *check*, compare and name
     the drift). A directory with no section left loses its block, and an
-    otherwise-empty file is removed."""
+    otherwise-empty file is removed. With *only*, every projected file not
+    named in it is left as it is: an attempt may write the projections
+    inside its scope and no others."""
 
     projection = compute(root, rfc_dir)
     wanted: dict[str, str] = {}
@@ -425,6 +430,11 @@ def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
 
     for where, section in wanted.items():
         path = root / (AGENTS_FILE if where == "." else f"{where}/{AGENTS_FILE}")
+        rel = path.relative_to(root).as_posix()
+
+        if only and rel not in only:
+            continue
+
         existing = path.read_text(encoding="utf-8") if path.is_file() else ""
         rendered = (
             _splice_root(existing, section) if where == "." else splice(existing, section, where)
@@ -432,8 +442,6 @@ def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
 
         if rendered == existing:
             continue
-
-        rel = path.relative_to(root).as_posix()
 
         if check:
             projection.drifted.append(rel)
@@ -445,10 +453,11 @@ def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
     for path in _managed_files(root):
         where = _where_of(root, path)
 
-        if where in wanted:
+        rel = path.relative_to(root).as_posix()
+
+        if where in wanted or (only and rel not in only):
             continue
 
-        rel = path.relative_to(root).as_posix()
         stripped = strip_section(path.read_text(encoding="utf-8"), where)
 
         if check:
