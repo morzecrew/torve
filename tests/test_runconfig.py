@@ -1149,7 +1149,7 @@ def test_nested_defaults_to_a_pinned_dind_image_a_gates_role_and_a_clock() -> No
     nested = RuntimeConfig().nested
 
     assert nested == NestedConfig(
-        image="docker:27.5.1-dind",
+        image="docker:29.7.2-dind",
         cache_volume="torve-dind",
         registry_mirrors=[],
         roles=["gates"],

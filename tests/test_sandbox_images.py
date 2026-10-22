@@ -1349,7 +1349,7 @@ def test_a_nested_sandbox_runs_a_compose_project_over_its_own_daemon(tmp_path):
         image=tag,
         labels=naming.labels("T-9907", uuid.uuid4().hex, Path.cwd()),
         timeout_s=900,
-        nested=NestedDocker(image="docker:27.5.1-dind", volume=volume, ready_s=180),
+        nested=NestedDocker(image="docker:29.7.2-dind", volume=volume, ready_s=180),
     )
 
     try:

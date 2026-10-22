@@ -513,7 +513,7 @@ def test_the_attempt_sandbox_is_nested_when_implement_is_nested(tmp_path):
     seen = _arm_session(tmp_path, docker="nested", nested_roles=["gates", "implement"])
 
     assert seen["nested"] is not None
-    assert seen["nested"].image == "docker:27.5.1-dind"
+    assert seen["nested"].image == "docker:29.7.2-dind"
     # `_arm_session` drives a shadow run, which starts cold (S-0035/D-3): its
     # daemon gets a throwaway volume, never the slot's `torve-dind-0`.
     assert seen["nested"].volume == ""

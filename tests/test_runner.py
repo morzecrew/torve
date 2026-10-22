@@ -3557,7 +3557,7 @@ def test_the_gates_sandbox_is_marked_nested_only_when_the_configuration_nests_ga
     spec = _gates_spec(run, state)
 
     assert spec.nested == NestedDocker(
-        image="docker:27.5.1-dind", volume="torve-dind-2", registry_mirrors=(), ready_s=60
+        image="docker:29.7.2-dind", volume="torve-dind-2", registry_mirrors=(), ready_s=60
     )
     assert spec.name.endswith("-gates")
 

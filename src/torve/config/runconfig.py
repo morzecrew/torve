@@ -1027,8 +1027,11 @@ class NestedConfig(BaseModel):
 
     model_config = STRICT
 
-    image: str = "docker:27.5.1-dind"
-    """The pinned dind image the privileged side container runs (S-0111/D-1)."""
+    image: str = "docker:29.7.2-dind"
+    """The pinned dind image the privileged side container runs (S-0111/D-1).
+    The engine's major tracks the hosts and CI that build the same images: on
+    27, a directory `COPY --chmod=0644` creates came out 0755, on 29 0644, so a
+    gate passed what CI then failed."""
     cache_volume: str = "torve-dind"
     """The base name of the volume holding the side container's `/var/lib/docker`
     (S-0111/D-2). The worker slot is appended, like every slot-suffixed volume: what a
