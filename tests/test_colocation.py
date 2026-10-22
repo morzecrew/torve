@@ -205,6 +205,44 @@ def test_a_hand_edit_inside_the_markers_is_drift_named_by_file(tmp_path: Path) -
     assert json.loads(result.output)["drifted"] == ["src/torve/cli/AGENTS.md"]
 
 
+def test_only_touches_the_named_files_and_leaves_the_rest_as_they_are(tmp_path: Path) -> None:
+    """The finish hook names the drift inside an attempt's scope; a bare
+    projection rewrote every directory in the tree, and the files outside the
+    scope convicted the attempt. `--only` writes the named files and no others."""
+    rfc_dir = _seed(tmp_path)
+
+    result = runner.invoke(
+        app,
+        ["spec", "project", "--root", str(tmp_path), "--only", "src/torve/cli/AGENTS.md"],
+    )
+
+    assert result.exit_code == 0
+    assert (tmp_path / "src/torve/cli/AGENTS.md").exists()
+    assert not (tmp_path / "AGENTS.md").exists()
+    assert not (tmp_path / "src/torve/gates/AGENTS.md").exists()
+    assert not (tmp_path / "src/torve/domain/AGENTS.md").exists()
+
+    # Removal honours it too: a stale file outside the list is left alone.
+    project(tmp_path, rfc_dir)
+    slim = document(
+        "0001", [("S-0001/D-1", "LOCKED", "Verbs parse and render only", "`src/torve/cli/**`")]
+    )
+    place(rfc_dir, "0001", slim)
+
+    projection = project(tmp_path, rfc_dir, only={"src/torve/domain/AGENTS.md"})
+
+    assert projection.removed == ["src/torve/domain/AGENTS.md"]
+    assert projection.written == []
+    assert (tmp_path / "src/torve/gates/AGENTS.md").exists()
+
+    # A file outside the list is never opened, so one that is not UTF-8
+    # cannot fail a scoped run.
+    (tmp_path / "pages").mkdir()
+    (tmp_path / "pages/AGENTS.md").write_bytes(b"\xff torve:managed\n")
+
+    assert project(tmp_path, rfc_dir, only={"src/torve/cli/AGENTS.md"}).ok
+
+
 def test_removing_the_last_governing_row_removes_the_section_and_an_empty_file(
     tmp_path: Path,
 ) -> None:

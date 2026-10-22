@@ -28,6 +28,7 @@ acceptance unrun for the rest of the attempt.
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -256,9 +257,16 @@ def drift_owed(contract: Path, drifted: list[str]) -> list[str]:
     if not owed:
         return []
 
+    # Named file by file: a bare `torve spec project` rewrites every drifted
+    # projection in the tree, and the ones outside the scope convict the
+    # attempt (platform-images S-0002, T-0003 attempts 1 and 2).
+    command = shlex.join(
+        ["torve", "spec", "project", *(arg for rel in owed for arg in ("--only", rel))]
+    )
+
     return [
         "the spec projection has drifted inside this contract's scope — run "
-        "`torve spec project` and commit what it writes: " + ", ".join(owed)
+        f"`{command}` and commit what it writes: " + ", ".join(owed)
     ]
 
 

@@ -25,6 +25,7 @@ files under the repository root. Nothing here reaches the record.
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -378,9 +379,10 @@ def compute(root: Path, rfc_dir: Path) -> Projection:
 # ....................... #
 
 
-def _managed_files(root: Path) -> list[Path]:
+def _managed_files(root: Path, only: Collection[str] = ()) -> list[Path]:
     """Every AGENTS.md under the root carrying a managed block, so a
-    directory that stopped being governed loses its section."""
+    directory that stopped being governed loses its section. With *only*, a
+    file not named is never opened, so one the scope excludes cannot fail it."""
 
     found: list[Path] = []
 
@@ -388,6 +390,9 @@ def _managed_files(root: Path) -> list[Path]:
         parts = path.relative_to(root).parts[:-1]
 
         if any(part.startswith(".") or part == "node_modules" for part in parts):
+            continue
+
+        if only and path.relative_to(root).as_posix() not in only:
             continue
 
         if "torve:managed" in path.read_text(encoding="utf-8"):
@@ -405,10 +410,14 @@ def _where_of(root: Path, path: Path) -> str:
 # ....................... #
 
 
-def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
+def project(
+    root: Path, rfc_dir: Path, *, check: bool = False, only: Collection[str] = ()
+) -> Projection:
     """Write every section into place (or, with *check*, compare and name
     the drift). A directory with no section left loses its block, and an
-    otherwise-empty file is removed."""
+    otherwise-empty file is removed. With *only*, every projected file not
+    named in it is left as it is: an attempt may write the projections
+    inside its scope and no others."""
 
     projection = compute(root, rfc_dir)
     wanted: dict[str, str] = {}
@@ -425,6 +434,11 @@ def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
 
     for where, section in wanted.items():
         path = root / (AGENTS_FILE if where == "." else f"{where}/{AGENTS_FILE}")
+        rel = path.relative_to(root).as_posix()
+
+        if only and rel not in only:
+            continue
+
         existing = path.read_text(encoding="utf-8") if path.is_file() else ""
         rendered = (
             _splice_root(existing, section) if where == "." else splice(existing, section, where)
@@ -433,8 +447,6 @@ def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
         if rendered == existing:
             continue
 
-        rel = path.relative_to(root).as_posix()
-
         if check:
             projection.drifted.append(rel)
         else:
@@ -442,13 +454,14 @@ def project(root: Path, rfc_dir: Path, *, check: bool = False) -> Projection:
             path.write_text(rendered, encoding="utf-8")
             projection.written.append(rel)
 
-    for path in _managed_files(root):
+    for path in _managed_files(root, only):
         where = _where_of(root, path)
 
         if where in wanted:
             continue
 
         rel = path.relative_to(root).as_posix()
+
         stripped = strip_section(path.read_text(encoding="utf-8"), where)
 
         if check:

@@ -1132,6 +1132,9 @@ def test_drift_is_owed_only_inside_the_contract_s_scope(tmp_path: Path) -> None:
 
     (problem,) = check.drift_owed(contract, drifted)
 
+    # The command names the owed file: a bare `torve spec project` rewrites
+    # every drifted projection, the out-of-scope ones included.
+    assert "`torve spec project --only pages/AGENTS.md`" in problem
     assert "pages/AGENTS.md" in problem
     assert "pages/private/AGENTS.md" not in problem
     assert "src/torve/AGENTS.md" not in problem

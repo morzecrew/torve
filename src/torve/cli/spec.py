@@ -1421,6 +1421,13 @@ def project_cmd(
     check: Annotated[
         bool, typer.Option("--check", help="Compare instead of writing; drift exits 3.")
     ] = False,
+    only: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--only",
+            help="Touch only this projected file, as the tree spells it (repeat per file).",
+        ),
+    ] = None,
     root: RootOption = Path("."),
     config: ConfigOption = None,
     fmt: FormatOption = Format.TEXT,
@@ -1435,7 +1442,7 @@ def project_cmd(
     from torve.application.colocation import project
 
     try:
-        projection = project(root, corpus_dir(root, config), check=check)
+        projection = project(root, corpus_dir(root, config), check=check, only=only or ())
     except Exception as exc:  # the loader's refusals, named
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
