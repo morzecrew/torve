@@ -3088,9 +3088,11 @@ def test_a_local_document_branch_the_remote_moved_past_is_not_cut_from(repo):
     repo.seed()
     branch = naming.document_branch("S-0083")
     repo.git("branch", branch, "main")
+    # On the checked-out task branch, which descends from main: the remote's
+    # copy moves past the local one rather than diverging from it.
     repo.write("hand.txt", "a hand commit on the pull request\n")
     repo.commit("hand commit")
-    repo.git("update-ref", f"refs/remotes/origin/{branch}", "main")
+    repo.git("update-ref", f"refs/remotes/origin/{branch}", "HEAD")
 
     assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
         f"origin/{branch}",
