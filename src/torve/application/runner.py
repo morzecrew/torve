@@ -1939,13 +1939,37 @@ def _cut_from(root: Path, task: Task, config: RunnerConfig) -> tuple[str | None,
     if promotion.landing != "pull_request" or promotion.unit != "document" or task.spec is None:
         return resolve_base(root, config.base), False, None
 
+    branch = naming.document_branch(task.spec)
+
     try:
-        document = resolve_base(root, f"origin/{naming.document_branch(task.spec)}")
+        document = resolve_base(root, f"origin/{branch}")
 
     except GitError:
         return resolve_base(root, config.base), True, None
 
+    # A landing held for its wave (S-0097/D-6) is on this checkout's copy only,
+    # and the lane lands onto that copy: a phase cut without it conflicts with
+    # it on every attempt, and the requeue cut it again from the same place.
+    if document is not None and _holds_landings(root, branch, document):
+        document = branch
+
     return document, False, document
+
+
+def _holds_landings(root: Path, branch: str, remote: str) -> bool:
+    """Whether this checkout's *branch* is the remote's copy plus landings not
+    pushed yet — the lane's `_unpublished`, read through `git` because the
+    runner holds no `LaneVcs`. A branch absent here, behind the remote or
+    diverged from it is not one."""
+
+    try:
+        local = git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}")
+        git(root, "merge-base", "--is-ancestor", remote, local.strip())
+
+    except GitError:
+        return False
+
+    return local.strip() != git(root, "rev-parse", f"{remote}^{{commit}}").strip()
 
 
 # ....................... #

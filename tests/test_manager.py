@@ -301,6 +301,39 @@ def test_a_landing_file_on_the_documents_remote_tip_satisfies_a_dependency(tmp_p
     assert not GitLane().is_ancestor(repo.root, "f" * 40, "torve/S-0013")
 
 
+def test_a_landing_held_for_its_wave_satisfies_a_dependency(tmp_path):
+    """S-0097/D-6: a landing held for its wave is on this checkout's copy only.
+    The task cut carries it, so the dependency check reads the same copy."""
+    from torve.cli.manager import _dependencies_on_base
+    from torve.config.runconfig import RunnerConfig
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Lane")
+    repo.git("config", "user.email", "lane@example.invalid")
+    repo.write("src/a/app.py", "print('hello')\n")
+    repo.commit("init")
+    repo.git("checkout", "-q", "-b", "torve/S-0015")
+    repo.git("update-ref", "refs/remotes/origin/torve/S-0015", "HEAD")
+    repo.write(".torve/specs/S-0015/execution/T-1-1-20261021T000000Z.yaml", "task: T-1\n")
+    repo.commit("torve(T-1): landing of attempt 1")
+    repo.git("checkout", "-q", "main")
+
+    config = RunnerConfig.model_validate(
+        {"promotion": {"landing": "pull_request", "unit": "document", "auto_merge": True}}
+    )
+    dependent = Task(
+        id="T-2", spec="S-0015", decisions=[], depends_on=["T-1"], scope=Scope(allow=[], deny=[])
+    )
+    board = Board(
+        tasks={"T-1": TaskView(task_id="T-1", state=TaskState.READY, landed_sha="f" * 40)}
+    )
+
+    assert _dependencies_on_base(repo.root, config)(dependent, board)
+
+
 def test_a_local_document_branch_the_remote_lacks_is_no_base(tmp_path):
     """The branch the remote deleted after its merge is not the base a
     dependent is cut from, so a landing only it holds satisfies nothing."""

@@ -3035,6 +3035,46 @@ def test_a_local_document_branch_the_remote_lacks_is_not_cut_from(repo):
     )
 
 
+def test_a_landing_held_for_its_wave_is_in_the_cut(repo):
+    """S-0097/D-6: a held landing is on this checkout's copy only, and the lane
+    lands onto that copy. Cut from the remote's copy alone, the next phase
+    conflicted with it on every attempt (platform-images S-0002, T-0004)."""
+    from torve.application.runner import _cut_from
+
+    repo.seed()
+    branch = naming.document_branch("S-0083")
+    repo.git("update-ref", f"refs/remotes/origin/{branch}", "main")
+    repo.git("checkout", "-q", "-b", branch)
+    repo.write("held.txt", "a landing the wave holds\n")
+    repo.commit("held landing")
+    repo.git("checkout", "-q", "main")
+
+    assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
+        branch,
+        False,
+        branch,
+    )
+
+
+def test_a_local_document_branch_the_remote_moved_past_is_not_cut_from(repo):
+    """Only a copy that is the remote's plus held landings is cut from: one the
+    remote moved past (a hand commit pushed to the pull request) is stale."""
+    from torve.application.runner import _cut_from
+
+    repo.seed()
+    branch = naming.document_branch("S-0083")
+    repo.git("branch", branch, "main")
+    repo.write("hand.txt", "a hand commit on the pull request\n")
+    repo.commit("hand commit")
+    repo.git("update-ref", f"refs/remotes/origin/{branch}", "main")
+
+    assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
+        f"origin/{branch}",
+        False,
+        f"origin/{branch}",
+    )
+
+
 def test_the_first_phase_of_a_document_fetches_and_cuts_from_the_configured_base(repo):
     from torve.application.runner import _cut_from
 

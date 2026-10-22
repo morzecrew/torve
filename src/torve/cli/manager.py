@@ -546,8 +546,14 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
 
         if by_document and task.spec is not None:
             # The remote's copy, the one the lane and the task cut read
-            # (S-0091/D-1).
-            base = vcs.remote_tip(root, naming.document_branch(task.spec))
+            # (S-0091/D-1), plus a landing held for its wave on this
+            # checkout's copy, which the cut carries too (S-0097/D-6).
+            branch = naming.document_branch(task.spec)
+            base = vcs.remote_tip(root, branch)
+            local = vcs.tip(root, branch)
+
+            if base is not None and local is not None and local != base:
+                base = local if vcs.is_ancestor(root, base, local) else base
 
         if base is None:
             base = resolve_base(root, config.base)
