@@ -2233,6 +2233,134 @@ def test_an_open_document_on_an_unmoved_base_spends_no_push(lane_repo, tmp_path)
     assert len(published) == 1
 
 
+def test_a_phase_finished_by_hand_that_completes_the_document_publishes_it_ready(
+    lane_repo, tmp_path, monkeypatch
+):
+    """The last phase landed by hand moves the remote tip with no served
+    landing, so no battery judged the complete document and the pull request
+    stayed a draft. The open pull request's read-back judges that tip once,
+    and a green verdict publishes it ready, as the lane's own completion does."""
+
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7306", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7306", 1)
+    real = lane._regate
+    calls: list[str | None] = []
+
+    def regate(w: Path, b: str, t: str | None, gates=None):
+        if t is not None:
+            return real(w, b, t, gates)
+
+        calls.append(t)
+        return 0, "lint=pass, tests=pass"
+
+    monkeypatch.setattr(lane, "_regate", regate)
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    status = _Status()
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document", status=status)
+    document = naming.document_branch("S-0930")
+    assert calls == []
+
+    # Phase 2 finished by hand in another checkout: the work and its landing
+    # file pushed to the remote branch, this checkout's ref left behind.
+    _phase_contract(lane_repo, "T-7307", 2)
+    landed = git(lane_repo, "rev-parse", document)
+    git(lane_repo, "checkout", "-q", document)
+    (lane_repo / "two.py").write_text("two = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "two.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "two, by hand")
+    work = git(lane_repo, "rev-parse", "HEAD")
+    rel = ".torve/specs/S-0930/execution/T-7307-7-20261011T000000Z.yaml"
+    (lane_repo / rel).write_text(
+        f"task: T-7307\ncommit: {work}\nat: '2026-10-11T00:00:00Z'\n", encoding="utf-8"
+    )
+    git(lane_repo, "add", rel)
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "land T-7307 by hand")
+    git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")
+    git(lane_repo, "checkout", "-q", "main")
+    git(lane_repo, "branch", "-f", document, landed)
+    hand = git(lane_repo, "rev-parse", f"origin/{document}")
+    asked: list[str] = []
+
+    def read_back() -> list:
+        return process_lane(
+            lane_repo,
+            GitLane(),
+            publish=publish,
+            forge=_forge(_pr(number=27, state="open"), asked),
+            unit="document",
+            status=status,
+        )
+
+    results = read_back()
+
+    assert asked == [document]
+    assert calls == [None]
+    assert [r.action for r in results] == ["pull request", "already landed"]
+    assert results[0].sha == hand
+    assert published[-2:] == [("T-7307", document), ("T-7307", document)]
+    # The hand tip carries its own green verdict, so the publisher's second
+    # call publishes the pull request ready (S-0099/D-4).
+    assert status.completion(hand) == "success"
+    assert lane.document_tip_red(lane_repo, document, hand, status) is False
+
+    # Judged once: the verdict on the tip is what the next pass reads.
+    again = read_back()
+
+    assert calls == [None]
+    assert [r.action for r in again] == ["pull request open", "already landed"]
+    assert len(published) == 3
+
+
+def test_a_ready_publication_the_forge_refused_is_published_again(lane_repo, tmp_path, monkeypatch):
+    """The green verdict is written before the publication that turns the pull
+    request ready, because the publisher reads it. When that publication is
+    refused, the tip is green and the pull request still a draft; a later
+    read-back publishes it again rather than reading the verdict as done."""
+
+    from dataclasses import replace
+
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [0])
+    published: list[tuple[str, str]] = []
+
+    def publish(task_id: str, branch: str) -> str:
+        published.append((task_id, branch))
+
+        # The completing landing's second call, the one that publishes ready.
+        if len(published) == 3:
+            raise RuntimeError("the forge refused")
+
+        git(lane_repo, "push", "-q", "--force", "origin", f"{branch}:refs/heads/{branch}")
+        return "https://forge/pr/7"
+
+    status = _Status()
+    first = process_lane(lane_repo, GitLane(), publish=publish, unit="document", status=status)
+    document = naming.document_branch("S-0930")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert "pr refused" in [r.action for r in first]
+    assert status.completion(tip) == "success"
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=publish,
+        forge=_forge(replace(_pr(number=28, state="open"), draft=True), []),
+        unit="document",
+        status=status,
+    )
+
+    assert [r.action for r in results] == ["pull request", "already landed", "already landed"]
+    assert published[-1] == ("T-7307", document)
+    assert len(published) == 4
+    # The verdict stood: no second battery.
+    assert calls == [None]
+
+
 def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo, tmp_path):
     published: list[tuple[str, str]] = []
     # The phase and the base both write `app.py`, so no rebase of the branch
