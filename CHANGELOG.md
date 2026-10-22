@@ -23,9 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   acceptance gate names no `commands`; the round is refused by name. `torve
   doctor` is red while `threads.enabled` is on and the commands are missing.
 
-- A phase landed by hand that completes its document no longer leaves the pull
-  request a draft. The next lane pass runs the completion battery over the tip
-  once and marks the pull request ready when it is green.
+- A document pull request no longer stays a draft when its last phase lands by
+  hand, or when publishing it ready failed. The lane runs the completion battery
+  over a hand-completed tip once, and republishes a green tip still in draft.
 
 - The nested Docker daemon and the seat images' Docker CLI run 29.7.2, as hosts
   and CI do, instead of 27.5.1, where a directory `COPY --chmod` created got
