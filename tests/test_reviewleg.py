@@ -19,6 +19,7 @@ from torve.application.ports import PrInfo, ReviewThread, ThreadComment
 from torve.application.reviewleg import (
     ENGINE_WRITTEN_REPLY,
     MARKER,
+    NO_ACCEPTANCE,
     Claim,
     FenceRefused,
     Finding,
@@ -655,6 +656,39 @@ def test_the_leg_mints_no_more_rounds_than_the_pass_allows(seeded):
     review_thread_leg(seeded.root, config(rounds=2, findings=1), forge, lambda _t: False)
 
     assert len(events(seeded.root, "lane_review_task")) == 2
+
+
+def test_a_round_no_command_can_judge_is_refused_by_name(seeded):
+    # A manifest naming no acceptance commands mints no round. The guess this
+    # replaced, `uv run pytest`, failed every attempt of a repository with no
+    # pytest in it.
+    open_document(seeded.root)
+    seeded.write(
+        ".torve/gates.yaml",
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    {
+                        "name": "acceptance",
+                        "run": "@task.acceptance",
+                        "state": "blocking",
+                        "origin": "structural",
+                        "sabotage": "acceptance",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
+    forge = StubForge(pr(thread("t1")))
+
+    detail, minted = review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert minted is False
+    assert NO_ACCEPTANCE in detail
+    assert events(seeded.root, "lane_review_task") == []
+    assert forge.resolved == [] and forge.replied == []
 
 
 def test_a_closed_pull_request_is_left_alone(seeded):

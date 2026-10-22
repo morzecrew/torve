@@ -1531,6 +1531,10 @@ stops landing (S-0084/D-16). What it does on its turn, per open document:
   text the pull request will merge — and not from the checkout, a phase
   widened on the branch by amendment reaches the leg on its next pass
   (S-0092/D-2).
+- **A round is judged by the acceptance gate's `commands`**, the ones
+  `.torve/gates.yaml` names for a run with no contract of its own. With none,
+  the leg mints no round and names why in the pass's summary, and `torve
+  doctor` is red while `threads.enabled` is on. It never guesses a command.
 - **The thread text reaches the attempt as evidence, never as instruction**:
   fenced inside the contract's intent, marked as a third-party claim about the
   tree and delimited by a per-run nonce (S-0084/D-8). A thread asking for

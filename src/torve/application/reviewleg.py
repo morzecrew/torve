@@ -352,11 +352,24 @@ def engine_written(path: str) -> bool:
 # ....................... #
 
 
-def _acceptance(root: Path) -> list[str]:
+#: Why the leg mints no round for a repository whose manifest names no
+#: acceptance commands, and what doctor reports before a night finds out.
+NO_ACCEPTANCE = (
+    "the acceptance gate in .torve/gates.yaml names no `commands`, so a review "
+    "round has nothing to be judged by; add the commands the branch's battery runs"
+)
+
+
+def round_acceptance(root: Path) -> list[str]:
     """What a round is judged by: the repository's own acceptance fallback —
     the commands the gate manifest already names for a run carrying no
     contract of its own. Nothing about a round is special enough to invent a
-    second answer to a question this file already answers."""
+    second answer to a question this file already answers.
+
+    Empty when the manifest names none, and the leg then refuses the round by
+    name. A guessed command is a guess about the language: `uv run pytest`
+    was one, and a shell-and-Dockerfile repository spent every attempt of its
+    first round on "Failed to spawn: pytest" (platform-images, 2026-10-21)."""
 
     from torve.config.manifest import load_manifest
 
@@ -367,7 +380,7 @@ def _acceptance(root: Path) -> list[str]:
             if gate.builtin == "acceptance" and gate.commands:
                 return list(gate.commands)
 
-    return ["uv run pytest"]
+    return []
 
 
 # ....................... #
@@ -611,7 +624,7 @@ def compose_wave(
         nonce=nonce,
         intent="\n\n".join([INSTRUCTIONS, fenced]),
         allow=allow,
-        acceptance=_acceptance(root),
+        acceptance=round_acceptance(root),
         phases=tuple(phases),
         target=next((claim.target for claim in claims if claim.target), ""),
         battery=any(claim.battery for claim in claims),
@@ -1905,6 +1918,12 @@ def review_thread_leg(
                     battery,
                 )
             )
+
+        # A round no command can judge is refused by name, not minted to fail
+        # every attempt; its threads stay open for the operator.
+        if claims and not round_acceptance(root):
+            refused.append(NO_ACCEPTANCE)
+            continue
 
         # The head's findings minted together as rounds of file-disjoint waves
         # (S-0097/D-5), `rounds_per_pass` still bounding what this pass mints.
