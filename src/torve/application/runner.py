@@ -1957,19 +1957,25 @@ def _cut_from(root: Path, task: Task, config: RunnerConfig) -> tuple[str | None,
 
 
 def _holds_landings(root: Path, branch: str, remote: str) -> bool:
-    """Whether this checkout's *branch* is the remote's copy plus landings not
-    pushed yet — the lane's `_unpublished`, read through `git` because the
-    runner holds no `LaneVcs`. A branch absent here, behind the remote or
-    diverged from it is not one."""
+    """Whether this checkout's *branch* carries landings the remote lacks —
+    the lane's `_unpublished`, read through `git` because the runner holds no
+    `LaneVcs`. The lane keeps such a branch, diverged from the remote or not,
+    and lands onto it, so the cut follows the same rule. A branch absent here,
+    or one the remote already contains, is not one."""
 
     try:
         local = git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}")
-        git(root, "merge-base", "--is-ancestor", remote, local.strip())
 
     except GitError:
         return False
 
-    return local.strip() != git(root, "rev-parse", f"{remote}^{{commit}}").strip()
+    try:
+        git(root, "merge-base", "--is-ancestor", local.strip(), remote)
+
+    except GitError:
+        return True
+
+    return False
 
 
 # ....................... #

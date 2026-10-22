@@ -301,9 +301,12 @@ def test_a_landing_file_on_the_documents_remote_tip_satisfies_a_dependency(tmp_p
     assert not GitLane().is_ancestor(repo.root, "f" * 40, "torve/S-0013")
 
 
-def test_a_landing_held_for_its_wave_satisfies_a_dependency(tmp_path):
+@pytest.mark.parametrize("hand_pushed", [False, True])
+def test_a_landing_held_for_its_wave_satisfies_a_dependency(tmp_path, hand_pushed):
     """S-0097/D-6: a landing held for its wave is on this checkout's copy only.
-    The task cut carries it, so the dependency check reads the same copy."""
+    The task cut carries it, so the dependency check reads the same copy —
+    also after a hand push to the pull request diverges the two copies, since
+    the lane's `_unpublished` keeps this one and lands onto it."""
     from torve.cli.manager import _dependencies_on_base
     from torve.config.runconfig import RunnerConfig
     from torve.gates.sabotage import Repo
@@ -319,6 +322,13 @@ def test_a_landing_held_for_its_wave_satisfies_a_dependency(tmp_path):
     repo.git("update-ref", "refs/remotes/origin/torve/S-0015", "HEAD")
     repo.write(".torve/specs/S-0015/execution/T-1-1-20261021T000000Z.yaml", "task: T-1\n")
     repo.commit("torve(T-1): landing of attempt 1")
+
+    if hand_pushed:
+        repo.git("checkout", "-q", "--detach", "refs/remotes/origin/torve/S-0015")
+        repo.write("docs/hand.md", "a hand commit on the pull request\n")
+        repo.commit("a hand commit")
+        repo.git("update-ref", "refs/remotes/origin/torve/S-0015", "HEAD")
+
     repo.git("checkout", "-q", "main")
 
     config = RunnerConfig.model_validate(

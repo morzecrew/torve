@@ -552,8 +552,10 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
             base = vcs.remote_tip(root, branch)
             local = vcs.tip(root, branch)
 
-            if base is not None and local is not None and local != base:
-                base = local if vcs.is_ancestor(root, base, local) else base
+            # The lane's `_unpublished`: diverged or not, a copy carrying what
+            # the remote lacks is the one the lane keeps and lands onto.
+            if base is not None and local is not None and not vcs.is_ancestor(root, local, base):
+                base = local
 
         if base is None:
             base = resolve_base(root, config.base)

@@ -3056,9 +3056,33 @@ def test_a_landing_held_for_its_wave_is_in_the_cut(repo):
     )
 
 
+def test_a_held_landing_is_in_the_cut_after_a_hand_push_too(repo):
+    """A hand commit pushed to the pull request moves the remote past the held
+    landing, and the copies diverge. The lane's `_unpublished` still keeps this
+    checkout's copy and lands onto it, so the cut reads it too."""
+    from torve.application.runner import _cut_from
+
+    repo.seed()
+    branch = naming.document_branch("S-0083")
+    repo.git("checkout", "-q", "-b", branch)
+    repo.write("held.txt", "a landing the wave holds\n")
+    repo.commit("held landing")
+    repo.git("checkout", "-q", "--detach", "main")
+    repo.write("hand.txt", "a hand commit on the pull request\n")
+    repo.commit("hand commit")
+    repo.git("update-ref", f"refs/remotes/origin/{branch}", "HEAD")
+    repo.git("checkout", "-q", "main")
+
+    assert _cut_from(repo.root, _executor_task(spec="S-0083"), _document_config()) == (
+        branch,
+        False,
+        branch,
+    )
+
+
 def test_a_local_document_branch_the_remote_moved_past_is_not_cut_from(repo):
-    """Only a copy that is the remote's plus held landings is cut from: one the
-    remote moved past (a hand commit pushed to the pull request) is stale."""
+    """A copy the remote already contains carries nothing held: one the remote
+    moved past (a hand commit pushed to the pull request) is stale."""
     from torve.application.runner import _cut_from
 
     repo.seed()
