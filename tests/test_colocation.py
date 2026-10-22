@@ -235,6 +235,13 @@ def test_only_touches_the_named_files_and_leaves_the_rest_as_they_are(tmp_path: 
     assert projection.written == []
     assert (tmp_path / "src/torve/gates/AGENTS.md").exists()
 
+    # A file outside the list is never opened, so one that is not UTF-8
+    # cannot fail a scoped run.
+    (tmp_path / "pages").mkdir()
+    (tmp_path / "pages/AGENTS.md").write_bytes(b"\xff torve:managed\n")
+
+    assert project(tmp_path, rfc_dir, only={"src/torve/cli/AGENTS.md"}).ok
+
 
 def test_removing_the_last_governing_row_removes_the_section_and_an_empty_file(
     tmp_path: Path,

@@ -379,9 +379,10 @@ def compute(root: Path, rfc_dir: Path) -> Projection:
 # ....................... #
 
 
-def _managed_files(root: Path) -> list[Path]:
+def _managed_files(root: Path, only: Collection[str] = ()) -> list[Path]:
     """Every AGENTS.md under the root carrying a managed block, so a
-    directory that stopped being governed loses its section."""
+    directory that stopped being governed loses its section. With *only*, a
+    file not named is never opened, so one the scope excludes cannot fail it."""
 
     found: list[Path] = []
 
@@ -389,6 +390,9 @@ def _managed_files(root: Path) -> list[Path]:
         parts = path.relative_to(root).parts[:-1]
 
         if any(part.startswith(".") or part == "node_modules" for part in parts):
+            continue
+
+        if only and path.relative_to(root).as_posix() not in only:
             continue
 
         if "torve:managed" in path.read_text(encoding="utf-8"):
@@ -450,13 +454,13 @@ def project(
             path.write_text(rendered, encoding="utf-8")
             projection.written.append(rel)
 
-    for path in _managed_files(root):
+    for path in _managed_files(root, only):
         where = _where_of(root, path)
 
-        rel = path.relative_to(root).as_posix()
-
-        if where in wanted or (only and rel not in only):
+        if where in wanted:
             continue
+
+        rel = path.relative_to(root).as_posix()
 
         stripped = strip_section(path.read_text(encoding="utf-8"), where)
 
