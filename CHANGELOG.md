@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer conflicts with them on every attempt. A second conflict at the same
   branch tip escalates for a person instead of requeueing to the attempt ceiling.
 
+- A document branch holding landings for its wave no longer overwrites a hand
+  commit pushed to its pull request. The held landings are replayed onto it
+  before publishing, and a conflict escalates for a person instead of pushing.
+
 - The implement finish check names the projections a task owes as `torve spec
   project --only <file>`, so an attempt no longer rewrites `AGENTS.md` files
   outside its scope and fails `scope`. `torve spec project` gains `--only`.
