@@ -972,6 +972,25 @@ def _document_branch(
         if not _unpublished(root, vcs, branch, remote):
             vcs.reset_branch(root, branch, remote)
 
+        # A hand commit pushed to the pull request meanwhile is on the remote's
+        # copy only, and the publish leases against the fetch just made: kept
+        # as it is, the branch would be pushed over that commit. The held
+        # landings are replayed onto it instead, or nothing lands.
+        elif not _replayed_onto(root, vcs, spec, branch, remote):
+            tasks = [*document_tasks(root, branch), task_id]
+            detail = (
+                f"the landings held on {branch!r} no longer replay onto the remote's copy, "
+                "which a hand commit moved; a person resolves it — nothing was pushed"
+            )
+            engine_event(
+                root,
+                "lane_document_conflict",
+                {"branch": branch, "base_tip": remote, "tasks": tasks},
+            )
+            _escalate_document(root, branch, tasks, detail)
+
+            raise _HeldConflict(detail)
+
         return branch
 
     local = vcs.tip(root, branch)
@@ -1002,6 +1021,37 @@ def _document_branch(
         engine_event(root, "lane_document_branch", {"task": task_id, "branch": branch, "sha": tip})
 
     return branch
+
+
+class _HeldConflict(RuntimeError):
+    """A document branch's held landings that do not replay onto its remote
+    copy: the candidate is not landed and the branch is not pushed."""
+
+
+def _replayed_onto(root: Path, vcs: LaneVcs, document: str, branch: str, remote: str) -> bool:
+    """Whether *branch*, kept for the landings it holds (S-0097/D-6), now
+    descends from *remote*: already, or once those landings are replayed onto
+    it in a disposable worktree, their landing files restated to the replayed
+    work commits as `_rebase_document` restates them. False on a conflict,
+    with the branch left exactly as it was."""
+
+    local = vcs.tip(root, branch)
+
+    if local is None or vcs.is_ancestor(root, remote, local):
+        return True
+
+    workdir = root / naming.WORKTREE_DIR / f"lane-{document}"
+
+    if not vcs.rebase_in_worktree(root, branch, remote, workdir):
+        return False
+
+    try:
+        _restate_landings(workdir, remote)
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    return True
 
 
 # ....................... #
@@ -3145,11 +3195,19 @@ def process_lane(
 
         # Where this candidate lands: the document's branch under
         # `unit: document`, the checkout's base otherwise (S-0083/D-4).
-        document = (
-            _document_branch(root, vcs, task_id, dry_run, merged_documents)
-            if publish is not None and unit == "document"
-            else None
-        )
+        try:
+            document = (
+                _document_branch(root, vcs, task_id, dry_run, merged_documents)
+                if publish is not None and unit == "document"
+                else None
+            )
+
+        except _HeldConflict as exc:
+            results.append(
+                LaneResult(task_id, branch, "conflict", f"merge_conflict: {exc}", branch_tip)
+            )
+            continue
+
         target = document or base
 
         if vcs.is_ancestor(root, branch_tip, target):
