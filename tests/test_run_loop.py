@@ -429,6 +429,30 @@ def test_a_convicted_retry_does_not_resume(rig):
     assert task.id not in deps.workspace.resumed
 
 
+def test_a_conflict_requeue_keeps_the_tip_it_was_requeued_against(rig):
+    """S-0006/D-12: the lane re-queues a conflict once per base tip. The
+    re-dispatch forgot the tip, so the next conflict against the same unmoved
+    tip re-queued again (platform-images S-0002: T-0004, three times)."""
+    from torve.domain.states import EscalationReason
+
+    repo, deps, _runtime, _vcs, _ = rig
+    task = task_for(repo)
+
+    assert run_task(repo.root, task, RunnerConfig(), deps).state is TaskState.READY
+
+    state_path = repo.root / ".wt" / f"{task.id}.state.json"
+    disposed = RunState.load(state_path)
+    disposed.escalate(EscalationReason.MERGE_CONFLICT, "rebase onto 'torve/S-0002' conflicts")
+    disposed.transition(TaskState.QUEUED, "conflict auto-requeue (superseded diff captured)")
+    disposed.conflict_base = "aa559c6a5565"
+    disposed.save()
+    deps.agent = ScriptedAgent([OK])
+
+    run_task(repo.root, task, RunnerConfig(), deps)
+
+    assert RunState.load(state_path).conflict_base == "aa559c6a5565"
+
+
 def _requeue(repo, task_id):
     state_path = repo.root / ".wt" / f"{task_id}.state.json"
     requeued = RunState.load(state_path)

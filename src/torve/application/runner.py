@@ -2244,9 +2244,15 @@ def run_task(
     # dispatched run has no observer, and the larger wins so neither a
     # surviving state file nor a reaped one can drop the sequence.
     recorded = attempt_base
+    # S-0006/D-12: the lane re-queues a conflict once per base tip, and the
+    # tip it re-queued against must outlive the re-dispatch. A fresh state
+    # forgot it, and T-0004 (platform-images S-0002) re-queued three times
+    # against one unmoved tip until the poison ceiling stopped it.
+    conflict_base = None
 
     if state_path.exists():
         previous = RunState.load(state_path)
+        conflict_base = previous.conflict_base
 
         # QUEUED is a board re-queue (T-0059): the human act already
         # happened, and dispatch is exactly what it asked for.
@@ -2277,7 +2283,9 @@ def run_task(
 
         raise BlockedDispatch(f"blocked_by_overlap: {blocker} on {path}")
 
-    state = RunState(task_id=task.id, path=state_path, attempts=recorded)
+    state = RunState(
+        task_id=task.id, path=state_path, attempts=recorded, conflict_base=conflict_base
+    )
     fact = "torve run: single synchronous claim"
     state.transition(TaskState.CLAIMED, f"{fact} (continuation)" if resume else fact)
 
