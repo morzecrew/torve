@@ -31,6 +31,7 @@ from torve.application.manager import (
     blocked_by,
     dispatchable,
     expired,
+    lease_ends,
     overlaps,
     project,
 )
@@ -812,7 +813,7 @@ def _refusal(board: Board, partition: str, *, moment: datetime, window: timedelt
             continue
 
         age = int((moment - view.claimed_at).total_seconds())
-        expires = (view.last_event_at or view.claimed_at) + window
+        expires = lease_ends(view, window)
         lines.append(
             f"  {view.task_id} held by {view.claimed_by or 'nobody'} for {age}s, "
             f"lease expires {expires.isoformat()}"

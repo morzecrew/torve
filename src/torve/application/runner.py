@@ -96,7 +96,7 @@ from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import GateContext, GitError, build_context, git, resolve_base
 from torve.gates.contract import spec
-from torve.gates.runner import RunReport, run_gates
+from torve.gates.runner import RunReport, battery, battery_budget, run_gates
 
 # ----------------------- #
 
@@ -1243,6 +1243,11 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             # scan reads them — current as of the attempt that just ran.
             write_tracked_files(judge)
 
+            # The battery records nothing until its verdict, and a cold one can
+            # outlast the lease: another worker's pass then released a task
+            # this one was still judging (erp-backend T-0001, 21 minutes). The
+            # fact says how long the silence may last, so the lease waits it out.
+            emit(run, "gates_started", state.attempts, budget_s=battery_budget(battery(ctx), ctx))
             report = run_gates(ctx)
 
         finally:

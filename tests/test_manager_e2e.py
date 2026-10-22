@@ -95,12 +95,17 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
         EventKind.TASK_CLAIMED,
         EventKind.ATTEMPT_STARTED,
         EventKind.ATTEMPT_FINISHED,
+        EventKind.GATES_STARTED,
         EventKind.GATES_EVALUATED,
         EventKind.ATTEMPT_STARTED,
         EventKind.ATTEMPT_FINISHED,
+        EventKind.GATES_STARTED,
         EventKind.GATES_EVALUATED,
         EventKind.LANDING_RECORDED,
     ]
+    # Each pass says how long it may stay silent before its verdict.
+    started = [event for event in events if event.kind is EventKind.GATES_STARTED]
+    assert all(event.payload["budget_s"] > 0 for event in started)
 
     gates = [event for event in events if event.kind is EventKind.GATES_EVALUATED]
 

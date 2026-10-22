@@ -73,6 +73,7 @@ executable intent without a human signature.**
 | `task.requeued` | manager |
 | `attempt.started` | worker |
 | `attempt.finished` | worker |
+| `gates.started` | worker |
 | `gates.evaluated` | worker |
 | `scope.promoted` | worker |
 | `divergence.recorded` | agent |

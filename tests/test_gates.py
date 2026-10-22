@@ -447,6 +447,49 @@ def test_a_base_requesting_gate_on_an_unresolvable_base_errors(tmp_path):
     assert "no base is resolvable" in report.results[0].output
 
 
+def test_a_battery_budget_bounds_every_command_and_its_rerun(tmp_path):
+    # What a lease waits out while a pass records nothing: each gate's own
+    # timeout (600 s for a shell gate with none), twice for the re-run a failed
+    # command gets, and acceptance's once per command the contract gives it. A
+    # gate whose paths the attempt did not touch never runs, so it adds nothing.
+    from torve.config.manifest import Manifest
+    from torve.domain.task import Scope, Task
+    from torve.gates.context import GateContext
+    from torve.gates.runner import battery, battery_budget
+
+    gates = [
+        Gate(name="lint", run="true", state="shadow", origin="S-0036", timeout=120),
+        Gate(name="e2e", run="true", state="blocking", origin="S-0036"),
+        Gate(
+            name="acceptance",
+            run="@task.acceptance",
+            state="blocking",
+            origin="S-0036",
+            timeout=300,
+        ),
+        Gate(
+            name="docs",
+            run="true",
+            state="shadow",
+            origin="S-0036",
+            timeout=900,
+            paths=["docs/**"],
+        ),
+    ]
+    task = Task(id="T-0001", decisions=[], acceptance=["one", "two"], scope=Scope(allow=["src/**"]))
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=gates),
+        head_sha="0" * 40,
+        base=None,
+        merge_base=None,
+        task=task,
+    )
+
+    assert [g.name for g in battery(ctx)] == ["lint", "acceptance", "e2e", "docs"]
+    assert battery_budget(battery(ctx), ctx) == 2 * (120 + 2 * 300 + 600)
+
+
 def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():
     # The manifest is configuration the battery reads; its shape is checked
     # here so a later edit cannot silently widen the judgment surface.

@@ -71,6 +71,11 @@ class TaskView:
     # bounded rather than permanent.
     claimed_at: datetime | None = None
     last_event_at: datetime | None = None
+    # Until when a gate pass may stay silent: it records nothing until its
+    # verdict and says so up front (`gates.started`). Cleared by the next
+    # change of state, not by any fact — a burn or a promotion relayed late
+    # must not cut the pass short.
+    quiet_until: datetime | None = None
     # The contract this task was minted with (S-0049 S-0049/D-1), re-minted
     # whenever the repository's differs. None for a mint written before
     # S-0044/A-8, or for one whose payload no longer validates as a `Task` — both
@@ -204,7 +209,7 @@ def project(events: Iterable[EventRecord]) -> Board:
         state = _TRANSITIONS.get(event.kind)
 
         if state is not None and not remint:
-            view = replace(view, state=state)
+            view = replace(view, state=state, quiet_until=None)
 
         if event.kind is EventKind.TASK_MINTED:
             view = replace(view, contract=minted_contract(payload) or view.contract)
@@ -214,6 +219,9 @@ def project(events: Iterable[EventRecord]) -> Board:
             )
         elif event.kind is EventKind.TASK_RELEASED:
             view = replace(view, claimed_by=None, claimed_at=None)
+        elif event.kind is EventKind.GATES_STARTED:
+            budget = timedelta(seconds=float(payload.get("budget_s") or 0.0))
+            view = replace(view, quiet_until=event.created_at + budget)
         elif event.kind in (EventKind.TASK_RETURNED, EventKind.TASK_REQUEUED):
             # The candidate's commit is no longer the answer, and a queued
             # row still showing a landing reads as a landing (S-0044/A-13).
@@ -448,7 +456,13 @@ def stalled(view: TaskView, *, now: datetime | None = None, after: timedelta = S
     if view.state not in IN_FLIGHT or view.last_burn is None:
         return False
 
-    return (now or datetime.now(UTC)) - view.last_burn > after
+    moment = now or datetime.now(UTC)
+
+    # A gate pass burns nothing, and said how long it may take (`gates.started`).
+    if view.quiet_until is not None and moment <= view.quiet_until:
+        return False
+
+    return moment - view.last_burn > after
 
 
 # ....................... #
@@ -477,10 +491,21 @@ def expired(
             for view in board.tasks.values()
             if view.state in IN_FLIGHT
             and view.claimed_at is not None
-            and moment - (view.last_event_at or view.claimed_at) > window
+            and moment > lease_ends(view, window)
         ),
         key=lambda one: one.task_id,
     )
+
+
+def lease_ends(view: TaskView, window: timedelta) -> datetime:
+    """When a held task's lease runs out: *window* past its last fact, or past
+    the end of the silence a gate pass announced (`gates.started`), whichever
+    is later — so a battery longer than the lease is not taken for a dead
+    holder."""
+
+    last = view.last_event_at or view.claimed_at or datetime.min.replace(tzinfo=UTC)
+
+    return max(last, view.quiet_until or last) + window
 
 
 # ....................... #

@@ -93,6 +93,7 @@ class EventKind(StrEnum):
     TASK_REQUEUED = "task.requeued"
     ATTEMPT_STARTED = "attempt.started"
     ATTEMPT_FINISHED = "attempt.finished"
+    GATES_STARTED = "gates.started"
     GATES_EVALUATED = "gates.evaluated"
     SCOPE_PROMOTED = "scope.promoted"
     DIVERGENCE_RECORDED = "divergence.recorded"
@@ -137,6 +138,7 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     EventKind.TASK_REQUEUED: frozenset({ActorKind.MANAGER}),
     EventKind.ATTEMPT_STARTED: frozenset({ActorKind.WORKER}),
     EventKind.ATTEMPT_FINISHED: frozenset({ActorKind.WORKER}),
+    EventKind.GATES_STARTED: frozenset({ActorKind.WORKER}),
     EventKind.GATES_EVALUATED: frozenset({ActorKind.WORKER}),
     # S-0104/D-2: the runner watches the attempt's diff and records the
     # widening, exactly as a worker records the attempt it paid for.
@@ -356,6 +358,22 @@ class AttemptFinished(BaseModel):
     transfer: dict[str, Any] = Field(default_factory=dict)
     decisions: list[dict[str, Any]] = Field(default_factory=list)
     results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+# ....................... #
+
+
+class GatesStarted(BaseModel):
+    """A gate pass begun on the attempt that just finished. The pass records
+    nothing until its verdict, so this says how long that silence may last,
+    and the lease waits it out rather than releasing a task its holder is
+    still judging (S-0044/D-6: a worker loses its lease, never its work)."""
+
+    model_config = STRICT
+
+    attempt: int
+    budget_s: float
+    """The pass's upper bound in seconds (`gates.runner.battery_budget`)."""
 
 
 # ....................... #
@@ -714,6 +732,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.TASK_REQUEUED: TaskRequeued,
     EventKind.ATTEMPT_STARTED: AttemptStarted,
     EventKind.ATTEMPT_FINISHED: AttemptFinished,
+    EventKind.GATES_STARTED: GatesStarted,
     EventKind.GATES_EVALUATED: GatesEvaluated,
     EventKind.SCOPE_PROMOTED: ScopePromoted,
     EventKind.DIVERGENCE_RECORDED: DivergenceRecorded,
