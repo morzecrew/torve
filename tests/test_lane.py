@@ -3933,6 +3933,104 @@ def test_an_open_document_is_not_republished_while_the_wave_runs(lane_repo, tmp_
     assert git(lane_repo, "show", f"{document}:two.py") == "# T-7522"
 
 
+def _leased_publisher(published: list[tuple[str, str]], root: Path):
+    """The real publication's push: under lease against the last fetch
+    (`GitVcs.republish_branch`), not the forced push `_recording_publisher`
+    stands in with — the lease is what a fetched hand commit slipped past."""
+    from torve.adapters.vcs.git import GitVcs
+
+    def publish(task_id: str, branch: str) -> str:
+        published.append((task_id, branch))
+        GitVcs().republish_branch(root, branch)
+
+        return "https://forge/pr/7"
+
+    return publish
+
+
+def _held_wave_and_hand_commit(root: Path, tmp_path: Path, spec: str, hand: tuple[str, str]):
+    """A published document, a round landed on it and held for the wave by a
+    second round still queued, then a person's commit pushed to the open pull
+    request: the local and remote copies of the branch diverge."""
+    published: list[tuple[str, str]] = []
+    document = _landed_document(root, tmp_path, spec, {"T-7541": "one.py"}, published)
+    _round(root, "T-7542", document, spec, "two.py", "# T-7542\n")
+    _round(root, "T-7543", document, spec, "three.py", "# T-7543\n", state=TaskState.QUEUED)
+    publish = _leased_publisher(published, root)
+    process_lane(root, GitLane(), publish=publish, unit="document")
+
+    filename, content = hand
+    git(root, "checkout", "-q", "-b", "hand", f"origin/{document}")
+    (root / filename).write_text(content, encoding="utf-8")
+    git(root, "add", filename)
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "a hand commit")
+    git(root, "push", "-q", "origin", f"hand:refs/heads/{document}")
+    git(root, "checkout", "-q", "main")
+    git(root, "branch", "-q", "-D", "hand")
+
+    state = RunState.load(naming.state_file(root, "T-7543"))
+    state.state = TaskState.READY
+    state.save()
+
+    return document, published, publish
+
+
+def test_a_held_wave_publishes_without_dropping_a_hand_commit(lane_repo, tmp_path):
+    """The held landings are replayed onto the remote's copy before the wave
+    publishes: the leased push leased against a fetch that already held the
+    hand commit, so pushing the kept branch as it stood dropped that commit."""
+    spec = "S-0934"
+    document, published, publish = _held_wave_and_hand_commit(
+        lane_repo, tmp_path, spec, ("hand.md", "a person's fix\n")
+    )
+
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    assert published[-1] == ("T-7543", document)
+    git(lane_repo, "fetch", "-q", "origin")
+
+    for path, text in {
+        "hand.md": "a person's fix",
+        "two.py": "# T-7542",
+        "three.py": "# T-7543",
+    }.items():
+        assert git(lane_repo, "show", f"origin/{document}:{path}") == text
+
+    # The replayed landing names a work commit the published branch holds.
+    landing = git(
+        lane_repo,
+        "show",
+        f"origin/{document}:.torve/specs/{spec}/execution/T-7542-1-20261010T000000Z.yaml",
+    )
+    work = yaml.safe_load(landing)["commit"]
+    ancestry = subprocess.run(
+        ["git", "-C", str(lane_repo), "merge-base", "--is-ancestor", work, f"origin/{document}"],
+        check=False,
+    )
+    assert ancestry.returncode == 0
+
+
+def test_held_landings_that_conflict_with_a_hand_commit_ask_a_person(lane_repo, tmp_path):
+    """A held landing that does not replay onto the hand commit is a person's
+    to resolve: nothing lands, nothing is pushed, and the candidate escalates."""
+    spec = "S-0935"
+    document, published, publish = _held_wave_and_hand_commit(
+        lane_repo, tmp_path, spec, ("two.py", "# a person's two\n")
+    )
+    remote_before = git(lane_repo, "rev-parse", f"origin/{document}")
+    local_before = git(lane_repo, "rev-parse", document)
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    assert [r.action for r in results if r.task == "T-7543"] == ["conflict"]
+    assert published == [("T-7541", document)]
+    git(lane_repo, "fetch", "-q", "origin")
+    assert git(lane_repo, "rev-parse", f"origin/{document}") == remote_before
+    assert git(lane_repo, "rev-parse", document) == local_before
+    state = RunState.load(naming.state_file(lane_repo, "T-7543"))
+    assert state.state is TaskState.ESCALATED
+
+
 def _landing_on_branch(root: Path, branch: str, document: str, task_id: str) -> None:
     """Commit a landing file for *task_id* under *document*'s execution
     directory onto *branch*, cut from the current HEAD."""
