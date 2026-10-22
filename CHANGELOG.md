@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-22
+
+### Fixed
+
+- A phase is cut from its document branch with the landings held locally, so it
+  no longer conflicts with them on every attempt. A second conflict at the same
+  branch tip escalates for a person instead of requeueing to the attempt ceiling.
+
+- The implement finish check names the projections a task owes as `torve spec
+  project --only <file>`, so an attempt no longer rewrites `AGENTS.md` files
+  outside its scope and fails `scope`. `torve spec project` gains `--only`.
+
+- A review round is no longer judged by a guessed `uv run pytest` when the
+  acceptance gate names no `commands`; the round is refused by name. `torve
+  doctor` is red while `threads.enabled` is on and the commands are missing.
+
+- A phase landed by hand that completes its document no longer leaves the pull
+  request a draft. The next lane pass runs the completion battery over the tip
+  once and marks the pull request ready when it is green.
+
+- The nested Docker daemon and the seat images' Docker CLI run 29.7.2, as hosts
+  and CI do, instead of 27.5.1, where a directory `COPY --chmod` created got
+  another mode. Warm `torve-dind-<slot>` volumes are upgraded in place.
+
 ## [0.6.1] - 2026-10-21
 
 ### Fixed
@@ -2410,7 +2434,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/morzecrew/torve/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/morzecrew/torve/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/morzecrew/torve/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/morzecrew/torve/compare/v0.4.0...v0.5.0
