@@ -18,6 +18,7 @@ from forze.application.execution import DepsRegistry, ExecutionRuntime
 from torve.adapters.eventstore.document import mock_module
 from torve.application.eventlog import event_log
 from torve.application.manager import (
+    LEASE_SECONDS,
     Board,
     Documents,
     PullRequests,
@@ -847,6 +848,53 @@ def test_a_working_claim_is_not_expired():
     )
 
     assert expired(board, now=now) == []
+
+
+def test_a_gate_pass_keeps_its_lease_for_the_budget_it_announced():
+    # A battery records nothing until its verdict. erp-backend's cold one ran
+    # 21 minutes, and a second worker released a task the first was still
+    # judging; the pass now says how long it may stay silent.
+    now = datetime.now(UTC)
+    started = now - timedelta(minutes=20)
+    facts = [
+        event(EventKind.TASK_MINTED, "T-1", at=now - timedelta(hours=1)),
+        event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}, at=now - timedelta(minutes=30)),
+        event(EventKind.GATES_STARTED, "T-1", {"attempt": 1, "budget_s": 3600.0}, at=started),
+    ]
+
+    assert expired(project(facts), now=now) == []
+    # Past the lease and the budget both, the holder is gone after all.
+    later = started + timedelta(seconds=LEASE_SECONDS + 3600 + 1)
+    assert [view.task_id for view in expired(project(facts), now=later)] == ["T-1"]
+
+    # The budget is that pass's alone: the verdict ends it, and the ordinary
+    # lease runs from there.
+    verdict = event(
+        EventKind.GATES_EVALUATED,
+        "T-1",
+        {"attempt": 1, "exit_code": 0},
+        at=now - timedelta(minutes=16),
+    )
+    assert [view.task_id for view in expired(project([*facts, verdict]), now=now)] == ["T-1"]
+
+
+def test_a_gate_pass_within_its_budget_is_not_stalled():
+    # The battery burns nothing; the board must not call it wedged meanwhile.
+    now = datetime.now(UTC)
+    burn = {"seat": "anthropic", "tokens": 10, "cost_usd": 0.01}
+    facts = [
+        event(EventKind.TASK_CLAIMED, "T-1", {"worker": "w-1"}, at=now - timedelta(minutes=40)),
+        event(EventKind.SEAT_CONSUMED, "T-1", burn, at=now - timedelta(minutes=30)),
+        event(
+            EventKind.GATES_STARTED,
+            "T-1",
+            {"attempt": 1, "budget_s": 3600.0},
+            at=now - timedelta(minutes=29),
+        ),
+    ]
+
+    assert stalled(project(facts).tasks["T-1"], now=now) is False
+    assert stalled(project(facts).tasks["T-1"], now=now + timedelta(hours=1)) is True
 
 
 def test_a_task_nobody_holds_never_expires():

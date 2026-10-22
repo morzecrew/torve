@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A task whose gates run past the 15-minute lease is no longer released and
+  escalated by another worker while its own worker is still judging it. A gate
+  pass records `gates.started` with its longest possible run, and the lease and
+  the board's `stalled` mark wait that out.
+
 ## [0.6.2] - 2026-10-22
 
 ### Fixed

@@ -300,6 +300,8 @@ def burn_sink(
 ATTEMPT_KINDS: Mapping[str, EventKind] = {
     "attempt_started": EventKind.ATTEMPT_STARTED,
     "attempt_finished": EventKind.ATTEMPT_FINISHED,
+    # A pass is silent until its verdict; this says how long (the lease reads it).
+    "gates_started": EventKind.GATES_STARTED,
     "gates_evaluated": EventKind.GATES_EVALUATED,
     # S-0104/D-2: a contingent path the runner watched the attempt write.
     "scope_promoted": EventKind.SCOPE_PROMOTED,

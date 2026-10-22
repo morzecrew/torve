@@ -279,9 +279,9 @@ def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
 # ....................... #
 
 
-def run_gates(
-    ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
-) -> RunReport:
+def battery(ctx: GateContext, only: set[str] | None = None) -> list[Gate]:
+    """The gates a pass over *ctx* runs, in the order it runs them."""
+
     gates = [
         *ctx.manifest.resolved_gates(),
         *decision_gates(ctx.task),
@@ -304,8 +304,37 @@ def run_gates(
     # manifest order breaks ties, so ordering stays deterministic and reviewable.
     decision = [g for g in gates if g.name.startswith(DECISION_PREFIX)]
     rest = [g for g in gates if not g.name.startswith(DECISION_PREFIX)]
-    ordered = [*decision, *sorted(rest, key=lambda g: g.timeout or 0.0)]
 
+    return [*decision, *sorted(rest, key=lambda g: g.timeout or 0.0)]
+
+
+def battery_budget(gates: Iterable[Gate], ctx: GateContext) -> float:
+    """The longest a pass over *gates* can take, in seconds: an upper bound, not
+    an estimate. The gates run one after another, every command a gate runs is
+    bounded by its timeout, and a failed command runs once more (`run_command`);
+    acceptance runs each of its commands.
+
+    A pass records nothing until its verdict, so this is the silence a lease
+    must allow before it may call the pass's holder gone.
+    """
+
+    total = 0.0
+
+    for gate in gates:
+        commands = 1
+
+        if gate.builtin == "acceptance":
+            commands = len(ctx.task.acceptance if ctx.task is not None else gate.commands) or 1
+
+        total += 2 * commands * (gate.timeout or SHELL_GATE_TIMEOUT)
+
+    return total
+
+
+def run_gates(
+    ctx: GateContext, only: set[str] | None = None, progress: Callable[[str], None] | None = None
+) -> RunReport:
+    ordered = battery(ctx, only)
     report = RunReport()
     blocking_failed = False
     checks: dict[str, str] = {}
