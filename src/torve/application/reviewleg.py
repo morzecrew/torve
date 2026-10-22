@@ -573,6 +573,7 @@ def compose_round(
         branch,
         info,
         (Claim(finding, tuple(files), tuple(phases)),),
+        acceptance=round_acceptance(root),
         nonce_source=nonce_source,
     )
 
@@ -586,11 +587,15 @@ def compose_wave(
     info: PrInfo,
     claims: Sequence[Claim],
     *,
+    acceptance: Sequence[str],
     nonce_source: Callable[[], str] = _mint_nonce,
 ) -> Round:
     """The findings of one file-disjoint wave into one round (S-0097/D-5):
     every claim's threads fenced together, and a scope wide enough for every
     one of them.
+
+    `acceptance` is the caller's one read of `round_acceptance`, so the list a
+    guard refused on empty is the list the round carries.
 
     Nothing is written and nothing reaches the forge: an injecting thread
     raises here, before the round exists, and so does a text that could close
@@ -624,7 +629,7 @@ def compose_wave(
         nonce=nonce,
         intent="\n\n".join([INSTRUCTIONS, fenced]),
         allow=allow,
-        acceptance=round_acceptance(root),
+        acceptance=list(acceptance),
         phases=tuple(phases),
         target=next((claim.target for claim in claims if claim.target), ""),
         battery=any(claim.battery for claim in claims),
@@ -1921,7 +1926,9 @@ def review_thread_leg(
 
         # A round no command can judge is refused by name, not minted to fail
         # every attempt; its threads stay open for the operator.
-        if claims and not round_acceptance(root):
+        acceptance = round_acceptance(root)
+
+        if claims and not acceptance:
             refused.append(NO_ACCEPTANCE)
             continue
 
@@ -1932,7 +1939,7 @@ def review_thread_leg(
                 break
 
             try:
-                composed = [compose_wave(root, branch, info, wave)]
+                composed = [compose_wave(root, branch, info, wave, acceptance=acceptance)]
 
             except FenceRefused:
                 # A body that could close its own fence aborts the whole wave,
@@ -1943,7 +1950,9 @@ def review_thread_leg(
 
                 for claim in wave:
                     try:
-                        composed.append(compose_wave(root, branch, info, (claim,)))
+                        composed.append(
+                            compose_wave(root, branch, info, (claim,), acceptance=acceptance)
+                        )
 
                     except (InjectionRefused, FenceRefused) as one:
                         _refuse(

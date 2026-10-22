@@ -691,6 +691,31 @@ def test_a_round_no_command_can_judge_is_refused_by_name(seeded):
     assert forge.resolved == [] and forge.replied == []
 
 
+def test_the_round_carries_the_one_read_its_guard_judged(seeded, monkeypatch):
+    # One read per document serves the guard and the minted round alike, so a
+    # manifest that loses its commands between the two cannot mint an empty
+    # acceptance the guard never saw.
+    from torve.application import reviewleg
+
+    reads: list[str] = []
+
+    def once(_root: Path) -> list[str]:
+        reads.append("read")
+        return ["make test"] if len(reads) == 1 else []
+
+    monkeypatch.setattr(reviewleg, "round_acceptance", once)
+    open_document(seeded.root)
+
+    review_thread_leg(seeded.root, config(), StubForge(pr(thread("t1"))), lambda _t: False)
+
+    (recorded,) = events(seeded.root, "lane_review_task")
+    contract = yaml.safe_load(
+        layout.task_file(seeded.root, recorded["task"]).read_text(encoding="utf-8")
+    )
+    assert reads == ["read"]
+    assert contract["acceptance"] == ["make test"]
+
+
 def test_a_closed_pull_request_is_left_alone(seeded):
     open_document(seeded.root)
     forge = StubForge(pr(thread("t1"), state="closed"))
