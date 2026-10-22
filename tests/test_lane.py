@@ -2316,6 +2316,51 @@ def test_a_phase_finished_by_hand_that_completes_the_document_publishes_it_ready
     assert len(published) == 3
 
 
+def test_a_ready_publication_the_forge_refused_is_published_again(lane_repo, tmp_path, monkeypatch):
+    """The green verdict is written before the publication that turns the pull
+    request ready, because the publisher reads it. When that publication is
+    refused, the tip is green and the pull request still a draft; a later
+    read-back publishes it again rather than reading the verdict as done."""
+
+    from dataclasses import replace
+
+    calls = _red_completion(lane_repo, tmp_path, monkeypatch, [0])
+    published: list[tuple[str, str]] = []
+
+    def publish(task_id: str, branch: str) -> str:
+        published.append((task_id, branch))
+
+        # The completing landing's second call, the one that publishes ready.
+        if len(published) == 3:
+            raise RuntimeError("the forge refused")
+
+        git(lane_repo, "push", "-q", "--force", "origin", f"{branch}:refs/heads/{branch}")
+        return "https://forge/pr/7"
+
+    status = _Status()
+    first = process_lane(lane_repo, GitLane(), publish=publish, unit="document", status=status)
+    document = naming.document_branch("S-0930")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert "pr refused" in [r.action for r in first]
+    assert status.completion(tip) == "success"
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=publish,
+        forge=_forge(replace(_pr(number=28, state="open"), draft=True), []),
+        unit="document",
+        status=status,
+    )
+
+    assert [r.action for r in results] == ["pull request", "already landed", "already landed"]
+    assert published[-1] == ("T-7307", document)
+    assert len(published) == 4
+    # The verdict stood: no second battery.
+    assert calls == [None]
+
+
 def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo, tmp_path):
     published: list[tuple[str, str]] = []
     # The phase and the base both write `app.py`, so no rebase of the branch

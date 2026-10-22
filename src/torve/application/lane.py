@@ -2209,13 +2209,16 @@ def _rebase_document(
     status: StatusScm | None = None,
     gates: SandboxFactory | None = None,
     holdout: HoldoutReader | None = None,
+    draft: bool = False,
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
     already shows the tree the battery judged and it is a person's turn —
     unless a phase finished by hand completed the document, which no served
     landing judged: that tip gets the completion battery once, and a green
     verdict publishes the pull request ready, as the lane's own completion
-    does (S-0099/D-4). A
+    does (S-0099/D-4). A complete tip already green on a pull request still
+    a draft is a ready publication the forge refused, the lane's own or a
+    hand completion's, and is published again. A
     base that moved under it is the ordinary case for a branch that lives
     days: rebase in a disposable worktree, re-run the battery over the
     rebased tree, republish under lease — bounded once per base tip, so a
@@ -2270,19 +2273,35 @@ def _rebase_document(
         or base_tip is None
         or vcs.is_ancestor(root, base_tip, branch_tip)
     ):
-        # Once per tip: the verdict written here is what the next pass reads.
         if (
             branch_tip is not None
             and status is not None
             and tasks
-            and _status_at(status, branch_tip, COMPLETION_CONTEXT) is None
             and _completes(root, tasks[-1], branch)
         ):
-            _complete_by_hand(
-                root, vcs, publish, branch, tasks[-1], results, status, gates, holdout
-            )
+            # Once per tip: the verdict written here is what the next pass reads.
+            verdict = _status_at(status, branch_tip, COMPLETION_CONTEXT)
 
-            return
+            if verdict is None:
+                _complete_by_hand(
+                    root, vcs, publish, branch, tasks[-1], results, status, gates, holdout
+                )
+
+                return
+
+            if draft and verdict[0] == "success":
+                if _publish(root, publish, tasks[-1], branch, branch_tip, results) is not None:
+                    results.append(
+                        LaneResult(
+                            document,
+                            branch,
+                            "pull request",
+                            "published ready, the completion battery green",
+                            branch_tip,
+                        )
+                    )
+
+                return
 
         results.append(
             LaneResult(
@@ -2540,6 +2559,7 @@ def _document_verdicts(
                 status,
                 gates,
                 holdout,
+                info.draft,
             )
 
         carried.update(
