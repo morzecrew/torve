@@ -157,7 +157,7 @@ runtime:
   image: ghcr.io/morzecrew/sandbox-base:{torve}   # carries the docker CLI; a stock image does not
   docker: nested
   nested:
-    image: docker:27.5.1-dind   # the pinned dind image the side container runs
+    image: docker:29.7.2-dind   # the pinned dind image the side container runs
     cache_volume: torve-dind    # base name of the slot's /var/lib/docker volume
     registry_mirrors: []        # mirrors dockerd is started with
     roles: [gates]              # whose sandboxes get the daemon; review is refused

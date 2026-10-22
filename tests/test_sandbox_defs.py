@@ -1227,6 +1227,6 @@ def test_the_base_carries_the_docker_cli_compose_buildx_just_and_openssl() -> No
     )
 
     assert "openssl" in instructions
-    assert "--from=docker:27.5.1-cli /usr/local/bin/docker" in instructions
-    assert "--from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins" in instructions
+    assert "--from=docker:29.7.2-cli /usr/local/bin/docker" in instructions
+    assert "--from=docker:29.7.2-cli /usr/local/libexec/docker/cli-plugins" in instructions
     assert "/just /usr/local/bin/just" in instructions

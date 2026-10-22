@@ -29,8 +29,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /uvx /usr/local/bin/
 # CLI is copied from the pinned release image rather than the distribution's
 # package, whose CLI carries neither plugin; its plugin directory is where the
 # CLI looks for `compose` and `buildx`.
-COPY --from=docker:27.5.1-cli /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=docker:27.5.1-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
+COPY --from=docker:29.7.2-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:29.7.2-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
 COPY --from=ghcr.io/casey/just:1.59.0 /just /usr/local/bin/just
 
 # The engine's own CLI, for the verbs an attempt calls from inside its
