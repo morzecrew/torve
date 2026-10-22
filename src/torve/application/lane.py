@@ -2148,6 +2148,55 @@ def _escalate_document(root: Path, branch: str, tasks: list[str], detail: str) -
 # ....................... #
 
 
+def _complete_by_hand(
+    root: Path,
+    vcs: LaneVcs,
+    publish: Publisher,
+    branch: str,
+    task_id: str,
+    results: list[LaneResult],
+    status: StatusScm,
+    gates: SandboxFactory | None = None,
+    holdout: HoldoutReader | None = None,
+) -> None:
+    """The lane's completion for a document a phase finished by hand
+    completed, minus the landing no lane made: the battery judges the tip, the
+    branch is published, and the verdict is written on the tip it judged, so
+    the publisher keeps a red tip a draft and publishes a green one ready
+    (S-0099/D-4). A red verdict is the person's to read in the pull request's
+    checks — they finished the phase — so no round is minted for it."""
+
+    before = vcs.tip(root, branch)
+    tip, red = _completion_battery(root, vcs, branch, gates, holdout)
+    reference = _publish(root, publish, task_id, branch, tip, results)
+
+    if reference is None:
+        if before is not None:
+            vcs.reset_branch(root, branch, before)
+
+        return
+
+    # Composed before the verdict existed, so it went out a draft; with a
+    # green verdict written, publishing again turns it ready.
+    if _write_verdict(root, status, tip, red) and red is None:
+        _publish(root, publish, task_id, branch, tip, results)
+
+    engine_event(
+        root,
+        "lane_document_completed",
+        {"branch": branch, "sha": tip, "pr": reference, "gates": red or ""},
+    )
+    results.append(
+        LaneResult(
+            branch.rsplit("/", 1)[-1],
+            branch,
+            "gates red" if red else "pull request",
+            red or "completed by hand, the completion battery green",
+            tip,
+        )
+    )
+
+
 def _rebase_document(
     root: Path,
     vcs: LaneVcs,
@@ -2159,9 +2208,14 @@ def _rebase_document(
     resolved: Collection[str] = (),
     status: StatusScm | None = None,
     gates: SandboxFactory | None = None,
+    holdout: HoldoutReader | None = None,
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
-    already shows the tree the battery judged and it is a person's turn. A
+    already shows the tree the battery judged and it is a person's turn —
+    unless a phase finished by hand completed the document, which no served
+    landing judged: that tip gets the completion battery once, and a green
+    verdict publishes the pull request ready, as the lane's own completion
+    does (S-0099/D-4). A
     base that moved under it is the ordinary case for a branch that lives
     days: rebase in a disposable worktree, re-run the battery over the
     rebased tree, republish under lease — bounded once per base tip, so a
@@ -2216,6 +2270,20 @@ def _rebase_document(
         or base_tip is None
         or vcs.is_ancestor(root, base_tip, branch_tip)
     ):
+        # Once per tip: the verdict written here is what the next pass reads.
+        if (
+            branch_tip is not None
+            and status is not None
+            and tasks
+            and _status_at(status, branch_tip, COMPLETION_CONTEXT) is None
+            and _completes(root, tasks[-1], branch)
+        ):
+            _complete_by_hand(
+                root, vcs, publish, branch, tasks[-1], results, status, gates, holdout
+            )
+
+            return
+
         results.append(
             LaneResult(
                 document,
@@ -2327,6 +2395,7 @@ def _document_verdicts(
     named: dict[str, list[str]] | None = None,
     status: StatusScm | None = None,
     gates: SandboxFactory | None = None,
+    holdout: HoldoutReader | None = None,
 ) -> tuple[dict[str, tuple[str, str]], set[str]]:
     """The later pass's read-back at the document unit (S-0083/P-3, S-0099/D-3).
 
@@ -2470,6 +2539,7 @@ def _document_verdicts(
                 resolved,
                 status,
                 gates,
+                holdout,
             )
 
         carried.update(
@@ -3114,7 +3184,7 @@ def process_lane(
                     named.setdefault(document_branch, []).append(state.task_id)
 
         carried, merged_documents = _document_verdicts(
-            root, vcs, forge, publish, results, resolved, named, status, gates
+            root, vcs, forge, publish, results, resolved, named, status, gates, holdout
         )
 
     for state in ready_candidates(root):

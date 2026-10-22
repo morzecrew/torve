@@ -25,8 +25,9 @@ result looks to the engine exactly like a served landing.
    `torve manager resolve <partition> <task> --resolution landed --sha <landing-sha>`,
    then run `torve reap --escalated`.
 9. Remove your worktree.
-10. Check the document's pull request. The lane republishes it only when it lands
-    a served candidate, so after a hand landing its body and draft flag can lag
-    behind the branch until the next served landing. If nothing else will land,
-    edit the pull request by hand: the title, the phases it now carries, and
-    `gh pr ready` once every phase is on the branch.
+10. Check the document's pull request. When the hand landing completes the
+    document, the next lane pass (a served night's, or `torve merge`) runs the
+    completion battery over the branch tip once. Green publishes the pull
+    request ready; red keeps it a draft with a red `torve/completion` check
+    for you to read. A hand landing that leaves phases to come is republished
+    with the next served landing, so its body can lag until then.
