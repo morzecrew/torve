@@ -867,6 +867,16 @@ def test_a_gate_pass_keeps_its_lease_for_the_budget_it_announced():
     later = started + timedelta(seconds=LEASE_SECONDS + 3600 + 1)
     assert [view.task_id for view in expired(project(facts), now=later)] == ["T-1"]
 
+    # Facts are relayed without waiting, so one written before the pass can
+    # land after it: a late burn must not cut the pass's silence short.
+    late = event(
+        EventKind.SEAT_CONSUMED,
+        "T-1",
+        {"seat": "anthropic", "tokens": 10, "cost_usd": 0.01},
+        at=started + timedelta(seconds=1),
+    )
+    assert expired(project([*facts, late]), now=now) == []
+
     # The budget is that pass's alone: the verdict ends it, and the ordinary
     # lease runs from there.
     verdict = event(

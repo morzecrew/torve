@@ -450,7 +450,8 @@ def test_a_base_requesting_gate_on_an_unresolvable_base_errors(tmp_path):
 def test_a_battery_budget_bounds_every_command_and_its_rerun(tmp_path):
     # What a lease waits out while a pass records nothing: each gate's own
     # timeout (600 s for a shell gate with none), twice for the re-run a failed
-    # command gets, and acceptance's once per command the contract gives it.
+    # command gets, and acceptance's once per command the contract gives it. A
+    # gate whose paths the attempt did not touch never runs, so it adds nothing.
     from torve.config.manifest import Manifest
     from torve.domain.task import Scope, Task
     from torve.gates.context import GateContext
@@ -466,6 +467,14 @@ def test_a_battery_budget_bounds_every_command_and_its_rerun(tmp_path):
             origin="S-0036",
             timeout=300,
         ),
+        Gate(
+            name="docs",
+            run="true",
+            state="shadow",
+            origin="S-0036",
+            timeout=900,
+            paths=["docs/**"],
+        ),
     ]
     task = Task(id="T-0001", decisions=[], acceptance=["one", "two"], scope=Scope(allow=["src/**"]))
     ctx = GateContext(
@@ -477,7 +486,7 @@ def test_a_battery_budget_bounds_every_command_and_its_rerun(tmp_path):
         task=task,
     )
 
-    assert [g.name for g in battery(ctx)] == ["lint", "acceptance", "e2e"]
+    assert [g.name for g in battery(ctx)] == ["lint", "acceptance", "e2e", "docs"]
     assert battery_budget(battery(ctx), ctx) == 2 * (120 + 2 * 300 + 600)
 
 

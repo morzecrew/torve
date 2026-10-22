@@ -312,7 +312,8 @@ def battery_budget(gates: Iterable[Gate], ctx: GateContext) -> float:
     """The longest a pass over *gates* can take, in seconds: an upper bound, not
     an estimate. The gates run one after another, every command a gate runs is
     bounded by its timeout, and a failed command runs once more (`run_command`);
-    acceptance runs each of its commands.
+    acceptance runs each of its commands. A gate whose paths the attempt did
+    not touch is skipped, as `run_gates` skips it.
 
     A pass records nothing until its verdict, so this is the silence a lease
     must allow before it may call the pass's holder gone.
@@ -321,6 +322,9 @@ def battery_budget(gates: Iterable[Gate], ctx: GateContext) -> float:
     total = 0.0
 
     for gate in gates:
+        if gate.paths and not _judges_anything(gate, ctx):
+            continue
+
         commands = 1
 
         if gate.builtin == "acceptance":
