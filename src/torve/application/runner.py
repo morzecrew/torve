@@ -1939,13 +1939,43 @@ def _cut_from(root: Path, task: Task, config: RunnerConfig) -> tuple[str | None,
     if promotion.landing != "pull_request" or promotion.unit != "document" or task.spec is None:
         return resolve_base(root, config.base), False, None
 
+    branch = naming.document_branch(task.spec)
+
     try:
-        document = resolve_base(root, f"origin/{naming.document_branch(task.spec)}")
+        document = resolve_base(root, f"origin/{branch}")
 
     except GitError:
         return resolve_base(root, config.base), True, None
 
+    # A landing held for its wave (S-0097/D-6) is on this checkout's copy only,
+    # and the lane lands onto that copy: a phase cut without it conflicts with
+    # it on every attempt, and the requeue cut it again from the same place.
+    if document is not None and _holds_landings(root, branch, document):
+        document = branch
+
     return document, False, document
+
+
+def _holds_landings(root: Path, branch: str, remote: str) -> bool:
+    """Whether this checkout's *branch* carries landings the remote lacks —
+    the lane's `_unpublished`, read through `git` because the runner holds no
+    `LaneVcs`. The lane keeps such a branch, diverged from the remote or not,
+    and lands onto it, so the cut follows the same rule. A branch absent here,
+    or one the remote already contains, is not one."""
+
+    try:
+        local = git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}")
+
+    except GitError:
+        return False
+
+    try:
+        git(root, "merge-base", "--is-ancestor", local.strip(), remote)
+
+    except GitError:
+        return True
+
+    return False
 
 
 # ....................... #
@@ -2220,9 +2250,15 @@ def run_task(
     # dispatched run has no observer, and the larger wins so neither a
     # surviving state file nor a reaped one can drop the sequence.
     recorded = attempt_base
+    # S-0006/D-12: the lane re-queues a conflict once per base tip, and the
+    # tip it re-queued against must outlive the re-dispatch. A fresh state
+    # forgot it, and T-0004 (platform-images S-0002) re-queued three times
+    # against one unmoved tip until the poison ceiling stopped it.
+    conflict_base = None
 
     if state_path.exists():
         previous = RunState.load(state_path)
+        conflict_base = previous.conflict_base
 
         # QUEUED is a board re-queue (T-0059): the human act already
         # happened, and dispatch is exactly what it asked for.
@@ -2253,7 +2289,9 @@ def run_task(
 
         raise BlockedDispatch(f"blocked_by_overlap: {blocker} on {path}")
 
-    state = RunState(task_id=task.id, path=state_path, attempts=recorded)
+    state = RunState(
+        task_id=task.id, path=state_path, attempts=recorded, conflict_base=conflict_base
+    )
     fact = "torve run: single synchronous claim"
     state.transition(TaskState.CLAIMED, f"{fact} (continuation)" if resume else fact)
 
