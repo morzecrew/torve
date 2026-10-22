@@ -99,6 +99,47 @@ def test_the_verify_check_is_silent_with_the_pilot_off_or_a_different_model(tmp_
     assert _verify_check(apart, None) == []
 
 
+def _threads_repo(tmp_path: Path, enabled: bool, commands: list[str]) -> Path:
+    import yaml
+
+    root = _doctor_repo(
+        tmp_path,
+        {
+            "promotion": {"landing": "pull_request", "unit": "document"},
+            "scm": {"repo": "org/repo", "open_pr": True},
+            "threads": {"enabled": enabled, "bots": ["coderabbitai"]},
+        },
+    )
+    acceptance = {"name": "acceptance", "run": "@task.acceptance", "state": "blocking"}
+    acceptance |= {"origin": "structural", "sabotage": "acceptance"}
+    acceptance |= {"commands": commands} if commands else {}
+    write(
+        root / ".torve" / "gates.yaml",
+        yaml.safe_dump({"schema_version": 1, "gates": [acceptance]}, sort_keys=False),
+    )
+    return root
+
+
+def test_doctor_reds_a_thread_leg_with_no_acceptance_commands(tmp_path: Path):
+    # A review round is judged by the acceptance gate's commands; with none,
+    # the leg refuses every round, so doctor says so before a night does.
+    from torve.cli.doctor import _threads_check
+
+    checks = _threads_check(_threads_repo(tmp_path, True, []), None)
+
+    assert len(checks) == 1
+    name, ok, detail = checks[0]
+    assert name == "threads" and ok is False
+    assert "names no `commands`" in detail
+
+
+def test_the_threads_check_is_silent_with_the_leg_off_or_commands_named(tmp_path: Path):
+    from torve.cli.doctor import _threads_check
+
+    assert _threads_check(_threads_repo(tmp_path / "off", False, []), None) == []
+    assert _threads_check(_threads_repo(tmp_path / "named", True, ["make test"]), None) == []
+
+
 # ....................... #
 
 

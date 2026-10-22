@@ -998,6 +998,22 @@ def _verify_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
 # ....................... #
 
+
+def _threads_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """A review round is judged by the acceptance gate's `commands`, and with
+    none the review-thread leg refuses every round it would mint. Red only
+    while the leg is on: with it off, no round is minted to need them."""
+
+    from torve.application.reviewleg import NO_ACCEPTANCE, round_acceptance
+
+    if not load_config(root, config_path).threads.enabled or round_acceptance(root):
+        return []
+
+    return [("threads", False, f"threads: the review-thread leg is on, but {NO_ACCEPTANCE}")]
+
+
+# ....................... #
+
 # The four criteria the landing lane refuses on, in the order the settings
 # table in the operating page lists them (S-0068/D-1's "armed" set).
 _PROMOTION_CRITERIA = ("require_ci", "require_review", "approvals", "quiet_window")
@@ -1400,6 +1416,7 @@ def doctor(
         checks += _broker_check(root, config_path)
         checks += _review_bias_check(root, config_path)
         checks += _verify_check(root, config_path)
+        checks += _threads_check(root, config_path)
         checks += _promotion_check(root, config_path)
         checks += _profile_checks(root, config_path)
         checks += _route_checks(root, config_path)
