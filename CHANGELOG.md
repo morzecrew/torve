@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-23
+
 ### Fixed
 
-- A task whose gates run past the 15-minute lease is no longer released and
-  escalated by another worker while its own worker is still judging it. A gate
-  pass records `gates.started` with its longest possible run, and the lease and
-  the board's `stalled` mark wait that out.
+- A task whose gates outlast the 15-minute lease is no longer released and
+  escalated by another worker: the pass records `gates.started` with its
+  longest run, and the lease waits that out. Upgrade every host together;
+  0.6.2 and earlier cannot read that fact.
 
 ## [0.6.2] - 2026-10-22
 
@@ -2445,7 +2447,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/morzecrew/torve/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/morzecrew/torve/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/morzecrew/torve/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/morzecrew/torve/compare/v0.5.0...v0.6.0
