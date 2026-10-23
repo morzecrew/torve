@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-10-23
+
 ### Fixed
 
-- A red gate's clipped output keeps pytest's failure report. The coverage
-  table and summary print after it, so the gate's output, the recorded result
-  and the retry's context each kept the failed tests' names without their
-  tracebacks.
+- A red gate's clipped output keeps pytest's failure report, tracebacks
+  included. The gate's output, the recorded result and the retry's context each
+  kept only the tail, where the coverage table and summary had pushed the
+  tracebacks out, so a retry debugged its red tests blind.
 
 ## [0.6.3] - 2026-10-23
 
@@ -2454,7 +2456,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/morzecrew/torve/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/morzecrew/torve/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/morzecrew/torve/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/morzecrew/torve/compare/v0.6.0...v0.6.1
