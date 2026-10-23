@@ -8,6 +8,7 @@ ceiling once a runner exists.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from collections.abc import Callable
@@ -17,6 +18,12 @@ from pathlib import Path
 # ----------------------- #
 
 OUTPUT_LIMIT = 8000
+ELISION = "\n… truncated …\n"
+
+# Where pytest's report of what failed opens. It prints the coverage table and
+# the summary after it, so a clip that keeps the tail keeps the failed tests'
+# names and drops their tracebacks (an e2e retry debugged blind this way).
+FAILURE_REPORT = re.compile(r"^=+ (?:FAILURES|ERRORS) =+$", re.MULTILINE)
 
 # One execution of one command: (command, timeout_s) -> (exit code | None on
 # timeout, combined output). The flaky protocol sits above this seam, so it is
@@ -62,6 +69,14 @@ def truncate(text: str) -> str:
         return text
 
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
+    report = FAILURE_REPORT.search(text, len(head), len(text) - len(tail))
+
+    if report is not None:
+        # The failure report takes the larger share; the tail keeps the summary.
+        start = report.start()
+        tail = text[-2000:]
+        head = text[start : min(start + OUTPUT_LIMIT - 2000, len(text) - 2000)]
+
     # A harness stream ends with a newline, so the final line is the last
     # non-empty one — read after it, the rescue below saw an empty line and
     # clipped through every verdict longer than the tail (T-0103).
@@ -73,7 +88,30 @@ def truncate(text: str) -> str:
     ):
         tail = final_line
 
-    return f"{head}\n… truncated …\n{tail}"
+    return f"{head}{ELISION}{tail}"
+
+
+# ....................... #
+
+
+def clip(text: str, limit: int) -> str:
+    """At most `limit` characters of `text`: its tail, or, when a failure report
+    opens before the tail, three quarters from where it opens and the last
+    quarter."""
+
+    if len(text) <= limit:
+        return text
+
+    report = FAILURE_REPORT.search(text, 0, len(text) - limit)
+
+    if report is None:
+        return text[-limit:]
+
+    room = limit - len(ELISION)
+    tail = room // 4
+    start = report.start()
+
+    return f"{text[start : start + room - tail]}{ELISION}{text[-tail:]}"
 
 
 # ....................... #
