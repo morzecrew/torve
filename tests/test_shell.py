@@ -123,6 +123,30 @@ def test_output_without_a_failure_report_keeps_its_tail() -> None:
     assert clip("short", RECORDED_OUTPUT) == "short"
 
 
+def test_a_failure_report_opening_in_the_head_keeps_its_traceback() -> None:
+    """A quiet run's report opens within the head, and a long traceback runs
+    past it into what the plain clip drops."""
+
+    text = "\n".join(
+        [
+            "=" * 10 + " FAILURES " + "=" * 10,
+            "frame\n" * 500,
+            TRACEBACK,
+            "src/erp/x.py    46    0    10    5  91.1%\n" * 400,
+            "1 failed",
+        ]
+    )
+
+    assert TRACEBACK in truncate(text)
+
+
+def test_a_bound_too_small_for_the_elision_keeps_a_bounded_tail() -> None:
+    text = _pytest_run()
+
+    for limit in (1, 10, 40):
+        assert clip(text, limit) == text[-limit:]
+
+
 def test_a_failure_report_already_in_the_tail_keeps_the_plain_tail() -> None:
     text = "noise\n" * 2_000 + "=" * 10 + " FAILURES " + "=" * 10 + "\nE   boom\n1 failed"
 

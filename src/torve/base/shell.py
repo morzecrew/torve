@@ -69,7 +69,8 @@ def truncate(text: str) -> str:
         return text
 
     head, tail = text[:2000], text[-(OUTPUT_LIMIT - 2000) :]
-    report = FAILURE_REPORT.search(text, len(head), len(text) - len(tail))
+    # Searched from the start: a report opening in the head still runs past it.
+    report = FAILURE_REPORT.search(text, 0, len(text) - len(tail))
 
     if report is not None:
         # The failure report takes the larger share; the tail keeps the summary.
@@ -103,12 +104,13 @@ def clip(text: str, limit: int) -> str:
         return text
 
     report = FAILURE_REPORT.search(text, 0, len(text) - limit)
-
-    if report is None:
-        return text[-limit:]
-
     room = limit - len(ELISION)
     tail = room // 4
+
+    # A bound too small to hold the elision beside both parts keeps the tail.
+    if report is None or tail < len(ELISION):
+        return text[-limit:]
+
     start = report.start()
 
     return f"{text[start : start + room - tail]}{ELISION}{text[-tail:]}"
