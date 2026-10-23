@@ -11,10 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A red gate's clipped output keeps pytest's failure report, tracebacks
-  included. The gate's output, the recorded result and the retry's context each
-  kept only the tail, where the coverage table and summary had pushed the
-  tracebacks out, so a retry debugged its red tests blind.
+- A red gate's clipped output keeps pytest's failure report from where it
+  opens, as far as the bound allows, and the summary. The gate's output, the
+  recorded result and the retry's context each kept only the tail, where the
+  coverage table had pushed every traceback out.
 
 ## [0.6.3] - 2026-10-23
 
