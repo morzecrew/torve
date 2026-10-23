@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A red gate's clipped output keeps pytest's failure report. The coverage
+  table and summary print after it, so the gate's output, the recorded result
+  and the retry's context each kept the failed tests' names without their
+  tracebacks.
+
 ## [0.6.3] - 2026-10-23
 
 ### Fixed

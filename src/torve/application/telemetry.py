@@ -23,6 +23,7 @@ from torve.application.ports import AgentResult, BrokerUsage, SandboxSpec
 from torve.base.clock import stamp
 from torve.base.globs import matches
 from torve.base.naming import WORKTREE_DIR, shadow_id
+from torve.base.shell import clip
 from torve.config import layout
 from torve.config.providers import Price
 from torve.config.runconfig import RunnerConfig
@@ -1032,7 +1033,8 @@ def burn_population(
 RECORDED_OUTPUT = 4000
 _RED = ("fail", "error")
 
-# A truncated red result keeps its tail, where the failure is. The `mutation`
+# A truncated red result keeps its tail, where the failure is, or a test run's
+# failure report beside it when the report opens earlier (`clip`). The `mutation`
 # gate (S-0107/D-2) is the exception: its report opens with the score line and
 # its survivors can run past the bound, so the tail alone would drop the score
 # exactly when the tests are weakest — the one reading `torve why` and the
@@ -1051,7 +1053,9 @@ def _recorded_result(result: GateResult) -> dict[str, Any]:
         # The head line counts against the bound, so the record stays within it.
         room = RECORDED_OUTPUT - len(head) - 1
         row["output"] = (
-            f"{head}\n{output[-room:] if room > 0 else ''}" if head else output[-RECORDED_OUTPUT:]
+            f"{head}\n{clip(output, room) if room > 0 else ''}"
+            if head
+            else clip(output, RECORDED_OUTPUT)
         )
 
     return row

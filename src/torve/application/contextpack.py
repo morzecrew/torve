@@ -35,6 +35,7 @@ from pathspec import GitIgnoreSpec
 from torve.application.colocation import contended_paths
 from torve.application.planner import standing_decisions
 from torve.application.projections import why_report
+from torve.base.shell import clip
 from torve.config.manifest import TestsConfig, load_manifest, read_layout
 from torve.config.spec import SpecError, load_corpus
 from torve.domain.spec import Corpus, Document
@@ -371,7 +372,7 @@ def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
             {
                 "gate": result.get("name"),
                 "state": result.get("state"),
-                "output_tail": output[-OUTPUT_TAIL:],
+                "output_tail": clip(output, OUTPUT_TAIL),
                 "truncated": len(output) > OUTPUT_TAIL or "truncated" in output,
                 "touched_paths": touched,
                 "governing_decisions": sorted(set(GOVERNING.findall(output)))

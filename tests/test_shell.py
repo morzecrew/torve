@@ -4,9 +4,34 @@ the verdict destroyed a review (T-0220)."""
 
 import json
 
-from torve.base.shell import FINAL_LINE_LIMIT, OUTPUT_LIMIT, truncate
+from torve.application.contextpack import OUTPUT_TAIL
+from torve.application.telemetry import RECORDED_OUTPUT
+from torve.base.shell import FINAL_LINE_LIMIT, OUTPUT_LIMIT, clip, truncate
 
 # ----------------------- #
+
+TRACEBACK = "E   KeyError: 'detail_id'"
+
+
+def _pytest_run() -> str:
+    """An e2e run as pytest prints it: the failure report opens mid-output, and
+    the coverage table and the summary follow it."""
+
+    return "\n".join(
+        [
+            "uv sync noise\n" * 300,
+            "." * 135 + "FF",
+            "=" * 35 + " FAILURES " + "=" * 35,
+            "_____ test_rows_are_read_off_the_filter _____",
+            "tests/e2e/test_requirements.py:402: in _article",
+            '    return row["detail_id"]',
+            TRACEBACK,
+            "src/erp/domain/models/stock.py    46    0    10    5  91.1%   31->34\n" * 400,
+            "=" * 28 + " short test summary info " + "=" * 28,
+            "FAILED tests/e2e/test_requirements.py::test_rows_are_read_off_the_filter",
+            "=" * 20 + " 1 failed, 135 passed in 54.92s " + "=" * 20,
+        ]
+    )
 
 
 def test_short_output_untouched() -> None:
@@ -70,3 +95,59 @@ def test_the_final_line_rescue_survives_the_streams_trailing_newline() -> None:
     assert (
         json.loads(clipped[clipped.index("{", clipped.index("… truncated …")) :])["findings"] == []
     )
+
+
+def test_a_failure_report_survives_every_clip_down_to_the_retry() -> None:
+    """erp T-0007: the gate's clip, the record's and the retry pack's each kept
+    the tail, which is the coverage table and the summary; the retry saw which
+    tests failed and not why, and spent its attempt guessing."""
+
+    gate = truncate(_pytest_run())
+    record = clip(gate, RECORDED_OUTPUT)
+    retry = clip(record, OUTPUT_TAIL)
+
+    for kept, limit in (
+        (gate, OUTPUT_LIMIT + 100),
+        (record, RECORDED_OUTPUT),
+        (retry, OUTPUT_TAIL),
+    ):
+        assert TRACEBACK in kept
+        assert kept.endswith("in 54.92s " + "=" * 20)
+        assert len(kept) <= limit
+
+
+def test_output_without_a_failure_report_keeps_its_tail() -> None:
+    text = "build step\n" * 2_000 + "error: recipe `e2e` failed"
+
+    assert clip(text, RECORDED_OUTPUT) == text[-RECORDED_OUTPUT:]
+    assert clip("short", RECORDED_OUTPUT) == "short"
+
+
+def test_a_failure_report_opening_in_the_head_keeps_its_traceback() -> None:
+    """A quiet run's report opens within the head, and a long traceback runs
+    past it into what the plain clip drops."""
+
+    text = "\n".join(
+        [
+            "=" * 10 + " FAILURES " + "=" * 10,
+            "frame\n" * 500,
+            TRACEBACK,
+            "src/erp/x.py    46    0    10    5  91.1%\n" * 400,
+            "1 failed",
+        ]
+    )
+
+    assert TRACEBACK in truncate(text)
+
+
+def test_a_bound_too_small_for_the_elision_keeps_a_bounded_tail() -> None:
+    text = _pytest_run()
+
+    for limit in (1, 10, 40):
+        assert clip(text, limit) == text[-limit:]
+
+
+def test_a_failure_report_already_in_the_tail_keeps_the_plain_tail() -> None:
+    text = "noise\n" * 2_000 + "=" * 10 + " FAILURES " + "=" * 10 + "\nE   boom\n1 failed"
+
+    assert clip(text, 200) == text[-200:]
