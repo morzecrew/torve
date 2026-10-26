@@ -4127,6 +4127,20 @@ def test_a_copy_left_behind_a_rebased_remote_is_adopted_and_the_next_phase_lands
     assert git(lane_repo, "show", f"{tip}:two.py") == "# T-7545"
 
 
+def test_a_copy_whose_landings_cannot_be_read_is_kept(lane_repo, monkeypatch):
+    """A diverged local copy whose landing files read as none is kept, not
+    reset to the remote: a held landing reset away is lost."""
+    import torve.application.lane as lane
+
+    git(lane_repo, "checkout", "-q", "-b", "local")
+    git(lane_repo, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "held")
+    git(lane_repo, "checkout", "-q", "main")
+    git(lane_repo, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "moved")
+    monkeypatch.setattr(lane, "_landing_paths", lambda root, ref: set())
+
+    assert lane._unpublished(lane_repo, GitLane(), "local", git(lane_repo, "rev-parse", "main"))
+
+
 def _landing_on_branch(root: Path, branch: str, document: str, task_id: str) -> None:
     """Commit a landing file for *task_id* under *document*'s execution
     directory onto *branch*, cut from the current HEAD."""

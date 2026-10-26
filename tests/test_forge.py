@@ -193,22 +193,37 @@ def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
 
 def test_a_refused_ready_is_the_publications_refusal(tmp_path, monkeypatch):
     # A pull request the forge would not mark ready is said so, for the lane to
-    # record; a draft's refresh stays best effort, as it always was.
+    # record; a refused edit is too, before any ready, so a stale title never
+    # goes out ready. A draft's refresh stays best effort, as it always was.
+    refused: set[str] = set()
+    ran: list[str] = []
+
     def fake_run(command, **kwargs):
         joined = " ".join(str(part) for part in command)
+        ran.append(joined)
         if "pr create" in joined:
             return subprocess.CompletedProcess(command, 1, stdout="", stderr="already exists")
         if "pr list" in joined:
             return subprocess.CompletedProcess(
                 command, 0, stderr="", stdout=json.dumps([{"number": 31, "url": "u31"}])
             )
-        return subprocess.CompletedProcess(command, 1, stdout="", stderr="not permitted")
+        verb = str(command[2])
+        if verb in refused:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr=f"{verb} refused")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(git_module.subprocess, "run", fake_run)
     scm = GhScm(repo="example/lab", token_env=None)
 
-    with pytest.raises(RuntimeError, match="#31: not permitted; not permitted"):
+    refused.add("ready")
+    with pytest.raises(RuntimeError, match="#31: ready refused"):
         scm.open_pr(tmp_path, "torve/S-0930", "title", "body")
+
+    refused.add("edit")
+    ran.clear()
+    with pytest.raises(RuntimeError, match="#31: edit refused"):
+        scm.open_pr(tmp_path, "torve/S-0930", "title", "body")
+    assert not [call for call in ran if "pr ready" in call]
 
     assert scm.open_pr(tmp_path, "torve/S-0930", "title", "body", draft=True) == "u31"
 

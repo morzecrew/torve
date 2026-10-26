@@ -2048,11 +2048,14 @@ def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
         check=False,
     )
 
-    # Unreadable, the copy is kept: a held landing reset away is lost.
-    if added.returncode != 0:
+    # Unreadable, the copy is kept: a held landing reset away is lost. A
+    # document branch always carries landings, so none read is unreadable too.
+    mine = _landing_paths(root, local)
+
+    if added.returncode != 0 or not mine:
         return True
 
-    held = set(added.stdout.splitlines()) & _landing_paths(root, local)
+    held = set(added.stdout.splitlines()) & mine
 
     return bool(held - _landing_paths(root, remote))
 

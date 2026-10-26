@@ -704,20 +704,22 @@ class GhScm:
 
             if listed:
                 number = int(listed[0]["number"])
-                calls = [run_gh("pr", "edit", str(number), "--title", title, "--body", body)]
+                edited = run_gh("pr", "edit", str(number), "--title", title, "--body", body)
 
                 if not draft:
                     # Idempotent: `gh pr ready` on a ready pull request only
                     # says so, and the answer is not the landing's to refuse.
-                    calls.append(run_gh("pr", "ready", str(number)))
+                    # It waits for the edit, or a stale title goes out ready.
+                    readied = edited if edited.returncode else run_gh("pr", "ready", str(number))
 
                     # A refusal on the way to ready is the publication's, so the
-                    # lane records why the pull request is still a draft. A
-                    # draft's refresh stays best effort, as it always was.
-                    refused = [c.stderr.strip() or "gh refused" for c in calls if c.returncode]
-
-                    if refused:
-                        raise RuntimeError(f"pull request #{number}: " + "; ".join(refused))
+                    # lane records why the pull request is still a draft and a
+                    # later pass tries both again. A draft's refresh stays best
+                    # effort, as it always was.
+                    if readied.returncode:
+                        raise RuntimeError(
+                            f"pull request #{number}: {readied.stderr.strip() or 'gh refused'}"
+                        )
 
                 return str(listed[0].get("url", ""))
 
