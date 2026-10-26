@@ -170,6 +170,11 @@ attempt's own sandbox has no repository to diff.
 - `tiers` name the executor and reviewer seats. A reviewer from a different
   model family than the executor catches what the executor's own family
   misses. `providers` lists who may receive the repository's code.
+- `runtime.agent_timeout` is the attempt clock of every seat that names none.
+  A phase that needs longer, or the stronger model, runs on a variant seat
+  (`executor.long`) that its `tier_variant` names, or that `character_routing`
+  sends its `character` to. That seat carries its own `agent_timeout` and a
+  `sandbox_timeout` above it: an agent clock past the sandbox's never fires.
 - `torve doctor` checks every seat, image and store before a night spends an
   attempt finding out.
 
