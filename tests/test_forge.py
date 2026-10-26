@@ -637,11 +637,47 @@ def test_the_document_title_wears_the_change_and_drops_the_count_at_the_last_lan
     title, _ = compose_document_pr("S-0090", both, breaking)
     assert title == "💥 feat!: landing by document"
 
-    # The cut falls on the description: the type a release reads survives it.
+    # The cut falls on the description: the type a release reads survives it,
+    # and the count gives way before the description does (#184).
     long = corpus_with_phasing(tmp_path, {"type": "feat", "scope": "lane"}, title="Landing " * 12)
     title, _ = compose_document_pr("S-0090", first, long)
-    assert title.startswith("✨ feat(lane): landing") and title.endswith("… · 1/2 phases")
+    assert title.startswith("✨ feat(lane): landing") and title.endswith("…")
     assert len(title) <= 72
+
+    # A title that fits the room alone is never cut to make room for the count.
+    words = "Landing by document, one phase at a time, and only that"
+    snug = corpus_with_phasing(tmp_path, {"type": "feat", "scope": "lane"}, title=words)
+    title, _ = compose_document_pr("S-0090", first, snug)
+    assert title == "✨ feat(lane): landing by document, one phase at a time, and only that"
+
+
+def test_spec_check_warns_on_a_title_the_typed_lead_leaves_no_room_for(tmp_path: Path):
+    # #184: a document still to land whose title would end its squash subject
+    # in `…` is named with both numbers, from the sum the title itself uses.
+    from test_decisions import document, place
+
+    from torve.application.forge import title_warnings
+    from torve.config.spec import load_corpus
+
+    spec_dir = tmp_path / ".torve" / "specs"
+    spec_dir.mkdir(parents=True)
+    long = "The infrastructure secrets are generated, one declaration each"
+    typed = {"change": {"type": "feat", "scope": "bundle"}}
+
+    for number, title, implementation, extra in (
+        ("0090", long, "none", typed),
+        ("0091", long, "complete", typed),  # landed: its title titles nothing now
+        ("0092", "The secrets are generated", "none", typed),
+        ("0093", long, "none", None),  # untyped: titled as today
+    ):
+        doc = document(number, [], title=title, implementation=implementation, extra=extra)
+        place(spec_dir, number, doc)
+
+    (warning,) = title_warnings(load_corpus(spec_dir))
+    assert warning == (
+        "S-0090: the title runs 62 characters and `✨ feat(bundle):` leaves it 56 — "
+        "the pull request's title and its squash subject would end in …"
+    )
 
 
 def test_a_title_opening_on_an_article_is_lowered_and_an_acronym_is_kept(tmp_path: Path):

@@ -2945,6 +2945,35 @@ def test_land_writes_the_execution_file_into_the_candidate(tmp_path):
     assert [(one.id, one.grade) for one in landing.decisions] == [("S-0001/D-1", "LOCKED")]
 
 
+def test_the_work_commit_names_the_phase_and_is_cut_only_between_words():
+    """#199: the subject is the contract's short title; a head past the room is
+    cut at a space outside backticks — never inside a word, a path or a
+    backticked name — and the whole text rides in the body."""
+
+    from torve.application.runner import _work_message
+
+    phase = Task(id="T-0017", title="the settings, the palette and the prompt", decisions=[])
+    assert _work_message(phase, 1) == (
+        "torve(T-0017): the settings, the palette and the prompt — attempt 1 green"
+    )
+
+    intent = "Pin the version with `uv add pydantic-ai-slim openai --frozen` and the lock"
+    subject, _, body = _work_message(Task(id="T-0018", intent=intent, decisions=[]), 6).partition(
+        "\n\n"
+    )
+    assert subject == (
+        "torve(T-0018): Pin the version with `uv add pydantic-ai-slim openai --frozen`… "
+        "— attempt 6 green"
+    )
+    assert body == intent
+
+    path = "app/src/wire/settings_panel_and_the_palette_beside_it.py"
+    review = Task(id="T-0022", title=f"review round: 1 finding on {path}", decisions=[])
+    assert _work_message(review, 1) == (
+        f"torve(T-0022): review round: 1 finding on {path} — attempt 1 green"
+    )
+
+
 def test_the_gated_arm_removes_the_prompt_and_keeps_the_battery(tmp_path):
     """S-0082/D-1: the gated arm is the two removals combined, not a third
     mechanism — the prompt's removal is in force and the battery's is not, so

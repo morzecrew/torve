@@ -143,6 +143,25 @@ a commit, rebase, checkout or push torve makes. Move what those hooks checked
 into the gate manifest or into CI, where the check runs against a tree torve
 did not write from configuration an agent could edit.
 
+Hooks kept in pre-commit move into the gate manifest as one shell gate, so a
+candidate goes red where its pull request's check would:
+
+```yaml
+- name: pre-commit
+  run: "pre-commit run --from-ref {base} --to-ref HEAD --show-diff-on-failure"
+  state: blocking
+  origin: structural
+```
+
+The runner replaces `{base}` with the merge-base the battery computed, so the
+hooks judge the files the attempt changed and none it inherited. A fixer hook
+(end of file, trailing whitespace) fails on the file it would fix and prints
+the fix, and the retry makes it in its own change. The gates image must carry
+`pre-commit` and every hook's environment, since pre-commit fetches a hook's
+repository on first use: install them into a derived image, or declare the
+hooks `language: system`. It is a gate, never an acceptance command: an
+attempt's own sandbox has no repository to diff.
+
 ## 7. Store and seats
 
 - The store is Postgres with one partition per repository (`org/repo`). The
