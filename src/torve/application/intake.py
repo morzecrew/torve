@@ -15,7 +15,7 @@ import json
 import re
 import shlex
 import subprocess
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -314,12 +314,25 @@ def _nests_gates(tree: Path) -> bool:
 # ....................... #
 
 
-def _tree_paths(tree: Path) -> list[Path]:
-    return [
-        p.relative_to(tree)
-        for p in tree.rglob("*")
-        if p.is_file() and NOT_THE_TREE.isdisjoint(p.parts)
-    ]
+def tree_files(tree: Path, unwalked: Collection[str] = NOT_THE_TREE) -> list[Path]:
+    """Every file under *tree*, as tree-relative paths, sorted: the tree under
+    judgment. A directory named in *unwalked* is not it, and neither is one
+    below the root holding its own `.git` — another worktree or a nested
+    clone, a whole copy of the repository an agent harness may keep under
+    `.claude/worktrees/`, which put 215 copies into one phase's contingent
+    set. Read below *tree*, so a tree that itself sits under `.wt/` is walked."""
+
+    found: list[Path] = []
+
+    for parent, dirs, names in tree.walk():
+        dirs[:] = [d for d in dirs if d not in unwalked and not (parent / d / ".git").exists()]
+        found += [
+            (parent / name).relative_to(tree)
+            for name in names
+            if name not in unwalked and (parent / name).is_file()
+        ]
+
+    return sorted(found)
 
 
 # ....................... #
@@ -394,7 +407,7 @@ def lint_drafts(
     from torve.base.globs import overlap
 
     errors: list[str] = []
-    tree_paths = _tree_paths(tree)
+    tree_paths = tree_files(tree)
     all_paths = [p.as_posix() for p in tree_paths]
     drafts = document.drafts
     nested_gates = _nests_gates(tree)
@@ -589,7 +602,7 @@ def lint_decomposition(
     if not drafts:
         return errors  # lint_drafts already refused the empty batch
 
-    tree_paths = _tree_paths(tree)
+    tree_paths = tree_files(tree)
 
     for draft in drafts:
         escaped = _escapes_parent_scope(draft.scope.allow, parent.scope.allow, tree_paths)
@@ -1345,7 +1358,7 @@ def build_intake_prompt(
             "is proposed against the rows it would cross, not a list of names.\n"
         )
     else:
-        top = sorted({p.parts[0] for p in _tree_paths(tree)})
+        top = sorted({p.parts[0] for p in tree_files(tree)})
         tree_block = "## The repository tree\n\n" + "\n".join(f"- {name}" for name in top) + "\n"
 
     retry_block = ""

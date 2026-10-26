@@ -98,6 +98,19 @@ How the entries work:
 Uncomment the `tests` entry, with your own test command, once the sandbox
 image can run it.
 
+A shell gate may name `{base}`: the runner replaces it with the merge-base the
+battery computed, so the command judges what the attempt changed. The
+repository's pre-commit hooks become a gate that way, red where the pull
+request's check would be red, once the gates image carries `pre-commit` and
+the hooks' environments:
+
+```yaml
+  - name: pre-commit
+    run: "pre-commit run --from-ref {base} --to-ref HEAD --show-diff-on-failure"
+    state: blocking
+    origin: structural
+```
+
 `no-test-tampering` and `decisions-reported` read a task contract and its
 log, so with no task they report `skipped`, never a silent green.
 
