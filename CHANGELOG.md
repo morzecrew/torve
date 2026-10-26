@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `torve ledger` prices a subscription seat's attempts from their token counts
+  when its provider record names the model's `list_price`, and marks the figure
+  `~`: what the tokens would cost, not an amount billed. The attempt's own cost
+  stays unreported, and a night's dollar budget does not count it.
+
 ### Fixed
 
 - `torve why`, `status`, `context`, `serve` and `mcp` read the partition the
