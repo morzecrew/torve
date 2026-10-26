@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contradicts such a row shows before the document is accepted, not when its executor
   halts on it.
 
+- `torve spec check` warns when a document's title is too long for its typed
+  pull request title, naming its length and the room after `<gitmoji>
+  <type>(<scope>): `. Shortened before acceptance, the title is the squash
+  subject as written. The `· n/m phases` count gives way rather than cut it.
+
 - `torve manager note --urgent` halts a running attempt: a Claude seat stops at
   its next tool call, any other seat when its session ends. The task escalates
   as `killed`, its gates never run, and its tree stays on the task's branch.
@@ -29,7 +34,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sandbox_timeout`, named by the phase's `tier_variant` or reached through
   `character_routing`.
 
+- The scope gate names a file outside the scope whose change is whitespace alone,
+  such as a final newline or trailing spaces, as `outside allow, whitespace only`.
+  It still fails, and the retry is told to undo the change rather than widen the scope.
+
 ### Fixed
+
+- A phase's contingent paths, the context pack and a review round's paired tests no
+  longer take in copies from a git worktree or clone nested in the repository, such as
+  an agent harness's under `.claude/worktrees/`.
+
+- The intake lint reads the drafting worktree's files. It read none, because that
+  worktree sits under `.wt/`, so a draft that left out its module's test file passed.
+
+- An attempt's work commit is titled by its phase, not by its intent cut
+  mid-word, and a review round's names a lone finding's file with the path
+  whole. A subject still too long is cut between words, never inside backticks
+  or a path, and the commit body keeps the whole text.
 
 - Git works inside an attempt's Docker sandbox: `git status`, `diff` and `log`
   read a read-only copy of the attempt's HEAD and index. The copy carries none

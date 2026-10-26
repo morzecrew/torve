@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import shutil
 from collections.abc import Awaitable, Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -1387,8 +1388,8 @@ def _agent_identity(meta: dict[str, Any]) -> str:
 
 def _work_message(task: Task, attempts: int) -> str:
     """The work commit's message, composed from the contract and nothing
-    else (S-0010/D-6): the subject carries the intent's head, so a history
-    is readable without opening the task.
+    else (S-0010/D-6): the subject carries the contract's short title, so a
+    history is readable without opening the task.
 
     No `Torve-` trailer rides here (S-0059/D-10). The landing file that
     follows in its own commit carries the task, the attempt, the agent,
@@ -1401,12 +1402,26 @@ def _work_message(task: Task, attempts: int) -> str:
         task.intent.strip().splitlines()[0].strip() if task.intent.strip() else ""
     )
 
-    if len(head) > 46:
-        head = head[:45].rstrip() + "…"
+    subject = _clipped(head, 46)
+    what = f" {subject} —" if subject else ""
+    message = f"torve({task.id}):{what} attempt {attempts} green"
 
-    what = f" {head} —" if head else ""
+    # A cut subject leaves the whole text to the body (#199).
+    return message if subject == head else f"{message}\n\n{head}"
 
-    return f"torve({task.id}):{what} attempt {attempts} green"
+
+def _clipped(text: str, room: int) -> str:
+    """*text* cut with `…` at the first space at or past *room* that sits
+    outside a backticked name, so no word, path or name is split (#199); a
+    text with no such space is kept whole."""
+
+    if len(text) <= room:
+        return text
+
+    named = {at for span in re.finditer(r"`[^`]*`", text) for at in range(*span.span())}
+    cut = next((at for at in range(room, len(text)) if text[at] == " " and at not in named), None)
+
+    return text if cut is None else text[:cut].rstrip(",;:") + "…"
 
 
 # ....................... #
