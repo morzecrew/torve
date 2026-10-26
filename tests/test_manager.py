@@ -1653,6 +1653,53 @@ def test_the_board_names_the_document_a_task_waits_on(tmp_path, monkeypatch):
     assert "waits on document" in text.output and "S-0090" in text.output
 
 
+def test_the_board_table_reads_a_concluded_review_as_consumed(tmp_path, monkeypatch):
+    """A runner-minted review ran inline in its target's run, and its row sat
+    `queued` forever, which read as a queue that never drains. The table says
+    `consumed`, as `torve status` does; the JSON keeps `queued` and the role
+    (S-0049/A-1), so a poller reading it sees no change."""
+    import json
+
+    from typer.testing import CliRunner
+
+    from torve.application.manager import Board, TaskView
+    from torve.cli import manager as manager_cli
+    from torve.cli.main import app
+    from torve.domain.task import Task
+
+    board = Board(
+        tasks={
+            "T-0001": TaskView(task_id="T-0001", contract=Task(id="T-0001", decisions=[])),
+            "T-0002": TaskView(
+                task_id="T-0002",
+                contract=Task(id="T-0002", role="review", targets=["T-0001"], decisions=[]),
+            ),
+        }
+    )
+
+    async def fake_board(dsn, partition):
+        return board
+
+    monkeypatch.setattr(manager_cli, "_board", fake_board)
+    monkeypatch.setattr(manager_cli, "dsn_for", lambda root, dsn: None)
+    runner = CliRunner()
+
+    shown = runner.invoke(
+        app, ["manager", "board", "repo", "--root", str(tmp_path), "--format", "json"]
+    )
+
+    assert shown.exit_code == 0, shown.output
+    states = {row["task"]: row["state"] for row in json.loads(shown.output)["tasks"]}
+    assert states == {"T-0001": "queued", "T-0002": "queued"}
+
+    text = runner.invoke(app, ["manager", "board", "repo", "--root", str(tmp_path)])
+
+    assert text.exit_code == 0, text.output
+    rows = {line.split()[0]: line for line in text.output.splitlines() if "T-000" in line}
+    assert "queued" in rows["T-0001"] and "consumed" not in rows["T-0001"]
+    assert "consumed" in rows["T-0002"]
+
+
 def test_a_landed_resolution_is_refused_for_a_sha_whose_tree_holds_no_landing_file(tmp_path):
     """S-0091/D-3: a hand resolution cannot claim a landing the tree does not
     carry — refused before anything is recorded, naming the task, the sha and
@@ -2620,7 +2667,9 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
 
     monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
     monkeypatch.setattr(merge_module, "_status", lambda config: sentinel)
-    monkeypatch.setattr(merge_module, "_publisher", lambda root, config: None)
+    monkeypatch.setattr(
+        merge_module, "_publisher", lambda root, config, status: seen.update(publisher=status)
+    )
     monkeypatch.setattr(merge_module, "_forge", lambda config: None)
     monkeypatch.setattr(merge_module, "_resolve_ci", lambda config: None)
     config = RunnerConfig.model_validate(
@@ -2637,6 +2686,8 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
     asyncio.run(leg())
 
     assert seen["status"] is sentinel
+    # The draft flag reads the verdict through the forge the lane writes it to.
+    assert seen["publisher"] is sentinel
 
 
 # ....................... #

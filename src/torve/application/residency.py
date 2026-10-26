@@ -35,10 +35,12 @@ from torve.application.manager import (
     overlaps,
     project,
 )
+from torve.application.runstate import Escalation, RunState
 from torve.base import naming
+from torve.base.clock import parse
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.domain.states import TaskState
+from torve.domain.states import TERMINAL, EscalationReason, TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, Task
 
 if TYPE_CHECKING:
@@ -455,6 +457,39 @@ async def mint(
 # ....................... #
 
 
+# What a host's run state says once the process holding the run is gone: the
+# reaper expired its lease, or an interrupt killed it.
+_HOLDER_GONE = frozenset({EscalationReason.LEASE_EXPIRED, EscalationReason.KILLED})
+
+
+def _ended_here(root: Path, board: Board) -> dict[str, Escalation]:
+    """The in-flight tasks whose run this host's record ended after the
+    board's claim, with the escalation it recorded. A run state older than
+    the claim is an earlier attempt's and says nothing about this holder."""
+
+    ended: dict[str, Escalation] = {}
+
+    for state in RunState.load_all(root / naming.WORKTREE_DIR):
+        view = board.tasks.get(state.task_id)
+        escalation = state.escalation
+
+        if (
+            view is None
+            or view.state not in IN_FLIGHT
+            or view.claimed_at is None
+            or state.state is not TaskState.ESCALATED
+            or escalation is None
+            or escalation.reason not in _HOLDER_GONE
+            # The run state stamps whole seconds; the claim may not.
+            or parse(state.heartbeat) < view.claimed_at.replace(microsecond=0)
+        ):
+            continue
+
+        ended[state.task_id] = escalation
+
+    return ended
+
+
 async def reclaim(
     log: EventLog,
     *,
@@ -462,6 +497,7 @@ async def reclaim(
     actor_id: str,
     lease: timedelta | None = None,
     landed: Landed | None = None,
+    root: Path | None = None,
 ) -> list[str]:
     """Return the tasks put back on the queue, whose holder has gone silent
     past its lease.
@@ -476,16 +512,38 @@ async def reclaim(
     the holder died after its attempt landed, and releasing it would cut the
     document branch a finished task already moved. The landing is recorded
     instead, and the task is no more the queue's.
+
+    A run whose state under *root* already ended it — `torve reap` expired
+    it, or an interrupt killed it — is not waited out on the board's clock,
+    which a gate pass's announced silence can stretch for hours. Nor is it
+    released: that run state would refuse the next dispatch here. The
+    escalation the host recorded goes on the board, where `manager resolve`
+    answers it.
     """
 
     board = project(await log.since(partition=partition))
+    ended = _ended_here(root, board) if root is not None else {}
+    lapsed = {view.task_id: view for view in expired(board, lease=lease)}
+    lapsed.update((task_id, board.tasks[task_id]) for task_id in ended)
     released: list[str] = []
 
-    for view in expired(board, lease=lease):
-        sha = landed(view.task_id) if landed is not None else None
+    for task_id, view in sorted(lapsed.items()):
+        sha = landed(task_id) if landed is not None else None
 
         if sha:
-            await _record_landing(log, view.task_id, sha, partition=partition, actor_id=actor_id)
+            await _record_landing(log, task_id, sha, partition=partition, actor_id=actor_id)
+            continue
+
+        if task_id in ended:
+            await log.record(
+                EventKind.ESCALATION_RAISED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id=actor_id,
+                payload={"reason": ended[task_id].reason, "detail": ended[task_id].detail[:300]},
+            )
             continue
 
         await log.record(
@@ -611,7 +669,9 @@ async def once(
         # than falling back to a row the operator stepped around.
         tasks = {task_id: task for task_id, task in tasks.items() if task_id == only}
 
-    await reclaim(log, partition=partition, actor_id=worker.name, lease=lease, landed=landed)
+    await reclaim(
+        log, partition=partition, actor_id=worker.name, lease=lease, landed=landed, root=root
+    )
 
     if not paused:
         await mint(log, tasks, partition=partition, actor_id=worker.name, landed=landed, ran=ran)
@@ -988,6 +1048,32 @@ async def close_night(
 # ....................... #
 
 
+def _stranded(task: Task, board: Board, seen: frozenset[str] = frozenset()) -> bool:
+    """Whether *task* waits on a dependency that can never land: one the board
+    holds terminal without a landing — abandoned, since `blocked_by` already
+    counts `ready` as landed — or one queued behind such a dependency itself."""
+
+    seen = seen | {task.id}
+
+    for one in blocked_by(task, board):
+        view = board.tasks.get(one)
+
+        if view is None or one in seen:
+            continue
+
+        if view.state in TERMINAL:
+            return True
+
+        if (
+            view.state is TaskState.QUEUED
+            and view.contract is not None
+            and _stranded(view.contract, board, seen)
+        ):
+            return True
+
+    return False
+
+
 async def reached(
     log: EventLog,
     partition: str,
@@ -1030,7 +1116,21 @@ async def reached(
     if moment >= night.ends_at:
         return "wall_clock"
 
-    if not dispatchable(board, partition) and not board.in_flight():
+    # A task still queued or escalated is work this night can yet do: a person
+    # who resolves the escalation it waits on lets it run, so the night polls
+    # on, paused, rather than making that person start another one. A queued
+    # task behind a dependency that can never land is not: nothing resolves it.
+    waiting = any(
+        view.contract is not None
+        and view.contract.role in DISPATCHABLE_ROLES
+        and (
+            view.state is TaskState.ESCALATED
+            or (view.state is TaskState.QUEUED and not _stranded(view.contract, board))
+        )
+        for view in board.tasks.values()
+    )
+
+    if not waiting and not board.in_flight():
         # S-0079/D-6's other half: a queue that drains closes the night. It is
         # not an error and it is not the refusal — the work is done. Unless
         # the lane still owes a landing: a candidate green on the last pass

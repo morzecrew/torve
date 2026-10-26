@@ -191,6 +191,43 @@ def test_open_pr_reuses_the_branchs_open_pull_request(tmp_path, monkeypatch):
     assert edits and "--body" in edits[0] and "fresh body" in edits[0]
 
 
+def test_a_refused_ready_is_the_publications_refusal(tmp_path, monkeypatch):
+    # A pull request the forge would not mark ready is said so, for the lane to
+    # record; a refused edit is too, before any ready, so a stale title never
+    # goes out ready. A draft's refresh stays best effort, as it always was.
+    refused: set[str] = set()
+    ran: list[str] = []
+
+    def fake_run(command, **kwargs):
+        joined = " ".join(str(part) for part in command)
+        ran.append(joined)
+        if "pr create" in joined:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="already exists")
+        if "pr list" in joined:
+            return subprocess.CompletedProcess(
+                command, 0, stderr="", stdout=json.dumps([{"number": 31, "url": "u31"}])
+            )
+        verb = str(command[2])
+        if verb in refused:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr=f"{verb} refused")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+    scm = GhScm(repo="example/lab", token_env=None)
+
+    refused.add("ready")
+    with pytest.raises(RuntimeError, match="#31: ready refused"):
+        scm.open_pr(tmp_path, "torve/S-0930", "title", "body")
+
+    refused.add("edit")
+    ran.clear()
+    with pytest.raises(RuntimeError, match="#31: edit refused"):
+        scm.open_pr(tmp_path, "torve/S-0930", "title", "body")
+    assert not [call for call in ran if "pr ready" in call]
+
+    assert scm.open_pr(tmp_path, "torve/S-0930", "title", "body", draft=True) == "u31"
+
+
 def test_pr_for_branch_answers_with_the_merge_commit(monkeypatch):
     # S-0080/D-6: the lane's one question — what happened to this branch —
     # asked by head branch, answered with the sha a squash merge landed in.
@@ -292,6 +329,19 @@ def test_a_status_is_written_and_read_under_its_own_context(monkeypatch):
     assert scm.status("cafe", "torve/regate") == ("failure", "base-tip")
     assert scm.status("cafe", "torve/rebase") is None
     assert scm.completion("cafe") == "success"
+
+
+def test_a_status_reads_back_before_the_forge_lists_it(monkeypatch):
+    # The forge may not list a status right after it took one: the object that
+    # wrote it reads its own write, and another object asks the forge.
+    monkeypatch.setattr(GhScm, "_api", lambda self, *args: "[]")
+    scm = GhScm(repo="example/lab")
+
+    scm.set_status("cafe", "success", "the completion battery passed")
+
+    assert scm.completion("cafe") == "success"
+    assert scm.status("cafe") == ("success", "the completion battery passed")
+    assert GhScm(repo="example/lab").completion("cafe") is None
 
 
 # ....................... #

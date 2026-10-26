@@ -320,7 +320,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             "state": (
                 "shipped"
                 if task_id in shipped
-                else ("consumed" if record.get("role") in ("draft", "review") else "unstarted")
+                else (CONSUMED if record.get("role") in ("draft", "review") else "unstarted")
             ),
             "attempts": 0,
             "escalation": None,
@@ -1287,7 +1287,7 @@ def _entry_state(view: TaskView, task: Task) -> str:
     """
 
     if view.state is TaskState.QUEUED and not view.attempts:
-        return "consumed" if task.role not in DISPATCHABLE_ROLES else "unstarted"
+        return CONSUMED if task.role not in DISPATCHABLE_ROLES else "unstarted"
 
     return str(view.state)
 
@@ -1542,6 +1542,10 @@ def status_report(root: Path, *, board: Board | None = None) -> dict[str, Any]:
 # task that landed weeks ago read as waiting to land; the display says what the
 # record already knows, and the state machine is unchanged.
 LANDED = "landed"
+
+# What a reader is shown for a review or draft row nothing has happened to: the
+# run that minted it concluded it, and nobody will ever claim it (S-0049/A-1).
+CONSUMED = "consumed"
 
 
 # ....................... #

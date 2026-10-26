@@ -1040,6 +1040,11 @@ pass to run after changing contracts, when you want the board to catch up
 without a worker taking the first thing it finds there — which on a full
 board is a real agent and real money.
 
+It imports the contract files under `.torve/tasks/` and never plans a
+document. With a store, `torve plan` mints into the record and writes no file
+(S-0056/D-9), so a freshly accepted document reaches the board only through
+`torve plan S-NNNN --no-dry-run --partition <partition>`.
+
 It is no longer a step every night needs. `torve manager serve --night` runs
 the same import pass before it opens, so the queue the open reads and records
 in `night.opened` includes contracts minted since the last pass; a queue still
@@ -1158,6 +1163,11 @@ So an escalation nobody triages stops new work. That is the design, and it
 is worth knowing before wondering why a board went quiet: check
 `torve status`, resolve it with `torve manager resolve`, or discard the
 footprint with `torve reap --escalated`.
+
+A served night does not close as drained while a task is still queued or
+escalated, such as one escalation with the rest waiting on it. It keeps
+polling until its wall-clock end, so that work runs once a person resolves
+the escalation, in the same night.
 
 ## The escalation loop is an amendment and a command
 
@@ -1417,6 +1427,15 @@ moved is not reset. A task with no landing proven is released as before,
 and a person's requeue through `torve manager resolve` is untouched — that
 is not a lease expiring, and a landed task a person requeued on purpose
 still runs (S-0049/A-2).
+
+**A run the reaper expired is escalated, not waited out.** After a manager
+is killed mid-attempt, `torve reap` expires its run and records
+`lease_expired` in the run-state file. The next pass on that host reads that
+verdict and escalates the task `lease_expired` on the board, without waiting
+for the board's own lease to run out (a gate pass can stretch it for hours).
+It does not release the task, because that run state would refuse the next
+dispatch on this host. `torve manager resolve` answers it like any
+escalation, and `torve plan --refresh` reaches it.
 
 **A task waits for its document's ready sibling to land.** A task is not
 dispatchable while another task naming the same document is `ready` with no
