@@ -196,8 +196,9 @@ def check(
     are unique and never reused, citations resolve into the corpus or the
     archive, the dependency graph is acyclic, no file carries a comment, no
     section carries what a typed list holds, a row changed by hand since
-    the tool last stamped it, and rows whose declared paths match nothing
-    in the tree. A malformed corpus is a configuration error — exit 3."""
+    the tool last stamped it, rows whose declared paths match nothing in
+    the tree, and a title too long for its typed pull request title. A
+    malformed corpus is a configuration error — exit 3."""
 
     from torve.config.spec import check_corpus
 
@@ -254,9 +255,11 @@ def check(
 def _model_findings(spec_dir: Path, root: Path) -> tuple[list[str], list[str], list[Any]]:
     """What the application layer adds to the check: fingerprint drift by
     field (a hand-edited grade or paths is a problem, a hand-edited text a
-    warning), and path rot (a warning naming the retiring verb)."""
+    warning), a title its typed lead leaves no room for (a warning), and path
+    rot (a warning naming the retiring verb)."""
 
     from torve.application.decisions import fingerprint_drift, path_rot
+    from torve.application.forge import title_warnings
     from torve.config.spec import SpecError, load_corpus
 
     try:
@@ -265,6 +268,7 @@ def _model_findings(spec_dir: Path, root: Path) -> tuple[list[str], list[str], l
         return [], [], []  # the check already reported the load
 
     problems, warnings = fingerprint_drift(corpus)
+    warnings += title_warnings(corpus)
     rotted = path_rot(corpus, root)
     warnings += [one.line() for one in rotted]
     return problems, warnings, rotted

@@ -657,6 +657,9 @@ def test_minting_into_the_record_writes_no_file_and_numbers_from_the_board(plan_
 
         assert board.tasks["T-0008"].contract is not None
         assert board.tasks["T-0008"].contract.intent == "Build the widget core."
+        # The phase title rides into the record too, where the work commit's
+        # subject reads it (#199).
+        assert board.tasks["T-0008"].contract.title == "widget-core"
 
         # a second plan sees the board's mints as minted
         with pytest.raises(PlanError, match="already minted"):

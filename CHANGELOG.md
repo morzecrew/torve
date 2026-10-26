@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `torve spec check` warns when a document's title is too long for its typed
+  pull request title, naming its length and the room after `<gitmoji>
+  <type>(<scope>): `. Shortened before acceptance, the title is the squash
+  subject as written. The `· n/m phases` count gives way rather than cut it.
+
+### Fixed
+
+- An attempt's work commit is titled by its phase, not by its intent cut
+  mid-word, and a review round's names a lone finding's file with the path
+  whole. A subject still too long is cut between words, never inside backticks
+  or a path, and the commit body keeps the whole text.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed
