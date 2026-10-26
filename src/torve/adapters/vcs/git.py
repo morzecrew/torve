@@ -634,6 +634,9 @@ class GhScm:
         self.repo = repo
         self.token_env = token_env
         self.sleeper = sleeper
+        # What this object wrote, by (sha, context): read back ahead of the
+        # forge, which may not list a status yet right after it took it.
+        self.written: dict[tuple[str, str], tuple[str, str]] = {}
 
     # ....................... #
 
@@ -701,12 +704,20 @@ class GhScm:
 
             if listed:
                 number = int(listed[0]["number"])
-                run_gh("pr", "edit", str(number), "--title", title, "--body", body)
+                calls = [run_gh("pr", "edit", str(number), "--title", title, "--body", body)]
 
                 if not draft:
                     # Idempotent: `gh pr ready` on a ready pull request only
                     # says so, and the answer is not the landing's to refuse.
-                    run_gh("pr", "ready", str(number))
+                    calls.append(run_gh("pr", "ready", str(number)))
+
+                    # A refusal on the way to ready is the publication's, so the
+                    # lane records why the pull request is still a draft. A
+                    # draft's refresh stays best effort, as it always was.
+                    refused = [c.stderr.strip() or "gh refused" for c in calls if c.returncode]
+
+                    if refused:
+                        raise RuntimeError(f"pull request #{number}: " + "; ".join(refused))
 
                 return str(listed[0].get("url", ""))
 
@@ -731,6 +742,7 @@ class GhScm:
             args += ["-f", f"description={description[:140]}"]
 
         self._api(*args)
+        self.written[(sha, context)] = (state, description[:140])
 
     # ....................... #
 
@@ -741,6 +753,9 @@ class GhScm:
 
         if not self.repo or not sha:
             return None
+
+        if (sha, context) in self.written:
+            return self.written[(sha, context)]
 
         raw = self._api(f"repos/{self.repo}/commits/{sha}/statuses")
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A document pull request whose last phase lands green is published ready even
+  when the forge does not list the new completion status yet. A forge that
+  refuses to mark it ready is recorded as `lane_pr_refused`, no longer silently.
+
+- The next phase of a document whose remote branch was rebased onto a moved
+  base no longer escalates `merge_conflict` when this checkout still holds the
+  old hashes. A copy whose landings the remote already has is reset to the
+  remote, and the phase lands onto it.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed

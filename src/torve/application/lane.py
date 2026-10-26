@@ -2018,11 +2018,43 @@ def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
     """Whether this checkout's copy of *branch* carries landings the remote
     does not have yet — a wave's held landing (S-0097/D-6). The branch is kept
     as it is rather than reset to the remote, so the push that publishes the
-    wave carries what it holds."""
+    wave carries what it holds.
+
+    A landing is its landing file, not its commit: a remote copy rebased onto
+    a moved base holds the same landings under new hashes, their files
+    restated, so a local copy left on the old hashes holds nothing the remote
+    lacks and is reset to the remote like any other."""
 
     local = vcs.tip(root, branch)
 
-    return local is not None and local != remote and not vcs.is_ancestor(root, local, remote)
+    if local is None or local == remote or vcs.is_ancestor(root, local, remote):
+        return False
+
+    # The files this copy added since it parted from the remote's.
+    added = subprocess.run(
+        [
+            "git",
+            *NO_HOOKS,
+            "-C",
+            str(root),
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=A",
+            f"{remote}...{local}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    # Unreadable, the copy is kept: a held landing reset away is lost.
+    if added.returncode != 0:
+        return True
+
+    held = set(added.stdout.splitlines()) & _landing_paths(root, local)
+
+    return bool(held - _landing_paths(root, remote))
 
 
 # ....................... #
