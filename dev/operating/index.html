@@ -2574,6 +2574,10 @@ board through the same path a mint does.</p>
 pass to run after changing contracts, when you want the board to catch up
 without a worker taking the first thing it finds there — which on a full
 board is a real agent and real money.</p>
+<p>It imports the contract files under <code>.torve/tasks/</code> and never plans a
+document. With a store, <code>torve plan</code> mints into the record and writes no file
+(S-0056/D-9), so a freshly accepted document reaches the board only through
+<code>torve plan S-NNNN --no-dry-run --partition &lt;partition&gt;</code>.</p>
 <p>It is no longer a step every night needs. <code>torve manager serve --night</code> runs
 the same import pass before it opens, so the queue the open reads and records
 in <code>night.opened</code> includes contracts minted since the last pass; a queue still
@@ -2735,6 +2739,10 @@ has to triage — while the notification relay runs regardless, and under
 is worth knowing before wondering why a board went quiet: check
 <code>torve status</code>, resolve it with <code>torve manager resolve</code>, or discard the
 footprint with <code>torve reap --escalated</code>.</p>
+<p>A served night does not close as drained while a task is still queued or
+escalated, such as one escalation with the rest waiting on it. It keeps
+polling until its wall-clock end, so that work runs once a person resolves
+the escalation, in the same night.</p>
 <h2 id="the-escalation-loop-is-an-amendment-and-a-command">The escalation loop is an amendment and a command<a class="headerlink" href="#the-escalation-loop-is-an-amendment-and-a-command" title="Permanent link">&para;</a></h2>
 <p>An escalation that convicts the contract rather than the work —
 <code>underspecified</code> most often — used to be five acts: widen the phase on the
@@ -3002,6 +3010,14 @@ moved is not reset. A task with no landing proven is released as before,
 and a person's requeue through <code>torve manager resolve</code> is untouched — that
 is not a lease expiring, and a landed task a person requeued on purpose
 still runs (S-0049/A-2).</p>
+<p><strong>A run the reaper expired is escalated, not waited out.</strong> After a manager
+is killed mid-attempt, <code>torve reap</code> expires its run and records
+<code>lease_expired</code> in the run-state file. The next pass on that host reads that
+verdict and escalates the task <code>lease_expired</code> on the board, without waiting
+for the board's own lease to run out (a gate pass can stretch it for hours).
+It does not release the task, because that run state would refuse the next
+dispatch on this host. <code>torve manager resolve</code> answers it like any
+escalation, and <code>torve plan --refresh</code> reaches it.</p>
 <p><strong>A task waits for its document's ready sibling to land.</strong> A task is not
 dispatchable while another task naming the same document is <code>ready</code> with no
 landing recorded (S-0098/D-3): the lane runs first in every pass, so the
