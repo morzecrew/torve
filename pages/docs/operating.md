@@ -578,6 +578,21 @@ And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
 
+`--partition` is optional too when a store is configured. Left out, `why`,
+`status`, `context`, `serve` and `mcp` read the partition the fleet manifest
+(`$XDG_CONFIG_HOME/torve/fleet.yaml`, by default `~/.config/torve/fleet.yaml`)
+names for this root, and otherwise the
+configuration's `scm.repo`, the `org/repo` name your nights are served
+under. A partition typed on the command line still wins, and a record that
+does not hold what you asked about still falls back to the files.
+
+```yaml
+repositories:
+  - root: ~/src/torve
+    trust: own
+    partition: morzecrew/torve
+```
+
 What the record derives reaches its reader through the pack or through a verb
 — never through a committed file a gate diffs against a fresh render. A
 committed artefact is a function of committed inputs: if a clean clone renders

@@ -112,13 +112,15 @@ def config_hash(
         # what a number was measured under. Keyed by the id that reaches the
         # provider rather than by the roster's local shorthand (S-0064/D-3) —
         # reproducibility is a property of what was sent, so renaming a
-        # shorthand must not move a digest.
+        # shorthand must not move a digest. A list price only feeds the
+        # ledger's estimate and changes nothing an attempt does, so it moves
+        # no digest either.
         parts["provider-records"] = json.dumps(
             {
                 name: {
                     **record.model_dump(exclude={"models", "name", "schema_version"}),
                     "models": {
-                        record.id_for(key): entry.model_dump(exclude={"id"})
+                        record.id_for(key): entry.model_dump(exclude={"id", "list_price"})
                         for key, entry in record.models.items()
                     },
                 }

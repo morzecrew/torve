@@ -15,7 +15,9 @@ Three rules carry the whole module:
   and shadow replays are excluded, and the exclusion is printed rather than
   left to whoever reads the denominator.
 - An unreported cost is never zero (S-0065/D-1, S-0004/D-6, S-0064/D-12). A subscription seat
-  genuinely has no per-token cost, and a zero would be a lie that averages.
+  genuinely has no per-token cost, and a zero would be a lie that averages. Where the provider
+  table carries the model's list price, its attempts are priced at it from their token counts
+  and the seat says its cost is an estimate rather than an amount anyone was billed.
 
 The contract an attempt was fenced by is read at the attempt's own sha
 through git (S-0065/D-3), so a task directory deleted under S-0056/D-10 costs a
@@ -42,6 +44,7 @@ from torve.application.projections import landed
 from torve.application.streams import stream_rows
 from torve.base.clock import parse
 from torve.config import layout
+from torve.config.providers import Price, load_providers
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -82,6 +85,8 @@ class _Seat:
     image: str
     attempts: int = 0
     cost_usd: float | None = None
+    # Some of `cost_usd` is a list-price estimate rather than a reported cost.
+    cost_estimated: bool = False
     wall_time_s: float = 0.0
     # The per-line numerators D-3 folds beside cost and wall (S-0075/D-3): the
     # seat's whole spend against the work it produced, where a production a
@@ -416,7 +421,30 @@ def _read_contract(root: Path, rel: Path, sha: str) -> dict[str, Any] | None:
 # ....................... #
 
 
-def _fold_seats(rows: list[dict[str, Any]]) -> dict[tuple[str, str], _Seat]:
+def _list_prices(root: Path) -> dict[tuple[str, str], Price]:
+    """The list prices the provider table carries, by provider and roster
+    key — the two names an attempt's agent block records its seat by."""
+
+    return {
+        (name, key): model.list_price
+        for name, record in load_providers(root).items()
+        for key, model in record.models.items()
+        if model.list_price is not None
+    }
+
+
+def _estimate(agent: dict[str, Any], list_prices: dict[tuple[str, str], Price]) -> float | None:
+    """What an attempt's tokens would cost at its model's list price, or
+    None where the table names none or the attempt reported no counts."""
+
+    price = list_prices.get((str(agent.get("provider") or ""), str(agent.get("model") or "")))
+
+    return None if price is None else price.cost(agent)
+
+
+def _fold_seats(
+    rows: list[dict[str, Any]], list_prices: dict[tuple[str, str], Price]
+) -> dict[tuple[str, str], _Seat]:
     seats: dict[tuple[str, str], _Seat] = {}
 
     for row in rows:
@@ -429,6 +457,12 @@ def _fold_seats(rows: list[dict[str, Any]]) -> dict[tuple[str, str], _Seat]:
         seat.attempts += 1
 
         cost = _number(agent.get("cost_usd"))
+
+        if cost is None:
+            # A subscription seat reports no cost; its tokens still have a
+            # list price, which says what the work would cost (S-0099/D-7).
+            cost = _estimate(agent, list_prices)
+            seat.cost_estimated = seat.cost_estimated or cost is not None
 
         if cost is not None:
             # Present costs sum; a seat where none was ever reported keeps
@@ -522,6 +556,9 @@ def _seat_entry(seat: _Seat, landed: set[str]) -> dict[str, Any]:
         "tasks": len(seat.tasks),
         "landed_tasks": int(landings),
         "cost_usd": seat.cost_usd,
+        # True when the seat's dollars include attempts priced at a list
+        # price from their token counts: an estimate, not a billed amount.
+        "cost_estimated": seat.cost_estimated,
         "cost_per_landed_task_usd": _ratio(seat.cost_usd, landings),
         "attempts_per_landing": _ratio(float(seat.attempts), landings),
         "convictions_before_landing": _ratio(convictions, landings),
@@ -657,7 +694,7 @@ def ledger_report(root: Path, spec_dir: Path | None = None) -> dict[str, Any]:
 
     rows, excluded = counted_rows(stream_rows(root))
     shipped = set(landed(root, spec_dir))
-    seats = _fold_seats(rows)
+    seats = _fold_seats(rows, _list_prices(root))
     # The work-shaped denominators (S-0075/D-3), read from the diffs the
     # landings already commit — the same carrier S-0059/D-12 makes the one
     # reader of a landing, sized between the attempt's own base and head.

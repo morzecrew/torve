@@ -1110,11 +1110,12 @@ def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkey
 
     import typer
 
-    from torve.cli.options import dsn_for, dsn_to_write
+    from torve.cli.options import dsn_for, dsn_to_write, partition_for
     from torve.config import runconfig
     from torve.domain.states import EXIT_CONFIG
 
     monkeypatch.setattr(runconfig, "installed_version", lambda: "0.2.9")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     (tmp_path / ".torve").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".torve" / "config.yaml").write_text(
         'schema_version: 1\nengine: "0.3.2"\nstore:\n  adapter: postgres\n'
@@ -1123,11 +1124,142 @@ def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkey
     )
     monkeypatch.setenv("TORVE_TEST_PG", "postgresql://configured/db")
 
-    for resolve in (dsn_for, dsn_to_write):
+    def partition(root: Path) -> str:
+        return partition_for(root, dsn="postgresql://typed/db")
+
+    for resolve in (dsn_for, dsn_to_write, partition):
         with pytest.raises(typer.Exit) as refused:
             resolve(tmp_path)
 
         assert refused.value.exit_code == EXIT_CONFIG
+
+
+def _fleet(config_home: Path, body: str, monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    (config_home / "torve").mkdir(parents=True, exist_ok=True)
+    (config_home / "torve" / "fleet.yaml").write_text(body, encoding="utf-8")
+
+
+def test_the_partition_defaults_to_the_one_the_fleet_manifest_names(tmp_path, monkeypatch):
+    """#196: a task minted into the store answered "no task" from `torve why`
+    unless the operator named its partition. The fleet manifest is where a
+    root's partition is configured, so a report reads it from there."""
+
+    from torve.cli.options import partition_for
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    config_home = tmp_path / "config"
+
+    # No manifest at all names nothing, and the report reads the files.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    assert partition_for(root) == ""
+
+    _fleet(
+        config_home,
+        f"repositories:\n  - root: {tmp_path / 'other'}\n    trust: own\n    partition: acme/other\n"
+        f"  - root: {root}\n    trust: own\n    partition: acme/one\n",
+        monkeypatch,
+    )
+
+    assert partition_for(root) == "acme/one"
+    # What the caller typed always wins over what the manifest names.
+    assert partition_for(root, "acme/typed") == "acme/typed"
+    # A root the manifest does not list names nothing.
+    assert partition_for(tmp_path) == ""
+
+    _fleet(config_home, "repositories: [", monkeypatch)
+    assert partition_for(root) == ""
+
+
+def test_why_reads_the_configured_partition_without_the_flag(tmp_path, monkeypatch):
+    from torve.cli import why
+
+    _fleet(
+        tmp_path / "config",
+        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/one\n",
+        monkeypatch,
+    )
+    asked: list[str] = []
+    monkeypatch.setattr(why, "_recorded", lambda dsn, partition, task_id: asked.append(partition))
+
+    CliRunner().invoke(app, ["why", "T-0001", "--root", str(tmp_path)])
+
+    assert asked == ["acme/one"]
+
+
+STORED = (
+    "schema_version: 1\nstore:\n  adapter: postgres\n  dsn_env: TORVE_TEST_PG\n"
+    "scm:\n  repo: acme/one\n"
+)
+
+
+def _configure(root: Path, body: str) -> None:
+    (root / ".torve").mkdir(parents=True, exist_ok=True)
+    (root / ".torve" / "config.yaml").write_text(body, encoding="utf-8")
+
+
+def test_with_a_store_the_partition_falls_back_to_scm_repo(tmp_path, monkeypatch):
+    """A repository's nights are served under its `scm.repo`, so a root no
+    manifest lists reads that partition — but only with a store to read it
+    from; with none, the files answer as they always did."""
+
+    from torve.cli.options import partition_for
+
+    dsn = "postgresql://configured/db"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    _configure(tmp_path, STORED)
+
+    assert partition_for(tmp_path) == ""
+    assert partition_for(tmp_path, dsn=dsn) == "acme/one"
+    assert partition_for(tmp_path, "acme/typed", dsn) == "acme/typed"
+
+    # The manifest's entry for the root outranks the configuration.
+    _fleet(
+        tmp_path / "config",
+        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/fleet\n",
+        monkeypatch,
+    )
+    assert partition_for(tmp_path, dsn=dsn) == "acme/fleet"
+
+    (tmp_path / "config" / "torve" / "fleet.yaml").unlink()
+    _configure(tmp_path, "- not a mapping\n")
+    assert partition_for(tmp_path, dsn=dsn) == ""
+
+
+def test_an_implicit_partition_whose_record_lacks_the_task_answers_from_the_files(
+    tmp_path, monkeypatch
+):
+    """A partition nobody typed is a guess, and a wrong guess must answer as
+    today: a record that does not hold the task falls back to the files."""
+
+    import asyncio
+
+    from torve.cli import why
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("TORVE_TEST_PG", "postgresql://configured/db")
+    _configure(tmp_path, STORED)
+    task = tmp_path / ".torve" / "tasks" / "T-0900"
+    task.mkdir(parents=True)
+    (task / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0900\nrole: implement\nspec: S-0051\ndecisions: []\n",
+        encoding="utf-8",
+    )
+    asked: list[str] = []
+
+    class EmptyLog:
+        async def history(self, task_id: str, *, partition: str) -> list:
+            asked.append(partition)
+            return []
+
+    monkeypatch.setattr(why, "read_log", lambda dsn, reader: asyncio.run(reader(EmptyLog())))
+
+    result = CliRunner().invoke(app, ["why", "T-0900", "--root", str(tmp_path), "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    assert asked == ["acme/one"]
+    assert json.loads(result.stdout)["spec"] == "S-0051"
 
 
 def test_owed_reports_a_row_covered_by_its_check(repo):

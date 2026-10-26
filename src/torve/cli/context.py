@@ -35,6 +35,7 @@ from torve.cli.options import (
     RootOption,
     dsn_for,
     load_config,
+    partition_for,
     task_events,
 )
 from torve.domain.states import EXIT_OK
@@ -71,9 +72,10 @@ def context_cmd(
     the programme view, declared task character against realized gate
     convictions, and the document-level specification-quality signals.
 
-    With a partition named, the task block comes from that partition's log
-    and every other block from this repository's own files. A log holding
-    no contract falls back to the files, never the other way round."""
+    With a partition named, or one configured for this root,
+    the task block comes from that partition's log and every other block
+    from this repository's own files. A log holding no contract falls back
+    to the files, never the other way round."""
     # The document-signals section is S-0022/document-level-report and the character
     # calibration is S-0034/calibration-projected (S-0034/D-8); the docstring is help text and
     # carries no corpus coordinates.
@@ -82,8 +84,11 @@ def context_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
+    dsn = dsn_for(root, dsn)
     report = context_report(
-        root, root / config.specs.path, recorded=task_events(dsn_for(root, dsn), partition)
+        root,
+        root / config.specs.path,
+        recorded=task_events(dsn, partition_for(root, partition, dsn)),
     )
 
     if fmt is ContextFormat.JSON:

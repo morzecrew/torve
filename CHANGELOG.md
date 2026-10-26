@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   <type>(<scope>): `. Shortened before acceptance, the title is the squash
   subject as written. The `· n/m phases` count gives way rather than cut it.
 
+- `torve ledger` prices a subscription seat's attempts from their token counts
+  when its provider record names the model's `list_price`, and marks the figure
+  `~`: what the tokens would cost, not an amount billed. The attempt's own cost
+  stays unreported, and a night's dollar budget does not count it.
+
 ### Changed
 
 - torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
@@ -65,6 +70,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whole. A subject still too long is cut between words, never inside backticks
   or a path, and the commit body keeps the whole text.
 
+- A task minted into the store no longer answers "no task" from `torve why`
+  without `--partition`. With a store configured, `why`, `status`, `context`,
+  `serve` and `mcp` read the fleet manifest's partition for the root, else
+  `scm.repo`, and fall back to the files when that record lacks the task.
+  
 - A task whose manager was killed mid-attempt no longer stays `running` after
   `torve reap` expires its run. The next pass escalates it `lease_expired`, so
   `torve manager resolve` and `torve plan --refresh` reach it.

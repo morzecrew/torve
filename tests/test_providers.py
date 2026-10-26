@@ -400,3 +400,23 @@ def test_the_repositorys_own_provider_records_load(tmp_path):
     assert set(records) >= {"anthropic", "deepseek", "modelstudio"}
     # A subscription seat has no per-token cost and says so (S-0064/D-12).
     assert records["anthropic"].models["claude-opus-5"].price is None
+
+
+def test_a_list_price_moves_no_regime_digest(tmp_path):
+    """A list price feeds only the ledger's estimate (#197) and changes
+    nothing an attempt does, so writing one down must not start a new
+    regime for every comparison the record holds."""
+
+    from torve.application.telemetry import config_hash
+    from torve.config.runconfig import RunnerConfig
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text("schema_version: 1\ngates: []\n", encoding="utf-8")
+
+    def digest(model: dict) -> str:
+        record = Provider.model_validate(_record(models={"opus": model}))
+        return config_hash(manifest, tmp_path, RunnerConfig(provider_records={"p": record}))
+
+    assert digest({}) == digest({"list_price": {"input": 4.0, "output": 20.0}})
+    # A billed price is still part of what a number was measured under.
+    assert digest({}) != digest({"price": {"input": 4.0, "output": 20.0}})

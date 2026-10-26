@@ -220,6 +220,18 @@
           "title": "Id",
           "type": "string"
         },
+        "list_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Price"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The vendor's published rate card, for a seat that is not billed by it \u2014 a\nsubscription. `torve ledger` prices the seat's attempts at it from their token counts and\nmarks the figure an estimate; the attempt's own cost stays unreported, and no budget\nreads it."
+        },
         "max_tokens": {
           "default": 0,
           "description": "The cap on one response's tokens; 0 is unstated.",
@@ -261,8 +273,8 @@
           "type": "string"
         },
         "image": {
-          "default": "docker:27.5.1-dind",
-          "description": "The pinned dind image the privileged side container runs (S-0111/D-1).",
+          "default": "docker:29.7.2-dind",
+          "description": "The pinned dind image the privileged side container runs (S-0111/D-1).\nThe engine's major tracks the hosts and CI that build the same images: on\n27, a directory `COPY --chmod=0644` creates came out 0755, on 29 0644, so a\ngate passed what CI then failed.",
           "title": "Image",
           "type": "string"
         },
