@@ -2115,6 +2115,18 @@ it is, not as it was at boot.</p>
 <p>And <code>--dsn</code> is optional: it defaults to the DSN your configuration names,
 which <code>.env</code> has already put in the environment. <code>--partition</code> alone is
 enough.</p>
+<p><code>--partition</code> is optional too when a store is configured. Left out, <code>why</code>,
+<code>status</code>, <code>context</code>, <code>serve</code> and <code>mcp</code> read the partition the fleet manifest
+(<code>$XDG_CONFIG_HOME/torve/fleet.yaml</code>, by default <code>~/.config/torve/fleet.yaml</code>)
+names for this root, and otherwise the
+configuration's <code>scm.repo</code>, the <code>org/repo</code> name your nights are served
+under. A partition typed on the command line still wins, and a record that
+does not hold what you asked about still falls back to the files.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">repositories</span><span class="p">:</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">root</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">~/src/torve</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">trust</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">own</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">morzecrew/torve</span>
+</span></code></pre></div>
 <p>What the record derives reaches its reader through the pack or through a verb
 — never through a committed file a gate diffs against a fresh render. A
 committed artefact is a function of committed inputs: if a clean clone renders
@@ -2401,10 +2413,10 @@ without rediscovering it. The <code>gated</code> arm carries the same worktree; 
 its battery is back.</p>
 <p><strong>Launching one.</strong> Arm mode is the third mode of <code>torve eval</code>, and naming
 neither of the other two's arguments is enough to select it (S-0082/D-8):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--task<span class="w"> </span>T-0390<span class="w">                          </span><span class="c1"># all three arms, the task's own seat</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--task<span class="w"> </span>T-0390<span class="w"> </span>--arm<span class="w"> </span>bare<span class="w"> </span>--arm<span class="w"> </span>gated<span class="w">   </span><span class="c1"># narrow to the arms named</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--task<span class="w"> </span>T-0390<span class="w"> </span>--tier<span class="w"> </span>executor.lean<span class="w">     </span><span class="c1"># every arm on one named seat</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--report<span class="w">                               </span><span class="c1"># read the recorded arms, run nothing</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--task<span class="w"> </span>T-0390<span class="w">                          </span><span class="c1"># all three arms, the task's own seat</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--task<span class="w"> </span>T-0390<span class="w"> </span>--arm<span class="w"> </span>bare<span class="w"> </span>--arm<span class="w"> </span>gated<span class="w">   </span><span class="c1"># narrow to the arms named</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--task<span class="w"> </span>T-0390<span class="w"> </span>--tier<span class="w"> </span>executor.lean<span class="w">     </span><span class="c1"># every arm on one named seat</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>torve<span class="w"> </span><span class="nb">eval</span><span class="w"> </span>--report<span class="w">                               </span><span class="c1"># read the recorded arms, run nothing</span>
 </span></code></pre></div>
 <p><code>--arm</code> is repeatable and defaults to all three. It refuses at parse to
 combine with a skill argument or with <code>--image</code> or <code>--variant</code>: one names a
@@ -2542,8 +2554,8 @@ touches: the contract carries its own document's rows only, so read those
 before accepting.</p>
 <p>An amendment reaches the contracts the document already minted through
 <code>torve plan S-NNNN --refresh</code>, never through a hand edit of a contract:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w">                 </span><span class="c1"># the table: what would be rewritten, and what is left alone</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w"> </span>--no-dry-run<span class="w">    </span><span class="c1"># rewrite them</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w">                 </span><span class="c1"># the table: what would be rewritten, and what is left alone</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w"> </span>--no-dry-run<span class="w">    </span><span class="c1"># rewrite them</span>
 </span></code></pre></div>
 <p>A phase an amendment <em>adds</em> to a document whose earlier phases are minted is
 minted alone with <code>--phase</code>: <code>torve plan S-0002 --phase 6 --no-dry-run</code>. Its
@@ -2568,7 +2580,7 @@ see the escalation loop below). Each rewrite is recorded as
 and stamped on the contract; under <code>--partition</code> the rewrite goes onto the
 board through the same path a mint does.</p>
 <h2 id="running-a-pass-without-spending">Running a pass without spending<a class="headerlink" href="#running-a-pass-without-spending" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>torve<span class="w"> </span>manager<span class="w"> </span>serve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>--dsn<span class="w"> </span><span class="s2">"</span><span class="nv">$TORVE_PG_DSN</span><span class="s2">"</span><span class="w"> </span>--no-dispatch<span class="w"> </span>--passes<span class="w"> </span><span class="m">1</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>torve<span class="w"> </span>manager<span class="w"> </span>serve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>--dsn<span class="w"> </span><span class="s2">"</span><span class="nv">$TORVE_PG_DSN</span><span class="s2">"</span><span class="w"> </span>--no-dispatch<span class="w"> </span>--passes<span class="w"> </span><span class="m">1</span>
 </span></code></pre></div>
 <p>Imports contracts and releases expired leases; claims nothing. This is the
 pass to run after changing contracts, when you want the board to catch up
@@ -2587,16 +2599,16 @@ night work.</p>
 <h2 id="getting-told">Getting told<a class="headerlink" href="#getting-told" title="Permanent link">&para;</a></h2>
 <p>An interrupt-class escalation is delivered once, by a leg of the manager's
 pass, to whatever destination is configured:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">notify</span><span class="p">:</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">adapter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">webhook</span><span class="w">          </span><span class="c1"># none | webhook</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">url_env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TORVE_NOTIFY_URL</span><span class="w"> </span><span class="c1"># the variable holding the URL, never the URL</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># deliveries before the queue parks one</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">notify</span><span class="p">:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">adapter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">webhook</span><span class="w">          </span><span class="c1"># none | webhook</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">url_env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TORVE_NOTIFY_URL</span><span class="w"> </span><span class="c1"># the variable holding the URL, never the URL</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># deliveries before the queue parks one</span>
 </span></code></pre></div>
 <p>An ntfy topic is the destination that needs no account and no code — the
 delivery is one JSON POST and a phone subscriber reads it. The URL is a
 bearer secret in practice, so the committed file names the variable and
 the environment carries the value (S-0001/D-13):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TORVE_NOTIFY_URL</span><span class="o">=</span>https://ntfy.sh/&lt;a-topic-only-you-subscribe-to&gt;
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TORVE_NOTIFY_URL</span><span class="o">=</span>https://ntfy.sh/&lt;a-topic-only-you-subscribe-to&gt;
 </span></code></pre></div>
 <p><code>none</code> is the default and is a choice, not a blank: a repository that has
 not picked a destination sends nothing on purpose. The queue is the log —
@@ -2753,9 +2765,9 @@ because a requeue over the escalated run's leftover host state failed as
 <code>gate_infrastructure_failure</code>; run <code>torve manager resolve --resolution
 requeued</code>; restart the night. The loop is now one amendment and one
 command (S-0094):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># it when pushed</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="c1"># it when pushed</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
 </span></code></pre></div>
 <p>The requeue clears the one task's escalated footprint, fetches, and
 refreshes the contract through <code>refresh_document</code>, the same derivation a
@@ -2786,8 +2798,8 @@ waits in silence, which remains a choice, not an accident.</p>
 approval, a human act, and that is the whole of the safety story here — a
 manager with the switch off behaves exactly as it did before the landing
 leg existed.</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
 </span></code></pre></div>
 <p>Armed, each pass runs the <strong>same</strong> serialized lane the verb runs, with the
 same arguments this configuration already feeds it. It adds a caller, not
@@ -2867,12 +2879,12 @@ through a pause is the manager's to decide from <code>promotion.landing</code>;
 <p>What a landing <em>is</em> comes from two terms of <code>promotion</code>, and neither is ever
 inferred from whether a remote exists or from whether the ready candidates
 happen to share a document (S-0080/D-1, S-0083/D-1):</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="nt">scm</span><span class="p">:</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="nt">scm</span><span class="p">:</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
 </span></code></pre></div>
 <p>Under <code>local</code>, <strong>landing is not publishing</strong>: the lane fast-forwards this
 checkout's base and stops, and pushing it stays yours. Under <code>pull_request</code>
@@ -3108,14 +3120,14 @@ task, the sha and the verb that writes one (<code>torve log land &lt;task&gt; --
 not carry (S-0065/D-7).</p>
 <p><strong>A reviewer's threads can be answered by the night too.</strong> Off by default, and
 a separate switch from <code>auto_merge</code>:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">threads</span><span class="p">:</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
-</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">threads</span><span class="p">:</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
 </span></code></pre></div>
 <p><code>bots</code> is every login the night both waits for and may answer: the review wait
 ends once all of them have reviewed the head, and only their threads does the
