@@ -1990,6 +1990,37 @@ def test_a_queue_waiting_on_an_escalation_keeps_the_night_open(tmp_path):
     run(scenario)
 
 
+def test_a_queue_behind_an_abandoned_task_drains_the_night(tmp_path):
+    """A task queued behind an abandoned dependency, directly or through
+    another queued task, can never run: nothing a person resolves frees it,
+    so it does not hold the night open until its wall-clock end."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**", after="T-0001")
+    contract(tmp_path, "T-0003", allow="tests/**", after="T-0002")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(log, PARTITION, config=NightConfig(), actor_id="manager-1")
+        await escalate(log, "T-0001", "blocker_finding")
+
+        assert await reached(log, PARTITION, night) is None
+
+        await log.record(
+            EventKind.ESCALATION_RESOLVED,
+            partition=PARTITION,
+            subject_type=SubjectType.TASK,
+            subject_id="T-0001",
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="operator",
+            payload={"resolution": "abandoned"},
+        )
+
+        assert await reached(log, PARTITION, night) == "drained"
+
+    run(scenario)
+
+
 # ....................... #
 
 

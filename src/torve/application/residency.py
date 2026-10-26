@@ -40,7 +40,7 @@ from torve.base import naming
 from torve.base.clock import parse
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.domain.states import EscalationReason, TaskState
+from torve.domain.states import TERMINAL, EscalationReason, TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, Task
 
 if TYPE_CHECKING:
@@ -1048,6 +1048,32 @@ async def close_night(
 # ....................... #
 
 
+def _stranded(task: Task, board: Board, seen: frozenset[str] = frozenset()) -> bool:
+    """Whether *task* waits on a dependency that can never land: one the board
+    holds terminal without a landing — abandoned, since `blocked_by` already
+    counts `ready` as landed — or one queued behind such a dependency itself."""
+
+    seen = seen | {task.id}
+
+    for one in blocked_by(task, board):
+        view = board.tasks.get(one)
+
+        if view is None or one in seen:
+            continue
+
+        if view.state in TERMINAL:
+            return True
+
+        if (
+            view.state is TaskState.QUEUED
+            and view.contract is not None
+            and _stranded(view.contract, board, seen)
+        ):
+            return True
+
+    return False
+
+
 async def reached(
     log: EventLog,
     partition: str,
@@ -1092,11 +1118,15 @@ async def reached(
 
     # A task still queued or escalated is work this night can yet do: a person
     # who resolves the escalation it waits on lets it run, so the night polls
-    # on, paused, rather than making that person start another one.
+    # on, paused, rather than making that person start another one. A queued
+    # task behind a dependency that can never land is not: nothing resolves it.
     waiting = any(
-        view.state in (TaskState.QUEUED, TaskState.ESCALATED)
-        and view.contract is not None
+        view.contract is not None
         and view.contract.role in DISPATCHABLE_ROLES
+        and (
+            view.state is TaskState.ESCALATED
+            or (view.state is TaskState.QUEUED and not _stranded(view.contract, board))
+        )
         for view in board.tasks.values()
     )
 
