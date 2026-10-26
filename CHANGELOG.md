@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
+  migration is owed. The configuration hash moves with the pin, so telemetry
+  starts a new regime, and this release's seat images carry the new forze.
+
 ### Fixed
 
 - A document pull request whose last phase lands green is published ready even
