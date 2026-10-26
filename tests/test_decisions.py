@@ -25,6 +25,7 @@ from torve.application.decisions import (
     coverage,
     fingerprint_drift,
     import_sources,
+    inherited_locks,
     load_corpus,
     path_rot,
     uncommitted_globs,
@@ -498,6 +499,47 @@ def test_path_rot_spares_a_row_over_what_the_tree_deliberately_does_not_commit(
     assert [r.identifier for r in path_rot(load_corpus(rfc_dir), tmp_path)] == [
         "S-0001/D-1",
         "S-0001/D-3",
+    ]
+
+
+# ....................... #
+
+
+def test_inherited_locks_name_the_depends_on_rows_a_phase_scope_touches(tmp_path: Path) -> None:
+    """A phase scoped over a file a `depends_on` document holds LOCKED is
+    named at check time, before anything is accepted or minted: only LOCKED
+    rows, only those the scope reaches, and only while nothing has landed."""
+
+    phase = {**PHASE, "title": "hard delete", "scope": ["src/store/rows.py"]}
+    rfc_dir = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [
+                    ("S-0001/D-1", "LOCKED", "Deletion is soft only.", "`src/store/**`"),
+                    ("S-0001/D-2", "ASSUMED", "Soft-deleted rows age out.", "`src/store/**`"),
+                    ("S-0001/D-3", "LOCKED", "Elsewhere.", "`src/web/**`"),
+                ],
+            ),
+            "0002": document(
+                "0002",
+                [],
+                status="draft",
+                implementation="none",
+                depends_on=["0001"],
+                phasing=[phase],
+            ),
+            # Landed: the conflict, had there been one, was the executor's to meet.
+            "0003": document("0003", [], depends_on=["0001"], phasing=[phase]),
+        },
+    )
+
+    assert inherited_locks(load_corpus(rfc_dir)) == [
+        (
+            "S-0002: phase 1 (hard delete) touches S-0001/D-1 (LOCKED, inherited through "
+            "depends_on) — Deletion is soft only."
+        )
     ]
 
 
