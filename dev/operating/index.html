@@ -2530,7 +2530,10 @@ warning that <code>torve spec fix S-NNNN/D-n "…"</code> re-stamps as editorial
 written document is legal as it stands — <code>torve spec fmt</code> reports what
 differs from the serializer's form and writes nothing. <code>torve spec check</code>
 also names rows whose declared paths match nothing in the tree; <code>--fix-
-rot</code> retires them.</p>
+rot</code> retires them. For a document nothing has landed from, it warns on each
+LOCKED row of a <code>depends_on</code> document that one of its phases' scopes
+touches: the contract carries its own document's rows only, so read those
+before accepting.</p>
 <p>An amendment reaches the contracts the document already minted through
 <code>torve plan S-NNNN --refresh</code>, never through a hand edit of a contract:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w">                 </span><span class="c1"># the table: what would be rewritten, and what is left alone</span>
