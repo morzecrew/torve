@@ -2667,7 +2667,9 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
 
     monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
     monkeypatch.setattr(merge_module, "_status", lambda config: sentinel)
-    monkeypatch.setattr(merge_module, "_publisher", lambda root, config: None)
+    monkeypatch.setattr(
+        merge_module, "_publisher", lambda root, config, status: seen.update(publisher=status)
+    )
     monkeypatch.setattr(merge_module, "_forge", lambda config: None)
     monkeypatch.setattr(merge_module, "_resolve_ci", lambda config: None)
     config = RunnerConfig.model_validate(
@@ -2684,6 +2686,8 @@ def test_the_served_lane_leg_hands_the_lane_the_completion_forge(tmp_path, monke
     asyncio.run(leg())
 
     assert seen["status"] is sentinel
+    # The draft flag reads the verdict through the forge the lane writes it to.
+    assert seen["publisher"] is sentinel
 
 
 # ....................... #

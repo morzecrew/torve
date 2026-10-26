@@ -272,6 +272,8 @@ def _lane_leg(
         # before the lane runs off it, then handed as the reader the lane's
         # completion commits from.
         held = await holdouts() if holdouts is not None else {}
+        # One forge for the verdict the lane writes and the draft flag that reads it.
+        status = _status(config)
 
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
@@ -297,7 +299,7 @@ def _lane_leg(
                 # locally, which is the one act that mode exists to avoid — and a
                 # unit for a night nothing but the manual verb can reach is a unit
                 # for nothing.
-                publish=_publisher(root, config),
+                publish=_publisher(root, config, status),
                 forge=_forge(config),
                 unit=config.promotion.unit,
                 # A red completion battery is minted as a round only where the
@@ -306,7 +308,7 @@ def _lane_leg(
                 # `torve/completion` status on the tip the leg reads back
                 # (S-0099/D-4, S-0103/D-4), written here as the manual verb writes it.
                 rounds=config.threads.enabled and "record" in config.threads.sources,
-                status=_status(config),
+                status=status,
                 # The store the promotion unit and landing need (S-0099/D-11).
                 store=config.store.adapter,
                 # The board's resolutions, read by the caller (S-0101/D-2).
