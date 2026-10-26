@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contradicts such a row shows before the document is accepted, not when its executor
   halts on it.
 
+- `torve spec check` warns when a document's title is too long for its typed
+  pull request title, naming its length and the room after `<gitmoji>
+  <type>(<scope>): `. Shortened before acceptance, the title is the squash
+  subject as written. The `· n/m phases` count gives way rather than cut it.
+
 ### Changed
 
 - torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
@@ -25,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sandbox_timeout`, named by the phase's `tier_variant` or reached through
   `character_routing`.
 
+- The scope gate names a file outside the scope whose change is whitespace alone,
+  such as a final newline or trailing spaces, as `outside allow, whitespace only`.
+  It still fails, and the retry is told to undo the change rather than widen the scope.
+
 - `torve manager board` shows a review row its run already concluded as
   `consumed`, as `torve status` does, instead of `queued` forever. The JSON
   board is unchanged.
@@ -34,6 +43,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   until its wall-clock end, so the work runs once the escalation is resolved.
 
 ### Fixed
+
+- A phase's contingent paths, the context pack and a review round's paired tests no
+  longer take in copies from a git worktree or clone nested in the repository, such as
+  an agent harness's under `.claude/worktrees/`.
+
+- The intake lint reads the drafting worktree's files. It read none, because that
+  worktree sits under `.wt/`, so a draft that left out its module's test file passed.
+
+- An attempt's work commit is titled by its phase, not by its intent cut
+  mid-word, and a review round's names a lone finding's file with the path
+  whole. A subject still too long is cut between words, never inside backticks
+  or a path, and the commit body keeps the whole text.
 
 - A task whose manager was killed mid-attempt no longer stays `running` after
   `torve reap` expires its run. The next pass escalates it `lease_expired`, so

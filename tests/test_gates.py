@@ -78,6 +78,29 @@ def test_scope_untracked_file_is_visible(repo):
     assert "stray.txt" in result.output
 
 
+def test_scope_names_a_whitespace_only_touch_apart_and_still_fails(repo):
+    """A formatter's final newline or trailing whitespace on a file outside
+    allow is still a touch outside the scope, and red (S-0055/D-17), but named
+    apart so the retry undoes it rather than reads its scope as too narrow.
+    Indentation is code, so a re-indented file stays a plain finding."""
+    repo.seed()
+    repo.task(base_task(allow=["src/new.py"]), log_document())
+    gitignore = (repo.root / ".gitignore").read_text(encoding="utf-8")
+    repo.write(".gitignore", gitignore.rstrip("\n"))  # the final newline, dropped
+    repo.write("src/app.py", "print('hello')  \n\n\n")  # trailing spaces, blank lines
+    repo.write("tests/test_app.py", "def test_app():\n        assert True\n")
+    repo.commit("a formatter ran")
+
+    result = check_scope(GATE, context_for(repo))
+
+    assert result.outcome == "fail"
+    assert "outside allow, whitespace only: .gitignore" in result.output
+    assert "outside allow, whitespace only: src/app.py" in result.output
+    assert "outside allow: src/app.py" not in result.output
+    assert "outside allow: tests/test_app.py" in result.output
+    assert "undo the whitespace change" in result.output
+
+
 def test_the_patch_carries_an_untracked_file(repo):
     """The reviewer reads the gate pass's patch, so a file the attempt created
     and never staged has to appear there as an added file — `git diff` alone
