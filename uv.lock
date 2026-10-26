@@ -452,7 +452,7 @@ wheels = [
 
 [[package]]
 name = "forze"
-version = "0.13.0"
+version = "0.16.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -467,9 +467,9 @@ dependencies = [
     { name = "rich" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1c/9e/c90e59f70ab136004d916d8178831447f534216a7776d27d44a2e8aea9cd/forze-0.13.0.tar.gz", hash = "sha256:4abf896db591dfb9a4a8eb2d9dba9848277fbf9f031a437d7a2c8f78d3d34d13", size = 6170338, upload-time = "2026-10-14T07:11:18.586Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/85/067cacb0b7439c482c2c597e16eed40a78cf310bb962928501d768c2fb14/forze-0.16.2.tar.gz", hash = "sha256:18dbc93824d09463604f29b857e5608cad03a4d9c057a16b9aa66562223d4319", size = 6641072, upload-time = "2026-10-26T12:34:00.33Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b3/8d/711ff0d681140af2fc04a94b754abe9cb30f4a3cd90e10695adab4a8ac23/forze-0.13.0-py3-none-any.whl", hash = "sha256:cf4ec02ea59a61b882ab7b62019dfe6d256622c9d5bb497258f4a885db447482", size = 3982656, upload-time = "2026-10-14T07:11:16.448Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/34/f99596c7fccfda8c9532889d8d1f579bd317de5f79259727507d29cacfc7/forze-0.16.2-py3-none-any.whl", hash = "sha256:fa27e0abdeae44e92c839904cdaa160f0dfea5c6065a11da91a233d9488ca9e5", size = 4184882, upload-time = "2026-10-26T12:33:58.358Z" },
 ]
 
 [package.optional-dependencies]
@@ -1830,8 +1830,8 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "attrs", specifier = ">=25" },
-    { name = "forze", specifier = "==0.13.0" },
-    { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = "==0.13.0" },
+    { name = "forze", specifier = "==0.16.2" },
+    { name = "forze", extras = ["postgres"], marker = "extra == 'postgres'", specifier = "==0.16.2" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2" },
     { name = "opensandbox", marker = "extra == 'opensandbox'", specifier = ">=0.1.15,<1.2" },
     { name = "pathspec", specifier = ">=0.12" },
@@ -1851,7 +1851,7 @@ dev = [
     { name = "basedpyright", specifier = ">=1.31" },
     { name = "deptry", specifier = ">=0.25.1" },
     { name = "diff-cover", specifier = ">=10.5.1" },
-    { name = "forze", extras = ["dst", "postgres"], specifier = "==0.13.0" },
+    { name = "forze", extras = ["dst", "postgres"], specifier = "==0.16.2" },
     { name = "hypothesis", specifier = ">=6" },
     { name = "import-linter", specifier = ">=2" },
     { name = "mcp", specifier = ">=1.2" },
