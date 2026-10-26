@@ -571,6 +571,18 @@ And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
 
+`--partition` is optional too once the fleet manifest
+(`~/.config/torve/fleet.yaml`) names one for this root: `why`, `status`,
+`context`, `serve` and `mcp` then read that partition's record without the
+flag. A partition typed on the command line still wins.
+
+```yaml
+repositories:
+  - root: ~/src/torve
+    trust: own
+    partition: morzecrew/torve
+```
+
 What the record derives reaches its reader through the pack or through a verb
 — never through a committed file a gate diffs against a fresh render. A
 committed artefact is a function of committed inputs: if a clean clone renders

@@ -26,6 +26,7 @@ from torve.cli.options import (
     RootOption,
     dsn_for,
     load_config,
+    partition_for,
 )
 from torve.domain.states import EXIT_CONFIG
 
@@ -256,16 +257,20 @@ def serve_cmd(
     """Serve the projections as a read-only dashboard on the loopback
     interface, plus the shipped frontend bundle when one is present.
 
-    With a partition named, every endpoint answers from that partition's
-    log; without one, from this repository's files. The envelope says which
-    it used, so the page cannot show a number without its provenance."""
+    With a partition named, or one the fleet manifest names for this root,
+    every endpoint answers from that partition's log; without one, from
+    this repository's files. The envelope says which it used, so the page
+    cannot show a number without its provenance."""
 
     root = root.resolve()
     config = load_config(root, config_path)
 
     try:
         server_app = build_app(
-            root, root / config.specs.path, dsn=dsn_for(root, dsn), partition=partition
+            root,
+            root / config.specs.path,
+            dsn=dsn_for(root, dsn),
+            partition=partition_for(root, partition),
         )
         uvicorn = _uvicorn()
 

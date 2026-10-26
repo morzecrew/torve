@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `torve why`, `status`, `context`, `serve` and `mcp` read the partition the
+  fleet manifest names for this root when `--partition` is left out, so a task
+  minted into the store no longer answers "no task" without the flag.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed

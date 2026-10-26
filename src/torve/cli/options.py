@@ -246,6 +246,35 @@ def dsn_for(root: Path, override: str = "") -> str:
     return os.environ.get(config.store.dsn_env, "")
 
 
+def partition_for(root: Path, override: str = "") -> str:
+    """The partition a report should read, given what the caller typed.
+
+    An explicit `--partition` wins. Otherwise the operator's fleet manifest
+    answers: its entry for this root names the board the root's contracts
+    are minted onto, which is the one place a partition is configured. No
+    manifest, no entry or an entry naming none returns nothing, and the
+    report reads this repository's files as it did before.
+
+    Without this, a task minted into the store answered "no task" from
+    `torve why` unless the operator remembered to name the partition.
+    """
+
+    if override:
+        return override
+
+    from torve.config.fleet import default_manifest_path, load_fleet_manifest
+
+    try:
+        manifest = load_fleet_manifest(default_manifest_path())
+
+    except (ValueError, OSError, yaml.YAMLError):
+        return ""
+
+    here = root.resolve()
+
+    return next((repo.partition for repo in manifest.repositories if repo.path == here), "")
+
+
 # ....................... #
 
 

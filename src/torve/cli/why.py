@@ -36,6 +36,7 @@ from torve.cli.options import (
     PartitionOption,
     RootOption,
     dsn_for,
+    partition_for,
     read_log,
 )
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -186,8 +187,9 @@ def why_cmd(
     regime's attempt distribution. A landed or reaped task answers as
     completely as a live one.
 
-    With a partition named, the history comes from the log; without one it
-    comes from this repository's own files. A log that turns out not to hold
+    With a partition named, or one the fleet manifest names for this root,
+    the history comes from the log; without one it comes from this
+    repository's own files. A log that turns out not to hold
     the task falls back to the files, never the other way round — an empty
     log means ask the files, and a populated one is not second-guessed by a
     stale file.
@@ -196,7 +198,11 @@ def why_cmd(
     from torve.application.projections import why_report
 
     root = root.resolve()
-    envelope = why_report(root, task_id, recorded=_recorded(dsn_for(root, dsn), partition, task_id))
+    envelope = why_report(
+        root,
+        task_id,
+        recorded=_recorded(dsn_for(root, dsn), partition_for(root, partition), task_id),
+    )
 
     if fmt is Format.JSON:
         # The envelope, verbatim — the same bytes the serve endpoint hands

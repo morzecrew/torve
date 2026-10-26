@@ -1130,6 +1130,60 @@ def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkey
         assert refused.value.exit_code == EXIT_CONFIG
 
 
+def _fleet(config_home: Path, body: str, monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    (config_home / "torve").mkdir(parents=True, exist_ok=True)
+    (config_home / "torve" / "fleet.yaml").write_text(body, encoding="utf-8")
+
+
+def test_the_partition_defaults_to_the_one_the_fleet_manifest_names(tmp_path, monkeypatch):
+    """#196: a task minted into the store answered "no task" from `torve why`
+    unless the operator named its partition. The fleet manifest is where a
+    root's partition is configured, so a report reads it from there."""
+
+    from torve.cli.options import partition_for
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    config_home = tmp_path / "config"
+
+    # No manifest at all names nothing, and the report reads the files.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    assert partition_for(root) == ""
+
+    _fleet(
+        config_home,
+        f"repositories:\n  - root: {tmp_path / 'other'}\n    trust: own\n    partition: acme/other\n"
+        f"  - root: {root}\n    trust: own\n    partition: acme/one\n",
+        monkeypatch,
+    )
+
+    assert partition_for(root) == "acme/one"
+    # What the caller typed always wins over what the manifest names.
+    assert partition_for(root, "acme/typed") == "acme/typed"
+    # A root the manifest does not list names nothing.
+    assert partition_for(tmp_path) == ""
+
+    _fleet(config_home, "repositories: [", monkeypatch)
+    assert partition_for(root) == ""
+
+
+def test_why_reads_the_configured_partition_without_the_flag(tmp_path, monkeypatch):
+    from torve.cli import why
+
+    _fleet(
+        tmp_path / "config",
+        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/one\n",
+        monkeypatch,
+    )
+    asked: list[str] = []
+    monkeypatch.setattr(why, "_recorded", lambda dsn, partition, task_id: asked.append(partition))
+
+    CliRunner().invoke(app, ["why", "T-0001", "--root", str(tmp_path)])
+
+    assert asked == ["acme/one"]
+
+
 def test_owed_reports_a_row_covered_by_its_check(repo):
     """S-0054 S-0054/D-3: `torve log owed` names the three states — owed,
     pathless, covered by a check — so the executor sees why a row is or is
