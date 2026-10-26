@@ -477,6 +477,8 @@ def test_a_round_is_minted_through_the_adoption_path(seeded):
     contract = yaml.safe_load(layout.task_file(seeded.root, task_id).read_text(encoding="utf-8"))
 
     assert contract["spec"] == "S-0084"
+    # The title is the work commit's subject: the path last and whole (#199).
+    assert contract["title"] == "review round: 1 finding on src/app.py"
     assert contract["role"] == "implement"
     assert contract["character"] == "structural"
     assert contract["depends_on"] == []

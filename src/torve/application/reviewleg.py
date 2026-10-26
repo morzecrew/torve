@@ -154,10 +154,13 @@ class Round:
 
     @property
     def title(self) -> str:
+        # The work commit's subject reads this (#199): the path goes last and
+        # whole, and the branch is left out — it is the document's, which the
+        # task already carries.
         if len(self.findings) == 1:
-            return f"review round on {self.branch}: {self.findings[0].path}"
+            return f"review round: 1 finding on {self.findings[0].path}"
 
-        return f"review round on {self.branch}: {len(self.findings)} findings"
+        return f"review round: {len(self.findings)} findings"
 
 
 # ....................... #

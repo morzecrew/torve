@@ -197,9 +197,9 @@ def check(
     archive, the dependency graph is acyclic, no file carries a comment, no
     section carries what a typed list holds, a row changed by hand since
     the tool last stamped it, rows whose declared paths match nothing in
-    the tree, and the LOCKED rows of a `depends_on` document that an
-    unlanded document's phase scopes touch. A malformed corpus is a
-    configuration error — exit 3."""
+    the tree, a title too long for its typed pull request title, and the
+    LOCKED rows of a `depends_on` document that an unlanded document's phase
+    scopes touch. A malformed corpus is a configuration error — exit 3."""
 
     from torve.config.spec import check_corpus
 
@@ -256,11 +256,13 @@ def check(
 def _model_findings(spec_dir: Path, root: Path) -> tuple[list[str], list[str], list[Any]]:
     """What the application layer adds to the check: fingerprint drift by
     field (a hand-edited grade or paths is a problem, a hand-edited text a
-    warning), path rot (a warning naming the retiring verb), and the
-    inherited LOCKED rows an unlanded document's phases touch (a warning,
-    so the author reads them before the owner accepts)."""
+    warning), a title its typed lead leaves no room for (a warning), path rot
+    (a warning naming the retiring verb), and the inherited LOCKED rows an
+    unlanded document's phases touch (a warning, so the author reads them
+    before the owner accepts)."""
 
     from torve.application.decisions import fingerprint_drift, inherited_locks, path_rot
+    from torve.application.forge import title_warnings
     from torve.config.spec import SpecError, load_corpus
 
     try:
@@ -269,6 +271,7 @@ def _model_findings(spec_dir: Path, root: Path) -> tuple[list[str], list[str], l
         return [], [], []  # the check already reported the load
 
     problems, warnings = fingerprint_drift(corpus)
+    warnings += title_warnings(corpus)
     rotted = path_rot(corpus, root)
     warnings += [one.line() for one in rotted]
     warnings += inherited_locks(corpus)

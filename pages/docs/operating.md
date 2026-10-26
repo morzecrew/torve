@@ -1432,7 +1432,11 @@ A document whose header carries `change` is titled from it instead (S-0087/D-2)
 — `👷 ci(fuzz): continuous fuzzing in CI · 1/3 phases` while phases are still to
 come, `👷 ci(fuzz): continuous fuzzing in CI` at the last landing, so the subject
 the squash merge takes is one line in the repository's own commit format with
-nothing to edit. A task-unit pull request wears the same name with the phase's
+nothing to edit. The title is bounded at 72 characters: the count is left out
+while the title would not fit beside it, and a title too long for the room
+after `👷 ci(fuzz): ` is cut with `…` — `torve spec check` warns about one,
+naming its length and the room, while the document can still be retitled.
+A task-unit pull request wears the same name with the phase's
 title as the description (S-0087/D-3), and a document without the field is
 titled as today, in every byte.
 While phases are still to come it is a draft, and the landing of the last phase

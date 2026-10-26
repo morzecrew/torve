@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contradicts such a row shows before the document is accepted, not when its executor
   halts on it.
 
+- `torve spec check` warns when a document's title is too long for its typed
+  pull request title, naming its length and the room after `<gitmoji>
+  <type>(<scope>): `. Shortened before acceptance, the title is the squash
+  subject as written. The `· n/m phases` count gives way rather than cut it.
+
 ### Changed
 
 - torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
@@ -37,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The intake lint reads the drafting worktree's files. It read none, because that
   worktree sits under `.wt/`, so a draft that left out its module's test file passed.
+
+- An attempt's work commit is titled by its phase, not by its intent cut
+  mid-word, and a review round's names a lone finding's file with the path
+  whole. A subject still too long is cut between words, never inside backticks
+  or a path, and the commit body keeps the whole text.
 
 ## [0.6.4] - 2026-10-23
 
