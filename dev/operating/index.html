@@ -2046,6 +2046,12 @@ governed code regenerates its projection without halting (S-0104/D-6). The
 effect is that the scope halt this page once treated as routine is now rare —
 the common misses are already contingent, and the ones that remain are a link
 the manifest has not named or a phase drawn genuinely too narrow.</p>
+<p>One miss is neither. A formatter that adds a final newline or strips trailing
+whitespace in a file outside the scope still fails the gate, since the change
+reaches past the scope (S-0055/D-17), but the gate names that file <code>outside
+allow, whitespace only</code>: undo the whitespace change rather than widen the
+scope. Indentation is not whitespace here; a re-indented file is an ordinary
+<code>outside allow</code>.</p>
 <h2 id="which-carrier-answers-a-report">Which carrier answers a report<a class="headerlink" href="#which-carrier-answers-a-report" title="Permanent link">&para;</a></h2>
 <p><code>why</code>, <code>status</code> and <code>context</code> read either the record or this host's files,
 and <strong>naming a partition is what selects the record</strong>:</p>
