@@ -116,20 +116,23 @@ class Channel:
 # ....................... #
 
 
-def seed(workspace: Path, url: str, token: str) -> Path | None:
+def seed(workspace: Path, url: str, token: str, since: str = "") -> Path | None:
     """Write the channel where the sandbox can find it, before the agent
     runs. No URL means no channel and no file: absence is how the verbs
     learn there is nothing to post to.
 
-    `since` is when this attempt began: the log keeps every note, and an
-    urgent one sent to an earlier attempt must not end this one."""
+    `since` is when this attempt began, now when unnamed: the log keeps
+    every note, and an urgent one sent to an earlier attempt must not end
+    this one."""
 
     if not url:
         return None
 
     path = workspace / layout.TORVE_DIR / "tmp" / CHANNEL_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"url": url, "token": token, "since": stamp()}, indent=2) + "\n")
+    path.write_text(
+        json.dumps({"url": url, "token": token, "since": since or stamp()}, indent=2) + "\n"
+    )
 
     return path
 

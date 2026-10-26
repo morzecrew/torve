@@ -396,6 +396,11 @@ class RunLogChannel(RunChannel):
     def record(self, kind: str, payload: dict[str, Any]) -> None:
         event_kind = EventKind(kind)
 
+        if event_kind is EventKind.MESSAGE_SENT and payload.get("urgent"):
+            # An urgent note halts the attempt it reaches: the operator's to
+            # send, never the sandbox's, or an agent could end its own run.
+            raise ValueError("an agent may not send an urgent note")
+
         run_coroutine_threadsafe(
             self.log.record(
                 event_kind,

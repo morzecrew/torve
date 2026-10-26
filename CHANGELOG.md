@@ -19,9 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   <type>(<scope>): `. Shortened before acceptance, the title is the squash
   subject as written. The `· n/m phases` count gives way rather than cut it.
 
-- `torve manager note --urgent` halts a running attempt: a Claude seat stops at
-  its next tool call, any other seat when its session ends. The task escalates
-  as `killed`, its gates never run, and its tree stays on the task's branch.
+- `torve manager note --urgent` halts a running attempt: a Claude seat under a
+  broker stops at its next tool call, any other when its session ends. The task
+  escalates as `killed`, its gates never run, and its tree stays on its branch.
 
 ### Changed
 

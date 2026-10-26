@@ -1886,6 +1886,7 @@ class HarnessAgent:
             ctx.workspace,
             ctx.broker.channel_url if ctx.broker is not None else "",
             ctx.broker.token if ctx.broker is not None else "",
+            ctx.started_at,
         )
         equipped = equipped_working_rules(ctx.workspace, ctx.task.id)
         prompt = (

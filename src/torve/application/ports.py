@@ -223,6 +223,9 @@ class AgentContext:
     # than base. The agent-facing prompt names this plainly; nothing else in
     # the loop branches on it.
     resume: bool = False
+    # When the attempt began, sandbox creation included: the instant before
+    # which a note was sent to an earlier attempt. Empty is now.
+    started_at: str = ""
 
 
 # ....................... #

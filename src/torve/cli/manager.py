@@ -1659,7 +1659,7 @@ def note_cmd(
         bool,
         typer.Option(
             "--urgent",
-            help="End the attempt at its next tool call, keeping its work, and escalate the task.",
+            help="Halt the attempt, keeping its work, and escalate the task as killed.",
         ),
     ] = False,
     dsn: Annotated[
@@ -1677,9 +1677,9 @@ def note_cmd(
     A note is a recorded fact, not a prompt edit: the agent polls for it
     with `torve log notes`, nothing interrupts it mid-thought, and what the
     engine tried to say is auditable afterwards whether or not it was read.
-    An urgent note halts the attempt: the implement hooks stop a Claude seat
-    at its next tool call, and once the session ends the task escalates as
-    `killed`, its gates unrun and its tree kept on the task's branch.
+    An urgent note halts the attempt: under a broker the implement hooks stop
+    a Claude seat at its next tool call, and once the session ends the task
+    escalates as `killed`, its gates unrun and its tree kept on its branch.
     """
 
     asyncio.run(_note(dsn_to_write(root, dsn) or None, partition, task_id, topic, body, urgent))
@@ -1696,10 +1696,6 @@ def note_cmd(
         )
         raise typer.Exit(EXIT_OK)
 
-    when = (
-        "it ends the attempt at its next tool call"
-        if urgent
-        else "the agent reads it when it polls"
-    )
+    when = "it halts the attempt" if urgent else "the agent reads it when it polls"
     closing(out(fmt), f"note sent to {task_id} — {when}")
     raise typer.Exit(EXIT_OK)

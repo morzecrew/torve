@@ -535,6 +535,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 # a composed prompt is staged verbatim, and the adapter
                 # composes one only when handed none.
                 prompt=bare_prompt(task) if run.prompt_removed else None,
+                started_at=attempt_started_at,
             ),
         )
 
@@ -697,7 +698,12 @@ def _sandbox_gitdir(root: Path, worktree: Path, name: str) -> str:
         git(path, "config", "core.bare", "false")
         git(path, "fetch", "-q", f"--depth={GITDIR_DEPTH}", str(worktree), "HEAD")
         git(path, "update-ref", "--no-deref", "HEAD", "FETCH_HEAD")
-        shutil.copyfile(source("index"), path / "index")
+        index = Path(source("index"))
+
+        # A split index is two files: without its shared half git cannot read it.
+        for part in (index, *index.parent.glob("sharedindex.*")):
+            shutil.copyfile(part, path / part.name)
+
         exclude = Path(source("info/exclude"))
 
         if exclude.is_file():
@@ -887,12 +893,15 @@ def _urgent_note(run: Dispatch) -> bool:
     """Whether the operator sent an urgent note while this attempt ran
     (`manager note --urgent`). The note is the operator's fact in the record;
     the implement hook that ends the session at the next tool call only makes
-    the stop sooner. A record that cannot answer halts nothing, and the gates
-    judge the attempt as they would have."""
+    the stop sooner. A note sent after the session ended finds no attempt to
+    stop, and bounding by the end keeps the attempt's row and its escalation,
+    which both ask, agreeing. A record that cannot answer halts nothing, and
+    the gates judge the attempt as they would have."""
 
-    channel, since = run.deps.channel, str(run.meta.get("started_at") or "")
+    channel = run.deps.channel
+    since, until = str(run.meta.get("started_at") or ""), str(run.meta.get("ended_at") or "")
 
-    if channel is None or not since:
+    if channel is None or not since or not until:
         return False
 
     try:
@@ -901,7 +910,9 @@ def _urgent_note(run: Dispatch) -> bool:
     except Exception:
         return False
 
-    return any(note.get("urgent") is True and str(note.get("at", "")) >= since for note in notes)
+    return any(
+        note.get("urgent") is True and since <= str(note.get("at", "")) <= until for note in notes
+    )
 
 
 # ....................... #

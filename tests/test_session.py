@@ -696,6 +696,8 @@ def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_pa
     repo.git("remote", "add", "origin", "https://user:secret@forge.invalid/repo.git")
     worktree = GitWorkspace(repo.root).create(TASK_ID, "main")
     (worktree / "new.py").write_text("NEW = 1\n", encoding="utf-8")
+    # A split index is two files; the copy needs its shared half to read it.
+    git(worktree, "update-index", "--split-index")
 
     gitdir = _sandbox_gitdir(repo.root, worktree, TASK_ID)
 

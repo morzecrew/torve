@@ -85,16 +85,19 @@ prompt is rewritten underneath it, and a note the agent never reads is still
 a recorded fact about what the engine tried to say — which is the point of
 it being an event rather than an edit.
 
-An urgent note ends the attempt instead of waiting to be read:
+An urgent note halts the attempt instead of waiting to be read:
 
 ```console
 $ torve manager note morzecrew/torve T-0279 --urgent "stop: the contract is wrong"
 ```
 
-The implement hooks read the notes before every tool call, so a Claude seat
-stops at its next one. Once the session ends, the engine reads the same note
-from the record and halts the attempt as `killed`: its gates never run, and
-its tree is committed on the task's branch as a halted attempt's is.
+Under a broker, the implement hooks read the notes through the channel
+before every tool call, so a Claude seat stops at its next one. Any other
+seat, or a run with no broker, runs on until its session ends. Then the
+engine reads the same note from the record and halts the attempt as
+`killed`: its gates never run, and its tree is committed on the task's
+branch as a halted attempt's is. A note sent after the session ended halts
+nothing.
 
 ## What the engine still cannot see
 

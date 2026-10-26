@@ -380,3 +380,34 @@ def test_an_urgent_note_ends_the_attempt_at_its_next_tool_call(worktree, broker)
     assert "halt now" in answer["stopReason"]
 
     local.close(handle)
+
+
+def test_an_agent_cannot_send_an_urgent_note():
+    """An urgent note halts the attempt it reaches, so only the operator sends
+    one: the sandbox's channel refuses it before the store is asked, and a
+    plain note from the agent still goes through."""
+
+    async def scenario():
+        runtime = ExecutionRuntime(deps=DepsRegistry.from_modules(mock_module()).freeze())
+
+        async with runtime.scope():
+            log = event_log(runtime.get_context())
+            channel = RunLogChannel(
+                log=log,
+                loop=asyncio.get_running_loop(),
+                partition=PARTITION,
+                task_id=TASK_ID,
+                seat="worker-1",
+            )
+            note = {"to_role": "implement", "topic": "note", "body": "stop"}
+
+            with pytest.raises(ValueError, match="urgent"):
+                await asyncio.to_thread(channel.record, "message.sent", {**note, "urgent": True})
+
+            await asyncio.to_thread(channel.record, "message.sent", note)
+
+            assert [event.kind for event in await log.history(TASK_ID, partition=PARTITION)] == [
+                EventKind.MESSAGE_SENT
+            ]
+
+    asyncio.run(scenario())

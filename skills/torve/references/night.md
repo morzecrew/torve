@@ -52,9 +52,10 @@ not overlap.
 - Check that the process is alive with `ps -eo pid,args | grep "[m]anager serve"`.
 - Leave a running attempt alone. To tell it something, use
   `torve manager note <partition> <task> "<what it should know>"`. The agent
-  reads notes; nothing interrupts it. To stop it, add `--urgent`: the attempt
-  ends at its next tool call, keeps its tree on the task's branch, and
-  escalates as `killed`.
+  reads notes; nothing interrupts it. To stop it, add `--urgent`: a Claude
+  seat under a broker stops at its next tool call, any other seat when its
+  session ends. The attempt keeps its tree on the task's branch and escalates
+  as `killed`.
 
 ## With the verify pilot on
 

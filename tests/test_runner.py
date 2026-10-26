@@ -3352,20 +3352,31 @@ class _NotesChannel:
         return self.sent
 
 
-def test_an_urgent_note_halts_the_attempt_and_keeps_its_tree(repo):
+def test_an_urgent_note_halts_the_attempt_and_keeps_its_tree(repo, monkeypatch):
     """`manager note --urgent`: an urgent note sent while the attempt ran ends
     it as a halt does — escalated `killed`, its gates never run, its tree
     committed on the task's branch. The note is read from the record, so the
     halt does not rest on anything the sandbox wrote."""
+    import sys
+
     from test_run_loop import MockVcs
 
     from torve.application.ports import AgentResult
+    from torve.base.clock import stamp
 
+    channel = _NotesChannel([])
+
+    class NotedAgent(_EndingsAgent):
+        def run(self, ctx):
+            # The operator writes the note while the session runs.
+            channel.sent.append({"at": stamp(), "body": "stop", "urgent": True})
+            return self.results[0]
+
+    monkeypatch.setattr(sys.modules[__name__], "_EndingsAgent", NotedAgent)
     vcs = MockVcs()
-    note = {"at": "9999-12-31T23:59:59Z", "body": "stop", "urgent": True}
 
     final, (rows, _events) = _drive_endings(
-        repo, [AgentResult(exit_code=0, output="")], vcs=vcs, channel=_NotesChannel([note])
+        repo, [AgentResult(exit_code=0, output="")], vcs=vcs, channel=channel
     )
 
     assert final.escalation is not None and final.escalation.reason == "killed"
@@ -3379,12 +3390,14 @@ def test_an_urgent_note_halts_the_attempt_and_keeps_its_tree(repo):
     [
         [{"at": "9999-12-31T23:59:59Z", "body": "the flake is known"}],
         [{"at": "2000-01-01T00:00:00Z", "body": "stop", "urgent": True}],
+        [{"at": "9999-12-31T23:59:59Z", "body": "stop", "urgent": True}],
         RuntimeError("the store did not answer"),
     ],
 )
 def test_only_an_urgent_note_sent_during_the_attempt_halts_it(repo, notes):
-    """A plain note, an urgent one an earlier attempt was sent, and a record
-    that cannot answer each leave the attempt to its gates."""
+    """A plain note, an urgent one an earlier attempt was sent, one sent after
+    the session ended, and a record that cannot answer each leave the attempt
+    to its gates."""
     from torve.application.ports import AgentResult
 
     final, (rows, _events) = _drive_endings(
@@ -3396,14 +3409,25 @@ def test_only_an_urgent_note_sent_during_the_attempt_halts_it(repo, notes):
 
 
 def test_the_attempt_s_sandbox_reads_git_from_a_copy_removed_after_it(repo, monkeypatch):
-    """The sandbox's git is a standalone copy built before the sandbox starts
-    and gone once it is destroyed; nothing of it outlives the attempt."""
+    """The sandbox's git is a standalone copy built before the sandbox starts,
+    handed to the runtime on the spec, and gone once the sandbox is destroyed;
+    nothing of it outlives the attempt."""
     import sys
+
+    from test_run_loop import MockRuntime
 
     from torve.application.ports import AgentResult
 
     copy = repo.root / ".torve" / "tmp" / "git" / TASK_ID
     seen: list[bool] = []
+    handed: list[str] = []
+    create = MockRuntime.create
+
+    def recording(self, spec, workspace):
+        handed.append(spec.gitdir)
+        return create(self, spec, workspace)
+
+    monkeypatch.setattr(MockRuntime, "create", recording)
 
     class GitAgent(_EndingsAgent):
         def run(self, ctx):
@@ -3415,6 +3439,7 @@ def test_the_attempt_s_sandbox_reads_git_from_a_copy_removed_after_it(repo, monk
     _drive_endings(repo, [AgentResult(exit_code=1, output="")], ceiling=1)
 
     assert seen and all(seen)
+    assert handed == [str(copy)]
     assert not copy.exists()
 
 

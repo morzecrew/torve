@@ -1982,23 +1982,17 @@ def test_a_requeued_resolution_briefs_the_next_attempt_from_the_record(tmp_path,
     assert feedback_file(repo.root, "T-9820").read_bytes() == before
 
 
-def test_an_urgent_note_is_recorded_as_urgent(tmp_path, monkeypatch):
+def test_an_urgent_note_is_recorded_as_urgent(tmp_path):
     """`manager note --urgent` marks the note so the implement hook can end the
-    attempt on it; a note without the flag records what it always did."""
+    attempt on it; a note without the flag records what it always did. Both
+    are recorded through the log itself, whose payload model refuses a field
+    it does not know."""
     import json
 
     from typer.testing import CliRunner
 
-    from torve.application import eventlog
     from torve.cli.main import app
-
-    payloads: list[dict] = []
-
-    class Log:
-        async def record(self, _kind, **kwargs) -> None:
-            payloads.append(kwargs["payload"])
-
-    monkeypatch.setattr(eventlog, "event_log", lambda _context: Log())
+    from torve.domain.events import EventKind, validate_payload
 
     for flags in (["--urgent"], []):
         result = CliRunner().invoke(
@@ -2013,9 +2007,9 @@ def test_an_urgent_note_is_recorded_as_urgent(tmp_path, monkeypatch):
         assert result.exit_code == 0, result.output
         assert json.loads(result.stdout)["urgent"] is bool(flags)
 
-    assert payloads[0]["urgent"] is True
-    assert "urgent" not in payloads[1]
-    assert payloads[1]["body"] == "stop: the contract is wrong"
+    note = {"to_role": "implement", "topic": "note", "body": "stop", "urgent": True}
+
+    assert validate_payload(EventKind.MESSAGE_SENT, note).urgent is True  # type: ignore[attr-defined]
 
 
 # ....................... #
