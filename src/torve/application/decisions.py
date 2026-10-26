@@ -629,6 +629,43 @@ def path_rot(corpus: Corpus, root: Path) -> list[RottedRow]:
     return rotted
 
 
+# ....................... #
+
+
+def inherited_locks(corpus: Corpus) -> list[str]:
+    """For each document nothing has landed from yet, every LOCKED row of a
+    document it `depends_on` (decision inheritance, S-0085/D-1) whose paths
+    one of its phases' scopes touches — one warning line each. The contract
+    carries its own document's rows only, so a phase row contradicting an
+    inherited one is otherwise first seen by the executor, which halts on it."""
+
+    lines: list[str] = []
+
+    for doc in corpus.documents:
+        if doc.archived or doc.superseded_by or doc.implementation != "none":
+            continue
+
+        where = Path(doc.path).name if doc.path else doc.id
+        inherited = [corpus.document(ref) for ref in doc.depends_on]
+
+        for phase in doc.phasing:
+            for target in inherited:
+                if target is None or target.archived or target.superseded_by:
+                    continue
+
+                for row in target.decisions:
+                    if row.grade != "LOCKED" or row.superseded_by:
+                        continue
+
+                    if row.paths and overlap(row.paths, phase.scope):
+                        lines.append(
+                            f"{where}: phase {phase.phase} ({phase.title}) touches {row.id} "
+                            f"(LOCKED, inherited through depends_on) — {row.text.strip()}"
+                        )
+
+    return lines
+
+
 # ----------------------- #
 
 

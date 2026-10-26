@@ -970,7 +970,10 @@ warning that `torve spec fix S-NNNN/D-n "…"` re-stamps as editorial. A hand-
 written document is legal as it stands — `torve spec fmt` reports what
 differs from the serializer's form and writes nothing. `torve spec check`
 also names rows whose declared paths match nothing in the tree; `--fix-
-rot` retires them.
+rot` retires them. For a document nothing has landed from, it warns on each
+LOCKED row of a `depends_on` document that one of its phases' scopes
+touches: the contract carries its own document's rows only, so read those
+before accepting.
 
 An amendment reaches the contracts the document already minted through
 `torve plan S-NNNN --refresh`, never through a hand edit of a contract:

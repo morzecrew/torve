@@ -137,7 +137,12 @@ arrives first, invisibly.
    the verify pilot is on, a verifier writes that phase's tests from the rows
    and the intent alone, before any implementation exists; an intent naming
    only a file leaves it to invent an API, and a phase written for a verifier
-   names what to test.
+   names what to test. A phase's clock and model are its seat's: a phase that
+   needs more time than the repository's `agent_timeout`, or the stronger
+   model, names a `tier_variant` the operator configures with its own
+   `agent_timeout` and `sandbox_timeout`, or a `character` the seat's
+   `character_routing` sends to one. The size estimate is advice and moves
+   neither.
 
 3. **Non-overlapping scope within a phase.** Entries with the same phase
    number must not share globs — overlapping tasks cannot run in parallel and
@@ -231,7 +236,12 @@ reports what differs from the serializer's form and writes nothing.
 
 `torve spec check` also names rows whose declared paths match nothing in
 the tree; `torve spec check --fix-rot` retires them through an amendment
-per document with the reason recorded. Coverage per path — governed,
+per document with the reason recorded. For a document nothing has landed
+from, it lists each LOCKED row of a `depends_on` document that a phase's
+scope touches. A contract carries its own document's rows only, so an
+executor meets a contradiction there at its first attempt and halts: read
+the list before the owner accepts, and settle each conflict in the phase or
+by amending the inherited document. Coverage per path — governed,
 ungoverned, retired — is `torve spec paths <path>`; ungoverned is the
 ratchet's frontier, never a finding.
 
