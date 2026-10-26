@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `torve spec check` warns, for a document nothing has landed from, on each LOCKED
+  row of a `depends_on` document that one of its phases' scopes touches. A phase that
+  contradicts such a row shows before the document is accepted, not when its executor
+  halts on it.
+
+### Changed
+
+- The spec-writer skill and the adopting reference say how a phase gets more time or
+  the stronger model: a seat variant with its own `agent_timeout` and
+  `sandbox_timeout`, named by the phase's `tier_variant` or reached through
+  `character_routing`.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed
