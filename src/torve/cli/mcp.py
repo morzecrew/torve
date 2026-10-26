@@ -22,6 +22,7 @@ from torve.cli.options import (
     RootOption,
     dsn_for,
     load_config,
+    partition_for,
 )
 from torve.domain.states import EXIT_CONFIG
 
@@ -162,15 +163,20 @@ def mcp_cmd(
     """Serve the planning read surface over stdio. Queries only; execution
     sandboxes never get this server.
 
-    With a partition named, the reports answer from that partition's log;
-    without one, from this repository's files, and the envelope says which."""
+    With a partition named, or one configured for this root,
+    the reports answer from that partition's log; without one, from this
+    repository's files, and the envelope says which."""
 
     root = root.resolve()
     config = load_config(root, config_path)
+    dsn = dsn_for(root, dsn)
 
     try:
         server = build_server(
-            root, root / config.specs.path, dsn=dsn_for(root, dsn), partition=partition
+            root,
+            root / config.specs.path,
+            dsn=dsn,
+            partition=partition_for(root, partition, dsn),
         )
 
     except RuntimeError as exc:

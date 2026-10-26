@@ -209,6 +209,11 @@ class Model(BaseModel):
     price: Price | None = None
     """What a token costs here. Absent for a seat that genuinely has no per-token cost — a
     subscription — and then the attempt's cost stays unreported rather than invented."""
+    list_price: Price | None = None
+    """The vendor's published rate card, for a seat that is not billed by it — a
+    subscription. `torve ledger` prices the seat's attempts at it from their token counts and
+    marks the figure an estimate; the attempt's own cost stays unreported, and no budget
+    reads it."""
 
 
 # ....................... #

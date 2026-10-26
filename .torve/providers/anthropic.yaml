@@ -15,10 +15,17 @@ models:
   # The vendor's published figures, not measured here. No `price`: this seat
   # runs on a subscription and has no per-token cost, so the attempt's cost is
   # unreported rather than priced off a rate card nobody is billed by
-  # (S-0064/D-12).
+  # (S-0064/D-12). `list_price` is that rate card, Anthropic's API list price
+  # as published on 2026-10-06 (cache writes at the five-minute rate): the
+  # ledger prices the seat's tokens at it and marks the figure an estimate.
   claude-opus-5:
     context_window: 200000
     max_tokens: 32000
+    list_price:
+      input: 5.0
+      output: 25.0
+      cache_read: 0.5
+      cache_write: 6.25
   # The seat moved here on 2026-09-28. The two figures are carried over from
   # claude-opus-5 rather than read off a vendor page: the claude seat's image
   # reads neither (only the dsh seat's overlay does), so they are the record's
@@ -26,3 +33,8 @@ models:
   claude-opus-5-5:
     context_window: 200000
     max_tokens: 32000
+    list_price:
+      input: 4.0
+      output: 20.0
+      cache_read: 0.2
+      cache_write: 5.0

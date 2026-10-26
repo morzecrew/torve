@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   <type>(<scope>): `. Shortened before acceptance, the title is the squash
   subject as written. The `· n/m phases` count gives way rather than cut it.
 
+- `torve ledger` prices a subscription seat's attempts from their token counts
+  when its provider record names the model's `list_price`, and marks the figure
+  `~`: what the tokens would cost, not an amount billed. The attempt's own cost
+  stays unreported, and a night's dollar budget does not count it.
+
 - `torve manager note --urgent` halts a running attempt: a Claude seat under a
   broker stops at its next tool call, any other when its session ends. The task
   escalates as `killed`, its gates never run, and its tree stays on its branch.
@@ -34,11 +39,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sandbox_timeout`, named by the phase's `tier_variant` or reached through
   `character_routing`.
 
+### Fixed
+
+- A document pull request whose last phase lands green is published ready even
+  when the forge does not list the new completion status yet. A forge that
+  refuses to mark it ready is recorded as `lane_pr_refused`, no longer silently.
+
+- The next phase of a document whose remote branch was rebased onto a moved
+  base no longer escalates `merge_conflict` when this checkout still holds the
+  old hashes. A copy whose landings the remote already has is reset to the
+  remote, and the phase lands onto it.
+  
+
 - The scope gate names a file outside the scope whose change is whitespace alone,
   such as a final newline or trailing spaces, as `outside allow, whitespace only`.
   It still fails, and the retry is told to undo the change rather than widen the scope.
 
-### Fixed
+- `torve manager board` shows a review row its run already concluded as
+  `consumed`, as `torve status` does, instead of `queued` forever. The JSON
+  board is unchanged.
+
+- A served night no longer closes as drained while a task that can still run is
+  queued or escalated, such as work waiting on an escalation. It keeps polling
+  until its wall-clock end, so the work runs once the escalation is resolved.
 
 - A phase's contingent paths, the context pack and a review round's paired tests no
   longer take in copies from a git worktree or clone nested in the repository, such as
@@ -51,6 +74,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mid-word, and a review round's names a lone finding's file with the path
   whole. A subject still too long is cut between words, never inside backticks
   or a path, and the commit body keeps the whole text.
+
+- A task minted into the store no longer answers "no task" from `torve why`
+  without `--partition`. With a store configured, `why`, `status`, `context`,
+  `serve` and `mcp` read the fleet manifest's partition for the root, else
+  `scm.repo`, and fall back to the files when that record lacks the task.
+  
+
+- A task whose manager was killed mid-attempt no longer stays `running` after
+  `torve reap` expires its run. The next pass escalates it `lease_expired`, so
+  `torve manager resolve` and `torve plan --refresh` reach it.
+
+- The night guide and the operator skill name `torve plan --partition` as the
+  step that puts a freshly accepted document on the board. The manager's import
+  pass reads contract files and never plans a document.
 
 - Git works inside an attempt's Docker sandbox: `git status`, `diff` and `log`
   read a read-only copy of the attempt's HEAD and index. The copy carries none

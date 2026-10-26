@@ -202,6 +202,50 @@ def test_rates_are_per_seat_and_an_unpriced_seat_reports_unreported(repo: Repo) 
     assert unpriced["cost_per_landed_task_usd"] is None
     # It landed nothing, so it has no rate at all — not a zero, not infinity.
     assert unpriced["attempts_per_landing"] is None
+    assert priced["cost_estimated"] is False
+
+
+def test_a_subscription_seat_is_priced_at_its_list_price_as_an_estimate(repo: Repo) -> None:
+    """#197: a subscription seat reports no cost, but its token counts are
+    recorded, and the provider table's list price says what they would cost.
+    The figure is marked an estimate; the attempt's own cost stays unreported."""
+
+    repo.seed()
+    repo.write(
+        ".torve/providers/anthropic.yaml",
+        "key_env: TOKEN\nroutes:\n  anthropic:\n    base_url: https://api.example\n"
+        "models:\n  opus:\n    list_price: {input: 4.0, output: 20.0, cache_read: 0.2}\n",
+    )
+    _landing(repo, "T-0001")
+    row = _row("T-0001", cost=None)
+    row["agent"] |= {
+        "provider": "anthropic",
+        "model": "opus",
+        "input_tokens": 1_000_000,
+        "output_tokens": 100_000,
+        "cache_read_tokens": 10_000_000,
+    }
+    _stream(repo, [row])
+
+    seat = ledger_report(repo.root)["seats"][0]
+
+    # 4 + 2 + 2 dollars: input, output, and cache reads at their own rate.
+    assert seat["cost_usd"] == 8.0
+    assert seat["cost_per_landed_task_usd"] == 8.0
+    assert seat["cost_estimated"] is True
+
+    result = CliRunner().invoke(app, ["ledger", "--root", str(repo.root)])
+
+    assert result.exit_code == 0, result.output
+    assert "~$8.000" in result.stdout
+    # One word of the note, since a narrow terminal folds the sentence.
+    assert "billed" in result.stdout
+
+    # A provider record that cannot be read is the operator's to fix.
+    repo.write(".torve/providers/anthropic.yaml", "key_env: TOKEN\n")
+    refused = CliRunner().invoke(app, ["ledger", "--root", str(repo.root)])
+
+    assert refused.exit_code == 3
 
 
 def test_gates_report_wall_time_against_convictions(repo: Repo) -> None:

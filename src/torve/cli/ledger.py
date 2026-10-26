@@ -25,22 +25,28 @@ from torve.cli.console import (
     STYLE_WARN,
     Format,
     emit_json,
+    fail,
     footer,
     header,
     make_table,
     out,
 )
 from torve.cli.options import FormatOption, RootOption
-from torve.domain.states import EXIT_OK
+from torve.config.providers import ProviderError
+from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 # ----------------------- #
 
 
-def _money(value: Any) -> str:
+def _money(value: Any, estimated: bool = False) -> str:
     """An absent price is unreported, never zero (S-0064/D-12): a subscription
-    seat genuinely has no per-token cost."""
+    seat genuinely has no per-token cost. A figure priced at a list price is
+    marked `~`, because nobody was billed it."""
 
-    return f"${value:.3f}" if isinstance(value, int | float) else "unreported"
+    if not isinstance(value, int | float):
+        return "unreported"
+
+    return f"{'~' if estimated else ''}${value:.3f}"
 
 
 def _rate(value: Any, digits: int = 2) -> str:
@@ -90,7 +96,10 @@ def ledger_cmd(
     tier name aimed at several images averages into a figure that describes
     nothing. Only attempts that ran a model are counted — fake adapters and
     shadow replays are excluded, and the exclusion is printed. A seat whose
-    provider carries no price reports its cost as unreported, never as zero.
+    provider carries no price reports its cost as unreported, never as zero,
+    unless the provider table names the model's list price: then its
+    attempts are priced at it from their token counts and marked `~`, an
+    estimate rather than an amount billed.
 
     Burn profiles are classified from each attempt's retained trace when the
     trace is still on disk, and from the block the attempt recorded only when
@@ -101,7 +110,12 @@ def ledger_cmd(
     gate runs behind them.
     """
 
-    report = ledger_report(root)
+    try:
+        report = ledger_report(root)
+
+    except ProviderError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
     # S-0075/D-6: the profile is derived where it is read, from the trace the
     # recorded block is only a cache of. The trace scanner is the harness
     # adapter's and the contract reader reaches git, so both are wired here —
@@ -153,7 +167,7 @@ def _render(report: dict[str, Any]) -> None:
             f"{seat['tier']} @ {seat['image']}",
             str(seat["attempts"]),
             str(seat["landed_tasks"]),
-            _money(seat["cost_per_landed_task_usd"]),
+            _money(seat["cost_per_landed_task_usd"], seat["cost_estimated"]),
             _rate(seat["attempts_per_landing"]),
             _rate(seat["convictions_before_landing"]),
             _percent(seat["duty_cycle"]),
@@ -161,6 +175,13 @@ def _render(report: dict[str, Any]) -> None:
 
     if report["seats"]:
         console.print(seats)
+
+        if any(seat["cost_estimated"] for seat in report["seats"]):
+            footer(
+                console,
+                "~ is priced from token counts at the provider's list price: what the "
+                "tokens would cost, not an amount billed",
+            )
 
         # The work-shaped rates beside the task-shaped ones (S-0075/D-3): the
         # four figures that show what a changed line cost, then the same
@@ -185,7 +206,7 @@ def _render(report: dict[str, Any]) -> None:
                 _tokens(seat["cache_read_tokens_per_line"]),
                 _rate(seat["wall_time_s_per_line"]),
                 _tokens(seat["tool_calls_per_line"]),
-                _money(seat["cost_usd_per_line"]),
+                _money(seat["cost_usd_per_line"], seat["cost_estimated"]),
             )
 
         console.print(per_line)
@@ -210,7 +231,7 @@ def _render(report: dict[str, Any]) -> None:
                     _tokens(entry["cache_read_tokens_per_line"]),
                     _rate(entry["wall_time_s_per_line"]),
                     _tokens(entry["tool_calls_per_line"]),
-                    _money(entry["cost_usd_per_line"]),
+                    _money(entry["cost_usd_per_line"], seat["cost_estimated"]),
                 )
 
         if any(seat["files"] for seat in report["seats"]):
