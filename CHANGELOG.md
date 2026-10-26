@@ -9,10 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The scope gate names a file outside the scope whose change is whitespace alone,
-  such as a final newline or trailing spaces, as `outside allow, whitespace only`.
-  It still fails, and the retry is told to undo the change rather than widen the scope.
-
 ### Fixed
 
 - A phase's contingent paths, the context pack and a review round's paired tests no
