@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `~`: what the tokens would cost, not an amount billed. The attempt's own cost
   stays unreported, and a night's dollar budget does not count it.
 
+### Changed
+
+- torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
+  migration is owed. The configuration hash moves with the pin, so telemetry
+  starts a new regime, and this release's seat images carry the new forze.
+
 ### Fixed
 
 - A task minted into the store no longer answers "no task" from `torve why`
