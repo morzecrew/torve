@@ -18,8 +18,9 @@ other skills (`torve guide working-rules`, `torve guide flag-dont-flip`).
    `torve guide spec-writer` first.
 2. **Accept**: the owner sets `status: accepted`. The pull request that does
    it also runs `torve spec project`.
-3. **Plan**: `torve plan S-NNNN --no-dry-run` mints one contract per phase,
-   or the served manager imports them on its next pass.
+3. **Plan**: `torve plan S-NNNN --no-dry-run --partition <partition>` mints
+   one task per phase onto the board. The served manager never plans a
+   document; its import pass reads only contract files.
 4. **Serve**: `torve manager serve <partition> --night` claims tasks, runs
    attempts, gates them, and lands green candidates on `torve/S-NNNN`. The
    document's pull request stays a draft until its last phase lands.

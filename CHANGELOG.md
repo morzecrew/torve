@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `torve manager board` shows a review row its run already concluded as
+  `consumed`, as `torve status` does, instead of `queued` forever. The JSON
+  board is unchanged.
+
+- A served night no longer closes as drained while a task is still queued or
+  escalated, such as work waiting on an escalation. It keeps polling until its
+  wall-clock end, so the work runs once the escalation is resolved.
+
+### Fixed
+
+- A task whose manager was killed mid-attempt no longer stays `running` after
+  `torve reap` expires its run. The next pass escalates it `lease_expired`, so
+  `torve manager resolve` and `torve plan --refresh` reach it.
+
+- The night guide and the operator skill name `torve plan --partition` as the
+  step that puts a freshly accepted document on the board. The manager's import
+  pass reads contract files and never plans a document.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed

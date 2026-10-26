@@ -3,7 +3,7 @@
 A night is `torve manager serve <partition> --night`: a loop that imports
 contracts, claims one task at a time, runs it, and lands what goes green. It
 runs under the `night:` terms in the configuration and stops on a budget, the
-wall-clock end, an empty board or a named escalation class.
+wall-clock end, a board with no work left or a named escalation class.
 
 ## Before
 
@@ -16,10 +16,13 @@ wall-clock end, an empty board or a named escalation class.
    understand why it does not apply tonight.
 4. After upgrading torve, run `torve migrate --status`, then
    `torve migrate --all`.
-5. The documents are accepted and committed on `main`. When their contracts
-   are fresh, run one import pass first, because a night refuses to open on a
-   board with nothing it can start:
-   `torve manager serve <partition> --no-dispatch --passes 1`.
+5. The documents are accepted and committed on `main`, and each one is
+   planned onto the board, because a night refuses to open on a board with
+   nothing it can start:
+   `torve plan S-NNNN --no-dry-run --partition <partition>`.
+   The night's import pass reads only the contract files under
+   `.torve/tasks/`. It never plans a document, and with a store `plan`
+   writes no such file.
 6. A configuration made only for the night can live outside the repository
    (`--config <path>`), so the working tree stays clean for the lane.
 
@@ -48,6 +51,10 @@ not overlap.
   lane still lands green candidates on their branches and republishes their
   pull requests. Resolve escalations until the queue is below the threshold
   (see `torve guide torve escalations`) to let new work through again.
+- A night does not close as drained while a task is still queued or
+  escalated, such as one escalation with the rest waiting on it. It keeps
+  polling until its wall-clock end, so the work runs once you resolve the
+  escalation, without a new night.
 - `torve night show <partition>` reports the night so far.
 - Check that the process is alive with `ps -eo pid,args | grep "[m]anager serve"`.
 - Leave a running attempt alone. To tell it something, use
@@ -80,8 +87,10 @@ as any other `underspecified` halt.
 ## Stop
 
 The night stops itself. To stop it early, kill the manager by its PID. The
-cost is the lease on the attempt in flight. That task is reclaimed later, and
-a task whose work had already landed stays landed.
+cost is the lease on the attempt in flight. Run `torve reap`: it expires the
+dead run, and the next pass on this host escalates the task `lease_expired`
+rather than waiting out its lease. Take it through `torve guide torve
+escalations`. A task whose work had already landed stays landed.
 
 ## The morning
 
