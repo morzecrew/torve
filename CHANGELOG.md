@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `torve manager note --urgent` halts a running attempt: a Claude seat stops at
+  its next tool call, any other seat when its session ends. The task escalates
+  as `killed`, its gates never run, and its tree stays on the task's branch.
+
+### Fixed
+
+- Git works inside an attempt's Docker sandbox: `git status`, `diff` and `log`
+  read a read-only copy of the attempt's HEAD and index. The copy carries none
+  of the host's git config or other branches, and nothing in the sandbox can
+  write a ref.
+
+- A Claude seat running a non-Claude model compacts at the window its provider
+  record states instead of at 200,000 tokens. Rebuild the claude sandbox image
+  to pick it up.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed

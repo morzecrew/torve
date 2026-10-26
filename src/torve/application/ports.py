@@ -103,6 +103,12 @@ class SandboxSpec:
     # container and joins this one to it. None is the ordinary sandbox, with
     # no daemon and no side container.
     nested: NestedDocker | None = None
+    # A standalone repository holding the workspace's HEAD, its recent history
+    # and its index, which the runtime mounts read-only where the workspace's
+    # `.git` file points. Git then answers in the sandbox without the host's
+    # git directory — its config, its other branches — and nothing the agent
+    # runs can write a ref or an object the host keeps. Empty is no git.
+    gitdir: str = ""
 
 
 # ....................... #

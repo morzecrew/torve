@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import shutil
 import subprocess
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -73,6 +74,7 @@ from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason
 from torve.domain.task import Task
 from torve.domain.vocabulary import GateAxis
+from torve.gates.context import GitError, git
 
 # ----------------------- #
 
@@ -487,6 +489,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
             {str(equipment_mount): EQUIPMENT_MOUNT} if equipment_mount is not None else {}
         ),
         nested=_nested_docker(run, task.role),
+        gitdir=_sandbox_gitdir(root, worktree, infra_id),
     )
 
     withheld = _withhold_never_send(worktree, config.providers.never_send)
@@ -495,9 +498,9 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
     attempt_started_at = stamp()
     attempt_clock = time.monotonic()
-    # S-0113/D-2: the attempt's sandbox has no git, so the host leaves the
-    # worktree's tracked files where the citation scan reads them, before the
-    # sandbox starts.
+    # S-0113/D-2: a sandbox's git may not answer — OpenSandbox ships no
+    # `.git` — so the host leaves the worktree's tracked files where the
+    # citation scan reads them, before the sandbox starts.
     write_tracked_files(worktree)
     handle = deps.runtime.create(spec, worktree)
     state.sandbox_id = handle.id
@@ -593,7 +596,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 escalation=state.escalation.reason,
             )
 
-        elif (halt := _halt_reason(worktree, task.id, state.attempts)) is not None:
+        elif (halt := halted(run, state.attempts)) is not None:
             # The halted divergence entry (S-0001/state-machine): terminal by
             # design, and today it ends the attempt silently.
             record = attempt_row(
@@ -652,8 +655,59 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         # and a planted file the scope gate can see would fail every
         # revision against its own contract.
         planted.unlink(missing_ok=True)
+
+        if spec.gitdir:
+            shutil.rmtree(spec.gitdir, ignore_errors=True)
+
         state.sandbox_id = None
         state.save()
+
+
+# ....................... #
+
+# How far back the sandbox's git reaches: enough for `git log` and for a
+# continuation's diff against its base, without packing a large repository's
+# whole past on every attempt.
+GITDIR_DEPTH = 50
+
+
+def _sandbox_gitdir(root: Path, worktree: Path, name: str) -> str:
+    """The standalone repository the attempt's sandbox reads git from
+    (`SandboxSpec.gitdir`): the worktree's HEAD fetched alone with the history
+    behind it, the worktree's index and its excludes, so `git status`, `diff`
+    and `log` answer for the attempt. Nothing else of the host repository comes
+    with it — no config and the credentials it may keep, no remote, no other
+    branch.
+
+    A worktree whose `.git` is a directory, a shadow clone, already has git.
+    A build git refuses leaves the sandbox without git, as it was before."""
+
+    if not (worktree / ".git").is_file():
+        return ""
+
+    path = root / layout.TORVE_DIR / "tmp" / "git" / name
+    shutil.rmtree(path, ignore_errors=True)
+    path.mkdir(parents=True)
+
+    def source(file: str) -> str:
+        return git(worktree, "rev-parse", "--path-format=absolute", "--git-path", file).strip()
+
+    try:
+        git(path, "init", "-q", "--bare")
+        git(path, "config", "core.bare", "false")
+        git(path, "fetch", "-q", f"--depth={GITDIR_DEPTH}", str(worktree), "HEAD")
+        git(path, "update-ref", "--no-deref", "HEAD", "FETCH_HEAD")
+        shutil.copyfile(source("index"), path / "index")
+        exclude = Path(source("info/exclude"))
+
+        if exclude.is_file():
+            shutil.copyfile(exclude, path / "info" / "exclude")
+
+    except (GitError, OSError):
+        shutil.rmtree(path, ignore_errors=True)
+        return ""
+
+    return str(path)
 
 
 # ....................... #
@@ -829,6 +883,27 @@ def _halt_reason(worktree: Path, task_id: str, attempt: int) -> EscalationReason
     return EscalationReason.UNDERSPECIFIED
 
 
+def _urgent_note(run: Dispatch) -> bool:
+    """Whether the operator sent an urgent note while this attempt ran
+    (`manager note --urgent`). The note is the operator's fact in the record;
+    the implement hook that ends the session at the next tool call only makes
+    the stop sooner. A record that cannot answer halts nothing, and the gates
+    judge the attempt as they would have."""
+
+    channel, since = run.deps.channel, str(run.meta.get("started_at") or "")
+
+    if channel is None or not since:
+        return False
+
+    try:
+        notes = channel.notes()
+
+    except Exception:
+        return False
+
+    return any(note.get("urgent") is True and str(note.get("at", "")) >= since for note in notes)
+
+
 # ....................... #
 
 
@@ -836,7 +911,11 @@ def halted(run: Dispatch, attempt: int) -> EscalationReason | None:
     """A halt is written to the log as a halted entry; the loop reads the
     fact from the file, so the agent cannot cause the transition directly.
     The S-0001/A-1 YAML log is parsed, not pattern-matched. Returns the
-    escalation the halt asks for, or None when nothing halted."""
+    escalation the halt asks for, or None when nothing halted. An urgent
+    operator note halts the attempt too, as `killed`."""
+
+    if _urgent_note(run):
+        return EscalationReason.KILLED
 
     return _halt_reason(run.worktree, run.task.id, attempt)
 

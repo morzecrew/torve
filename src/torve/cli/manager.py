@@ -1291,7 +1291,9 @@ def serve_cmd(
 # ....................... #
 
 
-async def _note(dsn: str | None, partition: str, task_id: str, topic: str, body: str) -> None:
+async def _note(
+    dsn: str | None, partition: str, task_id: str, topic: str, body: str, urgent: bool = False
+) -> None:
     from torve.application.eventlog import event_log
     from torve.domain.events import ActorKind, EventKind, SubjectType
 
@@ -1303,7 +1305,12 @@ async def _note(dsn: str | None, partition: str, task_id: str, topic: str, body:
             subject_id=task_id,
             actor_kind=ActorKind.OPERATOR,
             actor_id="operator",
-            payload={"to_role": "implement", "topic": topic, "body": body},
+            payload={
+                "to_role": "implement",
+                "topic": topic,
+                "body": body,
+                **({"urgent": True} if urgent else {}),
+            },
         )
 
 
@@ -1648,6 +1655,13 @@ def note_cmd(
     topic: Annotated[str, typer.Option("--topic", help="One word naming what this is about.")] = (
         "note"
     ),
+    urgent: Annotated[
+        bool,
+        typer.Option(
+            "--urgent",
+            help="End the attempt at its next tool call, keeping its work, and escalate the task.",
+        ),
+    ] = False,
     dsn: Annotated[
         str,
         typer.Option(
@@ -1663,13 +1677,29 @@ def note_cmd(
     A note is a recorded fact, not a prompt edit: the agent polls for it
     with `torve log notes`, nothing interrupts it mid-thought, and what the
     engine tried to say is auditable afterwards whether or not it was read.
+    An urgent note halts the attempt: the implement hooks stop a Claude seat
+    at its next tool call, and once the session ends the task escalates as
+    `killed`, its gates unrun and its tree kept on the task's branch.
     """
 
-    asyncio.run(_note(dsn_to_write(root, dsn) or None, partition, task_id, topic, body))
+    asyncio.run(_note(dsn_to_write(root, dsn) or None, partition, task_id, topic, body, urgent))
 
     if fmt is Format.JSON:
-        emit_json({"partition": partition, "task": task_id, "topic": topic, "sent": True})
+        emit_json(
+            {
+                "partition": partition,
+                "task": task_id,
+                "topic": topic,
+                "urgent": urgent,
+                "sent": True,
+            }
+        )
         raise typer.Exit(EXIT_OK)
 
-    closing(out(fmt), f"note sent to {task_id} — the agent reads it when it polls")
+    when = (
+        "it ends the attempt at its next tool call"
+        if urgent
+        else "the agent reads it when it polls"
+    )
+    closing(out(fmt), f"note sent to {task_id} — {when}")
     raise typer.Exit(EXIT_OK)

@@ -337,3 +337,46 @@ def test_a_run_reads_back_what_it_recorded(broker):
     assert sandbox.records() == [ENTRY]
 
     local.close(handle)
+
+
+def test_an_urgent_note_ends_the_attempt_at_its_next_tool_call(worktree, broker):
+    """The implement hook reads the notes before every tool call. A plain note,
+    or an urgent one sent before this attempt began, lets the call through; an
+    urgent one sent during it stops the session."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from torve.application.channel import CHANNEL_FILE
+
+    hook = Path(__file__).resolve().parent.parent / "skills" / "hooks" / "implement"
+    local, upstream_url = broker
+    channel = Recorder()
+    handle = local.open("run-1", routing_for(upstream_url), BrokerBudget(), channel=channel)
+    seed(worktree.root, handle.channel_url, handle.token)
+    since = json.loads((worktree.root / ".torve" / "tmp" / CHANNEL_FILE).read_text())["since"]
+
+    def call() -> str:
+        return subprocess.run(
+            [sys.executable, str(hook / "urgent_note.py")],
+            cwd=worktree.root,
+            input="{}",
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+    channel.sent = [
+        {"at": since, "topic": "note", "body": "the flake is known"},
+        {"at": "2000-01-01T00:00:00Z", "topic": "note", "body": "stop", "urgent": True},
+    ]
+
+    assert call() == ""
+
+    channel.sent.append({"at": since, "topic": "note", "body": "halt now", "urgent": True})
+    answer = json.loads(call())
+
+    assert answer["continue"] is False
+    assert "halt now" in answer["stopReason"]
+
+    local.close(handle)

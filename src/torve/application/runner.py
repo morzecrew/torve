@@ -295,10 +295,12 @@ async def _attempt_loop(
             # Terminal by design, not an error: the one case where a task
             # stops on working code (S-0001/state-machine). The entry picks
             # the escalation — a LOCKED row or, otherwise, underspecified
-            # (S-0096/D-1).
+            # (S-0096/D-1) — and an urgent operator note is `killed`.
             state.escalate(
                 halt,
-                f"halted divergence entry in the {task.id} execution log",
+                "an urgent operator note ended the attempt"
+                if halt is EscalationReason.KILLED
+                else f"halted divergence entry in the {task.id} execution log",
             )
 
             # S-0086/A-1: working code that stopped on a row is the tree a
@@ -1675,6 +1677,9 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
 
     elif reason == str(EscalationReason.UNDERSPECIFIED):
         why = _UNDERSPECIFIED_MARKER
+
+    elif reason == str(EscalationReason.KILLED):
+        why = "escalated on an urgent note"
 
     message = (
         f"torve({run.task.id}): attempt {state.attempts} {why}\n\n"

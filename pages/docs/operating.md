@@ -31,7 +31,7 @@ shell has not set is filled in.
 | `torve manager serve <partition> --dsn …` | the resident manager: import contracts, claim one task at a time, execute, record |
 | `torve manager serve <partition> --night` | the same loop under the configuration's night terms: it imports first, refuses a board with nothing to start, and stops on a budget, the wall-clock end or a named escalation class |
 | `torve night show <partition>` | what one night did: what landed, what a gate convicted, what the engine ended, and what waits on a person |
-| `torve manager note <partition> <task> "…"` | say something to a running attempt; the agent reads it with `torve log notes`, nothing interrupts it |
+| `torve manager note <partition> <task> "…"` | say something to a running attempt; the agent reads it with `torve log notes`, nothing interrupts it. `--urgent` ends the attempt at its next tool call instead, keeps its tree on the task's branch and escalates it as `killed` |
 | `torve fleet status` | the partitions the fleet manifest names and where each stands |
 | `torve merge` | land ready candidates, serialized. Lands and stops — it never pushes the base; under `promotion.landing: pull_request` it publishes the candidate's branch and opens its pull request instead of moving the base at all |
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |

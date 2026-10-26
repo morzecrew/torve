@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import posixpath
 import subprocess
 import time
 from pathlib import Path
@@ -379,6 +380,14 @@ class DockerRuntime:
             # shared between seats and the attempt must not be able to edit
             # what it was equipped with, nor the manifest describing it.
             args += ["-v", f"{host}:{mount}:ro"]
+
+        if spec.gitdir:
+            # The worktree's `.git` file names a host path no sandbox mounts, so
+            # the standalone copy is mounted at exactly that path: git finds it
+            # from the workdir, and the host's own `.git` file stays as it is.
+            pointer = (workspace / ".git").read_text(encoding="utf-8")
+            target = posixpath.join(spec.workdir, pointer.removeprefix("gitdir:").strip())
+            args += ["-v", f"{spec.gitdir}:{posixpath.normpath(target)}:ro"]
 
         args += [spec.image, "sleep", str(int(spec.timeout_s))]
 

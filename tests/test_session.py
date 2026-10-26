@@ -678,3 +678,37 @@ def test_an_earlier_attempt_s_halt_does_not_halt_this_one(tmp_path):
 
     assert _halt_reason(tmp_path, TASK_ID, 1) == "underspecified"
     assert _halt_reason(tmp_path, TASK_ID, 4) is None
+
+
+def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_path):
+    """The worktree's `.git` file points at the host's git directory, which no
+    sandbox mounts. The copy the sandbox reads instead answers `status`, `log`
+    and `rev-parse` as the worktree does, and carries none of the host's
+    config or its other branches."""
+    import shutil
+
+    from torve.adapters.workspace.git import GitWorkspace
+    from torve.application.session import _sandbox_gitdir
+    from torve.gates.context import git
+
+    repo.seed()
+    repo.git("branch", "elsewhere")
+    repo.git("remote", "add", "origin", "https://user:secret@forge.invalid/repo.git")
+    worktree = GitWorkspace(repo.root).create(TASK_ID, "main")
+    (worktree / "new.py").write_text("NEW = 1\n", encoding="utf-8")
+
+    gitdir = _sandbox_gitdir(repo.root, worktree, TASK_ID)
+
+    # What the sandbox sees: the same files, its `.git` resolving to the copy.
+    view = tmp_path / "view"
+    shutil.copytree(worktree, view, ignore=shutil.ignore_patterns(".git"))
+    (view / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+
+    assert git(view, "rev-parse", "HEAD") == git(worktree, "rev-parse", "HEAD")
+    assert git(view, "status", "--porcelain") == "?? new.py\n"
+    assert git(view, "log", "--oneline")
+    assert "elsewhere" not in git(view, "branch", "--all")
+    assert "secret" not in git(view, "config", "--list")
+
+    # A worktree whose `.git` is a directory already has git of its own.
+    assert _sandbox_gitdir(repo.root, repo.root, "clone") == ""

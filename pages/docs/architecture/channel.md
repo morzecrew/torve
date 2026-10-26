@@ -57,14 +57,18 @@ its own entries in the worktree, since the engine writes that file at the
 next gate pass, so reading them back is how an attempt checks its own
 bookkeeping before it is judged on it.
 
-!!! note "The sandbox cannot use git"
+!!! note "The sandbox's git is a read-only copy"
 
-    A worktree's `.git` is a pointer into a host tree the container cannot
-    follow. Three parts of the design fall out of that one fact: the
-    divergence pin is dropped into the worktree at dispatch instead of being
-    derived, the engine records and re-projects the log host-side, and
-    `torve log owed` takes the changed files as arguments rather than
-    computing a diff.
+    A worktree's `.git` is a pointer into the host's git directory, which no
+    container mounts. Under Docker the engine mounts a standalone copy at that
+    path instead, read-only: the attempt's HEAD with its recent history and
+    the worktree's index, and none of the host's config or other branches.
+    `git status`, `diff` and `log` answer; nothing in the sandbox can write a
+    ref or an object. OpenSandbox ships no `.git`, so git does not answer
+    there, and the design does not lean on it: the divergence pin is dropped
+    into the worktree at dispatch instead of being derived, the engine
+    records and re-projects the log host-side, and `torve log owed` takes the
+    changed files as arguments rather than computing a diff.
 
 ## Notes go the other way
 
@@ -80,6 +84,17 @@ It is a poll, never a push. Nothing interrupts an agent mid-thought, no
 prompt is rewritten underneath it, and a note the agent never reads is still
 a recorded fact about what the engine tried to say — which is the point of
 it being an event rather than an edit.
+
+An urgent note ends the attempt instead of waiting to be read:
+
+```console
+$ torve manager note morzecrew/torve T-0279 --urgent "stop: the contract is wrong"
+```
+
+The implement hooks read the notes before every tool call, so a Claude seat
+stops at its next one. Once the session ends, the engine reads the same note
+from the record and halts the attempt as `killed`: its gates never run, and
+its tree is committed on the task's branch as a halted attempt's is.
 
 ## What the engine still cannot see
 
