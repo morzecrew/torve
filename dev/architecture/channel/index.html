@@ -1078,13 +1078,17 @@ its own entries in the worktree, since the engine writes that file at the
 next gate pass, so reading them back is how an attempt checks its own
 bookkeeping before it is judged on it.</p>
 <div class="admonition note">
-<p class="admonition-title">The sandbox cannot use git</p>
-<p>A worktree's <code>.git</code> is a pointer into a host tree the container cannot
-follow. Three parts of the design fall out of that one fact: the
-divergence pin is dropped into the worktree at dispatch instead of being
-derived, the engine records and re-projects the log host-side, and
-<code>torve log owed</code> takes the changed files as arguments rather than
-computing a diff.</p>
+<p class="admonition-title">The sandbox's git is a read-only copy</p>
+<p>A worktree's <code>.git</code> is a pointer into the host's git directory, which no
+container mounts. Under Docker the engine mounts a standalone copy at that
+path instead, read-only: the attempt's HEAD with its recent history and
+the worktree's index, and none of the host's config or other branches.
+<code>git status</code>, <code>diff</code> and <code>log</code> answer; nothing in the sandbox can write a
+ref or an object. OpenSandbox ships no <code>.git</code>, so git does not answer
+there, and the design does not lean on it: the divergence pin is dropped
+into the worktree at dispatch instead of being derived, the engine
+records and re-projects the log host-side, and <code>torve log owed</code> takes the
+changed files as arguments rather than computing a diff.</p>
 </div>
 <h2 id="notes-go-the-other-way">Notes go the other way<a class="headerlink" href="#notes-go-the-other-way" title="Permanent link">&para;</a></h2>
 <p>An operator or the manager may write a note into a running task, and the
@@ -1096,6 +1100,16 @@ agent reads it when it polls:</p>
 prompt is rewritten underneath it, and a note the agent never reads is still
 a recorded fact about what the engine tried to say — which is the point of
 it being an event rather than an edit.</p>
+<p>An urgent note halts the attempt instead of waiting to be read:</p>
+<div class="language-console highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp">$ </span>torve<span class="w"> </span>manager<span class="w"> </span>note<span class="w"> </span>morzecrew/torve<span class="w"> </span>T-0279<span class="w"> </span>--urgent<span class="w"> </span><span class="s2">"stop: the contract is wrong"</span>
+</span></code></pre></div>
+<p>Under a broker, the implement hooks read the notes through the channel
+before every tool call, so a Claude seat stops at its next one. Any other
+seat, or a run with no broker, runs on until its session ends. Then the
+engine reads the same note from the record and halts the attempt as
+<code>killed</code>: its gates never run, and its tree is committed on the task's
+branch as a halted attempt's is. A note sent after the session ended halts
+nothing.</p>
 <h2 id="what-the-engine-still-cannot-see">What the engine still cannot see<a class="headerlink" href="#what-the-engine-still-cannot-see" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>What the agent is doing right now.</strong> The burn stream says it is
