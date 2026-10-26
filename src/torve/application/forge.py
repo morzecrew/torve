@@ -16,7 +16,7 @@ import yaml
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
-from torve.domain.spec import Commit
+from torve.domain.spec import Commit, Corpus
 from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
@@ -111,21 +111,62 @@ def _description(title: str) -> str:
     return title[0].lower() + title[1:]
 
 
-def _typed_title(change: Commit, description: str, suffix: str = "") -> str:
-    """`<gitmoji> <type>(<scope>)[!]: <description>` with the suffix the
-    caller owns (S-0087/D-2). An overflowing title is cut at the
-    description: the type a release reads is never the part that goes."""
+def _typed_lead(change: Commit) -> tuple[str, int]:
+    """`<gitmoji> <type>(<scope>)[!]: ` and the room it leaves the description
+    within the limit — the one sum the title and `torve spec check` both read
+    (#184)."""
 
     scope = f"({change.scope})" if change.scope else ""
     gitmoji = "💥" if change.breaking else GITMOJI[change.type]
     lead = f"{gitmoji} {change.type}{scope}{'!' if change.breaking else ''}: "
+
+    return lead, TITLE_LIMIT - len(lead)
+
+
+def _typed_title(change: Commit, description: str, suffix: str = "") -> str:
+    """`<gitmoji> <type>(<scope>)[!]: <description>` with the suffix the
+    caller owns (S-0087/D-2). An overflowing title is cut at the
+    description: the type a release reads is never the part that goes. The
+    suffix gives way first, so a description that fits the room is never cut
+    to make room for a phase count (#184)."""
+
+    lead, room = _typed_lead(change)
     text = _description(description)
-    room = TITLE_LIMIT - len(lead) - len(suffix)
+
+    if len(text) + len(suffix) > room:
+        suffix = ""
 
     if len(text) > room:
         text = text[: max(room - 1, 0)].rstrip() + "…"
 
     return f"{lead}{text}{suffix}"
+
+
+def title_warnings(corpus: Corpus) -> list[str]:
+    """A document still to land whose title, as the typed description, is
+    longer than the room its `change` leaves (#184): the pull request's title,
+    and so the squash subject, would end in `…`. `torve spec check` says so
+    while the author can still shorten it."""
+
+    warnings: list[str] = []
+
+    for doc in corpus.documents:
+        landed = doc.archived or doc.status == "superseded" or doc.implementation == "complete"
+
+        if doc.change is None or landed:
+            continue
+
+        lead, room = _typed_lead(doc.change)
+        length = len(_description(doc.title))
+
+        if length > room:
+            warnings.append(
+                f"{Path(doc.path).name if doc.path else doc.id}: the title runs {length} "
+                f"characters and `{lead.strip()}` leaves it {room} — the pull request's "
+                "title and its squash subject would end in …"
+            )
+
+    return warnings
 
 
 def _decision_table(decisions: list[InheritedDecision]) -> list[str]:
