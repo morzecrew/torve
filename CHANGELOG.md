@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   <type>(<scope>): `. Shortened before acceptance, the title is the squash
   subject as written. The `· n/m phases` count gives way rather than cut it.
 
+### Changed
+
+- torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
+  migration is owed. The configuration hash moves with the pin, so telemetry
+  starts a new regime, and this release's seat images carry the new forze.
+
 ### Fixed
 
 - An attempt's work commit is titled by its phase, not by its intent cut
