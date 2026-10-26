@@ -1081,7 +1081,8 @@ def board_cmd(
         _changed_rows(moved, night, partition, document or None, fmt)
         raise typer.Exit(EXIT_OK)
 
-    from torve.application.projections import LANDED, landed
+    from torve.application.projections import CONSUMED, LANDED, landed
+    from torve.domain.task import DISPATCHABLE_ROLES
 
     result = asyncio.run(_board(dsn_value, partition))
     waits = _document_waits(root, result)
@@ -1094,6 +1095,22 @@ def board_cmd(
             return LANDED
 
         return str(view.state)
+
+    def said(view: TaskView) -> str:
+        """The table's word for a row. A review or draft row nothing happened
+        to reads `consumed`, as `torve status` reads it: the run that minted it
+        concluded it, and `queued` there read as a queue that never drains. The
+        JSON keeps `queued` and the role beside it (S-0049/A-1)."""
+
+        if (
+            view.state is TaskState.QUEUED
+            and not view.attempts
+            and view.contract is not None
+            and view.contract.role not in DISPATCHABLE_ROLES
+        ):
+            return CONSUMED
+
+        return view.escalation or shown(view)
 
     if fmt is Format.JSON:
         emit_json(
@@ -1132,7 +1149,7 @@ def board_cmd(
             (
                 view.task_id,
                 view.contract.role if view.contract else "—",
-                view.escalation or shown(view),
+                said(view),
                 str(view.attempts),
                 view.claimed_by or "—",
                 _burn(view),

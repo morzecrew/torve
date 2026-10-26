@@ -45,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   such as a final newline or trailing spaces, as `outside allow, whitespace only`.
   It still fails, and the retry is told to undo the change rather than widen the scope.
 
+- `torve manager board` shows a review row its run already concluded as
+  `consumed`, as `torve status` does, instead of `queued` forever. The JSON
+  board is unchanged.
+
+- A served night no longer closes as drained while a task that can still run is
+  queued or escalated, such as work waiting on an escalation. It keeps polling
+  until its wall-clock end, so the work runs once the escalation is resolved.
+
 - A phase's contingent paths, the context pack and a review round's paired tests no
   longer take in copies from a git worktree or clone nested in the repository, such as
   an agent harness's under `.claude/worktrees/`.
@@ -56,6 +64,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mid-word, and a review round's names a lone finding's file with the path
   whole. A subject still too long is cut between words, never inside backticks
   or a path, and the commit body keeps the whole text.
+
+- A task whose manager was killed mid-attempt no longer stays `running` after
+  `torve reap` expires its run. The next pass escalates it `lease_expired`, so
+  `torve manager resolve` and `torve plan --refresh` reach it.
+
+- The night guide and the operator skill name `torve plan --partition` as the
+  step that puts a freshly accepted document on the board. The manager's import
+  pass reads contract files and never plans a document.
 
 ## [0.6.4] - 2026-10-23
 

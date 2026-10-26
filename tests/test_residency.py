@@ -39,7 +39,9 @@ from torve.domain.states import TaskState
 PARTITION = "morzecrew/torve"
 
 
-def contract(root: Path, task_id: str, *, role: str = "implement", allow: str = "src/**") -> None:
+def contract(
+    root: Path, task_id: str, *, role: str = "implement", allow: str = "src/**", after: str = ""
+) -> None:
     task_dir = root / ".torve" / "tasks" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     # A review or revert contract names what it acts on, and neither carries
@@ -48,7 +50,8 @@ def contract(root: Path, task_id: str, *, role: str = "implement", allow: str = 
     (task_dir / "contract.yaml").write_text(
         f"schema_version: 1\nid: {task_id}\nrole: {role}\nintent: work here\n"
         f"scope: {{allow: ['{allow}']}}\nacceptance: []\ndecisions: []\n"
-        + ("targets: ['T-9999']\n" if acts_on else ""),
+        + ("targets: ['T-9999']\n" if acts_on else "")
+        + (f"depends_on: ['{after}']\n" if after else ""),
         encoding="utf-8",
     )
 
@@ -1147,6 +1150,49 @@ def test_an_expired_lease_on_a_landed_task_records_the_landing(tmp_path):
     run(scenario)
 
 
+def test_a_run_the_reaper_expired_is_escalated_by_the_next_pass(tmp_path):
+    """A manager killed mid-attempt leaves its claim on the board, and `torve
+    reap` expires the run in this host's run state. The next pass reads that
+    verdict instead of waiting out the board's lease, and puts the escalation
+    on the board, where `manager resolve` answers it. A run state escalated
+    before the claim is an earlier attempt's, and leaves the claim alone."""
+
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import EscalationReason
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+
+    def reaped(task_id: str, *, at: str | None = None) -> None:
+        state = RunState(task_id=task_id, path=naming.state_file(tmp_path, task_id))
+        state.state = TaskState.RUNNING
+        state.escalate(EscalationReason.LEASE_EXPIRED, "durable run 0f3a reclaimed at reap")
+
+        if at is not None:
+            state.heartbeat = at
+            state.save()
+
+    async def scenario(log):
+        dead = Worker(log=log, name="w-dead", execute=worker_over(log, []).execute)
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        reaped("T-0002", at="2026-01-01T00:00:00Z")
+        assert await dead.claim(PARTITION) is not None
+        assert await dead.claim(PARTITION) is not None
+        reaped("T-0001")
+
+        executed: list[str] = []
+        await once(log, worker_over(log, executed), tmp_path, PARTITION, dispatch=False)
+
+        board = project(await log.since(partition=PARTITION))
+        assert board.tasks["T-0001"].state is TaskState.ESCALATED
+        assert board.tasks["T-0001"].escalation == "lease_expired"
+        assert board.tasks["T-0002"].state is TaskState.CLAIMED
+        assert executed == []
+
+    run(scenario)
+
+
 def test_the_next_pass_picks_up_what_the_lease_released(tmp_path):
     contract(tmp_path, "T-0001")
 
@@ -1905,6 +1951,70 @@ def test_a_queue_that_drains_closes_the_night_rather_than_failing_it(tmp_path):
         assert await reached(log, PARTITION, night) is None
 
         await once(log, worker_over(log, []), tmp_path, PARTITION)
+
+        assert await reached(log, PARTITION, night) == "drained"
+
+    run(scenario)
+
+
+def test_a_queue_waiting_on_an_escalation_keeps_the_night_open(tmp_path):
+    """One task escalated and the rest waiting on it is not a drained queue:
+    the night polls on, paused, until its wall-clock end, so the person who
+    resolves the escalation does not have to start another night."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**", after="T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(log, PARTITION, config=NightConfig(), actor_id="manager-1")
+        await escalate(log, "T-0001", "blocker_finding")
+
+        assert dispatchable(project(await log.since(partition=PARTITION)), PARTITION) == []
+        assert await reached(log, PARTITION, night) is None
+        assert await reached(log, PARTITION, night, now=night.ends_at) == "wall_clock"
+
+        for task_id in ("T-0001", "T-0002"):
+            await log.record(
+                EventKind.LANDING_RECORDED,
+                partition=PARTITION,
+                subject_type=SubjectType.TASK,
+                subject_id=task_id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id="manager-1",
+                payload={"sha": "a" * 40, "attempt": 1},
+            )
+
+        assert await reached(log, PARTITION, night) == "drained"
+
+    run(scenario)
+
+
+def test_a_queue_behind_an_abandoned_task_drains_the_night(tmp_path):
+    """A task queued behind an abandoned dependency, directly or through
+    another queued task, can never run: nothing a person resolves frees it,
+    so it does not hold the night open until its wall-clock end."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**", after="T-0001")
+    contract(tmp_path, "T-0003", allow="tests/**", after="T-0002")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(log, PARTITION, config=NightConfig(), actor_id="manager-1")
+        await escalate(log, "T-0001", "blocker_finding")
+
+        assert await reached(log, PARTITION, night) is None
+
+        await log.record(
+            EventKind.ESCALATION_RESOLVED,
+            partition=PARTITION,
+            subject_type=SubjectType.TASK,
+            subject_id="T-0001",
+            actor_kind=ActorKind.OPERATOR,
+            actor_id="operator",
+            payload={"resolution": "abandoned"},
+        )
 
         assert await reached(log, PARTITION, night) == "drained"
 
