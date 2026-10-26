@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
+  migration is owed. The configuration hash moves with the pin, so telemetry
+  starts a new regime, and this release's seat images carry the new forze.
+
 - The spec-writer skill and the adopting reference say how a phase gets more time or
   the stronger model: a seat variant with its own `agent_timeout` and
   `sandbox_timeout`, named by the phase's `tier_variant` or reached through
