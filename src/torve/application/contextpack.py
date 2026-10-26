@@ -33,6 +33,7 @@ from xml.etree import ElementTree
 from pathspec import GitIgnoreSpec
 
 from torve.application.colocation import contended_paths
+from torve.application.intake import tree_files
 from torve.application.planner import standing_decisions
 from torve.application.projections import why_report
 from torve.base.shell import clip
@@ -273,11 +274,7 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
                 covered.append({"path": path, "lines": len(lines), "covered": hit})
 
     config = tests or TestsConfig()
-    candidates = [
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file() and UNWALKED.isdisjoint(path.relative_to(root).parts)
-    ]
+    candidates = [path.as_posix() for path in tree_files(root, UNWALKED)]
 
     named: list[dict[str, str]] = []
     # A module is a source file the scope names, by extension — not only `.py`,
@@ -761,18 +758,13 @@ def _in_scope(
     }
     found: set[str] = set()
 
-    for parent, dirs, names in root.walk():
-        dirs[:] = [name for name in dirs if name not in UNWALKED]
-
-        for name in names:
-            rel = (parent / name).relative_to(root).as_posix()
-
-            if rel in named or (
-                (rel in contingent or (allow is not None and allow.match_file(rel)))
-                and not (deny is not None and deny.match_file(rel))
-                and (rel in literal or not (test is not None and test.match_file(rel)))
-            ):
-                found.add(rel)
+    for rel in (path.as_posix() for path in tree_files(root, UNWALKED)):
+        if rel in named or (
+            (rel in contingent or (allow is not None and allow.match_file(rel)))
+            and not (deny is not None and deny.match_file(rel))
+            and (rel in literal or not (test is not None and test.match_file(rel)))
+        ):
+            found.add(rel)
 
     return sorted(found)
 

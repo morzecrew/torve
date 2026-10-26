@@ -16,24 +16,13 @@ import ast
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from torve.application.intake import NOT_THE_TREE, paired_test_files
+from torve.application.intake import paired_test_files, tree_files
 from torve.base.globs import matches
 
 if TYPE_CHECKING:
     from torve.domain.spec import Document
 
 # ----------------------- #
-
-
-def _tree_files(tree: Path) -> list[Path]:
-    """Every file under *tree*, as tree-relative paths, minus the directories
-    that are not the tree under judgment (the same set the intake lint skips)."""
-
-    return sorted(
-        p.relative_to(tree)
-        for p in tree.rglob("*")
-        if p.is_file() and NOT_THE_TREE.isdisjoint(p.parts)
-    )
 
 
 def _matched(path: Path, globs: list[str]) -> bool:
@@ -159,7 +148,7 @@ def contingent_paths(
     globs already match are never contingent: they are the scope, not beyond
     it."""
 
-    files = _tree_files(tree)
+    files = tree_files(tree)
     own = {p.as_posix() for p in files if _matched(p, scope)}
     found: set[str] = set()
 

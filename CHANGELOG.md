@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The scope gate names a file outside the scope whose change is whitespace alone,
+  such as a final newline or trailing spaces, as `outside allow, whitespace only`.
+  It still fails, and the retry is told to undo the change rather than widen the scope.
+
+### Fixed
+
+- A phase's contingent paths, the context pack and a review round's paired tests no
+  longer take in copies from a git worktree or clone nested in the repository, such as
+  an agent harness's under `.claude/worktrees/`.
+
+- The intake lint reads the drafting worktree's files. It read none, because that
+  worktree sits under `.wt/`, so a draft that left out its module's test file passed.
+
 ## [0.6.4] - 2026-10-23
 
 ### Fixed

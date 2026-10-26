@@ -526,6 +526,13 @@ effect is that the scope halt this page once treated as routine is now rare —
 the common misses are already contingent, and the ones that remain are a link
 the manifest has not named or a phase drawn genuinely too narrow.
 
+One miss is neither. A formatter that adds a final newline or strips trailing
+whitespace in a file outside the scope still fails the gate, since the change
+reaches past the scope (S-0055/D-17), but the gate names that file `outside
+allow, whitespace only`: undo the whitespace change rather than widen the
+scope. Indentation is not whitespace here; a re-indented file is an ordinary
+`outside allow`.
+
 ## Which carrier answers a report
 
 `why`, `status` and `context` read either the record or this host's files,

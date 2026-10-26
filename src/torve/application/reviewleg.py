@@ -526,7 +526,7 @@ def _allow(
     # hard-coded.
     from contextlib import suppress
 
-    from torve.application.intake import NOT_THE_TREE
+    from torve.application.intake import tree_files
     from torve.config.manifest import TestsConfig, load_manifest
 
     config = TestsConfig()
@@ -536,11 +536,7 @@ def _allow(
         with suppress(ValueError):
             config = load_manifest(manifest_path).tests
 
-    candidates = [
-        p.relative_to(root).as_posix()
-        for p in root.rglob("*")
-        if p.is_file() and NOT_THE_TREE.isdisjoint(p.relative_to(root).parts)
-    ]
+    candidates = [p.as_posix() for p in tree_files(root)]
 
     for path in [anchor, *files]:
         if path not in allow:

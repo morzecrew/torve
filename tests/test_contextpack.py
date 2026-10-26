@@ -325,6 +325,23 @@ def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path, named: str) 
     assert "app/tests/test_swept.py" not in scope
 
 
+def test_the_pack_reads_no_nested_worktree(tmp_path: Path) -> None:
+    """A directory holding its own `.git` is another checkout, so an allow
+    glob that matches at any depth packs the tree's file and not its copy."""
+
+    (tmp_path / "notes.md").write_text("ours\n", encoding="utf-8")
+    nested = tmp_path / ".claude" / "worktrees" / "agent-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    (nested / "notes.md").write_text("a copy\n", encoding="utf-8")
+    task = Task(id="T-0500", spec="S-0001", decisions=[], scope=Scope(allow=["*.md"]))
+
+    scope = scope_file(tmp_path, task, {"named_tests": []})
+
+    assert "## `notes.md`" in scope
+    assert "agent-1" not in scope
+
+
 def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
     """S-0096/D-4: the pack names `test_<stem>.py` and every existing
     `test_<stem>_*.py`, and no name that merely shares a prefix."""
