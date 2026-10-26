@@ -743,6 +743,7 @@ def plan_document(
                 spec=document,
                 phase=entry.phase,
                 role="verify",
+                title=entry.title,
                 intent=VERIFY_PREAMBLE + entry.intent.strip(),
                 depends_on=depends,
                 scope=Scope(allow=[file]),
@@ -762,6 +763,9 @@ def plan_document(
                 spec=document,
                 phase=entry.phase,
                 role="implement",  # review tasks are minted by the runner at `gated` (§3)
+                # S-0007/A-1: the board-mode mint carries the phase title too, so
+                # the work commit's subject names the phase, not its intent (#199).
+                title=entry.title,
                 intent=entry.intent.strip(),
                 depends_on=([verify_id_of[id(entry)]] if verifier else []) + depends,
                 scope=Scope(

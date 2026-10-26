@@ -6,6 +6,7 @@ are what a repository with no Python still gets)."""
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from torve.application.neighbours import contingent_paths
@@ -126,3 +127,22 @@ def test_the_neighbour_derivation_pairs_a_go_test_by_the_manifest(tmp_path: Path
     found = contingent_paths(root, ["src/foo/bar.go"], pair=["{dir}/{stem}_test.go"])
 
     assert found == ["src/foo/bar_test.go"]
+
+
+def test_a_nested_worktree_is_not_the_tree(tmp_path: Path) -> None:
+    """A directory holding its own `.git` is another checkout — an agent
+    harness keeps whole copies of the repository under `.claude/worktrees/` —
+    so none of its files is a neighbour. The tree is still read from disk, not
+    from git: here nothing is committed at all. A tree that itself sits under
+    the engine's `.wt/` is walked like any other."""
+
+    root = tree(tmp_path)
+    expected = contingent_paths(root, ["src/pkg/core.py"])
+    copy = root / ".claude" / "worktrees" / "agent-1"
+    shutil.copytree(root / "src", copy / "src")
+    shutil.copytree(root / "tests", copy / "tests")
+    (copy / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+
+    assert "src/app.py" in expected
+    assert contingent_paths(root, ["src/pkg/core.py"]) == expected
+    assert contingent_paths(tree(tmp_path / ".wt"), ["src/pkg/core.py"]) == expected
