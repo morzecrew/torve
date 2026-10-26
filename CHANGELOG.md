@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `~`: what the tokens would cost, not an amount billed. The attempt's own cost
   stays unreported, and a night's dollar budget does not count it.
 
+- `torve manager note --urgent` halts a running attempt: a Claude seat under a
+  broker stops at its next tool call, any other when its session ends. The task
+  escalates as `killed`, its gates never run, and its tree stays on its branch.
+
 ### Changed
 
 - torve runs on forze 0.16.2, whose durable run tables are unchanged, so no
@@ -46,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   old hashes. A copy whose landings the remote already has is reset to the
   remote, and the phase lands onto it.
   
+
 - The scope gate names a file outside the scope whose change is whitespace alone,
   such as a final newline or trailing spaces, as `outside allow, whitespace only`.
   It still fails, and the retry is told to undo the change rather than widen the scope.
@@ -75,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `serve` and `mcp` read the fleet manifest's partition for the root, else
   `scm.repo`, and fall back to the files when that record lacks the task.
   
+
 - A task whose manager was killed mid-attempt no longer stays `running` after
   `torve reap` expires its run. The next pass escalates it `lease_expired`, so
   `torve manager resolve` and `torve plan --refresh` reach it.
@@ -82,6 +88,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The night guide and the operator skill name `torve plan --partition` as the
   step that puts a freshly accepted document on the board. The manager's import
   pass reads contract files and never plans a document.
+
+- Git works inside an attempt's Docker sandbox: `git status`, `diff` and `log`
+  read a read-only copy of the attempt's HEAD and index. The copy carries none
+  of the host's git config or other branches, and nothing in the sandbox can
+  write a ref.
+
+- A Claude seat running a non-Claude model compacts at the window its provider
+  record states instead of at 200,000 tokens. Rebuild the claude sandbox image
+  to pick it up.
 
 ## [0.6.4] - 2026-10-23
 

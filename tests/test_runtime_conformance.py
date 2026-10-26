@@ -450,6 +450,24 @@ def test_a_nested_sandbox_joins_the_side_container_and_keeps_no_network_of_its_o
     assert "host" not in args
 
 
+def test_the_sandbox_git_mounts_read_only_where_the_worktree_s_git_file_points(tmp_path):
+    """The worktree's `.git` file names the host's git directory; the
+    standalone copy mounts at that same path, read-only, so git finds it from
+    the workdir and nothing in the sandbox writes a ref or an object. A
+    relative pointer resolves against the workdir, as git resolves it."""
+
+    spec = SandboxSpec(
+        name="probe", image="probe-sandbox", labels={}, timeout_s=60.0, gitdir="/copy"
+    )
+    (tmp_path / ".git").write_text("gitdir: /home/me/repo/.git/worktrees/T-1\n")
+
+    assert "/copy:/home/me/repo/.git/worktrees/T-1:ro" in DockerRuntime()._run_args(spec, tmp_path)
+
+    (tmp_path / ".git").write_text("gitdir: ../repo/.git/worktrees/T-1\n")
+
+    assert "/copy:/repo/.git/worktrees/T-1:ro" in DockerRuntime()._run_args(spec, tmp_path)
+
+
 def test_a_nested_sandbox_and_its_side_container_keep_the_host_proxies(monkeypatch, tmp_path):
     """S-0111/D-1, D-2 — the review's other catch: a nested sandbox takes the
     side container's namespace in place of a network mode, so neither it nor

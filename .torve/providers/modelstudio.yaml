@@ -67,10 +67,15 @@ models:
   # A seat naming `none` here is refused at load rather than by an attempt that
   # dialled and got a 400.
   #
-  # No `context_window`, no `max_tokens`, no `price`, for the reasons the entry
-  # above gives and for the same measurements: `max_tokens: 10_000_000` comes
-  # back 200, and 40,000 characters of prompt are accepted without complaint,
-  # so neither bound is observable from here. The plan is a prepaid weekly
-  # quota, so dollars per token is not what anyone is charged (S-0064/D-12).
+  # No `max_tokens` and no `price`, for the reasons the entry above gives and
+  # for the same measurements: `max_tokens: 10_000_000` comes back 200, and
+  # 40,000 characters of prompt are accepted without complaint, so neither
+  # bound is observable from here. The plan is a prepaid weekly quota, so
+  # dollars per token is not what anyone is charged (S-0064/D-12).
+  #
+  # The window is the vendor's stated 1M rather than a measurement. It is
+  # written because the claude seat reads it: unstated, claude sized this model
+  # at 200,000 tokens and compacted far short of what it holds.
   deepseek-v4.1-flash:
+    context_window: 1000000
     reasoning: [minimal, low, medium, high, xhigh, max, ultra]

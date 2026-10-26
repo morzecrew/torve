@@ -1184,6 +1184,16 @@ def test_the_claude_seat_maps_the_night_knobs() -> None:
     assert "python3 /opt/torve/capacity.py" in run
 
 
+def test_the_claude_seat_tells_claude_the_model_s_window() -> None:
+    """Without the record's window, claude sized a model it did not recognise at
+    200,000 tokens, and a 1M-token seat compacted far short of its window."""
+
+    run = (DEFINITIONS / "claude" / "toolkit" / "run").read_text(encoding="utf-8")
+
+    assert 'CLAUDE_CODE_MAX_CONTEXT_TOKENS="$TORVE_CONTEXT_WINDOW"' in run
+    assert "export CLAUDE_CODE_MAX_CONTEXT_TOKENS" in run
+
+
 @pytest.mark.parametrize(
     ("envelope", "retry"),
     [

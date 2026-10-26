@@ -1448,7 +1448,7 @@ class _EndingsAgent:
 
 
 def _drive_endings(
-    repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6, vcs=None
+    repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6, vcs=None, channel=None
 ):
     """Cut a worktree on a seeded repository (an empty battery: these
     verdicts are about how attempts end, not what any particular gate
@@ -1476,6 +1476,7 @@ def _drive_endings(
         scm=MockScm(),
         store=None,  # type: ignore[arg-type]
         broker=RefusingBroker() if broker else None,
+        channel=channel,
     )
     config = RunnerConfig(poison_ceiling=ceiling)
     state = RunState(task_id=task.id, path=repo.root / ".wt" / f"{task.id}.state.json")
@@ -3336,6 +3337,110 @@ def test_a_spec_gap_halt_escalates_underspecified(repo, monkeypatch):
     assert final.escalation is not None and final.escalation.reason == "underspecified"
     assert [r["verdict"] for r in rows] == ["halted"]
     assert rows[0]["escalation"] == "underspecified"
+
+
+class _NotesChannel:
+    """The run's route into the record, holding only the notes it answers."""
+
+    def __init__(self, notes):
+        self.sent = notes
+
+    def notes(self):
+        if isinstance(self.sent, Exception):
+            raise self.sent
+
+        return self.sent
+
+
+def test_an_urgent_note_halts_the_attempt_and_keeps_its_tree(repo, monkeypatch):
+    """`manager note --urgent`: an urgent note sent while the attempt ran ends
+    it as a halt does — escalated `killed`, its gates never run, its tree
+    committed on the task's branch. The note is read from the record, so the
+    halt does not rest on anything the sandbox wrote."""
+    import sys
+
+    from test_run_loop import MockVcs
+
+    from torve.application.ports import AgentResult
+    from torve.base.clock import stamp
+
+    channel = _NotesChannel([])
+
+    class NotedAgent(_EndingsAgent):
+        def run(self, ctx):
+            # The operator writes the note while the session runs.
+            channel.sent.append({"at": stamp(), "body": "stop", "urgent": True})
+            return self.results[0]
+
+    monkeypatch.setattr(sys.modules[__name__], "_EndingsAgent", NotedAgent)
+    vcs = MockVcs()
+
+    final, (rows, _events) = _drive_endings(
+        repo, [AgentResult(exit_code=0, output="")], vcs=vcs, channel=channel
+    )
+
+    assert final.escalation is not None and final.escalation.reason == "killed"
+    assert "urgent operator note" in final.escalation.detail
+    assert [r["verdict"] for r in rows] == ["halted"]
+    assert [m for m in vcs.commits if "escalated on an urgent note" in m]
+
+
+@pytest.mark.parametrize(
+    "notes",
+    [
+        [{"at": "9999-12-31T23:59:59Z", "body": "the flake is known"}],
+        [{"at": "2000-01-01T00:00:00Z", "body": "stop", "urgent": True}],
+        [{"at": "9999-12-31T23:59:59Z", "body": "stop", "urgent": True}],
+        RuntimeError("the store did not answer"),
+    ],
+)
+def test_only_an_urgent_note_sent_during_the_attempt_halts_it(repo, notes):
+    """A plain note, an urgent one an earlier attempt was sent, one sent after
+    the session ended, and a record that cannot answer each leave the attempt
+    to its gates."""
+    from torve.application.ports import AgentResult
+
+    final, (rows, _events) = _drive_endings(
+        repo, [AgentResult(exit_code=0, output="")], ceiling=1, channel=_NotesChannel(notes)
+    )
+
+    assert final.escalation is None or final.escalation.reason != "killed"
+    assert "halted" not in [r["verdict"] for r in rows]
+
+
+def test_the_attempt_s_sandbox_reads_git_from_a_copy_removed_after_it(repo, monkeypatch):
+    """The sandbox's git is a standalone copy built before the sandbox starts,
+    handed to the runtime on the spec, and gone once the sandbox is destroyed;
+    nothing of it outlives the attempt."""
+    import sys
+
+    from test_run_loop import MockRuntime
+
+    from torve.application.ports import AgentResult
+
+    copy = repo.root / ".torve" / "tmp" / "git" / TASK_ID
+    seen: list[bool] = []
+    handed: list[str] = []
+    create = MockRuntime.create
+
+    def recording(self, spec, workspace):
+        handed.append(spec.gitdir)
+        return create(self, spec, workspace)
+
+    monkeypatch.setattr(MockRuntime, "create", recording)
+
+    class GitAgent(_EndingsAgent):
+        def run(self, ctx):
+            seen.append((copy / "HEAD").is_file() and (copy / "index").is_file())
+            return self.results[0]
+
+    monkeypatch.setattr(sys.modules[__name__], "_EndingsAgent", GitAgent)
+
+    _drive_endings(repo, [AgentResult(exit_code=1, output="")], ceiling=1)
+
+    assert seen and all(seen)
+    assert handed == [str(copy)]
+    assert not copy.exists()
 
 
 # The contingent-write fence (S-0104/D-2, D-3, D-5). The runner reads the

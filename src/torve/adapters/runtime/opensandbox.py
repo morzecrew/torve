@@ -293,6 +293,9 @@ class OpenSandboxRuntime:
             sandbox.destroy()
             raise RuntimeError(f"workspace seed failed in sandbox: {_exec_result(seed, 0).output}")
 
+        # `spec.gitdir` is not sent: the seed carries no `.git` file to point
+        # at it, so git does not answer in this runtime's sandbox.
+
         # The equipment mount (S-0062/D-5). This server has no bind mounts, so
         # what docker does with `-v ...:ro` this does by sending the bytes and
         # taking the write bit away — the same guarantee by a different route,

@@ -554,6 +554,9 @@ class MessageSent(BaseModel):
     to_role: str
     topic: str
     body: str
+    urgent: bool = False
+    """An operator's note that halts the attempt it reaches
+    (`manager note --urgent`); an agent's channel refuses to send one."""
 
 
 # ....................... #
