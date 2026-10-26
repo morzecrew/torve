@@ -30,11 +30,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sandbox_timeout`, named by the phase's `tier_variant` or reached through
   `character_routing`.
 
+### Fixed
+
+- A document pull request whose last phase lands green is published ready even
+  when the forge does not list the new completion status yet. A forge that
+  refuses to mark it ready is recorded as `lane_pr_refused`, no longer silently.
+
+- The next phase of a document whose remote branch was rebased onto a moved
+  base no longer escalates `merge_conflict` when this checkout still holds the
+  old hashes. A copy whose landings the remote already has is reset to the
+  remote, and the phase lands onto it.
+  
 - The scope gate names a file outside the scope whose change is whitespace alone,
   such as a final newline or trailing spaces, as `outside allow, whitespace only`.
   It still fails, and the retry is told to undo the change rather than widen the scope.
-
-### Fixed
 
 - A phase's contingent paths, the context pack and a review round's paired tests no
   longer take in copies from a git worktree or clone nested in the repository, such as

@@ -634,6 +634,9 @@ class GhScm:
         self.repo = repo
         self.token_env = token_env
         self.sleeper = sleeper
+        # What this object wrote, by (sha, context): read back ahead of the
+        # forge, which may not list a status yet right after it took it.
+        self.written: dict[tuple[str, str], tuple[str, str]] = {}
 
     # ....................... #
 
@@ -701,12 +704,22 @@ class GhScm:
 
             if listed:
                 number = int(listed[0]["number"])
-                run_gh("pr", "edit", str(number), "--title", title, "--body", body)
+                edited = run_gh("pr", "edit", str(number), "--title", title, "--body", body)
 
                 if not draft:
                     # Idempotent: `gh pr ready` on a ready pull request only
                     # says so, and the answer is not the landing's to refuse.
-                    run_gh("pr", "ready", str(number))
+                    # It waits for the edit, or a stale title goes out ready.
+                    readied = edited if edited.returncode else run_gh("pr", "ready", str(number))
+
+                    # A refusal on the way to ready is the publication's, so the
+                    # lane records why the pull request is still a draft and a
+                    # later pass tries both again. A draft's refresh stays best
+                    # effort, as it always was.
+                    if readied.returncode:
+                        raise RuntimeError(
+                            f"pull request #{number}: {readied.stderr.strip() or 'gh refused'}"
+                        )
 
                 return str(listed[0].get("url", ""))
 
@@ -731,6 +744,7 @@ class GhScm:
             args += ["-f", f"description={description[:140]}"]
 
         self._api(*args)
+        self.written[(sha, context)] = (state, description[:140])
 
     # ....................... #
 
@@ -741,6 +755,9 @@ class GhScm:
 
         if not self.repo or not sha:
             return None
+
+        if (sha, context) in self.written:
+            return self.written[(sha, context)]
 
         raw = self._api(f"repos/{self.repo}/commits/{sha}/statuses")
 

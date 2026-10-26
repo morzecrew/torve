@@ -206,14 +206,18 @@ def _document_pr_text(
 # ....................... #
 
 
-def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
+def _publisher(root: Path, config: RunnerConfig, status: StatusScm | None) -> Publisher | None:
     """`pull_request` mode's landing act, or None in `local` mode
     (S-0080/D-1: the mode is this term of configuration and nothing else).
 
     Push under lease first, so the pull request shows the tree the criteria
     were applied to, then open or refresh the task's one pull request. The
     forge credential is resolved from the configured variable NAME at call
-    time and stays in this process (S-0080/D-13)."""
+    time and stays in this process (S-0080/D-13).
+
+    *status* is the forge the lane writes the completion verdict to: the draft
+    flag reads it through the same object, so a verdict just written reads
+    back whether or not the forge lists it yet."""
 
     if config.promotion.landing != "pull_request":
         return None
@@ -268,7 +272,7 @@ def _publisher(root: Path, config: RunnerConfig) -> Publisher | None:
                 # The draft reads the completion battery's verdict off the tip
                 # it judged (S-0099/D-4): a red status, or none at all, holds
                 # the draft; a green one at a later tip publishes it ready.
-                draft=not complete or document_tip_red(root, branch, tip or "", scm),
+                draft=not complete or document_tip_red(root, branch, tip or "", status),
             )
 
         title, body = _pr_text(root, task_id, records)
@@ -696,6 +700,9 @@ def merge_cmd(
             EXIT_CONFIG,
         )
 
+    # One forge for the verdict the lane writes and the draft flag that reads it.
+    status = _status(config)
+
     try:
         results = process_lane(
             root,
@@ -706,7 +713,7 @@ def merge_cmd(
             approvals_required=config.promotion.approvals,
             require_review=config.promotion.require_review,
             quiet_window_s=config.promotion.quiet_window,
-            publish=_publisher(root, config),
+            publish=_publisher(root, config, status),
             # The verdict a person gave arrives as an answer to a question the
             # engine asks (S-0080/D-6): once per open pull request the lane's
             # own records name, and nothing at all when it holds none.
@@ -720,7 +727,7 @@ def merge_cmd(
             # completing task at once and records no finding.
             rounds=config.threads.enabled and "record" in config.threads.sources,
             # The verdict is a commit status on the tip it judged (S-0099/D-4).
-            status=_status(config),
+            status=status,
             # The store the promotion unit and landing need (S-0099/D-11).
             store=config.store.adapter,
             # The board's resolutions, read by the caller (S-0101/D-2).
