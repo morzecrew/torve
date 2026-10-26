@@ -573,7 +573,8 @@ enough.
 
 `--partition` is optional too when a store is configured. Left out, `why`,
 `status`, `context`, `serve` and `mcp` read the partition the fleet manifest
-(`~/.config/torve/fleet.yaml`) names for this root, and otherwise the
+(`$XDG_CONFIG_HOME/torve/fleet.yaml`, by default `~/.config/torve/fleet.yaml`)
+names for this root, and otherwise the
 configuration's `scm.repo`, the `org/repo` name your nights are served
 under. A partition typed on the command line still wins, and a record that
 does not hold what you asked about still falls back to the files.
