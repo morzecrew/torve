@@ -16,9 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `torve why`, `status`, `context`, `serve` and `mcp` read the partition the
-  fleet manifest names for this root when `--partition` is left out, so a task
-  minted into the store no longer answers "no task" without the flag.
+- A task minted into the store no longer answers "no task" from `torve why`
+  without `--partition`. With a store configured, `why`, `status`, `context`,
+  `serve` and `mcp` read the fleet manifest's partition for the root, else
+  `scm.repo`, and fall back to the files when that record lacks the task.
 
 ## [0.6.4] - 2026-10-23
 

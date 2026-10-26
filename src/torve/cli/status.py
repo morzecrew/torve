@@ -90,9 +90,8 @@ def status(
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
 ) -> None:
-    """Run states — from the partition's log when one is named or the fleet
-    manifest names one for this root, and from this host's .wt/ state files
-    when none is.
+    """Run states — from the partition's log when one is named or configured
+    for this root, and from this host's .wt/ state files when none is.
 
     A log that holds no run falls back to the files, never the other way
     round: a v1 run left a state file and no log, so an empty record means
@@ -103,7 +102,8 @@ def status(
 
     # The projection, verbatim: the serve endpoint renders the same
     # envelope, so the browser and the terminal cannot disagree (S-0032/D-1).
-    envelope = status_report(root, board=_board(dsn_for(root, dsn), partition_for(root, partition)))
+    dsn = dsn_for(root, dsn)
+    envelope = status_report(root, board=_board(dsn, partition_for(root, partition, dsn)))
 
     if fmt is Format.JSON:
         emit_json(envelope)

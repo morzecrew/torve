@@ -72,7 +72,7 @@ def context_cmd(
     the programme view, declared task character against realized gate
     convictions, and the document-level specification-quality signals.
 
-    With a partition named, or one the fleet manifest names for this root,
+    With a partition named, or one configured for this root,
     the task block comes from that partition's log and every other block
     from this repository's own files. A log holding no contract falls back
     to the files, never the other way round."""
@@ -84,10 +84,11 @@ def context_cmd(
 
     root = root.resolve()
     config = load_config(root, config_path)
+    dsn = dsn_for(root, dsn)
     report = context_report(
         root,
         root / config.specs.path,
-        recorded=task_events(dsn_for(root, dsn), partition_for(root, partition)),
+        recorded=task_events(dsn, partition_for(root, partition, dsn)),
     )
 
     if fmt is ContextFormat.JSON:

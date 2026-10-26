@@ -571,10 +571,12 @@ And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
 
-`--partition` is optional too once the fleet manifest
-(`~/.config/torve/fleet.yaml`) names one for this root: `why`, `status`,
-`context`, `serve` and `mcp` then read that partition's record without the
-flag. A partition typed on the command line still wins.
+`--partition` is optional too when a store is configured. Left out, `why`,
+`status`, `context`, `serve` and `mcp` read the partition the fleet manifest
+(`~/.config/torve/fleet.yaml`) names for this root, and otherwise the
+configuration's `scm.repo`, the `org/repo` name your nights are served
+under. A partition typed on the command line still wins, and a record that
+does not hold what you asked about still falls back to the files.
 
 ```yaml
 repositories:

@@ -246,33 +246,51 @@ def dsn_for(root: Path, override: str = "") -> str:
     return os.environ.get(config.store.dsn_env, "")
 
 
-def partition_for(root: Path, override: str = "") -> str:
-    """The partition a report should read, given what the caller typed.
+def partition_for(root: Path, override: str = "", dsn: str = "") -> str:
+    """The partition a report should read, given what the caller typed and
+    the DSN `dsn_for` resolved.
 
     An explicit `--partition` wins. Otherwise the operator's fleet manifest
-    answers: its entry for this root names the board the root's contracts
-    are minted onto, which is the one place a partition is configured. No
-    manifest, no entry or an entry naming none returns nothing, and the
-    report reads this repository's files as it did before.
+    answers for this root, and then, when a store DSN resolved, the
+    configuration's `scm.repo` — the `org/repo` name a repository's nights
+    are served under. With no store, or neither naming one, this returns
+    nothing and the report reads this repository's files as it did before.
 
-    Without this, a task minted into the store answered "no task" from
-    `torve why` unless the operator remembered to name the partition.
+    A default is safe because every report falls back to the files when the
+    record does not hold what it was asked about, so a wrong guess answers
+    as today rather than "no task". Without one, a task minted into the
+    store answered "no task" from `torve why` unless its partition was typed.
     """
 
     if override:
         return override
 
     from torve.config.fleet import default_manifest_path, load_fleet_manifest
+    from torve.config.runconfig import EngineRefused, load_runner_config
+
+    here = root.resolve()
 
     try:
         manifest = load_fleet_manifest(default_manifest_path())
+        named = next((repo.partition for repo in manifest.repositories if repo.path == here), "")
+
+    except (ValueError, OSError, yaml.YAMLError):
+        named = ""
+
+    if named or not dsn:
+        return named
+
+    try:
+        config = load_runner_config(root, None)
+
+    except EngineRefused as exc:
+        # S-0110/D-2, as in `dsn_for`: the refusal stops the command.
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from None
 
     except (ValueError, OSError, yaml.YAMLError):
         return ""
 
-    here = root.resolve()
-
-    return next((repo.partition for repo in manifest.repositories if repo.path == here), "")
+    return config.scm.repo or ""
 
 
 # ....................... #
