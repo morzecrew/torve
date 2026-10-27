@@ -1576,6 +1576,25 @@ def test_a_cut_from_the_remote_never_writes_the_shared_config(tmp_path):
     assert _tip(path, "HEAD") == _tip(clone.root, "origin/main")
 
 
+def test_a_lock_the_cut_cannot_take_is_a_workspace_error(tmp_path, monkeypatch):
+    """The worker reads a `RuntimeError` as a refused dispatch; an `OSError`
+    would strand the task it claimed."""
+
+    import fcntl
+
+    import pytest
+
+    from torve.adapters.workspace.git import WorkspaceError
+
+    def refuse(*_):
+        raise OSError("no locks here")
+
+    monkeypatch.setattr(fcntl, "flock", refuse)
+
+    with pytest.raises(WorkspaceError, match="no locks here"):
+        GitWorkspace(tmp_path).create("T-0425", None)
+
+
 # ----------------------- #
 # The document's change type (S-0106/D-6): the application layer that holds
 # the corpus reads it and hands it to the battery; a gate never parses a

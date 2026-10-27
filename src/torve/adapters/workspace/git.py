@@ -56,10 +56,22 @@ def _worktree_held(root: Path) -> Iterator[None]:
     checkout."""
 
     lock = root / naming.WORKTREE_DIR / "worktree.lock"
-    lock.parent.mkdir(parents=True, exist_ok=True)
 
-    with lock.open("a") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
+    # A lock torve cannot take is a refused dispatch, as a refused `git` is.
+    try:
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        handle = lock.open("a")
+
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+        except OSError:
+            handle.close()
+            raise
+
+    except OSError as exc:
+        raise WorkspaceError(f"cannot lock {lock}: {exc}") from exc
+
+    with handle:
         yield
 
 
