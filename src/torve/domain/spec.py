@@ -67,7 +67,7 @@ CITATION = re.compile(r"^S-\d{4}(?:/(?:[DIQAP]-\d+|[a-z0-9][a-z0-9-]*))?$")
 # A key a section or a design entry may carry: never a family shape.
 SECTION_KEY = re.compile(r"^(?![DIQAP]-\d+$)[a-z0-9][a-z0-9-]*$")
 # An issue in another repository, as a forge closes it: `owner/repo#N`.
-ISSUE_REFERENCE = re.compile(r"[\w.-]+/[\w.-]+#[1-9]\d*")
+ISSUE_REFERENCE = re.compile(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+#[1-9]\d*")
 
 
 def document_id(reference: str) -> str:

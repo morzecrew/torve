@@ -176,13 +176,13 @@ def test_a_documents_fixes_are_issue_references() -> None:
     """#211: the header lists the issues the pull request closes — a number in
     this repository or `owner/repo#N` — and refuses anything else naming it."""
 
-    doc = _doc("0001", fixes=[106, "morzecrew/torve#7"])
+    doc = _doc("0001", fixes=[106, "morzecrew/torve#7", "org/repo_name.x#7"])
 
-    assert doc.fixes == [106, "morzecrew/torve#7"]
+    assert doc.fixes == [106, "morzecrew/torve#7", "org/repo_name.x#7"]
     assert file_of("fixes") == DOCUMENT_FILE
     assert _doc("0002").fixes == []
 
-    for bad in ("#106", "106", "torve#7", "morzecrew/torve", 0):
+    for bad in ("#106", "106", "torve#7", "morzecrew/torve", "org_name/repo#7", 0):
         with pytest.raises(ValidationError, match="is not an issue reference"):
             _doc("0003", fixes=[bad])
 
