@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-26T21:58:41Z'
+    title: the attempt's sandbox reads git from a copy
+    md: >-
+      The first non-goal, giving the attempt's own sandbox git, no longer holds for
+      the Docker runtime. An attempt without git misread its own diff and halted on
+      a wrong gap (#186), so since #207 the host builds a standalone repository from
+      the worktree's HEAD, fifty commits of history and its index, and mounts it read-only
+      where the worktree's `.git` file points. It carries no config, no remote and
+      no other branch, which is what this document's snapshot design keeps out of
+      the judge for the same reason. OpenSandbox still ships no `.git`, so S-0113's
+      list of tracked files stays for its self-checks. Nothing the judge reads changes.

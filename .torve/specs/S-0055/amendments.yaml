@@ -142,3 +142,32 @@ amendments:
       without a repository" no longer describes where acceptance runs. The lint stays:
       an attempt runs its acceptance in its own sandbox before the battery does, and
       that sandbox still has none. The owner settled S-0114/Q-3 on 2026-10-19.
+  - id: A-7
+    at: '2026-10-26T21:58:29Z'
+    title: an acceptance command still cannot need git
+    changes:
+      - subject: D-20
+        field: text
+        before: >-
+          Acceptance is a list of shell commands, exit 0 meaning satisfied, run in
+          the battery sandbox over a standalone checkout of the attempt's commit;
+          a command that needs git cannot be an acceptance command, because the attempt
+          first runs it in its own sandbox, which has no repository
+        after: >-
+          Acceptance is a list of shell commands, exit 0 meaning satisfied, run in
+          the battery sandbox over a standalone checkout of the attempt's commit;
+          a command that needs git cannot be an acceptance command, because the attempt
+          first runs it in its own sandbox, where git is at most a read-only copy
+          of the attempt's start under Docker and absent under OpenSandbox
+      - subject: D-20
+        field: fingerprint
+        before: 9ceea13f88bb61e2/876b16189f3cb60f
+        after: ef3cde8526541743/876b16189f3cb60f
+    md: >-
+      Since #207 the Docker runtime gives an attempt's sandbox git: a read-only copy
+      of the worktree's HEAD, fifty commits of history and its index, mounted where
+      the worktree's `.git` file points. The reason the row gave, a sandbox with no
+      repository, no longer holds there; the rule still does. The copy has no other
+      ref, no remote and cannot be written, and OpenSandbox still ships no `.git`,
+      so a command that needs git still cannot pass in the attempt's sandbox as it
+      will in the battery's. The lint keeps refusing it at mint.

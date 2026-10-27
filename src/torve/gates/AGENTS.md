@@ -96,7 +96,7 @@ An existing test is edited only under the contract's licence; adding a test is a
 
 ### S-0055/D-20 — `ASSUMED` (Standing decisions)
 
-Acceptance is a list of shell commands, exit 0 meaning satisfied, run in the battery sandbox over a standalone checkout of the attempt's commit; a command that needs git cannot be an acceptance command, because the attempt first runs it in its own sandbox, which has no repository
+Acceptance is a list of shell commands, exit 0 meaning satisfied, run in the battery sandbox over a standalone checkout of the attempt's commit; a command that needs git cannot be an acceptance command, because the attempt first runs it in its own sandbox, where git is at most a read-only copy of the attempt's start under Docker and absent under OpenSandbox
 
 - Paths: `src/torve/gates/acceptance.py` `src/torve/application/intake.py`
 - Consequence: The lint refuses such a command at mint rather than after three attempts

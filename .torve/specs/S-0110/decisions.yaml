@@ -3,8 +3,8 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`,
-      and rebuilds its seat images in the same change.
+      torve pins `forze==0.16.2`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`,
+      and the release that ships the bump bakes its seat images (S-0112/D-1).
     paths: [pyproject.toml, uv.lock, migrations/substrate/FORZE_VERSION]
     consequence: >-
       torve runs on the forze its adopters run, and the substrate pin check reads
@@ -14,6 +14,7 @@ decisions:
       uses are byte-identical, and the document plane only gained; a trial on the
       pin passed 2529 tests with no code change.
     cites: [S-0055/D-43, S-0071/D-2]
+    fingerprint: cce8ca15252ea42c/558a26a8d48eb9ed
   - id: D-2
     grade: ASSUMED
     text: >-

@@ -39,3 +39,26 @@ amendments:
       so image and host get the same number for the same tree; `torve --version` was
       not taken, because it reads the `_version.py` the last sync wrote. The row now
       says so.
+  - id: A-3
+    at: '2026-10-26T21:58:08Z'
+    title: >-
+      torve pins forze 0.16.2, and the release bakes the images
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          torve pins `forze==0.13.0`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`,
+          and rebuilds its seat images in the same change.
+        after: >-
+          torve pins `forze==0.16.2`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`,
+          and the release that ships the bump bakes its seat images (S-0112/D-1).
+      - subject: D-1
+        field: fingerprint
+        after: cce8ca15252ea42c/558a26a8d48eb9ed
+    md: >-
+      #200 moved the pin to 0.16.2. forze's durable run store reads and writes the
+      same columns in 0.13.0 and 0.16.2, its schema reference names no migration since
+      0.6.0, and none of the breaking entries from 0.14.0 to 0.16.2 reaches what torve
+      uses, so no substrate migration came with it. The seat images were not rebuilt
+      in that change: since S-0112/D-1 every release bakes and publishes them, so
+      0.7.0's images carry the bump. The row now says both.
