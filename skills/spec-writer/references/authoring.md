@@ -21,7 +21,7 @@ by the contracts it produced — never a document, and never a member of
 
 Read `references/spec-template.md` before writing and start from `torve
 spec new`. A document is a directory of YAML files: `document.yaml` carries
-the header facts (`status`, `implementation`, `depends_on`, `owner`,
+the header facts (`status`, `implementation`, `depends_on`, `fixes`, `owner`,
 the typed prose — `summary`, `motivation`, `current_state`, `goals`,
 `non_goals`, `tests`, `docs`, `out_of_scope`, `risks` — the `design` list and
 the extras, each keyed and headed by its key, and the author's typed lists;

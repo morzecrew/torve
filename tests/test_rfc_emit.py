@@ -95,6 +95,22 @@ def test_a_document_that_names_its_change_dumps_and_loads(tmp_path: Path) -> Non
     assert load_document(directory).change == doc.change
 
 
+def test_a_document_that_names_its_fixes_dumps_and_loads(tmp_path: Path) -> None:
+    """#211: `fixes` is written beside the header only when it lists an issue,
+    so every document without one keeps its canonical form."""
+
+    bare = dump_document(widget(tmp_path))
+    doc = widget(tmp_path).model_copy(update={"fixes": [106, "morzecrew/torve#7"]})
+    texts = dump_document(doc)
+    directory = tmp_path / "scratch" / "S-0001"
+    write_document(directory, doc)
+
+    assert "fixes" not in bare["document.yaml"]
+    assert "fixes:\n  - 106\n  - morzecrew/torve#7\nowner:" in texts["document.yaml"]
+    assert load_document(directory).fixes == doc.fixes
+    assert canonical(directory) == texts
+
+
 LIVE = sorted({**document_dirs(SPECS), **archive_dirs(SPECS)}.items()) if SPECS.is_dir() else []
 
 

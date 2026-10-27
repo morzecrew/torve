@@ -452,7 +452,10 @@ def phase_task(task_id: str, phase: int, title: str) -> Task:
 
 
 def corpus_with_phasing(
-    tmp_path: Path, change: dict[str, object] | None = None, title: str = "Landing by document"
+    tmp_path: Path,
+    change: dict[str, object] | None = None,
+    title: str = "Landing by document",
+    fixes: list[object] | None = None,
 ) -> Path:
     from test_decisions import document, place
 
@@ -467,7 +470,7 @@ def corpus_with_phasing(
             rows=[("S-0090/D-1", "ASSUMED", "the unit is a term", "—", "cheap to revisit")],
             title=title,
             phasing=PHASES,
-            extra={"change": change} if change else None,
+            extra={k: v for k, v in (("change", change), ("fixes", fixes)) if v} or None,
         ),
     )
     return root
@@ -494,6 +497,25 @@ def test_a_document_body_past_the_forges_limit_is_cut_and_says_where_the_record_
     assert len(body) <= BODY_LIMIT
     assert body.endswith("under `.torve/specs/S-0090/execution/`.")
     assert "T-8500" in body
+
+    # The issues the document fixes are never what the cut drops (#211).
+    fixing = corpus_with_phasing(tmp_path / "fixing", fixes=[106])
+    _, body = compose_document_pr("S-0090", landings, fixing)
+    assert len(body) <= BODY_LIMIT
+    assert body.endswith("under `.torve/specs/S-0090/execution/`.\n\nCloses #106")
+
+
+def test_the_document_body_closes_the_issues_the_document_fixes(tmp_path: Path):
+    """#211: one `Closes` line per entry of the header's `fixes`, last, so the
+    merge closes them; a document without the field composes the same body."""
+    landings = [DocumentLanding(task=phase_task("T-8001", 1, "First"), sha="a" * 40)]
+
+    _, bare = compose_document_pr("S-0090", landings, corpus_with_phasing(tmp_path / "bare"))
+    fixing = corpus_with_phasing(tmp_path / "fixing", fixes=[106, "morzecrew/torve#7"])
+    _, body = compose_document_pr("S-0090", landings, fixing)
+
+    assert "Closes" not in bare
+    assert body == bare + "\n\nCloses #106\nCloses morzecrew/torve#7"
 
 
 def test_the_document_body_carries_the_landings_and_the_phases_still_to_come(tmp_path: Path):
