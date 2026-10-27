@@ -204,6 +204,17 @@ def test_check_reports_a_key_the_model_refuses(tmp_path: Path) -> None:
     assert "questions.0.state" in result.output
 
 
+def test_check_refuses_a_fixes_entry_that_is_not_an_issue_reference(tmp_path: Path) -> None:
+    doc = rfc_text("0001", "Widget", extra={"fixes": [106, "#107"]})
+    seed(tmp_path, ("0001", doc))
+
+    result = invoke(tmp_path, "check")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "S-0001/document.yaml: fixes.1:" in result.output
+    assert "'#107' is not an issue reference" in result.output
+
+
 def test_a_key_in_the_wrong_file_reddens_naming_the_file_that_owns_it(tmp_path: Path) -> None:
     # S-0057/D-1: each file carries the slice of the model one hand writes.
     doc = rfc_text("0001", "Widget")

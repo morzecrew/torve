@@ -22,7 +22,15 @@ import hashlib
 import re
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StrictStr,
+    model_validator,
+)
 
 from torve.base.clock import INSTANT_PATTERN
 from torve.base.model import STRICT, SchemaVersion
@@ -58,6 +66,8 @@ LOCAL_ID = re.compile(r"^[DIQA]-\d+$")
 CITATION = re.compile(r"^S-\d{4}(?:/(?:[DIQAP]-\d+|[a-z0-9][a-z0-9-]*))?$")
 # A key a section or a design entry may carry: never a family shape.
 SECTION_KEY = re.compile(r"^(?![DIQAP]-\d+$)[a-z0-9][a-z0-9-]*$")
+# An issue in another repository, as a forge closes it: `owner/repo#N`.
+ISSUE_REFERENCE = re.compile(r"[\w.-]+/[\w.-]+#[1-9]\d*")
 
 
 def document_id(reference: str) -> str:
@@ -106,6 +116,21 @@ def local_of(document: str, identifier: str) -> str:
 
 def is_citation(value: str) -> bool:
     return bool(CITATION.match(value))
+
+
+def _issue(value: int | str) -> int | str:
+    """An issue a document fixes: a number in this repository, or
+    `owner/repo#N`. Whether the issue exists is the forge's to say."""
+
+    valid = value > 0 if isinstance(value, int) else ISSUE_REFERENCE.fullmatch(value) is not None
+
+    if valid:
+        return value
+
+    raise ValueError(f"{value!r} is not an issue reference — a number, or owner/repo#N")
+
+
+IssueReference = Annotated[StrictInt | StrictStr, AfterValidator(_issue)]
 
 
 # ----------------------- #
@@ -513,6 +538,9 @@ class Document(Item):
     """The documents this one replaces."""
     superseded_by: str | None = None
     """The document that replaced this one."""
+    fixes: list[IssueReference] = Field(default_factory=list)
+    """The issues the document's pull request closes: a number in this repository,
+    or `owner/repo#N` in another."""
     retired: list[str] = Field(default_factory=list)
     """This document's own rows that no longer stand."""
     owner: str
@@ -701,6 +729,7 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
         "informed_by",
         "supersedes",
         "superseded_by",
+        "fixes",
         "owner",
         "schema_version",
         *PROSE_FIELDS[:5],

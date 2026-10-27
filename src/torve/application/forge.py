@@ -326,25 +326,30 @@ class DocumentLanding:
     results: list[GateResult] = field(default_factory=list)
 
 
-def _phasing(root: Path, document: str) -> tuple[str, list[tuple[int, str]], Commit | None]:
-    """The document's title, its phasing as (phase, title) and what its
-    landing is to a release, read from the corpus in one load (S-0083/D-17,
-    S-0087/D-4): the phases still to come are named from the record the
-    document itself carries, never counted from an estimate. A document that
-    is absent or does not load names none and is typed as today."""
+def _phasing(
+    root: Path, document: str
+) -> tuple[str, list[tuple[int, str]], Commit | None, list[int | str]]:
+    """The document's title, its phasing as (phase, title), what its
+    landing is to a release and the issues it fixes, read from the corpus in
+    one load (S-0083/D-17, S-0087/D-4): the phases still to come are named
+    from the record the document itself carries, never counted from an
+    estimate. A document that is absent or does not load names none and is
+    typed as today."""
 
     directory = document_dir(root / layout.SPECS_DIR, document)
 
     if directory is None:
-        return "", [], None
+        return "", [], None, []
 
     try:
         doc = load_document(directory)
 
     except SpecError:
-        return "", [], None
+        return "", [], None, []
 
-    return doc.title, [(phase.phase, phase.title) for phase in doc.phasing], doc.change
+    phasing = [(phase.phase, phase.title) for phase in doc.phasing]
+
+    return doc.title, phasing, doc.change, doc.fixes
 
 
 def _gates_line(results: list[GateResult]) -> str:
@@ -361,7 +366,7 @@ def document_complete(document: str, landings: list[DocumentLanding], root: Path
     branch — the pull request's draft flag is this, read from the same
     records the body is composed from. A document with no readable phasing
     is complete when anything landed: nothing says otherwise."""
-    _, phasing, _ = _phasing(root, document)
+    _, phasing, _, _ = _phasing(root, document)
     numbers = {number for number, _ in phasing}
     landed = {landing.task.phase for landing in landings if landing.task.phase}
     return not (numbers - landed)
@@ -379,7 +384,7 @@ def compose_document_pr(
     (S-0083/D-8). The contract's intent is the author's paragraph and is in
     the open; nothing an agent wrote as prose reaches it."""
 
-    doc_title, phasing, change = _phasing(root, document)
+    doc_title, phasing, change, fixes = _phasing(root, document)
     landed = {landing.task.phase for landing in landings if landing.task.phase}
     # A phase may hold several entries, so the count is over phase numbers —
     # what a reviewer counts merges of, not contracts.
@@ -458,20 +463,25 @@ def compose_document_pr(
         ]
 
     lines.append("Composed from the landing records; no agent's prose reaches this body.")
+    # The issues the document fixes, closed by the merge: a number is this
+    # repository's, `owner/repo#N` another's.
+    closes = [f"Closes #{ref}" if isinstance(ref, int) else f"Closes {ref}" for ref in fixes]
+    tail = "\n\n" + "\n".join(closes) if closes else ""
 
-    return title, _bounded(document, "\n".join(lines))
+    return title, _bounded(document, "\n".join(lines), tail)
 
 
-def _bounded(document: str, body: str) -> str:
-    """The body under :data:`BODY_LIMIT`, cut on a line and saying so."""
+def _bounded(document: str, body: str, tail: str) -> str:
+    """The body under :data:`BODY_LIMIT`, cut on a line and saying so; *tail*
+    follows whole, so the `Closes` lines are never what the cut drops."""
 
-    if len(body) <= BODY_LIMIT:
-        return body
+    if len(body) + len(tail) <= BODY_LIMIT:
+        return body + tail
 
     note = (
         f"\n\n… cut here: the composed body passed the forge's {BODY_LIMIT}-character "
         f"limit. The whole record is on the branch, under "
         f"`.torve/specs/{document}/execution/`."
     )
-    kept = body[: BODY_LIMIT - len(note)]
-    return kept[: kept.rfind("\n")] + note
+    kept = body[: BODY_LIMIT - len(note) - len(tail)]
+    return kept[: kept.rfind("\n")] + note + tail

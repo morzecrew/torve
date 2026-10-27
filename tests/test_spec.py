@@ -172,6 +172,21 @@ def test_a_documents_change_is_a_typed_conventional_commit() -> None:
         _doc("0004", change={"type": "ci", "emoji": ":construction_worker:"})
 
 
+def test_a_documents_fixes_are_issue_references() -> None:
+    """#211: the header lists the issues the pull request closes — a number in
+    this repository or `owner/repo#N` — and refuses anything else naming it."""
+
+    doc = _doc("0001", fixes=[106, "morzecrew/torve#7"])
+
+    assert doc.fixes == [106, "morzecrew/torve#7"]
+    assert file_of("fixes") == DOCUMENT_FILE
+    assert _doc("0002").fixes == []
+
+    for bad in ("#106", "106", "torve#7", "morzecrew/torve", 0):
+        with pytest.raises(ValidationError, match="is not an issue reference"):
+            _doc("0003", fixes=[bad])
+
+
 def test_an_accepted_design_without_a_change_warns_and_a_convention_is_silent() -> None:
     """S-0087/D-1: the untyped landing is named at check; a convention lands
     nothing, so it owes no type."""

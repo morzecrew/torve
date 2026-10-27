@@ -1473,6 +1473,9 @@ naming its length and the room, while the document can still be retitled.
 A task-unit pull request wears the same name with the phase's
 title as the description (S-0087/D-3), and a document without the field is
 titled as today, in every byte.
+A document whose header lists `fixes` — issue numbers, or `owner/repo#N` for
+another repository — ends the body with one `Closes` line per entry, so the
+merge closes them; the body's length bound cuts above those lines, never them.
 While phases are still to come it is a draft, and the landing of the last phase
 marks it ready once the whole suite has passed over the finished branch — the
 two paragraphs below (S-0093/D-1): a person who merges a draft merges knowingly,

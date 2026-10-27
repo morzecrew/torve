@@ -25,6 +25,7 @@ depends_on: []          # documents whose rows this one inherits from; must be a
 informed_by: []         # documents read, not inherited from
 supersedes: []
 superseded_by: null
+fixes: []               # issues the pull request closes: 106, or owner/repo#106 elsewhere
 owner: <name>
 description: >-
   <One sentence, ~200 chars: which design this is, not what it decided.
