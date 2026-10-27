@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in another repository. Its pull request's body ends with one `Closes` line per entry,
   so the merge closes them, and `torve spec check` refuses an entry that is not an
   issue reference.
+  
+### Fixed
+
+- Two manager workers on one checkout no longer escalate a task when both cut
+  a worktree at once. The second waits for the first, and a cut no longer
+  writes `.git/config`, so a lock another git holds there cannot refuse it.
 
 ## [0.7.0] - 2026-10-27
 
