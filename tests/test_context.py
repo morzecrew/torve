@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
+import threading
 
 import yaml
 from test_decisions import landed
@@ -1522,6 +1524,75 @@ def test_a_worktree_that_fetches_is_cut_from_the_remote_tip(tmp_path):
     path = GitWorkspace(clone.root).create("T-0422", "origin/main", fetch=True)
 
     assert _tip(path, "HEAD") == _tip(upstream.root, "main")
+
+
+# Two workers on one checkout (#210): another process's cut is waited for,
+# and a `.git/config` another git holds never refuses a cut.
+
+_HOLD = """
+import sys
+from pathlib import Path
+from torve.adapters.workspace.git import _worktree_held
+
+with _worktree_held(Path(sys.argv[1])):
+    print("held", flush=True)
+    sys.stdin.read()
+"""
+
+
+def test_a_cut_waits_for_another_process_holding_the_checkout(tmp_path):
+    _, clone = _remote_pair(tmp_path)
+    holder = subprocess.Popen(
+        [sys.executable, "-c", _HOLD, str(clone.root)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert holder.stdout is not None and holder.stdin is not None
+    assert holder.stdout.readline() == "held\n"
+
+    cut = threading.Thread(
+        target=GitWorkspace(clone.root).create, args=("T-0423", "origin/main"), daemon=True
+    )
+    cut.start()
+    cut.join(1.0)
+    assert cut.is_alive()
+    assert not naming.worktree(clone.root, "T-0423").exists()
+
+    holder.stdin.close()
+    holder.wait(timeout=10)
+    cut.join(30)
+
+    assert not cut.is_alive()
+    assert naming.worktree(clone.root, "T-0423").is_dir()
+
+
+def test_a_cut_from_the_remote_never_writes_the_shared_config(tmp_path):
+    _, clone = _remote_pair(tmp_path)
+    (clone.root / ".git" / "config.lock").touch()
+
+    path = GitWorkspace(clone.root).create("T-0424", "origin/main")
+
+    assert _tip(path, "HEAD") == _tip(clone.root, "origin/main")
+
+
+def test_a_lock_the_cut_cannot_take_is_a_workspace_error(tmp_path, monkeypatch):
+    """The worker reads a `RuntimeError` as a refused dispatch; an `OSError`
+    would strand the task it claimed."""
+
+    import fcntl
+
+    import pytest
+
+    from torve.adapters.workspace.git import WorkspaceError
+
+    def refuse(*_):
+        raise OSError("no locks here")
+
+    monkeypatch.setattr(fcntl, "flock", refuse)
+
+    with pytest.raises(WorkspaceError, match="no locks here"):
+        GitWorkspace(tmp_path).create("T-0425", None)
 
 
 # ----------------------- #

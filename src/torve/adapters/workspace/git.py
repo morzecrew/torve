@@ -3,23 +3,19 @@ task's own branch, derived entirely from the task id (S-0003/D-4)."""
 
 from __future__ import annotations
 
+import fcntl
 import os
 import shutil
 import subprocess
 import tempfile
-import threading
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from torve.application.ports import JUDGE_SUFFIX, judge_ref
 from torve.base import naming
 
 # ----------------------- #
-
-# Worktree surgery serializes per process (S-0019/D-14, S-0019/A-6): concurrent
-# `git worktree add` calls contend on the repository's own locks, and the
-# slow half of a dispatch is the attempt, never the checkout.
-_WORKTREE_LOCK = threading.Lock()
 
 # Every git torve starts runs with the repository's hooks switched off
 # (S-0110/D-7): configuration an agent wrote never executes on the host
@@ -44,6 +40,39 @@ _UPLOAD_PACK = "git -c core.hooksPath=/dev/null -c uploadpack.allowanysha1inwant
 
 class WorkspaceError(RuntimeError):
     pass
+
+
+# ....................... #
+
+
+@contextmanager
+def _worktree_held(root: Path) -> Iterator[None]:
+    """Worktree surgery serializes per checkout (S-0019/D-14, S-0019/A-6):
+    concurrent `git worktree add` and `git fetch` calls contend on the
+    repository's own locks, and git refuses rather than waits. A `flock` on
+    `.wt/worktree.lock` queues every worker process on the checkout, and
+    every thread, since each opens the file anew; the kernel releases it when
+    its holder exits. The slow half of a dispatch is the attempt, never the
+    checkout."""
+
+    lock = root / naming.WORKTREE_DIR / "worktree.lock"
+
+    # A lock torve cannot take is a refused dispatch, as a refused `git` is.
+    try:
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        handle = lock.open("a")
+
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+        except OSError:
+            handle.close()
+            raise
+
+    except OSError as exc:
+        raise WorkspaceError(f"cannot lock {lock}: {exc}") from exc
+
+    with handle:
+        yield
 
 
 # ....................... #
@@ -152,7 +181,7 @@ class GitWorkspace:
     def create(
         self, task_id: str, base_ref: str | None, *, resume: bool = False, fetch: bool = False
     ) -> Path:
-        with _WORKTREE_LOCK:
+        with _worktree_held(self.root):
             path = naming.worktree(self.root, task_id)
 
             if path.exists():
@@ -197,7 +226,9 @@ class GitWorkspace:
                 # it, so detach.
                 self._git("worktree", "add", "--detach", str(path), base)
             else:
-                self._git("worktree", "add", "-B", branch, str(path), base)
+                # No upstream: tracking `base` writes `.git/config`, and git
+                # refuses that write while another worker's `push -u` holds it.
+                self._git("worktree", "add", "--no-track", "-B", branch, str(path), base)
 
             return path
 
@@ -243,7 +274,7 @@ class GitWorkspace:
     # ....................... #
 
     def remove(self, task_id: str) -> None:
-        with _WORKTREE_LOCK:
+        with _worktree_held(self.root):
             self._remove_locked(task_id)
 
     # ....................... #
