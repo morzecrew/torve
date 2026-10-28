@@ -765,6 +765,13 @@ When git fails in a root that has a `.git`, the citation scan reads the tracked 
 - Paths: `src/torve/config/spec.py`
 - Consequence: spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations they judge on the host
 
+### S-0115/D-2 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+A builtin gate `evidence` runs each row's citing functions against the base tree, built as `red-on-base` builds it, and against the candidate. A row is proved when one of its citing functions is red on base and green on the candidate. A row that carries a `check` is judged by its own decision gate, and `evidence` does not run it.
+
+- Paths: `src/torve/gates/row_evidence.py` `src/torve/gates/__init__.py` `src/torve/config/manifest.py`
+- Consequence: a row counts as proved only by a test the change had to turn green
+
 ### S-0116/D-2 — `ASSUMED` (An independent verifier)
 
 `verify` in the runner configuration holds `enabled` (default false), `variant` (default `verify`), `types` (default `[feat, fix]`) and `tests_dir` (default `tests/verify`). With `enabled: true`, a configuration whose tiers hold no `executor.<variant>` refuses to load.

@@ -796,6 +796,13 @@ The lane's re-gate of a rebased candidate and the whole-document battery run the
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: no gate battery runs a candidate's code on the host
 
+### S-0115/D-6 — `OPEN` (Every decision shows its evidence) — implementation: none
+
+How the joined table reaches the pull request's composer: a host file keyed by the branch tip, the battery's result threaded to the publisher, or a record. The body never carries a table measured on another tip.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: the implementer picks the carrier the lane's existing ports make cheapest
+
 ### S-0116/D-3 — `ASSUMED` (An independent verifier)
 
 `torve doctor` goes red when the pilot is on and the verify seat names the executor seat's own model.
