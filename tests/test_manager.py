@@ -212,6 +212,25 @@ def test_a_dependency_is_satisfied_only_by_a_landing():
     run(scenario)
 
 
+def test_a_review_record_is_no_dependency():
+    """S-0085/A-1: a review record concludes with the run that minted it and
+    never lands, so a task minted waiting on one waits on its landed peers only."""
+
+    async def scenario(log):
+        await mint(log, "T-1", allow=["src/a/**"])
+        review = Task(id="T-2", role="review", targets=["T-1"], decisions=[], scope=Scope())
+        await minted(log, review)
+        await mint(log, "T-3", allow=["src/b/**"], depends_on=["T-1", "T-2"])
+
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-1"]
+
+        await land(log, "T-1")
+
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-3"]
+
+    run(scenario)
+
+
 def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
     """S-0085/D-4: a dependency is satisfied by a landing that is an ancestor
     of the base the dependent would be cut from, and by nothing else. The
@@ -250,6 +269,36 @@ def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
 
     assert not on_base(dependent, board_with(branch_sha))
     assert on_base(dependent, board_with(merge_sha))
+
+
+def test_a_review_record_is_no_dependency_the_base_must_carry(tmp_path):
+    """S-0085/A-1: the served worker's base check waits on the landings a
+    task depends on, and a review record has none to wait for."""
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.manager import _dependencies_on_base
+    from torve.config.runconfig import RunnerConfig
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Landing Lane")
+    repo.git("config", "user.email", "lane@example.invalid")
+    repo.write("src/a/app.py", "print('landed')\n")
+    repo.commit("the phase")
+
+    review = Task(id="T-2", role="review", targets=["T-1"], decisions=[], scope=Scope())
+    board = Board(
+        tasks={
+            "T-1": TaskView(
+                task_id="T-1", state=TaskState.READY, landed_sha=GitLane().tip(repo.root, "main")
+            ),
+            "T-2": TaskView(task_id="T-2", state=TaskState.QUEUED, contract=review),
+        }
+    )
+    dependent = task("T-3", allow=["src/b/**"], depends_on=["T-1", "T-2"])
+
+    assert _dependencies_on_base(repo.root, RunnerConfig())(dependent, board)
 
 
 def test_a_landing_file_on_the_documents_remote_tip_satisfies_a_dependency(tmp_path):

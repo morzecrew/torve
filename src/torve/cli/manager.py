@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
 
-from torve.application.manager import Board, NightReport, TaskView, stalled
+from torve.application.manager import Board, NightReport, TaskView, awaited, stalled
 from torve.application.residency import IDLE_SECONDS, NightRefused
 from torve.cli.console import (
     STYLE_DIM,
@@ -537,7 +537,9 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
     vcs = GitLane()
 
     def on_base(task: Task, board: Board) -> bool:
-        if not task.depends_on:
+        dependencies = awaited(task, board)
+
+        if not dependencies:
             return True
 
         base = None
@@ -585,7 +587,7 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
             if "/execution/" in name and name.endswith(".yaml")
         }
 
-        for dependency in task.depends_on:
+        for dependency in dependencies:
             if dependency in carried:
                 continue
 

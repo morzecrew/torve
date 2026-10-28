@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a worktree at once. The second waits for the first, and a cut no longer
   writes `.git/config`, so a lock another git holds there cannot refuse it.
 
+- A document that names another in `after:` no longer waits forever on the named
+  document's review records, which never land. Its first phase waits on the
+  implement, verify and revert tasks alone, and a task already minted with such an
+  edge starts once those tasks land.
+
 ## [0.7.0] - 2026-10-27
 
 ### Added

@@ -94,18 +94,24 @@ def test_a_wait_on_another_documents_tasks_names_the_document(tmp_path):
 
     from torve.application.projections import cross_document_waits
 
-    def contract(task_id: str, spec: str, depends_on: tuple[str, ...] = ()) -> None:
+    def contract(
+        task_id: str, spec: str, depends_on: tuple[str, ...] = (), role: str = "implement"
+    ) -> None:
         directory = tmp_path / ".torve" / "tasks" / task_id
         directory.mkdir(parents=True)
         (directory / "contract.yaml").write_text(
-            yaml.safe_dump({"id": task_id, "spec": spec, "depends_on": list(depends_on)}),
+            yaml.safe_dump(
+                {"id": task_id, "spec": spec, "depends_on": list(depends_on), "role": role}
+            ),
             encoding="utf-8",
         )
 
     assert cross_document_waits(tmp_path) == {}
     contract("T-0001", "S-0090")
     contract("T-0002", "S-0090")
-    contract("T-0003", "S-0092", ("T-0001", "T-0002"))
+    # S-0085/A-1: a review record never lands, so an edge to one is no wait.
+    contract("T-0005", "S-0090", role="review")
+    contract("T-0003", "S-0092", ("T-0001", "T-0002", "T-0005"))
     contract("T-0004", "S-0092", ("T-0003",))
 
     # A wait inside the document is not a wait on a document's landing.

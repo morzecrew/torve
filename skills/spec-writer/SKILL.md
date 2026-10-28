@@ -49,7 +49,8 @@ the checks — belongs to the package, and the `torve spec` verbs apply it
 the document's pull request and its squash commit are titled from it, as
 `<gitmoji> <type>(<scope>): <title>`. `after:` in `phasing.yaml` names other
 documents, never phases, whose landed tree this document builds on; the
-planner makes each first phase wait on every task of each named document.
+planner makes each first phase wait on every implement, verify and revert
+task of each named document, never on its review records.
 It differs from the header's `depends_on`, which is decision inheritance.
 
 ## Decision grades
