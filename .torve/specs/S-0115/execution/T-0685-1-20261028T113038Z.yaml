@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0685
+phase: 2
+base: 83e8b7ad43f8f199e504a671625440c4bbe89fd8
+commit: bdeb3589264de694a3d9a9027f79122c2ab48f14
+at: '2026-10-28T11:30:38Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+entries:
+  - decision: D-6
+    grade: OPEN
+    at: '2026-10-28T11:22:01Z'
+    claim: >-
+      The joined table reaches the publisher as a telemetry record keyed by the tip
+      it was measured on: the lane already appends engine events and the publisher
+      already reads the branch tip, so a host file and a widened Publisher port were
+      both more machinery than the ports made necessary. A body composes the table
+      for its own tip or none.
+    evidence: >-
+      src/torve/application/evidence_matrix.py:223 — record_table writes the joined
+      table as the EVIDENCE_EVENT record; read_table:266 reads only the record whose
+      tip matches
+    action: decided
