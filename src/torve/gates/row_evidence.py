@@ -227,7 +227,9 @@ def _citations(
             if not candidate.is_file():
                 continue
 
-            for function in (_test_functions(candidate.read_text(encoding="utf-8")) or {}).values():
+            for function in (
+                _test_functions(candidate.read_text(encoding="utf-8", errors="replace")) or {}
+            ).values():
                 add(path, function)
 
     return found
