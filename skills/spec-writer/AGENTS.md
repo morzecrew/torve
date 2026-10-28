@@ -17,7 +17,7 @@ A row's `check` may name a property test: a Hypothesis test stating the decision
 - Paths: `pyproject.toml` `skills/spec-writer/SKILL.md`
 - Consequence: a decision is checked over the inputs it governs, not over the one example its author thought of
 
-### S-0115/D-8 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+### S-0115/D-8 — `ASSUMED` (Every decision shows its evidence)
 
 The working rules and the spec-writer skill tell an implementer to cite, in each test's docstring, the row it proves, and `pages/docs/operating.md` documents the gate and the table's columns.
 

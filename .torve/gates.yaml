@@ -235,6 +235,18 @@ gates:
     origin: S-0116
     timeout: 120
     sabotage: verify-tests
+  # Which rows a test the change had to turn green proves (S-0115/D-1 to D-4,
+  # D-9): the changed test functions that cite a carried row, run on the base
+  # tree and on the candidate. It names each behavioural row with no proving
+  # test and no check. Its runs are `red-on-base`'s shape, one test function at
+  # a time, so it takes the same 300 (S-0115's risks). Shadow until its record
+  # earns more, as a check's state is promoted (S-0054/D-4).
+  - name: evidence
+    run: "@evidence"
+    state: shadow
+    origin: S-0115
+    timeout: 300
+    sabotage: evidence
   # Does the attempt's own test code notice its source going wrong (S-0107/D-1,
   # D-2)? One edit to one node on a changed line, applied in a scratch copy of
   # the worktree, scored by whether the paired tests fail. Enters at shadow and

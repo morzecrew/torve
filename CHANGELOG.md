@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in another repository. Its pull request's body ends with one `Closes` line per entry,
   so the merge closes them, and `torve spec check` refuses an entry that is not an
   issue reference.
+
+- A shadow gate, `evidence`, names each decision row no changed test proves: one that
+  cites the row and fails on the base tree but passes on the candidate. A document's
+  pull request shows each row's proving tests, check, survivors and findings, and the
+  reviewer asks whether each proving test exercises its row.
   
 ### Fixed
 

@@ -765,7 +765,7 @@ When git fails in a root that has a `.git`, the citation scan reads the tracked 
 - Paths: `src/torve/config/spec.py`
 - Consequence: spec-valid and an attempt's own `torve spec check` judge in a sandbox the citations they judge on the host
 
-### S-0115/D-2 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+### S-0115/D-2 — `ASSUMED` (Every decision shows its evidence)
 
 A builtin gate `evidence` runs each row's citing functions against the base tree, built as `red-on-base` builds it, and against the candidate. A row is proved when one of its citing functions is red on base and green on the candidate. A row that carries a `check` is judged by its own decision gate, and `evidence` does not run it.
 
