@@ -14,6 +14,7 @@ from torve.gates.held_out import check_held_out
 from torve.gates.mutation import check_mutation
 from torve.gates.no_test_tampering import check_no_test_tampering
 from torve.gates.red_on_base import check_red_on_base
+from torve.gates.row_evidence import check_evidence
 from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.gates.self_audit import check_self_audit
@@ -30,6 +31,7 @@ BUILTINS: dict[str, Builtin] = {
     "acceptance": check_acceptance,
     "no-test-tampering": check_no_test_tampering,
     "red-on-base": check_red_on_base,
+    "evidence": check_evidence,
     "mutation": check_mutation,
     "decisions-reported": check_decisions_reported,
     "self-audit": check_self_audit,

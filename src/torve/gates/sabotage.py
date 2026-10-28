@@ -854,6 +854,74 @@ def _verify_tests_green(repo: Repo) -> None:
 
 # ....................... #
 
+# The `evidence` builtin (S-0115/D-1 to D-4, D-9): a behavioural row is proved
+# only by a changed test function that cites it and is red on the base tree and
+# green on the candidate. The twin is the same row with such a test; the
+# sabotage case is the same row whose only citing test passes on base.
+
+EVIDENCE_MANIFEST: dict[str, Any] = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "tests": {"run": VERIFY_MANIFEST_RUN},
+    "gates": [
+        {
+            "name": "evidence",
+            "run": "@evidence",
+            "state": "shadow",
+            "origin": "S-0115",
+            "timeout": 120,
+        }
+    ],
+}
+
+EVIDENCE_ROW = [
+    {
+        "id": "S-0001/D-1",
+        "grade": "ASSUMED",
+        "text": "the entry's public surface is settled",
+        "paths": ["src/**"],
+    }
+]
+
+_EVIDENCE_HEAD = (
+    "import sys\n"
+    "from pathlib import Path\n\n"
+    'sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))\n'
+)
+
+# A changed test that cites the row and passes on the base tree too: it would
+# have passed before a line was written, so it proves nothing.
+EVIDENCE_PASSING_TEST = _EVIDENCE_HEAD + (
+    '\n\ndef test_row():\n    """S-0001/D-1"""\n    assert True\n'
+)
+
+# The same citation on a test the change had to turn green: the function it
+# imports does not exist on the base tree.
+EVIDENCE_RED_TEST = _EVIDENCE_HEAD + (
+    "from app import f  # noqa: E402\n\n\n"
+    "def test_row():\n"
+    '    """S-0001/D-1"""\n'
+    "    assert f(-1) == -1\n"
+)
+
+
+def _evidence_passing(repo: Repo) -> None:
+    repo.seed(EVIDENCE_MANIFEST)
+    repo.task(base_task(allow=["tests/**"], decisions=EVIDENCE_ROW), None)
+    repo.write("tests/test_app.py", EVIDENCE_PASSING_TEST)
+    repo.commit("a citing test that passes on the base tree")
+
+
+def _evidence_red(repo: Repo) -> None:
+    repo.seed(EVIDENCE_MANIFEST)
+    repo.task(base_task(allow=["src/**", "tests/**"], decisions=EVIDENCE_ROW), None)
+    repo.write("src/app.py", "def f(x):\n    return 1 if x >= 0 else -1\n")
+    repo.write("tests/test_app.py", EVIDENCE_RED_TEST)
+    repo.commit("a citing test the change turned green")
+
+
+# ....................... #
+
 CASES: list[Case] = [
     Case("scope: file outside allow", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
@@ -998,6 +1066,20 @@ CASES: list[Case] = [
         "verify-tests",
         "pass",
         _verify_tests_green,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "evidence: a citing test that passes on the base tree",
+        "evidence",
+        "fail",
+        _evidence_passing,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "evidence: a citing test the change turned green",
+        "evidence",
+        "pass",
+        _evidence_red,
         requires=VERIFY_REQUIRES,
     ),
 ]
