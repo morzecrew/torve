@@ -271,6 +271,36 @@ def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
     assert on_base(dependent, board_with(merge_sha))
 
 
+def test_a_review_record_is_no_dependency_the_base_must_carry(tmp_path):
+    """S-0085/A-1: the served worker's base check waits on the landings a
+    task depends on, and a review record has none to wait for."""
+    from torve.adapters.vcs.git import GitLane
+    from torve.cli.manager import _dependencies_on_base
+    from torve.config.runconfig import RunnerConfig
+    from torve.gates.sabotage import Repo
+
+    repo = Repo(tmp_path / "repo")
+    repo.root.mkdir()
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Landing Lane")
+    repo.git("config", "user.email", "lane@example.invalid")
+    repo.write("src/a/app.py", "print('landed')\n")
+    repo.commit("the phase")
+
+    review = Task(id="T-2", role="review", targets=["T-1"], decisions=[], scope=Scope())
+    board = Board(
+        tasks={
+            "T-1": TaskView(
+                task_id="T-1", state=TaskState.READY, landed_sha=GitLane().tip(repo.root, "main")
+            ),
+            "T-2": TaskView(task_id="T-2", state=TaskState.QUEUED, contract=review),
+        }
+    )
+    dependent = task("T-3", allow=["src/b/**"], depends_on=["T-1", "T-2"])
+
+    assert _dependencies_on_base(repo.root, RunnerConfig())(dependent, board)
+
+
 def test_a_landing_file_on_the_documents_remote_tip_satisfies_a_dependency(tmp_path):
     """The dependency check reads the remote's copy of the document branch
     (S-0091/D-1), and the landing file on it is the carrier (S-0099/D-1). A

@@ -278,21 +278,34 @@ def project(events: Iterable[EventRecord]) -> Board:
 # ....................... #
 
 
+def awaited(task: Task, board: Board) -> list[str]:
+    """The dependencies this task waits for at all. A review or draft record
+    is none (S-0085/A-1): it concludes with the run that minted it and never
+    lands, so an edge to one would wait forever."""
+
+    def concluded(one: str) -> bool:
+        view = board.tasks.get(one)
+
+        return (
+            view is not None
+            and view.contract is not None
+            and view.contract.role not in DISPATCHABLE_ROLES
+        )
+
+    return [one for one in task.depends_on if not concluded(one)]
+
+
+# ....................... #
+
+
 def blocked_by(task: Task, board: Board) -> list[str]:
     """The dependencies this task is still waiting on. A dependency is
     satisfied by a landing and by nothing else (S-0019/A-3, S-0019/A-4): a run that
-    reached `ready` without one has told the board nothing it can act on. A
-    review or draft record is no dependency (S-0085/A-1): it concludes with the
-    run that minted it and never lands, so an edge to one waits forever."""
+    reached `ready` without one has told the board nothing it can act on."""
 
     landed = board.landed()
-    concluded = {
-        view.task_id
-        for view in board.tasks.values()
-        if view.contract is not None and view.contract.role not in DISPATCHABLE_ROLES
-    }
 
-    return [one for one in task.depends_on if one not in landed and one not in concluded]
+    return [one for one in awaited(task, board) if one not in landed]
 
 
 # ....................... #
