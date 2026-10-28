@@ -89,9 +89,14 @@ phasing:
       it exercises what its row says, at `major`. A battery with no `evidence` result
       leaves the prompt as today. Tests: the prompt from a passing and a failing result
       and with none (`tests/test_review_run.py`). Settles D-10.
-    scope: [src/torve/application/review.py, tests/test_review_run.py]
+    scope:
+      - src/torve/application/review.py
+      - tests/test_review_corpus.py
+      - tests/test_review_role.py
+      - tests/test_review_run.py
     acceptance:
-      - uv run pytest tests/test_review_run.py
+      - >-
+        uv run pytest tests/test_review_run.py tests/test_review_corpus.py tests/test_review_role.py
       - uv run mypy src
       - uv run torve spec check
     depends_on:

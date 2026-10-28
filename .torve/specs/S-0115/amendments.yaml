@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-28T10:10:34Z'
+    title: >-
+      Phase 4 owns the review module's other paired tests
+    md: >-
+      `torve plan S-0115` refused phase 4: `src/torve/application/review.py` pairs
+      with `tests/test_review_corpus.py` and `tests/test_review_role.py` as well as
+      `tests/test_review_run.py`, and a contract that allows a module without each
+      of its existing test files does not lint (the T-0113 rule). Phase 4's scope
+      gains both files and its acceptance runs them. No row changes.
