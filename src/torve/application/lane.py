@@ -27,7 +27,7 @@ import subprocess
 from collections.abc import Callable, Collection, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, ParamSpec, Protocol
+from typing import TYPE_CHECKING, ParamSpec, Protocol, cast
 
 from torve.application.feedback import capture_feedback
 from torve.application.planner import change_type_of
@@ -47,11 +47,14 @@ from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.spec import write_tracked_files
+from torve.domain.attempt import GateResult
 from torve.domain.events import EventKind, EventRecord, HoldoutFile, VerifyHoldout
 from torve.domain.states import EscalationReason, TaskState
 
 if TYPE_CHECKING:
+    from torve.domain.task import InheritedDecision
     from torve.gates.context import GateContext
+    from torve.gates.runner import RunReport
 
 # ----------------------- #
 
@@ -258,9 +261,24 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
 # ....................... #
 
 
+@dataclass(frozen=True)
+class _Regate:
+    """One battery's verdict and the results it was rendered from. Unpacks as
+    the `(exit_code, summary)` every caller reads, so a caller that needs the
+    readings themselves — the joined table, S-0115/D-5 — has them too."""
+
+    exit_code: int
+    summary: str
+    results: list[GateResult]
+
+    def __iter__(self) -> Iterator[int | str]:
+        yield self.exit_code
+        yield self.summary
+
+
 def _regate(
     workdir: Path, base_ref: str, task_id: str | None, gates: SandboxFactory | None = None
-) -> tuple[int, str]:
+) -> _Regate:
     """The full battery over the rebased tree, exactly as `torve gates run`
     would judge it — fail-closed on a missing manifest.
 
@@ -281,7 +299,7 @@ def _regate(
     manifest_path = layout.gates_file(workdir)
 
     if not manifest_path.is_file():
-        return 1, "no gate manifest in the rebased tree"
+        return _Regate(1, "no gate manifest in the rebased tree", [])
 
     from torve.config.manifest import load_manifest
 
@@ -337,9 +355,13 @@ def _regate(
         if judge is not None:
             judge.close()
 
-    summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
+    return _Regate(report.exit_code, _summary(report), report.results)
 
-    return report.exit_code, summary
+
+def _summary(report: RunReport) -> str:
+    """The `name=outcome` line every lane event and result carries."""
+
+    return ", ".join(f"{result.name}={result.outcome}" for result in report.results)
 
 
 def _branch_of(workdir: Path) -> str:
@@ -1312,6 +1334,9 @@ def _completion_battery(
     if not vcs.rebase_in_worktree(root, document, tip, workdir):
         return tip, "the document branch could not be checked out"
 
+    outcome: object = ()
+    judged: list[InheritedDecision] = []
+
     try:
         if holdout is not None:
             committed = _commit_holdouts(root, workdir, document, holdout)
@@ -1319,12 +1344,60 @@ def _completion_battery(
             if committed is not None:
                 tip = committed
 
-        exit_code, summary = _regate(workdir, resolve_base(root, None) or "main", None, gates)
+        outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
+        judged = _judged_rows(workdir, document)
 
     finally:
         vcs.remove_worktree(root, workdir)
 
+    exit_code, summary = _unpack(outcome)
+    results = outcome.results if isinstance(outcome, _Regate) else []
+
+    # S-0115/D-5: the joined table for this tip, carried to the publisher that
+    # composes the document's pull request (D-6).
+    if results:
+        _record_evidence(root, document, tip, results, judged)
+
     return tip, summary if exit_code != 0 else None
+
+
+def _unpack(outcome: object) -> tuple[int, str]:
+    """The `(exit_code, summary)` a battery returned, whether it is the real
+    `_Regate` or a test's plain tuple."""
+
+    if isinstance(outcome, _Regate):
+        return outcome.exit_code, outcome.summary
+
+    exit_code, summary = cast("tuple[int, str]", outcome)
+
+    return exit_code, summary
+
+
+def _judged_rows(workdir: Path, document: str) -> list[InheritedDecision]:
+    """The document's rows as the tree the battery judged declares them, read
+    before the checkout goes: the battery carried those (`_document_inputs`
+    reads the same tree), and the host's corpus can lag the branch."""
+
+    from torve.application.evidence_matrix import document_decisions
+
+    return document_decisions(workdir, document)
+
+
+def _record_evidence(
+    root: Path, document: str, tip: str, results: list[GateResult], judged: list[InheritedDecision]
+) -> None:
+    """Join the whole-document battery's readings with the rows it *judged*
+    into one table and record it against the tip it measured (S-0115/D-5). A
+    battery with no `evidence` result records nothing, so the body stays as it
+    was (D-7). The review findings are the publisher's to join from the board
+    it holds: the lane opens no store and reads no stream (S-0099/D-6)."""
+
+    from torve.application.evidence_matrix import join, record_table
+
+    rows = join(judged, results)
+
+    if rows:
+        record_table(root, tip, document, rows)
 
 
 # ....................... #
@@ -2449,12 +2522,19 @@ def _rebase_document(
 
         return
 
+    outcome: object = ()
+
+    judged: list[InheritedDecision] = []
+
     try:
         _restate_landings(workdir, base)
-        exit_code, summary = _regate(workdir, base, None, gates)
+        outcome = _regate(workdir, base, None, gates)
+        judged = _judged_rows(workdir, document)
 
     finally:
         vcs.remove_worktree(root, workdir)
+
+    exit_code, summary = _unpack(outcome)
 
     if exit_code != 0:
         # Back where it stood: a branch left on the new base reads to the
@@ -2467,6 +2547,10 @@ def _rebase_document(
         return
 
     rebased = vcs.tip(root, branch) or branch_tip
+
+    if isinstance(outcome, _Regate) and outcome.results:
+        # S-0115/D-5: the table is the one measured on the tip about to publish.
+        _record_evidence(root, document, rebased, outcome.results, judged)
     reference = _publish(root, publish, tasks[-1], branch, rebased, results)
 
     if reference is None:
@@ -2974,12 +3058,16 @@ def _land_rebased(
         _handle_rebase_conflict(root, state, task_id, branch, base, base_tip, on_conflict, results)
         return
 
+    outcome: object = ()
+
     try:
         _restate_landings(workdir, base)
-        exit_code, summary = _regate(workdir, base, task_id, gates)
+        outcome = _regate(workdir, base, task_id, gates)
 
     finally:
         vcs.remove_worktree(root, workdir)
+
+    exit_code, summary = _unpack(outcome)
 
     if exit_code != 0:
         vcs.reset_branch(root, branch, before_rebase)

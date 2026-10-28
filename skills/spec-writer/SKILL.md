@@ -128,6 +128,15 @@ arrives first, invisibly.
    about it is exactly what leaves one, so read a survivor as a prompt to
    assert the line's behaviour in the tests the check selects.
 
+   A test that proves a row cites it in its own docstring: the row's full
+   identifier, `S-NNNN/D-n`, as a whole token. A module or class docstring proves
+   nothing for the tests beneath it, so each test carries its own. The battery's
+   `evidence` gate reads the citation from the function's own source — its
+   docstring, comments and body — and runs each citing test on the base tree and
+   on the candidate: a row is proved when one citing test is red on the base tree
+   and green on the candidate, so the citation belongs in the test the change
+   turns green.
+
 2. **Phasing must be mintable.** A phase is an entry in the `phasing` list —
    number, title, one-paragraph intent, the file globs it will touch, its
    acceptance commands, the phases it waits on — not prose about sequence.

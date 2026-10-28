@@ -1713,3 +1713,15 @@ def test_no_other_gate_in_the_battery_sees_the_held_out_files(repo):
     assert outcomes["held-out"] == "pass"
     assert outcomes["watches-the-holdout"] == "pass"
     assert not (repo.root / "tests" / "verify" / "holdout").exists()
+
+
+# ----------------------- #
+# The builtin registry: `evidence` is dispatched by name like every other
+# builtin (S-0115/D-2).
+
+
+def test_the_evidence_builtin_is_registered():
+    from torve.gates import BUILTINS
+    from torve.gates.row_evidence import check_evidence
+
+    assert BUILTINS["evidence"] is check_evidence

@@ -348,6 +348,41 @@ One reader fills both batteries, so a row is judged the same way on an
 attempt and on the whole document, and a task's own attempt battery is
 otherwise unchanged.
 
+### Every row shows its evidence
+
+The `evidence` gate answers, row by row, whether the change turned a test
+green that cites the row (S-0115/D-1, S-0115/D-2). A test function proves a
+row when its own source — docstring, comments and body — carries the row's
+full identifier, `S-NNNN/D-n`, as a whole token; a module or class docstring
+above it proves nothing for the tests beneath it, and only functions that
+differ from the base tree as parsed syntax count. The gate runs each citing
+function twice, on the base tree built as `red-on-base` builds it and on the
+candidate, and a row is proved when one citing function is red on the base and
+green on the candidate. A row carrying a `check` is judged by its own
+`decision:<id>` gate and `evidence` does not run it again. A row is
+**behavioural** unless every path it declares is a `*.md` file or under
+`pages/`; a behavioural row with no proving test and no check fails the gate,
+named, and a battery carrying no behavioural row skips it. The gate is
+**shadow**, so it names an unproved row without failing the landing
+(S-0115/D-3). In a verify attempt's battery it skips, because those tests are
+red by design and `verify-tests` judges them; in an implement attempt the
+verifier's file the contract denies counts as changed, so the rows its tests
+prove read as proved on the attempt that turns them green (S-0115/D-9).
+
+After the whole-document battery the lane joins, for each carried row, the
+gate's verdict and the tests that proved it, the row's `decision:<id>`
+outcome, the mutation survivors whose line falls under the row's paths, and
+the review findings whose evidence falls under them (S-0115/D-5). A battery
+with no `evidence` result joins nothing. When that joined table exists for the
+tip the document's pull request publishes, the decisions table gains four
+columns beside `Decision`, `Grade` and `Text` — `Tests`, the citing tests that
+proved the row or `none`; `Check`, the row's `decision:<id>` outcome or `none`
+when no check gate ran; `Survivors`, the number of mutation survivors under
+its paths or `none`; and `Findings`, the number of review findings recorded
+against it or `none` (S-0115/D-7). Without a table for that tip the decisions
+table stays as it is today, so a repository whose manifest names no `evidence`
+gate sees no change.
+
 ### Under a refactor
 
 `red-on-base` asks whether a changed test fails on the base tree, because a

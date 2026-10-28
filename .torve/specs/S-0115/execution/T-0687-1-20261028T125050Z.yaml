@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0687
+phase: 4
+base: 2c5aec3e209d45b285532bf2d6c9760dff12c6f2
+commit: b79cc8ed8ab926ba02936c1db7d76060123493c5
+at: '2026-10-28T12:50:50Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: OPEN
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED

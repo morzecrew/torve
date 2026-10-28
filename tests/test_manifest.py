@@ -534,3 +534,19 @@ def test_the_manifest_scope_names_derived_files_and_defaults_to_the_lock_table(t
     manifest = load_manifest(write_manifest(tmp_path, named))
 
     assert manifest.scope.derived == {"src/model.py": ["tests/golden/model.json"]}
+
+
+def test_the_evidence_builtin_resolves_a_worktree_input_and_the_red_on_base_timeout(tmp_path):
+    """S-0115/D-2: the gate runs citing test functions against the base tree
+    and the candidate, so it needs the worktree, and its timeout matches
+    `red-on-base`'s."""
+
+    data = dict(
+        BASE_MANIFEST,
+        gates=[{"name": "evidence", "run": "@evidence", "state": "shadow", "origin": "S-0115"}],
+    )
+    manifest = load_manifest(write_manifest(tmp_path, data))
+    (gate,) = manifest.resolved_gates()
+
+    assert gate.input == "worktree"
+    assert gate.timeout == 300

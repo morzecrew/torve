@@ -4334,3 +4334,81 @@ def test_the_battery_names_a_merge_base_its_checkout_holds(lane_repo, commits, b
 
     assert exit_code == 0, summary
     assert seen["commands"] == [f"echo {fork}"]
+
+
+def test_the_completion_battery_records_the_joined_table_for_its_own_tip(lane_repo, monkeypatch):
+    """S-0115/D-5, D-6: the lane joins the whole-document battery into one
+    table and carries it keyed by the tip it measured; another tip reads none."""
+
+    import torve.application.lane as lane
+    from torve.application.evidence_matrix import read_table
+    from torve.domain.attempt import GateResult
+
+    _phased(lane_repo)
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "branch", document, "main")
+
+    def regate(workdir, base_ref, task_id, gates=None):
+        results = [
+            GateResult(
+                name="evidence",
+                outcome="pass",
+                state="shadow",
+                output="row S-0930/D-1: pass — tests/test_lane.py::test_one",
+            )
+        ]
+        return lane._Regate(0, "evidence=pass", results)
+
+    monkeypatch.setattr(lane, "_regate", regate)
+    tip, red = lane._completion_battery(lane_repo, GitLane(), document)
+
+    assert red is None
+    table = read_table(lane_repo, tip)
+    assert table is not None
+    assert table[0].row == "S-0930/D-1"
+    assert table[0].tests == ("tests/test_lane.py::test_one",)
+    assert read_table(lane_repo, "0" * len(tip)) is None
+
+
+def test_the_table_carries_the_rows_of_the_tree_the_battery_judged(lane_repo, monkeypatch):
+    """S-0115/D-5: the table's rows are the ones the judged tree declares —
+    the document branch's — not the host checkout's, which can lag it."""
+
+    from test_decisions import document as written
+    from test_decisions import place
+
+    import torve.application.lane as lane
+    from torve.application.evidence_matrix import read_table
+    from torve.domain.attempt import GateResult
+
+    _phased(lane_repo)
+    branch = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", branch)
+    place(
+        lane_repo / ".torve" / "specs",
+        "0930",
+        written(
+            "0930",
+            rows=[("S-0930/D-1", "ASSUMED", "a term", "`one.py`", "cheap to revisit")],
+            phasing=[
+                {"phase": 1, "title": "one", "intent": "One.", "scope": ["one.py"]},
+                {"phase": 2, "title": "two", "intent": "Two.", "scope": ["two.py"]},
+            ],
+        ),
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the branch gives D-1 a path")
+    git(lane_repo, "checkout", "-q", "main")
+
+    def regate(workdir, base_ref, task_id, gates=None):
+        result = GateResult(
+            name="evidence", outcome="pass", state="shadow", output="row S-0930/D-1: pass — t::x"
+        )
+        return lane._Regate(0, "evidence=pass", [result])
+
+    monkeypatch.setattr(lane, "_regate", regate)
+    tip, _red = lane._completion_battery(lane_repo, GitLane(), branch)
+
+    table = read_table(lane_repo, tip)
+    assert table is not None
+    assert table[0].paths == ("one.py",)

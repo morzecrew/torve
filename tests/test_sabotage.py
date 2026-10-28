@@ -20,6 +20,7 @@ def test_every_gate_has_a_red_case_and_a_green_case():
         "mutation",
         "held-out",
         "verify-tests",
+        "evidence",
     ):
         expectations = {c.expected for c in CASES if c.gate == gate}
         assert "fail" in expectations, f"{gate} has no sabotage case"

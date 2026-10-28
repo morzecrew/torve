@@ -979,6 +979,87 @@ def test_the_audit_lists_an_unchecked_row_without_a_check_or_the_questions():
     assert "does the check test what the row says" not in prompt
 
 
+def test_the_prompt_shows_the_tests_a_row_was_proved_by():
+    """S-0115/D-10: a passing `evidence` result's tests appear under the row
+    they proved, and the reviewer is asked whether each one exercises it — a
+    citation that proves nothing is a `major` finding."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[InheritedDecision(id="S-0115/D-1", grade="ASSUMED", text="a rule")],
+    )
+    result = GateResult(
+        name="evidence",
+        outcome="pass",
+        state="shadow",
+        output=("row S-0115/D-1: pass — tests/test_a.py::test_one, tests/test_b.py::test_two\n"),
+    )
+
+    prompt = build_review_prompt(target, "diff --git", [result])
+
+    assert "  evidence: proved by tests/test_a.py::test_one, tests/test_b.py::test_two" in prompt
+    assert "whether it exercises what the row says" in prompt
+    assert "finding at `major`" in prompt
+
+
+def test_the_prompt_shows_a_row_no_test_proved_without_making_it_a_finding():
+    """S-0115/D-10: a failing result says no test proved the row, and says an
+    unproved row is never a finding by itself — the gate already names it."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[InheritedDecision(id="S-0115/D-1", grade="ASSUMED", text="a rule")],
+    )
+    result = GateResult(
+        name="evidence",
+        outcome="fail",
+        state="shadow",
+        output="row S-0115/D-1: fail — no test cites the row\n",
+    )
+
+    prompt = build_review_prompt(target, "diff --git", [result])
+
+    assert "  evidence: none proved — no test cites the row" in prompt
+    assert "An unproved row is never a finding by itself." in prompt
+    # No row was proved, so there is no proving test to ask the question of.
+    assert "whether it exercises what the row says" not in prompt
+
+
+def test_a_battery_with_no_evidence_result_leaves_the_prompt_as_it_was():
+    """S-0115/D-10: no `evidence` result, or one that names no row, adds
+    nothing under the inherited rows."""
+
+    target = Task(
+        id="T-0001",
+        intent="Build the widget.",
+        decisions=[InheritedDecision(id="S-0115/D-1", grade="ASSUMED", text="a rule")],
+    )
+    skipped = GateResult(
+        name="evidence", outcome="skipped", state="shadow", output="no behavioural row"
+    )
+
+    # A reading that proves only a row this task does not carry.
+    elsewhere = GateResult(
+        name="evidence",
+        outcome="pass",
+        state="shadow",
+        output="row S-0115/D-9: pass — tests/test_a.py::test_one\n",
+    )
+
+    for results in (
+        [],
+        [skipped],
+        [GateResult(name="lint", outcome="pass", state="blocking")],
+        [elsewhere],
+    ):
+        prompt = build_review_prompt(target, "diff --git", results)
+        assert "  evidence:" not in prompt
+        assert "never a finding by itself" not in prompt
+        assert "whether it exercises what the row says" not in prompt
+
+
 def test_parse_findings_takes_the_last_document():
     output = 'thinking...\n{"findings": []}'
     assert parse_findings(output) == []

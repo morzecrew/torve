@@ -11,6 +11,7 @@ import pytest
 
 import torve.adapters.vcs.git as git_module
 from torve.adapters.vcs.git import GhScm, GitVcs
+from torve.application.evidence_matrix import RowRecord
 from torve.application.forge import DocumentLanding, compose_document_pr, compose_pr
 from torve.domain.attempt import GateResult
 from torve.domain.task import InheritedDecision, Scope, Task
@@ -564,6 +565,35 @@ def test_the_document_body_carries_the_landings_and_the_phases_still_to_come(tmp
     # The phases to come are named from the phasing list, by number and title.
     assert "- phase 2 — the lane lands onto it" in body
     assert "- phase 1 —" not in body
+
+
+def test_the_decisions_table_gains_the_joined_columns_only_when_a_table_exists(tmp_path: Path):
+    """S-0115/D-7: a joined table measured on the tip being published adds the
+    columns a reviewer accepts row by row; without one the table is unchanged."""
+
+    root = corpus_with_phasing(tmp_path)
+    landings = [DocumentLanding(task=phase_task("T-8401", 1, "the unit is a term"))]
+    matrix = [
+        RowRecord(
+            row="S-0090/D-1",
+            state="pass",
+            tests=("tests/test_forge.py::test_the_columns",),
+            check="pass",
+            survivors=("src/torve/application/forge.py:1 — replaced the table",),
+            findings=("the table hides a row",),
+        )
+    ]
+
+    _, bare = compose_document_pr("S-0090", landings, root)
+    _, body = compose_document_pr("S-0090", landings, root, matrix)
+
+    assert "| Decision | Grade | Text |" in bare
+    assert "Tests" not in bare
+    assert "| Decision | Grade | Text | Tests | Check | Survivors | Findings |" in body
+    assert (
+        "| S-0090/D-1 | `ASSUMED` | the unit is a term | "
+        "tests/test_forge.py::test_the_columns | pass | 1 | 1 |"
+    ) in body
 
 
 def test_a_document_fully_landed_says_so_and_an_unreadable_one_names_no_phases(tmp_path: Path):

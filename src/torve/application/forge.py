@@ -13,6 +13,7 @@ from typing import Any, cast
 
 import yaml
 
+from torve.application.evidence_matrix import RowRecord
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
@@ -169,17 +170,41 @@ def title_warnings(corpus: Corpus) -> list[str]:
     return warnings
 
 
-def _decision_table(decisions: list[InheritedDecision]) -> list[str]:
+def _decision_table(
+    decisions: list[InheritedDecision], matrix: list[RowRecord] | None = None
+) -> list[str]:
     """The rows a contract carried, as a table: a reviewer scans a grade
-    column; a bullet per row hides it inside the prose."""
+    column; a bullet per row hides it inside the prose.
+
+    A joined table for the tip being published (S-0115/D-7) adds the columns
+    that answer, row by row, what proves it and what argues against it. Without
+    one the table stays exactly as it was."""
 
     def cell(text: str) -> str:
         return " ".join(text.split()).replace("|", "\\|")
 
+    if matrix is None:
+        return [
+            "| Decision | Grade | Text |",
+            "| --- | --- | --- |",
+            *(f"| {d.id} | `{d.grade}` | {cell(d.text)} |" for d in decisions),
+        ]
+
+    joined = {record.row: record for record in matrix}
+
+    def row_cells(decision: InheritedDecision) -> str:
+        record = joined.get(decision.id)
+        tests = ", ".join(record.tests) if record and record.tests else "none"
+        check = record.check if record and record.check else "none"
+        survivors = str(len(record.survivors)) if record and record.survivors else "none"
+        findings = str(len(record.findings)) if record and record.findings else "none"
+
+        return f" {cell(tests)} | {check} | {survivors} | {findings} |"
+
     return [
-        "| Decision | Grade | Text |",
-        "| --- | --- | --- |",
-        *(f"| {d.id} | `{d.grade}` | {cell(d.text)} |" for d in decisions),
+        "| Decision | Grade | Text | Tests | Check | Survivors | Findings |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+        *(f"| {d.id} | `{d.grade}` | {cell(d.text)} |{row_cells(d)}" for d in decisions),
     ]
 
 
@@ -376,6 +401,7 @@ def compose_document_pr(
     document: str,
     landings: list[DocumentLanding],
     root: Path,
+    matrix: list[RowRecord] | None = None,
 ) -> tuple[str, str]:
     """(title, body) for a document branch's one pull request, composed
     entirely from records: every task the branch carries, the rows each
@@ -432,7 +458,7 @@ def compose_document_pr(
             rows.setdefault(decision.id, decision)
 
     if rows:
-        lines += ["## Decisions", "", *_decision_table(list(rows.values())), ""]
+        lines += ["## Decisions", "", *_decision_table(list(rows.values()), matrix), ""]
 
     for landing in landings:
         task = landing.task

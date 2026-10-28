@@ -108,6 +108,17 @@ container = client.containers.get("app-test")
 container = client.containers.get(f"app-test-{uuid4().hex[:8]}")
 ```
 
+## Every test names the row it proves
+
+A test that proves a decision row cites it in its own docstring: the row's full
+identifier, `S-NNNN/D-n`, as a whole token. A module or class docstring proves
+nothing for the tests beneath it, so each test carries its own. The `evidence`
+gate reads a citation from the test function's own source — its docstring,
+comments and body. The gate runs each citing test on the base
+tree and on the candidate: a row is proved when one citing test is red on the
+base tree and green on the candidate, so write the citation in the test the
+change turns green.
+
 ## Writing
 
 User-facing strings — help text, docstrings typer renders, printed output —

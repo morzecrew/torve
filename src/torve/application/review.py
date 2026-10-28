@@ -60,6 +60,7 @@ from torve.domain.attempt import Finding, GateResult, mutation_reading
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
 from torve.gates.evidence import CITATION, filter_findings
+from torve.gates.row_evidence import RowEvidence, evidence_reading
 
 # ----------------------- #
 
@@ -107,13 +108,41 @@ def mint_review_task(
 # ....................... #
 
 
-def _inherited_decisions(decisions: list[InheritedDecision]) -> str:
-    """Each inherited row beside its `check` and `check_twin` (S-0106/D-5), then
-    the two audit questions when any row carries a check. A row without a check
-    is listed without either and draws no finding for lacking one."""
+def _evidence_result(gate_results: list[GateResult]) -> dict[str, RowEvidence]:
+    """The `evidence` gate's per-row reading of this battery, by row id
+    (S-0115/D-10). A battery that ran no `evidence` gate, or one that named no
+    row, reads as nothing so the prompt is left as it was."""
 
+    for result in gate_results:
+        if result.name == "evidence":
+            return {row.row: row for row in evidence_reading(result.output)}
+
+    return {}
+
+
+def _evidence_line(row: RowEvidence) -> str:
+    if row.state == "pass":
+        return "proved by " + ", ".join(row.tests)
+
+    if row.state == "fail":
+        return f"none proved — {row.detail}"
+
+    return "judged by its decision gate" if row.state == "check" else "no test required"
+
+
+def _inherited_decisions(
+    decisions: list[InheritedDecision], evidence: dict[str, RowEvidence] | None = None
+) -> str:
+    """Each inherited row beside its `check` and `check_twin` (S-0106/D-5) and
+    the `evidence` gate's reading of it (S-0115/D-10), then the audit questions
+    when any row carries a check or a passing test. A row without a check is
+    listed without either and draws no finding for lacking one; an unproved row
+    is named but is never a finding by itself."""
+
+    evidence = evidence or {}
     lines: list[str] = []
     checked = False
+    states: set[str] = set()
 
     for row in decisions:
         lines.append(f"- {row.id} [{row.grade}] {row.text}")
@@ -121,6 +150,9 @@ def _inherited_decisions(decisions: list[InheritedDecision]) -> str:
             checked = True
             lines.append(f"  check: {row.check}")
             lines.append(f"  check_twin: {row.check_twin or 'none'}")
+        if row.id in evidence:
+            states.add(evidence[row.id].state)
+            lines.append(f"  evidence: {_evidence_line(evidence[row.id])}")
 
     if not lines:
         return "- none"
@@ -133,6 +165,24 @@ def _inherited_decisions(decisions: list[InheritedDecision]) -> str:
             "implementation make it fail? A check that fails either question is a "
             "finding at `major`. A row with no check draws no finding for lacking one."
         )
+
+    # Each sentence is asked only of what this task's rows show: the question
+    # needs a proving test, the caution an unproved row.
+    audit: list[str] = []
+
+    if "pass" in states:
+        audit.append(
+            "Ask of each test named above as a row's proof whether it exercises "
+            "what the row says; a test that cites a row it never reaches is a "
+            "finding at `major`."
+        )
+
+    if "fail" in states:
+        audit.append("An unproved row is never a finding by itself.")
+
+    if audit:
+        lines.append("")
+        lines.append(" ".join(audit))
 
     return "\n".join(lines)
 
@@ -193,7 +243,7 @@ def build_review_prompt(
     # implementation rather than imagining one.
     survivors_block = mutation_survivors(gate_results, target.decisions)
 
-    decisions = _inherited_decisions(target.decisions)
+    decisions = _inherited_decisions(target.decisions, _evidence_result(gate_results))
 
     # The battery by name: told what the change was judged green on, the
     # reviewer can run that same battery rather than guess at it (S-0005/D-16).
