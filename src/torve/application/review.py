@@ -142,6 +142,7 @@ def _inherited_decisions(
     evidence = evidence or {}
     lines: list[str] = []
     checked = False
+    states: set[str] = set()
 
     for row in decisions:
         lines.append(f"- {row.id} [{row.grade}] {row.text}")
@@ -150,6 +151,7 @@ def _inherited_decisions(
             lines.append(f"  check: {row.check}")
             lines.append(f"  check_twin: {row.check_twin or 'none'}")
         if row.id in evidence:
+            states.add(evidence[row.id].state)
             lines.append(f"  evidence: {_evidence_line(evidence[row.id])}")
 
     if not lines:
@@ -164,13 +166,23 @@ def _inherited_decisions(
             "finding at `major`. A row with no check draws no finding for lacking one."
         )
 
-    if evidence:
-        lines.append("")
-        lines.append(
+    # Each sentence is asked only of what this task's rows show: the question
+    # needs a proving test, the caution an unproved row.
+    audit: list[str] = []
+
+    if "pass" in states:
+        audit.append(
             "Ask of each test named above as a row's proof whether it exercises "
             "what the row says; a test that cites a row it never reaches is a "
-            "finding at `major`. An unproved row is never a finding by itself."
+            "finding at `major`."
         )
+
+    if "fail" in states:
+        audit.append("An unproved row is never a finding by itself.")
+
+    if audit:
+        lines.append("")
+        lines.append(" ".join(audit))
 
     return "\n".join(lines)
 

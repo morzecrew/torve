@@ -1023,6 +1023,8 @@ def test_the_prompt_shows_a_row_no_test_proved_without_making_it_a_finding():
 
     assert "  evidence: none proved — no test cites the row" in prompt
     assert "An unproved row is never a finding by itself." in prompt
+    # No row was proved, so there is no proving test to ask the question of.
+    assert "whether it exercises what the row says" not in prompt
 
 
 def test_a_battery_with_no_evidence_result_leaves_the_prompt_as_it_was():
@@ -1038,10 +1040,24 @@ def test_a_battery_with_no_evidence_result_leaves_the_prompt_as_it_was():
         name="evidence", outcome="skipped", state="shadow", output="no behavioural row"
     )
 
-    for results in ([], [skipped], [GateResult(name="lint", outcome="pass", state="blocking")]):
+    # A reading that proves only a row this task does not carry.
+    elsewhere = GateResult(
+        name="evidence",
+        outcome="pass",
+        state="shadow",
+        output="row S-0115/D-9: pass — tests/test_a.py::test_one\n",
+    )
+
+    for results in (
+        [],
+        [skipped],
+        [GateResult(name="lint", outcome="pass", state="blocking")],
+        [elsewhere],
+    ):
         prompt = build_review_prompt(target, "diff --git", results)
         assert "  evidence:" not in prompt
         assert "never a finding by itself" not in prompt
+        assert "whether it exercises what the row says" not in prompt
 
 
 def test_parse_findings_takes_the_last_document():
