@@ -796,7 +796,7 @@ The lane's re-gate of a rebased candidate and the whole-document battery run the
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: no gate battery runs a candidate's code on the host
 
-### S-0115/D-6 — `OPEN` (Every decision shows its evidence) — implementation: none
+### S-0115/D-6 — `OPEN` (Every decision shows its evidence)
 
 How the joined table reaches the pull request's composer: a host file keyed by the branch tip, the battery's result threaded to the publisher, or a record. The body never carries a table measured on another tip.
 
