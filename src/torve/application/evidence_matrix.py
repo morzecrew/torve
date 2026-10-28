@@ -9,32 +9,35 @@ the document's tasks whose evidence path falls under the row's paths are what
 the reviewers argued. One table answers, row by row, what proves it and what
 argues against it (S-0115/D-5).
 
-The table is carried as a telemetry record keyed by the tip it was measured on
-(S-0115/D-6): the lane writes it after the whole-document battery, and the
-publisher reads exactly the record for the tip it publishes. A body never
+The table is carried as a host file keyed by the tip it was measured on
+(S-0115/D-6): the lane writes the battery's columns after the whole-document
+battery, and the publisher reads exactly the file for the tip it publishes and
+joins the review findings off the board it already holds. No part of it rides
+the telemetry stream, which no decision reads (S-0099/D-6). A body never
 carries a table measured on another tip, and a battery with no `evidence`
 result leaves the body as it was (S-0115/D-7).
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
 from torve.base.globs import matches
 from torve.config import layout
 from torve.domain.attempt import Finding, GateResult, mutation_reading
+from torve.domain.events import EventRecord
 from torve.domain.task import InheritedDecision
 from torve.gates.evidence import CITATION
 from torve.gates.row_evidence import evidence_reading
 
 # ----------------------- #
 
-#: The engine event the lane writes its joined table under, keyed by `tip`
-#: (S-0115/D-6). The publisher reads the same event back for its own tip.
-EVIDENCE_EVENT = "document_evidence"
+#: Where the lane leaves the table it measured, one file per tip (S-0115/D-6).
+EVIDENCE_DIR = "evidence"
 
 # ----------------------- #
 
@@ -101,6 +104,14 @@ def _evidence_path(evidence: str) -> str | None:
     return found.group("path") if found else None
 
 
+def _findings_under(findings: Iterable[Finding], row_paths: list[str]) -> tuple[str, ...]:
+    return tuple(
+        finding.claim
+        for finding in findings
+        if (path := _evidence_path(finding.evidence)) is not None and matches(path, row_paths)
+    )
+
+
 def join(
     rows: Iterable[InheritedDecision],
     results: Sequence[GateResult],
@@ -137,16 +148,27 @@ def join(
                 survivors=tuple(
                     survivor for survivor in survivors if matches(_line_path(survivor), row_paths)
                 ),
-                findings=tuple(
-                    finding.claim
-                    for finding in recorded
-                    if (path := _evidence_path(finding.evidence)) is not None
-                    and matches(path, row_paths)
-                ),
+                findings=_findings_under(recorded, row_paths),
             )
         )
 
     return joined
+
+
+def with_findings(
+    table: Sequence[RowRecord], rows: Iterable[InheritedDecision], findings: Iterable[Finding]
+) -> list[RowRecord]:
+    """*table* with each row's findings column read from *findings*, the
+    ones whose evidence falls under the row's paths. The publisher joins them
+    at compose time, from the board, so the lane carries none."""
+
+    paths = {row.id: list(row.paths) for row in rows}
+    recorded = list(findings)
+
+    return [
+        replace(entry, findings=_findings_under(recorded, paths.get(entry.row, [])))
+        for entry in table
+    ]
 
 
 # ....................... #
@@ -185,31 +207,29 @@ def document_decisions(root: Path, document: str) -> list[InheritedDecision]:
     ]
 
 
-def recorded_findings(root: Path, tasks: Iterable[str]) -> list[Finding]:
-    """The findings the review records carry against *tasks*, read from the
-    telemetry stream where the reviewers wrote them. An unparseable finding is
-    skipped, as the stream's other readers skip their bad lines."""
+def board_findings(records: Iterable[EventRecord], tasks: Iterable[str]) -> list[Finding]:
+    """The findings the board's review records carry against *tasks*
+    (S-0101/D-4), the carrier the review leg reads (S-0102/D-3). A finding
+    that does not validate is skipped, as the leg skips it."""
 
-    from torve.application.streams import stream_rows
+    from torve.application.projections import recorded_review_rows
 
     wanted = set(tasks)
     found: list[Finding] = []
 
-    for row in stream_rows(root):
-        if row.get("kind") != "review" or str(row.get("target") or "") not in wanted:
+    for row in recorded_review_rows(records):
+        if str(row.get("target") or "") not in wanted:
             continue
 
-        raw = row.get("findings")
-
-        if not isinstance(raw, list):
-            continue
-
-        for item in cast("list[object]", raw):
-            if not isinstance(item, dict):
-                continue
-
+        # An item also carries the citation's path and line (S-0101/D-4); the
+        # finding is the three fields the reviewer gave.
+        for item in cast("list[dict[str, Any]]", row.get("findings") or []):
             try:
-                found.append(Finding.model_validate(item))
+                found.append(
+                    Finding.model_validate(
+                        {key: item.get(key) for key in ("severity", "claim", "evidence")}
+                    )
+                )
 
             except ValueError:
                 continue
@@ -220,31 +240,36 @@ def recorded_findings(root: Path, tasks: Iterable[str]) -> list[Finding]:
 # ....................... #
 
 
+def _table_file(root: Path, tip: str) -> Path:
+    return root / layout.TORVE_DIR / "tmp" / EVIDENCE_DIR / f"{tip}.json"
+
+
 def record_table(root: Path, tip: str, document: str, rows: Sequence[RowRecord]) -> None:
-    """Append the joined table as a telemetry record keyed by the tip it was
-    measured on (S-0115/D-6). Append-only, so a later battery at a later tip
-    leaves the earlier one readable."""
+    """Write the joined table to a host file keyed by the tip it was measured
+    on (S-0115/D-6). One file per tip, so a later battery at a later tip leaves
+    the earlier one readable."""
 
-    from torve.application.telemetry import engine_event
-
-    engine_event(
-        root,
-        EVIDENCE_EVENT,
-        {
-            "tip": tip,
-            "document": document,
-            "rows": [
-                {
-                    "row": row.row,
-                    "state": row.state,
-                    "tests": list(row.tests),
-                    "check": row.check,
-                    "survivors": list(row.survivors),
-                    "findings": list(row.findings),
-                }
-                for row in rows
-            ],
-        },
+    path = _table_file(root, tip)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "tip": tip,
+                "document": document,
+                "rows": [
+                    {
+                        "row": row.row,
+                        "state": row.state,
+                        "tests": list(row.tests),
+                        "check": row.check,
+                        "survivors": list(row.survivors),
+                        "findings": list(row.findings),
+                    }
+                    for row in rows
+                ],
+            }
+        ),
+        encoding="utf-8",
     )
 
 
@@ -270,22 +295,14 @@ def read_table(root: Path, tip: str) -> list[RowRecord] | None:
     if not tip:
         return None
 
-    from torve.application.streams import stream_rows
+    try:
+        found = json.loads(_table_file(root, tip).read_text(encoding="utf-8"))
 
-    found: dict[str, Any] | None = None
-
-    for row in stream_rows(root):
-        if (
-            row.get("kind") == "engine"
-            and row.get("event") == EVIDENCE_EVENT
-            and str(row.get("tip") or "") == tip
-        ):
-            found = row
-
-    if found is None:
+    # A missing or unreadable file is no table: the body keeps today's (D-7).
+    except (OSError, ValueError):
         return None
 
-    raw = found.get("rows")
+    raw = found.get("rows") if isinstance(found, dict) else None
 
     if not isinstance(raw, list):
         return None

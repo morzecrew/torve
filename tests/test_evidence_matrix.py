@@ -93,3 +93,60 @@ def test_the_table_is_keyed_by_the_tip_it_was_measured_on(tmp_path: Path):
     assert read_table(tmp_path, "a" * 40) == measured
     assert read_table(tmp_path, "b" * 40) is None
     assert read_table(tmp_path, "") is None
+
+
+def test_the_publisher_joins_the_boards_findings_per_row():
+    """S-0115/D-5, D-6: the findings column comes off the board's review
+    records at compose time, matched to each row's paths, and only the
+    document's own tasks count; the lane's file carries none (S-0099/D-6)."""
+
+    import uuid
+    from datetime import UTC, datetime
+
+    from torve.application.evidence_matrix import board_findings, with_findings
+    from torve.application.review import review_items
+    from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
+
+    now = datetime.now(UTC)
+
+    def review(target: str, claim: str, evidence: str) -> EventRecord:
+        return EventRecord(
+            id=uuid.uuid4().hex,
+            rev=1,
+            created_at=now,
+            last_update_at=now,
+            kind=EventKind.REVIEW_RECORDED,
+            partition="torve/torve",
+            subject_type=SubjectType.TASK,
+            subject_id=target,
+            actor_kind=ActorKind.WORKER,
+            actor_id="worker-1",
+            payload={
+                "review_id": f"{target}-review",
+                "trigger": "task_gated",
+                "findings": 1,
+                "blockers": 0,
+                "items": review_items([Finding(severity="minor", claim=claim, evidence=evidence)]),
+            },
+        )
+
+    records = [
+        review("T-0001", "the join drops a row", "src/torve/application/lane.py:9 — dropped"),
+        review("T-0009", "another document's finding", "src/torve/application/lane.py:4 — x"),
+    ]
+    findings = board_findings(records, ["T-0001"])
+
+    assert [finding.claim for finding in findings] == ["the join drops a row"]
+
+    measured = [
+        RowRecord(row="S-0115/D-5", state="pass"),
+        RowRecord(row="S-0115/D-7", state="pass"),
+    ]
+    rows = [
+        row("S-0115/D-5", ["src/torve/application/lane.py"]),
+        row("S-0115/D-7", ["src/torve/application/forge.py"]),
+    ]
+    joined = with_findings(measured, rows, findings)
+
+    assert joined[0].findings == ("the join drops a row",)
+    assert joined[1].findings == ()

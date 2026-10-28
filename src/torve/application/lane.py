@@ -1353,7 +1353,7 @@ def _completion_battery(
     # S-0115/D-5: the joined table for this tip, carried to the publisher that
     # composes the document's pull request (D-6).
     if results:
-        _record_evidence(root, document, document, tip, results)
+        _record_evidence(root, document, tip, results)
 
     return tip, summary if exit_code != 0 else None
 
@@ -1370,25 +1370,16 @@ def _unpack(outcome: object) -> tuple[int, str]:
     return exit_code, summary
 
 
-def _record_evidence(
-    root: Path, document: str, branch: str, tip: str, results: list[GateResult]
-) -> None:
+def _record_evidence(root: Path, document: str, tip: str, results: list[GateResult]) -> None:
     """Join the whole-document battery's readings into one table and record it
     against the tip it measured (S-0115/D-5). A battery with no `evidence`
-    result records nothing, so the body stays as it was (D-7)."""
+    result records nothing, so the body stays as it was (D-7). The review
+    findings are the publisher's to join from the board it holds: the lane
+    opens no store and reads no stream (S-0099/D-6)."""
 
-    from torve.application.evidence_matrix import (
-        document_decisions,
-        join,
-        record_table,
-        recorded_findings,
-    )
+    from torve.application.evidence_matrix import document_decisions, join, record_table
 
-    rows = join(
-        document_decisions(root, document),
-        results,
-        recorded_findings(root, document_tasks(root, branch)),
-    )
+    rows = join(document_decisions(root, document), results)
 
     if rows:
         record_table(root, tip, document, rows)
@@ -2541,7 +2532,7 @@ def _rebase_document(
 
     if isinstance(outcome, _Regate) and outcome.results:
         # S-0115/D-5: the table is the one measured on the tip about to publish.
-        _record_evidence(root, document, branch, rebased, outcome.results)
+        _record_evidence(root, document, rebased, outcome.results)
     reference = _publish(root, publish, tasks[-1], branch, rebased, results)
 
     if reference is None:

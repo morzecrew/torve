@@ -171,7 +171,12 @@ def _document_pr_text(
     from any host, and a host whose stream is empty lists the same results.
     """
 
-    from torve.application.evidence_matrix import read_table
+    from torve.application.evidence_matrix import (
+        board_findings,
+        document_decisions,
+        read_table,
+        with_findings,
+    )
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import carried_landings, carried_tasks, contract_file
     from torve.application.projections import rows_from_events
@@ -200,8 +205,16 @@ def _document_pr_text(
         )
 
     # S-0115/D-6: the table is the one measured on the tip being published,
-    # never a battery's reading of another tip.
-    title, body = compose_document_pr(document, landings, root, read_table(root, tip or ""))
+    # never a battery's reading of another tip. Its findings come off the same
+    # board as the gate results, so no stream is read for them (S-0099/D-6).
+    table = read_table(root, tip or "")
+
+    if table:
+        table = with_findings(
+            table, document_decisions(root, document), board_findings(records, task_ids)
+        )
+
+    title, body = compose_document_pr(document, landings, root, table)
 
     return title, body, document_complete(document, landings, root)
 
