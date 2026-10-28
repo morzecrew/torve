@@ -441,6 +441,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#every-row-shows-its-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Every row shows its evidence
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#under-a-refactor" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1237,6 +1248,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#every-row-shows-its-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Every row shows its evidence
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#under-a-refactor" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1892,6 +1914,38 @@ never touches is reported skipped rather than run for nothing (S-0106/D-2).
 One reader fills both batteries, so a row is judged the same way on an
 attempt and on the whole document, and a task's own attempt battery is
 otherwise unchanged.</p>
+<h3 id="every-row-shows-its-evidence">Every row shows its evidence<a class="headerlink" href="#every-row-shows-its-evidence" title="Permanent link">&para;</a></h3>
+<p>The <code>evidence</code> gate answers, row by row, whether the change turned a test
+green that cites the row (S-0115/D-1, S-0115/D-2). A test function proves a
+row when its own source — docstring, comments and body — carries the row's
+full identifier, <code>S-NNNN/D-n</code>, as a whole token; a module or class docstring
+above it proves nothing for the tests beneath it, and only functions that
+differ from the base tree as parsed syntax count. The gate runs each citing
+function twice, on the base tree built as <code>red-on-base</code> builds it and on the
+candidate, and a row is proved when one citing function is red on the base and
+green on the candidate. A row carrying a <code>check</code> is judged by its own
+<code>decision:&lt;id&gt;</code> gate and <code>evidence</code> does not run it again. A row is
+<strong>behavioural</strong> unless every path it declares is a <code>*.md</code> file or under
+<code>pages/</code>; a behavioural row with no proving test and no check fails the gate,
+named, and a battery carrying no behavioural row skips it. The gate is
+<strong>shadow</strong>, so it names an unproved row without failing the landing
+(S-0115/D-3). In a verify attempt's battery it skips, because those tests are
+red by design and <code>verify-tests</code> judges them; in an implement attempt the
+verifier's file the contract denies counts as changed, so the rows its tests
+prove read as proved on the attempt that turns them green (S-0115/D-9).</p>
+<p>After the whole-document battery the lane joins, for each carried row, the
+gate's verdict and the tests that proved it, the row's <code>decision:&lt;id&gt;</code>
+outcome, the mutation survivors whose line falls under the row's paths, and
+the review findings whose evidence falls under them (S-0115/D-5). A battery
+with no <code>evidence</code> result joins nothing. When that joined table exists for the
+tip the document's pull request publishes, the decisions table gains four
+columns beside <code>Decision</code>, <code>Grade</code> and <code>Text</code> — <code>Tests</code>, the citing tests that
+proved the row or <code>none</code>; <code>Check</code>, the row's <code>decision:&lt;id&gt;</code> outcome or <code>none</code>
+when no check gate ran; <code>Survivors</code>, the number of mutation survivors under
+its paths or <code>none</code>; and <code>Findings</code>, the number of review findings recorded
+against it or <code>none</code> (S-0115/D-7). Without a table for that tip the decisions
+table stays as it is today, so a repository whose manifest names no <code>evidence</code>
+gate sees no change.</p>
 <h3 id="under-a-refactor">Under a refactor<a class="headerlink" href="#under-a-refactor" title="Permanent link">&para;</a></h3>
 <p><code>red-on-base</code> asks whether a changed test fails on the base tree, because a
 test green before the change proves nothing about it. A <strong>refactor inverts
