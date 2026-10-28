@@ -72,7 +72,7 @@ The burn profile classifies an attempt's tool calls — pack reads, orientation,
 
 ### S-0085/D-2 — `ASSUMED` (A document builds on another document's tree)
 
-`torve plan` turns `after` into contract `depends_on`: every task of the document's phases with no in-document predecessor depends on every task minted from each named document; a named document with no minted tasks refuses the plan by name, one that is not accepted refuses as `depends_on` does, and one whose implementation is complete adds no edge
+`torve plan` turns `after` into contract `depends_on`: every task of the document's phases with no in-document predecessor depends on every implement, verify or revert task minted from each named document, never on its review or draft records, which a run mints and concludes and which never land; a named document with no minted tasks refuses the plan by name, one that is not accepted refuses as `depends_on` does, and one whose implementation is complete adds no edge
 
 - Paths: `src/torve/application/planner.py` `tests/test_plan.py`
 - Consequence: nothing downstream learns a new word — the board, the worker, the lane and every projection read the contract they already read, and a contract edited by hand to the same edge behaves the same

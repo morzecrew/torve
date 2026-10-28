@@ -212,6 +212,25 @@ def test_a_dependency_is_satisfied_only_by_a_landing():
     run(scenario)
 
 
+def test_a_review_record_is_no_dependency():
+    """S-0085/A-1: a review record concludes with the run that minted it and
+    never lands, so a task minted waiting on one waits on its landed peers only."""
+
+    async def scenario(log):
+        await mint(log, "T-1", allow=["src/a/**"])
+        review = Task(id="T-2", role="review", targets=["T-1"], decisions=[], scope=Scope())
+        await minted(log, review)
+        await mint(log, "T-3", allow=["src/b/**"], depends_on=["T-1", "T-2"])
+
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-1"]
+
+        await land(log, "T-1")
+
+        assert dispatchable(project(await log.since()), PARTITION) == ["T-3"]
+
+    run(scenario)
+
+
 def test_a_squash_merged_dependency_is_on_base_only_after_the_merge(tmp_path):
     """S-0085/D-4: a dependency is satisfied by a landing that is an ancestor
     of the base the dependent would be cut from, and by nothing else. The

@@ -18,13 +18,14 @@ from torve.application.planner import (
     inherit_decisions,
     plan_document,
     standing_decisions,
+    write_contract,
     write_contracts,
 )
 from torve.base.globs import overlap
 from torve.cli import app
 from torve.config.spec import SpecError, load_document
 from torve.domain.spec import Document
-from torve.domain.task import InheritedDecision
+from torve.domain.task import InheritedDecision, Scope, Task
 from torve.gates.context import load_task
 
 # ----------------------- #
@@ -347,6 +348,32 @@ def test_after_makes_the_unpreceded_phases_wait_on_the_named_documents_tasks(pla
     assert tasks["T-0004"].depends_on == ["T-0001", "T-0002", "T-0003"]
     assert tasks["T-0005"].depends_on == ["T-0001", "T-0002", "T-0003"]
     assert set(tasks["T-0006"].depends_on) == {"T-0004", "T-0005"}
+
+
+def test_after_waits_on_no_review_record_of_the_named_document(plan_repo):
+    """S-0085/A-1: a review record of S-0090 never lands, so an edge to it
+    would hold the dependent phase forever."""
+    root, write_doc, git = plan_repo
+    spec_dir = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, spec_dir, "0090"))
+    review = Task(
+        id="T-0004",
+        spec="S-0090",
+        phase=1,
+        role="review",
+        targets=["T-0001"],
+        decisions=[],
+        scope=Scope(),
+    )
+    write_contract(root, review)
+    write_doc("0092", "Leaning")
+    after(root, "0092", "S-0090")
+    git("add", "-A")
+    git("commit", "-qm", "after")
+
+    tasks = {p.task.id: p.task for p in plan_document(root, spec_dir, "0092").tasks}
+
+    assert tasks["T-0005"].depends_on == ["T-0001", "T-0002", "T-0003"]
 
 
 def test_after_naming_a_document_with_no_minted_tasks_is_refused_by_name(plan_repo):

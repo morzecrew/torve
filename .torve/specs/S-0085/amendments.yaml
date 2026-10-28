@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-10-28T17:52:28Z'
+    title: after waits on no review or draft record
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          `torve plan` turns `after` into contract `depends_on`: every task of the
+          document's phases with no in-document predecessor depends on every task
+          minted from each named document; a named document with no minted tasks refuses
+          the plan by name, one that is not accepted refuses as `depends_on` does,
+          and one whose implementation is complete adds no edge
+        after: >-
+          `torve plan` turns `after` into contract `depends_on`: every task of the
+          document's phases with no in-document predecessor depends on every implement,
+          verify or revert task minted from each named document, never on its review
+          or draft records, which a run mints and concludes and which never land;
+          a named document with no minted tasks refuses the plan by name, one that
+          is not accepted refuses as `depends_on` does, and one whose implementation
+          is complete adds no edge
+      - subject: D-2
+        field: fingerprint
+        after: b73efee889fa7869/4da4143811b3eaa1
+    md: >-
+      A consumer's S-0005 named `after: [S-0004]`, and the plan minted its first phase
+      waiting on S-0004's three review records as well as its three landed phases.
+      A review record is recorded and offered to nobody (S-0049/A-1), and a dependency
+      is met only by a landing, so the phase could never start, and a refresh keeps
+      the edge. The planner now leaves review and draft records out of the edge and
+      out of what counts as already minted. The board treats an edge to one as met,
+      so a contract minted before this fix starts too, and the board's waits table
+      no longer names those records (#223).

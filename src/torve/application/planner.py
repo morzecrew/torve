@@ -45,7 +45,7 @@ from torve.config import layout, spec
 from torve.config.manifest import read_layout
 from torve.domain.attempt import SizeVerdict
 from torve.domain.spec import ChangeType, Corpus, Document, Phase, document_id, number_of
-from torve.domain.task import InheritedDecision, Scope, Task
+from torve.domain.task import DISPATCHABLE_ROLES, InheritedDecision, Scope, Task
 from torve.domain.vocabulary import GRADES
 
 if TYPE_CHECKING:
@@ -409,7 +409,9 @@ def _already_minted(
     store holds the tasks (S-0056/D-9); the files count either way.
 
     *phases* None is every phase: what `after` names is a whole document, so
-    the edge names every task minted from it (S-0085/D-2, S-0085/D-5)."""
+    the edge names every task minted from it (S-0085/D-2, S-0085/D-5). A
+    review or draft record is not one: a run mints it and concludes it, so it
+    is neither work to mint twice nor a landing to wait on (S-0085/A-1)."""
 
     clashes: list[str] = []
     wanted = document_of(document)
@@ -417,7 +419,7 @@ def _already_minted(
     for view in board.tasks.values() if board is not None else []:
         contract = view.contract
 
-        if contract is None or not contract.spec:
+        if contract is None or not contract.spec or contract.role not in DISPATCHABLE_ROLES:
             continue
 
         if phases is not None and contract.phase not in phases:
@@ -442,6 +444,9 @@ def _already_minted(
             continue
 
         record = cast("dict[str, Any]", raw)
+
+        if record.get("role", "implement") not in DISPATCHABLE_ROLES:
+            continue
 
         minted = document_of(str(record.get("spec") or ""))
 

@@ -985,8 +985,9 @@ different thing from the header's `depends_on`: `depends_on` is decision
 inheritance, `after` is the landed tree this document's work builds on. A
 document may name another in both, in either, or in neither. `torve plan`
 turns `after` into contract `depends_on`: every task of a phase with no
-predecessor inside the document waits on every task minted from each named
-document. A named document that is not accepted, or that has no minted tasks
+predecessor inside the document waits on every implement, verify and revert
+task minted from each named document. Its review and draft records never land,
+so no edge names them. A named document that is not accepted, or that has no minted tasks
 yet, refuses the plan by name; one whose implementation is already complete
 has landed and adds no edge. `after` names documents, never phases — a
 dependent waits for the whole of the one it names.

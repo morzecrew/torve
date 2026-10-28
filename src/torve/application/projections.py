@@ -234,7 +234,8 @@ def cross_document_waits(
     which document's landing the wait is on, and so which pull request to look
     at, rather than task ids to resolve by hand.
 
-    *landed* is what has landed already; a dependency in it is no wait."""
+    *landed* is what has landed already; a dependency in it is no wait, and
+    neither is a review or draft record, which never lands (S-0085/A-1)."""
 
     tasks_dir = root / layout.TORVE_DIR / "tasks"
     spec_of: dict[str, str] = {}
@@ -243,7 +244,7 @@ def cross_document_waits(
     for contract in sorted(tasks_dir.glob("T-*/contract.yaml")) if tasks_dir.is_dir() else []:
         record = _load_yaml_dict(contract)
 
-        if record is None:
+        if record is None or record.get("role", "implement") not in DISPATCHABLE_ROLES:
             continue
 
         task_id = str(record.get("id", contract.parent.name))

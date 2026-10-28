@@ -22,10 +22,11 @@ decisions:
     grade: ASSUMED
     text: >-
       `torve plan` turns `after` into contract `depends_on`: every task of the document's
-      phases with no in-document predecessor depends on every task minted from each
-      named document; a named document with no minted tasks refuses the plan by name,
-      one that is not accepted refuses as `depends_on` does, and one whose implementation
-      is complete adds no edge
+      phases with no in-document predecessor depends on every implement, verify or
+      revert task minted from each named document, never on its review or draft records,
+      which a run mints and concludes and which never land; a named document with
+      no minted tasks refuses the plan by name, one that is not accepted refuses as
+      `depends_on` does, and one whose implementation is complete adds no edge
     paths: [src/torve/application/planner.py, tests/test_plan.py]
     consequence: >-
       nothing downstream learns a new word — the board, the worker, the lane and every
@@ -36,6 +37,7 @@ decisions:
       ids; what was missing was a writer for it, and one refusal so that a dependency
       nobody planned is named at plan time rather than found as a task nobody can
       satisfy
+    fingerprint: b73efee889fa7869/4da4143811b3eaa1
   - id: D-3
     grade: ASSUMED
     text: >-
