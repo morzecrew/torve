@@ -58,4 +58,11 @@ How to write a divergence entry lives in working-rules, matching `torve log dive
 - Paths: `skills/working-rules/**` `skills/flag-dont-flip/**`
 - Consequence: the two skills an executing agent reads cannot contradict each other on the log
 
+### S-0115/D-8 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+The working rules and the spec-writer skill tell an implementer to cite, in each test's docstring, the row it proves, and `pages/docs/operating.md` documents the gate and the table's columns.
+
+- Paths: `skills/working-rules/SKILL.md` `skills/spec-writer/SKILL.md` `pages/docs/operating.md`
+- Consequence: the citations the gate reads are written on purpose rather than by habit
+
 <!-- /torve:managed -->

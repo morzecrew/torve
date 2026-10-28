@@ -355,6 +355,41 @@ An invariant gate whose check selects no test fails as "the check selected nothi
 - Paths: `src/torve/gates/runner.py`
 - Consequence: a stale `-k` selection reads as stale, not as a broken rule
 
+### S-0115/D-1 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+A test function proves a row when its own source, docstring, comments and body, carries the row's full identifier as a whole token. A module or class docstring proves nothing on its functions' behalf, and only test functions that differ from the base tree as parsed syntax qualify.
+
+- Paths: `src/torve/gates/row_evidence.py`
+- Consequence: the tests already citing rows become evidence without a new convention, and one citation at the top of a file cannot vouch for every test in it
+
+### S-0115/D-2 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+A builtin gate `evidence` runs each row's citing functions against the base tree, built as `red-on-base` builds it, and against the candidate. A row is proved when one of its citing functions is red on base and green on the candidate. A row that carries a `check` is judged by its own decision gate, and `evidence` does not run it.
+
+- Paths: `src/torve/gates/row_evidence.py` `src/torve/gates/__init__.py` `src/torve/config/manifest.py`
+- Consequence: a row counts as proved only by a test the change had to turn green
+
+### S-0115/D-3 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+A row is behavioural unless every one of its paths is documentation, a `*.md` file or a path under `pages/`. `evidence` fails when a behavioural row is unproved and carries no `check`, naming each such row, and skips when the battery carries no behavioural row. It enters at shadow.
+
+- Paths: `src/torve/gates/row_evidence.py`
+- Consequence: an unproved requirement is named in every battery that carries it, without blocking a landing until the gate's record earns it
+
+### S-0115/D-4 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+`evidence` names a sabotage case and its twin: a behavioural row whose only citing test passes on base fails, and the same row with a citing test red on base passes.
+
+- Paths: `src/torve/gates/sabotage.py`
+- Consequence: `torve gates check` proves the gate can fail before any manifest names it
+
+### S-0115/D-9 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+`evidence` runs in every battery that carries a behavioural row, an attempt's as well as the whole document's, and skips in a verify attempt's battery, where `verify-tests` judges. In an implement attempt the test functions of the verifier's file the contract denies it count as changed, and run on the attempt's base tree and on the candidate.
+
+- Paths: `src/torve/gates/row_evidence.py`
+- Consequence: a row the verifier's tests prove reads as proved on the attempt that turns them green, and a verify attempt, whose tests are red by design, names no row
+
 ### S-0116/D-10 — `ASSUMED` (An independent verifier)
 
 The runner hands a battery's gate context the files of the latest `verify.holdout` event on the task's implement task. A builtin `held-out` writes them into the gate checkout under `<tests_dir>/holdout/`, runs only them and removes them when it ends, so no other gate collects or reports them; its output keeps only each failing test's identifier, message and cited rows, and with no files in that event it is skipped.

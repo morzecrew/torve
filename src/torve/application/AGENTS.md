@@ -2221,6 +2221,34 @@ Each battery removes its judge checkout and ref when it ends, green or red: the 
 - Paths: `src/torve/application/runner.py` `src/torve/application/lane.py` `src/torve/application/reaper.py`
 - Consequence: a judge checkout outlives no battery, and no reap removes one a battery is reading
 
+### S-0115/D-5 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+After the whole-document battery, the lane joins per row the `evidence` verdict and tests, the `decision:<id>` outcome, the mutation survivors whose path matches the row's paths, and the review findings recorded on the document's tasks whose evidence path matches them.
+
+- Paths: `src/torve/application/evidence_matrix.py` `src/torve/application/lane.py`
+- Consequence: one table answers, row by row, what proves it and what argues against it
+
+### S-0115/D-6 — `OPEN` (Every decision shows its evidence) — implementation: none
+
+How the joined table reaches the pull request's composer: a host file keyed by the branch tip, the battery's result threaded to the publisher, or a record. The body never carries a table measured on another tip.
+
+- Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: the implementer picks the carrier the lane's existing ports make cheapest
+
+### S-0115/D-7 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+The document pull request's decisions table gains columns for the tests that prove each row, its check, its survivors and its findings when a joined table exists for the tip it publishes; without one the table stays as it is.
+
+- Paths: `src/torve/application/forge.py`
+- Consequence: the owner accepts requirement by requirement, and a repository whose manifest has no `evidence` entry sees no change
+
+### S-0115/D-10 — `ASSUMED` (Every decision shows its evidence) — implementation: none
+
+The review prompt shows, under each inherited row, the `evidence` gate's reading of it from a passing or a failing result: the citing tests that proved it, or that none did. It asks of each proving test whether the test exercises what the row says; one that does not is a finding at `major`. An unproved row is never a finding by itself, and a battery with no `evidence` result leaves the prompt as it is.
+
+- Paths: `src/torve/application/review.py`
+- Consequence: a citation that proves nothing is read by the engine's reviewer on the attempt, before the owner meets it in the table
+
 ### S-0116/D-1 — `ASSUMED` (An independent verifier)
 
 `verify` is a role in the closed vocabulary and a dispatchable one. A verify contract carries acceptance commands and no targets, and the reaper keeps a verify task's worktree as it keeps an implement task's.
