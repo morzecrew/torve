@@ -87,7 +87,7 @@ class RowEvidence:
     """One carried row's verdict, as `evidence_reading` reads it back."""
 
     row: str
-    """The row's global identifier, `S-NNNN/D-n`."""
+    """The row's global identifier, exactly as the battery names it."""
     state: str
     """`pass`, `fail`, `check` or `documentation`."""
     tests: tuple[str, ...] = ()
