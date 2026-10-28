@@ -222,7 +222,8 @@ def _citations(
 
     if ctx.task is not None and ctx.task.role == "implement":
         for path in ctx.task.scope.deny:
-            candidate = ctx.root / path
+            # A rooted entry (`/tests/verify/...`) names the same file.
+            candidate = ctx.root / path.lstrip("/")
 
             if not candidate.is_file():
                 continue
@@ -230,7 +231,7 @@ def _citations(
             for function in (
                 _test_functions(candidate.read_text(encoding="utf-8", errors="replace")) or {}
             ).values():
-                add(path, function)
+                add(path.lstrip("/"), function)
 
     return found
 
@@ -314,13 +315,11 @@ def check_evidence(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         return BuiltinOutcome("skipped", "no base is resolvable; there is no base tree to run on")
 
     patterns = ctx.manifest.tests.patterns
-
-    if not patterns:
-        return BuiltinOutcome("skipped", "no test patterns configured; nothing to parse")
-
     judged = [row for row in behavioural if not row.check]
     carried = {row.id for row in judged}
-    citations = _citations(ctx, spec(patterns), carried)
+    # No test patterns find no citing test, so every unchecked row is unproved
+    # and named (S-0115/D-3) rather than skipped.
+    citations = _citations(ctx, spec(patterns), carried) if patterns else {}
 
     by_row: dict[str, list[str]] = {}
 
@@ -352,6 +351,17 @@ def check_evidence(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             )
 
         base_codes = _results(base.output)
+
+        # A run that stopped before its steps (the archive or the `cd` failed)
+        # prints fewer markers than tests: an infrastructure failure, never a
+        # verdict that no test was red on base.
+        if len(base_codes) != len(nodes):
+            return BuiltinOutcome(
+                "error",
+                f"the base tree run reported {len(base_codes)} of {len(nodes)} tests\n"
+                + base.output,
+            )
+
         red = [node for index, node in enumerate(nodes) if base_codes.get(index) not in (0, None)]
 
         if red:
@@ -370,6 +380,13 @@ def check_evidence(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
                 )
 
             green = _results(candidate.output)
+
+            if len(green) != len(red):
+                return BuiltinOutcome(
+                    "error",
+                    f"the candidate run reported {len(green)} of {len(red)} tests\n"
+                    + candidate.output,
+                )
             proved = {node for index, node in enumerate(red) if green.get(index) == 0}
 
     lines: list[str] = []

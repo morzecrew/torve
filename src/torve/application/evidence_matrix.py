@@ -60,6 +60,9 @@ class RowRecord:
     findings: tuple[str, ...] = ()
     """Review findings on the document's tasks whose evidence falls under the
     row's paths, by claim."""
+    paths: tuple[str, ...] = ()
+    """The row's paths as the judged tree declared them, so the publisher
+    matches findings against the rows the battery carried, not the host's."""
 
 
 # ....................... #
@@ -149,25 +152,22 @@ def join(
                     survivor for survivor in survivors if matches(_line_path(survivor), row_paths)
                 ),
                 findings=_findings_under(recorded, row_paths),
+                paths=tuple(row_paths),
             )
         )
 
     return joined
 
 
-def with_findings(
-    table: Sequence[RowRecord], rows: Iterable[InheritedDecision], findings: Iterable[Finding]
-) -> list[RowRecord]:
+def with_findings(table: Sequence[RowRecord], findings: Iterable[Finding]) -> list[RowRecord]:
     """*table* with each row's findings column read from *findings*, the
-    ones whose evidence falls under the row's paths. The publisher joins them
-    at compose time, from the board, so the lane carries none."""
+    ones whose evidence falls under the paths the row carried. The publisher
+    joins them at compose time, from the board, so the lane carries none."""
 
-    paths = {row.id: list(row.paths) for row in rows}
     recorded = list(findings)
 
     return [
-        replace(entry, findings=_findings_under(recorded, paths.get(entry.row, [])))
-        for entry in table
+        replace(entry, findings=_findings_under(recorded, list(entry.paths))) for entry in table
     ]
 
 
@@ -264,6 +264,7 @@ def record_table(root: Path, tip: str, document: str, rows: Sequence[RowRecord])
                         "check": row.check,
                         "survivors": list(row.survivors),
                         "findings": list(row.findings),
+                        "paths": list(row.paths),
                     }
                     for row in rows
                 ],
@@ -285,6 +286,7 @@ def _record(item: dict[str, Any]) -> RowRecord:
         findings=tuple(
             str(finding) for finding in cast("list[object]", item.get("findings") or [])
         ),
+        paths=tuple(str(path) for path in cast("list[object]", item.get("paths") or [])),
     )
 
 

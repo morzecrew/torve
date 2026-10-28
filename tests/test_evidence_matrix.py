@@ -70,6 +70,7 @@ def test_the_join_reads_evidence_checks_survivors_and_findings_per_row():
         tests=("tests/test_lane.py::test_the_join",),
         survivors=("src/torve/application/lane.py:120 — replaced the tip",),
         findings=("the join drops a row",),
+        paths=("src/torve/application/lane.py",),
     )
     assert by_row["S-0115/D-6"].state == "fail"
     assert by_row["S-0115/D-6"].tests == ()
@@ -86,7 +87,14 @@ def test_a_battery_with_no_evidence_result_has_no_table():
 
 
 def test_the_table_is_keyed_by_the_tip_it_was_measured_on(tmp_path: Path):
-    measured = [RowRecord(row="S-0115/D-5", state="pass", tests=("tests/test_lane.py::test_one",))]
+    measured = [
+        RowRecord(
+            row="S-0115/D-5",
+            state="pass",
+            tests=("tests/test_lane.py::test_one",),
+            paths=("src/torve/application/lane.py",),
+        )
+    ]
 
     record_table(tmp_path, "a" * 40, "S-0115", measured)
 
@@ -97,8 +105,9 @@ def test_the_table_is_keyed_by_the_tip_it_was_measured_on(tmp_path: Path):
 
 def test_the_publisher_joins_the_boards_findings_per_row():
     """S-0115/D-5, D-6: the findings column comes off the board's review
-    records at compose time, matched to each row's paths, and only the
-    document's own tasks count; the lane's file carries none (S-0099/D-6)."""
+    records at compose time, matched to the paths each row carried in the
+    table, and only the document's own tasks count; the lane's file carries
+    none (S-0099/D-6)."""
 
     import uuid
     from datetime import UTC, datetime
@@ -139,14 +148,10 @@ def test_the_publisher_joins_the_boards_findings_per_row():
     assert [finding.claim for finding in findings] == ["the join drops a row"]
 
     measured = [
-        RowRecord(row="S-0115/D-5", state="pass"),
-        RowRecord(row="S-0115/D-7", state="pass"),
+        RowRecord(row="S-0115/D-5", state="pass", paths=("src/torve/application/lane.py",)),
+        RowRecord(row="S-0115/D-7", state="pass", paths=("src/torve/application/forge.py",)),
     ]
-    rows = [
-        row("S-0115/D-5", ["src/torve/application/lane.py"]),
-        row("S-0115/D-7", ["src/torve/application/forge.py"]),
-    ]
-    joined = with_findings(measured, rows, findings)
+    joined = with_findings(measured, findings)
 
     assert joined[0].findings == ("the join drops a row",)
     assert joined[1].findings == ()

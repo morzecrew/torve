@@ -52,6 +52,7 @@ from torve.domain.events import EventKind, EventRecord, HoldoutFile, VerifyHoldo
 from torve.domain.states import EscalationReason, TaskState
 
 if TYPE_CHECKING:
+    from torve.domain.task import InheritedDecision
     from torve.gates.context import GateContext
     from torve.gates.runner import RunReport
 
@@ -1334,6 +1335,7 @@ def _completion_battery(
         return tip, "the document branch could not be checked out"
 
     outcome: object = ()
+    judged: list[InheritedDecision] = []
 
     try:
         if holdout is not None:
@@ -1343,6 +1345,7 @@ def _completion_battery(
                 tip = committed
 
         outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
+        judged = _judged_rows(workdir, document)
 
     finally:
         vcs.remove_worktree(root, workdir)
@@ -1353,7 +1356,7 @@ def _completion_battery(
     # S-0115/D-5: the joined table for this tip, carried to the publisher that
     # composes the document's pull request (D-6).
     if results:
-        _record_evidence(root, document, tip, results)
+        _record_evidence(root, document, tip, results, judged)
 
     return tip, summary if exit_code != 0 else None
 
@@ -1370,16 +1373,28 @@ def _unpack(outcome: object) -> tuple[int, str]:
     return exit_code, summary
 
 
-def _record_evidence(root: Path, document: str, tip: str, results: list[GateResult]) -> None:
-    """Join the whole-document battery's readings into one table and record it
-    against the tip it measured (S-0115/D-5). A battery with no `evidence`
-    result records nothing, so the body stays as it was (D-7). The review
-    findings are the publisher's to join from the board it holds: the lane
-    opens no store and reads no stream (S-0099/D-6)."""
+def _judged_rows(workdir: Path, document: str) -> list[InheritedDecision]:
+    """The document's rows as the tree the battery judged declares them, read
+    before the checkout goes: the battery carried those (`_document_inputs`
+    reads the same tree), and the host's corpus can lag the branch."""
 
-    from torve.application.evidence_matrix import document_decisions, join, record_table
+    from torve.application.evidence_matrix import document_decisions
 
-    rows = join(document_decisions(root, document), results)
+    return document_decisions(workdir, document)
+
+
+def _record_evidence(
+    root: Path, document: str, tip: str, results: list[GateResult], judged: list[InheritedDecision]
+) -> None:
+    """Join the whole-document battery's readings with the rows it *judged*
+    into one table and record it against the tip it measured (S-0115/D-5). A
+    battery with no `evidence` result records nothing, so the body stays as it
+    was (D-7). The review findings are the publisher's to join from the board
+    it holds: the lane opens no store and reads no stream (S-0099/D-6)."""
+
+    from torve.application.evidence_matrix import join, record_table
+
+    rows = join(judged, results)
 
     if rows:
         record_table(root, tip, document, rows)
@@ -2509,9 +2524,12 @@ def _rebase_document(
 
     outcome: object = ()
 
+    judged: list[InheritedDecision] = []
+
     try:
         _restate_landings(workdir, base)
         outcome = _regate(workdir, base, None, gates)
+        judged = _judged_rows(workdir, document)
 
     finally:
         vcs.remove_worktree(root, workdir)
@@ -2532,7 +2550,7 @@ def _rebase_document(
 
     if isinstance(outcome, _Regate) and outcome.results:
         # S-0115/D-5: the table is the one measured on the tip about to publish.
-        _record_evidence(root, document, rebased, outcome.results)
+        _record_evidence(root, document, rebased, outcome.results, judged)
     reference = _publish(root, publish, tasks[-1], branch, rebased, results)
 
     if reference is None:

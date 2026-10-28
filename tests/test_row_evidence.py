@@ -203,12 +203,15 @@ def test_a_row_with_a_check_is_not_run_by_evidence(repo, evidence):
 # attempt's battery skips.
 
 
-def test_the_verifier_file_the_contract_denies_counts_as_changed(repo, evidence):
+@pytest.mark.parametrize("denied", ["tests/test_app.py", "/tests/test_app.py"])
+def test_the_verifier_file_the_contract_denies_counts_as_changed(repo, evidence, denied):
+    """A rooted deny entry names the same file as a relative one."""
+
     _landed_test(
         repo,
         RED_TEST,
         [_row("S-0001/D-1", ["src/**"])],
-        deny=["tests/test_app.py"],
+        deny=[denied],
     )
 
     outcome = evidence(GATE, context_for(repo))
@@ -305,3 +308,39 @@ def test_evidence_reading_parses_each_rows_verdict():
 
 def test_a_skipped_battery_reads_as_no_rows():
     assert row_evidence.evidence_reading("no behavioural row") == []
+
+
+# ....................... #
+# A run that stopped early, and a manifest with no test patterns.
+
+
+def test_a_base_run_that_stops_before_its_tests_is_an_error_not_a_verdict(
+    repo, evidence, monkeypatch
+):
+    """No markers from the base run is an infrastructure failure: it never reads
+    as "no citing test was red on the base tree"."""
+
+    _changed(repo, RED_TEST, [_row("S-0001/D-1", ["src/**"])])
+    monkeypatch.setattr(row_evidence, "SCRIPT", "exit 90\n")
+
+    outcome = evidence(GATE, context_for(repo))
+
+    assert outcome.outcome == "error", outcome.output
+    assert "reported 0 of 1 tests" in outcome.output
+
+
+def test_no_test_patterns_name_every_unchecked_row_unproved(repo, evidence):
+    """S-0115/D-3: with no test patterns no test can cite a row, so an
+    unchecked behavioural row is unproved and named rather than skipped."""
+
+    import dataclasses
+
+    _changed(repo, RED_TEST, [_row("S-0001/D-1", ["src/**"])])
+    ctx = context_for(repo)
+    tests = ctx.manifest.tests.model_copy(update={"patterns": []})
+    ctx = dataclasses.replace(ctx, manifest=ctx.manifest.model_copy(update={"tests": tests}))
+
+    outcome = evidence(GATE, ctx)
+
+    assert outcome.outcome == "fail", outcome.output
+    assert "row S-0001/D-1: fail — no test cites the row" in outcome.output

@@ -171,12 +171,7 @@ def _document_pr_text(
     from any host, and a host whose stream is empty lists the same results.
     """
 
-    from torve.application.evidence_matrix import (
-        board_findings,
-        document_decisions,
-        read_table,
-        with_findings,
-    )
+    from torve.application.evidence_matrix import board_findings, read_table, with_findings
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import carried_landings, carried_tasks, contract_file
     from torve.application.projections import rows_from_events
@@ -210,9 +205,7 @@ def _document_pr_text(
     table = read_table(root, tip or "")
 
     if table:
-        table = with_findings(
-            table, document_decisions(root, document), board_findings(records, task_ids)
-        )
+        table = with_findings(table, board_findings(records, task_ids))
 
     title, body = compose_document_pr(document, landings, root, table)
 
