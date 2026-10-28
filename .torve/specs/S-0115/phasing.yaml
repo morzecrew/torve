@@ -5,13 +5,17 @@ phasing:
     intent: >-
       Add the builtin `evidence` gate in `src/torve/gates/row_evidence.py`, registered
       in `BUILTINS` with its input kind and timeout in `src/torve/config/manifest.py`:
-      it reads the changed test functions that cite a row the battery carries, runs
-      them on the base tree and the candidate, and fails, naming each behavioural
-      row with no proving test and no check. Add its sabotage case and twin. No manifest
-      entry: the completion pull request adds it. Tests: citation matching, the red-on-base
-      and green-on-candidate rule, the documentation exemption and the skip (`tests/test_row_evidence.py`);
-      the registry (`tests/test_gates.py`, `tests/test_manifest.py`); the case and
-      twin (`tests/test_sabotage.py`). Settles D-1 to D-4.
+      it reads the changed test functions that cite a row the battery carries, and
+      in an implement attempt the verifier's file the contract denies it, runs them
+      on the base tree and the candidate, and fails, naming each behavioural row with
+      no proving test and no check; a verify attempt's battery skips it. It reports
+      one line per row whether it passes or fails, and `evidence_reading` in the same
+      module parses one result back to rows for the lane and the review. Add its sabotage
+      case and twin. No manifest entry: the completion pull request adds it. Tests:
+      citation matching, the red-on-base and green-on-candidate rule, the verifier's
+      file, the verify skip, the documentation exemption, the skip and the reading
+      (`tests/test_row_evidence.py`); the registry (`tests/test_gates.py`, `tests/test_manifest.py`);
+      the case and twin (`tests/test_sabotage.py`). Settles D-1 to D-4 and D-9.
     scope:
       - src/torve/gates/row_evidence.py
       - src/torve/gates/__init__.py
@@ -75,4 +79,21 @@ phasing:
       - uv run torve spec check
     depends_on:
       - 2
+    character: routine
+  - phase: 4
+    title: The reviewer reads each row's evidence
+    intent: >-
+      `build_review_prompt` in `src/torve/application/review.py` shows, under each
+      inherited row, the `evidence` gate's reading from `evidence_reading`: the tests
+      that proved the row, or that none did. It asks of each proving test whether
+      it exercises what its row says, at `major`. A battery with no `evidence` result
+      leaves the prompt as today. Tests: the prompt from a passing and a failing result
+      and with none (`tests/test_review_run.py`). Settles D-10.
+    scope: [src/torve/application/review.py, tests/test_review_run.py]
+    acceptance:
+      - uv run pytest tests/test_review_run.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
     character: routine

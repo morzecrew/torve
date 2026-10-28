@@ -8,7 +8,7 @@ change:
 status: draft
 implementation: none
 depends_on: []
-informed_by: [S-0054, S-0057, S-0081, S-0106, S-0107, S-0113]
+informed_by: [S-0054, S-0057, S-0081, S-0106, S-0107, S-0113, S-0114, S-0116]
 supersedes: []
 superseded_by: null
 owner: Lev Litvinov
@@ -16,29 +16,35 @@ schema_version: 4
 summary: |-
   A document's pull request shows, decision by decision, the tests that prove each row and how they behaved on the base tree and on the candidate, so the owner accepts requirement by requirement instead of on one green battery.
 
-  A new shadow gate, `evidence`, finds the changed test functions that cite a row and runs them against the base tree and the candidate. After the whole-document battery the lane joins that with each row's check, the mutation survivors in the row's paths and the review findings on them, and the document's pull request carries the result in its decisions table. A behavioural row with no proving test and no check fails the gate, in shadow.
+  A new shadow gate, `evidence`, finds the changed test functions that cite a row and runs them against the base tree and the candidate. After the whole-document battery the lane joins that with each row's check, the mutation survivors in the row's paths and the review findings on them, and the document's pull request carries the result in its decisions table. A behavioural row with no proving test and no check fails the gate, in shadow. The engine's reviewer reads the same per-row evidence on every attempt and asks whether each proving test exercises its row.
 motivation: |-
-  Requirements-based verification asks, for every requirement, which test shows it holds and whether that test needed the change. torve's rows are its requirements, and its tests already name them: 94 of the 101 files under `tests/` cite a row, 650 distinct rows in all. Nothing reads those citations. The document pull request lists the rows and each landing's gate verdicts, and a green battery says the suite passed, not that each row has a test that the change had to turn green.
+  Requirements-based verification asks, for every requirement, which test shows it holds and whether that test needed the change. torve's rows are its requirements, and its tests already name them: 97 of the 105 files under `tests/` cite a row, 685 distinct rows in all. Nothing reads those citations. The document pull request lists the rows and each landing's gate verdicts, and a green battery says the suite passed, not that each row has a test that the change had to turn green.
 
-  `red-on-base` asks the nearest question and rarely answers it. It convicts only when every changed test passes on the base tree, so one red test clears every other. Of its 166 recorded runs since 2026-09-17, 150 passed, 16 skipped and none failed. Only 21 of the corpus's 554 rows carry a `check`.
+  `red-on-base` asks the nearest question and rarely answers it. It convicts only when every changed test passes on the base tree, so one red test clears every other. Of its 166 recorded runs from 2026-09-17 to 2026-10-19, 150 passed, 16 skipped and none failed. Only 21 of the corpus's 580 standing rows carry a `check`, and none is blocking.
 
   On 2026-10-19 two attempts of S-0113 passed `spec-valid` by writing the file the scan trusted. The battery was green, and nothing in the pull request showed which of S-0113's rows a test had actually proved.
+
+  The engine's reviewer is told each gate's outcome, each row's check and the mutation survivors beside the rows that cover them, never which test proves which row. A test that cites a row it does not exercise reaches the owner unread.
 current_state: |-
   - The citation scan reads the source root, `pages/` and every `AGENTS.md`, `CLAUDE.md` and `README.md`; tests are not scanned (S-0057/D-9, LOCKED).
   - `red-on-base` (S-0081) extracts the base tree with `git archive`, copies the changed test files over it and runs them; its input is the test functions that differ from base as parsed syntax (S-0081/D-2, LOCKED). It stays shadow.
   - A row with a `check` runs as a `decision:<id>` gate the runner appends (S-0054/D-2, LOCKED), shadow until an amendment promotes it (S-0054/D-4, LOCKED).
-  - The `mutation` gate (S-0107) reports survivors as `path:line — operator`. In every one of its 36 recorded attempt-battery runs it skipped.
-  - The whole-document battery (S-0093, S-0106/D-2) runs in the lane over the document branch tip with the document's rows as `ctx.inherited` (`_document_inputs` in `src/torve/application/lane.py`) and returns a one-line summary.
+  - The `mutation` gate (S-0107) reports survivors as `path:line — operator`. In every one of its 36 attempt-battery runs recorded to 2026-10-19 it skipped.
+  - The whole-document battery (S-0093, S-0106/D-2) runs in the lane with the document's rows as `ctx.inherited` (`_document_inputs` in `src/torve/application/lane.py`), in a gates sandbox over a judge checkout of the branch tip (S-0114/D-3), and returns a one-line summary.
+  - Under `promotion.unit: document` an attempt's battery diffs against the document branch tip, not `main` (`_cut_from` in `src/torve/application/runner.py`, S-0083/D-9).
+  - With S-0116's pilot on, a verify task lands a phase's tests first, citing its rows, and the implement task is denied that file (S-0116/D-5). `verify-tests` judges the verify attempt (S-0116/D-11). `held-out` names the rows of failing hidden tests only, and skips in a battery that runs under no task (S-0116/D-10).
+  - The review prompt lists each inherited row with its `check` and `check_twin` (S-0106/D-5), each gate's outcome, and the mutation survivors beside the rows that cover them (S-0107/D-4).
   - `compose_document_pr` in `src/torve/application/forge.py` writes the rows once as a table of id, grade and text, then each landing's gates line and divergences.
   - Every gate names a sabotage twin (S-0055/D-15, LOCKED), and `gates` imports only `domain`, `base` and `config` (S-0055/D-24, LOCKED).
 goals: |-
   - For every row a document defines, its pull request shows the tests that prove it, whether each was red on base and green on the candidate, the row's check verdict, and the survivors and findings in its paths.
   - A behavioural row with neither a proving test nor a check shows as a shadow failure, named.
   - The evidence comes from gate runs on the tree, never from the implementer's own report.
+  - The engine's reviewer reads each row's evidence on the attempt and asks whether each proving test exercises its row.
 non_goals: |-
   - `spec check` validating citations in tests (Q-2).
   - Making `evidence` blocking; that is a later amendment with soak evidence, as S-0054/D-4 asks of a check.
-  - Who writes the tests. An independent test author is the subject of the verifier document drafted beside this one.
+  - Who writes the tests. An independent test author is S-0116's subject; this document reads its tests as evidence like any other.
 design:
   - key: a-test-names-its-row
     md: |-
@@ -49,7 +55,17 @@ design:
     md: |-
       A builtin gate, `evidence`, runs each row's citing functions twice: on the base tree, built as `red-on-base` builds it, and on the candidate. A row is proved when one of its citing functions is red on base and green on the candidate. A row that carries a `check` is judged by its own decision gate, and `evidence` does not run it again.
 
-      A row is behavioural unless every one of its paths is documentation: a `*.md` file, or a path under `pages/`. The gate fails, in shadow, when a behavioural row is unproved and carries no `check`, and names each such row. Its output is one line per row, which the lane reads back. A battery whose rows are all documentation skips.
+      A row is behavioural unless every one of its paths is documentation: a `*.md` file, or a path under `pages/`. The gate fails, in shadow, when a behavioural row is unproved and carries no `check`, and names each such row. Its output is one line per row, passing or failing, which the lane and the review read back. A battery whose rows are all documentation skips.
+  - key: the-verifiers-tests
+    md: |-
+      `evidence` runs in every battery. An attempt's battery diffs against the document branch tip, and with S-0116's pilot on, the verifier's file is already there when the implement attempt runs. Under D-1 alone those tests are unchanged and would not count, so every row they prove would read as unproved on exactly the attempts the pilot covers.
+
+      So in an implement attempt, the test functions of the verifier's file the contract denies it count as changed. They run on the attempt's base tree, where they landed red, and on the candidate. A verify attempt's tests are red by design, and `verify-tests` already judges them, so `evidence` skips there. The whole-document battery diffs against `main` and needs no exception: the verifier's tests are changed there like any other.
+  - key: the-reviewer-reads-it
+    md: |-
+      The review prompt already carries each inherited row's check and the mutation survivors beside the rows that cover them. It gains, under each row, the `evidence` reading: the tests that proved it, or that none did. The reviewer is asked of each proving test whether it exercises what the row says. A test that cites a row it never reaches is a finding at `major`, the severity S-0106/D-5 gives a check that does not test its row.
+
+      An unproved row is not a finding by itself, because the gate already names it. The point is the other direction: a row the gate counts as proved on a citation alone.
   - key: the-table
     md: |-
       After the whole-document battery, the lane joins, row by row: the `evidence` verdict and its tests, the row's `decision:<id>` outcome, the mutation survivors whose path matches the row's paths, and the review findings whose evidence path matches them.
@@ -68,6 +84,8 @@ tests: |-
   - The sabotage case fails and its twin passes under `torve gates check` (D-4).
   - The join pairs each row with its decision gate, the survivors and findings in its paths, and nothing outside them (D-5).
   - The composed body carries the evidence columns for a table measured on the tip it publishes, and today's table when there is none or it was measured on another tip (D-6, D-7).
+  - In an implement attempt, a test of the verifier's file the contract denies proves its row when it is red on base and green on the candidate; a verify attempt's battery skips `evidence` (D-9).
+  - The review prompt shows each row's proving tests, or that none did, from a passing and from a failing `evidence` result, with the question on each proving test; a battery with no `evidence` result leaves the prompt as today (D-10).
 docs: >-
   `pages/docs/operating.md` describes the `evidence` gate and the decisions table's
   evidence columns. The working rules and the spec-writer skill say to cite, in each
@@ -75,10 +93,11 @@ docs: >-
 out_of_scope: |-
   - Validating citations in tests (Q-2).
   - Promoting `red-on-base` (Q-1).
-  - An independent test author, drafted as its own document.
+  - An independent test author: S-0116.
+  - `held-out` results as evidence. The gate names rows only when a hidden test fails, and it skips in the whole-document battery, which runs under no task.
 risks: |-
   - `evidence` runs every citing test twice, once on a fresh base tree. On a document with many rows it is the dearest gate after `mutation`; its timeout matches `red-on-base`'s.
-  - A test that cites a row it does not exercise is counted as evidence when it happens to be red on base. The red-on-base requirement makes an incidental citation rare, and the reviewer reads the table.
+  - A test that cites a row it does not exercise is counted as evidence when it happens to be red on base. The red-on-base requirement makes an incidental citation rare, the engine's reviewer asks of each proving test whether it exercises its row (D-10), and the owner reads the table.
   - A flaky test can prove a row on one run and not the next. The gate is shadow until its record shows otherwise.
 alternatives:
   - option: >-
@@ -120,3 +139,5 @@ questions:
       battery? In an attempt it tells the implementer early that a row has no proving
       test, at the cost of a base run of the citing tests per attempt. Lean: every
       battery, since it is shadow either way.
+    status: settled
+    settled_by: D-9

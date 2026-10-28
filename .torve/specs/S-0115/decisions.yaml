@@ -107,3 +107,39 @@ decisions:
       - pages/docs/operating.md
     consequence: >-
       the citations the gate reads are written on purpose rather than by habit
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `evidence` runs in every battery that carries a behavioural row, an attempt's
+      as well as the whole document's, and skips in a verify attempt's battery, where
+      `verify-tests` judges. In an implement attempt the test functions of the verifier's
+      file the contract denies it count as changed, and run on the attempt's base
+      tree and on the candidate.
+    paths: [src/torve/gates/row_evidence.py]
+    consequence: >-
+      a row the verifier's tests prove reads as proved on the attempt that turns them
+      green, and a verify attempt, whose tests are red by design, names no row
+    rationale: >-
+      An attempt's battery diffs against the document branch tip, where the verifier's
+      file already sits when the implement attempt runs, so D-1 alone would skip the
+      tests the pilot exists to write.
+    cites: [D-1, S-0083/D-9, S-0116/D-5, S-0116/D-11]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The review prompt shows, under each inherited row, the `evidence` gate's reading
+      of it from a passing or a failing result: the citing tests that proved it, or
+      that none did. It asks of each proving test whether the test exercises what
+      the row says; one that does not is a finding at `major`. An unproved row is
+      never a finding by itself, and a battery with no `evidence` result leaves the
+      prompt as it is.
+    paths: [src/torve/application/review.py]
+    consequence: >-
+      a citation that proves nothing is read by the engine's reviewer on the attempt,
+      before the owner meets it in the table
+    rationale: >-
+      The reviewer already audits each check (S-0106/D-5) and grades the mutation
+      survivors beside the rows that cover them (S-0107/D-4). A proving test is the
+      same kind of claim, and a reviewer told which test proves which row reads the
+      test against the row instead of the suite's status.
+    cites: [S-0106/D-5, S-0107/D-4]
