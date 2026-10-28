@@ -572,3 +572,21 @@ def test_every_verb_the_operator_skill_names_exists():
             group = root.commands[first]
             if second and hasattr(group, "commands") and first != "guide":
                 assert second in group.commands, f"{first} {second}"
+
+
+def test_the_skills_tell_an_implementer_to_cite_the_row_a_test_proves():
+    """S-0115/D-8: the citations the `evidence` gate reads are written on
+    purpose — the working rules and the spec-writer skill both put the row's
+    full identifier in the test function's own docstring, as a whole token,
+    never in the module or class above it, and say the citation belongs in the
+    test the change turns green."""
+
+    for skill in ("working-rules", "spec-writer"):
+        raw = (skills_root() / skill / "SKILL.md").read_text(encoding="utf-8")
+        text = " ".join(raw.split())
+
+        assert "cites it in its own docstring" in text, skill
+        assert "the row's full identifier, `S-NNNN/D-n`, as a whole token" in text, skill
+        assert "A module or class docstring proves nothing for the tests beneath it" in text, skill
+        assert "red on the base tree and green on the candidate" in text, skill
+        assert "`evidence` gate" in text, skill

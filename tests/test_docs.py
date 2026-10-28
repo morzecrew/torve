@@ -221,3 +221,36 @@ def test_no_page_claims_the_retired_truth_boundary():
 
         assert "D-27, LOCKED" not in body, f"{page.name} still cites the retired boundary"
         assert "Derive, don't record" not in body, f"{page.name} still teaches derive-don't-record"
+
+
+def test_the_operating_guide_documents_the_evidence_gate_and_its_table():
+    """S-0115/D-8: the page an operator reads names the `evidence` gate — the
+    citation it reads, the base-red and candidate-green rule, the check and
+    documentation exemptions, the verify skip and its shadow state — and the
+    four columns the decisions table gains when a joined table exists for the
+    tip it publishes."""
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+    text = " ".join(guide.split())
+
+    # The gate: what proves a row, and what does not.
+    assert "`evidence` gate answers, row by row" in text
+    assert "carries the row's full identifier, `S-NNNN/D-n`, as a whole token" in text
+    assert "a module or class docstring above it proves nothing for the tests beneath it" in text
+    assert "only functions that differ from the base tree as parsed syntax count" in text
+    assert "red on the base and green on the candidate" in text
+    assert "A row carrying a `check` is judged by its own `decision:<id>` gate" in text
+
+    # The behavioural line, the skip and the shadow state.
+    assert "unless every path it declares is a `*.md` file or under `pages/`" in text
+    assert "**shadow**" in text
+    assert "In a verify attempt's battery it skips" in text
+    assert "the verifier's file the contract denies counts as changed" in text
+
+    # The joined table's four columns, and the body left alone without one.
+    assert "the decisions table gains four columns beside `Decision`, `Grade` and `Text`" in text
+    assert "`Tests`, the citing tests that proved the row or `none`" in text
+    assert "`Check`, the row's `decision:<id>` outcome or `none`" in text
+    assert "`Survivors`, the number of mutation survivors under its paths or `none`" in text
+    assert "`Findings`, the number of review findings recorded against it or `none`" in text
+    assert "Without a table for that tip the decisions table stays as it is today" in text
