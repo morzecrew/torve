@@ -158,7 +158,7 @@ tests: |-
     - off with no label;
     - one drafting run per pass, oldest labelling first;
     - skipped for a filed source, for a labeller who cannot triage, and for a title or body edit after labelling;
-    - `may_triage` asked once per account and only until an issue passes, and never for a filed or edited issue;
+    - `may_triage` asked once per account and only until an issue passes, and never for a filed, edited or unreadable issue; an issue the reader marked `unreadable` named with its reason, recorded as `issue_skipped`, and never reaching `draft`;
     - a reader error drafts nothing;
     - the source file's fields.
   - Phase 3, the pass: the leg runs after the standing leg and not while paused, in the manager and in the fleet (`tests/test_residency.py`, `tests/test_manager.py`, `tests/test_fleet_serve.py`). Also the configuration key and its schema (`tests/test_runconfig.py`, `tests/test_cli.py`).
