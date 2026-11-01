@@ -20,8 +20,8 @@ decisions:
     text: >-
       The leg drafts a labelled issue only when the account behind the last event
       that applied the label holds triage, write, maintain or admin on the repository,
-      and the body was not edited after that event. Any other labelled issue is skipped,
-      named in the leg's detail line, until someone labels it again.
+      and neither the title nor the body was edited after that event. Any other labelled
+      issue is skipped, named in the leg's detail line, until someone labels it again.
     paths: [src/torve/application/issues.py]
     consequence: >-
       an issue template that applies the label for its author, or an author who edits
@@ -37,9 +37,11 @@ decisions:
     text: >-
       The forge port reads, for each open issue carrying a label: its number, URL,
       title and body, the account and instant of the last event that applied the label,
-      the body's last edit, and whether that account holds triage or more. It reads
-      through `gh` with `scm.repo` and `scm.token_env`, as every `GhScm` read does,
-      and never writes.
+      and the later of the body's last edit and the last title rename. It pages the
+      issues until none is left, and a page it cannot read fails the whole read. A
+      second read answers whether one account holds triage or more, and the leg asks
+      it only about the issue it would draft next. Both read through `gh` with `scm.repo`
+      and `scm.token_env`, as every `GhScm` read does, and never write.
     paths: [src/torve/application/ports.py, src/torve/adapters/vcs/git.py]
     consequence: >-
       the credential is the host's: a sandbox never sees it, and a repository with
@@ -95,10 +97,11 @@ decisions:
   - id: D-7
     grade: ASSUMED
     text: >-
-      `draft_request` in `src/torve/application/intake.py` builds the planner tier's
-      agent, mints the drafting run, cuts its worktree at base, runs it and removes
-      the worktree. `torve intake` and the intake leg both call it, and the command
-      keeps only parsing and rendering.
+      `draft_request` in `src/torve/application/intake.py` takes the planner tier's
+      agent from its caller, mints the drafting run, cuts its worktree at base, runs
+      it and removes the worktree. `torve intake` and the intake leg both call it.
+      Each caller builds the agent with `build_tier_agent` in the CLI layer, and the
+      command keeps only parsing, that construction and rendering.
     paths: [src/torve/application/intake.py, src/torve/cli/intake.py]
     consequence: >-
       a request drafts the same way whichever surface it came from, and a change to
@@ -178,16 +181,19 @@ decisions:
   - id: D-12
     grade: ASSUMED
     text: >-
-      A test file counts as run by an acceptance command when the command names its
-      path or a directory above it, or invokes the manifest's `tests.run` launcher
-      with no path argument.
+      A test file counts as run by an acceptance command only when the command launches
+      the tests, as `pytest`, `-m pytest` or the manifest's `tests.run`, and either
+      names the file's path or a directory above it as an argument or names no path
+      at all. A command that only mentions the path, such as `mypy` or `ruff` over
+      it, does not count.
     paths: [src/torve/application/neighbours.py]
     consequence: >-
       a phase whose acceptance runs the whole suite leaves no test unrun, and one
       that names files is held to the files it names
     rationale: >-
-      Acceptance is a list of shell commands (S-0055/D-20). The paths a command names
-      are the deterministic half of what it runs.
+      Acceptance is a list of shell commands (S-0055/D-20). The paths a test launcher
+      names are the deterministic half of what it runs; a path a type checker or a
+      linter names runs no test.
     cites: [S-0055/D-20, S-0106/D-7]
     check: >-
       uv run pytest tests/test_neighbours.py -k acceptance_runs

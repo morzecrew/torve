@@ -53,7 +53,7 @@ design:
       Each night keeps its own record, so `torve night show` and the ledger read a chain as the nights it was made of. A killed chain loses only what a killed night loses: the lease on the attempt in flight.
   - key: the-daily-budget
     md: |-
-      Under `--chain`, the `night:` section's `budget_usd` and `budget_attempts` bound a UTC day rather than one night. Each night opens with what remains of the day on each axis as its own budget, so `night.opened` records the remainder and `reached` needs no change. A day with nothing left opens no night until the next UTC midnight. `minutes` still bounds each night.
+      Under `--chain`, the `night:` section's `budget_usd` and `budget_attempts` bound a UTC day rather than one night. Each night opens with what remains of the day on each axis as its own budget, so `night.opened` records the remainder and `reached` needs no change. `reached` reads a zero budget as no bound, so a day on which any axis configured above zero has no remainder opens no night until the next UTC midnight; an axis configured as zero stays unbounded, as it is today. A night that crosses midnight keeps the budget it opened with. What it spends after midnight counts against the new day, so neither day exceeds its budget, and the next night opens with the new day's remainder. `minutes` still bounds each night.
 
       ```yaml
       night:
@@ -65,9 +65,9 @@ design:
     md: |-
       Between nights, with nothing in flight, the chain brings the checkout up to the remote and plans what was accepted:
 
-      1. It fetches. When the checkout is on the configured base branch with a clean tree, it fast-forwards that branch to the remote's. A checkout on another branch, with local changes, or diverged is left alone, and the chain says so once per state rather than once per pass.
-      2. For every document on the corpus path whose `status` is `accepted`, whose `implementation` is `none` and which has minted no task, in number order, it plans the document exactly as `torve plan S-NNNN --no-dry-run` does. The next night's import mints the contracts.
-      3. A plan the planner refuses is recorded once as an engine event naming the document and the refusal, and is not attempted again until the document's files change on the base.
+      1. It fetches. When the checkout is on the configured base branch with a clean tree, it fast-forwards that branch to the remote's. A checkout on another branch, with local changes, or diverged is left alone and nothing is planned from it, so a document accepted only on a feature branch is never served. The chain says so once per state rather than once per pass.
+      2. For every document on the corpus path whose `status` is `accepted`, whose `implementation` is `none` and which has minted no task, in number order, it mints the document into the partition's record exactly as `torve plan S-NNNN --partition <partition> --no-dry-run` does, writing no file (S-0056/D-9). The next night serves the contracts.
+      3. A plan the planner refuses is recorded once per base commit as an engine event naming the document and the refusal. A refusal can turn on another document, such as one named in `depends_on` or `after`, so the chain tries again whenever the base moves rather than when the document's own files change.
 
       A document that already minted a task is never planned again here. Adding a phase to one is `plan --refresh`, a person's act as it is today.
 
@@ -84,7 +84,7 @@ design:
           revision_variant: executor.night   # the blocker's revision runs on opus
       ```
 
-      `advance_tier` resolves the rung when the attempt about to run follows a blocker revision, as it resolves a gate-red's rung. The revision keeps everything S-0090 gave it: the same worktree, the critique in the feedback record, and `blocker_revisions` as the bound. The attempt after a green pass returns to the seat, as after every rung. The load refuses a `revision_variant` that names no tier, and the provider check and the broker's route table list the rung as they list the retry rungs, because the broker opens before the first attempt.
+      `advance_tier` resolves the rung when the attempt about to run follows a blocker revision, as it resolves a gate-red's rung. The revision keeps everything S-0090 gave it: the same worktree, the critique in the feedback record, and `blocker_revisions` as the bound. The attempt after a green pass returns to the seat, as after every rung. The load refuses a `revision_variant` that names no tier, and the provider check and the broker's route table list every tier a run can reach, following each listed tier's own rungs, because the broker opens before the first attempt and `advance_tier` reads a gate-red's rung from the tier that just ran.
 
       This puts the strong model where the hand finishes put it: 11 of the 15 traced blocker escalations were finished by an Opus session working from the escalated tree.
   - key: the-operator-guide
@@ -94,9 +94,9 @@ design:
       torve's own night configuration lives outside the repository, because the runner reads its configuration from where it was launched and never from the repository under work. Turning these on for torve is the operator's edit at acceptance, not a phase (Q-2).
 tests: |-
   - The chain: a night that drains is followed by the next once a task becomes startable, with no new process; a night closed on a `stop_on` class ends the chain; a chain with nothing startable records no night (`tests/test_residency.py`, `tests/test_manager.py`).
-  - The daily budget: a second night of the same UTC day opens with the remainder on each axis; a spent day opens nothing until midnight; `--chain` without `--night` is refused (`tests/test_residency.py`, `tests/test_manager.py`).
-  - Planning: an accepted document with no minted task is planned once and minted by the next night's import; a draft, an implemented document and one that minted a task are left alone; a refused plan is recorded once; a checkout off its base branch or with local changes is not fast-forwarded; a chain whose engine imports from under the root plans nothing (`tests/test_manager.py`, `tests/test_plan.py`).
-  - The rung: the revision after a surviving blocker runs on `revision_variant` and the attempt after a green pass returns to the seat; an empty `revision_variant` keeps the seat; a rung naming no tier refuses to load; the route table and the provider check carry the rung (`tests/test_session.py`, `tests/test_runner.py`, `tests/test_runconfig.py`, `tests/test_dispatch.py`).
+  - The daily budget: a second night of the same UTC day opens with the remainder on each axis; a day with one configured axis spent opens nothing until midnight; an axis configured as zero stays unbounded; `--chain` without `--night` is refused (`tests/test_residency.py`, `tests/test_manager.py`).
+  - Planning: an accepted document with no minted task is minted into the record once and served by the next night; a draft, an implemented document and one that minted a task are left alone; a refused plan is recorded once per base commit; a checkout off its base branch or with local changes is neither fast-forwarded nor planned from; a chain whose engine imports from under the root plans nothing (`tests/test_manager.py`, `tests/test_plan.py`).
+  - The rung: the revision after a surviving blocker runs on `revision_variant` and the attempt after a green pass returns to the seat; an empty `revision_variant` keeps the seat; a rung naming no tier refuses to load; the route table and the provider check carry the rung and every listed rung's own rungs (`tests/test_session.py`, `tests/test_runner.py`, `tests/test_runconfig.py`, `tests/test_dispatch.py`).
 
   Not tested: whether the stronger seat clears the blockers the executor left. That is measured on the nights after this lands, as blocker escalations per landed phase.
 docs: >-

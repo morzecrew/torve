@@ -4,15 +4,16 @@ phasing:
     title: One drafting path for the command and the pass
     intent: >-
       Move the drafting sequence out of `intake_cmd` into `draft_request(root, request,
-      config, *, spec, source, runtime, taken) -> IntakeOutcome` in `src/torve/application/intake.py`.
-      It builds the planner tier's agent, mints the drafting run, cuts its worktree
-      at base, runs `run_intake` and removes the worktree in a `finally`. A configuration
-      error raises `ValueError` before anything is minted. `torve intake` keeps parsing,
-      the configuration-error exit and rendering. `adopt` commits the source file
-      a drafting run names, with its contracts, when the tree holds that file untracked,
-      and leaves a tracked file or a document source alone. Tests in `tests/test_intake.py`:
-      `draft_request` end to end on the fake harness, and adoption with an untracked,
-      a tracked and a document source. Settles D-6 and D-7.
+      config, agent, *, spec, source, runtime, taken) -> IntakeOutcome` in `src/torve/application/intake.py`.
+      It mints the drafting run, cuts its worktree at base, runs `run_intake` with
+      the agent it is given and removes the worktree in a `finally`. `torve intake`
+      keeps parsing, building the planner tier's agent with `build_tier_agent`, the
+      configuration-error exit and rendering, so `src/torve/application/` never imports
+      `torve.cli`. `adopt` commits the source file a drafting run names, with its
+      contracts, when the tree holds that file untracked, and leaves a tracked file
+      or a document source alone. Tests in `tests/test_intake.py`: `draft_request`
+      end to end on the fake harness, and adoption with an untracked, a tracked and
+      a document source. Settles D-6 and D-7.
     scope:
       - src/torve/application/intake.py
       - src/torve/cli/intake.py
@@ -26,15 +27,19 @@ phasing:
     intent: >-
       Add the `LabelledIssue` value and the `IssueReader` port to `src/torve/application/ports.py`.
       Implement `GhScm.labelled_issues(label)` in `src/torve/adapters/vcs/git.py`:
-      one `gh api graphql` query for the open issues carrying the label, with number,
-      URL, title, body, `lastEditedAt` and the label events (actor, instant, label
-      name). Take the last event that applied this label. Then read `repos/{repo}/collaborators/{login}/permission`
-      once per distinct labeller, so that triage, write, maintain and admin set `labeller_may_triage`.
-      The read uses `scm.repo` and `scm.token_env` as `_gh` and `_api` do, retries
-      once on a transient failure, and never writes. Tests in `tests/test_forge.py`
-      against recorded `gh` output: the last labelling wins, a never-edited body,
-      an edited body, a read-only labeller, and one permission read per labeller.
-      Settles D-3.
+      `gh api graphql` over the open issues carrying the label, following `pageInfo`
+      until `hasNextPage` is false, with number, URL, title, body, `lastEditedAt`
+      and the last 100 `LABELED_EVENT` and `RENAMED_TITLE_EVENT` timeline items. Take
+      the last event that applied this label, skip an issue whose last labelling is
+      not in that window, and set `edited_at` to the later of `lastEditedAt` and the
+      last rename. A page that cannot be read fails the whole read. Implement `GhScm.may_triage(login)`
+      from `repos/{repo}/collaborators/{login}/permission`: triage, write, maintain
+      and admin answer true. Both use `scm.repo` and `scm.token_env` as `_gh` and
+      `_api` do, retry once on a transient failure, and never write. Tests in `tests/test_forge.py`
+      against recorded `gh` output: the last labelling wins, a never-edited issue,
+      an edited body, a renamed title, a labelling outside the window, a second page,
+      a failed page, and `may_triage` for a triage and a read-only account. Settles
+      D-3.
     scope:
       - src/torve/application/ports.py
       - src/torve/adapters/vcs/git.py
@@ -51,18 +56,21 @@ phasing:
       reader, draft) -> tuple[str, bool]` in a new `src/torve/application/issues.py`.
       With the label empty, the leg reads nothing. It lists the labelled issues oldest
       labelling first and skips one whose `.torve/sources/operator/issue-<number>.yaml`
-      exists, whose labeller cannot triage, or whose body was edited after the labelling,
-      naming each skip in its detail line. For the first issue left, it writes that
-      source file (URL as `ref`, title, labelling instant as `at`, body as `summary`)
-      and calls `draft` with the title, a blank line and the body. It stops after
-      one, writes `issue_drafted` and `issue_skipped` engine events, and fails closed
-      on a reader or write error. Give `once` and `serve` in `src/torve/application/residency.py`
+      exists or whose title or body was edited after the labelling. It then asks `may_triage`
+      about the remaining issues' labellers in that order, once per account in the
+      pass, skips an issue whose labeller cannot triage, and stops asking at the first
+      that passes, naming each skip in its detail line. For the first issue left,
+      it writes that source file (URL as `ref`, title, labelling instant as `at`,
+      body as `summary`) and calls `draft` with the title, a blank line and the body.
+      It stops after one, writes `issue_drafted` and `issue_skipped` engine events,
+      and fails closed on a reader or write error. Give `once` and `serve` in `src/torve/application/residency.py`
       an `issues` leg after `standing` that a paused pass skips, and build it in `src/torve/cli/manager.py`
-      and `src/torve/cli/fleet.py` from `GhScm` and `draft_request`. Tests: the leg
-      with a fake reader and a fake draft (`tests/test_issues.py`), the leg's place
-      and the pause (`tests/test_residency.py`), the manager and fleet wiring (`tests/test_manager.py`,
-      `tests/test_fleet_serve.py`), the key and the schemas (`tests/test_runconfig.py`,
-      `tests/test_cli.py`). Settles D-1, D-2, D-4, D-5, D-8, D-9 and D-10.
+      and `src/torve/cli/fleet.py` from `GhScm` and `draft_request`, with the planner
+      tier's agent built once by `build_tier_agent`. Tests: the leg with a fake reader
+      and a fake draft (`tests/test_issues.py`), the leg's place and the pause (`tests/test_residency.py`),
+      the manager and fleet wiring (`tests/test_manager.py`, `tests/test_fleet_serve.py`),
+      the key and the schemas (`tests/test_runconfig.py`, `tests/test_cli.py`). Settles
+      D-1, D-2, D-4, D-5, D-8, D-9 and D-10.
     scope:
       - src/torve/application/issues.py
       - src/torve/application/residency.py

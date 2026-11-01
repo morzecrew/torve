@@ -19,7 +19,7 @@ schema_version: 4
 summary: |-
   The whole suite runs once per battery, as a blocking `suite` gate that convicts an attempt only for a test it broke, and the lane re-gates with blocking gates alone and records what it judged where `torve why` can read it.
 
-  A failing test is rerun alone at the head, then on the merge base: still red at the head and green on the base is the attempt's regression and convicts; green on the rerun is flaky; red on the base too is inherited, recorded by node id and never convicts. `coverage-delta` leaves the manifest and its delta becomes a report the suite gate prints, and the acceptance fallback stops naming `uv run pytest`. The lane's batteries skip shadow gates, every lane battery is recorded as a `lane.judged` event with its failing gates' output, and an escalation names its failing gates before it clips.
+  A failing test's file is rerun at the head, then on the merge base: still red at the head and not red on the base is the attempt's regression and convicts; green on the rerun is flaky; red on the base too is inherited, recorded by node id and never convicts. `coverage-delta` leaves the manifest and its delta becomes a report the suite gate prints, and the acceptance fallback stops naming `uv run pytest`. The lane's batteries skip shadow gates, every lane battery is recorded as a `lane.judged` event with its failing gates' output, and an escalation names its failing gates before it clips.
 motivation: |-
   Three readings from this repository's record, 2026-10-02 to 2026-11-01, 153 attempt batteries:
 
@@ -51,10 +51,10 @@ design:
     md: |-
       A builtin `suite` runs the first of its entry's `commands` over the head: the whole suite, once, with no blanket re-run. On a red, it reads the failing node ids from pytest's short summary and settles each:
 
-      1. **Rerun at the head**, the failing ids alone. Green now: flaky, reported in `flaky_commands`, no conviction — what `run_command`'s re-run decides today, at the cost of the failing tests instead of the suite.
-      2. **Run on the merge base**, the ids still red, on the base tree. Green there: the attempt's regression, and the gate fails naming them. Red there too: inherited, recorded and not convicting.
+      1. **Rerun at the head**, the failing tests' files, each in its own order, reading the failing ids. Green now: flaky, reported in `flaky_commands`, no conviction — what `run_command`'s re-run decides today, at the cost of a few files instead of the suite, with the order inside each file kept.
+      2. **Run on the merge base**, the files of the ids still red, on the base tree. Green there: the attempt's regression, and the gate fails naming them. Red there too: inherited, recorded and not convicting.
 
-      An id that cannot run on the base (its file is new, or the base errors on collection) is a regression: the base has no reading that clears it. A red whose output names no failing id (collection error, crash, timeout) fails the gate as it would today. The entry's later `commands` are reports, run after the suite over what it wrote; their output is appended and their exit codes never convict.
+      An id that cannot run on the base (its file is new, or the base errors on collection) has no base reading and is a regression: nothing clears it. A red whose output names no failing id (collection error, crash, timeout) fails the gate as it would today. The entry's later `commands` are reports, run right after the suite's own run and before any rerun, so they read what the whole suite wrote (its `coverage.xml`, not a rerun's); their output is appended and their exit codes never convict.
 
       ```yaml
       - name: suite
@@ -80,7 +80,7 @@ design:
 
       The suite's attribution then does in the lane what #219 asked for: the re-gate's base is the merge base with the tip it rebased onto, so a test the base already fails is inherited there, and the candidate lands. A document's own red still meets the completion battery (S-0093/D-1), where it becomes a round.
 
-      `LaneResult` carries what the lane judged: the base and head, the battery's duration and its results. A poison-ceiling escalation lists the failing gates first and counts the rest (`red again at the same base and head: acceptance=fail, suite=fail; 9 passed`), so the record's 300-character clip never cuts a failing gate.
+      `LaneResult` carries what the lane judged: the base and head, the battery's duration and its results. A poison-ceiling escalation lists the failing gates first and counts the rest (`red again at the same base and head: acceptance=fail, suite=fail; 9 passed`), so the record's 300-character clip reaches the failing gates first; the full results are in the battery's `lane.judged`.
   - key: the-record-keeps-the-lane
     md: |-
       Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery:
@@ -97,14 +97,14 @@ design:
           results: list[dict[str, Any]] = Field(default_factory=list)  # as gates.evaluated records them
       ```
 
-      The two callers of `process_lane` write it from the `LaneResult`, as the manager and the operator write their own facts. It is never read for a state transition, so the board does not move and a pull request body does not list it twice. `torve why` renders each one with its failing gates' output, and lane time is the record's: the battery's duration, and the gap between a task's last `gates.evaluated` and its `landing.recorded`.
+      `process_lane` hands each battery to an `on_judged` callback as `_regate` returns, and its two callers record what it handed them in a `finally`, as the manager's lane leg already reads the lane's requeues and escalations, so a pass that raises after a battery keeps it. It is never read for a state transition, so the board does not move and a pull request body does not list it twice. `torve why` renders each one with its failing gates' output, and lane time is the record's: the battery's duration, and the gap between a task's last `gates.evaluated` and its `landing.recorded`.
 tests: |-
-  - Attribution is a pure function of three readings — failing at the head, failing on the rerun, failing on the base — and a Hypothesis property drives it: the three outcomes partition the head's failures, and only a test still red at the head and green on the base convicts.
-  - The builtin over a scratch repository: a regression fails naming the test; a test red on the base passes with the id in `inherited_failures`; a test that passes on its rerun is flaky; a collection error fails; a report command's non-zero exit does not convict. The sabotage pair proves `suite` convicts a regression and passes an inherited red.
+  - Attribution is a pure function of the readings — failing at the head, failing on the file rerun, and on the base green, red or unreadable — and a Hypothesis property drives it: the three outcomes partition the head's failures, and a test convicts exactly when it is red on the rerun and not red on the base.
+  - The builtin over a scratch repository: a regression fails naming the test; a test red on the base passes with the id in `inherited_failures`; a test that passes on its rerun is flaky; a test that fails only after an earlier test in its file convicts; a test whose file the base lacks convicts; a collection error fails; a report command reads the whole suite's coverage file, and its non-zero exit does not convict. The sabotage pair proves `suite` convicts a regression and passes an inherited red.
   - The manifest: `suite` is blocking with no `paths`, `coverage-delta` is gone, and the acceptance fallback names no `pytest`.
   - The lane: a rebased candidate's re-gate runs no shadow gate; a candidate whose only failing test fails on the base it rebased onto lands; the poison-ceiling detail names the failing gates within its first 300 characters.
-  - The record: `torve merge` and the lane leg each record one `lane.judged` per battery, green and red; the projection leaves the task's state where it was; `torve why` shows the failing gate's output.
-  - Not tested: an order-dependent failure that passes when rerun alone reads as flaky (risks).
+  - The record: `torve merge` and the lane leg each record one `lane.judged` per battery, green and red, and one a later raise in the pass did not lose; the projection leaves the task's state where it was; `torve why` shows the failing gate's output.
+  - Not tested: an order dependence across files, which passes on the file rerun and reads as flaky (risks).
 docs: >-
   `pages/docs/operating.md`: the gates section says the whole suite runs once, as
   `suite`, and how a failure is attributed; the lane section says the re-gate runs
@@ -114,7 +114,9 @@ out_of_scope: |-
   - **Fixing an inherited red.** The record and `torve why` now name it; turning it into work on `main` is a person's, or a standing job's, and needs a document of its own.
   - **The attempt's other shadow gates.** `mutation`, `red-on-base`, `evidence` and `held-out` keep their soaks on attempts; a later document promotes or retires each on its own numbers.
 risks: |-
-  - **An order-dependent failure reads as flaky.** A test that fails only beside others passes when rerun alone and does not convict. It is still printed and counted in `flaky_commands`; a test flaky in many batteries is visible there.
+  - **An order dependence across files reads as flaky.** The rerun keeps each failing file's own order, so a dependence inside a file convicts as today's whole-suite re-run does. A test that fails only after another file's tests passes on the rerun and does not convict, an accepted false negative. It is still printed and counted in `flaky_commands`; a test flaky in many batteries is visible there.
+  - **A second failure in an inherited test is masked.** A test red on the base stays inherited when the change breaks it a second way. It stays named in `inherited_failures` on every battery, and whoever fixes the base's own failure meets the second one. Comparing failure text instead of the test's id would read temporary paths, addresses and line numbers that move when the change edits the file, and convict changes for reds they did not cause.
+  - **Attempts that change nothing under `src/` now run the suite.** `coverage-delta`'s `paths: [src/**]` skipped them: 77 of 302 measured runs, 11,786s of the gate's 43,448s (`.torve/gates.yaml`). `suite` runs on them because a change to a test or a page a test reads can break the suite (T-0667); each such battery pays one suite run, 164s at the median.
   - **A base that cannot run a test reads as a regression.** A new dependency, a renamed fixture or a moved conftest makes the base error, and the gate convicts. That is fail-closed by intent, and a person reads it from the output.
   - **The suite now blocks.** A miscalibrated attribution would teach people to route around the gate. The whole-suite reading soaked for a month inside `coverage-delta`; attribution can only turn its reds into passes, and Q-1 lets the owner choose a shadow soak instead.
   - **The lane keeps fewer readings.** A shadow gate no longer runs on the rebased tree. A shadow gate whose result depends on the base it was rebased onto loses that reading; none in this manifest does today.

@@ -22,16 +22,21 @@ decisions:
   - id: D-2
     grade: ASSUMED
     text: >-
-      Every reader that lists the seats a run can reach lists a seat's `revision_variant`
-      beside its retry rungs: the broker's route table and the dispatch-time provider
-      check.
+      Every reader that lists the seats a run can reach lists all of them: the seat,
+      its retry rungs and its `revision_variant`, and, followed transitively, each
+      listed tier's own retry rungs and `revision_variant`. The readers are the broker's
+      route table and the dispatch-time provider check.
     paths: [src/torve/application/dispatch.py, src/torve/cli/assembly.py]
     consequence: >-
-      a revision rung on another provider is routed before the first attempt and refused
-      at dispatch when the repository may not reach it, never mid-run
+      a revision rung on another provider, or a rung reached from it, is routed before
+      the first attempt and refused at dispatch when the repository may not reach
+      it, never mid-run
     rationale: >-
       The broker opens once, before the first attempt, so a seat only a later attempt
-      reaches must already be on the route table, as the retry rungs are.
+      reaches must already be on the route table. `retry_rung_for` reads a gate-red's
+      rung from the tier that just ran (`advance_tier` in `src/torve/application/session.py`),
+      so a revision on the rung that goes red reaches that tier's own rungs; today's
+      readers list only the seat's.
     cites: [D-1]
   - id: D-3
     grade: ASSUMED
@@ -55,8 +60,11 @@ decisions:
     text: >-
       Under `--chain`, the night section's `budget_usd` and `budget_attempts` bound
       a UTC day: each night opens with what remains of the day on each axis as its
-      own budget, and a spent day opens no night until the next UTC midnight. `minutes`
-      bounds each night.
+      own budget. A day on which any axis configured above zero has no remainder opens
+      no night until the next UTC midnight, because `reached` reads a zero budget
+      as no bound; an axis configured as zero stays unbounded. A night that crosses
+      midnight keeps the budget it opened with, and what it spends after midnight
+      counts against the new day. `minutes` bounds each night.
     paths: [src/torve/application/residency.py]
     consequence: >-
       a chain spends at most one night's configured budget per day however many nights
@@ -71,20 +79,26 @@ decisions:
     text: >-
       Between nights, with nothing in flight, the chain fetches and, when the checkout
       sits on the configured base branch with a clean tree, fast-forwards it to the
-      remote's. It then plans, in number order and as `torve plan --no-dry-run` does,
-      every document whose status is accepted, whose implementation is none and which
-      has minted no task. A refused plan is recorded once and not retried until the
-      document's files change on the base.
+      remote's. It plans only from a checkout on the base branch, clean and at the
+      remote's tip after that: in number order, every document whose status is accepted,
+      whose implementation is none and which has minted no task is minted into the
+      partition's record as `torve plan --partition <partition> --no-dry-run` does,
+      writing no file. A refused plan is recorded once per base commit and tried again
+      when the base moves.
     paths: [src/torve/cli/manager.py, src/torve/application/planner.py]
     consequence: >-
-      a document accepted on the base is planned and minted by the next night without
-      a command, and a document that already minted a task is planned again only by
-      a person's `plan --refresh`
+      a document accepted on the base is minted and served by the next night without
+      a command, a document accepted only on another branch is never planned, and
+      a document that already minted a task is planned again only by a person's `plan
+      --refresh`
     rationale: >-
       31% of torve's document lead time in a month, 109 of 353 hours, passed between
       the acceptance commit and the first minted task, waiting for a person to plan
-      and start a night.
-    cites: [D-3]
+      and start a night. A served chain always holds the record, so it mints there
+      as S-0056/D-9 requires. A refusal can turn on another document, one named in
+      `depends_on` or `after`, so it is keyed on the base commit and not on the document's
+      own files.
+    cites: [D-3, S-0056/D-9]
   - id: D-6
     grade: ASSUMED
     text: >-

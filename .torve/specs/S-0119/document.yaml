@@ -63,11 +63,11 @@ design:
           body: str
           labelled_by: str            # the account behind the last event that applied the label
           labelled_at: str            # that event's instant, YYYY-MM-DDTHH:MM:SSZ
-          edited_at: str | None       # the body's last edit; None when never edited
-          labeller_may_triage: bool   # triage, write, maintain or admin on the repository
+          edited_at: str | None       # the later of the body's last edit and the last title rename; None when neither
 
       class IssueReader(Protocol):
           def labelled_issues(self, label: str) -> list[LabelledIssue]: ...
+          def may_triage(self, login: str) -> bool: ...  # triage, write, maintain or admin on the repository
 
       def issue_leg(
           root: Path,
@@ -82,8 +82,8 @@ design:
       1. With `intake.issue_label` empty, return "issue intake off" and read nothing (D-1).
       2. List the open issues carrying the label, ordered by `labelled_at`, oldest first.
       3. Skip an issue whose source file `.torve/sources/operator/issue-<number>.yaml` the tree holds (D-5).
-      4. Skip an issue whose labeller cannot triage, or whose body was edited after `labelled_at`. Each skip is named in the detail line with what would let it through (D-2).
-      5. For the first issue left, write its source file, then call `draft(request, "operator/issue-<number>")`. The request is the title, a blank line and the body (D-4). Stop after one drafting run (D-8).
+      4. Skip an issue whose title or body was edited after `labelled_at`. Then, in the same order, ask `may_triage` about each remaining issue's labeller, at most once per account in the pass, and skip an issue whose labeller cannot triage. Stop asking at the first issue that passes. Each skip is named in the detail line with what would let it through (D-2).
+      5. For that issue, write its source file, then call `draft(request, "operator/issue-<number>")`. The request is the title, a blank line and the body (D-4). Stop after one drafting run (D-8).
 
       The source file is an ordinary filed source (S-0060/D-1):
 
@@ -100,7 +100,7 @@ design:
 
       The leg fails closed toward not creating work, as the standing leg does. A forge read that fails puts its error in the detail line and drafts nothing this pass. A source file that cannot be written drafts nothing. A drafting run that spends its budget escalates as `torve intake`'s does (D-10). The leg writes nothing to the forge (D-9). The detail line and the `issue_drafted` and `issue_skipped` engine events are the operator's view; nothing decides on them.
 
-      `GhScm.labelled_issues` reads the issues, their last edit and their label events in one `gh api graphql` query. It then reads each distinct labeller's permission once per call, from `repos/{repo}/collaborators/{login}/permission`. It uses `scm.repo` and `scm.token_env` as every other `GhScm` read does, so a repository without `scm.token_env` uses the host's own `gh` login. A sandbox never sees the credential.
+      `GhScm.labelled_issues` reads the open issues carrying the label through `gh api graphql`, following `pageInfo` until `hasNextPage` is false. For each issue it reads the body's `lastEditedAt` and the last 100 `LABELED_EVENT` and `RENAMED_TITLE_EVENT` timeline items, which hold the most recent labelling and every later rename. An issue whose last application of the label is not among them is skipped as unreadable. A page that cannot be read fails the whole read, so the pass drafts nothing. `GhScm.may_triage` reads one account's permission from `repos/{repo}/collaborators/{login}/permission`, and the leg asks it only about the issues it would draft next. Both use `scm.repo` and `scm.token_env` as every other `GhScm` read does, so a repository without `scm.token_env` uses the host's own `gh` login. A sandbox never sees the credential.
   - key: one-drafting-path
     md: |-
       `draft_request` moves out of the command into `src/torve/application/intake.py` (D-7). The leg and `torve intake` then draft the same way.
@@ -110,6 +110,7 @@ design:
           root: Path,
           request: str,
           config: RunnerConfig,
+          agent: Agent,
           *,
           spec: str | None = None,
           source: str | None = None,
@@ -118,7 +119,7 @@ design:
       ) -> IntakeOutcome: ...
       ```
 
-      It builds the planner tier's agent, mints the drafting task, cuts the worktree at base, runs `run_intake` and removes the worktree in a `finally`. A configuration error raises `ValueError` before anything is minted. `torve intake` keeps parsing, the configuration-error exit and rendering.
+      It mints the drafting task, cuts the worktree at base, runs `run_intake` with the agent it was given and removes the worktree in a `finally`. The caller builds the planner tier's agent with `build_tier_agent`, which stays in `src/torve/cli/assembly.py`, so the application layer never imports the composition root. `torve intake` keeps parsing, building the agent, the configuration-error exit and rendering. `src/torve/cli/manager.py` and `src/torve/cli/fleet.py` build the agent once and close over it in the leg's `draft`.
 
       Adoption commits the source file a drafting run names when the tree holds it untracked (D-6). An adopted contract then never names a source its base commit lacks. A source file that is already tracked, or a document source, is left alone.
   - key: reach-before-acceptance
@@ -151,11 +152,12 @@ design:
       Step A.5 of `references/workflows.md` names the reach lines beside the inherited LOCKED rows as what to read before the owner accepts (D-13).
 tests: |-
   - Phase 1: `draft_request` drafts a request end to end on the fake harness, and the command renders the same outcome. Adoption commits an untracked source file that a draft names and leaves a tracked one alone (`tests/test_intake.py`).
-  - Phase 2: `GhScm.labelled_issues` against recorded `gh` output. Cases: the labeller and instant of the last labelled event, a never-edited body, a body edited after labelling, a labeller with read permission, one permission read per distinct labeller (`tests/test_forge.py`).
+  - Phase 2: `GhScm.labelled_issues` against recorded `gh` output. Cases: the labeller and instant of the last labelled event, a never-edited issue, a body edited and a title renamed after labelling, a labelling outside the event window, a second page of issues, a page that fails, and `may_triage` for a triage and a read-only account (`tests/test_forge.py`).
   - Phase 3: the leg with a fake reader and a fake `draft` (`tests/test_issues.py`). Cases:
     - off with no label;
     - one drafting run per pass, oldest labelling first;
-    - skipped for a filed source, for a labeller who cannot triage, and for an edit after labelling;
+    - skipped for a filed source, for a labeller who cannot triage, and for a title or body edit after labelling;
+    - `may_triage` asked once per account and only until an issue passes, and never for a filed or edited issue;
     - a reader error drafts nothing;
     - the source file's fields.
   - Phase 3, the pass: the leg runs after the standing leg and not while paused, in the manager and in the fleet (`tests/test_residency.py`, `tests/test_manager.py`, `tests/test_fleet_serve.py`). Also the configuration key and its schema (`tests/test_runconfig.py`, `tests/test_cli.py`).
@@ -171,7 +173,7 @@ out_of_scope: |-
   - Counting drafting runs against a night's budget. Q-2 asks whether they should be.
 risks: |-
   - **An issue body is untrusted text in front of a model** (S-0008/D-5). The triage rule and the edit rule narrow who can put text there, not what the text can do. The drafting run is sandboxed and brokered, its output is lint-gated data, and nothing dispatches before a person adopts it. A private adopter repository whose drafter sandbox has network egress raises the stake. The owner reads the drafts and the source before adopting.
-  - **The leg lists issues on every pass.** At the 15-second idle wait that is about 240 listings an hour, plus one permission read per new labeller. That is within the forge's authenticated limit of 5,000 an hour, but it shares that limit with the host's other `gh` use.
+  - **The leg lists issues on every pass.** At the 15-second idle wait that is about 240 GraphQL listings an hour, more when the labelled issues span pages, against the GraphQL budget of 5,000 points an hour. Permission reads are REST requests against a separate 5,000 an hour. They come only from issues not yet drafted and not edited, at most one per account per pass, so a quiet repository makes none. Each account whose labelled issue waits, skipped for lack of triage, costs one read per pass, about 240 an hour, until that issue is relabelled or closed. Both budgets are shared with the host's other `gh` use.
   - **The leg drafts an issue once.** A failed or escalated draft is not retried. The owner re-runs `torve intake --source operator/issue-<number>`, or deletes the source file.
   - **The source file is untracked on the drafting host until adoption commits it.** A draft nobody adopts leaves the file there, and a second host would draft the same issue again.
   - **Reach lines can be long** for a phase that changes a widely imported module. They are capped at ten names with the count, and reading them is the author's work.

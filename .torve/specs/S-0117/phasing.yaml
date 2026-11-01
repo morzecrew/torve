@@ -10,16 +10,17 @@ phasing:
       revision readable by `session.py` through a public predicate beside `previous_attempt_gate_red`,
       and have `advance_tier` resolve the seat's `revision_variant` when the attempt
       about to run follows that fact, building the agent through the run's `retry_agent`
-      factory as a gate-red rung does. List the rung in `run_routing` in `dispatch.py`
-      and in `route_dispatch_providers` in `cli/assembly.py` beside the retry rungs.
-      Regenerate `.torve/schemas/` with `torve init`. Tests: the load refusal and
-      the default (`tests/test_runconfig.py`); the predicate and `advance_tier` choosing
-      the rung after a blocker revision, the seat after a green pass and the seat
-      when the variant is empty (`tests/test_session.py`); a run whose blocker survives
-      the first attempt revises on the rung and escalates `blocker_finding` only after
+      factory as a gate-red rung does. Make `run_routing` in `dispatch.py` and `route_dispatch_providers`
+      in `cli/assembly.py` list every tier the run can reach: the seat's retry rungs
+      and `revision_variant`, followed through each listed tier's own. Regenerate
+      `.torve/schemas/` with `torve init`. Tests: the load refusal and the default
+      (`tests/test_runconfig.py`); the predicate and `advance_tier` choosing the rung
+      after a blocker revision, the seat after a green pass and the seat when the
+      variant is empty (`tests/test_session.py`); a run whose blocker survives the
+      first attempt revises on the rung and escalates `blocker_finding` only after
       it (`tests/test_runner.py`, `tests/test_review_run.py`); the route table and
-      the provider check carrying the rung (`tests/test_dispatch.py`); the schemas
-      (`tests/test_cli.py`). Settles D-1 and D-2.
+      the provider check carrying the rung and a listed rung's own rungs (`tests/test_dispatch.py`);
+      the schemas (`tests/test_cli.py`). Settles D-1 and D-2.
     scope:
       - src/torve/config/runconfig.py
       - src/torve/application/session.py
@@ -49,9 +50,11 @@ phasing:
       to `residency.py` the day's remainder on each axis, read from the board's spend
       since the current UTC midnight against the night section's budgets, and have
       `open_night` take it as the night's own `budget_usd` and `budget_attempts`,
-      so `night.opened` records the remainder; a day with nothing left opens no night
-      before the next UTC midnight. The help text names no corpus identifier. Tests:
-      the remainder after a first night, a spent day, a new UTC day (`tests/test_residency.py`);
+      so `night.opened` records the remainder. A day on which any axis configured
+      above zero has no remainder opens no night before the next UTC midnight, and
+      an axis configured as zero stays unbounded. The help text names no corpus identifier.
+      Tests: the remainder after a first night, a day with one axis spent and the
+      other left, an axis configured as zero, a new UTC day (`tests/test_residency.py`);
       a chain that drains, idles and opens a second night when a task becomes startable,
       a chain ended by a `stop_on` class, `--chain` without `--night` refused (`tests/test_manager.py`).
       Settles D-3 and D-4.
@@ -73,16 +76,18 @@ phasing:
       says minted no task, in number order. Between nights, with nothing in flight,
       the chain in `cli/manager.py` fetches through the git lane adapter and fast-forwards
       the base branch with `merge_ff` only when the checkout is on it with a clean
-      tree, then runs `plan_document` and `write_contracts` for each unplanned document,
-      as `torve plan --no-dry-run` does, so the next open's import mints them. A `PlanError`
-      is recorded once as an engine event naming the document and the refusal, keyed
-      by the document's files at the base so it is not retried until they change.
-      When the imported `torve` package resolves under the root, the chain skips the
-      fast-forward and the planning and says so once at the start. Tests: `unplanned_documents`
+      tree. It plans only from a checkout on the base branch, clean and at the remote's
+      tip: it runs `plan_document` and `mint_contracts` into the partition's record
+      for each unplanned document, as `torve plan --partition` does, and writes no
+      file. A `PlanError` is recorded once per base commit as an engine event naming
+      the document and the refusal, and is tried again when the base moves. When the
+      imported `torve` package resolves under the root, the chain skips the fast-forward
+      and the planning and says so once at the start. Tests: `unplanned_documents`
       over a draft, an accepted and planned, an accepted and unplanned and an implemented
-      document (`tests/test_plan.py`); a chain that plans and mints an accepted document
-      on its next night, leaves a dirty or off-branch checkout alone, records a refused
-      plan once, and plans nothing when the engine imports from under the root (`tests/test_manager.py`).
+      document (`tests/test_plan.py`); a chain that mints an accepted document into
+      the record and serves it on its next night, leaves a dirty or off-branch checkout
+      alone and plans nothing from it, records a refused plan once per base commit,
+      and plans nothing when the engine imports from under the root (`tests/test_manager.py`).
       Settles D-5, D-6 and D-7.
     scope:
       - src/torve/cli/manager.py
