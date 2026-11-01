@@ -61,8 +61,8 @@ design:
           url: str
           title: str
           body: str
-          labelled_by: str            # the account behind the last event that applied the label
-          labelled_at: str            # that event's instant, YYYY-MM-DDTHH:MM:SSZ
+          labelled_by: str | None     # the account behind the last event that applied the label; None when unreadable
+          labelled_at: str | None     # that event's instant, YYYY-MM-DDTHH:MM:SSZ; None when unreadable
           edited_at: str | None       # the later of the body's last edit and the last title rename; None when neither
           unreadable: str | None      # why the leg cannot judge it, such as a labelling outside the window; None when readable
 
@@ -81,7 +81,7 @@ design:
       One pass:
 
       1. With `intake.issue_label` empty, return "issue intake off" and read nothing (D-1).
-      2. List the open issues carrying the label, ordered by `labelled_at`, oldest first.
+      2. List the open issues carrying the label. Skip each the reader marked `unreadable`, naming it and its reason in the detail line and an `issue_skipped` event, and order the rest by `labelled_at`, oldest first.
       3. Skip an issue whose source file `.torve/sources/operator/issue-<number>.yaml` the tree holds (D-5).
       4. Skip an issue whose title or body was edited after `labelled_at`. Then, in the same order, ask `may_triage` about each remaining issue's labeller, at most once per account in the pass, and skip an issue whose labeller cannot triage. Stop asking at the first issue that passes. Each skip is named in the detail line with what would let it through (D-2).
       5. For that issue, write its source file, then call `draft(request, "operator/issue-<number>")`. The request is the title, a blank line and the body (D-4). Stop after one drafting run (D-8).
