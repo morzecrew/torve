@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: One drafting path for the command and the pass
+    intent: >-
+      Move the drafting sequence out of `intake_cmd` into `draft_request(root, request,
+      config, *, spec, source, runtime, taken) -> IntakeOutcome` in `src/torve/application/intake.py`.
+      It builds the planner tier's agent, mints the drafting run, cuts its worktree
+      at base, runs `run_intake` and removes the worktree in a `finally`. A configuration
+      error raises `ValueError` before anything is minted. `torve intake` keeps parsing,
+      the configuration-error exit and rendering. `adopt` commits the source file
+      a drafting run names, with its contracts, when the tree holds that file untracked,
+      and leaves a tracked file or a document source alone. Tests in `tests/test_intake.py`:
+      `draft_request` end to end on the fake harness, and adoption with an untracked,
+      a tracked and a document source. Settles D-6 and D-7.
+    scope:
+      - src/torve/application/intake.py
+      - src/torve/cli/intake.py
+      - tests/test_intake*.py
+    acceptance:
+      - uv run pytest tests/test_intake.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The forge reads a labelled issue
+    intent: >-
+      Add the `LabelledIssue` value and the `IssueReader` port to `src/torve/application/ports.py`.
+      Implement `GhScm.labelled_issues(label)` in `src/torve/adapters/vcs/git.py`:
+      one `gh api graphql` query for the open issues carrying the label, with number,
+      URL, title, body, `lastEditedAt` and the label events (actor, instant, label
+      name). Take the last event that applied this label. Then read `repos/{repo}/collaborators/{login}/permission`
+      once per distinct labeller, so that triage, write, maintain and admin set `labeller_may_triage`.
+      The read uses `scm.repo` and `scm.token_env` as `_gh` and `_api` do, retries
+      once on a transient failure, and never writes. Tests in `tests/test_forge.py`
+      against recorded `gh` output: the last labelling wins, a never-edited body,
+      an edited body, a read-only labeller, and one permission read per labeller.
+      Settles D-3.
+    scope:
+      - src/torve/application/ports.py
+      - src/torve/adapters/vcs/git.py
+      - tests/test_forge.py
+    acceptance:
+      - uv run pytest tests/test_forge.py
+      - uv run mypy src
+    character: routine
+  - phase: 3
+    title: The pass drafts a labelled issue
+    intent: >-
+      Add `issue_label: str = ""` to `IntakeConfig` in `src/torve/config/runconfig.py`
+      and regenerate `.torve/schemas/` with `torve init`. Add `issue_leg(root, config,
+      reader, draft) -> tuple[str, bool]` in a new `src/torve/application/issues.py`.
+      With the label empty, the leg reads nothing. It lists the labelled issues oldest
+      labelling first and skips one whose `.torve/sources/operator/issue-<number>.yaml`
+      exists, whose labeller cannot triage, or whose body was edited after the labelling,
+      naming each skip in its detail line. For the first issue left, it writes that
+      source file (URL as `ref`, title, labelling instant as `at`, body as `summary`)
+      and calls `draft` with the title, a blank line and the body. It stops after
+      one, writes `issue_drafted` and `issue_skipped` engine events, and fails closed
+      on a reader or write error. Give `once` and `serve` in `src/torve/application/residency.py`
+      an `issues` leg after `standing` that a paused pass skips, and build it in `src/torve/cli/manager.py`
+      and `src/torve/cli/fleet.py` from `GhScm` and `draft_request`. Tests: the leg
+      with a fake reader and a fake draft (`tests/test_issues.py`), the leg's place
+      and the pause (`tests/test_residency.py`), the manager and fleet wiring (`tests/test_manager.py`,
+      `tests/test_fleet_serve.py`), the key and the schemas (`tests/test_runconfig.py`,
+      `tests/test_cli.py`). Settles D-1, D-2, D-4, D-5, D-8, D-9 and D-10.
+    scope:
+      - src/torve/application/issues.py
+      - src/torve/application/residency.py
+      - src/torve/cli/manager.py
+      - src/torve/cli/fleet.py
+      - src/torve/config/runconfig.py
+      - .torve/schemas/*.json
+      - tests/test_issues.py
+      - tests/test_residency.py
+      - tests/test_manager*.py
+      - tests/test_fleet*.py
+      - tests/test_runconfig.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_issues.py tests/test_residency.py tests/test_manager.py
+        tests/test_manager_e2e.py tests/test_fleet.py tests/test_fleet_cli.py tests/test_fleet_config.py
+        tests/test_fleet_serve.py tests/test_runconfig.py tests/test_cli.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 1
+      - 2
+    character: structural
+  - phase: 4
+    title: >-
+      The check names a phase's reach before acceptance
+    intent: >-
+      Add `phase_reach(corpus, root) -> list[str]` to `src/torve/application/neighbours.py`,
+      reusing its import-graph reading (`_module_names`, `_imports`, `_resolve`),
+      and add `acceptance_runs(command, test, launcher) -> bool` for D-12's rule.
+      For each phase of a document that is not archived, not superseded and has implementation
+      `none`, it collects the non-test Python files outside the phase's scope that
+      import a file the scope matches. It returns one warning line for those no phase
+      owns, and one line per other phase that owns some. It returns a further line
+      for the test files importing such a file that no acceptance command of the document
+      runs. Each line names the document, the phase number and title, the count and
+      at most ten sorted paths. Append the lines to the warnings in `_model_findings`
+      in `src/torve/cli/spec.py`, beside `inherited_locks`, and name them in `check`'s
+      docstring. Tests: a Hypothesis property for `acceptance_runs` over generated
+      commands and test paths, and the lines for a two-phase corpus in a temporary
+      tree (`tests/test_neighbours.py`). Also the command printing them as warnings
+      and exiting 0 (`tests/test_cli_spec.py`). Settles D-11 and D-12.
+    scope:
+      - src/torve/application/neighbours.py
+      - src/torve/cli/spec.py
+      - tests/test_neighbours.py
+      - tests/test_cli_spec.py
+      - tests/test_spec.py
+      - tests/test_spec_load.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_neighbours.py tests/test_cli_spec.py tests/test_spec.py
+        tests/test_spec_load.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: routine
+  - phase: 5
+    title: >-
+      The skill searches callers in parallel, and the docs turn the leg on
+    intent: >-
+      In `skills/spec-writer/SKILL.md`, rule 3b keeps its list of what a phase owns
+      and gains the method. Search each phase's callers independently: one delegated
+      search per phase where the session can delegate, returning importers, call sites
+      of changed signatures, re-exports and generated files. Fold them into the scopes
+      and acceptance, then settle every reach line `torve spec check` prints, by moving
+      the file into a scope, adding its test, or saying in the intent why it stays
+      out. Step A.5 of `skills/spec-writer/references/workflows.md` names the reach
+      lines beside the inherited LOCKED rows. `skills/torve/references/night.md` and
+      `pages/docs/operating.md` describe `intake.issue_label`, the triage and edit
+      rules, the source file and adopting an issue's drafts. Tests: whatever `tests/test_skills.py`
+      and `tests/test_docs.py` assert over these files. Settles D-13.
+    scope:
+      - skills/spec-writer/SKILL.md
+      - skills/spec-writer/references/workflows.md
+      - skills/torve/references/night.md
+      - pages/docs/operating.md
+      - tests/test_skills.py
+      - tests/test_docs.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_skills.py tests/test_docs.py
+      - uv run torve spec check
+    depends_on:
+      - 3
+      - 4
+    character: routine
