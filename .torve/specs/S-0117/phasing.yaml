@@ -79,16 +79,19 @@ phasing:
       tree. It plans only from a checkout on the base branch, clean and at the remote's
       tip: it runs `plan_document` and `mint_contracts` into the partition's record
       for each unplanned document, as `torve plan --partition` does, and writes no
-      file. A `PlanError` is recorded once per base commit as an engine event naming
-      the document and the refusal, and is tried again when the base moves. When the
-      imported `torve` package resolves under the root, the chain skips the fast-forward
-      and the planning and says so once at the start. Tests: `unplanned_documents`
-      over a draft, an accepted and planned, an accepted and unplanned and an implemented
-      document (`tests/test_plan.py`); a chain that mints an accepted document into
-      the record and serves it on its next night, leaves a dirty or off-branch checkout
-      alone and plans nothing from it, records a refused plan once per base commit,
-      and plans nothing when the engine imports from under the root (`tests/test_manager.py`).
-      Settles D-5, D-6 and D-7.
+      file. A document that raises `PlanError` is tried again within the sweep after
+      each mint that succeeds, since its `after` target can carry a higher number;
+      one still refused when a pass mints nothing is recorded once per base commit
+      as an engine event naming the document and the refusal, and is tried again when
+      the base moves. When the imported `torve` package resolves under the root, the
+      chain skips the fast-forward and the planning and says so once at the start.
+      Tests: `unplanned_documents` over a draft, an accepted and planned, an accepted
+      and unplanned and an implemented document (`tests/test_plan.py`); a chain that
+      mints an accepted document into the record and serves it on its next night,
+      leaves a dirty or off-branch checkout alone and plans nothing from it, mints
+      a document whose `after` target has a higher number in the same sweep, records
+      a refused plan once per base commit, and plans nothing when the engine imports
+      from under the root (`tests/test_manager.py`). Settles D-5, D-6 and D-7.
     scope:
       - src/torve/cli/manager.py
       - src/torve/application/planner.py

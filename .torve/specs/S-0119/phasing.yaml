@@ -30,16 +30,18 @@ phasing:
       `gh api graphql` over the open issues carrying the label, following `pageInfo`
       until `hasNextPage` is false, with number, URL, title, body, `lastEditedAt`
       and the last 100 `LABELED_EVENT` and `RENAMED_TITLE_EVENT` timeline items. Take
-      the last event that applied this label, skip an issue whose last labelling is
-      not in that window, and set `edited_at` to the later of `lastEditedAt` and the
-      last rename. A page that cannot be read fails the whole read. Implement `GhScm.may_triage(login)`
+      the last event that applied this label, return an issue whose last labelling
+      is not in that window with `unreadable` naming the reason rather than dropping
+      it, and set `edited_at` to the later of `lastEditedAt` and the last rename.
+      A page that cannot be read fails the whole read. Implement `GhScm.may_triage(login)`
       from `repos/{repo}/collaborators/{login}/permission`: triage, write, maintain
-      and admin answer true. Both use `scm.repo` and `scm.token_env` as `_gh` and
-      `_api` do, retry once on a transient failure, and never write. Tests in `tests/test_forge.py`
-      against recorded `gh` output: the last labelling wins, a never-edited issue,
-      an edited body, a renamed title, a labelling outside the window, a second page,
-      a failed page, and `may_triage` for a triage and a read-only account. Settles
-      D-3.
+      and admin answer true, and a 404, an account that is not a collaborator, answers
+      false rather than failing the read. Both use `scm.repo` and `scm.token_env`
+      as `_gh` and `_api` do, retry once on a transient failure, and never write.
+      Tests in `tests/test_forge.py` against recorded `gh` output: the last labelling
+      wins, a never-edited issue, an edited body, a renamed title, a labelling outside
+      the window, a second page, a failed page, and `may_triage` for a triage, a read-only
+      and a non-collaborator account. Settles D-3.
     scope:
       - src/torve/application/ports.py
       - src/torve/adapters/vcs/git.py
@@ -55,7 +57,7 @@ phasing:
       and regenerate `.torve/schemas/` with `torve init`. Add `issue_leg(root, config,
       reader, draft) -> tuple[str, bool]` in a new `src/torve/application/issues.py`.
       With the label empty, the leg reads nothing. It lists the labelled issues oldest
-      labelling first and skips one whose `.torve/sources/operator/issue-<number>.yaml`
+      labelling first and skips one the reader marked `unreadable`, one whose `.torve/sources/operator/issue-<number>.yaml`
       exists or whose title or body was edited after the labelling. It then asks `may_triage`
       about the remaining issues' labellers in that order, once per account in the
       pass, skips an issue whose labeller cannot triage, and stops asking at the first
@@ -66,11 +68,13 @@ phasing:
       and fails closed on a reader or write error. Give `once` and `serve` in `src/torve/application/residency.py`
       an `issues` leg after `standing` that a paused pass skips, and build it in `src/torve/cli/manager.py`
       and `src/torve/cli/fleet.py` from `GhScm` and `draft_request`, with the planner
-      tier's agent built once by `build_tier_agent`. Tests: the leg with a fake reader
-      and a fake draft (`tests/test_issues.py`), the leg's place and the pause (`tests/test_residency.py`),
-      the manager and fleet wiring (`tests/test_manager.py`, `tests/test_fleet_serve.py`),
-      the key and the schemas (`tests/test_runconfig.py`, `tests/test_cli.py`). Settles
-      D-1, D-2, D-4, D-5, D-8, D-9 and D-10.
+      tier's agent built once by `build_tier_agent` only when `intake.issue_label`
+      is set; an error building it goes to the leg's detail line and the rest of the
+      pass runs. Tests: the leg with a fake reader and a fake draft (`tests/test_issues.py`),
+      the leg's place and the pause (`tests/test_residency.py`), the manager and fleet
+      wiring, with no agent built while the label is empty (`tests/test_manager.py`,
+      `tests/test_fleet_serve.py`), the key and the schemas (`tests/test_runconfig.py`,
+      `tests/test_cli.py`). Settles D-1, D-2, D-4, D-5, D-8, D-9 and D-10.
     scope:
       - src/torve/application/issues.py
       - src/torve/application/residency.py

@@ -64,10 +64,11 @@ design:
           labelled_by: str            # the account behind the last event that applied the label
           labelled_at: str            # that event's instant, YYYY-MM-DDTHH:MM:SSZ
           edited_at: str | None       # the later of the body's last edit and the last title rename; None when neither
+          unreadable: str | None      # why the leg cannot judge it, such as a labelling outside the window; None when readable
 
       class IssueReader(Protocol):
           def labelled_issues(self, label: str) -> list[LabelledIssue]: ...
-          def may_triage(self, login: str) -> bool: ...  # triage, write, maintain or admin on the repository
+          def may_triage(self, login: str) -> bool: ...  # triage, write, maintain or admin on the repository; False for a non-collaborator
 
       def issue_leg(
           root: Path,
@@ -100,7 +101,7 @@ design:
 
       The leg fails closed toward not creating work, as the standing leg does. A forge read that fails puts its error in the detail line and drafts nothing this pass. A source file that cannot be written drafts nothing. A drafting run that spends its budget escalates as `torve intake`'s does (D-10). The leg writes nothing to the forge (D-9). The detail line and the `issue_drafted` and `issue_skipped` engine events are the operator's view; nothing decides on them.
 
-      `GhScm.labelled_issues` reads the open issues carrying the label through `gh api graphql`, following `pageInfo` until `hasNextPage` is false. For each issue it reads the body's `lastEditedAt` and the last 100 `LABELED_EVENT` and `RENAMED_TITLE_EVENT` timeline items, which hold the most recent labelling and every later rename. An issue whose last application of the label is not among them is skipped as unreadable. A page that cannot be read fails the whole read, so the pass drafts nothing. `GhScm.may_triage` reads one account's permission from `repos/{repo}/collaborators/{login}/permission`, and the leg asks it only about the issues it would draft next. Both use `scm.repo` and `scm.token_env` as every other `GhScm` read does, so a repository without `scm.token_env` uses the host's own `gh` login. A sandbox never sees the credential.
+      `GhScm.labelled_issues` reads the open issues carrying the label through `gh api graphql`, following `pageInfo` until `hasNextPage` is false. For each issue it reads the body's `lastEditedAt` and the last 100 `LABELED_EVENT` and `RENAMED_TITLE_EVENT` timeline items, which hold the most recent labelling and every later rename. An issue whose last application of the label is not among them is returned with `unreadable` saying so, never dropped, so the leg names it as a skip and records it. A page that cannot be read fails the whole read, so the pass drafts nothing. `GhScm.may_triage` reads one account's permission from `repos/{repo}/collaborators/{login}/permission`; a 404 there, an account that is not a collaborator, answers false rather than failing the read. The leg asks it only about the issues it would draft next. Both use `scm.repo` and `scm.token_env` as every other `GhScm` read does, so a repository without `scm.token_env` uses the host's own `gh` login. A sandbox never sees the credential.
   - key: one-drafting-path
     md: |-
       `draft_request` moves out of the command into `src/torve/application/intake.py` (D-7). The leg and `torve intake` then draft the same way.
