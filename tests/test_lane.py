@@ -2106,7 +2106,9 @@ def reaching_base(monkeypatch):
     monkeypatch.setattr(lane, "_base_reaches", lambda _root, _base, _tip: True)
 
 
-def test_an_open_document_on_a_base_that_moved_elsewhere_is_left_as_judged(lane_repo, tmp_path):
+def test_an_open_document_on_a_base_that_moved_elsewhere_is_left_as_judged(
+    lane_repo, tmp_path, monkeypatch
+):
     """S-0083/A-3: a base whose change neither conflicts with the document nor
     touches a path it changed merges as the battery judged the branch, so the
     branch is not rebased, no battery runs and nothing is republished."""
@@ -2119,6 +2121,7 @@ def test_an_open_document_on_a_base_that_moved_elsewhere_is_left_as_judged(lane_
     git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves elsewhere")
     git(lane_repo, "push", "-q", "origin", "main")
     published_before = len(published)
+    calls = _counting_regate(monkeypatch)
 
     results = process_lane(
         lane_repo,
@@ -2131,6 +2134,7 @@ def test_an_open_document_on_a_base_that_moved_elsewhere_is_left_as_judged(lane_
     assert [r.action for r in results] == ["pull request open", "already landed"]
     assert git(lane_repo, "rev-parse", document) == before
     assert len(published) == published_before
+    assert calls == []
 
 
 def test_a_base_reaches_a_document_by_conflict_or_by_a_shared_path(lane_repo):
@@ -2158,9 +2162,21 @@ def test_a_base_reaches_a_document_by_conflict_or_by_a_shared_path(lane_repo):
     conflict = commit("shared.py", "a = 3\n\n\n\n\nb = 1\n", "the base edits the top too")
     git(lane_repo, "checkout", "-q", "main")
 
+    git(lane_repo, "checkout", "-q", "-b", "renamed", fork)
+    git(lane_repo, "mv", "shared.py", "moved.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base renames the shared file")
+    renamed = git(lane_repo, "rev-parse", "HEAD").strip()
+    git(lane_repo, "checkout", "-q", "-b", "spaced", fork)
+    spaced = commit("x shared.py", "d = 1\n", "a name with a space in it")
+    git(lane_repo, "checkout", "-q", "main")
+
     assert not lane._base_reaches(lane_repo, elsewhere, tip)
     assert lane._base_reaches(lane_repo, same_file, tip)
     assert lane._base_reaches(lane_repo, conflict, tip)
+    # Renames off: the old path stays in the base's set and meets the document's.
+    assert lane._base_reaches(lane_repo, renamed, tip)
+    # `x shared.py` is one path: split on spaces, it would meet `shared.py`.
+    assert not lane._base_reaches(lane_repo, spaced, tip)
 
 
 def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(

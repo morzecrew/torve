@@ -68,7 +68,7 @@ amendments:
         field: fingerprint
         after: edf0f8f4e940fe11/0e5e729b24c906e6
   - id: A-3
-    at: '2026-11-02T21:36:34Z'
+    at: '2026-11-02T21:47:54Z'
     title: >-
       A base that moved elsewhere leaves the document branch as judged
     changes:
@@ -81,15 +81,16 @@ amendments:
           a conflict escalates for a person and never resolves itself
         after: >-
           A document branch whose merge would no longer be clean — its merge with
-          the remote's `main` conflicts, or `main`'s change since their merge base
-          touches a path the document changed — is rebased onto that `main` in a disposable
-          worktree, the battery re-run over the rebased tree and the branch republished
-          under lease, bounded once per base tip; a conflict escalates for a person
-          and never resolves itself. A base that moved elsewhere leaves the branch
-          as the battery judged it
+          the remote's `main` conflicts, `main`'s change since their merge base touches
+          a path the document changed (renames counted at their old paths), or git
+          cannot say either — is rebased onto that `main` in a disposable worktree,
+          the battery re-run over the rebased tree and the branch republished under
+          lease, bounded once per base tip; a conflict escalates for a person and
+          never resolves itself. A base that moved elsewhere leaves the branch as
+          the battery judged it
       - subject: D-13
         field: fingerprint
-        after: 54726547a983cb3f/c6da993128d86481
+        after: d012c01966f5bf03/c6da993128d86481
     md: >-
       The lane rebased an open document branch and re-ran its whole battery on every
       move of `main`, though D-13 asks it only of a merge that would no longer be
@@ -97,4 +98,5 @@ amendments:
       batteries, each followed by the pull request's own checks on the republished
       head, all on the same verdict. "No longer clean" is now read as git reads it,
       a conflicting merge, widened to a base change that touches a path the document
-      changed, where a clean merge can still break what the battery judged.
+      changed, where a clean merge can still break what the battery judged, and to
+      any answer git cannot give, where the lane rebases rather than guesses.

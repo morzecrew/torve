@@ -1207,7 +1207,7 @@ The lane asks the forge once per pass for every open document pull request it ho
 
 ### S-0083/D-13 — `ASSUMED` (The pull request is one per document, not one per task)
 
-A document branch whose merge would no longer be clean — its merge with the remote's `main` conflicts, or `main`'s change since their merge base touches a path the document changed — is rebased onto that `main` in a disposable worktree, the battery re-run over the rebased tree and the branch republished under lease, bounded once per base tip; a conflict escalates for a person and never resolves itself. A base that moved elsewhere leaves the branch as the battery judged it
+A document branch whose merge would no longer be clean — its merge with the remote's `main` conflicts, `main`'s change since their merge base touches a path the document changed (renames counted at their old paths), or git cannot say either — is rebased onto that `main` in a disposable worktree, the battery re-run over the rebased tree and the branch republished under lease, bounded once per base tip; a conflict escalates for a person and never resolves itself. A base that moved elsewhere leaves the branch as the battery judged it
 
 - Paths: `src/torve/application/lane.py`
 - Consequence: the person looking at the pull request is looking at the tree the battery judged, and a long-lived branch against a moving `main` cannot rebase itself in a loop
