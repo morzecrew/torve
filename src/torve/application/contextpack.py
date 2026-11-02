@@ -196,6 +196,7 @@ def _convicts_on(name: str) -> str:
         "layering": "an import against the layer contracts",
         "spec-valid": "a corpus document that does not check",
         "coverage-delta": "changed lines below the coverage threshold",
+        "suite": "a test still red at the head that the base tree does not also fail",
         "spec-projection": "a managed AGENTS.md section that drifted from the corpus",
     }.get(name, "the command exits non-zero")
 

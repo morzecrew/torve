@@ -56,6 +56,7 @@ class GateResult(BaseModel):
     bypass: BypassRecord | None = None
     flaky_commands: list[str] = Field(default_factory=list)
     quarantined_failures: list[str] = Field(default_factory=list)
+    inherited_failures: list[str] = Field(default_factory=list)
 
 
 # ....................... #

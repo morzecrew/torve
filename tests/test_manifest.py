@@ -101,6 +101,31 @@ def test_load_and_resolve_defaults(tmp_path):
     assert gates["scope"].timeout == 30
 
 
+def test_the_suite_builtin_takes_the_worktree_and_ten_minutes(tmp_path):
+    """S-0118/D-1, D-5: the suite runs over the worktree and reads the merge
+    base, and its entry's `commands` are its suite and reports."""
+
+    data = dict(
+        BASE_MANIFEST,
+        gates=[
+            {
+                "name": "suite",
+                "run": "@suite",
+                "state": "blocking",
+                "origin": "S-0118",
+                "sabotage": "suite",
+                "commands": ["pytest -q"],
+            }
+        ],
+    )
+    manifest = load_manifest(write_manifest(tmp_path, data))
+    gate = manifest.resolved_gates()[0]
+
+    assert gate.input == "worktree"
+    assert gate.timeout == 600
+    assert gate.commands == ["pytest -q"]
+
+
 def test_unknown_builtin_is_a_load_error(tmp_path):
     bad = dict(
         BASE_MANIFEST,

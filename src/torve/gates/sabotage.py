@@ -920,6 +920,153 @@ def _evidence_red(repo: Repo) -> None:
     repo.commit("a citing test the change turned green")
 
 
+# The `suite` builtin (S-0118/D-1): the whole suite once, then the failing
+# files rerun at the head and the still-red ones run on the merge base. One
+# case proves a regression convicts; the twin proves a red the base carries
+# passes, and the family's remaining cases pin the flaky and fail-closed arms.
+# The scratch repository is not a uv project, so the launcher is `pytest`.
+
+SUITE_MANIFEST: dict[str, Any] = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "tests": {"run": VERIFY_MANIFEST_RUN},
+    "gates": [
+        {
+            "name": "suite",
+            "run": "@suite",
+            "state": "blocking",
+            "origin": "S-0118",
+            "timeout": 120,
+            "sabotage": "suite",
+            "commands": [VERIFY_MANIFEST_RUN],
+        }
+    ],
+}
+
+# Reads the source module as a file, so the test needs no import path and the
+# same file runs on both trees.
+SUITE_READING_TEST = (
+    "from pathlib import Path\n\n"
+    'VALUE = (Path(__file__).resolve().parents[1] / "src" / "app.py").read_text()\n\n\n'
+    "def test_app():\n"
+    '    assert "VALUE = 1" in VALUE\n'
+)
+
+SUITE_HEAD_CHANGE = "VALUE = 2\n"
+
+# Fails once, leaves a marker, then passes: a red the rerun clears as flaky.
+SUITE_FLAKY_TEST = (
+    "from pathlib import Path\n\n"
+    'MARKER = Path(__file__).resolve().parents[1] / ".torve" / "suite-flaky"\n\n\n'
+    "def test_app():\n"
+    "    if not MARKER.exists():\n"
+    "        MARKER.parent.mkdir(parents=True, exist_ok=True)\n"
+    '        MARKER.write_text("x")\n'
+    "        assert False\n"
+)
+
+# The second test fails only because the first ran before it: the rerun keeps
+# the order inside the file, so it convicts (S-0118/D-1).
+SUITE_ORDER_BASE_TEST = (
+    'STATE = {"seen": False}\n\n\n'
+    "def test_first():\n"
+    '    STATE["seen"] = False\n\n\n'
+    "def test_second():\n"
+    '    assert not STATE["seen"]\n'
+)
+
+SUITE_ORDER_HEAD_TEST = SUITE_ORDER_BASE_TEST.replace(
+    'STATE["seen"] = False', 'STATE["seen"] = True'
+)
+
+
+def _suite_regression(repo: Repo) -> None:
+    repo.seed(SUITE_MANIFEST)
+    repo.write("src/app.py", SUITE_HEAD_CHANGE)
+    repo.write("tests/test_app.py", SUITE_READING_TEST)
+    repo.commit("a change the existing test no longer meets")
+
+
+# ....................... #
+
+
+def _suite_inherited(repo: Repo) -> None:
+    # The base branch is already red; the attempt changes nothing the failing
+    # test reads, so the red is inherited and never convicts (S-0118/D-4).
+    repo.seed(SUITE_MANIFEST)
+    repo.git("checkout", "-q", "main")
+    repo.write("src/app.py", SUITE_HEAD_CHANGE)
+    repo.write("tests/test_app.py", SUITE_READING_TEST)
+    repo.commit("a red the base already carries")
+    repo.git("checkout", "-q", f"torve/{TASK_ID}")
+    repo.git("merge", "-q", "main")
+    repo.write("src/other.py", "VALUE = 3\n")
+    repo.commit("an unrelated change")
+
+
+# ....................... #
+
+
+def _suite_flaky(repo: Repo) -> None:
+    repo.seed(SUITE_MANIFEST)
+    repo.write("tests/test_app.py", SUITE_FLAKY_TEST)
+    repo.commit("a test that passes on the rerun")
+
+
+# ....................... #
+
+
+def _suite_order(repo: Repo) -> None:
+    repo.seed(SUITE_MANIFEST)
+    repo.git("checkout", "-q", "main")
+    repo.write("tests/test_app.py", SUITE_ORDER_BASE_TEST)
+    repo.commit("an order-dependent suite, green")
+    repo.git("checkout", "-q", f"torve/{TASK_ID}")
+    repo.git("merge", "-q", "main")
+    repo.write("tests/test_app.py", SUITE_ORDER_HEAD_TEST)
+    repo.commit("the first test now poisons the second")
+
+
+# ....................... #
+
+
+def _suite_new_file(repo: Repo) -> None:
+    # The base cannot run the test at all: no reading, so it convicts (D-2).
+    repo.seed(SUITE_MANIFEST)
+    repo.write("tests/test_new.py", "def test_new():\n    assert False\n")
+    repo.commit("a failing test the base lacks")
+
+
+# ....................... #
+
+
+def _suite_collection_error(repo: Repo) -> None:
+    # A red that names no failing test convicts (D-2).
+    repo.seed(SUITE_MANIFEST)
+    repo.write("tests/test_app.py", "def test_app(:\n    assert True\n")
+    repo.commit("a file that does not collect")
+
+
+# ....................... #
+
+
+def _suite_reports(repo: Repo) -> None:
+    manifest = dict(SUITE_MANIFEST)
+    manifest["gates"] = [
+        {
+            **SUITE_MANIFEST["gates"][0],
+            "commands": [
+                "pytest -q -p no:cacheprovider; code=$?; echo HEAD > suite-artifact; exit $code",
+                "cat suite-artifact",
+                "exit 1",
+            ],
+        }
+    ]
+    repo.seed(manifest)
+    repo.write("src/app.py", "print('changed')\n")
+    repo.commit("a green suite with a report that goes red")
+
+
 # ....................... #
 
 CASES: list[Case] = [
@@ -1080,6 +1227,55 @@ CASES: list[Case] = [
         "evidence",
         "pass",
         _evidence_red,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: a test the change broke",
+        "suite",
+        "fail",
+        _suite_regression,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: an inherited red does not convict",
+        "suite",
+        "pass",
+        _suite_inherited,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: a test that passes on the rerun is flaky",
+        "suite",
+        "flaky",
+        _suite_flaky,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: order inside a file convicts",
+        "suite",
+        "fail",
+        _suite_order,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: a failing file the base lacks convicts",
+        "suite",
+        "fail",
+        _suite_new_file,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: a red naming no test convicts",
+        "suite",
+        "fail",
+        _suite_collection_error,
+        requires=VERIFY_REQUIRES,
+    ),
+    Case(
+        "suite: a report that goes red does not convict",
+        "suite",
+        "pass",
+        _suite_reports,
         requires=VERIFY_REQUIRES,
     ),
 ]

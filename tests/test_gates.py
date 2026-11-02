@@ -436,6 +436,25 @@ def test_a_shell_gate_receives_the_batterys_computed_base(repo):
     assert ctx.merge_base != ctx.base
 
 
+def test_inherited_failures_pass_through_to_the_gate_result(repo, monkeypatch):
+    """S-0118/D-4: a builtin's inherited ids are a fact about a green gate, so
+    they ride the GateResult beside the quarantined commands rather than only
+    the output a passing result drops."""
+
+    from torve.gates import runner as gate_runner
+    from torve.gates.contract import BuiltinOutcome
+
+    def suite(gate, ctx):
+        return BuiltinOutcome("pass", inherited_failures=["tests/test_a.py::test_b"])
+
+    monkeypatch.setitem(gate_runner.BUILTINS, "suite", suite)
+    repo.seed(_single_gate_manifest("@suite"))
+    report = run_gates(context_for(repo), only={"g"})
+
+    assert report.results[0].outcome == "pass"
+    assert report.results[0].inherited_failures == ["tests/test_a.py::test_b"]
+
+
 def test_the_flaky_record_keeps_the_declared_command(repo):
     # An embedded SHA would make each run's flaky identity unique and
     # unquarantinable; the record is the declared command, placeholder intact.

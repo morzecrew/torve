@@ -329,6 +329,11 @@ def battery_budget(gates: Iterable[Gate], ctx: GateContext) -> float:
 
         if gate.builtin == "acceptance":
             commands = len(ctx.task.acceptance if ctx.task is not None else gate.commands) or 1
+        elif gate.builtin == "suite":
+            # One suite run and its reports, then the failing files' rerun and
+            # the base run on a red (S-0118/D-1); no blanket re-run, so this is
+            # the pass's own upper bound before the doubling below.
+            commands = max(len(gate.commands), 1) + 2
 
         total += 2 * commands * (gate.timeout or SHELL_GATE_TIMEOUT)
 
@@ -404,6 +409,7 @@ def run_gates(
             bypass=bypass,
             flaky_commands=outcome.flaky_commands,
             quarantined_failures=outcome.quarantined_failures,
+            inherited_failures=outcome.inherited_failures,
         )
 
         if bypass:
