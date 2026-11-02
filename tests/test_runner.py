@@ -3110,6 +3110,27 @@ def test_a_held_landing_is_in_the_cut_after_a_hand_push_too(repo):
     )
 
 
+def test_a_checkpoint_the_base_moved_past_is_stale(repo):
+    """A requeue resumes the task's checkpoint, but a hand fix pushed to the
+    document branch after the cut is not in it, while the battery judges
+    against the branch as it stands now (T-0695)."""
+    from torve.application.runner import _stale_checkpoint
+
+    repo.seed()
+    task = naming.branch("T-0001")
+    assert not _stale_checkpoint(repo.root, "T-0001", "main")
+
+    repo.git("checkout", "-q", "-b", task)
+    repo.write("wip.txt", "the attempt's checkpoint\n")
+    repo.commit("checkpoint")
+    repo.git("checkout", "-q", "main")
+    assert not _stale_checkpoint(repo.root, "T-0001", "main")
+
+    repo.write("fix.txt", "a hand fix on the base\n")
+    repo.commit("hand fix")
+    assert _stale_checkpoint(repo.root, "T-0001", "main")
+
+
 def test_a_local_document_branch_the_remote_moved_past_is_not_cut_from(repo):
     """A copy the remote already contains carries nothing held: one the remote
     moved past (a hand commit pushed to the pull request) is stale."""

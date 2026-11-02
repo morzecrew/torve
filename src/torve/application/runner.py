@@ -2003,6 +2003,27 @@ def _holds_landings(root: Path, branch: str, remote: str) -> bool:
     return False
 
 
+def _stale_checkpoint(root: Path, task_id: str, base: str) -> bool:
+    """Whether the task's branch exists and lacks *base*: a checkpoint cut
+    before the base moved. A branch absent here is not one."""
+
+    branch = f"refs/heads/{naming.branch(task_id)}"
+
+    try:
+        git(root, "rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}")
+
+    except GitError:
+        return False
+
+    try:
+        git(root, "merge-base", "--is-ancestor", base, branch)
+
+    except GitError:
+        return True
+
+    return False
+
+
 # ....................... #
 
 
@@ -2015,6 +2036,14 @@ async def _run_task_async(
     resume: bool = False,
 ) -> RunState:
     base, fetch, gates_base = _cut_from(root, task, config)
+
+    # A continuation resumes its checkpoint (S-0026/D-9), but under the document
+    # unit the battery judges against the branch's tip as it stands now. A
+    # checkpoint cut before that tip moved reads as reverting whatever landed
+    # since, so it is recut; the workspace keeps it under a ref. T-0695 ran six
+    # attempts on one past a hand fix, each red on the fix's absence.
+    if resume and gates_base is not None and _stale_checkpoint(root, task.id, gates_base):
+        resume = False
 
     # The keyword is passed only where it is on, so a workspace that never
     # fetches is called exactly as it was called before the port carried one.

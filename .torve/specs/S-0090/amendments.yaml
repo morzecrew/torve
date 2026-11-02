@@ -20,3 +20,36 @@ amendments:
       - subject: D-2
         field: fingerprint
         after: fd07c012ef76c08a/d5444928038b97ea
+  - id: A-2
+    at: '2026-11-02T13:37:44Z'
+    title: >-
+      A continuation past a moved document tip is recut
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          The next dispatch of a task whose last attempt escalated `blocker_finding`,
+          `locked_conflict` or `underspecified` from a halt, and which has not landed,
+          continues from the tree that attempt checkpointed, whether it was requeued
+          on the board or by a person
+        after: >-
+          The next dispatch of a task whose last attempt escalated `blocker_finding`,
+          `locked_conflict` or `underspecified` from a halt, and which has not landed,
+          continues from the tree that attempt checkpointed, whether it was requeued
+          on the board or by a person. Under the document unit, a checkpoint that
+          lacks the document branch tip the battery judges against is recut from that
+          tip instead, and the workspace keeps the checkpoint under a ref
+      - subject: D-2
+        field: fingerprint
+        before: fd07c012ef76c08a/d5444928038b97ea
+        after: 1f91a385911a9d23/d5444928038b97ea
+    md: |
+      Under the document unit the battery judges an attempt against the document
+      branch's tip as it stands at dispatch (S-0083/D-9). A checkpoint cut before
+      that tip moved does not carry what landed since, so its diff reads as
+      reverting it: a hand fix pushed to the branch is absent from the tree, and
+      the scope gate convicts the revert of a file the phase does not own. On
+      S-0118, T-0695 ran six attempts that way after b11ddfc1, each red on the
+      fix's absence, until its branch was set aside by hand. The checkpoint is
+      still kept under `refs/torve/checkpoints/`, and the feedback record still
+      carries its diff, so the recut attempt reads what the last one did.
