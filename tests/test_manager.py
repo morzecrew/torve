@@ -3328,3 +3328,66 @@ def test_lane_judged_moves_no_task_state():
     assert view.state is TaskState.QUEUED
     assert view.attempts == 0
     assert view.landed_sha is None
+
+
+def test_judged_subject_reads_the_branch_the_head_names(tmp_path):
+    """S-0118/D-9: with a real head the battery's subject is the task the
+    `torve/` branch at that head names, and a document branch's battery belongs
+    to the last task its tip carries. A head no branch points at falls back to
+    the candidate the caller named."""
+
+    import subprocess
+
+    from torve.application.lane import LaneJudgment
+    from torve.cli.merge import judged_subject
+
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    (root / "README").write_text("x\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "init")
+
+    git("checkout", "-q", "-b", "torve/T-0042")
+    git("commit", "-q", "--allow-empty", "-m", "the candidate")
+    candidate = git("rev-parse", "HEAD")
+
+    judgment = LaneJudgment(
+        leg="regate", base="b" * 40, head=candidate, exit_code=0, duration_s=1.0
+    )
+
+    assert judged_subject(root, judgment, None) == "T-0042"
+
+    execution = root / ".torve" / "specs" / "S-0118" / "execution"
+    execution.mkdir(parents=True)
+    git("checkout", "-q", "main")
+    git("checkout", "-q", "-b", "torve/S-0118")
+
+    for task_id, at in (("T-0001", "20260101T000000Z"), ("T-0002", "20260102T000000Z")):
+        (execution / f"{task_id}-1-{at}.yaml").write_text("commit: abc\n", encoding="utf-8")
+
+    git("add", "-A")
+    git("commit", "-qm", "the document")
+    document = git("rev-parse", "HEAD")
+
+    judgment = LaneJudgment(
+        leg="completion", base="b" * 40, head=document, exit_code=0, duration_s=1.0
+    )
+
+    assert judged_subject(root, judgment, None) == "T-0002"
+
+    stray = LaneJudgment(leg="regate", base="b" * 40, head="h" * 40, exit_code=0, duration_s=1.0)
+
+    assert judged_subject(root, stray, "T-9") == "T-9"
+    assert judged_subject(root, stray, None) == ""
