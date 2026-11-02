@@ -2626,6 +2626,40 @@ def _complete_by_hand(
     )
 
 
+def _base_reaches(root: Path, base_tip: str, branch_tip: str) -> bool:
+    """Whether a base that moved under an open document branch reaches what
+    the document changed (S-0083/A-3): their merge conflicts, or the base's
+    own change since their merge base touches a path the document's does. A
+    base that reaches neither merges as the battery judged the branch, so the
+    branch is left as it is: rebasing it would only rerun the whole battery and
+    the pull request's checks on the same verdict. Anything git cannot answer
+    reads as reaching, so the lane rebases rather than guesses."""
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    if git("merge-tree", "--write-tree", "--no-messages", base_tip, branch_tip).returncode != 0:
+        return True
+
+    fork = git("merge-base", base_tip, branch_tip)
+
+    if fork.returncode != 0 or not fork.stdout.strip():
+        return True
+
+    moved = git("diff", "--name-only", fork.stdout.strip(), base_tip)
+    ours = git("diff", "--name-only", fork.stdout.strip(), branch_tip)
+
+    if moved.returncode != 0 or ours.returncode != 0:
+        return True
+
+    return bool(set(moved.stdout.split()) & set(ours.stdout.split()))
+
+
 def _rebase_document(
     root: Path,
     vcs: LaneVcs,
@@ -2701,6 +2735,7 @@ def _rebase_document(
         or base is None
         or base_tip is None
         or vcs.is_ancestor(root, base_tip, branch_tip)
+        or not _base_reaches(root, base_tip, branch_tip)
     ):
         if (
             branch_tip is not None

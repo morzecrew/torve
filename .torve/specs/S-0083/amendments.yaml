@@ -67,3 +67,34 @@ amendments:
       - subject: D-7
         field: fingerprint
         after: edf0f8f4e940fe11/0e5e729b24c906e6
+  - id: A-3
+    at: '2026-11-02T21:36:34Z'
+    title: >-
+      A base that moved elsewhere leaves the document branch as judged
+    changes:
+      - subject: D-13
+        field: text
+        before: >-
+          A document branch whose merge would no longer be clean is rebased onto the
+          remote's `main` in a disposable worktree, the battery re-run over the rebased
+          tree and the branch republished under lease, bounded once per base tip;
+          a conflict escalates for a person and never resolves itself
+        after: >-
+          A document branch whose merge would no longer be clean — its merge with
+          the remote's `main` conflicts, or `main`'s change since their merge base
+          touches a path the document changed — is rebased onto that `main` in a disposable
+          worktree, the battery re-run over the rebased tree and the branch republished
+          under lease, bounded once per base tip; a conflict escalates for a person
+          and never resolves itself. A base that moved elsewhere leaves the branch
+          as the battery judged it
+      - subject: D-13
+        field: fingerprint
+        after: 54726547a983cb3f/c6da993128d86481
+    md: >-
+      The lane rebased an open document branch and re-ran its whole battery on every
+      move of `main`, though D-13 asks it only of a merge that would no longer be
+      clean. On #236 one evening's three merges to `main` cost three whole-document
+      batteries, each followed by the pull request's own checks on the republished
+      head, all on the same verdict. "No longer clean" is now read as git reads it,
+      a conflicting merge, widened to a base change that touches a path the document
+      changed, where a clean merge can still break what the battery judged.
