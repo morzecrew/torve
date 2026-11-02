@@ -177,7 +177,7 @@ The review-thread leg's record source reads no finding from a review whose targe
 
 ### S-0090/D-2 — `ASSUMED` (Review rounds converge, and judged work continues from its tree)
 
-The next dispatch of a task whose last attempt escalated `blocker_finding`, `locked_conflict` or `underspecified` from a halt, and which has not landed, continues from the tree that attempt checkpointed, whether it was requeued on the board or by a person
+The next dispatch of a task whose last attempt escalated `blocker_finding`, `locked_conflict` or `underspecified` from a halt, and which has not landed, continues from the tree that attempt checkpointed, whether it was requeued on the board or by a person. Under the document unit, a checkpoint that lacks the document branch tip the battery judges against is recut from that tip instead, and the workspace keeps the checkpoint under a ref
 
 - Paths: `src/torve/application/runner.py` `tests/test_runner.py` `tests/test_run_loop.py`
 - Consequence: a review that asks for one file's change costs that change, and a halt answered by an amendment resumes where it stopped
