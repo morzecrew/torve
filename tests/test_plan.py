@@ -1009,6 +1009,27 @@ def test_minting_derives_the_contingent_neighbours(plan_repo):
     assert report.tasks[0].task.scope.allow == ["src/widget/**", "tests/widget/**"]
 
 
+def test_minting_carries_the_manifest_s_derived_riders(plan_repo):
+    """S-0104/D-5: a file the manifest pairs with a scoped source joins the
+    contingent set, as the scope gate already admits it. S-0118's phase 3 left
+    the record page red without the contract ever naming it."""
+    root, _, git = plan_repo
+    core = root / "src" / "widget" / "core.py"
+    core.parent.mkdir(parents=True)
+    core.write_text("def core():\n    return 1\n", encoding="utf-8")
+    (root / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\nscope:\n  derived:\n    src/widget/core.py:\n      - pages/widget.md\n",
+        encoding="utf-8",
+    )
+    git("add", "-A")
+    git("commit", "-qm", "source")
+
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+
+    assert "pages/widget.md" in report.tasks[0].task.scope.contingent
+    assert "pages/widget.md" not in report.tasks[1].task.scope.contingent
+
+
 def test_same_phase_disjointness_ignores_the_contingent_set(plan_repo):
     root, _, git = plan_repo
     for relative in ("src/widget/__init__.py", "src/frob/__init__.py"):

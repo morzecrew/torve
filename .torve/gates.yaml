@@ -33,6 +33,29 @@ schema_version: 1
 scope:
   allow: []
   deny: []
+  # The files that ride with a source, both ways (S-0104/D-5). Naming the map
+  # replaces the engine's lock-file defaults, so they are restated first. The
+  # record page's authority table is compared against every event kind by
+  # tests/test_docs.py: S-0118's phase 3 added `lane.judged` without owning the
+  # page, and every later attempt on the document inherited the red. Block
+  # lists only: the pre-write hook reads this map line-wise (`derived_map`).
+  derived:
+    pyproject.toml:
+      - uv.lock
+      - poetry.lock
+      - pdm.lock
+    Pipfile:
+      - Pipfile.lock
+    package.json:
+      - package-lock.json
+      - pnpm-lock.yaml
+      - yarn.lock
+    Cargo.toml:
+      - Cargo.lock
+    go.mod:
+      - go.sum
+    src/torve/domain/events.py:
+      - pages/docs/architecture/record.md
 
 gates:
   # The builtins run in the runner's own process over the diff, and measure

@@ -323,6 +323,25 @@ def _test_run(root: Path) -> str:
         return DEFAULT_TEST_RUN
 
 
+def _derived(root: Path) -> dict[str, list[str]]:
+    """The manifest's `scope.derived` map (S-0104/D-5) the contingent set
+    applies, as the scope gate does; the engine default when the tree carries
+    no manifest, or one the loader refuses."""
+
+    from torve.config.manifest import ManifestScope, load_manifest
+
+    path = layout.gates_file(root)
+
+    if not path.is_file():
+        return ManifestScope().derived
+
+    try:
+        return load_manifest(path).scope.derived
+
+    except ValueError:
+        return ManifestScope().derived
+
+
 def _verify_file(tests_dir: str, number: str, phase: int, k: int) -> str:
     """The one file a verifier may write (S-0116/D-4): `<tests_dir>/test_sNNNN_pN.py`,
     or `..._pN_<k>.py` for the k-th entry of several sharing phase N."""
@@ -733,6 +752,7 @@ def plan_document(
     from torve.application.intake import test_pairs
 
     pairs = test_pairs(root)
+    derived = _derived(root)
     planned: list[PlannedTask] = []
 
     for task_id, role, entry, file in emitted:
@@ -777,7 +797,12 @@ def plan_document(
                     allow=list(entry.scope),
                     deny=[verifier] if verifier else [],
                     contingent=neighbours.contingent_paths(
-                        root, entry.scope, document=doc, phase=entry.phase, pair=pairs
+                        root,
+                        entry.scope,
+                        document=doc,
+                        phase=entry.phase,
+                        derived=derived,
+                        pair=pairs,
                     ),
                 ),
                 acceptance=list(entry.acceptance)
