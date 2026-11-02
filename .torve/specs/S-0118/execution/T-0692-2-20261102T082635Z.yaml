@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0692
+phase: 1
+attempt: 2
+base: edccf4e081b9644b61c8a7c1b9cfb3639a1dde7c
+commit: 7db63aa885116906dd91810cb8ec94222734466c
+at: '2026-11-02T08:26:35Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-02T07:51:45Z'
+    claim: >-
+      The builtin fails closed on both arms D-2 names: a red suite whose pytest short
+      summary names no failing test id fails at once, and an id whose base reading
+      is absent — the base tree lacks its file, or the base run names no ids at all
+      — convicts rather than inheriting.
+    evidence: >-
+      src/torve/gates/suite.py:224-234 — the no-failing-id red fails closed; the absent
+      base reading at :250-263 convicts
+    action: decided
+  - decision: D-11
+    grade: OPEN
+    at: '2026-11-02T07:51:45Z'
+    claim: >-
+      The base tree is built on the host: git archive of the merge base piped through
+      tar into .torve/tmp/suite-base inside the checkout, before the gate's first
+      command, so the sandbox — which has no git — sees it in its workspace. The base
+      reading itself runs through the gate executor in the sandbox, never on the host.
+    evidence: >-
+      src/torve/gates/suite.py:152-177 — _extract_base runs the host archive; the
+      base command at :253-260 runs through ctx.execute
+    action: decided
