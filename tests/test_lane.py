@@ -4510,6 +4510,15 @@ def test_a_rebased_candidate_with_only_inherited_failures_lands(lane_repo):
     assert (lane_repo / "six-two.py").is_file()
 
 
+def test_a_bypassed_gate_is_not_named_a_failure():
+    """S-0118/D-8: a bypass is a waiver, not a conviction, so the escalation
+    detail names only fail and error gates and counts the passes."""
+
+    from torve.application.lane import _failure_first
+
+    assert _failure_first("scope=pass, lint=bypassed, suite=fail") == "suite=fail; 1 passed"
+
+
 def test_the_poison_ceiling_names_the_failing_gates_first(lane_repo, monkeypatch):
     """S-0118/D-8: the record clips an escalation's detail at 300 characters,
     so the failing gates lead it and the passing ones are only counted."""

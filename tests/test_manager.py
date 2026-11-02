@@ -3297,6 +3297,38 @@ def test_torve_merge_records_each_judged_battery_in_the_log(tmp_path, monkeypatc
     assert judged[0].payload["leg"] == "completion"
 
 
+def test_torve_merge_renders_the_landing_when_the_record_write_fails(tmp_path, monkeypatch):
+    """S-0118/D-9: a store that cannot take the battery record is an
+    infrastructure failure, and the pass still reports what it landed instead
+    of losing the result to the write's exception."""
+
+    from typer.testing import CliRunner
+
+    from torve.application import lane as lane_module
+    from torve.application.lane import LaneJudgment, LaneResult
+    from torve.cli import merge as merge_module
+    from torve.cli.main import app
+    from torve.domain.states import EXIT_INFRASTRUCTURE
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        kwargs["on_judged"](
+            LaneJudgment(leg="regate", base="b", head="h", exit_code=0, duration_s=0.5)
+        )
+        return [LaneResult("T-1", "torve/T-1", "landed", "fast-forward", "a" * 40)]
+
+    def failing_record(_root, _config, _collected):
+        raise RuntimeError("the store is unreachable")
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    monkeypatch.setattr(merge_module, "record_judged", failing_record)
+
+    result = CliRunner().invoke(app, ["merge", "--root", str(tmp_path), "--format", "json", "T-1"])
+
+    assert result.exit_code == EXIT_INFRASTRUCTURE
+    assert "T-1" in result.output
+    assert "could not be recorded" in result.output
+
+
 def test_lane_judged_moves_no_task_state():
     """S-0118/D-9: the battery is a record to read, never a transition — the
     board folds to where the other facts left the task."""
@@ -3391,3 +3423,52 @@ def test_judged_subject_reads_the_branch_the_head_names(tmp_path):
 
     assert judged_subject(root, stray, "T-9") == "T-9"
     assert judged_subject(root, stray, None) == ""
+
+
+def test_judged_subject_uses_the_judged_branch_over_a_shared_head(tmp_path):
+    """S-0118/D-9: two refs can point at one head — a document branch
+    fast-forwarded to its last candidate — so the branch the judgment carries
+    names the subject, not whichever ref `--points-at` returns first."""
+
+    import subprocess
+
+    from torve.application.lane import LaneJudgment
+    from torve.cli.merge import judged_subject
+
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    (root / "README").write_text("x\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "init")
+
+    execution = root / ".torve" / "specs" / "S-0118" / "execution"
+    execution.mkdir(parents=True)
+    (execution / "T-0001-1-20260101T000000Z.yaml").write_text("commit: abc\n", encoding="utf-8")
+
+    git("checkout", "-q", "-b", "torve/T-0042")
+    git("add", "-A")
+    git("commit", "-qm", "the candidate")
+    shared = git("rev-parse", "HEAD")
+    git("branch", "torve/S-0118", shared)
+
+    def judgment(branch: str) -> LaneJudgment:
+        return LaneJudgment(
+            leg="regate", base="b" * 40, head=shared, exit_code=0, duration_s=1.0, branch=branch
+        )
+
+    # A re-gate of the candidate whose branch shares the document's head.
+    assert judged_subject(root, judgment("torve/T-0042"), None) == "T-0042"
+    # The completion battery on the document branch names its last task.
+    assert judged_subject(root, judgment("torve/S-0118"), None) == "T-0001"

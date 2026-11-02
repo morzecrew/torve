@@ -197,6 +197,10 @@ def test_a_lane_judgment_renders_its_failing_output_and_inherited_failures():
     ]
     # A gate with nothing red and nothing inherited is not a reading.
     assert [result["name"] for result in rows[0]["results"]] == ["suite", "coverage-delta"]
+    # S-0118/D-4: each result carries its own inherited reds, not only the
+    # row's aggregate — a passing result's inherited list is the proof.
+    assert rows[0]["results"][0]["inherited_failures"] == ["tests/test_b.py::test_old"]
+    assert rows[0]["results"][1]["inherited_failures"] == ["tests/test_c.py::test_base_red"]
     assert rows[0]["results"][0]["output"].startswith("FAILED tests/test_a.py::test_one")
     assert rows[0]["results"][1]["output"] == ""
 

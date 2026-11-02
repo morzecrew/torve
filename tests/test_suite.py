@@ -12,7 +12,7 @@ from hypothesis import strategies as st
 
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import VERIFY_MANIFEST_RUN, Repo
-from torve.gates.suite import attribution, failing_ids
+from torve.gates.suite import _reading, attribution, failing_ids
 
 TASK_ID = "T-9001"
 SUITE_ID = "tests/test_app.py::test_app"
@@ -63,7 +63,7 @@ def suite_manifest(commands: list[str] | None = None) -> dict[str, Any]:
                 "origin": "S-0118",
                 "timeout": 120,
                 "sabotage": "suite",
-                "commands": commands or [VERIFY_MANIFEST_RUN],
+                "commands": [VERIFY_MANIFEST_RUN] if commands is None else commands,
             }
         ],
     }
@@ -104,6 +104,22 @@ def test_failing_ids_are_read_from_pytest_short_summary():
         "tests/test_a.py::test_one",
         "tests/test_b.py::TestThing::test_two[p]",
     ]
+
+
+def test_a_rerun_that_cannot_collect_a_file_has_no_reading():
+    """S-0118/D-2: a rerun that names one failure and cannot collect another
+    file read no ids in that file, so every head failure still red convicts
+    instead of being cleared as flaky."""
+
+    output = (
+        "FAILED tests/test_a.py::test_one - AssertionError: nope\n"
+        "ERROR tests/test_b.py - ImportError: no module\n"
+    )
+
+    assert _reading(1, output) is None
+    # A run naming only test ids is a reading, so the guard does not clear
+    # ordinary reds.
+    assert _reading(1, "FAILED tests/test_a.py::test_one - nope\n") == {"tests/test_a.py::test_one"}
 
 
 @given(
@@ -230,6 +246,20 @@ def test_a_red_naming_no_test_convicts(repo):
 
     assert result.outcome == "fail"
     assert "names no failing test" in result.output
+
+
+def test_an_entry_with_no_commands_is_skipped(repo):
+    """S-0118/D-1: a suite entry carrying no command has nothing to run, and
+    is reported skipped rather than passing without evidence."""
+
+    repo.seed(suite_manifest([]))
+    repo.write("src/app.py", "print('changed')\n")
+    repo.commit("nothing for the suite to run")
+
+    result = judged(repo)
+
+    assert result.outcome == "skipped"
+    assert "no suite command configured" in result.output
 
 
 def test_a_red_cleared_by_the_rerun_is_flaky(repo):

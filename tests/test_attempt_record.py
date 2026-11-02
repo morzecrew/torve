@@ -179,7 +179,7 @@ def test_inherited_failures_are_part_of_the_recorded_result_shape(repo):
         "cafe1234",
         agent=AGENT,
     )
-    payload = record_payload(record, 1)
+    payload = record_payload(record, 2)
 
     validated = validate_payload(EventKind.GATES_EVALUATED, payload)
 

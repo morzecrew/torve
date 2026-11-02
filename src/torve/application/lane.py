@@ -284,6 +284,11 @@ class LaneJudgment:
     exit_code: int
     duration_s: float
     results: list[dict[str, Any]] = field(default_factory=list)
+    #: The branch the battery judged, when the lane knows it. The subject is
+    #: read from this rather than from whichever `torve/*` ref happens to point
+    #: at the head: a document branch fast-forwarded to its last candidate
+    #: shares that head, and the first ref found would name the wrong task.
+    branch: str = ""
 
 
 #: The pass's judgment sink (S-0118/D-12): `process_lane` sets it for the
@@ -298,9 +303,19 @@ _JUDGED: contextvars.ContextVar[Callable[[LaneJudgment], None] | None] = context
 #: threaded through every caller.
 _LEG: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_leg", default="regate")
 
+#: The branch the running battery judges: the candidate's branch for a re-gate,
+#: the document's for a completion or a document rebase. Set beside the leg so
+#: the judgment can name the subject without looking the head up, which two
+#: refs can share (S-0118/D-9).
+_BRANCH: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_branch", default="")
+
 
 def _hand_judged(
-    base: str, head: str, exit_code: int, duration_s: float, results: list[GateResult]
+    base: str,
+    head: str,
+    exit_code: int,
+    duration_s: float,
+    results: list[GateResult],
 ) -> None:
     """Hand one battery to the pass's observer, if it has one (S-0118/D-12).
     Called as `_regate` returns, before the lane does anything else with it."""
@@ -318,6 +333,7 @@ def _hand_judged(
             exit_code=exit_code,
             duration_s=round(duration_s, 3),
             results=[result.model_dump() for result in results],
+            branch=_BRANCH.get(),
         )
     )
 
@@ -352,7 +368,7 @@ def _failure_first(summary: str) -> str:
 
         if outcome == "pass":
             passed += 1
-        elif outcome in ("fail", "error", "bypassed"):
+        elif outcome in ("fail", "error"):
             failing.append(part)
         # A skipped gate is neither a failure nor a pass: the detail names
         # what convicted and counts what cleared, and says nothing else.
@@ -1485,11 +1501,13 @@ def _completion_battery(
 
         # S-0118/D-12: a completion battery is the other leg the record names.
         token = _LEG.set("completion")
+        branch_token = _BRANCH.set(document)
 
         try:
             outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
 
         finally:
+            _BRANCH.reset(branch_token)
             _LEG.reset(token)
 
         judged = _judged_rows(workdir, document)
@@ -2676,7 +2694,14 @@ def _rebase_document(
 
     try:
         _restate_landings(workdir, base)
-        outcome = _regate(workdir, base, None, gates)
+        branch_token = _BRANCH.set(branch)
+
+        try:
+            outcome = _regate(workdir, base, None, gates)
+
+        finally:
+            _BRANCH.reset(branch_token)
+
         judged = _judged_rows(workdir, document)
 
     finally:
@@ -3230,7 +3255,13 @@ def _land_rebased(
 
     try:
         _restate_landings(workdir, base)
-        outcome = _regate(workdir, base, task_id, gates)
+        branch_token = _BRANCH.set(branch)
+
+        try:
+            outcome = _regate(workdir, base, task_id, gates)
+
+        finally:
+            _BRANCH.reset(branch_token)
 
     finally:
         vcs.remove_worktree(root, workdir)

@@ -555,13 +555,26 @@ def _holdouts(root: Path, config: RunnerConfig) -> HoldoutReader:
 def judged_subject(root: Path, judgment: LaneJudgment, only: str | None = None) -> str:
     """The task a battery's `lane.judged` is recorded on: the
     candidate's own task, or the document's last task when the branch the
-    battery judged is a document's. The branch is resolved from the head the
-    battery named, at the moment `on_judged` hands the judgment over — before a
-    red battery puts its branch back. A caller naming one candidate falls back
-    to it; an unresolvable battery records nothing rather than inventing a
-    subject."""
+    battery judged is a document's. The branch the judgment carries decides
+    it; two refs can point at one head — a document branch fast-forwarded to
+    its last candidate — so the head alone does not say which was judged. A
+    judgment with no branch falls back to the refs at its head, read at the
+    moment `on_judged` hands it over — before a red battery puts its branch
+    back. A caller naming one candidate falls back to it; an unresolvable
+    battery records nothing rather than inventing a subject."""
 
     from torve.application.lane import document_tasks
+
+    if judgment.branch:
+        name = judgment.branch.rsplit("/", 1)[-1]
+
+        if name.startswith("S-"):
+            tasks = document_tasks(root, judgment.branch)
+
+            return tasks[-1] if tasks else ""
+
+        if name:
+            return name
 
     head = judgment.head
 
@@ -819,6 +832,9 @@ def merge_cmd(
     # written in the `finally`, so one a later raise cut the pass short still
     # reaches the record.
     collected: list[tuple[str, LaneJudgment]] = []
+    # A failed write is an infrastructure failure, not a landing one: the pass
+    # still reports what it landed before the command exits.
+    write_error: Exception | None = None
 
     def observe(judgment: LaneJudgment) -> None:
         subject = judged_subject(root, judgment, task)
@@ -874,11 +890,22 @@ def merge_cmd(
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
 
     finally:
-        record_judged(root, config, collected)
+        # The landing result survives a store that cannot take the battery
+        # record: the command reports the failure after it has rendered what
+        # it landed. An exception raised here would replace the result.
+        try:
+            record_judged(root, config, collected)
+        except Exception as exc:  # reported, then an infrastructure exit
+            write_error = exc
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "dry_run": dry_run, "results": [vars(r) for r in results]})
     else:
         _render_text(out(fmt), dry_run, results)
+
+    if write_error is not None:
+        raise fail(
+            f"the lane's batteries could not be recorded: {write_error}", EXIT_INFRASTRUCTURE
+        )
 
     raise typer.Exit(_exit_code(results))

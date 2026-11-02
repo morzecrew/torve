@@ -322,10 +322,19 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 def _reading(exit_code: int | None, output: str) -> set[str] | None:
     """One rerun's reading: green is an empty set, a red names its failing
     ids, and a run that produced neither (timeout, collection error) has no
-    reading at all — None, so nothing is cleared."""
+    reading at all — None, so nothing is cleared.
+
+    A run that names one failure and cannot collect another file has no
+    reading either: the ids it did not name are unread, not green, and
+    clearing them would call a conviction flaky (S-0118/D-2)."""
 
     if exit_code == 0:
         return set()
+
+    # A collection error names a file and no `::`: the ids in that file were
+    # never read, so the run cannot say they passed.
+    if any("::" not in match.group(1) for match in _SUMMARY.finditer(output)):
+        return None
 
     ids = failing_ids(output)
 
