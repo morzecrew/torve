@@ -106,24 +106,28 @@ def dispatch_agent_factory(
 
 
 # Provider routing is enforced at dispatch (S-0004/D-8), before a sandbox
-# exists; every retry rung routes too (S-0027/D-11's scalar generalized by
-# S-0034/D-6), because S-0027/D-1 refuses to dispatch under a regime it has not
-# already validated.
+# exists; every retry rung and revision rung routes too (S-0027/D-11's scalar
+# generalized by S-0034/D-6 and S-0117/D-2), because S-0027/D-1 refuses to
+# dispatch under a regime it has not already validated.
 def route_dispatch_providers(config: RunnerConfig, root: Path, tier: TierConfig) -> None:
-    """Route the dispatch tier and every retry rung it names through the
-    repository's permitted providers. A repository with no permitted
-    provider for its tier is a configuration error, never a quiet
-    fallback; the run may reach any axis's rung after the matching
-    conviction, so each one is checked."""
+    """Route the dispatch tier and every tier it can reach through the
+    repository's permitted providers (S-0117/D-2): each retry rung, the
+    `revision_variant`, and each listed tier's own. A repository with no
+    permitted provider for one of them is a configuration error, never a
+    quiet fallback; the run may reach any of them after the matching
+    conviction or blocker revision, so each one is checked before the
+    first attempt."""
 
     from torve.adapters.vcs.git import repository_name
-    from torve.config.runconfig import route_provider, tier_for
+    from torve.application.dispatch import reachable_tiers
+    from torve.config.runconfig import route_provider
 
-    route_provider(config.providers, repository_name(root), tier.provider)
+    repository = repository_name(root)
+    seat = next((name for name, configured in config.tiers.items() if configured is tier), "")
+    reachable = [found for _, found in reachable_tiers(config, seat)] if seat else [tier]
 
-    for rung in tier.resolved_retry_variants().values():
-        retry_tier = tier_for(config, rung)
-        route_provider(config.providers, repository_name(root), retry_tier.provider)
+    for reachable_tier in reachable:
+        route_provider(config.providers, repository, reachable_tier.provider)
 
 
 # ....................... #

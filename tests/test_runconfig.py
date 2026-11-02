@@ -125,6 +125,31 @@ def test_a_rung_named_on_any_axis_must_be_a_configured_tier():
         )
 
 
+def test_revision_variant_defaults_to_empty_and_loads_from_yaml(tmp_path: Path):
+    """S-0117/D-1: a seat names the tier a surviving blocker's revision runs
+    on; empty, the default, keeps the revision on the seat."""
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\n"
+        "tiers:\n"
+        "  executor:\n"
+        "    harness: fake\n"
+        "    revision_variant: executor.strong\n"
+        "  executor.strong: {harness: heavy, provider: heavy, model: h}\n",
+    )
+
+    assert config.tiers["executor"].revision_variant == "executor.strong"
+    assert TierConfig().revision_variant == ""
+
+
+def test_a_revision_variant_naming_no_configured_tier_is_refused_at_load():
+    """S-0117/D-1: the same rung-to-nowhere refusal `retry_variant` owns."""
+
+    with pytest.raises(ValidationError, match="revision_variant names no configured tier"):
+        RunnerConfig(tiers={"executor": TierConfig(revision_variant="executor.ghost")})
+
+
 def test_retry_variants_change_the_regime_digest(tmp_path: Path):
     base = {"planner": TierConfig(), "reviewer": TierConfig(), "executor": TierConfig()}
     plain = RunnerConfig(tiers=base)

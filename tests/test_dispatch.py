@@ -374,6 +374,92 @@ def test_a_priced_seat_that_reported_no_counts_stays_unreported():
     assert block["adapter_cost_usd"] == 47.0
 
 
+def test_run_routing_lists_the_revision_variant_and_each_listed_tiers_own_rungs():
+    """S-0117/D-2: the broker opens once, before the first attempt, so a
+    provider reached by a blocker revision or by a rung on that revision
+    tier must already be on the route table."""
+
+    from torve.application.dispatch import run_routing
+
+    def routed(provider: str) -> TierConfig:
+        return TierConfig(adapter="api", provider=provider, model="m")
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="api",
+                provider="base",
+                model="m",
+                revision_variant="executor.strong",
+            ),
+            "executor.strong": TierConfig(
+                adapter="api",
+                provider="strong",
+                model="m",
+                retry_variants={"functional": "executor.deep"},
+            ),
+            "executor.deep": routed("deep"),
+        },
+        broker=BrokerConfig(
+            adapter="local",
+            providers={
+                name: BrokerProvider(upstream=f"https://{name}.example", key_env="K")
+                for name in ("base", "strong", "deep")
+            },
+        ),
+    )
+
+    routing = run_routing(
+        config, Task(id=TASK_ID, decisions=[]), review_on=False, include_retry=True
+    )
+
+    assert {route.provider for route in routing.routes} == {"base", "strong", "deep"}
+
+    without = run_routing(config, Task(id=TASK_ID, decisions=[]), review_on=False)
+    assert {route.provider for route in without.routes} == {"base"}
+
+
+def test_route_dispatch_providers_checks_the_revision_variant_and_its_own_rungs(tmp_path):
+    """S-0117/D-2: the dispatch-time provider check walks the same reachable
+    tiers the route table does, so a repository that may not reach the
+    revision rung is refused before the first attempt, never mid-run."""
+
+    from torve.cli.assembly import route_dispatch_providers
+    from torve.config.runconfig import ProviderDenied, ProvidersConfig, tier_for
+
+    def tiers() -> dict[str, TierConfig]:
+        return {
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="api",
+                provider="base",
+                model="m",
+                revision_variant="executor.strong",
+            ),
+            "executor.strong": TierConfig(
+                adapter="api",
+                provider="strong",
+                model="m",
+                retry_variants={"functional": "executor.deep"},
+            ),
+            "executor.deep": TierConfig(adapter="api", provider="deep", model="m"),
+        }
+
+    refused = RunnerConfig(tiers=tiers(), providers=ProvidersConfig(default=["base", "strong"]))
+
+    with pytest.raises(ProviderDenied, match="deep"):
+        route_dispatch_providers(refused, tmp_path, tier_for(refused, "executor"))
+
+    permitted = RunnerConfig(
+        tiers=tiers(), providers=ProvidersConfig(default=["base", "strong", "deep"])
+    )
+
+    route_dispatch_providers(permitted, tmp_path, tier_for(permitted, "executor"))
+
+
 def test_the_dispatch_carries_which_arm_is_running(tmp_path):
     """S-0082/D-1: both removals are read from the one name the dispatch
     carries, so the leg that composes the prompt and the leg that runs the

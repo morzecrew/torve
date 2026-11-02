@@ -276,6 +276,51 @@ def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
     assert review_records[1]["findings"] == []
 
 
+def test_a_blocker_that_survives_the_revision_escalates_only_after_the_rung(review_rig):
+    # S-0117/D-1: the first blocker sends the revision to the seat's
+    # revision_variant — same worktree, same critique, stronger agent — and
+    # only the blocker that survives that revision reaches a person.
+    from dataclasses import replace
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+
+    blocker = {
+        "severity": "blocker",
+        "claim": "the change is wrong",
+        "evidence": "app.py:1 — the flag",
+    }
+    reviewer = SequencedReviewer([reviewer_output([blocker]), reviewer_output([blocker])])
+    built: list[TierConfig] = []
+
+    def retry_agent(tier: TierConfig):
+        built.append(tier)
+        return ScriptedAgent([OK])
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
+            "executor.strong": TierConfig(adapter="fake"),
+        },
+        review=ReviewConfig(on=["task_gated"]),
+    )
+
+    state = run_task(
+        repo.root, task_for(repo), config, replace(deps_for(reviewer), retry_agent=retry_agent)
+    )
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert state.attempts == 2
+    assert built and built[0] is config.tiers["executor.strong"]
+    facts = [h["fact"] for h in state.history]
+    assert any(f.startswith("review blocker (revision 1 of 1):") for f in facts)
+
+
 def test_blocker_revisions_zero_reproduces_todays_transitions_byte_for_byte(review_rig):
     # S-0043/D-3: the conservative setting is always reachable — zero spends no
     # revision, so the transition sequence is exactly the pre-0043 one.

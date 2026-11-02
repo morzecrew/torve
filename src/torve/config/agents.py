@@ -235,6 +235,7 @@ SEAT_KEYS = frozenset(
         "provider",
         "retry_variant",
         "retry_variants",
+        "revision_variant",
         "character_routing",
         "agent_timeout",
         "sandbox_timeout",

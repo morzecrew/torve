@@ -73,15 +73,28 @@ def _config() -> RunnerConfig:
     )
 
 
+def _revision_config(revision_variant: str = "executor.strong") -> RunnerConfig:
+    return RunnerConfig(
+        tiers={
+            "executor": TierConfig(
+                adapter="api", provider="p", model="cheap", revision_variant=revision_variant
+            ),
+            "executor.strong": TierConfig(
+                adapter="api", provider="p", model="strong", image="strong-image"
+            ),
+        }
+    )
+
+
 # ....................... #
 
 
-def _dispatch(tmp_path, *, retry_agent=None) -> Dispatch:
+def _dispatch(tmp_path, *, retry_agent=None, config: RunnerConfig | None = None) -> Dispatch:
     manifest = tmp_path / ".torve" / "gates.yaml"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(yaml.safe_dump(MANIFEST), encoding="utf-8")
 
-    config = _config()
+    config = config or _config()
     deps = RunDeps(
         workspace=None,  # type: ignore[arg-type]  # unreached: no sandbox is opened
         runtime=_StubRuntime(),  # type: ignore[arg-type]
@@ -199,6 +212,79 @@ def test_an_advance_is_never_sticky(tmp_path):
     assert agent == "seat-agent"
     assert run.tier_name == "executor"
     assert run.image_digest == "sha256:python:3.13-slim"  # back to the seat's own image
+
+
+# ....................... #
+# blocker revisions (S-0117/D-1): the attempt after a surviving blocker's
+# revision resolves the seat's revision_variant, as a gate-red resolves a rung.
+
+
+def _blocker_revision_fact() -> str:
+    from torve.application.review import BLOCKER_REVISION_MARKER
+
+    return f"{BLOCKER_REVISION_MARKER}1 of 1): R-1: the change is wrong"
+
+
+def test_the_attempt_after_a_blocker_revision_runs_on_the_revision_variant(tmp_path):
+    """S-0117/D-1: the revision the seat could not clear gets the stronger
+    seat, built through the factory exactly as a gate-red rung is."""
+
+    run = _dispatch(
+        tmp_path, retry_agent=lambda tier: f"agent-for-{tier.model}", config=_revision_config()
+    )
+
+    agent = advance_tier(run, _state(_blocker_revision_fact(), "attempt 2 dispatched"))
+
+    assert agent == "agent-for-strong"
+    assert run.tier_name == "executor.strong"
+    assert run.tier.model == "strong"
+    assert run.image == "strong-image"
+
+
+def test_an_empty_revision_variant_keeps_the_revision_on_the_seat(tmp_path):
+    """S-0117/D-1: empty is the default and changes nothing — the revision
+    retries under the seat, with no factory call to fabricate a tier."""
+
+    called: list[object] = []
+    run = _dispatch(
+        tmp_path,
+        retry_agent=lambda tier: called.append(tier) or "agent-for-rung",
+        config=_revision_config(revision_variant=""),
+    )
+
+    agent = advance_tier(run, _state(_blocker_revision_fact(), "attempt 2 dispatched"))
+
+    assert agent == "seat-agent"
+    assert run.tier_name == "executor"
+    assert called == []
+
+
+def test_a_green_pass_hands_the_next_attempt_back_to_the_seat(tmp_path):
+    """S-0117/D-1: the revision variant is not sticky — the attempt after a
+    green pass is the seat's, even when a revision ran on the rung."""
+
+    run = _dispatch(
+        tmp_path, retry_agent=lambda tier: f"agent-for-{tier.model}", config=_revision_config()
+    )
+    advance_tier(run, _state(_blocker_revision_fact(), "attempt 2 dispatched"))
+    assert run.tier_name == "executor.strong"
+
+    agent = advance_tier(run, _state("review clean (R-1)", "attempt 3 dispatched"))
+
+    assert agent == "seat-agent"
+    assert run.tier_name == "executor"
+
+
+def test_the_blocker_revision_predicate_reads_the_slot_behind_the_dispatch():
+    from torve.application.session import previous_attempt_follows_blocker_revision
+
+    assert previous_attempt_follows_blocker_revision(
+        _state(_blocker_revision_fact(), "attempt 2 dispatched")
+    )
+    assert not previous_attempt_follows_blocker_revision(
+        _state("gates red: tidy=fail", "attempt 2 dispatched")
+    )
+    assert not previous_attempt_follows_blocker_revision(_state("attempt 1 dispatched"))
 
 
 # ....................... #
