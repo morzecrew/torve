@@ -1,0 +1,533 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0706
+base: 55a0c504d8a25168ee2282597cacf64ef3e0a50e
+commit: 351b4cf542f57e84c4c1aba40fd4bc92a573397f
+at: '2026-11-02T15:34:51Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: ASSUMED
+  - id: S-0054/D-2
+    grade: LOCKED
+  - id: S-0054/D-4
+    grade: LOCKED
+  - id: S-0054/D-10
+    grade: LOCKED
+  - id: S-0054/D-11
+    grade: ASSUMED
+  - id: S-0055/D-2
+    grade: LOCKED
+  - id: S-0055/D-14
+    grade: ASSUMED
+  - id: S-0055/D-15
+    grade: LOCKED
+  - id: S-0055/D-16
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-21
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-37
+    grade: LOCKED
+  - id: S-0055/D-50
+    grade: LOCKED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0057/D-12
+    grade: ASSUMED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-7
+    grade: LOCKED
+  - id: S-0058/D-9
+    grade: ASSUMED
+  - id: S-0058/D-10
+    grade: ASSUMED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-2
+    grade: LOCKED
+  - id: S-0059/D-4
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-9
+    grade: ASSUMED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0065/D-7
+    grade: ASSUMED
+  - id: S-0069/D-2
+    grade: ASSUMED
+  - id: S-0070/D-1
+    grade: LOCKED
+  - id: S-0070/D-3
+    grade: ASSUMED
+  - id: S-0070/D-6
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0071/D-6
+    grade: ASSUMED
+  - id: S-0075/D-2
+    grade: ASSUMED
+  - id: S-0076/D-1
+    grade: ASSUMED
+  - id: S-0076/D-2
+    grade: ASSUMED
+  - id: S-0076/D-3
+    grade: LOCKED
+  - id: S-0076/D-5
+    grade: ASSUMED
+  - id: S-0077/D-4
+    grade: ASSUMED
+  - id: S-0079/D-1
+    grade: ASSUMED
+  - id: S-0079/D-2
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0080/D-3
+    grade: ASSUMED
+  - id: S-0080/D-7
+    grade: ASSUMED
+  - id: S-0080/D-8
+    grade: ASSUMED
+  - id: S-0080/D-9
+    grade: ASSUMED
+  - id: S-0080/D-11
+    grade: ASSUMED
+  - id: S-0080/D-12
+    grade: ASSUMED
+  - id: S-0080/D-16
+    grade: ASSUMED
+  - id: S-0080/D-17
+    grade: ASSUMED
+  - id: S-0081/D-1
+    grade: ASSUMED
+  - id: S-0081/D-2
+    grade: LOCKED
+  - id: S-0081/D-3
+    grade: ASSUMED
+  - id: S-0081/D-4
+    grade: ASSUMED
+  - id: S-0081/D-5
+    grade: ASSUMED
+  - id: S-0082/D-12
+    grade: ASSUMED
+  - id: S-0083/D-4
+    grade: ASSUMED
+  - id: S-0083/D-5
+    grade: ASSUMED
+  - id: S-0083/D-6
+    grade: ASSUMED
+  - id: S-0083/D-7
+    grade: ASSUMED
+  - id: S-0083/D-10
+    grade: ASSUMED
+  - id: S-0083/D-11
+    grade: ASSUMED
+  - id: S-0083/D-12
+    grade: ASSUMED
+  - id: S-0083/D-13
+    grade: ASSUMED
+  - id: S-0083/D-14
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0083/D-18
+    grade: ASSUMED
+  - id: S-0084/D-6
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-3
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0085/D-6
+    grade: ASSUMED
+  - id: S-0086/D-2
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-4
+    grade: ASSUMED
+  - id: S-0090/D-2
+    grade: ASSUMED
+  - id: S-0090/D-3
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-2
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0093/D-1
+    grade: ASSUMED
+  - id: S-0093/D-2
+    grade: ASSUMED
+  - id: S-0093/D-3
+    grade: ASSUMED
+  - id: S-0093/D-4
+    grade: ASSUMED
+  - id: S-0093/D-5
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0096/D-4
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0097/D-6
+    grade: ASSUMED
+  - id: S-0098/D-4
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-2
+    grade: ASSUMED
+  - id: S-0099/D-3
+    grade: ASSUMED
+  - id: S-0099/D-4
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-6
+    grade: ASSUMED
+  - id: S-0099/D-7
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0099/D-11
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0100/D-11
+    grade: ASSUMED
+  - id: S-0101/D-1
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0101/D-3
+    grade: ASSUMED
+  - id: S-0101/D-4
+    grade: ASSUMED
+  - id: S-0101/D-6
+    grade: ASSUMED
+  - id: S-0101/D-8
+    grade: ASSUMED
+  - id: S-0101/D-9
+    grade: ASSUMED
+  - id: S-0101/D-10
+    grade: ASSUMED
+  - id: S-0101/D-11
+    grade: ASSUMED
+  - id: S-0102/D-1
+    grade: ASSUMED
+  - id: S-0102/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0102/D-7
+    grade: ASSUMED
+  - id: S-0102/D-8
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0104/D-2
+    grade: ASSUMED
+  - id: S-0104/D-5
+    grade: ASSUMED
+  - id: S-0105/D-4
+    grade: ASSUMED
+  - id: S-0106/D-1
+    grade: ASSUMED
+  - id: S-0106/D-2
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0106/D-5
+    grade: ASSUMED
+  - id: S-0106/D-7
+    grade: ASSUMED
+  - id: S-0107/D-2
+    grade: ASSUMED
+  - id: S-0107/D-5
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0108/D-3
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0109/D-2
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-3
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-7
+    grade: ASSUMED
+  - id: S-0110/D-8
+    grade: ASSUMED
+  - id: S-0110/D-9
+    grade: ASSUMED
+  - id: S-0110/D-10
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0112/D-8
+    grade: ASSUMED
+  - id: S-0113/D-3
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0113/D-6
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0114/D-5
+    grade: ASSUMED
+  - id: S-0115/D-2
+    grade: ASSUMED
+  - id: S-0115/D-4
+    grade: ASSUMED
+  - id: S-0115/D-5
+    grade: ASSUMED
+  - id: S-0115/D-6
+    grade: OPEN
+  - id: S-0115/D-8
+    grade: ASSUMED
+  - id: S-0116/D-9
+    grade: ASSUMED
+  - id: S-0116/D-10
+    grade: ASSUMED
+  - id: S-0116/D-13
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0117/D-8
+    grade: ASSUMED
+  - id: S-0119/D-8
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The suite's rerun and base readings treat a collection error as no reading,
+      so ids held by a file the run could not collect stay red rather than clearing
+      as flaky; every head failure keeps its fail-closed settlement.
+    evidence: >-
+      src/torve/gates/suite.py:334 — a collection error naming no :: returns None,
+      so nothing is cleared
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The lane judgment carries the branch it actually judged, so two refs sharing
+      a head cannot misname the task a battery is recorded on; and a failed record
+      write is reported as an infrastructure failure after the landing result has
+      rendered instead of replacing it.
+    evidence: >-
+      src/torve/cli/merge.py:568 — the judgment's branch decides the subject before
+      any head lookup
+    action: decided
+  - decision: S-0055/D-2
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The suite change stays inside the gate battery and reads only command output
+      the gate itself produced; no agent-reported outcome reaches a verdict.
+    evidence: >-
+      src/torve/gates/suite.py:31 — run_command remains the gate's sole executor
+    action: decided
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The one new user-facing string names the failure and the verb; it carries no
+      corpus coordinate.
+    evidence: >-
+      src/torve/cli/merge.py:908 — the message names no specification identifier or
+      corpus path
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The changes stay in their layers: application logic in lane, gate logic in suite,
+      presentation in cli/merge, with no import crossing inward.
+    evidence: >-
+      src/torve/application/lane.py:291 — LaneJudgment gains a data field and no new
+      import
+    action: decided
+  - decision: S-0055/D-24
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      suite.py gains no import outside the gates layer's existing domain, base and
+      config dependencies.
+    evidence: >-
+      src/torve/gates/suite.py:31 — the new reading uses the existing run_command
+      import
+    action: decided
+  - decision: S-0055/D-26
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The suite change imports nothing from the specification format's owner; the
+      gate still reads only the contract it is handed.
+    evidence: >-
+      src/torve/gates/suite.py:322 — the reading operates on command output alone
+    action: decided
+  - decision: S-0055/D-50
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The lane change adds a branch field to a judgment and leaves conflict resolution,
+      approval and one-lane serialization untouched.
+    evidence: >-
+      src/torve/application/lane.py:275 — LaneJudgment gains a field; the lane's conflict
+      and lock paths are unchanged
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The changed lines name decisions by their global identifiers and write no legacy
+      RFC spelling.
+    evidence: >-
+      src/torve/cli/merge.py:555 — the docstring cites S-0118/D-9
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      The merge verb still reads a task by identifier and a document by its branch
+      name; no path is regexed into a document id.
+    evidence: >-
+      src/torve/cli/merge.py:568 — the subject is read from the branch and its landing
+      files, never from a path
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-02T15:17:53Z'
+    claim: >-
+      judged_subject reads a document's tasks through document_tasks, the landing-file
+      carrier, not through a git trailer or subject subprocess.
+    evidence: >-
+      src/torve/cli/merge.py:570 — document_tasks supplies the last task the branch
+      carries
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-02T15:17:59Z'
+    claim: >-
+      The lane.judged why row should carry task_id so lane rerun results reach generated
+      PR bodies. Not adopted: S-0102/D-2 and S-0101/D-6 decide the bodies list gate
+      results from the record's gates.evaluated events, and the lane.judged row is
+      a different kind holding reduced results — only failing or inherited gates,
+      with passing gates dropped — so emitting task_id would let both composers select
+      a partial row and lose the all-pass summary.
+    evidence: >-
+      src/torve/application/projections.py:1980 — the lane.judged row carries task
+      and no task_id, which is what keeps the PR composers on gates.evaluated rows
+    action: decided
+    proposal: >-
+      If a pull request body should show a lane re-gate, amend S-0102/D-2 and S-0101/D-6
+      to name lane.judged and define how its reduced results render; do not add task_id
+      to the why row alone.
