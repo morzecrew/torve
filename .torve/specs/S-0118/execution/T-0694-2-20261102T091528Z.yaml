@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0694
+phase: 3
+attempt: 2
+base: f9f22a8bfead4181bf7eb9153de70f477e766141
+commit: c44181807faa3af50383723528568d23a3f80760
+at: '2026-11-02T09:15:28Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T08:59:24Z'
+    claim: >-
+      The lane.judged kind and its LaneJudged payload landed with manager and operator
+      authority; torve merge and the served lane leg collect each battery through
+      on_judged and write one event per battery in a finally, with a red gate's output
+      clipped to RECORDED_OUTPUT, and no projection reads it for a state transition.
+    evidence: >-
+      src/torve/domain/events.py:734 — LaneJudged, the payload both callers write
+    action: decided
