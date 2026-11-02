@@ -26,7 +26,7 @@ import functools
 import re
 import subprocess
 import time
-from collections.abc import Callable, Collection, Iterable, Iterator
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, cast
@@ -1357,10 +1357,11 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
     from torve.application.forge import DocumentLanding, document_complete
 
     landings = []
+    phases = landed_phases(root, document)
 
     for carried in dict.fromkeys([*carried_tasks(root, document), task_id]):
         try:
-            landings.append(DocumentLanding(task=carried_contract(root, document, carried)))
+            landings.append(DocumentLanding(task=carried_contract(root, document, carried, phases)))
 
         except (OSError, ValueError):
             continue
@@ -1432,6 +1433,20 @@ def _holdout_targets(root: Path, document: str, reader: HoldoutReader) -> dict[s
             targets[path] = one.text
 
     return targets
+
+
+def _unplaced_holdouts(root: Path, document: str, reader: HoldoutReader) -> list[str]:
+    """The carried tasks that recorded held-out files but have no contract
+    file to name where they go: `_holdout_targets` reads the stem from the
+    contract's `scope.deny`, and a task minted into the record has none once
+    its worktree is reaped. The battery refuses rather than judge the
+    document without them (S-0116/D-14)."""
+
+    return [
+        task_id
+        for task_id in sorted(carried_tasks(root, document))
+        if reader(task_id) and not contract_file(root, task_id).is_file()
+    ]
 
 
 def _commit_holdouts(root: Path, workdir: Path, document: str, reader: HoldoutReader) -> str | None:
@@ -1511,6 +1526,14 @@ def _completion_battery(
 
     try:
         if holdout is not None:
+            unplaced = _unplaced_holdouts(root, document, holdout)
+
+            if unplaced:
+                return tip, (
+                    f"the held-out properties of {', '.join(unplaced)} cannot be placed: "
+                    "no contract in this checkout names the verifier's file they sit beside"
+                )
+
             committed = _commit_holdouts(root, workdir, document, holdout)
 
             if committed is not None:
@@ -2388,7 +2411,14 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, 
                     raw = yaml.safe_load(body.stdout) or {}
                     if isinstance(raw, dict):
                         commit = str(raw.get("commit") or "")
-                        phase = int(raw.get("phase") or 0)
+                        number = raw.get("phase")
+                        # Only a real integer is a phase: `1.9` or `true` would
+                        # otherwise count as a landed phase 1.
+                        phase = (
+                            number
+                            if isinstance(number, int) and not isinstance(number, bool)
+                            else 0
+                        )
 
                 except (yaml.YAMLError, TypeError, ValueError):
                     commit, phase = "", 0
@@ -2431,7 +2461,7 @@ def carried_tasks(root: Path, branch: str) -> list[str]:
     or whose landing file names its phase — the same carrier as
     `document_tasks` (S-0099/D-2), so a stray file names no task."""
 
-    phases = _landed_phases(root, branch)
+    phases = landed_phases(root, branch)
 
     return [
         task
@@ -2440,18 +2470,21 @@ def carried_tasks(root: Path, branch: str) -> list[str]:
     ]
 
 
-def _landed_phases(root: Path, branch: str) -> dict[str, int]:
+def landed_phases(root: Path, branch: str) -> dict[str, int]:
     """The phase each carried task's newest landing file names; 0 when none."""
 
     return {task: phase for _at, task, _commit, _attempt, phase in _branch_landings(root, branch)}
 
 
-def carried_contract(root: Path, branch: str, task_id: str) -> Task:
+def carried_contract(
+    root: Path, branch: str, task_id: str, phases: Mapping[str, int] | None = None
+) -> Task:
     """The contract a carried task landed under: the corpus's file, or the
     projection in its run's worktree (`contract_file`). A task minted into the
     record has neither once that worktree is reaped (S-0056/D-9), and then its
     landing file carries what completion and the draft flag count: a bare
-    contract naming the phase the file records."""
+    contract naming the phase the file records. *phases* is `landed_phases`
+    for the branch, read once by a caller that asks about several tasks."""
 
     from torve.gates.context import load_task
 
@@ -2463,7 +2496,7 @@ def carried_contract(root: Path, branch: str, task_id: str) -> Task:
     return Task(
         id=task_id,
         spec=branch.rsplit("/", 1)[-1],
-        phase=_landed_phases(root, branch).get(task_id, 0),
+        phase=(landed_phases(root, branch) if phases is None else phases).get(task_id, 0),
         decisions=[],
     )
 
