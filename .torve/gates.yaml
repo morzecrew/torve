@@ -185,7 +185,10 @@ gates:
   #
   # 600 is the ceiling measured for `coverage-delta`'s suite: 164s median over
   # 228 runs, 271s at p90, 600s at worst. `COVERAGE_CORE=sysmon` keeps the
-  # measurement cheap, as it did there.
+  # measurement cheap, as it did there. The suite writes no report: a
+  # `coverage.xml` it could not write would turn a green run red with no test
+  # named, and convict. The XML is the report's to write, where a failure
+  # never convicts.
   - name: suite
     run: "@suite"
     state: blocking
@@ -193,8 +196,8 @@ gates:
     timeout: 600
     sabotage: suite
     commands:
-      - "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report=xml -q"
-      - "uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
+      - "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report= -q"
+      - "uv run coverage xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
   # The managed AGENTS.md sections beside the code, rendered from the corpus
   # and drift-checked like the index (S-0054/D-7).
   - name: spec-projection

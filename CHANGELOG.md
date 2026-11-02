@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A gate manifest may name `@suite`. It runs the whole suite once, and a failing test
-  convicts only when its file is still red at the head and not red on the merge base. A
-  red the base carries passes as an inherited failure, and no command, an uncollected
-  file or a red naming no test fails.
+  convicts only when that test is still red at the head and not red on the merge base. A
+  red the base carries passes as inherited, and no command, an uncollected file or a red
+  naming no test fails.
 
 - Every battery the lane runs is recorded as a `lane.judged` event, and `torve why`
   shows it with its failing gates' output.

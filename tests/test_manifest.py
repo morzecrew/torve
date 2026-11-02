@@ -420,6 +420,9 @@ def test_the_computed_order_puts_no_gate_before_one_declaring_less(repo):
     for gate in data["gates"]:
         if not gate["run"].startswith("@"):
             gate["run"] = f"echo {gate['name']}"
+        elif gate.get("commands"):
+            # A builtin that runs its own commands (`@suite`) is stubbed too.
+            gate["commands"] = [f"echo {gate['name']}" for _ in gate["commands"]]
 
     repo.seed(data)
     repo.write("src/app.py", "print('x')\n")
