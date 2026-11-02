@@ -551,8 +551,9 @@ def _holdouts(root: Path, config: RunnerConfig) -> HoldoutReader:
 # ....................... #
 
 
+# S-0118/D-9: the subject a battery's `lane.judged` is recorded on.
 def judged_subject(root: Path, judgment: LaneJudgment, only: str | None = None) -> str:
-    """The task a battery's `lane.judged` is recorded on (S-0118/D-9): the
+    """The task a battery's `lane.judged` is recorded on: the
     candidate's own task, or the document's last task when the branch the
     battery judged is a document's. The branch is resolved from the head the
     battery named, at the moment `on_judged` hands the judgment over — before a
@@ -595,8 +596,9 @@ def judged_subject(root: Path, judgment: LaneJudgment, only: str | None = None) 
     return only or ""
 
 
+# S-0118/D-9: one battery's judgment, as `lane.judged` stores it.
 def judged_payload(judgment: LaneJudgment) -> dict[str, Any]:
-    """A battery's judgment as `lane.judged` stores it (S-0118/D-9): the
+    """A battery's judgment as `lane.judged` stores it: the
     results the way `gates.evaluated` keeps them, a red gate's output clipped
     to `RECORDED_OUTPUT` and a green one's dropped."""
 
@@ -614,10 +616,11 @@ def judged_payload(judgment: LaneJudgment) -> dict[str, Any]:
     ).model_dump()
 
 
+# S-0118/D-9: the operator's write of the batteries a merge pass collected.
 def record_judged(
     root: Path, config: RunnerConfig, collected: Sequence[tuple[str, LaneJudgment]]
 ) -> None:
-    """Write one `lane.judged` per battery the pass handed over (S-0118/D-9),
+    """Write one `lane.judged` per battery the pass handed over,
     the operator being the actor. The caller runs this in a `finally`, so a
     battery a later raise in the pass did not lose reaches the record."""
 
