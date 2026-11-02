@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -24,6 +24,8 @@ from torve.application.residency import (
     NightRefused,
     close_night,
     contracts,
+    day_has_room,
+    day_remainder,
     mint,
     once,
     open_night,
@@ -1773,6 +1775,100 @@ async def burn(log, task_id: str, cost_usd: float) -> None:
         actor_id="worker-1",
         payload={"seat": "executor", "cost_usd": cost_usd},
     )
+
+
+def test_the_day_remainder_is_the_budgets_minus_what_a_night_spent(tmp_path):
+    """S-0117/D-4. A chained night opens with what the UTC day has left, not
+    the whole configured allowance again, and the open records that figure."""
+
+    contract(tmp_path, "T-0001")
+    contract(tmp_path, "T-0002", allow="docs/**")
+    terms = NightConfig(budget_usd=10.0, budget_attempts=4)
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        first = await open_night(log, PARTITION, config=terms, actor_id="manager-1")
+        await attempt(log, "T-0001", 1)
+        await burn(log, "T-0001", 2.5)
+        await close_night(log, PARTITION, first, reason="drained", handled=0, actor_id="manager-1")
+
+        remainder = await day_remainder(log, PARTITION, terms)
+
+        assert remainder == (7.5, 3)
+
+        second = await open_night(
+            log,
+            PARTITION,
+            config=terms,
+            actor_id="manager-1",
+            budget_usd=remainder[0],
+            budget_attempts=remainder[1],
+        )
+
+        assert (second.budget_usd, second.budget_attempts) == (7.5, 3)
+        assert second.terms()["budget_usd"] == 7.5
+        assert second.terms()["budget_attempts"] == 3
+
+    run(scenario)
+
+
+def test_a_day_with_one_axis_spent_and_the_other_left_opens_no_night(tmp_path):
+    """S-0117/D-4. One exhausted axis is enough: a night opened with a zero
+    budget on that axis would read it as no bound at all."""
+
+    terms = NightConfig(budget_usd=5.0, budget_attempts=10)
+
+    async def scenario(log):
+        await burn(log, "T-0001", 5.0)
+        await attempt(log, "T-0001", 1)
+        await attempt(log, "T-0001", 2)
+
+        remainder = await day_remainder(log, PARTITION, terms)
+
+        assert remainder == (0.0, 8)
+        assert not day_has_room(terms, remainder)
+
+    run(scenario)
+
+
+def test_an_axis_configured_as_zero_stays_unbounded_across_a_day(tmp_path):
+    """S-0117/D-4. A zero budget is the configuration's own "no bound", and
+    the day's remainder keeps it zero however much the day has started."""
+
+    terms = NightConfig(budget_usd=5.0, budget_attempts=0)
+
+    async def scenario(log):
+        await burn(log, "T-0001", 1.0)
+        await attempt(log, "T-0001", 1)
+        await attempt(log, "T-0001", 2)
+
+        remainder = await day_remainder(log, PARTITION, terms)
+
+        assert remainder == (4.0, 0)
+        assert day_has_room(terms, remainder)
+
+    run(scenario)
+
+
+def test_a_new_utc_day_starts_the_remainder_over(tmp_path):
+    """S-0117/D-4. What a night spent after midnight counts against the new
+    day; yesterday's spend is not today's remainder."""
+
+    terms = NightConfig(budget_usd=5.0, budget_attempts=4)
+
+    async def scenario(log):
+        await burn(log, "T-0001", 2.0)
+        await attempt(log, "T-0001", 1)
+
+        today = await day_remainder(log, PARTITION, terms)
+        tomorrow = await day_remainder(
+            log, PARTITION, terms, now=datetime.now(UTC) + timedelta(days=1)
+        )
+
+        assert today == (3.0, 3)
+        assert tomorrow == (5.0, 4)
+
+    run(scenario)
 
 
 def test_a_night_with_nothing_to_start_is_refused_at_the_open(tmp_path):

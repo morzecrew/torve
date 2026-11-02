@@ -1487,6 +1487,156 @@ def test_a_serve_without_the_switch_is_the_pass_it_always_was(tmp_path):
 
 
 # ....................... #
+# `--chain` (S-0117/D-3): nights back to back, and what ends the chain.
+
+
+def _chain_serve(tmp_path, *, night=True, chain=True):
+    from torve.cli.manager import _serve
+
+    return asyncio.run(
+        _serve(
+            None,
+            PARTITION,
+            root=tmp_path,
+            config_path=None,
+            worker="w-1",
+            passes=1,
+            interval=0,
+            only=None,
+            dispatch=False,
+            night=night,
+            chain=chain,
+        )
+    )
+
+
+def test_a_chain_idles_and_opens_a_second_night_when_work_appears(tmp_path, monkeypatch):
+    """S-0117/D-3. A night that drains does not end the process: the chain
+    runs idle passes, and the next night opens once something is startable
+    again. A close on a class the terms name is what ends it."""
+
+    from types import SimpleNamespace
+
+    from torve.application import residency
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    config = RunnerConfig(
+        night=NightConfig(budget_usd=10.0, budget_attempts=5, stop_on=["locked_conflict"])
+    )
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: config)
+
+    opened: list[tuple[float | None, int | None]] = []
+    idle: list[bool] = []
+    startable = {"now": False}
+    closed = {"count": 0}
+
+    async def fake_open(log, partition, *, config, actor_id, budget_usd=None, budget_attempts=None):
+        if opened and not startable["now"]:
+            raise residency.NightRefused("nothing to start")
+
+        opened.append((budget_usd, budget_attempts))
+
+        return SimpleNamespace(stop_on=tuple(config.stop_on))
+
+    async def fake_serve(log, worker, root, partition, *, stop=None, **kwargs):
+        if stop is None:
+            idle.append(True)
+            startable["now"] = True
+
+            return 0
+
+        return 1
+
+    async def fake_reached(*args, **kwargs):
+        return None
+
+    async def fake_close(log, partition, terms, *, reason, handled, actor_id, now=None):
+        closed["count"] += 1
+
+        return "drained" if closed["count"] == 1 else "escalation:locked_conflict"
+
+    async def fake_remainder(*args, **kwargs):
+        return (10.0, 5)
+
+    monkeypatch.setattr(residency, "open_night", fake_open)
+    monkeypatch.setattr(residency, "serve", fake_serve)
+    monkeypatch.setattr(residency, "reached", fake_reached)
+    monkeypatch.setattr(residency, "close_night", fake_close)
+    monkeypatch.setattr(residency, "day_remainder", fake_remainder)
+
+    handled, reason = _chain_serve(tmp_path)
+
+    # Two nights opened, both under the day's remainder, with an idle pass
+    # between them — the refused open is not a night.
+    assert opened == [(10.0, 5), (10.0, 5)]
+    assert idle == [True]
+    assert (handled, reason) == (2, "escalation:locked_conflict")
+
+
+def test_a_chain_ends_when_a_night_closes_on_a_stop_on_class(tmp_path, monkeypatch):
+    """S-0117/D-3. A `stop_on` class is the operator's own stop: the chain
+    returns rather than opening another night behind it."""
+
+    from types import SimpleNamespace
+
+    from torve.application import residency
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    config = RunnerConfig(night=NightConfig(budget_usd=10.0, budget_attempts=5, stop_on=["killed"]))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: config)
+
+    opened: list[int] = []
+
+    async def fake_open(*args, **kwargs):
+        opened.append(1)
+
+        return SimpleNamespace(stop_on=("killed",))
+
+    async def fake_serve(*args, **kwargs):
+        return 1
+
+    async def fake_reached(*args, **kwargs):
+        return None
+
+    async def fake_close(*args, **kwargs):
+        return "escalation:killed"
+
+    async def fake_remainder(*args, **kwargs):
+        return (10.0, 5)
+
+    monkeypatch.setattr(residency, "open_night", fake_open)
+    monkeypatch.setattr(residency, "serve", fake_serve)
+    monkeypatch.setattr(residency, "reached", fake_reached)
+    monkeypatch.setattr(residency, "close_night", fake_close)
+    monkeypatch.setattr(residency, "day_remainder", fake_remainder)
+
+    handled, reason = _chain_serve(tmp_path)
+
+    assert len(opened) == 1
+    assert (handled, reason) == (1, "escalation:killed")
+
+
+def test_chain_without_night_is_refused(tmp_path):
+    """S-0117/D-3. A chain is nights back to back; without a night there is
+    nothing to chain, and the terminal says so before any pass runs."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+
+    result = CliRunner().invoke(
+        app, ["manager", "serve", PARTITION, "--chain", "--root", str(tmp_path)]
+    )
+
+    assert result.exit_code == EXIT_CONFIG, result.output
+    assert "--chain needs --night" in result.output
+
+
+# ....................... #
 # The morning report (S-0079/D-3, S-0079/D-4): a fold over the window between
 # an open and its close, with nowhere for a sentence to go.
 
