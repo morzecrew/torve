@@ -487,6 +487,28 @@ def test_route_dispatch_providers_resolves_a_seat_handed_in_by_value(tmp_path):
         route_dispatch_providers(config, tmp_path, seat)
 
 
+def test_route_dispatch_providers_skips_a_fake_tier_as_run_routing_does(tmp_path):
+    """S-0117/D-2: the check walks what `run_routing` routes, and a fake tier
+    sends no request, so a provider it names is never refused."""
+
+    from torve.cli.assembly import route_dispatch_providers
+    from torve.config.runconfig import ProvidersConfig, tier_for
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(
+                adapter="api", provider="base", model="m", revision_variant="executor.fake"
+            ),
+            "executor.fake": TierConfig(adapter="fake", provider="nowhere", model="m"),
+        },
+        providers=ProvidersConfig(default=["base"]),
+    )
+
+    route_dispatch_providers(config, tmp_path, tier_for(config, "executor"))
+
+
 def test_the_dispatch_carries_which_arm_is_running(tmp_path):
     """S-0082/D-1: both removals are read from the one name the dispatch
     carries, so the leg that composes the prompt and the leg that runs the

@@ -1876,25 +1876,37 @@ def test_the_sweep_records_a_refusal_once_per_base_commit(tmp_path):
     _chain_document(repo.root / ".torve" / "specs", "0100", "Prosey", phasing=None)
     _publish(repo)
 
-    async def scenario(log):
-        for _ in range(2):
+    async def sweep(log, times: int = 1):
+        for _ in range(times):
             await manager_cli._sync_and_plan(
                 repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
             )
 
+    def refused() -> list[dict]:
+        rows = [
+            json.loads(line)
+            for line in (repo.root / ".torve" / "telemetry.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        return [row for row in rows if row.get("event") == "plan_refused"]
+
+    async def scenario(log):
+        await sweep(log, times=2)
+
+        assert len(refused()) == 1
+        assert refused()[0]["document"] == "S-0100"
+        assert refused()[0]["base"]
+
+        # The base moves: the same refusal is news for the new base, once.
+        repo.write("src/moved.py", "moved = True\n")
+        _publish(repo)
+        await sweep(log, times=2)
+
+        bases = [row["base"] for row in refused()]
+        assert len(bases) == 2 and bases[0] != bases[1]
+
     run(scenario)
-
-    rows = [
-        json.loads(line)
-        for line in (repo.root / ".torve" / "telemetry.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ]
-    refused = [row for row in rows if row.get("event") == "plan_refused"]
-
-    assert len(refused) == 1
-    assert refused[0]["document"] == "S-0100"
-    assert refused[0]["base"]
 
 
 def test_a_refusal_is_recorded_when_another_document_minted_in_the_sweep(tmp_path):

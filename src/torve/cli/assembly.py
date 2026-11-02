@@ -134,6 +134,10 @@ def route_dispatch_providers(config: RunnerConfig, root: Path, tier: TierConfig)
     reachable = [found for _, found in reachable_tiers(config, seat)] if seat else [tier]
 
     for reachable_tier in reachable:
+        # A fake tier sends no request, so `run_routing` routes none for it.
+        if reachable_tier.adapter == "fake" or not reachable_tier.provider:
+            continue
+
         route_provider(config.providers, repository, reachable_tier.provider)
 
 
