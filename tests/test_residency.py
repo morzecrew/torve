@@ -1850,6 +1850,44 @@ def test_an_axis_configured_as_zero_stays_unbounded_across_a_day(tmp_path):
     run(scenario)
 
 
+def test_a_day_with_the_attempts_axis_spent_opens_no_night(tmp_path):
+    """S-0117/D-4. An exhausted attempts axis is enough on its own, with the
+    USD axis still holding room: the remainder is zero and the day has no
+    room, so no night opens."""
+
+    terms = NightConfig(budget_usd=10.0, budget_attempts=2)
+
+    async def scenario(log):
+        await attempt(log, "T-0001", 1)
+        await attempt(log, "T-0001", 2)
+
+        remainder = await day_remainder(log, PARTITION, terms)
+
+        assert remainder == (10.0, 0)
+        assert not day_has_room(terms, remainder)
+
+    run(scenario)
+
+
+def test_a_usd_axis_configured_as_zero_stays_unbounded_across_a_day(tmp_path):
+    """S-0117/D-4. A zero USD budget is the configuration's own "no bound"
+    however much the day has spent; the remainder keeps it zero and the day
+    still has room."""
+
+    terms = NightConfig(budget_usd=0, budget_attempts=4)
+
+    async def scenario(log):
+        await burn(log, "T-0001", 7.5)
+        await attempt(log, "T-0001", 1)
+
+        remainder = await day_remainder(log, PARTITION, terms)
+
+        assert remainder == (0.0, 3)
+        assert day_has_room(terms, remainder)
+
+    run(scenario)
+
+
 def test_a_new_utc_day_starts_the_remainder_over(tmp_path):
     """S-0117/D-4. What a night spent after midnight counts against the new
     day; yesterday's spend is not today's remainder."""
