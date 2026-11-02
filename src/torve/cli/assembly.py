@@ -111,7 +111,7 @@ def dispatch_agent_factory(
 # dispatch under a regime it has not already validated.
 def route_dispatch_providers(config: RunnerConfig, root: Path, tier: TierConfig) -> None:
     """Route the dispatch tier and every tier it can reach through the
-    repository's permitted providers (S-0117/D-2): each retry rung, the
+    repository's permitted providers: each retry rung, the
     `revision_variant`, and each listed tier's own. A repository with no
     permitted provider for one of them is a configuration error, never a
     quiet fallback; the run may reach any of them after the matching
