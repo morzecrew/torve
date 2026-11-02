@@ -175,7 +175,13 @@ def _document_pr_text(
 
     from torve.application.evidence_matrix import board_findings, read_table, with_findings
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
-    from torve.application.lane import carried_landings, carried_tasks, contract_file
+    from torve.application.lane import (
+        carried_contract,
+        carried_landings,
+        carried_tasks,
+        contract_file,
+        landed_phases,
+    )
     from torve.application.projections import rows_from_events
     from torve.domain.attempt import GateResult
     from torve.gates.context import load_task
@@ -188,6 +194,7 @@ def _document_pr_text(
     commits = dict(carried_landings(root, branch))
     task_ids = carried + ([task_id] if task_id not in carried else [])
     rows = rows_from_events(records)
+    phases = landed_phases(root, branch)
     landings = []
 
     for carried_id in task_ids:
@@ -195,7 +202,13 @@ def _document_pr_text(
         recorded: list[Any] = (judged[-1].get("results") or []) if judged else []
         landings.append(
             DocumentLanding(
-                task=load_task(contract_file(root, carried_id)),
+                # The task being published is not a carried one yet; it lands
+                # under its own contract file, as it always did.
+                task=(
+                    carried_contract(root, branch, carried_id, phases)
+                    if carried_id in carried
+                    else load_task(contract_file(root, carried_id))
+                ),
                 sha=commits.get(carried_id) or (tip or ""),
                 results=[GateResult.model_validate(r) for r in recorded],
             )
