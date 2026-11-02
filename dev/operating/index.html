@@ -418,6 +418,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-suite-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The suite gate
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1225,6 +1236,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-suite-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The suite gate
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1838,6 +1860,34 @@ the attempt stayed inside it. The reviewer does not read the flag either
 (S-0114/D-4): it is for the person reading the night, to see how often an
 attempt works outside what it commits before the question of what to do about
 it is worth asking.</p>
+<h2 id="the-suite-gate">The suite gate<a class="headerlink" href="#the-suite-gate" title="Permanent link">&para;</a></h2>
+<p>The whole test suite runs once per battery, as the builtin <code>suite</code> gate, and
+there is no blanket re-run: the gate starts from its entry's first command,
+which runs the whole suite over the head. On a red, the failing tests' files
+are rerun at the head, and the files of the tests still red there are run on
+the merge base. A test convicts when it is still red at the head and not red
+on the base — green there, or with no base reading. Green on the rerun is
+flaky; red on the base too is inherited, and the inherited node ids ride the
+gate result's <code>inherited_failures</code>. A suite whose only failures are inherited
+passes and records them, so a red base is visible in the gate result without
+convicting anyone.</p>
+<p>A failing test that cannot run on the base tree has no base reading and
+convicts, and so does a red suite whose output names no failing test. The
+entry's later <code>commands</code> are reports: they run right after the suite's own
+run, over what it wrote, and their output is appended to the gate's while
+their exit codes never convict.</p>
+<p><strong>The lane re-gates with the blocking gates.</strong> The lane's batteries, the
+re-gate after a rebase and the whole-document completion battery run only the
+gates whose state is <code>blocking</code> and the decision gates, so a shadow gate does
+not run on a rebased or document tip. A rebased candidate whose only failing
+tests also fail on the base it was rebased onto lands, and the inherited
+failures ride its lane record. Every battery, green or red, is recorded as a
+<code>lane.judged</code> event on the candidate's task — or on the document's last task
+for a completion battery — carrying the leg, base, head, exit code, duration
+and the results. <strong>A red re-gate's output is read from <code>torve why</code></strong>: each
+<code>lane.judged</code> renders as a row with its leg, base, head, duration and the
+failing gates' output, beside every gate result's <code>inherited_failures</code>, so the
+failing test is named with no reproduction on the host.</p>
 <h2 id="a-rows-check-its-twin-and-the-invariants-the-battery-runs">A row's check, its twin, and the invariants the battery runs<a class="headerlink" href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" title="Permanent link">&para;</a></h2>
 <p>A decision row may carry a <code>check</code> — a command whose exit code judges the
 row — and the battery runs each as a <code>decision:&lt;id&gt;</code> gate under the row's
