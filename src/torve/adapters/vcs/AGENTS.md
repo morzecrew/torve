@@ -101,4 +101,12 @@ Every git command torve runs carries `core.hooksPath=/dev/null`, so no repositor
 - Paths: `src/torve/adapters/vcs/**` `src/torve/adapters/workspace/**` `src/torve/application/lane.py`
 - Consequence: configuration an agent wrote never runs on the host through a hook
 
+### S-0119/D-3 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+
+The forge port reads, for each open issue carrying a label: its number, URL, title and body, the account and instant of the last event that applied the label, and the later of the body's last edit and the last title rename. It pages the issues until none is left, and a page it cannot read fails the whole read. An issue whose last labelling falls outside the window it reads is returned marked unreadable with the reason, never dropped. A second read answers whether one account holds triage or more, an account that is not a collaborator answering no, and the leg asks it only about the issue it would draft next. Both read through `gh` with `scm.repo` and `scm.token_env`, as every `GhScm` read does, and never write.
+
+- Paths: `src/torve/application/ports.py` `src/torve/adapters/vcs/git.py`
+- Consequence: the credential is the host's: a sandbox never sees it, and a repository with no `scm.token_env` uses the host's own `gh` login
+- Check: `uv run pytest tests/test_forge.py -k labelled_issues` (shadow; runs as `decision:S-0119/D-3`, no log entry owed)
+
 <!-- /torve:managed -->

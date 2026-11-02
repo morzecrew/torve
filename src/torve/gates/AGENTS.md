@@ -404,6 +404,43 @@ A builtin `verify-tests` convicts a verify candidate whose file does not collect
 - Paths: `src/torve/gates/verify_tests.py`
 - Consequence: a verifier cannot land a test that proves nothing before the implementation exists
 
+### S-0118/D-1 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+
+A builtin `suite` runs the whole suite once over the head, from its entry's first command, with no blanket re-run. On a red, the failing tests' files are rerun at the head, and the files of the tests still red are run on the merge base. A test convicts when it is still red at the head and not red on the base: green there, or with no base reading (D-2). Green on the rerun is flaky; red on the base too is inherited
+
+- Paths: `src/torve/gates/suite.py` `tests/test_suite.py`
+- Consequence: a red the base already carries never blocks an attempt, and a red suite costs one suite run plus the failing tests' files twice, not two suite runs; an order dependence inside a file convicts as it does today, and one across files reads as flaky, an accepted false negative
+- Check: `uv run pytest tests/test_suite.py -k attribution` (shadow; runs as `decision:S-0118/D-1`, no log entry owed)
+
+### S-0118/D-2 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+
+A failing test that cannot run on the base tree has no base reading and convicts, and so does a red suite whose output names no failing test
+
+- Paths: `src/torve/gates/suite.py` `tests/test_suite.py`
+- Consequence: a new dependency or a collection error the change introduced blocks, and a person reads the cause from the output
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0118/D-3 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+
+The `suite` entry's later `commands` are reports: they run right after the suite's own run and before any rerun, over what it wrote; their output is appended to the gate's, and their exit codes never convict
+
+- Paths: `src/torve/gates/suite.py` `tests/test_suite.py`
+- Consequence: the coverage delta survives as a reading at the cost of one `diff-cover` run, it reads the whole suite's `coverage.xml` rather than a rerun's, and no report can block an attempt
+
+### S-0118/D-4 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+
+`GateResult` and `BuiltinOutcome` carry `inherited_failures`, the node ids a gate found red on the base too, beside `quarantined_failures`; a suite whose only failures are inherited passes and records them
+
+- Paths: `src/torve/domain/attempt.py` `src/torve/gates/contract.py` `src/torve/gates/runner.py` `tests/test_attempt_record.py` `tests/test_gates.py`
+- Consequence: the record holds every inherited red by name, so a red base is visible in `gates.evaluated` and `torve why` without convicting anyone
+
+### S-0118/D-11 — `OPEN` (A gate run is spent only where it can convict) — implementation: none
+
+How the base tree for the failing tests is built where the gate runs: `red-on-base`'s `git archive` script, or a base the host extracts beside the judge checkout
+
+- Paths: `src/torve/gates/suite.py`
+- Consequence: whichever is chosen, the base reading runs in the gate sandbox, never on the host
+
 ## Invariants holding over `src/torve/gates/`
 
 - **S-0055/I-3**: Every gate in the manifest can be made to fail

@@ -56,7 +56,7 @@ decisions:
       is missing.
     cites: [S-0079]
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       Under `--chain`, the night section's `budget_usd` and `budget_attempts` bound
       a UTC day: each night opens with what remains of the day on each axis as its
@@ -101,7 +101,7 @@ decisions:
       own files.
     cites: [D-3, S-0056/D-9]
   - id: D-6
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       The chain never fast-forwards the checkout its own engine imports from: when
       the `torve` package resolves under the repository root, it skips the fast-forward

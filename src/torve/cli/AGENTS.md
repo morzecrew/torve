@@ -831,6 +831,74 @@ When a document's last phase lands, the lane commits the held-out properties rec
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: the held-out properties keep guarding the document's rows as visible tests after it merges
 
+### S-0117/D-2 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+
+Every reader that lists the seats a run can reach lists all of them: the seat, its retry rungs and its `revision_variant`, and, followed transitively, each listed tier's own retry rungs and `revision_variant`. The readers are the broker's route table and the dispatch-time provider check.
+
+- Paths: `src/torve/application/dispatch.py` `src/torve/cli/assembly.py`
+- Consequence: a revision rung on another provider, or a rung reached from it, is routed before the first attempt and refused at dispatch when the repository may not reach it, never mid-run
+
+### S-0117/D-3 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+
+`torve manager serve --night --chain` runs nights back to back in one process. After a close it runs idle passes and opens the next night once the open's refusal reads empty and the day's budget has room; a night closed on a `stop_on` class ends the chain. `--chain` without `--night` is refused.
+
+- Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
+- Consequence: the engine serves until it is stopped, every night it ran keeps its own record, and a night that drains early no longer leaves the partition idle until a person notices
+
+### S-0117/D-5 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+
+Between nights, with nothing in flight, the chain fetches and, when the checkout sits on the configured base branch with a clean tree, fast-forwards it to the remote's. It plans only from a checkout on the base branch, clean and at the remote's tip after that: in number order, every document whose status is accepted, whose implementation is none and which has minted no task is minted into the partition's record as `torve plan --partition <partition> --no-dry-run` does, writing no file. A refused plan is tried again within the sweep after each mint that succeeds, and one still refused when a pass mints nothing is recorded once per base commit and tried again when the base moves.
+
+- Paths: `src/torve/cli/manager.py` `src/torve/application/planner.py`
+- Consequence: a document accepted on the base is minted and served by the next night without a command, a document accepted only on another branch is never planned, and a document that already minted a task is planned again only by a person's `plan --refresh`
+
+### S-0117/D-6 — `LOCKED` (A document reaches its pull request without its owner) — implementation: none
+
+The chain never fast-forwards the checkout its own engine imports from: when the `torve` package resolves under the repository root, it skips the fast-forward and the planning, and says so once at the start.
+
+- Paths: `src/torve/cli/manager.py`
+- Consequence: torve's own repository plans accepted documents only when its chain runs from a tool install, and a chain run from the checkout never changes its own code between passes
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0117/D-7 — `OPEN` (A document reaches its pull request without its owner) — implementation: none
+
+How the chain reports what it did between nights: the event names and payloads for a checkout left alone, a plan refused and a document planned, and whether they also reach the night report.
+
+- Paths: `src/torve/cli/manager.py`
+- Consequence: whatever the implementation picks, an operator reading the record can tell why an accepted document was not planned
+
+### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+
+Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery, carrying the leg, base, head, exit code, duration and the results as `gates.evaluated` records them; the caller of `process_lane` writes each one from what `on_judged` handed it (D-12), in a `finally`, so a pass that raises after a battery keeps it, and no projection reads it for a state transition
+
+- Paths: `src/torve/domain/events.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py` `tests/test_events.py` `tests/test_manager.py`
+- Consequence: a red re-gate's failing output and every lane battery's duration are in the record, so lane time is measured from the record and never from telemetry
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0119/D-7 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+
+`draft_request` in `src/torve/application/intake.py` takes the planner tier's agent from its caller, mints the drafting run, cuts its worktree at base, runs it and removes the worktree. `torve intake` and the intake leg both call it. Each caller builds the agent with `build_tier_agent` in the CLI layer, and the command keeps only parsing, that construction and rendering.
+
+- Paths: `src/torve/application/intake.py` `src/torve/cli/intake.py`
+- Consequence: a request drafts the same way whichever surface it came from, and a change to drafting changes both
+- Check: `uv run pytest tests/test_intake.py -k draft_request` (shadow; runs as `decision:S-0119/D-7`, no log entry owed)
+
+### S-0119/D-8 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+
+The intake leg runs in the manager's and the fleet's pass after the standing leg and before the mint. A paused pass skips it. It starts at most one drafting run per pass, for the issue labelled earliest.
+
+- Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py` `src/torve/cli/fleet.py`
+- Consequence: a pass that drafts dispatches after the drafting run returns, and a queue of labelled issues drains one per pass
+- Check: `uv run pytest tests/test_residency.py -k issue` (shadow; runs as `decision:S-0119/D-8`, no log entry owed)
+
+### S-0119/D-11 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+
+`torve spec check` warns for each phase of a document nothing has landed from. It lists the non-test Python files outside the phase's scope that import a file the scope matches: one line for those no phase owns, and one line per other phase that owns some. A further line lists the test files importing such a file that no acceptance command of the document runs. Each line names at most ten paths and the count, and is a warning, never a problem.
+
+- Paths: `src/torve/application/neighbours.py` `src/torve/cli/spec.py`
+- Consequence: the author sees a phase's callers outside its scope, and which phase owns each, while an intent can still say to change them; a corpus with such a phase still checks green
+- Check: `uv run pytest tests/test_neighbours.py tests/test_cli_spec.py -k reach` (shadow; runs as `decision:S-0119/D-11`, no log entry owed)
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

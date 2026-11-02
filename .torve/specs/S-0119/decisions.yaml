@@ -17,7 +17,7 @@ decisions:
     cites: [S-0055/D-56]
     check: uv run pytest tests/test_issues.py -k off
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       The leg drafts a labelled issue only when the account behind the last event
       that applied the label holds triage, write, maintain or admin on the repository,
@@ -57,7 +57,7 @@ decisions:
     check: >-
       uv run pytest tests/test_forge.py -k labelled_issues
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       The drafter's request is the issue's title, a blank line and its body, as read
       at the pass. The leg never reads comments or any other field into the request.
@@ -134,7 +134,7 @@ decisions:
     cites: [S-0055/D-56, S-0048/D-4]
     check: uv run pytest tests/test_residency.py -k issue
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       The intake leg never writes to the forge: no comment, no label change, no close.
       The pass's detail line names each drafted and skipped issue. The leg also writes
