@@ -485,6 +485,7 @@ def test_an_injecting_thread_is_refused_alone_and_its_neighbour_reaches_the_roun
     (refusal,) = events(seeded.root, "lane_thread_refused")
     assert refusal["threads"] == ["t1"]
     (recorded,) = events(seeded.root, "lane_review_task")
+    assert [f["threads"] for f in recorded["findings"]] == [["t2"]]
     # The round anchors to the thread it carries, not the group's old span.
     assert [(f["line"], f["end_line"]) for f in recorded["findings"]] == [(14, 14)]
 
