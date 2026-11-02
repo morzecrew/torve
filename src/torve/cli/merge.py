@@ -175,10 +175,9 @@ def _document_pr_text(
 
     from torve.application.evidence_matrix import board_findings, read_table, with_findings
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
-    from torve.application.lane import carried_landings, carried_tasks, contract_file
+    from torve.application.lane import carried_contract, carried_landings, carried_tasks
     from torve.application.projections import rows_from_events
     from torve.domain.attempt import GateResult
-    from torve.gates.context import load_task
 
     document = branch.rsplit("/", 1)[-1]
     # S-0099/D-2: every task the branch carries comes from the landing files on
@@ -195,7 +194,7 @@ def _document_pr_text(
         recorded: list[Any] = (judged[-1].get("results") or []) if judged else []
         landings.append(
             DocumentLanding(
-                task=load_task(contract_file(root, carried_id)),
+                task=carried_contract(root, branch, carried_id),
                 sha=commits.get(carried_id) or (tip or ""),
                 results=[GateResult.model_validate(r) for r in recorded],
             )

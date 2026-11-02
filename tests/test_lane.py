@@ -3080,6 +3080,35 @@ def test_completion_runs_the_document_rows_and_no_invariant_gates(lane_repo, tmp
     assert "invariant:S-0930/I-2" not in completion
 
 
+def test_a_document_whose_contracts_left_no_file_is_still_complete(lane_repo):
+    """S-0056/D-9: a task minted into the record has no contract file once its
+    worktree is reaped. Its landing file names its phase, so the lane still
+    counts it carried and sees the document complete — the completion battery
+    fires and the pull request leaves draft."""
+
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", document, "main")
+    execution = lane_repo / ".torve" / "specs" / "S-0930" / "execution"
+    execution.mkdir(parents=True, exist_ok=True)
+
+    for task_id, phase in (("T-7391", 1), ("T-7392", 2)):
+        (execution / f"{task_id}-1-2026100{phase}T000000Z.yaml").write_text(
+            f"task: {task_id}\nphase: {phase}\nat: '2026-10-0{phase}T00:00:00Z'\n",
+            encoding="utf-8",
+        )
+
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "two phases, no contract files")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.carried_tasks(lane_repo, document) == ["T-7391", "T-7392"]
+    assert lane.carried_contract(lane_repo, document, "T-7391").phase == 1
+    assert lane._completes(lane_repo, "T-7392", document)
+
+
 def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     lane_repo, tmp_path, monkeypatch
 ):

@@ -52,6 +52,7 @@ from torve.config.spec import write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.events import EventKind, EventRecord, HoldoutFile, VerifyHoldout
 from torve.domain.states import EscalationReason, TaskState
+from torve.domain.task import Task
 
 if TYPE_CHECKING:
     from torve.domain.task import InheritedDecision
@@ -1354,13 +1355,12 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
     """Whether this landing leaves the document complete (S-0093/D-1)."""
 
     from torve.application.forge import DocumentLanding, document_complete
-    from torve.gates.context import load_task
 
     landings = []
 
     for carried in dict.fromkeys([*carried_tasks(root, document), task_id]):
         try:
-            landings.append(DocumentLanding(task=load_task(contract_file(root, carried))))
+            landings.append(DocumentLanding(task=carried_contract(root, document, carried)))
 
         except (OSError, ValueError):
             continue
@@ -2319,9 +2319,9 @@ def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
 # ....................... #
 
 
-def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]:
-    """*(at, task, commit, attempt)* for the landing files *branch* carries, in
-    landing order (S-0099/D-2). The landing file is the carrier of what a
+def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, int]]:
+    """*(at, task, commit, attempt, phase)* for the landing files *branch*
+    carries, in landing order (S-0099/D-2). The landing file is the carrier of what a
     document branch holds — a phase finished by hand, or one whose publication
     the forge refused, rides in the tree exactly as a lane landing does.
 
@@ -2339,7 +2339,7 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]
     document = branch.rsplit("/", 1)[-1]
     directory = f"{layout.SPECS_DIR}/{document}/{EXECUTION_DIR}"
     refs = [branch] if branch.startswith(("origin/", "refs/")) else [f"origin/{branch}", branch]
-    found: dict[tuple[str, str, int], str] = {}
+    found: dict[tuple[str, str, int], tuple[str, int]] = {}
 
     for ref in refs:
         proc = subprocess.run(
@@ -2375,6 +2375,7 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]
                 continue
 
             commit = ""
+            phase = 0
             body = subprocess.run(
                 ["git", *NO_HOOKS, "-C", str(root), "show", f"{ref}:{path}"],
                 capture_output=True,
@@ -2385,14 +2386,18 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int]]
             if body.returncode == 0:
                 try:
                     raw = yaml.safe_load(body.stdout) or {}
-                    commit = str(raw.get("commit") or "") if isinstance(raw, dict) else ""
+                    if isinstance(raw, dict):
+                        commit = str(raw.get("commit") or "")
+                        phase = int(raw.get("phase") or 0)
 
-                except yaml.YAMLError:
-                    commit = ""
+                except (yaml.YAMLError, TypeError, ValueError):
+                    commit, phase = "", 0
 
-            found[key] = commit
+            found[key] = (commit, phase)
 
-    return sorted((at, task, commit, attempt) for (at, task, attempt), commit in found.items())
+    return sorted(
+        (at, task, commit, attempt, phase) for (at, task, attempt), (commit, phase) in found.items()
+    )
 
 
 def carried_landings(root: Path, branch: str) -> list[tuple[str, str]]:
@@ -2403,7 +2408,7 @@ def carried_landings(root: Path, branch: str) -> list[tuple[str, str]]:
     order: list[str] = []
     commits: dict[str, str] = {}
 
-    for _at, task, commit, _attempt in _branch_landings(root, branch):
+    for _at, task, commit, _attempt, _phase in _branch_landings(root, branch):
         if task not in commits:
             order.append(task)
 
@@ -2422,11 +2427,45 @@ def document_tasks(root: Path, branch: str) -> list[str]:
 
 
 def carried_tasks(root: Path, branch: str) -> list[str]:
-    """The tasks a document branch carries whose contract the corpus holds —
-    the same carrier as `document_tasks` (S-0099/D-2), so a stray file names
-    no task."""
+    """The tasks a document branch carries whose contract the corpus holds,
+    or whose landing file names its phase — the same carrier as
+    `document_tasks` (S-0099/D-2), so a stray file names no task."""
 
-    return [task for task in document_tasks(root, branch) if contract_file(root, task).is_file()]
+    phases = _landed_phases(root, branch)
+
+    return [
+        task
+        for task in document_tasks(root, branch)
+        if contract_file(root, task).is_file() or phases.get(task)
+    ]
+
+
+def _landed_phases(root: Path, branch: str) -> dict[str, int]:
+    """The phase each carried task's newest landing file names; 0 when none."""
+
+    return {task: phase for _at, task, _commit, _attempt, phase in _branch_landings(root, branch)}
+
+
+def carried_contract(root: Path, branch: str, task_id: str) -> Task:
+    """The contract a carried task landed under: the corpus's file, or the
+    projection in its run's worktree (`contract_file`). A task minted into the
+    record has neither once that worktree is reaped (S-0056/D-9), and then its
+    landing file carries what completion and the draft flag count: a bare
+    contract naming the phase the file records."""
+
+    from torve.gates.context import load_task
+
+    path = contract_file(root, task_id)
+
+    if path.is_file():
+        return load_task(path)
+
+    return Task(
+        id=task_id,
+        spec=branch.rsplit("/", 1)[-1],
+        phase=_landed_phases(root, branch).get(task_id, 0),
+        decisions=[],
+    )
 
 
 # ....................... #
