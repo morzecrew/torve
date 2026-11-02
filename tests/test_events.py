@@ -169,6 +169,38 @@ def test_a_night_stop_class_must_be_one_the_engine_escalates():
         validate_payload(EventKind.NIGHT_CLOSED, {"reason": "morning"})
 
 
+def test_lane_judged_is_the_managers_and_the_operators():
+    """S-0118/D-9: a battery is a landing fact, recorded by the manager's lane
+    leg or by the operator's `torve merge`, and its payload is the judgment as
+    `gates.evaluated` records it."""
+
+    from torve.domain.events import LaneJudged
+
+    assert AUTHORITY[EventKind.LANE_JUDGED] == frozenset({ActorKind.MANAGER, ActorKind.OPERATOR})
+
+    with pytest.raises(UnauthorizedWrite):
+        check_authority(ActorKind.WORKER, EventKind.LANE_JUDGED)
+
+    payload = validate_payload(
+        EventKind.LANE_JUDGED,
+        {
+            "leg": "regate",
+            "base": "b" * 40,
+            "head": "h" * 40,
+            "exit_code": 1,
+            "duration_s": 12.5,
+            "results": [{"name": "suite", "outcome": "fail", "state": "blocking"}],
+        },
+    )
+
+    assert isinstance(payload, LaneJudged)
+    assert (payload.leg, payload.exit_code, payload.duration_s) == ("regate", 1, 12.5)
+    assert payload.results[0]["name"] == "suite"
+
+    with pytest.raises(ValidationError):
+        validate_payload(EventKind.LANE_JUDGED, {**payload.model_dump(), "surprise": 1})
+
+
 def test_verify_holdout_is_a_workers_event_of_named_files():
     """S-0116/D-9: the event registry gains a kind, a payload of names and
     texts, and the worker as its actor — the held-out set is an execution

@@ -3137,3 +3137,194 @@ def test_a_return_whose_log_write_fails_leaves_nothing_to_land(tmp_path, monkeyp
     assert CliRunner().invoke(app, args).exit_code == 0
     assert recorded == ["T-9813"]
     assert RunState.load(state.path).state is TaskState.QUEUED
+
+
+# ....................... #
+
+
+def test_a_serve_records_each_judged_battery_in_the_log(tmp_path, monkeypatch):
+    """S-0118/D-9: the served lane's caller writes one `lane.judged` per
+    battery it observed, with the manager as the actor and a red gate's output
+    clipped the way `gates.evaluated` keeps it. No projection reads it, so the
+    board's state is the one the other facts left."""
+
+    from forze_mock import MockDepsModule, MockState
+
+    from torve.adapters.eventstore import document as eventstore
+    from torve.application import lane as lane_module
+    from torve.application.lane import LaneJudgment
+    from torve.application.telemetry import RECORDED_OUTPUT
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    state = MockState()
+    monkeypatch.setattr(eventstore, "mock_module", lambda: MockDepsModule(state=state))
+    long_output = "x" * (RECORDED_OUTPUT + 50)
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        kwargs["on_judged"](
+            LaneJudgment(
+                leg="regate",
+                base="b" * 40,
+                head="h" * 40,
+                exit_code=1,
+                duration_s=2.5,
+                results=[
+                    {
+                        "name": "suite",
+                        "outcome": "fail",
+                        "state": "blocking",
+                        "output": long_output,
+                    }
+                ],
+            )
+        )
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+    terms = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: terms)
+
+    asyncio.run(
+        manager_cli._serve(
+            None,
+            PARTITION,
+            root=tmp_path,
+            config_path=None,
+            worker="w-1",
+            passes=1,
+            interval=0,
+            only="T-1",
+            dispatch=False,
+        )
+    )
+
+    async def read() -> list:
+        runtime = ExecutionRuntime(
+            deps=DepsRegistry.from_modules(MockDepsModule(state=state)).freeze()
+        )
+
+        async with runtime.scope():
+            events = await event_log(runtime.get_context()).since(partition=PARTITION)
+
+        return [event for event in events if event.kind is EventKind.LANE_JUDGED]
+
+    judged = asyncio.run(read())
+
+    assert len(judged) == 1
+    record = judged[0]
+    assert record.subject_id == "T-1"
+    assert record.actor_kind is ActorKind.MANAGER
+    assert record.payload["leg"] == "regate"
+    assert (record.payload["exit_code"], record.payload["duration_s"]) == (1, 2.5)
+    assert len(record.payload["results"][0]["output"]) == RECORDED_OUTPUT
+
+
+def test_a_served_lane_keeps_a_battery_a_later_raise_cut_short(tmp_path, monkeypatch):
+    """S-0118/D-9: the observer is handed a battery as it ends and the caller
+    records what it collected in a `finally`, so a raise later in the pass
+    does not lose it."""
+
+    from torve.application import lane as lane_module
+    from torve.application.lane import LaneJudgment
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    def raising_process_lane(_root, _vcs, **kwargs):
+        kwargs["on_judged"](
+            LaneJudgment(leg="regate", base="b", head="h", exit_code=0, duration_s=1.0)
+        )
+        raise RuntimeError("a later candidate's rebase blew up")
+
+    monkeypatch.setattr(lane_module, "process_lane", raising_process_lane)
+    seen: list[tuple[str, LaneJudgment]] = []
+
+    async def record(collected: list[tuple[str, LaneJudgment]]) -> None:
+        seen.extend(collected)
+
+    config = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+    leg = _lane_leg(tmp_path, config, only="T-1", record_judged=record)
+    assert leg is not None
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(leg())
+
+    assert [subject for subject, _judgment in seen] == ["T-1"]
+
+
+def test_torve_merge_records_each_judged_battery_in_the_log(tmp_path, monkeypatch):
+    """S-0118/D-9: the operator's `torve merge` records what its `on_judged`
+    collected, with the operator as the actor, in a `finally` like the served
+    leg's."""
+
+    from forze_mock import MockDepsModule, MockState
+    from typer.testing import CliRunner
+
+    from torve.adapters.eventstore import document as eventstore
+    from torve.application import lane as lane_module
+    from torve.application.lane import LaneJudgment
+    from torve.cli.main import app
+
+    state = MockState()
+    monkeypatch.setattr(eventstore, "mock_module", lambda: MockDepsModule(state=state))
+
+    def fake_process_lane(_root, _vcs, **kwargs):
+        kwargs["on_judged"](
+            LaneJudgment(leg="completion", base="b", head="", exit_code=0, duration_s=0.5)
+        )
+        return []
+
+    monkeypatch.setattr(lane_module, "process_lane", fake_process_lane)
+
+    result = CliRunner().invoke(app, ["merge", "--root", str(tmp_path), "--format", "json", "T-1"])
+    assert result.exit_code == 0, result.output
+
+    async def read() -> list:
+        runtime = ExecutionRuntime(
+            deps=DepsRegistry.from_modules(MockDepsModule(state=state)).freeze()
+        )
+
+        async with runtime.scope():
+            events = await event_log(runtime.get_context()).since()
+
+        return [event for event in events if event.kind is EventKind.LANE_JUDGED]
+
+    judged = asyncio.run(read())
+
+    assert len(judged) == 1
+    assert judged[0].subject_id == "T-1"
+    assert judged[0].actor_kind is ActorKind.OPERATOR
+    assert judged[0].payload["leg"] == "completion"
+
+
+def test_lane_judged_moves_no_task_state():
+    """S-0118/D-9: the battery is a record to read, never a transition — the
+    board folds to where the other facts left the task."""
+
+    payload = {
+        "title": "T-1",
+        "source_id": "0118",
+        "depends_on": [],
+        "contract": task("T-1", allow=["src/**"]).model_dump(mode="json"),
+    }
+    events = [
+        event(EventKind.TASK_MINTED, "T-1", payload),
+        event(
+            EventKind.LANE_JUDGED,
+            "T-1",
+            {
+                "leg": "regate",
+                "base": "b",
+                "head": "h",
+                "exit_code": 1,
+                "duration_s": 1.0,
+                "results": [],
+            },
+        ),
+    ]
+
+    view = project(events).tasks["T-1"]
+
+    assert view.state is TaskState.QUEUED
+    assert view.attempts == 0
+    assert view.landed_sha is None

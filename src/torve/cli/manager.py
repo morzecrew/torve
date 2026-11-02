@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from forze.application.execution import ExecutionRuntime
 
     from torve.adapters.vcs.git import GhScm
+    from torve.application.lane import LaneJudgment
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
     from torve.application.runstate import Escalation
@@ -219,6 +220,7 @@ def _lane_leg(
     holdouts: Callable[[], Awaitable[dict[str, list[HoldoutFile]]]] | None = None,
     requeue: Callable[[list[tuple[str, str]]], Awaitable[None]] | None = None,
     escalate: Callable[[list[tuple[str, Escalation]]], Awaitable[None]] | None = None,
+    record_judged: Callable[[list[tuple[str, LaneJudgment]]], Awaitable[None]] | None = None,
 ) -> Lane | None:
     """The pass's landing leg, or None when the switch is off.
 
@@ -266,7 +268,14 @@ def _lane_leg(
         # the manager unable to reclaim, mint or dispatch (T-0284).
         from torve.adapters.vcs.git import GitLane
         from torve.application.lane import conflict_disposal, process_lane
-        from torve.cli.merge import _forge, _lane_gates, _publisher, _resolve_ci, _status
+        from torve.cli.merge import (
+            _forge,
+            _lane_gates,
+            _publisher,
+            _resolve_ci,
+            _status,
+            judged_subject,
+        )
 
         # S-0116/D-14: the recorded held-out properties, folded on the loop
         # before the lane runs off it, then handed as the reader the lane's
@@ -274,6 +283,17 @@ def _lane_leg(
         held = await holdouts() if holdouts is not None else {}
         # One forge for the verdict the lane writes and the draft flag that reads it.
         status = _status(config)
+
+        # S-0118/D-9: the pass hands each battery over as it ends; the record
+        # is written in the `finally`, so one a later raise cut the pass short
+        # still reaches the log.
+        collected: list[tuple[str, LaneJudgment]] = []
+
+        def observe(judgment: LaneJudgment) -> None:
+            subject = judged_subject(root, judgment, only)
+
+            if subject:
+                collected.append((subject, judgment))
 
         # Landing is git in a blocking world: run it off the loop so a slow
         # rebase cannot stall the pass's clock. The arguments are `merge_cmd`'s
@@ -322,9 +342,15 @@ def _lane_leg(
                 # S-0116/D-14: the recorded held-out properties the document's
                 # completion commits, read from the store this pass holds.
                 holdout=lambda task_id: held.get(task_id, []),
+                # S-0118/D-9: the batteries the pass ran, each handed over as
+                # it ended, written beside the requeues below.
+                on_judged=observe,
             )
 
         finally:
+            if record_judged is not None:
+                await record_judged(collected)
+
             if requeue is not None:
                 await requeue(_conflict_requeues(root))
 
@@ -787,6 +813,25 @@ async def _serve(
                 payload={"reason": escalation.reason, "detail": escalation.detail[:300]},
             )
 
+    async def record_judged_batteries(collected: list[tuple[str, LaneJudgment]]) -> None:
+        """S-0118/D-9: write the batteries the served lane observed, on the
+        task each belongs to, with the manager as the actor. Called from the
+        leg's `finally`, against the log this pass already holds."""
+
+        from torve.cli.merge import judged_payload
+        from torve.domain.events import ActorKind, EventKind, SubjectType
+
+        for subject, judgment in collected:
+            await log.record(
+                EventKind.LANE_JUDGED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=subject,
+                actor_kind=ActorKind.MANAGER,
+                actor_id=worker,
+                payload=judged_payload(judgment),
+            )
+
     # None unless the auto-merge switch is on: an unarmed serve is the
     # same pass it was before the landing leg existed.
     lane_leg = _lane_leg(
@@ -797,6 +842,7 @@ async def _serve(
         holdouts=holdouts,
         requeue=requeue,
         escalate=escalate,
+        record_judged=record_judged_batteries,
     )
 
     if lane_leg is not None:
