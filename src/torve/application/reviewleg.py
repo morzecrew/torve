@@ -947,17 +947,22 @@ def _injection(finding: Finding) -> str:
     return ""
 
 
-def _refused_before(thread: ReviewThread, bots: Collection[str]) -> bool:
+def _refused_before(thread: ReviewThread, engine: str, bots: Collection[str]) -> bool:
     """Whether the leg already refused *thread* and nobody but a bot has
     written since. Every refusal reply opens with the thread's own id
-    (`_injection`), so it is found wherever it sits. A person's comment after
-    it re-opens the thread (S-0103/D-3); a bot's does not, or a bot that
-    answers every reply and the leg answer each other on every pass (#232)."""
+    (`_injection`) and carries the engine's login (`_already_handled`'s
+    `engine`), so it is found wherever it sits and nobody else can forge one.
+    A person's comment after it re-opens the thread (S-0103/D-3); a bot's does
+    not, or a bot that answers every reply and the leg answer each other on
+    every pass (#232)."""
+
+    if not engine:
+        return False
 
     refusals = [
         index
         for index, comment in enumerate(thread.comments)
-        if index and comment.body.lstrip().startswith(f"{thread.id} ")
+        if index and comment.author == engine and comment.body.lstrip().startswith(f"{thread.id} ")
     ]
 
     if not refusals:
@@ -1906,7 +1911,7 @@ def review_thread_leg(
             bad = [one for one in finding.threads if injection_reason(collapsed(one))]
 
             for one in bad:
-                if _refused_before(one, config.threads.bots):
+                if _refused_before(one, info.author, config.threads.bots):
                     continue
 
                 alone = replace(finding, threads=(one,))
@@ -1928,7 +1933,15 @@ def review_thread_leg(
                 if not rest:
                     continue
 
-                finding = replace(finding, threads=rest)
+                # The span is the surviving threads' own (as `group_findings`
+                # draws it), so a round never records a refused thread's lines.
+                lines = sorted(one.line for one in rest if one.line is not None)
+                finding = replace(
+                    finding,
+                    threads=rest,
+                    line=lines[0] if lines else None,
+                    end_line=lines[-1] if lines else None,
+                )
                 from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             files = sorted({f for ident in from_record for f in touched.get(ident, [])})

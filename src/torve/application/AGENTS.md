@@ -1936,7 +1936,7 @@ A recorded finding is answered when a round whose contract lists it in `round.fi
 The leg replies on a thread it refuses with the refusal's reason, opening with the thread's id, so a later pass reads it as handled wherever that reply sits, until someone outside `threads.bots` comments after it; it reads no `lane_thread_refused` or `lane_engine_thread` row.
 
 - Paths: `src/torve/application/reviewleg.py`
-- Consequence: a refused thread is not raised again on any host until someone comments after the refusal
+- Consequence: a refused thread is not raised again on any host until someone outside `threads.bots` comments after the refusal
 
 ### S-0103/D-4 — `ASSUMED` (The review leg reads no stream)
 
