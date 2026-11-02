@@ -3147,6 +3147,20 @@ def test_held_out_files_with_no_contract_to_place_them_turn_the_battery_red(lane
     assert red is not None and "T-7391" in red and "cannot be placed" in red
 
 
+def test_held_out_files_beside_a_contract_that_denies_nothing_turn_the_battery_red(lane_repo):
+    """S-0116/D-14: a contract file that denies no verifier file names no stem
+    to place held-out files under either, so it refuses the same way."""
+
+    import torve.application.lane as lane
+    from torve.domain.events import HoldoutFile
+
+    document = _fileless_document(lane_repo, {"T-7391": 1, "T-7392": 2})
+    _phase_contract(lane_repo, "T-7391", 1)
+    held = {"T-7391": [HoldoutFile(name="test_one.py", text="def test_one(): ...\n")]}
+
+    assert lane._unplaced_holdouts(lane_repo, document, lambda t: held.get(t, [])) == ["T-7391"]
+
+
 @pytest.mark.parametrize("contract", [True, False])
 def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     lane_repo, tmp_path, monkeypatch, contract

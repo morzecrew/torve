@@ -1436,17 +1436,32 @@ def _holdout_targets(root: Path, document: str, reader: HoldoutReader) -> dict[s
 
 
 def _unplaced_holdouts(root: Path, document: str, reader: HoldoutReader) -> list[str]:
-    """The carried tasks that recorded held-out files but have no contract
-    file to name where they go: `_holdout_targets` reads the stem from the
-    contract's `scope.deny`, and a task minted into the record has none once
-    its worktree is reaped. The battery refuses rather than judge the
-    document without them (S-0116/D-14)."""
+    """The carried tasks that recorded held-out files `_holdout_targets` cannot
+    place: it reads where they go from the stem of the contract's first
+    `scope.deny` entry, and skips a task whose contract is missing, does not
+    load, or denies nothing. A task minted into the record has no contract
+    file once its worktree is reaped. The battery refuses rather than judge
+    the document without them (S-0116/D-14)."""
 
-    return [
-        task_id
-        for task_id in sorted(carried_tasks(root, document))
-        if reader(task_id) and not contract_file(root, task_id).is_file()
-    ]
+    from torve.gates.context import load_task
+
+    unplaced: list[str] = []
+
+    for task_id in sorted(carried_tasks(root, document)):
+        if not reader(task_id):
+            continue
+
+        try:
+            task = load_task(contract_file(root, task_id))
+
+        except (OSError, ValueError):
+            unplaced.append(task_id)
+            continue
+
+        if not task.scope.deny:
+            unplaced.append(task_id)
+
+    return unplaced
 
 
 def _commit_holdouts(root: Path, workdir: Path, document: str, reader: HoldoutReader) -> str | None:
@@ -1531,7 +1546,8 @@ def _completion_battery(
             if unplaced:
                 return tip, (
                     f"the held-out properties of {', '.join(unplaced)} cannot be placed: "
-                    "no contract in this checkout names the verifier's file they sit beside"
+                    "no loadable contract in this checkout denies the verifier's file "
+                    "they sit beside"
                 )
 
             committed = _commit_holdouts(root, workdir, document, holdout)
