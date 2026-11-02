@@ -2055,7 +2055,7 @@ def test_a_refusal_is_recorded_again_after_the_base_moves(tmp_path):
 
 @pytest.mark.parametrize(
     ("where", "expected"),
-    [("under", True), ("outside", False), (None, False)],
+    [("under", True), ("venv", False), ("outside", False), (None, False)],
 )
 def test_the_engine_is_under_the_root_only_when_torve_lives_there(
     tmp_path, monkeypatch, where, expected
@@ -2072,6 +2072,10 @@ def test_the_engine_is_under_the_root_only_when_torve_lives_there(
 
     if where == "under":
         monkeypatch.setattr(torve, "__file__", str(root / "src" / "torve" / "__init__.py"))
+    elif where == "venv":
+        # A release installed into the project's virtualenv, not its source.
+        installed = root / ".venv" / "lib" / "python3.14" / "site-packages" / "torve"
+        monkeypatch.setattr(torve, "__file__", str(installed / "__init__.py"))
     elif where == "outside":
         monkeypatch.setattr(
             torve, "__file__", str(tmp_path / "elsewhere" / "torve" / "__init__.py")

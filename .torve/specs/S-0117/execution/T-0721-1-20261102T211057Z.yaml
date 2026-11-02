@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../schemas/landing.json
 task: T-0721
 base: bf0169e5627bec1e734db834c766574b32a7f728
-commit: fd1734feaff81a02e566c167e5cdd2bf48e52b63
+commit: 3abe2d565fd7191037ae75cb85adbea32a23e2fc
 at: '2026-11-02T21:10:57Z'
 agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
 decisions:

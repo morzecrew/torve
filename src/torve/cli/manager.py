@@ -658,12 +658,14 @@ def _engine_imports_under(root: Path) -> bool:
         return False
 
     try:
-        Path(location).resolve().relative_to(root.resolve())
+        relative = Path(location).resolve().relative_to(root.resolve())
 
     except ValueError:
         return False
 
-    return True
+    # A torve installed into the project's own virtualenv sits under the root
+    # too, but it is a release, not the checkout's source.
+    return "site-packages" not in relative.parts
 
 
 # ....................... #
