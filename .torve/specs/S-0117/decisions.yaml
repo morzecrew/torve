@@ -1,0 +1,149 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A seat may name a `revision_variant`, a dotted tier. When the attempt about
+      to run follows a surviving review blocker's revision, `advance_tier` resolves
+      it to that tier, as it resolves a retry rung after a gate-red; empty, the default,
+      keeps the revision on the seat. The load refuses a `revision_variant` that names
+      no configured tier.
+    paths: [src/torve/config/runconfig.py, src/torve/application/session.py]
+    consequence: >-
+      a blocker the executor seat could not clear gets its revision on the stronger
+      seat inside the same run, worktree and critique, and only a blocker that survives
+      that reaches a person
+    rationale: >-
+      All 16 blocker escalations on torve in a month followed a revision on the seat
+      that produced the blocker, and 11 of the 15 traced were finished by hand in
+      an Opus session; the retry rung is already the mechanism that moves an attempt
+      to another seat.
+    cites: [S-0027, S-0034, S-0090]
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Every reader that lists the seats a run can reach lists all of them: the seat,
+      its retry rungs and its `revision_variant`, and, followed transitively, each
+      listed tier's own retry rungs and `revision_variant`. The readers are the broker's
+      route table and the dispatch-time provider check.
+    paths: [src/torve/application/dispatch.py, src/torve/cli/assembly.py]
+    consequence: >-
+      a revision rung on another provider, or a rung reached from it, is routed before
+      the first attempt and refused at dispatch when the repository may not reach
+      it, never mid-run
+    rationale: >-
+      The broker opens once, before the first attempt, so a seat only a later attempt
+      reaches must already be on the route table. `retry_rung_for` reads a gate-red's
+      rung from the tier that just ran (`advance_tier` in `src/torve/application/session.py`),
+      so a revision on the rung that goes red reaches that tier's own rungs; today's
+      readers list only the seat's.
+    cites: [D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `torve manager serve --night --chain` runs nights back to back in one process.
+      After a close it runs idle passes and opens the next night once the open's refusal
+      reads empty and the day's budget has room; a night closed on a `stop_on` class
+      ends the chain. `--chain` without `--night` is refused.
+    paths: [src/torve/application/residency.py, src/torve/cli/manager.py]
+    consequence: >-
+      the engine serves until it is stopped, every night it ran keeps its own record,
+      and a night that drains early no longer leaves the partition idle until a person
+      notices
+    rationale: >-
+      43 nights opened on torve's partition in a month and each was started by hand;
+      the night's open, terms, record and close already exist and only the next open
+      is missing.
+    cites: [S-0079]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Under `--chain`, the night section's `budget_usd` and `budget_attempts` bound
+      a UTC day: each night opens with what remains of the day on each axis as its
+      own budget. A day on which any axis configured above zero has no remainder opens
+      no night until the next UTC midnight, because `reached` reads a zero budget
+      as no bound; an axis configured as zero stays unbounded. A night that crosses
+      midnight keeps the budget it opened with, and what it spends after midnight
+      counts against the new day. `minutes` bounds each night.
+    paths: [src/torve/application/residency.py]
+    consequence: >-
+      a chain spends at most one night's configured budget per day however many nights
+      it opens, and `night.opened` records the remainder each night ran under
+    rationale: >-
+      Budgets are measured from the board at each open, so nights opened back to back
+      would each get the full budget; bounding the day keeps one number the operator
+      sets.
+    cites: [D-3, S-0079]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      Between nights, with nothing in flight, the chain fetches and, when the checkout
+      sits on the configured base branch with a clean tree, fast-forwards it to the
+      remote's. It plans only from a checkout on the base branch, clean and at the
+      remote's tip after that: in number order, every document whose status is accepted,
+      whose implementation is none and which has minted no task is minted into the
+      partition's record as `torve plan --partition <partition> --no-dry-run` does,
+      writing no file. A refused plan is tried again within the sweep after each mint
+      that succeeds, and one still refused when a pass mints nothing is recorded once
+      per base commit and tried again when the base moves.
+    paths: [src/torve/cli/manager.py, src/torve/application/planner.py]
+    consequence: >-
+      a document accepted on the base is minted and served by the next night without
+      a command, a document accepted only on another branch is never planned, and
+      a document that already minted a task is planned again only by a person's `plan
+      --refresh`
+    rationale: >-
+      31% of torve's document lead time in a month, 109 of 353 hours, passed between
+      the acceptance commit and the first minted task, waiting for a person to plan
+      and start a night. A served chain always holds the record, so it mints there
+      as S-0056/D-9 requires. A refusal can turn on another document, one named in
+      `depends_on` or `after`, so it is keyed on the base commit and not on the document's
+      own files.
+    cites: [D-3, S-0056/D-9]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The chain never fast-forwards the checkout its own engine imports from: when
+      the `torve` package resolves under the repository root, it skips the fast-forward
+      and the planning, and says so once at the start.
+    paths: [src/torve/cli/manager.py]
+    consequence: >-
+      torve's own repository plans accepted documents only when its chain runs from
+      a tool install, and a chain run from the checkout never changes its own code
+      between passes
+    rationale: >-
+      A fast-forward under a running engine swaps the modules it imports lazily, which
+      is why the operating notes forbid pulling main during a night.
+    cites: [D-5, S-0110/D-3]
+  - id: D-7
+    grade: OPEN
+    text: >-
+      How the chain reports what it did between nights: the event names and payloads
+      for a checkout left alone, a plan refused and a document planned, and whether
+      they also reach the night report.
+    paths: [src/torve/cli/manager.py]
+    consequence: >-
+      whatever the implementation picks, an operator reading the record can tell why
+      an accepted document was not planned
+    rationale: >-
+      The facts to carry are fixed by D-5 and D-6; their spelling is the implementation's,
+      in the existing engine-event vocabulary.
+    cites: [D-5, D-6]
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The torve skill's night and escalations references and the operating page describe
+      running a document without its owner: `--chain`, the daily budget, a `revision_variant`
+      on the executor seat, and the review-thread leg on with the forge's review bots
+      named and `approve_comment` set.
+    paths:
+      - skills/torve/references/night.md
+      - skills/torve/references/escalations.md
+      - pages/docs/operating.md
+    consequence: >-
+      an adopter configures the owner-free run from the guide, and a session operating
+      torve reads that a blocker reaching it has already survived the stronger seat
+    rationale: >-
+      The leg that answers bot threads exists and is off in torve's own night configuration;
+      36 hand commits in a month answered threads it would have composed into rounds.
+    cites: [S-0084, S-0097, S-0100/D-5]

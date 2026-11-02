@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A builtin `suite` runs the whole suite once over the head, from its entry's
+      first command, with no blanket re-run. On a red, the failing tests' files are
+      rerun at the head, and the files of the tests still red are run on the merge
+      base. A test convicts when it is still red at the head and not red on the base:
+      green there, or with no base reading (D-2). Green on the rerun is flaky; red
+      on the base too is inherited
+    paths: [src/torve/gates/suite.py, tests/test_suite.py]
+    consequence: >-
+      a red the base already carries never blocks an attempt, and a red suite costs
+      one suite run plus the failing tests' files twice, not two suite runs; an order
+      dependence inside a file convicts as it does today, and one across files reads
+      as flaky, an accepted false negative
+    rationale: >-
+      28 batteries in a month passed over a red suite because the only suite run was
+      shadow, and the failing files repeat across tasks that never touched them (`tests/test_rfc_emit.py`
+      in 11 batteries, `tests/test_broker_sealed.py` in 9), so a blocking suite with
+      no attribution would have convicted attempts for reds they did not cause; rerunning
+      the file, not the test alone, keeps the order inside it that today's whole-suite
+      re-run keeps
+    cites: [S-0081/D-5]
+    check: uv run pytest tests/test_suite.py -k attribution
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A failing test that cannot run on the base tree has no base reading and convicts,
+      and so does a red suite whose output names no failing test
+    paths: [src/torve/gates/suite.py, tests/test_suite.py]
+    consequence: >-
+      a new dependency or a collection error the change introduced blocks, and a person
+      reads the cause from the output
+    rationale: >-
+      only a base reading clears a failure; where there is none, the gate fails closed
+      as the suite does today
+    cites: [D-1]
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The `suite` entry's later `commands` are reports: they run right after the suite's
+      own run and before any rerun, over what it wrote; their output is appended to
+      the gate's, and their exit codes never convict
+    paths: [src/torve/gates/suite.py, tests/test_suite.py]
+    consequence: >-
+      the coverage delta survives as a reading at the cost of one `diff-cover` run,
+      it reads the whole suite's `coverage.xml` rather than a rerun's, and no report
+      can block an attempt
+    rationale: >-
+      `coverage-delta` held at shadow through its soak (S-0071/D-4); its reading needs
+      the suite's coverage file, which only the run that wrote it has
+    cites: [S-0071/D-4]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `GateResult` and `BuiltinOutcome` carry `inherited_failures`, the node ids a
+      gate found red on the base too, beside `quarantined_failures`; a suite whose
+      only failures are inherited passes and records them
+    paths:
+      - src/torve/domain/attempt.py
+      - src/torve/gates/contract.py
+      - src/torve/gates/runner.py
+      - tests/test_attempt_record.py
+      - tests/test_gates.py
+    consequence: >-
+      the record holds every inherited red by name, so a red base is visible in `gates.evaluated`
+      and `torve why` without convicting anyone
+    rationale: >-
+      `_recorded_result` blanks a passing gate's output, so an inherited red reported
+      only in the output would be lost from the record
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The manifest runs the suite once per battery: `suite` enters at `blocking` with
+      no `paths` and `timeout: 600`, the ceiling measured for `coverage-delta`'s suite
+      (164s median, 271s p90, 600s worst over 228 runs), `coverage-delta` leaves the
+      manifest with its delta moved to the `suite` entry's report, and the acceptance
+      fallback's `commands` stop naming `uv run pytest`; the change lands in the completion
+      pull request, not in a phase
+    paths: [.torve/gates.yaml]
+    consequence: >-
+      departs S-0055/D-14's shadow-first rule for this one gate (Q-1); a run with
+      no contract runs the suite once, and a change to a test or a page a test reads
+      is judged by it; an attempt that changes nothing under `src/`, which `coverage-delta`'s
+      `paths` skipped, now pays for one suite run
+    rationale: >-
+      the whole-suite reading soaked a month inside `coverage-delta` and attribution
+      only turns its reds into passes; a manifest naming a builtin the judging engine
+      lacks fails every battery, so the entry waits for the engine (S-0116's completion
+      pull request carried its entries the same way)
+    cites: [S-0055/D-14, S-0071/D-4, D-1, D-3]
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The lane's batteries, the re-gate after a rebase and the completion battery,
+      run only the gates whose state is `blocking` and the decision gates
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      a shadow gate no longer runs on a rebased tip or a document tip, and a re-gate
+      costs what its verdict reads
+    rationale: >-
+      a lane verdict reads only blocking outcomes, and a shadow verdict on a rebased
+      or document tip feeds no soak either: `_land_rebased` keeps only a re-gate's
+      exit code and summary (`_unpack`), so no record holds a lane's shadow reading
+      today, and a soak is read from the attempts' `gates.evaluated`; `decisions-reported`
+      reads the decision gates' verdicts, so they stay (S-0106/D-1)
+    cites: [S-0093/D-5, S-0106/D-1]
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A rebased candidate whose only failing tests also fail on the base it was rebased
+      onto lands, and the inherited failures ride its lane record
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      a red one phase left on a document branch no longer convicts the next phase
+      that needs a rebase; the document meets it at its completion battery (S-0093/D-1),
+      where it becomes a round
+    rationale: >-
+      T-0687 changed nothing the failing test read and was escalated `poison_ceiling`
+      for T-0685's red (#219)
+    cites: [D-1, S-0093/D-1, S-0101/D-8]
+    check: uv run pytest tests/test_lane.py -k inherited
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A lane escalation's detail names its failing gates first and counts the passing
+      ones
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      the record's 300-character clip of an escalation's detail reaches the failing
+      gates first, and cuts one only when the failing names alone pass 300 characters;
+      the full results are in the battery's `lane.judged` (D-9)
+    rationale: >-
+      on S-0115's night the clip ended at `red-on-base=pa`, before the gates that
+      had failed (#220)
+    cites: [D-9]
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Every battery the lane runs, green or red, is recorded as a `lane.judged` event
+      on the candidate's task, or on the document's last task for a completion battery,
+      carrying the leg, base, head, exit code, duration and the results as `gates.evaluated`
+      records them; the caller of `process_lane` writes each one from what `on_judged`
+      handed it (D-12), in a `finally`, so a pass that raises after a battery keeps
+      it, and no projection reads it for a state transition
+    paths:
+      - src/torve/domain/events.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_events.py
+      - tests/test_manager.py
+    consequence: >-
+      a red re-gate's failing output and every lane battery's duration are in the
+      record, so lane time is measured from the record and never from telemetry
+    rationale: >-
+      `gates.evaluated` moves a task to `gated` and a document pull request's body
+      lists it (S-0101/D-6), and telemetry is a host file no decision reads (S-0099);
+      both callers already hold the record
+    cites: [S-0099, S-0101/D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      `torve why` renders each `lane.judged` event with its failing gates' output,
+      and every gate result's `inherited_failures`
+    paths: [src/torve/application/projections.py, tests/test_why_record.py]
+    consequence: >-
+      an escalation the lane raised is read from `torve why` with the failing test
+      named, with no reproduction on the host
+    rationale: >-
+      the why envelope is the one projection the CLI, the MCP tool and the serve endpoint
+      all expose
+    cites: [D-9]
+  - id: D-11
+    grade: OPEN
+    text: >-
+      How the base tree for the failing tests is built where the gate runs: `red-on-base`'s
+      `git archive` script, or a base the host extracts beside the judge checkout
+    paths: [src/torve/gates/suite.py]
+    consequence: >-
+      whichever is chosen, the base reading runs in the gate sandbox, never on the
+      host
+    rationale: >-
+      the gate sandbox runs no git (S-0113/D-2), and `red-on-base`'s script calls
+      it; the phase settles which one the sandbox can run, and logs the choice
+    cites: [S-0081/D-5, S-0113/D-2, S-0055/D-2]
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `process_lane` takes an `on_judged` callback and calls it with each battery's
+      judgment, its leg, base, head, exit code, duration and results, as `_regate`
+      returns, before the lane does anything else with the battery
+    paths: [src/torve/application/lane.py, tests/test_lane.py]
+    consequence: >-
+      a battery leaves the lane the moment it ends, so an error later in the pass
+      cannot lose it
+    rationale: >-
+      `process_lane` returns its results only when the pass ends, so a raise after
+      a battery would drop the list; the manager's lane leg already reads the lane's
+      requeues and escalations in a `finally` for the same reason
+    cites: [D-9]

@@ -1,0 +1,135 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      A blocker's revision runs on the seat's revision rung
+    intent: >-
+      Add `revision_variant` to `TierConfig`, a dotted tier name defaulting to empty,
+      refused at load when it names no configured tier, with the same message shape
+      as a retry rung to nowhere. Make the fact `review.py` appends for a blocker
+      revision readable by `session.py` through a public predicate beside `previous_attempt_gate_red`,
+      and have `advance_tier` resolve the seat's `revision_variant` when the attempt
+      about to run follows that fact, building the agent through the run's `retry_agent`
+      factory as a gate-red rung does. Make `run_routing` in `dispatch.py` and `route_dispatch_providers`
+      in `cli/assembly.py` list every tier the run can reach: the seat's retry rungs
+      and `revision_variant`, followed through each listed tier's own. Regenerate
+      `.torve/schemas/` with `torve init`. Tests: the load refusal and the default
+      (`tests/test_runconfig.py`); the predicate and `advance_tier` choosing the rung
+      after a blocker revision, the seat after a green pass and the seat when the
+      variant is empty (`tests/test_session.py`); a run whose blocker survives the
+      first attempt revises on the rung and escalates `blocker_finding` only after
+      it (`tests/test_runner.py`, `tests/test_review_run.py`); the route table and
+      the provider check carrying the rung and a listed rung's own rungs (`tests/test_dispatch.py`);
+      the schemas (`tests/test_cli.py`). Settles D-1 and D-2.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/application/session.py
+      - src/torve/application/review.py
+      - src/torve/application/dispatch.py
+      - src/torve/cli/assembly.py
+      - .torve/schemas/*.json
+      - tests/test_runconfig.py
+      - tests/test_session.py
+      - tests/test_runner*.py
+      - tests/test_review_run.py
+      - tests/test_dispatch*.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_runconfig.py tests/test_session.py tests/test_runner.py
+        tests/test_review_run.py tests/test_dispatch.py tests/test_cli.py
+      - uv run mypy src
+      - uv run torve spec check
+  - phase: 2
+    title: Nights run back to back under a daily budget
+    intent: >-
+      Add `--chain` to `torve manager serve`, refused without `--night`. Under it,
+      `_serve` keeps the process after `close_night`: it runs idle passes at `--interval`
+      and calls `open_night` again once the open's refusal reads empty and the day
+      has budget left, and it returns when a night closed on a `stop_on` class. Add
+      to `residency.py` the day's remainder on each axis, read from the board's spend
+      since the current UTC midnight against the night section's budgets, and have
+      `open_night` take it as the night's own `budget_usd` and `budget_attempts`,
+      so `night.opened` records the remainder. A day on which any axis configured
+      above zero has no remainder opens no night before the next UTC midnight, and
+      an axis configured as zero stays unbounded. The help text names no corpus identifier.
+      Tests: the remainder after a first night, a day with one axis spent and the
+      other left, an axis configured as zero, a new UTC day (`tests/test_residency.py`);
+      a chain that drains, idles and opens a second night when a task becomes startable,
+      a chain ended by a `stop_on` class, `--chain` without `--night` refused (`tests/test_manager.py`).
+      Settles D-3 and D-4.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/cli/manager.py
+      - tests/test_residency.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_residency.py tests/test_manager.py
+      - uv run mypy src
+      - uv run torve spec check
+  - phase: 3
+    title: The chain plans what was accepted
+    intent: >-
+      Add to `planner.py` `unplanned_documents(root, board)`: the documents on the
+      corpus path whose status is accepted and implementation none and which `minted_contracts`
+      says minted no task, in number order. Between nights, with nothing in flight,
+      the chain in `cli/manager.py` fetches through the git lane adapter and fast-forwards
+      the base branch with `merge_ff` only when the checkout is on it with a clean
+      tree. It plans only from a checkout on the base branch, clean and at the remote's
+      tip: it runs `plan_document` and `mint_contracts` into the partition's record
+      for each unplanned document, as `torve plan --partition` does, and writes no
+      file. A document that raises `PlanError` is tried again within the sweep after
+      each mint that succeeds, since its `after` target can carry a higher number;
+      one still refused when a pass mints nothing is recorded once per base commit
+      as an engine event naming the document and the refusal, and is tried again when
+      the base moves. When the imported `torve` package resolves under the root, the
+      chain skips the fast-forward and the planning and says so once at the start.
+      Tests: `unplanned_documents` over a draft, an accepted and planned, an accepted
+      and unplanned and an implemented document (`tests/test_plan.py`); a chain that
+      mints an accepted document into the record and serves it on its next night,
+      leaves a dirty or off-branch checkout alone and plans nothing from it, mints
+      a document whose `after` target has a higher number in the same sweep, records
+      a refused plan once per base commit, and plans nothing when the engine imports
+      from under the root (`tests/test_manager.py`). Settles D-5, D-6 and D-7.
+    scope:
+      - src/torve/cli/manager.py
+      - src/torve/application/planner.py
+      - src/torve/application/residency.py
+      - tests/test_manager.py
+      - tests/test_plan*.py
+      - tests/test_residency.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_manager.py tests/test_residency.py
+      - uv run mypy src
+      - uv run torve spec check
+    depends_on:
+      - 2
+  - phase: 4
+    title: The guide runs a document without its owner
+    intent: >-
+      In the torve skill's `references/night.md`, describe `--chain`, the daily budget
+      and the configuration that runs a document from acceptance to a ready pull request:
+      a `revision_variant` on the executor seat and the review-thread leg on, with
+      the forge's review bots named in `threads.bots` and `approve_comment` set. In
+      `references/escalations.md`, say that a `blocker_finding` reaching a person
+      has already been revised on the revision rung when one is configured. Mirror
+      both in `pages/docs/operating.md`. The skill text cites no identifier, path
+      or measurement of torve's own corpus. Tests: `tests/test_docs.py` and `tests/test_skills.py`
+      stay green. Settles D-8.
+    scope:
+      - skills/torve/references/night.md
+      - skills/torve/references/escalations.md
+      - pages/docs/operating.md
+      - tests/test_docs.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+      - uv run torve spec check
+    depends_on:
+      - 1
+      - 2
+      - 3
+    character: routine

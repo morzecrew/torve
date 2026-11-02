@@ -1,0 +1,219 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `intake.issue_label` names the label the pass's intake leg drafts from. Empty,
+      the default, turns the leg off and builds no drafting agent, so a planner tier
+      that cannot be built never stops a pass with the leg off; the leg never reads
+      an issue without the label past the listing.
+    paths: [src/torve/config/runconfig.py, src/torve/application/issues.py]
+    consequence: >-
+      an adopter that sets nothing gets today's pass, and the label is the leg's one
+      switch
+    rationale: >-
+      Standing legs run inside the pass under their switches (S-0055/D-56). A leg
+      that reads a surface outside the repository starts off.
+    cites: [S-0055/D-56]
+    check: uv run pytest tests/test_issues.py -k off
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The leg drafts a labelled issue only when the account behind the last event
+      that applied the label holds triage, write, maintain or admin on the repository,
+      and neither the title nor the body was edited after that event. Any other labelled
+      issue is skipped, named in the leg's detail line, until someone labels it again.
+    paths: [src/torve/application/issues.py]
+    consequence: >-
+      an issue template that applies the label for its author, or an author who edits
+      after a maintainer labelled, cannot put text in front of the drafter
+    rationale: >-
+      Tracker text is untrusted input (S-0008/D-5), and the tracker authorised by
+      account (S-0008/D-9). On the forge, the account that can apply a label without
+      a template is one with triage or more.
+    cites: [S-0008/D-5, S-0008/D-9]
+    check: uv run pytest tests/test_issues.py -k labelled
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The forge port reads, for each open issue carrying a label: its number, URL,
+      title and body, the account and instant of the last event that applied the label,
+      and the later of the body's last edit and the last title rename. It pages the
+      issues until none is left, and a page it cannot read fails the whole read. An
+      issue whose last labelling falls outside the window it reads is returned marked
+      unreadable with the reason, never dropped. A second read answers whether one
+      account holds triage or more, an account that is not a collaborator answering
+      no, and the leg asks it only about the issue it would draft next. Both read
+      through `gh` with `scm.repo` and `scm.token_env`, as every `GhScm` read does,
+      and never write.
+    paths: [src/torve/application/ports.py, src/torve/adapters/vcs/git.py]
+    consequence: >-
+      the credential is the host's: a sandbox never sees it, and a repository with
+      no `scm.token_env` uses the host's own `gh` login
+    rationale: >-
+      The runner speaks to the forge and the agent never does (S-0010/D-1). `GhScm`
+      already resolves the credential by name at call time.
+    cites: [S-0010/D-1]
+    check: >-
+      uv run pytest tests/test_forge.py -k labelled_issues
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The drafter's request is the issue's title, a blank line and its body, as read
+      at the pass. The leg never reads comments or any other field into the request.
+    paths: [src/torve/application/issues.py]
+    consequence: >-
+      later discussion on the thread never reaches the drafts: a maintainer who wants
+      it there edits the body and labels the issue again
+    rationale: >-
+      The body is the one text the labeller vetted. A comment can come from anyone.
+    cites: [D-2]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      An issue drafts once. Before the drafting run, the leg files `.torve/sources/operator/issue-<number>.yaml`:
+      the issue's URL as `ref`, its title, the labelling instant as `at`, and its
+      body as `summary`. The leg skips any issue whose source file the tree already
+      holds.
+    paths: [src/torve/application/issues.py]
+    consequence: >-
+      the leg never retries a failed or escalated draft: the owner re-runs `torve
+      intake --source operator/issue-<number>`, or deletes the file
+    rationale: >-
+      The source file already carries what asked (S-0060/D-1). Reading it again keeps
+      one carrier for the fact, the rule S-0099 applied to the lane.
+    cites: [S-0060/D-1, S-0060/D-5, S-0099]
+    check: uv run pytest tests/test_issues.py -k source
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Adoption commits the source file its drafting run names, with the contracts
+      that cite it, when the tree holds that file untracked.
+    paths: [src/torve/application/intake.py]
+    consequence: >-
+      an adopted contract never names a source its base commit lacks; a draft nobody
+      adopts leaves its source on the drafting host alone
+    rationale: >-
+      S-0060/D-5 copies the source onto every adopted contract. Committing the file
+      with them keeps that copy resolvable on every host.
+    cites: [S-0060/D-5]
+    check: uv run pytest tests/test_intake.py -k source
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      `draft_request` in `src/torve/application/intake.py` takes the planner tier's
+      agent from its caller, mints the drafting run, cuts its worktree at base, runs
+      it and removes the worktree. `torve intake` and the intake leg both call it.
+      Each caller builds the agent with `build_tier_agent` in the CLI layer, and the
+      command keeps only parsing, that construction and rendering.
+    paths: [src/torve/application/intake.py, src/torve/cli/intake.py]
+    consequence: >-
+      a request drafts the same way whichever surface it came from, and a change to
+      drafting changes both
+    rationale: >-
+      A module named after a CLI verb holds parsing and rendering only (S-0055/D-28).
+    cites: [S-0055/D-28]
+    check: >-
+      uv run pytest tests/test_intake.py -k draft_request
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      The intake leg runs in the manager's and the fleet's pass after the standing
+      leg and before the mint. A paused pass skips it. It starts at most one drafting
+      run per pass, for the issue labelled earliest.
+    paths:
+      - src/torve/application/residency.py
+      - src/torve/cli/manager.py
+      - src/torve/cli/fleet.py
+    consequence: >-
+      a pass that drafts dispatches after the drafting run returns, and a queue of
+      labelled issues drains one per pass
+    rationale: >-
+      Cadence belongs to the pass (S-0055/D-56). A pause says nobody can triage new
+      work (S-0048/D-4), and drafts are new work.
+    cites: [S-0055/D-56, S-0048/D-4]
+    check: uv run pytest tests/test_residency.py -k issue
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      The intake leg never writes to the forge: no comment, no label change, no close.
+      The pass's detail line names each drafted and skipped issue. The leg also writes
+      `issue_drafted` and `issue_skipped` engine events for the ledger and the night
+      report, and nothing decides on them.
+    paths: [src/torve/application/issues.py]
+    consequence: >-
+      the issue stays as the person left it, and closing it is the pull request's
+      `fixes:` or a person's act
+    rationale: >-
+      The outbound projection was what the tracker cost (S-0008/A-5), and no decision
+      reads telemetry (S-0099/D-6).
+    cites: [S-0008/A-5, S-0099/D-6]
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A drafting run the leg started that spends its budget escalates `budget_exhausted`,
+      as one `torve intake` started does, and holds the pause like any escalation.
+    paths: [src/torve/application/issues.py]
+    consequence: >-
+      one issue whose drafts never lint green stops the legs that grow the queue until
+      the owner resolves it (Q-1)
+    rationale: >-
+      A run is a run: the same escalation and the same pause rule, with no second
+      path to keep in step.
+    cites: [D-7]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      `torve spec check` warns for each phase of a document nothing has landed from.
+      It lists the non-test Python files outside the phase's scope that import a file
+      the scope matches: one line for those no phase owns, and one line per other
+      phase that owns some. A further line lists the test files importing such a file
+      that no acceptance command of the document runs. Each line names at most ten
+      paths and the count, and is a warning, never a problem.
+    paths: [src/torve/application/neighbours.py, src/torve/cli/spec.py]
+    consequence: >-
+      the author sees a phase's callers outside its scope, and which phase owns each,
+      while an intent can still say to change them; a corpus with such a phase still
+      checks green
+    rationale: >-
+      Two review blockers in October (T-0523, T-0536) were callers that another phase
+      of the same document owned. `inherited_locks` already warns from the same place
+      before acceptance.
+    cites: [S-0104/D-1, S-0104/D-11]
+    check: >-
+      uv run pytest tests/test_neighbours.py tests/test_cli_spec.py -k reach
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      A test file counts as run by an acceptance command only when the command launches
+      the tests, as `pytest`, `-m pytest` or the manifest's `tests.run`, and either
+      names the file's path or a directory above it as an argument or names no path
+      at all. A command that only mentions the path, such as `mypy` or `ruff` over
+      it, does not count.
+    paths: [src/torve/application/neighbours.py]
+    consequence: >-
+      a phase whose acceptance runs the whole suite leaves no test unrun, and one
+      that names files is held to the files it names
+    rationale: >-
+      Acceptance is a list of shell commands (S-0055/D-20). The paths a test launcher
+      names are the deterministic half of what it runs; a path a type checker or a
+      linter names runs no test.
+    cites: [S-0055/D-20, S-0106/D-7]
+    check: >-
+      uv run pytest tests/test_neighbours.py -k acceptance_runs
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The spec-writer skill tells an authoring session to search each phase's callers
+      before acceptance, one delegated search per phase where the session can delegate.
+      It then settles every reach line `torve spec check` prints, by moving the file
+      into a scope, adding its test to an acceptance command, or saying in the phase's
+      intent why it stays out.
+    paths: [skills/spec-writer/SKILL.md, skills/spec-writer/references/workflows.md]
+    consequence: >-
+      a reach line left standing is a choice the intent records, so a reviewer can
+      tell it from an oversight
+    rationale: >-
+      The search is independent per phase, so it parallelises. Rule 3b already asks
+      for it, in sequence.
+    cites: [D-11]

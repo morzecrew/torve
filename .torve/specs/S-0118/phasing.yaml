@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The suite gate attributes a red
+    intent: >-
+      Add the builtin `suite` in `src/torve/gates/suite.py`, registered in `BUILTINS`
+      with its input and timeout in `BUILTIN_INPUTS` and `BUILTIN_TIMEOUTS`: it runs
+      the first of its gate's `commands` once with no blanket re-run, reads the failing
+      node ids from pytest's short summary, reruns their files at the head, runs the
+      files of the ones still red on the merge base, and convicts a test red at the
+      head and not red on the base. A failing id the base cannot run, and a red naming
+      no id, convict; later `commands` are reports that run right after the suite's
+      own run, before any rerun, and whose exit codes never convict. The phase decides
+      how the base tree is built where the gate runs, the question D-11 leaves open,
+      and logs the choice. The attribution is a pure function of the three readings,
+      driven by a Hypothesis property whose test names carry `attribution`. `GateResult`
+      and `BuiltinOutcome` gain `inherited_failures`, passed through `run_gates`;
+      the sabotage suite gains a `suite` family proving the gate convicts a regression
+      and passes an inherited red; the retry feedback names what a `suite` conviction
+      means. The manifest is not touched: its entry lands in the completion pull request.
+      Tests: the builtin (`tests/test_suite.py`), the runner's pass-through (`tests/test_gates.py`,
+      `tests/test_runner.py`), the record's result shape (`tests/test_attempt_record.py`),
+      the builtin defaults (`tests/test_manifest.py`), the sabotage family (`tests/test_sabotage.py`),
+      the feedback label (`tests/test_contextpack.py`). Settles D-1, D-2, D-3, D-4
+      and D-11.
+    scope:
+      - src/torve/gates/suite.py
+      - src/torve/gates/__init__.py
+      - src/torve/gates/contract.py
+      - src/torve/gates/runner.py
+      - src/torve/gates/sabotage.py
+      - src/torve/domain/attempt.py
+      - src/torve/config/manifest.py
+      - src/torve/application/contextpack.py
+      - tests/test_suite.py
+      - tests/test_gates.py
+      - tests/test_runner.py
+      - tests/test_attempt_record.py
+      - tests/test_manifest.py
+      - tests/test_sabotage.py
+      - tests/test_contextpack.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_suite.py tests/test_gates.py tests/test_runner.py
+        tests/test_attempt_record.py tests/test_manifest.py tests/test_sabotage.py
+        tests/test_contextpack.py
+      - uv run mypy src
+    character: structural
+  - phase: 2
+    title: The lane judges with blocking gates
+    intent: >-
+      `_regate` runs only the gates whose state is `blocking` and the decision gates,
+      for the re-gate after a rebase and the completion battery alike. `LaneResult`
+      carries what the lane judged: base, head, duration and the battery's results.
+      `process_lane` takes an `on_judged` callback and calls it with each battery's
+      judgment as `_regate` returns, before anything else in the pass can raise. A
+      poison-ceiling escalation's detail names the failing gates first and counts
+      the passing ones. A rebased candidate whose only failing tests also fail on
+      the base it rebased onto lands, its inherited failures in its `LaneResult`;
+      the test proving it names `inherited`. Tests: `tests/test_lane.py`, `tests/test_lane_prevention.py`.
+      Settles D-6, D-7, D-8 and D-12.
+    scope:
+      - src/torve/application/lane.py
+      - tests/test_lane.py
+      - tests/test_lane_prevention.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_lane_prevention.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    character: structural
+  - phase: 3
+    title: The record keeps every lane battery
+    intent: >-
+      Add the `lane.judged` event kind with its `LaneJudged` payload — leg, base,
+      head, exit code, duration and the results as `gates.evaluated` records them,
+      a red gate's output clipped to `RECORDED_OUTPUT` — and its authority for the
+      manager and the operator. `torve merge` and the served lane leg pass `process_lane`
+      an `on_judged` that collects each battery, and record one `lane.judged` per
+      battery collected, green and red, in a `finally`, so a pass that raises keeps
+      the batteries it ran. No projection reads it for a state transition, so the
+      board and a pull request's gate list are unchanged. Tests: the kind and its
+      authority (`tests/test_events.py`), both callers recording it, a battery surviving
+      a later raise, and the task's state left where it was (`tests/test_manager.py`,
+      `tests/test_manager_e2e.py`). Settles D-9.
+    scope:
+      - src/torve/domain/events.py
+      - src/torve/cli/merge.py
+      - src/torve/cli/manager.py
+      - tests/test_events.py
+      - tests/test_manager.py
+      - tests/test_manager_e2e.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_events.py tests/test_manager.py tests/test_manager_e2e.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    character: structural
+  - phase: 4
+    title: '`torve why` shows what the lane judged'
+    intent: >-
+      `why_report` renders each `lane.judged` event as a row with its leg, base, head,
+      duration and the failing gates' output, and shows any gate result's `inherited_failures`.
+      The operating guide says the whole suite runs once as `suite`, how a failure
+      is attributed, that the lane re-gates with blocking gates, and where a red re-gate's
+      output is read. Tests: `tests/test_why_record.py`, `tests/test_projections.py`,
+      `tests/test_docs.py`. Settles D-10.
+    scope:
+      - src/torve/application/projections.py
+      - pages/docs/operating.md
+      - tests/test_why_record.py
+      - tests/test_projections.py
+      - tests/test_docs.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_why_record.py tests/test_projections.py tests/test_docs.py
+      - uv run mypy src
+    depends_on:
+      - 3
+    character: structural
