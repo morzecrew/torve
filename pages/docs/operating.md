@@ -261,6 +261,38 @@ the attempt stayed inside it. The reviewer does not read the flag either
 attempt works outside what it commits before the question of what to do about
 it is worth asking.
 
+## The suite gate
+
+The whole test suite runs once per battery, as the builtin `suite` gate, and
+there is no blanket re-run: the gate starts from its entry's first command,
+which runs the whole suite over the head. On a red, the failing tests' files
+are rerun at the head, and the files of the tests still red there are run on
+the merge base. A test convicts when it is still red at the head and not red
+on the base — green there, or with no base reading. Green on the rerun is
+flaky; red on the base too is inherited, and the inherited node ids ride the
+gate result's `inherited_failures`. A suite whose only failures are inherited
+passes and records them, so a red base is visible in the gate result without
+convicting anyone.
+
+A failing test that cannot run on the base tree has no base reading and
+convicts, and so does a red suite whose output names no failing test. The
+entry's later `commands` are reports: they run right after the suite's own
+run, over what it wrote, and their output is appended to the gate's while
+their exit codes never convict.
+
+**The lane re-gates with the blocking gates.** The lane's batteries, the
+re-gate after a rebase and the whole-document completion battery run only the
+gates whose state is `blocking` and the decision gates, so a shadow gate does
+not run on a rebased or document tip. A rebased candidate whose only failing
+tests also fail on the base it was rebased onto lands, and the inherited
+failures ride its lane record. Every battery, green or red, is recorded as a
+`lane.judged` event on the candidate's task — or on the document's last task
+for a completion battery — carrying the leg, base, head, exit code, duration
+and the results. **A red re-gate's output is read from `torve why`**: each
+`lane.judged` renders as a row with its leg, base, head, duration and the
+failing gates' output, beside every gate result's `inherited_failures`, so the
+failing test is named with no reproduction on the host.
+
 ## A row's check, its twin, and the invariants the battery runs
 
 A decision row may carry a `check` — a command whose exit code judges the

@@ -86,6 +86,32 @@ def test_the_operating_guide_documents_checks_twins_invariants_and_refactors():
     assert "change.type" in guide
 
 
+def test_the_operating_guide_documents_the_suite_gate_and_the_lane_regate():
+    """S-0118/D-1..D-3, D-6, D-9, D-10: the page an operator reads says the
+    whole suite runs once as `suite`, how a failure is attributed, that the
+    lane re-gates with the blocking gates, and where a red re-gate's output
+    is read."""
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+    text = " ".join(guide.split())
+
+    assert "builtin `suite` gate" in text
+    assert "the whole suite over the head" in text
+    assert "rerun at the head" in text
+    assert "run on the merge base" in text
+    assert "red at the head and not red on the base" in text
+    assert "`inherited_failures`" in text
+    assert "A suite whose only failures are inherited passes" in text
+    assert "cannot run on the base tree has no base reading and convicts" in text
+    assert "output names no failing test" in text
+    assert "their exit codes never convict" in text
+
+    assert "lane re-gates with the blocking gates" in text
+    assert "gates whose state is `blocking` and the decision gates" in text
+    assert "`lane.judged`" in text
+    assert "A red re-gate's output is read from `torve why`" in text
+
+
 def test_the_operating_guide_documents_the_mutation_gate_and_how_to_read_a_survivor():
     """S-0107/D-1..D-5: the page an operator reads names what a mutant is, the
     budget that bounds the score, that the gate is shadow, how a survivor is
