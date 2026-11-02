@@ -1176,7 +1176,7 @@ exit accordingly.
 | --- | --- | --- |
 | `locked_conflict` | an attempt halted on a `LOCKED` row (S-0096/D-1, amending S-0092/D-3): the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
 | `merge_conflict` | the landing lane's rebase conflicted; the branch is untouched and waits for a human — the lane never resolves one | 2 |
-| `blocker_finding` | review ended with a blocker surviving — when the executor seat names a `revision_variant`, a blocker that reaches you has already had its revision on that rung (S-0117/D-1) | 2 |
+| `blocker_finding` | review ended with a blocker surviving — on the review path, when the executor seat names a `revision_variant` and `review.blocker_revisions` is at least 1, a blocker that reaches you has already had its revision on that rung (S-0117/D-1); a red whole-suite battery, or `blocker_revisions: 0`, escalates one unrevised | 2 |
 | `killed` | an operator interrupted the run | 2 |
 | `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt cited no `LOCKED` row, whatever class its entry chose (S-0096/D-1, amending S-0092/D-3) — a specification defect: amend the document, never retry. The loop is one amendment and one command: widen the phase on the document's branch, then `torve manager resolve --resolution requeued`, which refreshes the task's contract from the branch before the task goes back on the board (S-0094/D-1); a review round is re-scoped from the same branch the same way (S-0092/D-4, S-0094/D-2). See the escalation loop below | 2 |
 | `stale_inheritance` | the document it was minted from was superseded after the mint: re-mint from the superseding one, or abandon | 2 |
@@ -1320,6 +1320,9 @@ promotion:
   unit: document
   auto_merge: true           # arms the pass's landing leg
   require_review: true       # at least one criterion must be armed
+
+review:
+  "on": [task_gated]          # the task-gated verdict require_review waits for
 
 scm:
   repo: owner/name           # the forge repository the pull request opens against

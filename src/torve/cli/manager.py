@@ -784,7 +784,19 @@ async def _sync_and_plan(
         return
 
     rfc_dir = root / config.specs.path
-    listing = unplanned_documents(root, board, rfc_dir=rfc_dir)
+    try:
+        listing = unplanned_documents(root, board, rfc_dir=rfc_dir)
+
+    except ValueError as exc:
+        # A corpus the base cannot load (`SpecError`, `PlanError`) stops this
+        # sweep, never the chain.
+        if not _refusal_recorded(root, base=remote, document="corpus"):
+            engine_event(
+                root, "plan_refused", {"document": "corpus", "error": str(exc), "base": remote}
+            )
+
+        return
+
     refusals: dict[str, str] = {}
 
     while listing:
@@ -1250,7 +1262,9 @@ async def _serve(
             if passes_left is not None and passes_left <= 0:
                 return handled, ""
 
-            if planning:
+            # The escalation pause forbids growing the queue (S-0048/D-4), and
+            # minting is growing it.
+            if planning and not await paused():
                 await _sync_and_plan(root, log, partition, config=config, worker=worker)
 
             remainder = await day_remainder(log, partition, config.night)
@@ -1634,6 +1648,9 @@ def serve_cmd(
 
     if chain and not night:
         raise fail("--chain needs --night", EXIT_CONFIG)
+
+    if chain and task:
+        raise fail("--chain serves the partition; it takes no --task", EXIT_CONFIG)
 
     root = root.resolve()
 

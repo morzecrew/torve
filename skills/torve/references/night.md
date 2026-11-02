@@ -16,10 +16,13 @@ wall-clock end, a board with no work left or a named escalation class.
    understand why it does not apply tonight.
 4. After upgrading torve, run `torve migrate --status`, then
    `torve migrate --all`.
-5. The documents are accepted and committed on `main`, and each one is
-   planned onto the board, because a night refuses to open on a board with
-   nothing it can start:
-   `torve plan S-NNNN --no-dry-run --partition <partition>`.
+5. The documents are accepted and committed on `main`. For `--night`
+   without `--chain`, each one is planned onto the board, because such a
+   night refuses to open on a board with nothing it can start:
+   `torve plan S-NNNN --no-dry-run --partition <partition>`. A `--chain`
+   does not refuse: it idles, and plans accepted documents itself between
+   nights — unless its engine imports from the checkout it serves, when
+   the plan above is still yours.
    The night's import pass reads only the contract files under
    `.torve/tasks/`. It never plans a document, and with a store `plan`
    writes no such file.

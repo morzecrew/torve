@@ -433,3 +433,18 @@ def test_torve_git_leaves_every_repository_hook_unfired(hooked_repo, tmp_path):
     git(root, "remote", "add", "origin", str(remote))
     assert vcs.push(root, "T-8302") is True
     assert fired(markers) == set()
+
+
+def test_a_fetch_that_stalls_is_a_failure_not_a_wait(vcs_repo, monkeypatch):
+    """A remote that accepts the connection and then stalls would hold every
+    caller of `fetch`, the chain's between-night sweep among them."""
+
+    import torve.adapters.vcs.git as git_module
+
+    def stalled(args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args, timeout=kwargs.get("timeout") or 0)
+
+    monkeypatch.setattr(git_module.subprocess, "run", stalled)
+
+    with pytest.raises(RuntimeError, match="did not finish"):
+        git_module.GitLane().fetch(vcs_repo)

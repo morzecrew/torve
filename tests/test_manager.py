@@ -1701,6 +1701,66 @@ def test_chain_without_night_is_refused(tmp_path):
     assert "--chain needs --night" in result.output
 
 
+def test_chain_with_a_task_is_refused(tmp_path):
+    """A chain serves the partition: its nights open on the board's own queue,
+    and one named task would leave each night idling to its wall clock."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "manager",
+            "serve",
+            PARTITION,
+            "--night",
+            "--chain",
+            "--task",
+            "T-0002",
+            "--root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == EXIT_CONFIG, result.output
+    assert "takes no --task" in result.output
+
+
+def test_a_corpus_that_does_not_load_stops_the_sweep_not_the_chain(tmp_path):
+    """S-0117/D-5, D-7: a document on the base that does not load refuses this
+    sweep, recorded once for the base, and the chain goes on to its night."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    broken = repo.root / ".torve" / "specs" / "S-0100"
+    broken.mkdir(parents=True)
+    (broken / "document.yaml").write_text("this: [is not\n", encoding="utf-8")
+    _publish(repo)
+
+    async def scenario(log):
+        for _ in range(2):
+            await manager_cli._sync_and_plan(
+                repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+            )
+
+    run(scenario)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+
+    assert [row["document"] for row in rows if row.get("event") == "plan_refused"] == ["corpus"]
+
+
 # ....................... #
 # The between-night sweep (S-0117/D-5, D-6, D-7): the chain brings the
 # checkout to the remote's base and plans what nobody planned yet.

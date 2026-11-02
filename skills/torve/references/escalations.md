@@ -80,7 +80,9 @@ each attempt:
 seat names a `revision_variant` and `review.blocker_revisions` is at least 1, a
 blocker the review stage raises has already had its revision on that rung: the
 stronger seat ran the revision in the same run and against the same critique
-before the engine escalated. Not every `blocker_finding` is revised: a blocker
+before the engine escalated. That needs a run that can build the rung's agent
+(`RunDeps.retry_agent`); an integration without one revises on the seat's own
+agent. Not every `blocker_finding` is revised: a blocker
 from a red whole-suite battery or a refused review reaches you without one, and
 `review.blocker_revisions: 0` escalates the first blocker unrevised. Check the
 finding and where it came from:

@@ -1019,8 +1019,8 @@ def unplanned_documents(
     """The corpus documents nobody has planned, in number order: accepted,
     not implemented, and with no task minted from them (S-0117/D-5).
 
-    Archived and superseded documents are not on the corpus path and are
-    never offered; an implemented one landed already, and a minted one is a
+    Archived documents are not on the corpus path, and superseded ones are
+    filtered out here: neither is ever offered; an implemented one landed already, and a minted one is a
     person's to refresh (S-0088). What is left is exactly what the chain's
     between-night sweep may mint into the record. *rfc_dir* is the corpus the
     caller's configuration names; omitted, the default configuration's."""

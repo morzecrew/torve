@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -1898,10 +1898,11 @@ def test_a_new_utc_day_starts_the_remainder_over(tmp_path):
         await burn(log, "T-0001", 2.0)
         await attempt(log, "T-0001", 1)
 
-        today = await day_remainder(log, PARTITION, terms)
-        tomorrow = await day_remainder(
-            log, PARTITION, terms, now=datetime.now(UTC) + timedelta(days=1)
-        )
+        # Read the day the events were stamped on, not the clock's: a run that
+        # crosses midnight between recording and reading would split them.
+        stamped = max(event.created_at for event in await log.since(partition=PARTITION))
+        today = await day_remainder(log, PARTITION, terms, now=stamped)
+        tomorrow = await day_remainder(log, PARTITION, terms, now=stamped + timedelta(days=1))
 
         assert today == (3.0, 3)
         assert tomorrow == (5.0, 4)

@@ -34,6 +34,10 @@ from torve.domain.spec import LANDING_FILE
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
 
 
+#: Seconds a `fetch` may take before it is a failure rather than a wait.
+FETCH_TIMEOUT = 120
+
+
 def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *NO_HOOKS, "-C", str(worktree), *args],
@@ -419,7 +423,28 @@ class GitLane:
         stops existing here too. A failed fetch raises — working from a stale
         copy is what it prevents."""
 
-        proc = _git(root, "fetch", "--quiet", *(["--prune"] if prune else []), "origin")
+        try:
+            proc = subprocess.run(
+                [
+                    "git",
+                    *NO_HOOKS,
+                    "-C",
+                    str(root),
+                    "fetch",
+                    "--quiet",
+                    *(["--prune"] if prune else []),
+                    "origin",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=FETCH_TIMEOUT,
+            )
+
+        except subprocess.TimeoutExpired as exc:
+            # A remote that accepts the connection and then stalls would hold
+            # every caller, the chain's between-night sweep among them.
+            raise RuntimeError(f"git fetch did not finish in {FETCH_TIMEOUT}s") from exc
 
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or "git fetch failed")
