@@ -20,14 +20,16 @@ telemetry stream as an engine event (S-0006/D-7).
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import fcntl
 import functools
 import re
 import subprocess
+import time
 from collections.abc import Callable, Collection, Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, ParamSpec, Protocol, cast
+from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, cast
 
 from torve.application.feedback import capture_feedback
 from torve.application.planner import change_type_of
@@ -141,6 +143,14 @@ class LaneResult:
     action: str
     detail: str = ""
     sha: str = ""
+    # What the lane judged (S-0118/D-6, D-7): the battery's base and head,
+    # how long it ran and the results it rendered, plus every inherited red.
+    # A fast-forward has no battery, so all of it stays empty there.
+    base: str = ""
+    head: str = ""
+    duration_s: float = 0.0
+    results: list[dict[str, Any]] = field(default_factory=list)
+    inherited_failures: list[str] = field(default_factory=list)
 
     # ....................... #
 
@@ -262,14 +272,113 @@ def _awaits_adoption(root: Path, task_id: str) -> bool:
 
 
 @dataclass(frozen=True)
+class LaneJudgment:
+    """One battery as the lane hands it to `process_lane`'s observer
+    (S-0118/D-12, D-9): the leg it ran for, the base and head it judged, its
+    verdict, how long it took and the results as `gates.evaluated` records
+    them. The same readings ride the `LaneResult` the battery produced."""
+
+    leg: str
+    base: str
+    head: str
+    exit_code: int
+    duration_s: float
+    results: list[dict[str, Any]] = field(default_factory=list)
+
+
+#: The pass's judgment sink (S-0118/D-12): `process_lane` sets it for the
+#: batteries it runs, and `_regate` hands each one over as it ends, before the
+#: lane reads it. A direct `_regate` call outside a pass hands nothing.
+_JUDGED: contextvars.ContextVar[Callable[[LaneJudgment], None] | None] = contextvars.ContextVar(
+    "torve_lane_judged", default=None
+)
+
+#: The leg the running battery is for (S-0118/D-12): "regate" everywhere but
+#: the completion battery, which marks its own. Set beside the sink rather than
+#: threaded through every caller.
+_LEG: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_leg", default="regate")
+
+
+def _hand_judged(
+    base: str, head: str, exit_code: int, duration_s: float, results: list[GateResult]
+) -> None:
+    """Hand one battery to the pass's observer, if it has one (S-0118/D-12).
+    Called as `_regate` returns, before the lane does anything else with it."""
+
+    sink = _JUDGED.get()
+
+    if sink is None:
+        return
+
+    sink(
+        LaneJudgment(
+            leg=_LEG.get(),
+            base=base,
+            head=head,
+            exit_code=exit_code,
+            duration_s=round(duration_s, 3),
+            results=[result.model_dump() for result in results],
+        )
+    )
+
+
+def _inherited(results: Iterable[GateResult]) -> list[str]:
+    """Every node id the battery found red on the base too, each once, in the
+    order the gates named them (S-0118/D-7)."""
+
+    seen: dict[str, None] = {}
+
+    for result in results:
+        for node in result.inherited_failures:
+            seen[node] = None
+
+    return list(seen)
+
+
+def _failure_first(summary: str) -> str:
+    """A battery summary with its failing gates first and the passing ones
+    counted (S-0118/D-8): `acceptance=fail, suite=fail; 9 passed`. The record
+    clips an escalation's detail at 300 characters, so a failing gate named
+    last must not be the one the clip cuts."""
+
+    failing: list[str] = []
+    passed = 0
+
+    for part in (entry.strip() for entry in summary.split(",")):
+        if not part:
+            continue
+
+        _, _, outcome = part.partition("=")
+
+        if outcome == "pass":
+            passed += 1
+        elif outcome in ("fail", "error", "bypassed"):
+            failing.append(part)
+        # A skipped gate is neither a failure nor a pass: the detail names
+        # what convicted and counts what cleared, and says nothing else.
+
+    detail = ", ".join(failing)
+
+    if passed:
+        detail = f"{detail}; {passed} passed" if detail else f"{passed} passed"
+
+    return detail or summary
+
+
+@dataclass(frozen=True)
 class _Regate:
     """One battery's verdict and the results it was rendered from. Unpacks as
     the `(exit_code, summary)` every caller reads, so a caller that needs the
-    readings themselves — the joined table, S-0115/D-5 — has them too."""
+    readings themselves — the joined table, S-0115/D-5 — has them too, and the
+    lane carries the base, head and duration into its `LaneResult`
+    (S-0118/D-6, D-7)."""
 
     exit_code: int
     summary: str
     results: list[GateResult]
+    base: str = ""
+    head: str = ""
+    duration_s: float = 0.0
 
     def __iter__(self) -> Iterator[int | str]:
         yield self.exit_code
@@ -294,7 +403,7 @@ def _regate(
     the battery reads the rebased worktree and executes on the host."""
 
     from torve.gates.context import build_context, load_task, resolve_base
-    from torve.gates.runner import run_gates
+    from torve.gates.runner import DECISION_PREFIX, battery, run_gates
 
     manifest_path = layout.gates_file(workdir)
 
@@ -349,13 +458,43 @@ def _regate(
             # checkout's tracked files where a citation scan reads them.
             write_tracked_files(root)
 
-        report = run_gates(ctx)
+        # S-0118/D-6: the lane judges with the gates that can change its
+        # verdict — the blocking ones — and the decision gates, whose verdicts
+        # `decisions-reported` reads. A shadow or quarantined manifest gate,
+        # and a standing invariant, cannot move a lane verdict, and the
+        # attempt already measured the same change.
+        selected = {
+            gate.name
+            for gate in battery(ctx)
+            if gate.state == "blocking" or gate.name.startswith(DECISION_PREFIX)
+        }
+
+        started = time.monotonic()
+        report = run_gates(ctx, only=selected)
+        duration = time.monotonic() - started
+
+        # S-0118/D-12: the battery leaves the lane the moment it ends, before
+        # anything later in the pass can raise and drop it.
+        _hand_judged(
+            ctx.merge_base or ctx.base or "",
+            ctx.head_sha,
+            report.exit_code,
+            duration,
+            report.results,
+        )
 
     finally:
         if judge is not None:
             judge.close()
 
-    return _Regate(report.exit_code, _summary(report), report.results)
+    return _Regate(
+        report.exit_code,
+        _summary(report),
+        report.results,
+        ctx.merge_base or ctx.base or "",
+        ctx.head_sha,
+        round(duration, 3),
+    )
 
 
 def _summary(report: RunReport) -> str:
@@ -1344,7 +1483,15 @@ def _completion_battery(
             if committed is not None:
                 tip = committed
 
-        outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
+        # S-0118/D-12: a completion battery is the other leg the record names.
+        token = _LEG.set("completion")
+
+        try:
+            outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
+
+        finally:
+            _LEG.reset(token)
+
         judged = _judged_rows(workdir, document)
 
     finally:
@@ -1651,7 +1798,8 @@ def _land_document(
             if state.state is TaskState.READY:
                 state.escalate(
                     EscalationReason.BLOCKER_FINDING,
-                    f"the whole-suite battery is red over the complete document: {red}",
+                    "the whole-suite battery is red over the complete document: "
+                    f"{_failure_first(red)}",
                 )
 
         results.append(LaneResult(task_id, document, "gates red", f"escalated: {red}", tip))
@@ -2756,6 +2904,7 @@ def _record_red(
     summary: str,
     status: StatusScm | None,
     results: list[LaneResult],
+    judged: _Regate | None = None,
 ) -> None:
     """A candidate the lane judged red is sent back as the next pass's to
     re-gate (S-0101/D-8): the red rides the forge as a status on the head
@@ -2763,8 +2912,21 @@ def _record_red(
     starting its count at zero, and a second red at the same base and head is
     a person's to look at — escalated, not regated for ever.
 
-    Shared by the rebase's battery and the fast-forward's citation scan
-    (S-0113/D-3), so both send a candidate back the same way."""
+    The escalation's detail names the failing gates first and counts the
+    passing ones (S-0118/D-8), so the record's 300-character clip reaches the
+    failures. Shared by the rebase's battery and the fast-forward's citation
+    scan (S-0113/D-3), so both send a candidate back the same way."""
+
+    carried: dict[str, Any] = {}
+
+    if judged is not None:
+        carried = {
+            "base": judged.base,
+            "head": judged.head,
+            "duration_s": judged.duration_s,
+            "results": [result.model_dump() for result in judged.results],
+            "inherited_failures": _inherited(judged.results),
+        }
 
     if _red_again(root, status, task_id, base_tip, branch_tip):
         engine_event(
@@ -2781,18 +2943,24 @@ def _record_red(
         if state.state is TaskState.READY:
             state.escalate(
                 EscalationReason.POISON_CEILING,
-                f"red again at the same base and head: {summary}",
+                f"red again at the same base and head: {_failure_first(summary)}",
             )
 
         results.append(
-            LaneResult(task_id, branch, "stuck", "red again at the same base and head — escalated")
+            LaneResult(
+                task_id,
+                branch,
+                "stuck",
+                "red again at the same base and head — escalated",
+                **carried,
+            )
         )
 
         return
 
     _write_status(root, status, branch_tip, REGATE_CONTEXT, "failure", base_tip)
     engine_event(root, "lane_gates_red", {"task": task_id, "gates": summary})
-    results.append(LaneResult(task_id, branch, "gates red", summary))
+    results.append(LaneResult(task_id, branch, "gates red", summary, **carried))
 
 
 # ....................... #
@@ -3068,10 +3236,32 @@ def _land_rebased(
         vcs.remove_worktree(root, workdir)
 
     exit_code, summary = _unpack(outcome)
+    judged = outcome if isinstance(outcome, _Regate) else None
+    carried: dict[str, Any] = {}
+
+    if judged is not None:
+        carried = {
+            "base": judged.base,
+            "head": judged.head,
+            "duration_s": judged.duration_s,
+            "results": [result.model_dump() for result in judged.results],
+            "inherited_failures": _inherited(judged.results),
+        }
 
     if exit_code != 0:
         vcs.reset_branch(root, branch, before_rebase)
-        _record_red(root, state, task_id, branch, branch_tip, base_tip, summary, status, results)
+        _record_red(
+            root,
+            state,
+            task_id,
+            branch,
+            branch_tip,
+            base_tip,
+            summary,
+            status,
+            results,
+            judged,
+        )
         return
 
     if publish is not None:
@@ -3119,7 +3309,7 @@ def _land_rebased(
         },
     )
 
-    results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha))
+    results.append(LaneResult(task_id, branch, "landed", "rebased, gates green", sha, **carried))
 
 
 # ....................... #
@@ -3246,19 +3436,31 @@ def _one_lane(fn: Callable[_P, list[LaneResult]]) -> Callable[_P, list[LaneResul
     def run(*args: _P.args, **kwargs: _P.kwargs) -> list[LaneResult]:
         # `root` by position or by name, as `process_lane` has always taken it.
         root = Path(str(kwargs["root"] if "root" in kwargs else args[0]))
+        # S-0118/D-12: the pass's observer is handed each battery as it ends,
+        # and a raise anywhere after one cannot lose it.
+        sink = cast("Callable[[LaneJudgment], None] | None", kwargs.get("on_judged"))
+        token = _JUDGED.set(sink) if sink is not None else None
 
-        with _lane_lock(root).open("a") as handle:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            with _lane_lock(root).open("a") as handle:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-            except BlockingIOError:
-                return [
-                    LaneResult(
-                        "", "", "lane busy", "another process is running the lane on this checkout"
-                    )
-                ]
+                except BlockingIOError:
+                    return [
+                        LaneResult(
+                            "",
+                            "",
+                            "lane busy",
+                            "another process is running the lane on this checkout",
+                        )
+                    ]
 
-            return fn(*args, **kwargs)
+                return fn(*args, **kwargs)
+
+        finally:
+            if token is not None:
+                _JUDGED.reset(token)
 
     return run
 
@@ -3284,6 +3486,7 @@ def process_lane(
     specs: str = layout.SPECS_DIR,
     gates: SandboxFactory | None = None,
     holdout: HoldoutReader | None = None,
+    on_judged: Callable[[LaneJudgment], None] | None = None,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
     the pass runs unchanged to the landing and then publishes the candidate
@@ -3326,7 +3529,13 @@ def process_lane(
     (S-0116/D-14): a document's completion commits the ones its tasks recorded
     to its branch before the whole-document battery. The caller opens the
     store and hands the reader; a direct caller hands none, and then a
-    completion commits nothing."""
+    completion commits nothing.
+
+    `on_judged` observes every battery the pass runs, green or red
+    (S-0118/D-12): `_regate` hands it the judgment as it returns, before the
+    lane does anything else with the battery, so a raise later in the pass
+    cannot lose one. The caller records what it collects; the lane never
+    reads it back."""
 
     base = vcs.current_branch(root)
 
