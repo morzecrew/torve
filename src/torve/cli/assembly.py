@@ -123,7 +123,14 @@ def route_dispatch_providers(config: RunnerConfig, root: Path, tier: TierConfig)
     from torve.config.runconfig import route_provider
 
     repository = repository_name(root)
-    seat = next((name for name, configured in config.tiers.items() if configured is tier), "")
+    seat = next(
+        (
+            name
+            for name, configured in config.tiers.items()
+            if configured is tier or configured == tier
+        ),
+        "",
+    )
     reachable = [found for _, found in reachable_tiers(config, seat)] if seat else [tier]
 
     for reachable_tier in reachable:

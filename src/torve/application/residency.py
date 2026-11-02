@@ -702,6 +702,7 @@ async def serve(
     lane_through_pause: bool = False,
     threads: Threads | None = None,
     stop: Stop | None = None,
+    passes_run: list[int] | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -709,7 +710,9 @@ async def serve(
     a partition that just landed something may have unblocked the next
     thing. Returns how many tasks were handled — the bounded form is what
     tests and a `--passes` dispatch use, and the unbounded one is the
-    resident process S-0044/D-5 asks for.
+    resident process S-0044/D-5 asks for. *passes_run*, when given, receives
+    how many passes ran, so a chain can carry a command-wide `--passes` bound
+    across its nights (S-0117/D-3).
 
     `paused` may be a callable, and for a resident process it must be: the
     escalation queue changes while the manager runs, and a pause decided
@@ -734,6 +737,10 @@ async def serve(
             return handled
 
         seen += 1
+
+        if passes_run is not None:
+            passes_run[:] = [seen]
+
         task_id = await once(
             log,
             worker,
@@ -876,7 +883,10 @@ async def day_remainder(
     spent_usd = 0.0
     attempts = 0
 
-    for event in await log.since(midnight, partition=partition):
+    # `since` reads strictly after its moment; the day starts at midnight, so
+    # ask from the last microsecond of the day before it. An event stamped
+    # exactly at 00:00 UTC belongs to this day, not the one that closed.
+    for event in await log.since(midnight - timedelta(microseconds=1), partition=partition):
         if event.kind is EventKind.SEAT_CONSUMED:
             spent_usd += float(event.payload.get("cost_usd") or 0.0)
         elif event.kind is EventKind.ATTEMPT_STARTED:

@@ -1492,7 +1492,7 @@ def test_a_serve_without_the_switch_is_the_pass_it_always_was(tmp_path):
 # `--chain` (S-0117/D-3): nights back to back, and what ends the chain.
 
 
-def _chain_serve(tmp_path, *, night=True, chain=True):
+def _chain_serve(tmp_path, *, night=True, chain=True, passes=None):
     from torve.cli.manager import _serve
 
     return asyncio.run(
@@ -1502,7 +1502,7 @@ def _chain_serve(tmp_path, *, night=True, chain=True):
             root=tmp_path,
             config_path=None,
             worker="w-1",
-            passes=1,
+            passes=passes,
             interval=0,
             only=None,
             dispatch=False,
@@ -1574,6 +1574,69 @@ def test_a_chain_idles_and_opens_a_second_night_when_work_appears(tmp_path, monk
     assert opened == [(10.0, 5), (10.0, 5)]
     assert idle == [True]
     assert (handled, reason) == (2, "escalation:locked_conflict")
+
+
+def test_a_chain_stops_when_the_command_wide_pass_bound_is_used_up(tmp_path, monkeypatch):
+    """S-0117/D-3. `--passes` bounds the whole command, not each night: an
+    idle pass and one night spend the two passes the chain was given, and it
+    returns rather than opening a third or counting the bound upward."""
+
+    from types import SimpleNamespace
+
+    from torve.application import residency
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    config = RunnerConfig(night=NightConfig(budget_usd=10.0, budget_attempts=5))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: config)
+
+    async def fake_sync(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(manager_cli, "_sync_and_plan", fake_sync)
+
+    opened: list[bool] = []
+    refused = {"first": True}
+
+    async def fake_open(*args, **kwargs):
+        if refused.pop("first", False):
+            raise residency.NightRefused("nothing to start")
+
+        if len(opened) > 2:
+            raise AssertionError("the chain ignored its command-wide pass bound")
+
+        opened.append(True)
+
+        return SimpleNamespace(stop_on=())
+
+    async def fake_serve(*args, **kwargs):
+        # One pass a call, reporting it the way the real `serve` does.
+        used = 1 if kwargs.get("passes") is None else min(1, kwargs["passes"])
+
+        if kwargs.get("passes_run") is not None:
+            kwargs["passes_run"][:] = [used]
+
+        return used
+
+    async def fake_reached(*args, **kwargs):
+        return None
+
+    async def fake_close(*args, **kwargs):
+        return "drained"
+
+    async def fake_remainder(*args, **kwargs):
+        return (10.0, 5)
+
+    monkeypatch.setattr(residency, "open_night", fake_open)
+    monkeypatch.setattr(residency, "serve", fake_serve)
+    monkeypatch.setattr(residency, "reached", fake_reached)
+    monkeypatch.setattr(residency, "close_night", fake_close)
+    monkeypatch.setattr(residency, "day_remainder", fake_remainder)
+
+    handled, reason = _chain_serve(tmp_path, passes=2)
+
+    assert opened == [True]
+    assert (handled, reason) == (2, "")
 
 
 def test_a_chain_ends_when_a_night_closes_on_a_stop_on_class(tmp_path, monkeypatch):
@@ -1866,6 +1929,118 @@ def test_a_refusal_is_recorded_when_another_document_minted_in_the_sweep(tmp_pat
     assert [row["document"] for row in rows if row.get("event") == "plan_refused"] == ["S-0100"]
 
 
+def test_the_sweep_fast_forwards_the_checkout_to_a_moved_remote(tmp_path):
+    """S-0117/D-5: a checkout behind the remote's base is fast-forwarded to the
+    remote's tip before it plans, so the tree it mints from is the one the
+    remote holds."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+
+    other = tmp_path / "elsewhere"
+    subprocess.run(
+        ["git", "clone", "-q", "-b", "main", str(tmp_path / "origin.git"), str(other)],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(other), "config", "user.name", "Chain Human"], check=True)
+    subprocess.run(
+        ["git", "-C", str(other), "config", "user.email", "chain@example.invalid"],
+        check=True,
+    )
+    (other / "src" / "app.py").write_text("print('moved')\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(other), "commit", "-qam", "move"], check=True)
+    subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
+    moved = subprocess.check_output(
+        ["git", "-C", str(other), "rev-parse", "HEAD"], text=True
+    ).strip()
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+        assert (
+            project(await log.since(partition=PARTITION)).tasks["T-0001"].contract.spec == "S-0100"
+        )
+
+    run(scenario)
+
+    head = subprocess.check_output(
+        ["git", "-C", str(repo.root), "rev-parse", "HEAD"], text=True
+    ).strip()
+    assert head == moved
+
+
+def test_the_sweep_plans_from_the_configurations_corpus(tmp_path):
+    """S-0117/D-5: the sweep reads the corpus `specs.path` names, not the
+    default, so a chain started with `--config` discovers the documents its
+    configuration will plan."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig, SpecsConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / "alternate-specs", "0100", "Accepted")
+    _publish(repo)
+    config = RunnerConfig(specs=SpecsConfig(path="alternate-specs"))
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(repo.root, log, PARTITION, config=config, worker="w-1")
+        assert (
+            project(await log.since(partition=PARTITION)).tasks["T-0001"].contract.spec == "S-0100"
+        )
+
+    run(scenario)
+
+
+def test_a_refusal_is_recorded_again_after_the_base_moves(tmp_path):
+    """S-0117/D-5: a refusal is once per base commit, so a base that moved
+    records the unchanged refusal again rather than inheriting the old one
+    (the `and`/`or` distinction `_refusal_recorded` rests on)."""
+
+    from torve.application.telemetry import engine_event
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Prosey", phasing=None)
+    _publish(repo)
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+
+        # An engine row that matches some of `_refusal_recorded`'s fields but
+        # not all: the next refusal is still recorded.
+        engine_event(repo.root, "checkout_left_alone", {"base": "unrelated"})
+        repo.write("src/app.py", "print('moved')\n")
+        repo.git("commit", "-qam", "move")
+        repo.git("push", "-q", "origin", "main")
+
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+
+    run(scenario)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    refused = [row for row in rows if row.get("event") == "plan_refused"]
+
+    assert len(refused) == 2
+    assert len({row["base"] for row in refused}) == 2
+
+
 @pytest.mark.parametrize(
     ("where", "expected"),
     [("under", True), ("outside", False), (None, False)],
@@ -1920,7 +2095,7 @@ def test_a_chain_whose_engine_imports_from_the_root_plans_nothing(tmp_path, monk
     _chain_serve(repo.root)
 
     assert calls == []
-    assert "engine imports" in capsys.readouterr().out
+    assert "engine imports" in capsys.readouterr().err
 
 
 # ....................... #

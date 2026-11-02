@@ -984,26 +984,62 @@ def minted_contracts(root: Path, document: str, board: Board | None = None) -> d
 # ....................... #
 
 
-def unplanned_documents(root: Path, board: Board | None = None) -> list[Document]:
+def minted_documents(root: Path, board: Board | None = None) -> set[str]:
+    """Every document with at least one contract already minted — the board's
+    when a store holds the tasks (S-0056/D-9), the files otherwise. One read
+    for a sweep that asks the same question about every document, rather than
+    a glob and parse per document (S-0117/D-5)."""
+
+    from torve.gates.context import load_task
+
+    found: set[str] = set()
+
+    for view in board.tasks.values() if board is not None else []:
+        if view.contract is not None:
+            found.add(document_of(view.contract.spec or ""))
+
+    for path in sorted((root / layout.TORVE_DIR / "tasks").glob("T-*/contract.yaml")):
+        try:
+            task = load_task(path)
+
+        except ValueError:
+            continue
+
+        found.add(document_of(task.spec or ""))
+
+    return found
+
+
+# ....................... #
+
+
+def unplanned_documents(
+    root: Path, board: Board | None = None, *, rfc_dir: Path | None = None
+) -> list[Document]:
     """The corpus documents nobody has planned, in number order: accepted,
     not implemented, and with no task minted from them (S-0117/D-5).
 
-    Archived documents are not on the corpus path and are never offered;
-    an implemented one landed already, and a minted one is a person's to
-    refresh (S-0088). What is left is exactly what the chain's between-night
-    sweep may mint into the record."""
+    Archived and superseded documents are not on the corpus path and are
+    never offered; an implemented one landed already, and a minted one is a
+    person's to refresh (S-0088). What is left is exactly what the chain's
+    between-night sweep may mint into the record. *rfc_dir* is the corpus the
+    caller's configuration names; omitted, the default configuration's."""
 
     from torve.config.runconfig import load_runner_config
 
-    rfc_dir = root / load_runner_config(root, None).specs.path
+    corpus_dir = (
+        rfc_dir if rfc_dir is not None else root / load_runner_config(root, None).specs.path
+    )
+    minted = minted_documents(root, board)
 
     return [
         doc
-        for doc in sorted(load_corpus(rfc_dir).documents, key=lambda one: number_of(one.id))
+        for doc in sorted(load_corpus(corpus_dir).documents, key=lambda one: number_of(one.id))
         if not doc.archived
         and doc.status == "accepted"
+        and not doc.superseded_by
         and doc.implementation == "none"
-        and not minted_contracts(root, doc.id, board)
+        and document_of(doc.id) not in minted
     ]
 
 

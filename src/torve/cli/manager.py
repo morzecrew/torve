@@ -26,6 +26,7 @@ from torve.cli.console import (
     add_rows_truncated,
     closing,
     emit_json,
+    err,
     fail,
     footer,
     header,
@@ -781,7 +782,7 @@ async def _sync_and_plan(
         return
 
     rfc_dir = root / config.specs.path
-    listing = unplanned_documents(root, board)
+    listing = unplanned_documents(root, board, rfc_dir=rfc_dir)
     refusals: dict[str, str] = {}
 
     while listing:
@@ -1115,17 +1116,24 @@ async def _serve(
             on_base=_dependencies_on_base(root, config),
         )
 
+        # S-0117/D-3: a `--passes` bound is the command's, not each night's.
+        # A chained night takes what is left of it and reports what it used.
+        passes_left = passes or None
+
         async def run_night(terms: Night) -> tuple[int, str]:
+            nonlocal passes_left
+
             async def stop() -> str | None:
                 return await reached(log, partition, terms, owed=owed)
 
+            used = [0]
             handled = await serve(
                 log,
                 worker_obj,
                 root,
                 partition,
                 idle_seconds=interval,
-                passes=passes,
+                passes=passes_left,
                 landed=landings.get,
                 ran=ran.__contains__,
                 only=only,
@@ -1137,7 +1145,11 @@ async def _serve(
                 lane_through_pause=config.promotion.landing == "pull_request",
                 threads=thread_leg,
                 stop=stop,
+                passes_run=used,
             )
+
+            if passes_left is not None:
+                passes_left = max(0, passes_left - used[0])
 
             # The reason is asked once more rather than remembered from the
             # loop: `serve` also returns when its pass count runs out, and a
@@ -1156,7 +1168,10 @@ async def _serve(
             claim nothing. The chain is waiting for something startable, not
             starting it outside the night that its budget belongs to."""
 
-            return await serve(
+            nonlocal passes_left
+
+            used = [0]
+            handled = await serve(
                 log,
                 worker_obj,
                 root,
@@ -1173,7 +1188,13 @@ async def _serve(
                 lane=lane_leg,
                 lane_through_pause=config.promotion.landing == "pull_request",
                 threads=thread_leg,
+                passes_run=used,
             )
+
+            if passes_left is not None:
+                passes_left = max(0, passes_left - used[0])
+
+            return handled
 
         if not chain:
             # S-0079/D-6: refused here, before the first pass, while the
@@ -1216,7 +1237,7 @@ async def _serve(
         if not planning:
             # S-0117/D-6: moving this checkout would move the code the process
             # is running, so the chain neither fast-forwards nor plans from it.
-            out().print(
+            err().print(
                 "the engine imports from this checkout — the chain leaves it "
                 "alone and plans nothing between nights"
             )
@@ -1224,6 +1245,9 @@ async def _serve(
         handled = 0
 
         while True:
+            if passes_left is not None and passes_left <= 0:
+                return handled, ""
+
             if planning:
                 await _sync_and_plan(root, log, partition, config=config, worker=worker)
 

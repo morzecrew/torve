@@ -65,6 +65,10 @@ still refused when a pass mints nothing is recorded once per base commit and
 tried again when the base moves. A document accepted only on another branch is
 never planned.
 
+A chain whose engine imports from the checkout it serves skips the
+fast-forward and the planning and says so once at the start: moving that
+checkout would move the code the process is running.
+
 So a document reaches a ready pull request without its owner: the chain mints
 it when it is accepted on the base, the night implements it, and the lane
 lands each green phase and republishes the document's pull request. These
@@ -75,6 +79,11 @@ promotion:
   landing: pull_request      # the thread leg reads a document's pull request
   unit: document
   auto_merge: true           # arms the pass's landing leg
+  require_review: true       # at least one criterion must be armed
+
+scm:
+  repo: owner/name           # the forge repository the pull request opens against
+  open_pr: true              # landing: pull_request needs the forge's pull request
 
 tiers:
   executor:

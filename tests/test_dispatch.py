@@ -460,6 +460,33 @@ def test_route_dispatch_providers_checks_the_revision_variant_and_its_own_rungs(
     route_dispatch_providers(permitted, tmp_path, tier_for(permitted, "executor"))
 
 
+def test_route_dispatch_providers_resolves_a_seat_handed_in_by_value(tmp_path):
+    """S-0117/D-2: the dispatch-time provider check finds the configured name
+    of a tier object that is equal to the configured one but not the same
+    object, so it still walks that seat's retry rungs instead of falling back
+    to the tier alone."""
+
+    from torve.cli.assembly import route_dispatch_providers
+    from torve.config.runconfig import ProviderDenied, ProvidersConfig, tier_for
+
+    tiers = {
+        "executor": TierConfig(
+            adapter="api",
+            provider="base",
+            model="m",
+            retry_variants={"functional": "executor.deep"},
+        ),
+        "executor.deep": TierConfig(adapter="api", provider="deep", model="m"),
+    }
+    config = RunnerConfig(tiers=tiers, providers=ProvidersConfig(default=["base"]))
+    seat = tier_for(config, "executor").model_copy()
+
+    assert seat is not config.tiers["executor"]
+
+    with pytest.raises(ProviderDenied, match="deep"):
+        route_dispatch_providers(config, tmp_path, seat)
+
+
 def test_the_dispatch_carries_which_arm_is_running(tmp_path):
     """S-0082/D-1: both removals are read from the one name the dispatch
     carries, so the leg that composes the prompt and the leg that runs the
