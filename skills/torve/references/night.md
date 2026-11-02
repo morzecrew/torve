@@ -38,6 +38,72 @@ For two workers, start a second process with `--slot 1` and its own
 `--worker` name. Width pays only when the board holds tasks whose scopes do
 not overlap.
 
+## Running the chain
+
+`--chain` keeps one process opening nights back to back:
+`torve manager serve <partition> --night --chain`. After a night closes it runs
+idle passes and opens the next once the open's refusal reads empty — the board
+holds something startable — and the UTC day has budget left. A night closed on
+a class in `night.stop_on` ends the chain, and `--chain` without `--night` is
+refused.
+
+Under `--chain`, `night.budget_usd` and `night.budget_attempts` bound a UTC
+day, not one night: each night opens with what the day has left on each axis
+as its own budget, and records that remainder in `night.opened`. When an axis
+configured above zero has no remainder left, no night opens until the next UTC
+midnight. An axis configured as 0 stays unbounded, and `night.minutes` still
+bounds each night. A night that crosses midnight keeps the budget it opened
+with; what it spends after midnight counts against the new day.
+
+Between nights, with nothing in flight, the chain fetches and — when this
+checkout is on the configured base branch with a clean tree — fast-forwards it
+to the remote's tip. It then mints, in number order, every accepted document
+whose implementation is `none` and which has minted no task, into the board as
+`torve plan S-NNNN --partition <partition> --no-dry-run` does, writing no
+file. A refused plan is tried again after each mint that succeeds, and one
+still refused when a pass mints nothing is recorded once per base commit and
+tried again when the base moves. A document accepted only on another branch is
+never planned.
+
+So a document reaches a ready pull request without its owner: the chain mints
+it when it is accepted on the base, the night implements it, and the lane
+lands each green phase and republishes the document's pull request. These
+terms are what make the run survive what its owner would have answered:
+
+```yaml
+promotion:
+  landing: pull_request      # the thread leg reads a document's pull request
+  unit: document
+  auto_merge: true           # arms the pass's landing leg
+
+tiers:
+  executor:
+    revision_variant: executor.strong   # a surviving blocker's revision rung
+  executor.strong:                      # a tier like any other, and it must exist
+    harness: claude
+    model: claude-opus-5-5
+    provider: anthropic
+
+threads:
+  enabled: true                         # off by default
+  bots: [coderabbitai, codeant-ai]      # the forge's review bots: waited for and answered
+  approve_comment: "..."                # posted once the wave is green; unset posts nothing
+```
+
+`revision_variant` names a configured tier, dotted, and load refuses a value
+that resolves to none. When a review blocker survives the executor seat, the
+revision attempt runs on that tier in the same run, worktree and critique, so
+a blocker that escalates has already had the stronger seat's attempt. Empty,
+the default, keeps the revision on the seat.
+
+The thread leg additionally needs `threads.enabled`, the forge's bots in
+`threads.bots`, and a landing that reads a document's pull request
+(`promotion.landing: pull_request` with `unit: document`); it refuses to load
+any other way. `approve_comment` is what the leg posts on the pull request once
+every thread a configured bot opened is resolved and the head's checks are
+green, keyed by head so it lands once. Every login in `bots` is also what the
+night's review wait waits for.
+
 ## Watch
 
 - `torve manager board <partition> --format json` every few minutes, filtered

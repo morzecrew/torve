@@ -1176,7 +1176,7 @@ exit accordingly.
 | --- | --- | --- |
 | `locked_conflict` | an attempt halted on a `LOCKED` row (S-0096/D-1, amending S-0092/D-3): the tree is kept for inspection, the row needs a person's decision, and a retry is not the fix | 2 |
 | `merge_conflict` | the landing lane's rebase conflicted; the branch is untouched and waits for a human — the lane never resolves one | 2 |
-| `blocker_finding` | review ended with a blocker surviving | 2 |
+| `blocker_finding` | review ended with a blocker surviving — when the executor seat names a `revision_variant`, a blocker that reaches you has already had its revision on that rung (S-0117/D-1) | 2 |
 | `killed` | an operator interrupted the run | 2 |
 | `underspecified` | the contract needs three or more load-bearing decisions invented, or a halted attempt cited no `LOCKED` row, whatever class its entry chose (S-0096/D-1, amending S-0092/D-3) — a specification defect: amend the document, never retry. The loop is one amendment and one command: widen the phase on the document's branch, then `torve manager resolve --resolution requeued`, which refreshes the task's contract from the branch before the task goes back on the board (S-0094/D-1); a review round is re-scoped from the same branch the same way (S-0092/D-4, S-0094/D-2). See the escalation loop below | 2 |
 | `stale_inheritance` | the document it was minted from was superseded after the mint: re-mint from the superseding one, or abandon | 2 |
@@ -1280,6 +1280,73 @@ escalation is resolved, because the pause is the statement that the board
 needs somebody. With a destination configured it at least says so out
 loud, whatever the reason's class (S-0094/D-4); with none, the night
 waits in silence, which remains a choice, not an accident.
+
+## Running nights back to back
+
+`torve manager serve <partition> --night --chain` keeps one process opening
+nights back to back (S-0117/D-3). After a night closes it runs idle passes and
+opens the next once the open's refusal reads empty — the board holds something
+startable — and the UTC day has budget left; a night closed on a class in
+`night.stop_on` ends the chain, and `--chain` without `--night` is refused.
+
+Under `--chain`, `night.budget_usd` and `night.budget_attempts` bound a UTC
+day rather than one night (S-0117/D-4): each night opens with what the day has
+left on each axis as its own budget, recorded in `night.opened`. An axis
+configured above zero with no remainder opens no night until the next UTC
+midnight; an axis configured as 0 stays unbounded, and `night.minutes` still
+bounds each night. A night that crosses midnight keeps the budget it opened
+with, and what it spends after midnight counts against the new day.
+
+Between nights, with nothing in flight, the chain fetches and — when this
+checkout is on the configured base branch with a clean tree — fast-forwards it
+to the remote's tip (S-0117/D-5). It then mints every accepted document whose
+implementation is `none` and which has minted no task, in number order, into
+the record as `torve plan S-NNNN --partition <partition> --no-dry-run` does,
+writing no file. A refused plan is retried after each mint that succeeds, and
+one still refused when a pass mints nothing is recorded once per base commit
+and retried when the base moves. A document accepted only on another branch is
+never planned.
+
+A chain whose engine imports from the checkout it serves skips the
+fast-forward and the planning and says so once at the start (S-0117/D-6):
+moving that checkout would move the code the process is running.
+
+So a document can go from acceptance to a ready pull request without its
+owner. The terms that make the run survive what its owner would have answered:
+
+```yaml
+promotion:
+  landing: pull_request      # the thread leg reads a document's pull request
+  unit: document
+  auto_merge: true           # arms the pass's landing leg
+
+tiers:
+  executor:
+    revision_variant: executor.strong   # a surviving blocker's revision rung
+  executor.strong:
+    harness: claude
+    model: claude-opus-5-5
+    provider: anthropic
+
+threads:
+  enabled: true                         # off by default
+  bots: [coderabbitai, codeant-ai]      # the forge's review bots: waited for and answered
+  approve_comment: "..."                # posted once the wave is green; unset posts nothing
+```
+
+`revision_variant` names a configured tier, dotted, refused at load when it
+resolves to none (S-0117/D-1). When a review blocker survives the executor
+seat, the revision attempt runs on that tier in the same run, worktree and
+critique, so a blocker that escalates has already had the stronger seat's
+attempt; empty keeps the revision on the seat.
+
+The thread leg needs `threads.enabled`, the forge's bots in `threads.bots`, and
+a landing that reads a document's pull request — `promotion.landing:
+pull_request` with `unit: document`; it refuses to load otherwise. When every
+thread a configured bot opened on a head is resolved and the head's checks are
+green, the leg posts `threads.approve_comment`, keyed by head so it lands once
+(S-0097/D-7). Every login in `bots` is also what the night's review wait waits
+for.
 
 ## Unattended landing
 
