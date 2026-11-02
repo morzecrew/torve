@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-02T17:37:14Z'
+    title: A bot's reply does not re-open a refused thread
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          The leg replies on a thread it refuses with the refusal's reason, so a later
+          pass reads it as handled from the thread's last comment; it reads no `lane_thread_refused`
+          or `lane_engine_thread` row.
+        after: >-
+          The leg replies on a thread it refuses with the refusal's reason, opening
+          with the thread's id, so a later pass reads it as handled wherever that
+          reply sits, until someone outside `threads.bots` comments after it; it reads
+          no `lane_thread_refused` or `lane_engine_thread` row.
+      - subject: D-3
+        field: fingerprint
+        after: 36c852e140784968/b150db9f7d998894
+    md: >-
+      Read from the thread's last comment, a refusal stayed handled only until anyone
+      wrote after it. On #229 a review bot answered every refusal with another fenced
+      command, the next pass refused again, and the two answered each other until
+      the bot's rate limit stopped it (#232). The refusal now opens with the thread's
+      id and is found wherever it sits; a person's comment after it re-opens the thread
+      as before, a bot's does not.

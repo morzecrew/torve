@@ -29,17 +29,19 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      The leg replies on a thread it refuses with the refusal's reason, so a later
-      pass reads it as handled from the thread's last comment; it reads no `lane_thread_refused`
+      The leg replies on a thread it refuses with the refusal's reason, opening with
+      the thread's id, so a later pass reads it as handled wherever that reply sits,
+      until someone outside `threads.bots` comments after it; it reads no `lane_thread_refused`
       or `lane_engine_thread` row.
     paths: [src/torve/application/reviewleg.py]
     consequence: >-
-      a refused thread is not raised again on any host until someone comments after
-      the refusal
+      a refused thread is not raised again on any host until someone outside `threads.bots`
+      comments after the refusal
     rationale: >-
       The refusal was recorded only on the host that made it; the reply makes the
       forge its carrier, the same one S-0101/D-5 reads for an answered thread.
     cites: [S-0097/D-3, S-0101/D-5]
+    fingerprint: 36c852e140784968/b150db9f7d998894
   - id: D-4
     grade: ASSUMED
     text: >-
