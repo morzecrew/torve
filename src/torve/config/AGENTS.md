@@ -779,6 +779,21 @@ A builtin gate `evidence` runs each row's citing functions against the base tree
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: an adopter that never sets the block mints exactly today's tasks, and one that turns it on without a seat finds out at load, not at dispatch
 
+### S-0117/D-1 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+
+A seat may name a `revision_variant`, a dotted tier. When the attempt about to run follows a surviving review blocker's revision, `advance_tier` resolves it to that tier, as it resolves a retry rung after a gate-red; empty, the default, keeps the revision on the seat. The load refuses a `revision_variant` that names no configured tier.
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py`
+- Consequence: a blocker the executor seat could not clear gets its revision on the stronger seat inside the same run, worktree and critique, and only a blocker that survives that reaches a person
+
+### S-0119/D-1 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+
+`intake.issue_label` names the label the pass's intake leg drafts from. Empty, the default, turns the leg off and builds no drafting agent, so a planner tier that cannot be built never stops a pass with the leg off; the leg never reads an issue without the label past the listing.
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/issues.py`
+- Consequence: an adopter that sets nothing gets today's pass, and the label is the leg's one switch
+- Check: `uv run pytest tests/test_issues.py -k off` (shadow; runs as `decision:S-0119/D-1`, no log entry owed)
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

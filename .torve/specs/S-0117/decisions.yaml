@@ -41,10 +41,10 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      `torve manager serve --night --chain` runs nights back to back in one process.
-      After a close it runs idle passes and opens the next night once the open's refusal
-      reads empty and the day's budget has room; a night closed on a `stop_on` class
-      ends the chain. `--chain` without `--night` is refused.
+      `torve manager serve <partition> --night --chain` runs nights back to back in
+      one process. After a close it runs idle passes and opens the next night once
+      the open's refusal reads empty and the day's budget has room; a night closed
+      on a `stop_on` class ends the chain. `--chain` without `--night` is refused.
     paths: [src/torve/application/residency.py, src/torve/cli/manager.py]
     consequence: >-
       the engine serves until it is stopped, every night it ran keeps its own record,
@@ -56,7 +56,7 @@ decisions:
       is missing.
     cites: [S-0079]
   - id: D-4
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       Under `--chain`, the night section's `budget_usd` and `budget_attempts` bound
       a UTC day: each night opens with what remains of the day on each axis as its
@@ -68,7 +68,9 @@ decisions:
     paths: [src/torve/application/residency.py]
     consequence: >-
       a chain spends at most one night's configured budget per day however many nights
-      it opens, and `night.opened` records the remainder each night ran under
+      it opens, plus what the attempts already running when a bound is reached spend,
+      as a night already does, and `night.opened` records the remainder each night
+      ran under
     rationale: >-
       Budgets are measured from the board at each open, so nights opened back to back
       would each get the full budget; bounding the day keeps one number the operator
@@ -82,10 +84,10 @@ decisions:
       remote's. It plans only from a checkout on the base branch, clean and at the
       remote's tip after that: in number order, every document whose status is accepted,
       whose implementation is none and which has minted no task is minted into the
-      partition's record as `torve plan --partition <partition> --no-dry-run` does,
-      writing no file. A refused plan is tried again within the sweep after each mint
-      that succeeds, and one still refused when a pass mints nothing is recorded once
-      per base commit and tried again when the base moves.
+      partition's record as `torve plan S-NNNN --partition <partition> --no-dry-run`
+      does, writing no file. A refused plan is tried again within the sweep after
+      each mint that succeeds, and one still refused when a pass mints nothing is
+      recorded once per base commit and tried again when the base moves.
     paths: [src/torve/cli/manager.py, src/torve/application/planner.py]
     consequence: >-
       a document accepted on the base is minted and served by the next night without
@@ -101,7 +103,7 @@ decisions:
       own files.
     cites: [D-3, S-0056/D-9]
   - id: D-6
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       The chain never fast-forwards the checkout its own engine imports from: when
       the `torve` package resolves under the repository root, it skips the fast-forward

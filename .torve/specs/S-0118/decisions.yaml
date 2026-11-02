@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       A builtin `suite` runs the whole suite once over the head, from its entry's
       first command, with no blanket re-run. On a red, the failing tests' files are
@@ -25,7 +25,7 @@ decisions:
     cites: [S-0081/D-5]
     check: uv run pytest tests/test_suite.py -k attribution
   - id: D-2
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       A failing test that cannot run on the base tree has no base reading and convicts,
       and so does a red suite whose output names no failing test
@@ -137,7 +137,7 @@ decisions:
       had failed (#220)
     cites: [D-9]
   - id: D-9
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       Every battery the lane runs, green or red, is recorded as a `lane.judged` event
       on the candidate's task, or on the document's last task for a completion battery,
