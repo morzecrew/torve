@@ -455,7 +455,7 @@ The check is exhaustive over a bounded grammar: every pattern of up to three seg
 - Paths: `tests/test_globs.py`
 - Consequence: a change to the reading that disagrees with the gate anywhere in the grammar fails the suite, rather than a night
 
-### S-0118/D-1 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-1 — `LOCKED` (A gate run is spent only where it can convict)
 
 A builtin `suite` runs the whole suite once over the head, from its entry's first command, with no blanket re-run. On a red, the failing tests' files are rerun at the head, and the files of the tests still red are run on the merge base. A test convicts when it is still red at the head and not red on the base: green there, or with no base reading (D-2). Green on the rerun is flaky; red on the base too is inherited
 
@@ -463,7 +463,7 @@ A builtin `suite` runs the whole suite once over the head, from its entry's firs
 - Consequence: a red the base already carries never blocks an attempt, and a red suite costs one suite run plus the failing tests' files twice, not two suite runs; an order dependence inside a file convicts as it does today, and one across files reads as flaky, an accepted false negative
 - Check: `uv run pytest tests/test_suite.py -k attribution` (shadow; runs as `decision:S-0118/D-1`, no log entry owed)
 
-### S-0118/D-2 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-2 — `LOCKED` (A gate run is spent only where it can convict)
 
 A failing test that cannot run on the base tree has no base reading and convicts, and so does a red suite whose output names no failing test
 
@@ -471,28 +471,28 @@ A failing test that cannot run on the base tree has no base reading and convicts
 - Consequence: a new dependency or a collection error the change introduced blocks, and a person reads the cause from the output
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0118/D-3 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-3 — `ASSUMED` (A gate run is spent only where it can convict)
 
 The `suite` entry's later `commands` are reports: they run right after the suite's own run and before any rerun, over what it wrote; their output is appended to the gate's, and their exit codes never convict
 
 - Paths: `src/torve/gates/suite.py` `tests/test_suite.py`
 - Consequence: the coverage delta survives as a reading at the cost of one `diff-cover` run, it reads the whole suite's `coverage.xml` rather than a rerun's, and no report can block an attempt
 
-### S-0118/D-4 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-4 — `ASSUMED` (A gate run is spent only where it can convict)
 
 `GateResult` and `BuiltinOutcome` carry `inherited_failures`, the node ids a gate found red on the base too, beside `quarantined_failures`; a suite whose only failures are inherited passes and records them
 
 - Paths: `src/torve/domain/attempt.py` `src/torve/gates/contract.py` `src/torve/gates/runner.py` `tests/test_attempt_record.py` `tests/test_gates.py`
 - Consequence: the record holds every inherited red by name, so a red base is visible in `gates.evaluated` and `torve why` without convicting anyone
 
-### S-0118/D-6 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-6 — `ASSUMED` (A gate run is spent only where it can convict)
 
 The lane's batteries, the re-gate after a rebase and the completion battery, run only the gates whose state is `blocking` and the decision gates; the whole-document battery also runs the gates whose readings S-0115/D-5 joins into the pull request's table, `evidence` and `mutation`, whatever their state
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: a shadow gate no longer runs on a rebased tip or a document tip, and a re-gate costs what its verdict reads
 
-### S-0118/D-7 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-7 — `ASSUMED` (A gate run is spent only where it can convict)
 
 A rebased candidate whose only failing tests also fail on the base it was rebased onto lands, and the inherited failures ride its lane record
 
@@ -500,14 +500,14 @@ A rebased candidate whose only failing tests also fail on the base it was rebase
 - Consequence: a red one phase left on a document branch no longer convicts the next phase that needs a rebase; the document meets it at its completion battery (S-0093/D-1), where it becomes a round
 - Check: `uv run pytest tests/test_lane.py -k inherited` (shadow; runs as `decision:S-0118/D-7`, no log entry owed)
 
-### S-0118/D-8 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-8 — `ASSUMED` (A gate run is spent only where it can convict)
 
 A lane escalation's detail names its failing gates first and counts the passing ones
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: the record's 300-character clip of an escalation's detail reaches the failing gates first, and cuts one only when the failing names alone pass 300 characters; the full results are in the battery's `lane.judged` (D-9)
 
-### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict)
 
 Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery, carrying the leg, base, head, exit code, duration and the results as `gates.evaluated` records them; the caller of `process_lane` writes each one from what `on_judged` handed it (D-12), in a `finally`, so a pass that raises after a battery keeps it, and no projection reads it for a state transition
 
@@ -515,14 +515,14 @@ Every battery the lane runs, green or red, is recorded as a `lane.judged` event 
 - Consequence: a red re-gate's failing output and every lane battery's duration are in the record, so lane time is measured from the record and never from telemetry
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0118/D-10 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-10 — `ASSUMED` (A gate run is spent only where it can convict)
 
 `torve why` renders each `lane.judged` event with its failing gates' output, and every gate result's `inherited_failures`
 
 - Paths: `src/torve/application/projections.py` `tests/test_why_record.py`
 - Consequence: an escalation the lane raised is read from `torve why` with the failing test named, with no reproduction on the host
 
-### S-0118/D-12 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-12 — `ASSUMED` (A gate run is spent only where it can convict)
 
 `process_lane` takes an `on_judged` callback and calls it with each battery's judgment, its leg, base, head, exit code, duration and results, as `_regate` returns, before the lane does anything else with the battery
 

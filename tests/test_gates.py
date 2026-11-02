@@ -560,18 +560,26 @@ def test_a_suite_budget_counts_its_base_and_never_doubles(tmp_path):
     assert battery_budget(battery(ctx), ctx) == (2 + 3) * 100
 
 
-def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():
+def test_the_shipped_suite_gate_reports_coverage_from_the_battery_base():
     # The manifest is configuration the battery reads; its shape is checked
     # here so a later edit cannot silently widen the judgment surface.
+    # S-0118/D-5: the suite replaced `coverage-delta`, blocking with no
+    # `paths`, and the coverage delta became its report.
     from torve.config.manifest import load_manifest
 
     root = Path(__file__).resolve().parent.parent
-    gates = {g.name: g for g in load_manifest(root / ".torve" / "gates.yaml").resolved_gates()}
-    gate = gates["coverage-delta"]
-    assert gate.state == "shadow"  # every gate enters shadow (S-0002/D-18)
-    assert "{base}" in gate.run  # the battery's base, never a shell-resolved ref
+    manifest = load_manifest(root / ".torve" / "gates.yaml")
+    gates = {g.name: g for g in manifest.resolved_gates()}
+    gate = gates["suite"]
+
+    assert "coverage-delta" not in gates
+    assert (gate.state, gate.paths, gate.timeout) == ("blocking", [], 600)
+    assert manifest.tests.run.startswith("uv run pytest")
+
+    report = gate.commands[1]
+    assert "{base}" in report  # the battery's base, never a shell-resolved ref
     for ref_resolver in ("merge-base", "rev-parse", "origin/", "git diff"):
-        assert ref_resolver not in gate.run
+        assert ref_resolver not in report
 
 
 # ----------------------- #

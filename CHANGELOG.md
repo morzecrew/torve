@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A gate manifest may name `@suite`. It runs the whole suite once, and a failing test
+  convicts only when that test is still red at the head and not red on the merge base. A
+  red the base also carries is recorded as inherited and never convicts; no command, an
+  uncollected file or a red naming no test fails.
+
+- Every battery the lane runs is recorded as a `lane.judged` event, and `torve why`
+  shows it with its failing gates' output.
+
 - A document's header may list `fixes`, the issues it fixes: a number, or `owner/repo#N`
   in another repository. Its pull request's body ends with one `Closes` line per entry,
   so the merge closes them, and `torve spec check` refuses an entry that is not an
@@ -19,7 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pull request shows each row's proving tests, check, survivors and findings, and the
   reviewer asks whether each proving test exercises its row.
   
+### Changed
+
+- The lane's re-gate after a rebase and its completion battery run only blocking and
+  decision gates, plus `evidence` and `mutation` on the completion battery. A rebased
+  candidate whose only failing tests also fail on its base lands.
+
 ### Fixed
+
+- A requeued task whose document branch moved past its checkpoint starts from the
+  branch's tip. It used to resume a tree without what had landed since, and fail on its
+  absence.
+
+- A phase's contract lists, among its contingent paths, the files the manifest's
+  `scope.derived` map pairs with its sources.
 
 - Two manager workers on one checkout no longer escalate a task when both cut
   a worktree at once. The second waits for the first, and a cut no longer

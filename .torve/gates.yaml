@@ -28,6 +28,13 @@
 # own gates included: `torve gates list [--task ...]`.
 schema_version: 1
 
+# The launcher a gate runs named test files through: the suite's rerun and
+# base run (S-0118/D-1) and `red-on-base` (S-0106/D-7). The engine default is
+# a bare `python3 -m pytest`, which cannot import this package in a battery's
+# checkout, so every reading would be void and every red would convict.
+tests:
+  run: "uv run pytest -q -p no:cacheprovider"
+
 # Repository-level scope, used on runs with no task contract. Unconstrained:
 # human work on this repository is not scoped; task branches carry their own.
 scope:
@@ -165,42 +172,32 @@ gates:
     # same 120, so whichever sorts first can pay for it.
     timeout: 120
     sabotage: tests/test_layering.py
-  # Does the suite meet the attempt's changed lines (S-0036/D-1)? diff-cover
-  # intersects coverage with the diff against {base} — the merge-base the
-  # battery itself computed, substituted by the runner, so a gate never
-  # resolves a ref in shell and live runs and replays measure one surface.
-  # The judgment is the attempt's added and changed lines, never the inherited
-  # tree and never a whole-repo threshold (S-0031's ratchet doctrine).
+  # The whole suite, once per battery, a red attributed to the change that
+  # caused it (S-0118/D-1): a failing test's file is rerun at the head, then
+  # on the merge base, and a test convicts only when it is red at the head and
+  # not red on the base. No base reading, a file that does not collect, or a
+  # red naming no test convicts (D-2). It replaces `coverage-delta`, whose
+  # suite soaked a month at shadow; the coverage delta rides as a report whose
+  # exit code never convicts (D-3, D-5). Blocking from the start: the soak was
+  # the suite's own, and attribution only turns its reds into passes, so this
+  # gate departs S-0055/D-14's shadow-first rule alone (S-0118/Q-1). No
+  # `paths`: a change to a test, or to a page a test reads, is judged too.
   #
-  # The entry runs the suite before it can measure anything, so it has two
-  # ways to go red under one name. It says which: a red suite ends here with
-  # that sentence last, where the terminal and the retry's feedback pack both
-  # read (T-0319), instead of filing a failing test under a name that says
-  # coverage.
-  - name: coverage-delta
-    run: "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report=xml -q || { echo '== the suite is red, so the coverage delta was never measured — the failure above is a failing test, not a coverage shortfall =='; exit 1; }; uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
-    state: shadow
-    origin: S-0036
-    input: worktree
-    # What this gate judges (S-0071/D-6), which is what `--cov=src` names.
-    # Measured over 302 runs: 77 of them changed nothing under `src/` and spent
-    # 11,786 of the gate's 43,448 seconds there, seventeen going red over drift
-    # the attempt had not caused.
-    paths: [src/**]
-    # Measured, not guessed: 164s median over 228 runs, 271s at p90, 600s at
-    # worst. The runner sorts the battery cheapest-first on this field, so an
-    # absent timeout read as zero cost and put the dearest gate in the pass
-    # ahead of every gate that declares one — spec-valid included.
-    #
-    # `COVERAGE_CORE=sysmon` on the front is coverage.py over CPython's
-    # `sys.monitoring` rather than its settrace tracer. Measured on this suite:
-    # 25s plain, 47s under coverage, 30s under sysmon — so it returns about
-    # two thirds of what measuring costs, on an interpreter this project
-    # already pins. It is a word in the command rather than a knob on the
-    # entry: the gate is a shell command, and a shell command carries its own
-    # environment.
+  # 600 is the ceiling measured for `coverage-delta`'s suite: 164s median over
+  # 228 runs, 271s at p90, 600s at worst. `COVERAGE_CORE=sysmon` keeps the
+  # measurement cheap, as it did there. The suite writes no report: a
+  # `coverage.xml` it could not write would turn a green run red with no test
+  # named, and convict. The XML is the report's to write, where a failure
+  # never convicts.
+  - name: suite
+    run: "@suite"
+    state: blocking
+    origin: S-0118
     timeout: 600
-    sabotage: coverage-delta
+    sabotage: suite
+    commands:
+      - "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report= -q"
+      - "uv run coverage xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
   # The managed AGENTS.md sections beside the code, rendered from the corpus
   # and drift-checked like the index (S-0054/D-7).
   - name: spec-projection
@@ -301,4 +298,3 @@ gates:
       - "uv run ruff check ."
       - "uv run ruff format --check ."
       - "uv run mypy src"
-      - "uv run pytest"

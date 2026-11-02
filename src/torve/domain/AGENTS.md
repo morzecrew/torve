@@ -393,14 +393,14 @@ After a verify attempt the host records the files under `.torve/tmp/holdout/` of
 - Paths: `src/torve/application/runner.py` `src/torve/domain/events.py`
 - Consequence: held-out properties live in the record that every host of the fleet reads, never in an attempt's commit and never in an implementer's sandbox
 
-### S-0118/D-4 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-4 — `ASSUMED` (A gate run is spent only where it can convict)
 
 `GateResult` and `BuiltinOutcome` carry `inherited_failures`, the node ids a gate found red on the base too, beside `quarantined_failures`; a suite whose only failures are inherited passes and records them
 
 - Paths: `src/torve/domain/attempt.py` `src/torve/gates/contract.py` `src/torve/gates/runner.py` `tests/test_attempt_record.py` `tests/test_gates.py`
 - Consequence: the record holds every inherited red by name, so a red base is visible in `gates.evaluated` and `torve why` without convicting anyone
 
-### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict)
 
 Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery, carrying the leg, base, head, exit code, duration and the results as `gates.evaluated` records them; the caller of `process_lane` writes each one from what `on_judged` handed it (D-12), in a `finally`, so a pass that raises after a battery keeps it, and no projection reads it for a state transition
 

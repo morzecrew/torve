@@ -2334,14 +2334,14 @@ Between nights, with nothing in flight, the chain fetches and, when the checkout
 - Paths: `src/torve/cli/manager.py` `src/torve/application/planner.py`
 - Consequence: a document accepted on the base is minted and served by the next night without a command, a document accepted only on another branch is never planned, and a document that already minted a task is planned again only by a person's `plan --refresh`
 
-### S-0118/D-6 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-6 — `ASSUMED` (A gate run is spent only where it can convict)
 
 The lane's batteries, the re-gate after a rebase and the completion battery, run only the gates whose state is `blocking` and the decision gates; the whole-document battery also runs the gates whose readings S-0115/D-5 joins into the pull request's table, `evidence` and `mutation`, whatever their state
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: a shadow gate no longer runs on a rebased tip or a document tip, and a re-gate costs what its verdict reads
 
-### S-0118/D-7 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-7 — `ASSUMED` (A gate run is spent only where it can convict)
 
 A rebased candidate whose only failing tests also fail on the base it was rebased onto lands, and the inherited failures ride its lane record
 
@@ -2349,21 +2349,21 @@ A rebased candidate whose only failing tests also fail on the base it was rebase
 - Consequence: a red one phase left on a document branch no longer convicts the next phase that needs a rebase; the document meets it at its completion battery (S-0093/D-1), where it becomes a round
 - Check: `uv run pytest tests/test_lane.py -k inherited` (shadow; runs as `decision:S-0118/D-7`, no log entry owed)
 
-### S-0118/D-8 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-8 — `ASSUMED` (A gate run is spent only where it can convict)
 
 A lane escalation's detail names its failing gates first and counts the passing ones
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: the record's 300-character clip of an escalation's detail reaches the failing gates first, and cuts one only when the failing names alone pass 300 characters; the full results are in the battery's `lane.judged` (D-9)
 
-### S-0118/D-10 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-10 — `ASSUMED` (A gate run is spent only where it can convict)
 
 `torve why` renders each `lane.judged` event with its failing gates' output, and every gate result's `inherited_failures`
 
 - Paths: `src/torve/application/projections.py` `tests/test_why_record.py`
 - Consequence: an escalation the lane raised is read from `torve why` with the failing test named, with no reproduction on the host
 
-### S-0118/D-12 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-12 — `ASSUMED` (A gate run is spent only where it can convict)
 
 `process_lane` takes an `on_judged` callback and calls it with each battery's judgment, its leg, base, head, exit code, duration and results, as `_regate` returns, before the lane does anything else with the battery
 
