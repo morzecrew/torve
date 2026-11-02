@@ -695,6 +695,24 @@ def test_minting_into_the_record_writes_no_file_and_numbers_from_the_board(plan_
     run(scenario)
 
 
+def test_unplanned_documents_are_accepted_unimplemented_and_unminted(plan_repo):
+    """S-0117/D-5: the chain's sweep offers exactly the documents nobody has
+    planned — a draft has no settled decisions, an implemented document landed
+    already, and a planned one is a person's to refresh."""
+
+    from torve.application.planner import unplanned_documents
+
+    root, write_doc, _git = plan_repo
+    spec_dir = root / ".torve" / "specs"
+
+    write_contracts(root, plan_document(root, spec_dir, "0090"))  # already planned
+    write_doc("0091", "Sketch", status="draft")
+    write_doc("0092", "Next")
+    write_doc("0093", "Landed", implementation="complete")
+
+    assert [doc.id for doc in unplanned_documents(root)] == ["S-0092"]
+
+
 def test_the_contract_is_projected_into_a_worktree_that_lacks_it(tmp_path):
     from torve.application.planner import project_contract
     from torve.domain.task import Task

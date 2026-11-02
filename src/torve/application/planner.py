@@ -984,6 +984,32 @@ def minted_contracts(root: Path, document: str, board: Board | None = None) -> d
 # ....................... #
 
 
+def unplanned_documents(root: Path, board: Board | None = None) -> list[Document]:
+    """The corpus documents nobody has planned, in number order: accepted,
+    not implemented, and with no task minted from them (S-0117/D-5).
+
+    Archived documents are not on the corpus path and are never offered;
+    an implemented one landed already, and a minted one is a person's to
+    refresh (S-0088). What is left is exactly what the chain's between-night
+    sweep may mint into the record."""
+
+    from torve.config.runconfig import load_runner_config
+
+    rfc_dir = root / load_runner_config(root, None).specs.path
+
+    return [
+        doc
+        for doc in sorted(load_corpus(rfc_dir).documents, key=lambda one: number_of(one.id))
+        if not doc.archived
+        and doc.status == "accepted"
+        and doc.implementation == "none"
+        and not minted_contracts(root, doc.id, board)
+    ]
+
+
+# ....................... #
+
+
 def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
     """Task id -> why a refresh leaves it alone, for everything a landing
     proves (S-0088/D-2): a landing file under the document's `execution/` or the

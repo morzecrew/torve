@@ -9,6 +9,8 @@ partitions independent — asserted against the new source of state.
 from __future__ import annotations
 
 import asyncio
+import json
+import subprocess
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -1634,6 +1636,291 @@ def test_chain_without_night_is_refused(tmp_path):
 
     assert result.exit_code == EXIT_CONFIG, result.output
     assert "--chain needs --night" in result.output
+
+
+# ....................... #
+# The between-night sweep (S-0117/D-5, D-6, D-7): the chain brings the
+# checkout to the remote's base and plans what nobody planned yet.
+
+
+def _planning_repo(tmp_path):
+    """A checkout on `main` with a bare `origin` it has pushed to, so the
+    sweep's fetch and fast-forward are real."""
+
+    from torve.gates.sabotage import Repo
+
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    root = tmp_path / "repo"
+    root.mkdir()
+    repo = Repo(root)
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "Chain Human")
+    repo.git("config", "user.email", "chain@example.invalid")
+    repo.git("remote", "add", "origin", str(origin))
+    repo.write(".torve/.gitignore", "telemetry.jsonl\n")
+    repo.write(".torve/config.yaml", "schema_version: 1\n")
+    repo.write("src/app.py", "print('hello')\n")
+
+    return repo
+
+
+def _chain_document(spec_dir, number, title, **kwargs):
+    from test_decisions import document, place
+
+    rows = kwargs.pop("rows", [(f"S-{number}/D-1", "ASSUMED", "A rule", f"`src/{number}/**`")])
+    kwargs.setdefault("implementation", "none")
+    kwargs.setdefault(
+        "phasing",
+        [{"phase": 1, "title": "work", "intent": "Do it.", "scope": [f"src/{number}/**"]}],
+    )
+
+    place(spec_dir, number, document(number, rows, title=title, **kwargs))
+
+
+def _publish(repo) -> None:
+    repo.git("add", "-A")
+    repo.git("commit", "-q", "--no-gpg-sign", "-m", "corpus")
+    repo.git("push", "-q", "-u", "origin", "main")
+
+
+def _after(root, number, *ids) -> None:
+    path = root / ".torve" / "specs" / f"S-{number}" / "phasing.yaml"
+    head, _, rest = path.read_text(encoding="utf-8").partition("\n")
+    path.write_text(f"{head}\nafter: {list(ids)}\n{rest}", encoding="utf-8")
+
+
+def _between_night_spies(
+    monkeypatch, *, stop_on=("halt",), close_reason="escalation:halt", opened=None
+):
+    from types import SimpleNamespace
+
+    from torve.application import residency
+
+    async def fake_open(log, partition, *, config, actor_id, budget_usd=None, budget_attempts=None):
+        if opened is not None:
+            from torve.application.manager import project
+
+            opened["board"] = project(await log.since(partition=partition))
+
+        return SimpleNamespace(stop_on=stop_on)
+
+    async def fake_serve(*args, **kwargs):
+        return 1
+
+    async def fake_reached(*args, **kwargs):
+        return None
+
+    async def fake_close(*args, **kwargs):
+        return close_reason
+
+    async def fake_remainder(*args, **kwargs):
+        return (10.0, 5)
+
+    monkeypatch.setattr(residency, "open_night", fake_open)
+    monkeypatch.setattr(residency, "serve", fake_serve)
+    monkeypatch.setattr(residency, "reached", fake_reached)
+    monkeypatch.setattr(residency, "close_night", fake_close)
+    monkeypatch.setattr(residency, "day_remainder", fake_remainder)
+
+
+def test_a_chain_mints_an_accepted_document_and_serves_it_the_next_night(tmp_path, monkeypatch):
+    """S-0117/D-5: the sweep runs before the open, so a document accepted on
+    the base is on the board the night that follows it works."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: RunnerConfig())
+
+    opened: dict = {}
+    _between_night_spies(monkeypatch, opened=opened)
+
+    handled, reason = _chain_serve(repo.root)
+
+    assert (handled, reason) == (1, "escalation:halt")
+    assert opened["board"].tasks["T-0001"].contract.spec == "S-0100"
+    # The record holds the task; the sweep writes no file.
+    assert not (repo.root / ".torve" / "tasks").exists()
+
+
+@pytest.mark.parametrize("state", ["dirty", "off_branch"])
+def test_the_sweep_leaves_a_dirty_or_off_branch_checkout_alone(tmp_path, state):
+    """S-0117/D-5: planning reads the base branch at the remote's tip and
+    nowhere else, so a checkout somebody is editing or has checked out onto
+    another branch is left untouched and mints nothing."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+
+    if state == "dirty":
+        repo.write("src/app.py", "print('edited')\n")
+    else:
+        repo.git("checkout", "-q", "-b", "side")
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+        assert project(await log.since(partition=PARTITION)).tasks == {}
+
+    run(scenario)
+
+
+def test_the_sweep_mints_a_document_whose_after_target_has_a_higher_number(tmp_path):
+    """S-0117/D-5: a refusal is retried after each mint that succeeds, so a
+    document waiting on a later-numbered one is minted in the same sweep."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    specs = repo.root / ".torve" / "specs"
+    _chain_document(specs, "0100", "Dependent")
+    _after(repo.root, "0100", "S-0101")
+    _chain_document(specs, "0101", "Target")
+    _publish(repo)
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+        board = project(await log.since(partition=PARTITION))
+
+        assert sorted(board.tasks) == ["T-0001", "T-0002"]
+        assert board.tasks["T-0002"].contract.depends_on == ["T-0001"]
+
+    run(scenario)
+
+
+def test_the_sweep_records_a_refusal_once_per_base_commit(tmp_path):
+    """S-0117/D-7: a document the sweep cannot plan is named on the engine
+    stream once for the base it was refused on, not once per idle pass."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Prosey", phasing=None)
+    _publish(repo)
+
+    async def scenario(log):
+        for _ in range(2):
+            await manager_cli._sync_and_plan(
+                repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+            )
+
+    run(scenario)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    refused = [row for row in rows if row.get("event") == "plan_refused"]
+
+    assert len(refused) == 1
+    assert refused[0]["document"] == "S-0100"
+    assert refused[0]["base"]
+
+
+def test_a_refusal_is_recorded_when_another_document_minted_in_the_sweep(tmp_path):
+    """S-0117/D-5: a document still refused when a pass mints nothing is
+    recorded, whatever an earlier pass of the same sweep minted."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    specs = repo.root / ".torve" / "specs"
+    _chain_document(specs, "0100", "Prosey", phasing=None)
+    _chain_document(specs, "0101", "Plannable")
+    _publish(repo)
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+        assert sorted(project(await log.since(partition=PARTITION)).tasks) == ["T-0001"]
+
+    run(scenario)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+
+    assert [row["document"] for row in rows if row.get("event") == "plan_refused"] == ["S-0100"]
+
+
+@pytest.mark.parametrize(
+    ("where", "expected"),
+    [("under", True), ("outside", False), (None, False)],
+)
+def test_the_engine_is_under_the_root_only_when_torve_lives_there(
+    tmp_path, monkeypatch, where, expected
+):
+    """S-0117/D-6: the check resolves where `torve` is loaded from against the
+    checkout, so an engine installed elsewhere, or one with no file at all, is
+    not mistaken for the checkout's own."""
+
+    import torve
+    from torve.cli import manager as manager_cli
+
+    root = tmp_path / "root"
+    root.mkdir()
+
+    if where == "under":
+        monkeypatch.setattr(torve, "__file__", str(root / "src" / "torve" / "__init__.py"))
+    elif where == "outside":
+        monkeypatch.setattr(
+            torve, "__file__", str(tmp_path / "elsewhere" / "torve" / "__init__.py")
+        )
+    else:
+        monkeypatch.delattr(torve, "__file__")
+
+    assert manager_cli._engine_imports_under(root) is expected
+
+
+def test_a_chain_whose_engine_imports_from_the_root_plans_nothing(tmp_path, monkeypatch, capsys):
+    """S-0117/D-6: a chain running the checkout's own engine never
+    fast-forwards or plans from it, and says so once at the start."""
+
+    import torve
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: RunnerConfig())
+    monkeypatch.setattr(torve, "__file__", str(repo.root / "src" / "torve" / "__init__.py"))
+
+    calls: list[bool] = []
+
+    async def fake_sync(*args, **kwargs):
+        calls.append(True)
+
+    monkeypatch.setattr(manager_cli, "_sync_and_plan", fake_sync)
+    _between_night_spies(monkeypatch)
+
+    _chain_serve(repo.root)
+
+    assert calls == []
+    assert "engine imports" in capsys.readouterr().out
 
 
 # ....................... #

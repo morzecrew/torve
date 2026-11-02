@@ -49,12 +49,14 @@ if TYPE_CHECKING:
     from forze.application.execution import ExecutionRuntime
 
     from torve.adapters.vcs.git import GhScm
+    from torve.application.eventlog import EventLog
     from torve.application.lane import LaneJudgment
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
     from torve.application.runstate import Escalation
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord, HoldoutFile
+    from torve.domain.spec import Document
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -639,6 +641,185 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
     return on_base
 
 
+# ....................... #
+
+
+def _engine_imports_under(root: Path) -> bool:
+    """Whether the running engine is the checkout at *root* (S-0117/D-6).
+    Fast-forwarding and planning from it would move the code this process
+    is executing, so the chain leaves it alone."""
+
+    import torve
+
+    location = getattr(torve, "__file__", None)
+
+    if not location:
+        return False
+
+    try:
+        Path(location).resolve().relative_to(root.resolve())
+
+    except ValueError:
+        return False
+
+    return True
+
+
+# ....................... #
+
+
+def _refusal_recorded(root: Path, *, base: str, document: str) -> bool:
+    """Whether *base* already carries a recorded refusal for *document*.
+    Refusals are once per base commit, so a base that has not moved is not
+    asked to say the same thing on every idle pass (S-0117/D-7)."""
+
+    import json
+
+    from torve.config import layout
+    from torve.config.manifest import Manifest, load_manifest
+
+    manifest_path = layout.gates_file(root)
+    telemetry = (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
+    path = root / telemetry
+
+    if not path.is_file():
+        return False
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+
+        except ValueError:
+            continue
+
+        if (
+            row.get("kind") == "engine"
+            and row.get("event") == "plan_refused"
+            and row.get("base") == base
+            and row.get("document") == document
+        ):
+            return True
+
+    return False
+
+
+# ....................... #
+
+
+async def _sync_and_plan(
+    root: Path,
+    log: EventLog,
+    partition: str,
+    *,
+    config: RunnerConfig,
+    worker: str,
+) -> None:
+    """S-0117/D-5: between nights, bring the checkout to the remote's base and
+    mint every accepted, unimplemented document the record has not planned
+    yet, into the record and no file.
+
+    Nothing happens while a task is in flight, on a checkout that is not the
+    base branch, or one with a dirty tree. Planning happens only at the
+    remote's tip after the fast-forward, so a document accepted on another
+    branch is never planned. A refusal is retried after each mint that
+    succeeds — its `after` target can carry a higher number — and one still
+    refused when a pass mints nothing is recorded once per base commit
+    (S-0117/D-5, D-7)."""
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.application.manager import project
+    from torve.application.planner import (
+        PlanError,
+        mint_contracts,
+        plan_document,
+        unplanned_documents,
+    )
+    from torve.application.telemetry import engine_event
+    from torve.gates.context import resolve_base
+
+    board = project(await log.since(partition=partition))
+
+    if board.in_flight():
+        return
+
+    lane = GitLane()
+
+    try:
+        lane.fetch(root)
+
+    except RuntimeError:
+        # No remote to fetch: a checkout nothing can move is one the chain
+        # plans nothing from, not a chain that dies at the first pass.
+        return
+
+    base_ref = resolve_base(root, config.base)
+
+    if base_ref is None:
+        return
+
+    branch = base_ref.removeprefix("origin/")
+    remote = lane.remote_tip(root, branch)
+
+    if remote is None:
+        return
+
+    if lane.current_branch(root) != branch or lane.dirty_paths(root):
+        return
+
+    if lane.tip(root, "HEAD") != remote:
+        try:
+            lane.merge_ff(root, f"origin/{branch}")
+
+        except RuntimeError:
+            return
+
+    if lane.tip(root, "HEAD") != remote:
+        return
+
+    rfc_dir = root / config.specs.path
+    listing = unplanned_documents(root, board)
+    refusals: dict[str, str] = {}
+
+    while listing:
+        remaining: list[Document] = []
+        progressed = False
+
+        for doc in listing:
+            try:
+                report = plan_document(root, rfc_dir, doc.id, board=board)
+
+            except PlanError as exc:
+                refusals[doc.id] = str(exc)
+                remaining.append(doc)
+                continue
+
+            refusals.pop(doc.id, None)
+            await mint_contracts(log, report, partition=partition, actor_id=worker)
+            progressed = True
+            board = project(await log.since(partition=partition))
+
+        if not progressed:
+            break
+
+        listing = remaining
+
+    # The loop ends on a pass that minted nothing, and `refusals` holds only
+    # what that pass still refused: each is recorded, whatever an earlier
+    # pass of the sweep minted (S-0117/D-5).
+    for document, refusal in sorted(refusals.items()):
+        if _refusal_recorded(root, base=remote, document=document):
+            continue
+
+        engine_event(root, "plan_refused", {"document": document, "error": refusal, "base": remote})
+
+
+# ....................... #
+
+
 async def _serve(
     dsn: str | None,
     partition: str,
@@ -1030,9 +1211,22 @@ async def _serve(
         # S-0117/D-3: nights back to back in one process. Each opens with the
         # day's remainder (S-0117/D-4), and one closed on a class the terms
         # name ends the chain rather than opening the next.
+        planning = not _engine_imports_under(root)
+
+        if not planning:
+            # S-0117/D-6: moving this checkout would move the code the process
+            # is running, so the chain neither fast-forwards nor plans from it.
+            out().print(
+                "the engine imports from this checkout — the chain leaves it "
+                "alone and plans nothing between nights"
+            )
+
         handled = 0
 
         while True:
+            if planning:
+                await _sync_and_plan(root, log, partition, config=config, worker=worker)
+
             remainder = await day_remainder(log, partition, config.night)
 
             if not day_has_room(config.night, remainder):
