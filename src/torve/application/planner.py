@@ -994,8 +994,10 @@ def minted_documents(root: Path, board: Board | None = None) -> set[str]:
 
     found: set[str] = set()
 
+    # A draft or a review names its document too, but plans none of it: only
+    # a dispatchable role's contract means the document was minted.
     for view in board.tasks.values() if board is not None else []:
-        if view.contract is not None:
+        if view.contract is not None and view.contract.role in DISPATCHABLE_ROLES:
             found.add(document_of(view.contract.spec or ""))
 
     for path in sorted((root / layout.TORVE_DIR / "tasks").glob("T-*/contract.yaml")):
@@ -1005,7 +1007,8 @@ def minted_documents(root: Path, board: Board | None = None) -> set[str]:
         except ValueError:
             continue
 
-        found.add(document_of(task.spec or ""))
+        if task.role in DISPATCHABLE_ROLES:
+            found.add(document_of(task.spec or ""))
 
     return found
 

@@ -1730,9 +1730,10 @@ def test_chain_with_a_task_is_refused(tmp_path):
     assert "takes no --task" in result.output
 
 
-def test_a_corpus_that_does_not_load_stops_the_sweep_not_the_chain(tmp_path):
-    """S-0117/D-5, D-7: a document on the base that does not load refuses this
-    sweep, recorded once for the base, and the chain goes on to its night."""
+def test_a_corpus_that_does_not_load_refuses_the_sweep_once(tmp_path):
+    """S-0117/D-5, D-7: a document on the base that does not load refuses the
+    sweep without raising, recorded once for the base however many sweeps
+    read it."""
 
     from torve.cli import manager as manager_cli
     from torve.config.runconfig import RunnerConfig

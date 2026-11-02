@@ -713,6 +713,22 @@ def test_unplanned_documents_are_accepted_unimplemented_and_unminted(plan_repo):
     assert [doc.id for doc in unplanned_documents(root)] == ["S-0092"]
 
 
+def test_a_draft_or_review_contract_does_not_count_as_minted(plan_repo):
+    """S-0117/D-5: an intake draft or a review names its document but plans none
+    of it, so the document stays unplanned until a dispatchable contract is
+    minted from it."""
+
+    from torve.application.planner import minted_documents
+    from torve.domain.task import Task
+
+    root, write_doc, _git = plan_repo
+    write_doc("0092", "Next")
+    review = Task(id="T-0901", spec="S-0092", role="review", targets=["T-0900"], decisions=[])
+    write_contract(root, review, "a review of it")
+
+    assert "S-0092" not in minted_documents(root)
+
+
 def test_the_contract_is_projected_into_a_worktree_that_lacks_it(tmp_path):
     from torve.application.planner import project_contract
     from torve.domain.task import Task

@@ -442,7 +442,9 @@ def test_a_fetch_that_stalls_is_a_failure_not_a_wait(vcs_repo, monkeypatch):
     import torve.adapters.vcs.git as git_module
 
     def stalled(args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd=args, timeout=kwargs.get("timeout") or 0)
+        # The bound must reach the call: without one, a stall never returns.
+        assert kwargs.get("timeout") == git_module.FETCH_TIMEOUT
+        raise subprocess.TimeoutExpired(cmd=args, timeout=kwargs["timeout"])
 
     monkeypatch.setattr(git_module.subprocess, "run", stalled)
 

@@ -699,6 +699,9 @@ def _refusal_recorded(root: Path, *, base: str, document: str) -> bool:
         except ValueError:
             continue
 
+        if not isinstance(row, dict):
+            continue
+
         if (
             row.get("kind") == "engine"
             and row.get("event") == "plan_refused"
@@ -742,7 +745,7 @@ async def _sync_and_plan(
         unplanned_documents,
     )
     from torve.application.telemetry import engine_event
-    from torve.gates.context import resolve_base
+    from torve.gates.context import GitError, resolve_base
 
     board = project(await log.since(partition=partition))
 
@@ -759,12 +762,22 @@ async def _sync_and_plan(
         # plans nothing from, not a chain that dies at the first pass.
         return
 
-    base_ref = resolve_base(root, config.base)
+    try:
+        base_ref = resolve_base(root, config.base)
+
+    except GitError:
+        # A configured base the fetch just pruned waits for the next pass; it
+        # does not end the chain.
+        return
 
     if base_ref is None:
         return
 
-    branch = base_ref.removeprefix("origin/")
+    branch = (
+        base_ref.removeprefix("refs/remotes/origin/")
+        .removeprefix("refs/heads/")
+        .removeprefix("origin/")
+    )
     remote = lane.remote_tip(root, branch)
 
     if remote is None:
