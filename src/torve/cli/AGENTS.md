@@ -867,7 +867,7 @@ How the chain reports what it did between nights: the event names and payloads f
 - Paths: `src/torve/cli/manager.py`
 - Consequence: whatever the implementation picks, an operator reading the record can tell why an accepted document was not planned
 
-### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict) — implementation: none
+### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict)
 
 Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery, carrying the leg, base, head, exit code, duration and the results as `gates.evaluated` records them; the caller of `process_lane` writes each one from what `on_judged` handed it (D-12), in a `finally`, so a pass that raises after a battery keeps it, and no projection reads it for a state transition
 

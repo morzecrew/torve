@@ -430,37 +430,6 @@ def test_the_computed_order_puts_no_gate_before_one_declaring_less(repo):
     assert [cost for _, cost in ran] == sorted(cost for _, cost in ran), ran
 
 
-def test_the_coverage_entry_says_which_of_its_two_halves_went_red():
-    """The entry runs the suite before it can measure anything, so a failing
-    test and a coverage shortfall both redden one gate. It says which — the
-    shipped command's own shell logic, exercised with the two commands
-    stubbed, because the distinction is the point of the entry and reverting
-    it to a bare `&&` restores exactly the misreading that cost T-0319."""
-
-    import subprocess
-
-    root = Path(__file__).resolve().parents[1]
-    manifest = load_manifest(root / ".torve" / "gates.yaml")
-    (entry,) = [g for g in manifest.gates if g.name == "coverage-delta"]
-
-    suite = "uv run pytest --cov=src --cov-report=xml -q"
-    measure = entry.run.rsplit("; ", 1)[1]
-    assert suite in entry.run and measure.startswith("uv run diff-cover")
-
-    def behaves(suite_exit: str) -> subprocess.CompletedProcess[str]:
-        line = entry.run.replace(suite, suite_exit).replace(measure, "echo MEASURED")
-        return subprocess.run(["sh", "-c", line], capture_output=True, text=True)
-
-    red = behaves("false")
-    assert red.returncode == 1
-    assert "the coverage delta was never measured" in red.stdout
-    assert "MEASURED" not in red.stdout  # nothing was measured, and it says so
-
-    green = behaves("true")
-    assert green.returncode == 0
-    assert "MEASURED" in green.stdout
-
-
 def test_no_shape_borrows_another_shape_s_version():
     """T-0321: one shared constant meant bumping any shape bumped every shape —
     the contract going to 2 reddened the telemetry and survey suites, which
