@@ -24,6 +24,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,9 +38,11 @@ from torve.gates.contract import BuiltinOutcome
 
 # ----------------------- #
 
-#: Where the base tree is extracted, relative to the checkout the battery
-#: runs over — inside the workspace, so the gate sandbox can see it. The host
-#: extracts; the reading runs in the sandbox, never on the host (S-0118/D-11).
+#: The prefix of the directory one run extracts the base tree into, under the
+#: checkout's `.torve/tmp` — inside the workspace, so the gate sandbox can see
+#: it. The host extracts; the reading runs in the sandbox, never on the host
+#: (S-0118/D-11). Each run makes its own, so two batteries on one checkout
+#: never read each other's base.
 BASE_NAME = "suite-base"
 
 #: pytest's short summary, one line per failure or collection error:
@@ -66,6 +69,16 @@ def failing_ids(output: str) -> list[str]:
             seen[node] = None
 
     return list(seen)
+
+
+def collection_errors(output: str) -> list[str]:
+    """The files pytest's short summary names with no test id: a module that
+    did not collect. Nothing reads them on the base, so each keeps the suite
+    red (S-0118/D-2), however the named failures beside it settle."""
+
+    return list(
+        dict.fromkeys(m.group(1) for m in _SUMMARY.finditer(output) if "::" not in m.group(1))
+    )
 
 
 # ....................... #
@@ -151,37 +164,54 @@ def _with_base(command: str, ctx: GateContext) -> str | None:
 # ....................... #
 
 
-def _base_dir(root: Path) -> Path:
-    return root / layout.TORVE_DIR / "tmp" / BASE_NAME
+def _extract_base(ctx: GateContext, timeout: float) -> tuple[Path | None, str | None]:
+    """Extract the merge base tree into a fresh directory in the checkout, on
+    the host: the gate sandbox runs no git (S-0113/D-2), and a bind mount shows
+    the sandbox what the host writes into the workspace before it starts.
+    Returns (directory, None), or (None, why) when the tree could not be built
+    (S-0118/D-11).
 
-
-def _extract_base(ctx: GateContext) -> str | None:
-    """Extract the merge base tree into the checkout, on the host: the gate
-    sandbox runs no git (S-0113/D-2), and a bind mount shows the sandbox what
-    the host writes into the workspace before it starts. Returns a note when
-    the tree could not be built (S-0118/D-11)."""
+    The checkout is the candidate's, so its `.torve/tmp` is refused unless it
+    resolves where it is written: a symlink the candidate planted there would
+    send the host's extraction outside the workspace. The archive is bounded
+    by the gate's own timeout, so a slow one cannot outlast the battery."""
 
     if ctx.merge_base is None:
-        return "no merge base is resolvable"
+        return None, "no merge base is resolvable"
 
-    destination = _base_dir(ctx.root)
-    shutil.rmtree(destination, ignore_errors=True)
-    destination.mkdir(parents=True, exist_ok=True)
+    root = ctx.root.resolve()
+    parent = root / layout.TORVE_DIR / "tmp"
 
-    archive = subprocess.run(
-        f"git -C {shlex.quote(str(ctx.root))} archive {shlex.quote(ctx.merge_base)} "
-        f"| tar -x -C {shlex.quote(str(destination))}",
-        shell=True,  # nosec B602 — the sha comes from git, the paths are quoted
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    if any(path.is_symlink() for path in (parent.parent, parent)):
+        return None, f"{parent.relative_to(root)} is a symlink in the checkout"
+
+    parent.mkdir(parents=True, exist_ok=True)
+
+    if parent.resolve() != parent:
+        return None, f"{parent.relative_to(root)} resolves outside the checkout"
+
+    destination = Path(tempfile.mkdtemp(prefix=f"{BASE_NAME}-", dir=parent))
+
+    try:
+        archive = subprocess.run(
+            f"git -C {shlex.quote(str(ctx.root))} archive {shlex.quote(ctx.merge_base)} "
+            f"| tar -x -C {shlex.quote(str(destination))}",
+            shell=True,  # nosec B602 — the sha comes from git, the paths are quoted
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+
+    except subprocess.TimeoutExpired:
+        shutil.rmtree(destination, ignore_errors=True)
+        return None, f"the base tree was not extracted within {timeout:.0f}s"
 
     if archive.returncode != 0:
         shutil.rmtree(destination, ignore_errors=True)
-        return f"the base tree could not be extracted: {archive.stderr.strip()}"
+        return None, f"the base tree could not be extracted: {archive.stderr.strip()}"
 
-    return None
+    return destination, None
 
 
 # ....................... #
@@ -190,12 +220,13 @@ def _extract_base(ctx: GateContext) -> str | None:
 def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     commands = gate.commands
 
-    if not commands:
-        return BuiltinOutcome("skipped", "no suite command configured")
+    if not commands or not commands[0].strip():
+        # A skip would read as a pass to the battery: no suite ran, so nothing
+        # can clear the gate (S-0118/D-2).
+        return BuiltinOutcome("fail", "the suite gate names no command, so no test ran")
 
     timeout = gate.timeout or 600.0
-    base_note = _extract_base(ctx)
-    base_dir = _base_dir(ctx.root)
+    base_dir: Path | None = None
 
     try:
         suite_command = _with_base(commands[0], ctx)
@@ -229,11 +260,20 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             return BuiltinOutcome("pass", output, exit_code=0)
 
         head_ids = failing_ids(head.output)
+        uncollected = collection_errors(head.output)
 
         if not head_ids:
             return BuiltinOutcome(
                 "fail",
                 f"{output}\n\nthe suite is red and names no failing test: nothing can clear it",
+                exit_code=head.exit_code,
+            )
+
+        if uncollected:
+            return BuiltinOutcome(
+                "fail",
+                f"{output}\n\n{len(uncollected)} file(s) did not collect, and nothing can "
+                f"clear that: {', '.join(uncollected)}",
                 exit_code=head.exit_code,
             )
 
@@ -245,7 +285,7 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         rerun = run_command(
             rerun_command, ctx.root, timeout, retry_flaky=False, execute=ctx.execute
         )
-        rerun_reading = _reading(rerun.exit_code, rerun.output)
+        rerun_reading = _reading(rerun.exit_code, rerun.output, rerun=True)
         output += f"\n\n$ {rerun_command}  [head rerun, exit {rerun.exit_code}]\n{rerun.output}"
 
         # A base reading first with no base says which ids are still red; it
@@ -255,7 +295,11 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         base_reading: set[str] | None = None
 
         if still_red:
-            if base_note is None:
+            # The base is extracted only now: a green suite, or a red the
+            # rerun cleared, never pays for archiving the whole tree.
+            base_dir, base_note = _extract_base(ctx, timeout)
+
+            if base_dir is not None:
                 # A file the base tree lacks has no reading and its ids
                 # convict (D-2). Running it would make pytest refuse the whole
                 # command, so only the files the base holds are run — the
@@ -266,7 +310,7 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
 
                 if present:
                     base_command = (
-                        f"cd {shlex.quote(str(base_dir.relative_to(ctx.root)))} && "
+                        f"cd {shlex.quote(str(base_dir.relative_to(ctx.root.resolve())))} && "
                         f"{_run_files(ctx, _files_of(present))}"
                     )
                     base = run_command(
@@ -316,24 +360,28 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         )
 
     finally:
-        shutil.rmtree(base_dir, ignore_errors=True)
+        if base_dir is not None:
+            shutil.rmtree(base_dir, ignore_errors=True)
 
 
-def _reading(exit_code: int | None, output: str) -> set[str] | None:
+def _reading(exit_code: int | None, output: str, *, rerun: bool = False) -> set[str] | None:
     """One rerun's reading: green is an empty set, a red names its failing
     ids, and a run that produced neither (timeout, collection error) has no
     reading at all — None, so nothing is cleared.
 
-    A run that names one failure and cannot collect another file has no
-    reading either: the ids it did not name are unread, not green, and
-    clearing them would call a conviction flaky (S-0118/D-2)."""
+    A head rerun that names one failure and cannot collect another file has
+    no reading either: the ids it did not name are unread, not green, and
+    clearing them would call a conviction flaky (S-0118/D-2). A base run's
+    named reds still read: an id it did not name is absent from its reading
+    and convicts by default, so dropping the named ones would only convict the
+    inherited."""
 
     if exit_code == 0:
         return set()
 
     # A collection error names a file and no `::`: the ids in that file were
     # never read, so the run cannot say they passed.
-    if any("::" not in match.group(1) for match in _SUMMARY.finditer(output)):
+    if rerun and collection_errors(output):
         return None
 
     ids = failing_ids(output)

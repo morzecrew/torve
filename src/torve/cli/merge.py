@@ -24,6 +24,7 @@ from torve.cli.console import (
     Format,
     closing,
     emit_json,
+    err,
     fail,
     header,
     make_table,
@@ -842,6 +843,8 @@ def merge_cmd(
         if subject:
             collected.append((subject, judgment))
 
+    passed = False
+
     try:
         results = process_lane(
             root,
@@ -885,6 +888,7 @@ def merge_cmd(
             # this caller writes what it collected once the pass ends.
             on_judged=observe,
         )
+        passed = True
 
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
@@ -897,6 +901,10 @@ def merge_cmd(
             record_judged(root, config, collected)
         except Exception as exc:  # reported, then an infrastructure exit
             write_error = exc
+
+            # The pass raised, so nothing below runs to report this one.
+            if not passed:
+                err().print(f"the lane's batteries could not be recorded: {exc}")
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "dry_run": dry_run, "results": [vars(r) for r in results]})

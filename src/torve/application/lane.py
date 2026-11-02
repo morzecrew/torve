@@ -73,6 +73,10 @@ DOCUMENT_BRANCH = re.compile(r"^torve/(S-\d+)$")
 #: where no port method fits (the ports are not its to widen).
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
 
+#: The builtins whose readings S-0115/D-5 joins into a document pull request's
+#: table: the whole-document battery runs them whatever their state.
+JOINED_BUILTINS = frozenset({"evidence", "mutation"})
+
 
 # `pull_request` mode's landing act (S-0080/D-3), injected because the push and
 # the forge call are adapters: (task, branch) -> what the forge answered, a
@@ -424,7 +428,16 @@ def _regate(
     manifest_path = layout.gates_file(workdir)
 
     if not manifest_path.is_file():
-        return _Regate(1, "no gate manifest in the rebased tree", [])
+        # Red with no gate run is still a battery the lane judged (S-0118/D-9).
+        head = subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(workdir), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        _hand_judged(base_ref or "", head, 1, 0.0, [])
+
+        return _Regate(1, "no gate manifest in the rebased tree", [], base_ref or "", head)
 
     from torve.config.manifest import load_manifest
 
@@ -478,11 +491,15 @@ def _regate(
         # verdict — the blocking ones — and the decision gates, whose verdicts
         # `decisions-reported` reads. A shadow or quarantined manifest gate,
         # and a standing invariant, cannot move a lane verdict, and the
-        # attempt already measured the same change.
+        # attempt already measured the same change. The whole-document
+        # battery also runs the gates S-0115/D-5 joins into the pull request's
+        # table, whatever their state (S-0118/A-1).
         selected = {
             gate.name
             for gate in battery(ctx)
-            if gate.state == "blocking" or gate.name.startswith(DECISION_PREFIX)
+            if gate.state == "blocking"
+            or gate.name.startswith(DECISION_PREFIX)
+            or (task_id is None and gate.builtin in JOINED_BUILTINS)
         }
 
         started = time.monotonic()

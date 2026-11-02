@@ -487,7 +487,7 @@ The `suite` entry's later `commands` are reports: they run right after the suite
 
 ### S-0118/D-6 — `ASSUMED` (A gate run is spent only where it can convict) — implementation: none
 
-The lane's batteries, the re-gate after a rebase and the completion battery, run only the gates whose state is `blocking` and the decision gates
+The lane's batteries, the re-gate after a rebase and the completion battery, run only the gates whose state is `blocking` and the decision gates; the whole-document battery also runs the gates whose readings S-0115/D-5 joins into the pull request's table, `evidence` and `mutation`, whatever their state
 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: a shadow gate no longer runs on a rebased tip or a document tip, and a re-gate costs what its verdict reads

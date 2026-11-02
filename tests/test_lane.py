@@ -4455,6 +4455,73 @@ def test_a_rebased_regate_runs_no_shadow_gate(lane_repo, tmp_path):
     assert not hidden.exists()
 
 
+def test_the_whole_document_battery_keeps_the_joined_gates(lane_repo, monkeypatch):
+    """S-0118/A-1: the document's battery also runs the gates S-0115/D-5 joins
+    into the pull request's table, shadow as they are; a task's re-gate still
+    runs only the blocking and decision gates."""
+
+    import torve.application.lane as lane
+    import torve.gates.runner as runner
+
+    gate = {"state": "shadow", "origin": "structural", "timeout": 5}
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    {"name": "runs", "run": "true", **gate, "state": "blocking"},
+                    {"name": "evidence", "run": "@evidence", **gate},
+                    {"name": "mutation", "run": "@mutation", **gate},
+                    {"name": "hidden", "run": "true", **gate},
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a joined gate at shadow")
+
+    class Stop(Exception):
+        pass
+
+    selected: list[set[str]] = []
+
+    def run_gates(_ctx, only=None, progress=None):
+        selected.append(set(only or ()))
+        raise Stop
+
+    monkeypatch.setattr(runner, "run_gates", run_gates)
+
+    for task_id in (None, "T-7062"):
+        with pytest.raises(Stop):
+            lane._regate(lane_repo, "main", task_id)
+
+    assert selected == [{"runs", "evidence", "mutation"}, {"runs"}]
+
+
+def test_a_rebased_tree_with_no_manifest_is_still_judged(lane_repo):
+    """S-0118/D-9: a battery that fails closed on a missing manifest is a
+    battery the lane judged, and is handed over like any other."""
+
+    import torve.application.lane as lane
+
+    (lane_repo / ".torve" / "gates.yaml").unlink()
+    seen: list = []
+    token = lane._JUDGED.set(seen.append)
+
+    try:
+        outcome = lane._regate(lane_repo, "main", "T-7063")
+
+    finally:
+        lane._JUDGED.reset(token)
+
+    assert outcome.exit_code == 1
+    assert [(judgment.exit_code, judgment.head) for judgment in seen] == [
+        (1, git(lane_repo, "rev-parse", "HEAD").strip())
+    ]
+
+
 def test_a_rebased_candidate_with_only_inherited_failures_lands(lane_repo):
     """S-0118/D-7: a test the base it rebased onto also fails is inherited,
     not the candidate's. The real suite gate runs it at the rebased head and

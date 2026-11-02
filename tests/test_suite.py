@@ -4,6 +4,7 @@ beside it without convicting."""
 
 from __future__ import annotations
 
+import shutil
 from typing import Any
 
 from conftest import context_for
@@ -116,7 +117,7 @@ def test_a_rerun_that_cannot_collect_a_file_has_no_reading():
         "ERROR tests/test_b.py - ImportError: no module\n"
     )
 
-    assert _reading(1, output) is None
+    assert _reading(1, output, rerun=True) is None
     # A run naming only test ids is a reading, so the guard does not clear
     # ordinary reds.
     assert _reading(1, "FAILED tests/test_a.py::test_one - nope\n") == {"tests/test_a.py::test_one"}
@@ -248,9 +249,9 @@ def test_a_red_naming_no_test_convicts(repo):
     assert "names no failing test" in result.output
 
 
-def test_an_entry_with_no_commands_is_skipped(repo):
-    """S-0118/D-1: a suite entry carrying no command has nothing to run, and
-    is reported skipped rather than passing without evidence."""
+def test_an_entry_with_no_commands_fails_closed(repo):
+    """S-0118/D-2: a suite entry carrying no command ran no test, and a skip
+    would read as a pass to the battery, so it fails."""
 
     repo.seed(suite_manifest([]))
     repo.write("src/app.py", "print('changed')\n")
@@ -258,8 +259,21 @@ def test_an_entry_with_no_commands_is_skipped(repo):
 
     result = judged(repo)
 
-    assert result.outcome == "skipped"
-    assert "no suite command configured" in result.output
+    assert result.outcome == "fail"
+    assert "names no command" in result.output
+
+
+def test_a_collection_error_drops_the_head_rerun_and_never_the_base_reading():
+    """S-0118/D-2: a head rerun that cannot collect a file has left ids unread,
+    so it clears nothing. A base run's named reds still read, so an inherited
+    red beside a file the base cannot collect stays inherited."""
+
+    from torve.gates.suite import _reading
+
+    output = "FAILED tests/test_a.py::test_one - boom\nERROR tests/test_b.py - ImportError\n"
+
+    assert _reading(1, output, rerun=True) is None
+    assert _reading(1, output) == {"tests/test_a.py::test_one"}
 
 
 def test_a_red_cleared_by_the_rerun_is_flaky(repo):
@@ -322,3 +336,61 @@ def test_a_report_substitutes_the_battery_base(repo):
     assert result.outcome == "pass"
     assert "{base}" not in result.output
     assert "BASE=" in result.output
+
+
+# ....................... #
+# What the review of the document's pull request found.
+
+
+def test_a_file_that_does_not_collect_convicts_beside_an_inherited_red(repo):
+    """S-0118/D-2: under a command that keeps going past a collection error, the
+    file that did not collect has no reading anywhere, so it convicts even when
+    the named failure beside it is inherited."""
+
+    repo.seed(suite_manifest([f"{VERIFY_MANIFEST_RUN} --continue-on-collection-errors"]))
+    red_base(repo)
+    repo.write("tests/test_broken.py", "def test_broken(:\n    assert True\n")
+    repo.commit("an inherited red and a file that does not collect")
+
+    result = judged(repo)
+
+    assert result.outcome == "fail"
+    assert "tests/test_broken.py" in result.output.rsplit("\n\n", 1)[-1]
+
+
+def test_a_symlinked_tmp_never_receives_the_base_tree(repo, tmp_path):
+    """S-0118/D-11: the host extracts into the candidate's checkout, so a
+    `.torve/tmp` the candidate pointed elsewhere is refused, nothing lands
+    there, and the red with no base reading convicts (D-2)."""
+
+    repo.seed(suite_manifest())
+    repo.write("src/app.py", RED_SOURCE)
+    repo.write("tests/test_app.py", READING_TEST)
+    repo.commit("a regression")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    shutil.rmtree(repo.root / ".torve" / "tmp", ignore_errors=True)
+    (repo.root / ".torve" / "tmp").symlink_to(outside, target_is_directory=True)
+
+    result = judged(repo)
+
+    assert result.outcome == "fail"
+    assert "is a symlink" in result.output
+    assert list(outside.iterdir()) == []
+
+
+def test_a_green_suite_never_extracts_the_base(repo, monkeypatch):
+    """A green suite, like a red the rerun clears, has nothing to attribute,
+    so it never pays for archiving the base tree."""
+
+    import torve.gates.suite as suite
+
+    def extracted(*_args):
+        raise AssertionError("the base was extracted for a green suite")
+
+    monkeypatch.setattr(suite, "_extract_base", extracted)
+    repo.seed(suite_manifest())
+    repo.write("src/other.py", "VALUE = 3\n")
+    repo.commit("a green change")
+
+    assert judged(repo).outcome == "pass"

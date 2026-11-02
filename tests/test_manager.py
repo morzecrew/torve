@@ -3252,6 +3252,38 @@ def test_a_served_lane_keeps_a_battery_a_later_raise_cut_short(tmp_path, monkeyp
     assert [subject for subject, _judgment in seen] == ["T-1"]
 
 
+def test_a_failed_judgment_write_still_writes_the_requeues_and_escalations(tmp_path, monkeypatch):
+    """S-0118/D-9: the judgment write sits beside the requeue and escalation
+    writes in the leg's `finally`, and a raise in one never skips the others."""
+
+    from torve.application import lane as lane_module
+    from torve.cli.manager import _lane_leg
+    from torve.config.runconfig import PromotionConfig, RunnerConfig
+
+    monkeypatch.setattr(lane_module, "process_lane", lambda _root, _vcs, **_kwargs: [])
+    written: list[str] = []
+
+    async def record(_collected) -> None:
+        raise RuntimeError("the judgment write failed")
+
+    async def requeue(_items) -> None:
+        written.append("requeue")
+
+    async def escalate(_items) -> None:
+        written.append("escalate")
+
+    config = RunnerConfig(promotion=PromotionConfig(auto_merge=True))
+    leg = _lane_leg(
+        tmp_path, config, only="T-1", record_judged=record, requeue=requeue, escalate=escalate
+    )
+    assert leg is not None
+
+    with pytest.raises(RuntimeError, match="judgment write"):
+        asyncio.run(leg())
+
+    assert written == ["requeue", "escalate"]
+
+
 def test_torve_merge_records_each_judged_battery_in_the_log(tmp_path, monkeypatch):
     """S-0118/D-9: the operator's `torve merge` records what its `on_judged`
     collected, with the operator as the actor, in a `finally` like the served
@@ -3327,6 +3359,31 @@ def test_torve_merge_renders_the_landing_when_the_record_write_fails(tmp_path, m
     assert result.exit_code == EXIT_INFRASTRUCTURE
     assert "T-1" in result.output
     assert "could not be recorded" in result.output
+
+
+def test_torve_merge_reports_a_record_failure_when_the_pass_raised(tmp_path, monkeypatch):
+    """S-0118/D-9: when the pass itself raises, nothing after the `finally`
+    runs, so the record write's own failure is reported there or not at all."""
+
+    from typer.testing import CliRunner
+
+    from torve.application import lane as lane_module
+    from torve.cli import merge as merge_module
+    from torve.cli.main import app
+
+    def raising_process_lane(_root, _vcs, **_kwargs):
+        raise RuntimeError("the rebase blew up")
+
+    def failing_record(_root, _config, _collected):
+        raise OSError("the store is unreachable")
+
+    monkeypatch.setattr(lane_module, "process_lane", raising_process_lane)
+    monkeypatch.setattr(merge_module, "record_judged", failing_record)
+
+    result = CliRunner().invoke(app, ["merge", "--root", str(tmp_path), "T-1"])
+
+    assert "the rebase blew up" in result.output
+    assert "could not be recorded: the store is unreachable" in result.output
 
 
 def test_lane_judged_moves_no_task_state():

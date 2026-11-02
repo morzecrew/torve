@@ -532,6 +532,34 @@ def test_a_battery_budget_bounds_every_command_and_its_rerun(tmp_path):
     assert battery_budget(battery(ctx), ctx) == 2 * (120 + 2 * 300 + 600)
 
 
+def test_a_suite_budget_counts_its_base_and_never_doubles(tmp_path):
+    """S-0118/D-1: the suite and its reports, then on a red the base
+    extraction, the rerun and the base run, each bounded by the gate's timeout.
+    None is retried, so a lease does not wait out a second pass of each."""
+
+    from torve.config.manifest import Manifest
+    from torve.gates.context import GateContext
+    from torve.gates.runner import battery, battery_budget
+
+    suite = Gate(
+        name="suite",
+        run="@suite",
+        state="blocking",
+        origin="S-0118",
+        timeout=100,
+        commands=["pytest -q", "diff-cover coverage.xml"],
+    )
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[suite]),
+        head_sha="0" * 40,
+        base=None,
+        merge_base=None,
+    )
+
+    assert battery_budget(battery(ctx), ctx) == (2 + 3) * 100
+
+
 def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():
     # The manifest is configuration the battery reads; its shape is checked
     # here so a later edit cannot silently widen the judgment surface.

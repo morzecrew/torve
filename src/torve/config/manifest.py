@@ -103,8 +103,9 @@ class Gate(BaseModel):
     """The twin's CASES family or test path (S-0036/D-3) — the evidence that this gate can
     convict. Must be a non-blank reference."""
     commands: list[str] = Field(default_factory=list)
-    """The acceptance fallback for runs with no task file; only applies to
-    @acceptance."""
+    """For @acceptance, the fallback for runs with no task file. For @suite, the
+    suite command first, then report commands whose exit codes never convict
+    (S-0118/D-3); a @suite with none fails closed. No other gate takes them."""
     paths: list[str] = Field(default_factory=list)
     """What this gate judges (S-0071/D-6). Globs; the gate runs only when the
     attempt's diff touches one, and is reported `skipped` when it does not. An

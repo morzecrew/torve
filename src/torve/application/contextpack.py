@@ -163,7 +163,7 @@ def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
                     "axis": gate.axis,
                     "state": gate.state,
                     "origin": gate.origin,
-                    "convicts_on": _convicts_on(gate.name),
+                    "convicts_on": _convicts_on(gate.builtin or gate.name),
                 }
             )
 
@@ -196,7 +196,10 @@ def _convicts_on(name: str) -> str:
         "layering": "an import against the layer contracts",
         "spec-valid": "a corpus document that does not check",
         "coverage-delta": "changed lines below the coverage threshold",
-        "suite": "a test still red at the head that the base tree does not also fail",
+        "suite": (
+            "a test still red at the head that the base tree does not also fail or cannot "
+            "run, a file that does not collect, or a red that names no test"
+        ),
         "spec-projection": "a managed AGENTS.md section that drifted from the corpus",
     }.get(name, "the command exits non-zero")
 

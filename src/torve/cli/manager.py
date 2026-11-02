@@ -348,14 +348,21 @@ def _lane_leg(
             )
 
         finally:
-            if record_judged is not None:
-                await record_judged(collected)
+            # Each write runs whatever the one before it raised: a failed
+            # judgment write must not leave a requeue or an escalation off the
+            # board, nor the reverse. Whatever raised still propagates.
+            try:
+                if requeue is not None:
+                    await requeue(_conflict_requeues(root))
 
-            if requeue is not None:
-                await requeue(_conflict_requeues(root))
+            finally:
+                try:
+                    if escalate is not None:
+                        await escalate(_lane_escalations(root))
 
-            if escalate is not None:
-                await escalate(_lane_escalations(root))
+                finally:
+                    if record_judged is not None:
+                        await record_judged(collected)
 
         return [result.task for result in results if result.landed]
 

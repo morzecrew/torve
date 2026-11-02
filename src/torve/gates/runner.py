@@ -326,16 +326,19 @@ def battery_budget(gates: Iterable[Gate], ctx: GateContext) -> float:
             continue
 
         commands = 1
+        # A failed command runs once more, so each is counted twice.
+        runs = 2
 
         if gate.builtin == "acceptance":
             commands = len(ctx.task.acceptance if ctx.task is not None else gate.commands) or 1
         elif gate.builtin == "suite":
-            # One suite run and its reports, then the failing files' rerun and
-            # the base run on a red (S-0118/D-1); no blanket re-run, so this is
-            # the pass's own upper bound before the doubling below.
-            commands = max(len(gate.commands), 1) + 2
+            # One suite run and its reports, then on a red the base tree's
+            # extraction, the failing files' rerun and the base run, each
+            # bounded by the gate's timeout (S-0118/D-1). None is retried.
+            commands = max(len(gate.commands), 1) + 3
+            runs = 1
 
-        total += 2 * commands * (gate.timeout or SHELL_GATE_TIMEOUT)
+        total += runs * commands * (gate.timeout or SHELL_GATE_TIMEOUT)
 
     return total
 
