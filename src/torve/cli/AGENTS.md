@@ -840,14 +840,14 @@ Every reader that lists the seats a run can reach lists all of them: the seat, i
 
 ### S-0117/D-3 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
 
-`torve manager serve --night --chain` runs nights back to back in one process. After a close it runs idle passes and opens the next night once the open's refusal reads empty and the day's budget has room; a night closed on a `stop_on` class ends the chain. `--chain` without `--night` is refused.
+`torve manager serve <partition> --night --chain` runs nights back to back in one process. After a close it runs idle passes and opens the next night once the open's refusal reads empty and the day's budget has room; a night closed on a `stop_on` class ends the chain. `--chain` without `--night` is refused.
 
 - Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
 - Consequence: the engine serves until it is stopped, every night it ran keeps its own record, and a night that drains early no longer leaves the partition idle until a person notices
 
 ### S-0117/D-5 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
 
-Between nights, with nothing in flight, the chain fetches and, when the checkout sits on the configured base branch with a clean tree, fast-forwards it to the remote's. It plans only from a checkout on the base branch, clean and at the remote's tip after that: in number order, every document whose status is accepted, whose implementation is none and which has minted no task is minted into the partition's record as `torve plan --partition <partition> --no-dry-run` does, writing no file. A refused plan is tried again within the sweep after each mint that succeeds, and one still refused when a pass mints nothing is recorded once per base commit and tried again when the base moves.
+Between nights, with nothing in flight, the chain fetches and, when the checkout sits on the configured base branch with a clean tree, fast-forwards it to the remote's. It plans only from a checkout on the base branch, clean and at the remote's tip after that: in number order, every document whose status is accepted, whose implementation is none and which has minted no task is minted into the partition's record as `torve plan S-NNNN --partition <partition> --no-dry-run` does, writing no file. A refused plan is tried again within the sweep after each mint that succeeds, and one still refused when a pass mints nothing is recorded once per base commit and tried again when the base moves.
 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/planner.py`
 - Consequence: a document accepted on the base is minted and served by the next night without a command, a document accepted only on another branch is never planned, and a document that already minted a task is planned again only by a person's `plan --refresh`
