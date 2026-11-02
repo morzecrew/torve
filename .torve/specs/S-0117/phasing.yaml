@@ -33,12 +33,15 @@ phasing:
       - tests/test_session.py
       - tests/test_runner*.py
       - tests/test_review_run.py
+      - tests/test_review_corpus.py
+      - tests/test_review_role.py
       - tests/test_dispatch*.py
       - tests/test_cli.py
     acceptance:
       - >-
         uv run pytest tests/test_runconfig.py tests/test_session.py tests/test_runner.py
-        tests/test_review_run.py tests/test_dispatch.py tests/test_cli.py
+        tests/test_review_run.py tests/test_review_corpus.py tests/test_review_role.py
+        tests/test_dispatch.py tests/test_cli.py
       - uv run mypy src
       - uv run torve spec check
   - phase: 2
@@ -64,9 +67,10 @@ phasing:
       - src/torve/cli/manager.py
       - tests/test_residency.py
       - tests/test_manager.py
+      - tests/test_manager_e2e.py
     acceptance:
       - >-
-        uv run pytest tests/test_residency.py tests/test_manager.py
+        uv run pytest tests/test_residency.py tests/test_manager.py tests/test_manager_e2e.py
       - uv run mypy src
       - uv run torve spec check
   - phase: 3
@@ -98,11 +102,13 @@ phasing:
       - src/torve/application/planner.py
       - src/torve/application/residency.py
       - tests/test_manager.py
+      - tests/test_manager_e2e.py
       - tests/test_plan*.py
       - tests/test_residency.py
     acceptance:
       - >-
-        uv run pytest tests/test_plan.py tests/test_manager.py tests/test_residency.py
+        uv run pytest tests/test_plan.py tests/test_manager.py tests/test_manager_e2e.py
+        tests/test_residency.py
       - uv run mypy src
       - uv run torve spec check
     depends_on:
