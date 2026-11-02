@@ -30,7 +30,7 @@ from torve.application.manager import project
 from torve.application.projections import why_report
 from torve.application.residency import serve
 from torve.application.worker import Worker
-from torve.domain.events import EventKind, gate_outcomes
+from torve.domain.events import ActorKind, EventKind, SubjectType, gate_outcomes
 from torve.domain.states import TaskState
 from torve.gates.sabotage import TASK_ID
 
@@ -80,6 +80,26 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
             )
 
             handled = await serve(log, worker, repo.root, partition, passes=1, idle_seconds=0)
+
+            # S-0118/D-9: a lane battery is a record to read, not a transition
+            # — the board below must still read the task as landed, over the
+            # same Postgres the event was written to.
+            await log.record(
+                EventKind.LANE_JUDGED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=TASK_ID,
+                actor_kind=ActorKind.MANAGER,
+                actor_id="e2e-manager",
+                payload={
+                    "leg": "completion",
+                    "base": "b" * 40,
+                    "head": "h" * 40,
+                    "exit_code": 0,
+                    "duration_s": 12.5,
+                    "results": [],
+                },
+            )
             events = await log.since(partition=partition)
 
             return handled, events
@@ -102,6 +122,7 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
         EventKind.GATES_STARTED,
         EventKind.GATES_EVALUATED,
         EventKind.LANDING_RECORDED,
+        EventKind.LANE_JUDGED,
     ]
     # Each pass says how long it may stay silent before its verdict.
     started = [event for event in events if event.kind is EventKind.GATES_STARTED]
@@ -125,6 +146,13 @@ def test_two_attempts_from_mint_to_landing_over_postgres(repo):
     # a restarted manager would build, from rows it did not write.
     board = project(events)
     assert board.tasks[TASK_ID].state is TaskState.READY
+
+    # S-0118/D-9: the battery rides the record with its readings, and reads
+    # back out of Postgres as the payload its kind declares.
+    judged = [event for event in events if event.kind is EventKind.LANE_JUDGED]
+    assert judged and judged[0].subject_id == TASK_ID
+    assert judged[0].payload["leg"] == "completion"
+    assert judged[0].payload["duration_s"] == 12.5
     # The full sha, not the abbreviation the history prints for a human.
     assert len(board.tasks[TASK_ID].landed_sha or "") == 40
 

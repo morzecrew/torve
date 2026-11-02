@@ -1,0 +1,393 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0702
+attempt: 4
+base: 9a4cc3a5631456f186c4a4f1ad6219299f4af4a3
+commit: 0b609a96c1f277719b738466a3861faada959470
+at: '2026-11-02T13:37:10Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-37
+    grade: LOCKED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-1
+    grade: ASSUMED
+  - id: S-0079/D-2
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0083/D-7
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0098/D-4
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-2
+    grade: ASSUMED
+  - id: S-0099/D-4
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-7
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0101/D-4
+    grade: ASSUMED
+  - id: S-0101/D-6
+    grade: ASSUMED
+  - id: S-0101/D-11
+    grade: ASSUMED
+  - id: S-0102/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0102/D-8
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0104/D-2
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0109/D-2
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0115/D-6
+    grade: OPEN
+  - id: S-0116/D-9
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0119/D-8
+    grade: ASSUMED
+entries:
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T09:54:15Z'
+    claim: >-
+      The review's claim held: every existing test named the task or passed a made-up
+      head, so judged_subject's branch lookup and its document-last-task rule were
+      never exercised. Added a test resolving a candidate branch, a document branch's
+      last carried task, and an unresolvable head. Compliant work in a LOCKED area;
+      close-out entry.
+    evidence: >-
+      tests/test_manager.py:3333 — the new test; tests/test_manager.py:3383 asserts
+      the document branch resolves to its last task
+    action: decided
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T10:05:39Z'
+    claim: >-
+      The contract's acceptance cannot pass inside its own scope: uv run pytest is
+      red on HEAD because pages/docs/architecture/record.md has no lane.judged row
+      in its authority table, a file the contract neither allows nor lists as contingent.
+      tests/test_docs.py:38 compares that table with EventKind and fails on the landed
+      HEAD, independent of the claim fix. The page needs one row: | lane.judged |
+      manager, operator |.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table, missing lane.judged;
+      tests/test_docs.py:38 is the assertion that compares it with EventKind
+    action: halted
+    proposal: >-
+      Add the lane.judged authority row to the page, in a task whose scope names pages/docs/architecture/record.md,
+      or amend this contract to allow that path. Then re-mint; the claim fix (judged_subject's
+      branch resolution test) is already in tests/test_manager.py.
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T10:13:25Z'
+    claim: >-
+      Correction to this attempt's D-9 close-out: the review claim held for the tests
+      T-0694 added, but not for the whole suite. The blanket 'every existing test
+      passed a made-up head' was too broad — older lane tests reach judged_subject
+      with real heads. Coverage shows lines 584-594 of merge.py already reached with
+      the new test deselected; nothing asserted the resolved subject, so the new test
+      is the first assertion on where a battery's lane.judged lands.
+    evidence: >-
+      `COVERAGE_CORE=sysmon uv run pytest -q "--deselect=tests/test_manager.py::test_judged_subject_reads_the_branch_a_battery_s_head_points_at"
+      --cov=torve.cli.merge --cov-report=term-missing` — report: "src/torve/cli/merge.py
+      267 36 87% 104-106, 209, 248, 258-259, 288-290, 326-328, 348, 387-389, 545-546,
+      654-660, 667-687, 749, 766-769, 882"; lines 584-594 are not missing
+    action: decided
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T10:25:31Z'
+    attempt: 2
+    claim: >-
+      The review claim holds and is fixed: judged_subject's head lookup and its S-/T-
+      branching had no assertion — the tests passed a made-up head and named the task,
+      so only the fallback ran. The added test drives a real candidate branch, a real
+      document branch and a head on no torve/ branch, asserting where each battery's
+      lane.judged lands. Compliant work in a LOCKED area; close-out entry.
+    evidence: >-
+      tests/test_manager.py:3333 — the added test; tests/test_manager.py:3367 asserts
+      a candidate branch names its own task, and tests/test_manager.py:3383 asserts
+      a document branch names its last carried task
+    action: decided
+    proposal: >-
+      No change: the row is already as specified; the test only pins it.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T10:25:31Z'
+    attempt: 2
+    claim: >-
+      The contract's acceptance cannot pass inside its own scope: uv run pytest is
+      red on this HEAD because pages/docs/architecture/record.md has no lane.judged
+      row in its authority table, and the contract neither allows that page nor lists
+      it as contingent. This is independent of the claim fix, which is already in
+      tests/test_manager.py.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table, missing lane.judged;
+      tests/test_docs.py:38 is the assertion comparing it with EventKind
+    action: halted
+    proposal: >-
+      Add the row "| `lane.judged` | manager, operator |" to the page in a task whose
+      scope names pages/docs/architecture/record.md, or amend this contract to allow
+      that path; then re-mint.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T10:37:53Z'
+    attempt: 3
+    claim: >-
+      The claim holds and its fix is in tests/test_manager.py, but the contract's
+      acceptance cannot pass inside its own scope: uv run pytest is red on the base
+      commit 947afde because pages/docs/architecture/record.md carries no lane.judged
+      row in its authority table, and pages/ is neither allowed nor contingent in
+      this contract. The failure is independent of the test added for the claim.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table lacks a lane.judged
+      row; tests/test_docs.py:38 compares that table with EventKind and fails on this
+      HEAD, which is the base.
+    action: halted
+    proposal: >-
+      Add the row '| `lane.judged` | manager, operator |' to pages/docs/architecture/record.md
+      in a task whose scope names that page, or amend this contract to allow it, then
+      re-mint. The claim fix is already in tests/test_manager.py.
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T10:41:43Z'
+    attempt: 2
+    claim: >-
+      The review claim holds and is fixed: judged_subject's head lookup and its S-/T-
+      branching had no assertion — the tests passed a made-up head and named the task,
+      so only the fallback ran. The added test drives a real candidate branch, a real
+      document branch and a head on no torve/ branch, asserting where each battery's
+      lane.judged lands. Compliant work in a LOCKED area; close-out entry.
+    evidence: >-
+      tests/test_manager.py:3333 — the added test; tests/test_manager.py:3367 asserts
+      a candidate branch names its own task, and tests/test_manager.py:3383 asserts
+      a document branch names its last carried task
+    action: decided
+    proposal: >-
+      No change: the row is already as specified; the test only pins it.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T10:41:43Z'
+    attempt: 2
+    claim: >-
+      The contract's acceptance cannot pass inside its own scope: uv run pytest is
+      red on this HEAD because pages/docs/architecture/record.md has no lane.judged
+      row in its authority table, and the contract neither allows that page nor lists
+      it as contingent. This is independent of the claim fix, which is already in
+      tests/test_manager.py.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table, missing lane.judged;
+      tests/test_docs.py:38 is the assertion comparing it with EventKind
+    action: halted
+    proposal: >-
+      Add the row "| `lane.judged` | manager, operator |" to the page in a task whose
+      scope names pages/docs/architecture/record.md, or amend this contract to allow
+      that path; then re-mint.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T10:46:08Z'
+    attempt: 3
+    claim: >-
+      The claim holds and its fix is in tests/test_manager.py, but the contract's
+      acceptance cannot pass inside its own scope: uv run pytest is red on the base
+      commit 947afde because pages/docs/architecture/record.md carries no lane.judged
+      row in its authority table, and pages/ is neither allowed nor contingent in
+      this contract. The failure is independent of the test added for the claim.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table lacks a lane.judged
+      row; tests/test_docs.py:38 compares that table with EventKind and fails on this
+      HEAD, which is the base.
+    action: halted
+    proposal: >-
+      Add the row '| `lane.judged` | manager, operator |' to pages/docs/architecture/record.md
+      in a task whose scope names that page, or amend this contract to allow it, then
+      re-mint. The claim fix is already in tests/test_manager.py.
+  - decision: D-9
+    grade: LOCKED
+    at: '2026-11-02T10:46:08Z'
+    attempt: 2
+    claim: >-
+      The review claim holds and is fixed: judged_subject's head lookup and its S-/T-
+      branching had no assertion — the tests passed a made-up head and named the task,
+      so only the fallback ran. The added test drives a real candidate branch, a real
+      document branch and a head on no torve/ branch, asserting where each battery's
+      lane.judged lands. Compliant work in a LOCKED area; close-out entry.
+    evidence: >-
+      tests/test_manager.py:3333 — the added test; tests/test_manager.py:3367 asserts
+      a candidate branch names its own task, and tests/test_manager.py:3383 asserts
+      a document branch names its last carried task
+    action: decided
+    proposal: >-
+      No change: the row is already as specified; the test only pins it.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T10:46:08Z'
+    attempt: 2
+    claim: >-
+      The contract's acceptance cannot pass inside its own scope: uv run pytest is
+      red on this HEAD because pages/docs/architecture/record.md has no lane.judged
+      row in its authority table, and the contract neither allows that page nor lists
+      it as contingent. This is independent of the claim fix, which is already in
+      tests/test_manager.py.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table, missing lane.judged;
+      tests/test_docs.py:38 is the assertion comparing it with EventKind
+    action: halted
+    proposal: >-
+      Add the row "| `lane.judged` | manager, operator |" to the page in a task whose
+      scope names pages/docs/architecture/record.md, or amend this contract to allow
+      that path; then re-mint.

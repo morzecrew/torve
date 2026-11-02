@@ -1894,6 +1894,40 @@ def _minted_contract(events: Sequence[EventRecord]) -> dict[str, Any] | None:
 # ....................... #
 
 
+def _judged_results(results: Iterable[Any]) -> list[dict[str, Any]]:
+    """One `lane.judged` battery's results as the why envelope shows them
+    (S-0118/D-10): a failing gate keeps its output — the failing test's name
+    is the point — and any result that named inherited failures is kept even
+    when it passed, because a suite whose only failures are inherited passes
+    (D-4). A green gate with nothing inherited carries no reading and is
+    dropped."""
+
+    found: list[dict[str, Any]] = []
+
+    for raw in results:
+        if not isinstance(raw, dict):
+            continue
+
+        result = cast("dict[str, Any]", raw)
+        inherited = [str(node) for node in result.get("inherited_failures") or []]
+        failing = str(result.get("outcome") or "") in {"fail", "error"}
+
+        if not failing and not inherited:
+            continue
+
+        found.append(
+            {
+                "name": str(result.get("name") or ""),
+                "outcome": str(result.get("outcome") or ""),
+                "state": str(result.get("state") or ""),
+                "output": str(result.get("output") or "") if failing else "",
+                "inherited_failures": inherited,
+            }
+        )
+
+    return found
+
+
 def rows_from_events(events: Iterable[EventRecord]) -> list[dict[str, Any]]:
     """The telemetry rows a task's events render to (S-0050/the-sources-swap-under-a-stable-envelope).
 
@@ -1927,6 +1961,30 @@ def rows_from_events(events: Iterable[EventRecord]) -> list[dict[str, Any]]:
                     "task": event.subject_id,
                     "reason": str(payload.get("reason") or ""),
                     "detail": str(payload.get("detail") or ""),
+                }
+            )
+
+        elif event.kind is EventKind.LANE_JUDGED:
+            # S-0118/D-10: one lane battery as a why row — the leg, base, head
+            # and duration, the failing gates' output, and every inherited
+            # failure any result named.
+            results = _judged_results(payload.get("results") or [])
+            inherited = list(
+                dict.fromkeys(node for result in results for node in result["inherited_failures"])
+            )
+            rows.append(
+                {
+                    "kind": "engine",
+                    "at": at,
+                    "event": "lane.judged",
+                    "task": event.subject_id,
+                    "leg": str(payload.get("leg") or ""),
+                    "base": str(payload.get("base") or ""),
+                    "head": str(payload.get("head") or ""),
+                    "exit_code": payload.get("exit_code"),
+                    "duration_s": payload.get("duration_s"),
+                    "results": results,
+                    "inherited_failures": inherited,
                 }
             )
 

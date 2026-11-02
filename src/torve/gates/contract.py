@@ -18,6 +18,7 @@ class BuiltinOutcome:
     exit_code: int | None = None
     flaky_commands: list[str] = field(default_factory=list)
     quarantined_failures: list[str] = field(default_factory=list)
+    inherited_failures: list[str] = field(default_factory=list)
 
 
 # ....................... #

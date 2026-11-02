@@ -15,7 +15,7 @@ from torve.config import layout
 from torve.config.runconfig import RunnerConfig, TierConfig
 from torve.domain.attempt import GateResult
 from torve.domain.task import Scope, Task
-from torve.gates.runner import run_gates
+from torve.gates.runner import RunReport, run_gates
 from torve.gates.sabotage import BASE_MANIFEST, TASK_ID, base_task, log_document
 
 
@@ -124,6 +124,31 @@ def test_quarantined_acceptance_failure_does_not_block(repo):
     assert result.outcome == "pass"
     assert result.quarantined_failures == ["exit 7"]
     assert report.exit_code == 0
+
+
+def test_a_passing_gate_keeps_its_inherited_failures_in_the_record(repo):
+    """S-0118/D-4: `_recorded_result` blanks a passing gate's output, so an
+    inherited red named only there would be lost; the field rides the result
+    and the record keeps it."""
+
+    repo.seed()
+    ctx = context_for(repo)
+    report = RunReport(
+        exit_code=0,
+        results=[
+            GateResult(
+                name="suite",
+                outcome="pass",
+                state="blocking",
+                exit_code=0,
+                inherited_failures=["tests/test_a.py::test_b"],
+            )
+        ],
+    )
+    record = build_record(ctx, report, config_hash(layout.gates_file(repo.root), repo.root))
+
+    assert record["results"][0]["output"] == ""
+    assert record["results"][0]["inherited_failures"] == ["tests/test_a.py::test_b"]
 
 
 def test_bypass_is_appended_to_the_task_log(repo):

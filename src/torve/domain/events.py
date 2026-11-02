@@ -110,6 +110,10 @@ class EventKind(StrEnum):
     # S-0116/D-9: a verify attempt's held-out properties, recorded on the
     # implement task of its entry and never on the verify task's own commit.
     VERIFY_HOLDOUT = "verify.holdout"
+    # S-0118/D-9: one lane battery, green or red, recorded on the candidate's
+    # task (or the document's last task for a completion battery) by whichever
+    # caller ran the lane.
+    LANE_JUDGED = "lane.judged"
 
 
 # ....................... #
@@ -165,6 +169,10 @@ AUTHORITY: dict[EventKind, frozenset[ActorKind]] = {
     # wrote, on the implement task of its entry — an execution fact, the
     # worker's, exactly as the attempt it came from is.
     EventKind.VERIFY_HOLDOUT: frozenset({ActorKind.WORKER}),
+    # S-0118/D-9: a battery is a landing fact. The served lane runs inside the
+    # manager's pass, and `torve merge` is the operator's own act; neither an
+    # agent nor a worker can write one.
+    EventKind.LANE_JUDGED: frozenset({ActorKind.MANAGER, ActorKind.OPERATOR}),
 }
 
 
@@ -722,6 +730,27 @@ class VerifyHoldout(BaseModel):
 
 # ....................... #
 
+
+class LaneJudged(BaseModel):
+    """One battery the lane ran, green or red (S-0118/D-9): the leg, the base
+    and head it judged, its exit code, how long it took, and the results as
+    `gates.evaluated` records them. A red gate's output is clipped to
+    `RECORDED_OUTPUT` by the caller that writes it, because this is the record
+    lane time is measured from and no projection reads it for a state
+    transition."""
+
+    model_config = STRICT
+
+    leg: str
+    base: str
+    head: str
+    exit_code: int
+    duration_s: float
+    results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+# ....................... #
+
 PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.SOURCE_IMPORTED: SourceImported,
     EventKind.DECISION_RECORDED: DecisionRecorded,
@@ -750,6 +779,7 @@ PAYLOADS: dict[EventKind, type[BaseModel]] = {
     EventKind.NIGHT_OPENED: NightOpened,
     EventKind.NIGHT_CLOSED: NightClosed,
     EventKind.VERIFY_HOLDOUT: VerifyHoldout,
+    EventKind.LANE_JUDGED: LaneJudged,
 }
 
 

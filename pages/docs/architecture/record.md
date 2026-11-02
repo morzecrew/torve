@@ -88,6 +88,7 @@ executable intent without a human signature.**
 | `night.opened` | manager |
 | `night.closed` | manager |
 | `verify.holdout` | worker |
+| `lane.judged` | manager, operator |
 
 <!-- authority-table:end -->
 

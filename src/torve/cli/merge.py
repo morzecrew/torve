@@ -24,6 +24,7 @@ from torve.cli.console import (
     Format,
     closing,
     emit_json,
+    err,
     fail,
     header,
     make_table,
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
         Forge,
         GateSandbox,
         HoldoutReader,
+        LaneJudgment,
         LaneResult,
         Publisher,
         SandboxFactory,
@@ -547,6 +549,121 @@ def _holdouts(root: Path, config: RunnerConfig) -> HoldoutReader:
     return lambda task_id: table.get(task_id, [])
 
 
+# ....................... #
+
+
+# S-0118/D-9: the subject a battery's `lane.judged` is recorded on.
+def judged_subject(root: Path, judgment: LaneJudgment, only: str | None = None) -> str:
+    """The task a battery's `lane.judged` is recorded on: the
+    candidate's own task, or the document's last task when the branch the
+    battery judged is a document's. The branch the judgment carries decides
+    it; two refs can point at one head — a document branch fast-forwarded to
+    its last candidate — so the head alone does not say which was judged. A
+    judgment with no branch falls back to the refs at its head, read at the
+    moment `on_judged` hands it over — before a red battery puts its branch
+    back. A caller naming one candidate falls back to it; an unresolvable
+    battery records nothing rather than inventing a subject."""
+
+    from torve.application.lane import document_tasks
+
+    if judgment.branch:
+        name = judgment.branch.rsplit("/", 1)[-1]
+
+        if name.startswith("S-"):
+            tasks = document_tasks(root, judgment.branch)
+
+            return tasks[-1] if tasks else ""
+
+        if name:
+            return name
+
+    head = judgment.head
+
+    if head:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "for-each-ref",
+                "--format=%(refname)",
+                f"--points-at={head}",
+                "refs/heads/torve/",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        for ref in proc.stdout.split():
+            name = ref.rsplit("/", 1)[-1]
+
+            if name.startswith("S-"):
+                tasks = document_tasks(root, ref)
+
+                if tasks:
+                    return tasks[-1]
+
+            elif name:
+                return name
+
+    return only or ""
+
+
+# S-0118/D-9: one battery's judgment, as `lane.judged` stores it.
+def judged_payload(judgment: LaneJudgment) -> dict[str, Any]:
+    """A battery's judgment as `lane.judged` stores it: the
+    results the way `gates.evaluated` keeps them, a red gate's output clipped
+    to `RECORDED_OUTPUT` and a green one's dropped."""
+
+    from torve.application.telemetry import _recorded_result
+    from torve.domain.attempt import GateResult
+    from torve.domain.events import LaneJudged
+
+    return LaneJudged(
+        leg=judgment.leg,
+        base=judgment.base,
+        head=judgment.head,
+        exit_code=judgment.exit_code,
+        duration_s=judgment.duration_s,
+        results=[_recorded_result(GateResult.model_validate(row)) for row in judgment.results],
+    ).model_dump()
+
+
+# S-0118/D-9: the operator's write of the batteries a merge pass collected.
+def record_judged(
+    root: Path, config: RunnerConfig, collected: Sequence[tuple[str, LaneJudgment]]
+) -> None:
+    """Write one `lane.judged` per battery the pass handed over,
+    the operator being the actor. The caller runs this in a `finally`, so a
+    battery a later raise in the pass did not lose reaches the record."""
+
+    if not collected:
+        return
+
+    from torve.cli.options import dsn_for, read_log
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    partition = config.scm.repo or ""
+
+    async def write(log: Any) -> None:
+        for subject, judgment in collected:
+            await log.record(
+                EventKind.LANE_JUDGED,
+                partition=partition,
+                subject_type=SubjectType.TASK,
+                subject_id=subject,
+                actor_kind=ActorKind.OPERATOR,
+                actor_id="operator",
+                payload=judged_payload(judgment),
+            )
+
+    read_log(dsn_for(root), write)
+
+
+# ....................... #
+
+
 def _action_style(action: str) -> str:
     if action in ("conflict", "gates red", "pr refused"):
         return STYLE_FAIL
@@ -712,6 +829,22 @@ def merge_cmd(
     # One forge for the verdict the lane writes and the draft flag that reads it.
     status = _status(config)
 
+    # S-0118/D-9: each battery the pass runs is handed over as it ends and
+    # written in the `finally`, so one a later raise cut the pass short still
+    # reaches the record.
+    collected: list[tuple[str, LaneJudgment]] = []
+    # A failed write is an infrastructure failure, not a landing one: the pass
+    # still reports what it landed before the command exits.
+    write_error: Exception | None = None
+
+    def observe(judgment: LaneJudgment) -> None:
+        subject = judged_subject(root, judgment, task)
+
+        if subject:
+            collected.append((subject, judgment))
+
+    passed = False
+
     try:
         results = process_lane(
             root,
@@ -751,14 +884,36 @@ def merge_cmd(
             # completion commits to its branch, read from the log this verb
             # opens as it opens the board's resolutions.
             holdout=_holdouts(root, config),
+            # S-0118/D-9: the pass observes its batteries through this, and
+            # this caller writes what it collected once the pass ends.
+            on_judged=observe,
         )
+        passed = True
 
     except RuntimeError as exc:
         raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
+
+    finally:
+        # The landing result survives a store that cannot take the battery
+        # record: the command reports the failure after it has rendered what
+        # it landed. An exception raised here would replace the result.
+        try:
+            record_judged(root, config, collected)
+        except Exception as exc:  # reported, then an infrastructure exit
+            write_error = exc
+
+            # The pass raised, so nothing below runs to report this one.
+            if not passed:
+                err().print(f"the lane's batteries could not be recorded: {exc}")
 
     if fmt is Format.JSON:
         emit_json({"schema_version": 1, "dry_run": dry_run, "results": [vars(r) for r in results]})
     else:
         _render_text(out(fmt), dry_run, results)
+
+    if write_error is not None:
+        raise fail(
+            f"the lane's batteries could not be recorded: {write_error}", EXIT_INFRASTRUCTURE
+        )
 
     raise typer.Exit(_exit_code(results))

@@ -3033,13 +3033,11 @@ def test_a_last_phase_that_fast_forwards_is_regated_once_and_published(
     assert not [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
 
 
-def test_completion_runs_checks_the_document_inherited_and_the_reached_invariants(
-    lane_repo, tmp_path, monkeypatch
-):
-    """S-0106/D-2: the completion battery judges the document branch under no
-    task's contract, so it runs the decision check of the row the document's
-    phases inherited, and an invariant gate for the standing invariant its
-    diff reaches — none for one it does not."""
+def test_completion_runs_the_document_rows_and_no_invariant_gates(lane_repo, tmp_path, monkeypatch):
+    """S-0106/D-2, S-0118/D-6: the completion battery judges the document
+    branch under no task's contract, so it runs the decision check of the row
+    the document's phases inherited — and the lane runs no shadow gate, so
+    the invariant gates stay out of its verdict."""
 
     import torve.application.lane as lane
 
@@ -3078,7 +3076,7 @@ def test_completion_runs_checks_the_document_inherited_and_the_reached_invariant
     assert [r.action for r in results] == ["landed"]
     completion = seen[-1]
     assert "decision:S-0930/D-1=pass" in completion
-    assert "invariant:S-0930/I-1=pass" in completion
+    assert "invariant:S-0930/I-1" not in completion
     assert "invariant:S-0930/I-2" not in completion
 
 
@@ -4412,3 +4410,290 @@ def test_the_table_carries_the_rows_of_the_tree_the_battery_judged(lane_repo, mo
     table = read_table(lane_repo, tip)
     assert table is not None
     assert table[0].paths == ("one.py",)
+
+
+def test_a_rebased_regate_runs_no_shadow_gate(lane_repo, tmp_path):
+    """S-0118/D-6: the lane's battery runs the blocking gates and the decision
+    gates alone. A shadow gate cannot move its verdict, and the attempt already
+    measured the same change, so the re-gate does not pay for it."""
+
+    candidate(lane_repo, "T-7061", "six-one.py", "one = 61\n")
+    ran = tmp_path / "blocking-ran"
+    hidden = tmp_path / "shadow-ran"
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    {
+                        "name": "runs",
+                        "run": f"touch {ran}",
+                        "state": "blocking",
+                        "origin": "structural",
+                        "timeout": 5,
+                    },
+                    {
+                        "name": "hidden",
+                        "run": f"touch {hidden}",
+                        "state": "shadow",
+                        "origin": "structural",
+                        "timeout": 6,
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the two gates")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert [r.action for r in results] == ["landed"]
+    assert ran.is_file()
+    assert not hidden.exists()
+
+
+def test_the_whole_document_battery_keeps_the_joined_gates(lane_repo, monkeypatch):
+    """S-0118/A-1: the document's battery also runs the gates S-0115/D-5 joins
+    into the pull request's table, shadow as they are; a task's re-gate still
+    runs only the blocking and decision gates."""
+
+    import torve.application.lane as lane
+    import torve.gates.runner as runner
+
+    gate = {"state": "shadow", "origin": "structural", "timeout": 5}
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    {"name": "runs", "run": "true", **gate, "state": "blocking"},
+                    {"name": "evidence", "run": "@evidence", **gate},
+                    {"name": "mutation", "run": "@mutation", **gate},
+                    {"name": "hidden", "run": "true", **gate},
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a joined gate at shadow")
+
+    class Stop(Exception):
+        pass
+
+    selected: list[set[str]] = []
+
+    def run_gates(_ctx, only=None, progress=None):
+        selected.append(set(only or ()))
+        raise Stop
+
+    monkeypatch.setattr(runner, "run_gates", run_gates)
+
+    for task_id in (None, "T-7062"):
+        with pytest.raises(Stop):
+            lane._regate(lane_repo, "main", task_id)
+
+    assert selected == [{"runs", "evidence", "mutation"}, {"runs"}]
+
+
+def test_a_rebased_tree_with_no_manifest_is_still_judged(lane_repo):
+    """S-0118/D-9: a battery that fails closed on a missing manifest is a
+    battery the lane judged, and is handed over like any other."""
+
+    import torve.application.lane as lane
+
+    (lane_repo / ".torve" / "gates.yaml").unlink()
+    seen: list = []
+    token = lane._JUDGED.set(seen.append)
+
+    try:
+        outcome = lane._regate(lane_repo, "main", "T-7063")
+
+    finally:
+        lane._JUDGED.reset(token)
+
+    assert outcome.exit_code == 1
+    assert [(judgment.exit_code, judgment.head) for judgment in seen] == [
+        (1, git(lane_repo, "rev-parse", "HEAD").strip())
+    ]
+
+
+def test_a_rebased_candidate_with_only_inherited_failures_lands(lane_repo):
+    """S-0118/D-7: a test the base it rebased onto also fails is inherited,
+    not the candidate's. The real suite gate runs it at the rebased head and
+    on the merge base, reports the node id without convicting, and the lane
+    lands the candidate carrying that id."""
+
+    node = "tests/test_inherited.py::test_still_red"
+    (lane_repo / "tests").mkdir()
+    (lane_repo / "tests" / "test_inherited.py").write_text(
+        "def test_still_red():\n    assert False\n", encoding="utf-8"
+    )
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    {
+                        "name": "suite",
+                        "run": "@suite",
+                        "commands": [
+                            "python3 -m pytest -q -p no:cacheprovider tests/test_inherited.py"
+                        ],
+                        "state": "blocking",
+                        "origin": "structural",
+                        "timeout": 120,
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a suite red on the base")
+
+    candidate(lane_repo, "T-7062", "six-two.py", "two = 62\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert [r.action for r in results] == ["landed"]
+    landed = results[0]
+    assert landed.detail.startswith("rebased")
+    assert landed.inherited_failures == [node]
+    suite = landed.results[0]
+    assert suite["name"] == "suite"
+    assert suite["outcome"] == "pass"
+    assert suite["inherited_failures"] == [node]
+    assert "inherited" in suite["output"].lower()
+    assert landed.duration_s > 0
+    assert (lane_repo / "six-two.py").is_file()
+
+
+def test_a_bypassed_gate_is_not_named_a_failure():
+    """S-0118/D-8: a bypass is a waiver, not a conviction, so the escalation
+    detail names only fail and error gates and counts the passes."""
+
+    from torve.application.lane import _failure_first
+
+    assert _failure_first("scope=pass, lint=bypassed, suite=fail") == "suite=fail; 1 passed"
+
+
+def test_the_poison_ceiling_names_the_failing_gates_first(lane_repo, monkeypatch):
+    """S-0118/D-8: the record clips an escalation's detail at 300 characters,
+    so the failing gates lead it and the passing ones are only counted."""
+
+    import torve.application.lane as lane
+
+    monkeypatch.setattr(lane, "_RED_RUNS", {})
+
+    candidate(lane_repo, "T-7063", "six-three.py", "three = 63\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    (lane_repo / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    {
+                        "name": "first",
+                        "run": "true",
+                        "state": "blocking",
+                        "origin": "structural",
+                        "timeout": 5,
+                    },
+                    {
+                        "name": "second",
+                        "run": "true",
+                        "state": "blocking",
+                        "origin": "structural",
+                        "timeout": 6,
+                    },
+                    {
+                        "name": "refuses",
+                        "run": "false",
+                        "state": "blocking",
+                        "origin": "structural",
+                        "timeout": 30,
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the three gates")
+
+    first = process_lane(lane_repo, GitLane())
+    assert [r.action for r in first] == ["gates red"]
+
+    second = process_lane(lane_repo, GitLane())
+    assert [r.action for r in second] == ["stuck"]
+
+    state = RunState.load(naming.state_file(lane_repo, "T-7063"))
+    assert state.escalation is not None
+    assert state.escalation.detail == (
+        "red again at the same base and head: refuses=fail; 2 passed"
+    )
+
+
+def test_process_lane_hands_each_battery_to_the_observer(lane_repo):
+    """S-0118/D-12: the pass hands each battery to `on_judged` with its leg,
+    base, head, verdict, duration and results as it returns."""
+
+    candidate(lane_repo, "T-7064", "six-four.py", "four = 64\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+    base = git(lane_repo, "rev-parse", "main")
+
+    collected = []
+    results = process_lane(lane_repo, GitLane(), on_judged=collected.append)
+
+    assert [r.action for r in results] == ["landed"]
+    assert [judged.leg for judged in collected] == ["regate"]
+    judged = collected[0]
+    assert judged.exit_code == 0
+    assert judged.base == base
+    assert judged.head == results[0].head
+    assert judged.results == results[0].results
+    assert judged.duration_s >= 0
+
+
+def test_a_battery_reaches_the_observer_before_a_later_raise(lane_repo, monkeypatch):
+    """S-0118/D-12: a raise later in the pass does not lose a battery that
+    already ended — the observer was handed it as `_regate` returned."""
+
+    import torve.application.lane as lane
+
+    candidate(lane_repo, "T-7065", "six-five.py", "five = 65\n")
+    candidate(lane_repo, "T-7066", "six-six.py", "six = 66\n")
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "base moves")
+
+    real = lane._land_candidate
+    collected = []
+
+    def land(*args, **kwargs):
+        if args[3] == "T-7066":
+            raise RuntimeError("after the first battery")
+
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(lane, "_land_candidate", land)
+
+    with pytest.raises(RuntimeError, match="after the first battery"):
+        process_lane(lane_repo, GitLane(), on_judged=collected.append)
+
+    assert [judged.leg for judged in collected] == ["regate"]

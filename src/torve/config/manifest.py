@@ -50,7 +50,8 @@ class Gate(BaseModel):
     `run` is a shell command, or an `@`-prefixed builtin reference. The RFC's
     `@task.acceptance` is the acceptance builtin; the other builtins follow the
     same convention (`@scope`, `@secrets`, ...). `commands` is the acceptance
-    fallback for runs with no task file.
+    fallback for runs with no task file, and the suite and its reports for
+    `@suite` (S-0118/D-1, D-3).
 
     `state` and `origin` are required on every entry (S-0002/D-19): a boolean
     cannot express shadow or quarantine, and provenance is unrecoverable
@@ -102,8 +103,9 @@ class Gate(BaseModel):
     """The twin's CASES family or test path (S-0036/D-3) — the evidence that this gate can
     convict. Must be a non-blank reference."""
     commands: list[str] = Field(default_factory=list)
-    """The acceptance fallback for runs with no task file; only applies to
-    @acceptance."""
+    """For @acceptance, the fallback for runs with no task file. For @suite, the
+    suite command first, then report commands whose exit codes never convict
+    (S-0118/D-3); a @suite with none fails closed. No other gate takes them."""
     paths: list[str] = Field(default_factory=list)
     """What this gate judges (S-0071/D-6). Globs; the gate runs only when the
     attempt's diff touches one, and is reported `skipped` when it does not. An
@@ -152,8 +154,10 @@ class Gate(BaseModel):
 
     @model_validator(mode="after")
     def _commands_only_for_acceptance(self) -> Gate:
-        if self.commands and self.builtin != "acceptance":
-            raise ValueError(f"gate {self.name!r}: 'commands' only applies to @acceptance")
+        if self.commands and self.builtin not in ("acceptance", "suite"):
+            raise ValueError(
+                f"gate {self.name!r}: 'commands' only applies to @acceptance and @suite"
+            )
 
         return self
 
@@ -201,6 +205,9 @@ BUILTIN_INPUTS: dict[str, str] = {
     # run them, so each needs the worktree rather than the diff alone.
     "held-out": "worktree",
     "verify-tests": "worktree",
+    # S-0118/D-1: runs the suite once and reruns the failing files over the
+    # worktree, then reads the merge base, so it needs more than the diff.
+    "suite": "worktree",
 }
 BUILTIN_TIMEOUTS: dict[str, float] = {
     "scope": 30,
@@ -222,6 +229,9 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     # a collect over the same set first.
     "held-out": 600,
     "verify-tests": 600,
+    # S-0118/D-5: the ceiling measured for the whole-suite run this replaces
+    # (164s median, 271s p90, 600s worst over 228 runs).
+    "suite": 600,
 }
 SHELL_GATE_TIMEOUT = 600.0
 

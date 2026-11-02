@@ -140,6 +140,71 @@ def test_an_escalation_renders_the_engine_row_the_stream_holds():
 # ....................... #
 
 
+def test_a_lane_judgment_renders_its_failing_output_and_inherited_failures():
+    """S-0118/D-10: each `lane.judged` is a why row carrying the leg, base,
+    head and duration, a failing gate's output, and the inherited failures a
+    result named — including one on a gate that passed because every one of
+    its failures was inherited (D-4)."""
+
+    rows = rows_from_events(
+        [
+            event(
+                EventKind.LANE_JUDGED,
+                {
+                    "leg": "regate",
+                    "base": "a" * 40,
+                    "head": "b" * 40,
+                    "exit_code": 1,
+                    "duration_s": 12.5,
+                    "results": [
+                        {
+                            "name": "scope",
+                            "outcome": "pass",
+                            "state": "blocking",
+                            "output": "",
+                            "inherited_failures": [],
+                        },
+                        {
+                            "name": "suite",
+                            "outcome": "fail",
+                            "state": "blocking",
+                            "output": "FAILED tests/test_a.py::test_one - assert 1 == 2",
+                            "inherited_failures": ["tests/test_b.py::test_old"],
+                        },
+                        {
+                            "name": "coverage-delta",
+                            "outcome": "pass",
+                            "state": "shadow",
+                            "output": "",
+                            "inherited_failures": ["tests/test_c.py::test_base_red"],
+                        },
+                    ],
+                },
+            )
+        ]
+    )
+
+    assert rows[0]["kind"] == "engine"
+    assert rows[0]["event"] == "lane.judged"
+    assert rows[0]["task"] == TASK_ID
+    assert rows[0]["leg"] == "regate"
+    assert rows[0]["base"] == "a" * 40
+    assert rows[0]["head"] == "b" * 40
+    assert rows[0]["duration_s"] == 12.5
+    assert rows[0]["inherited_failures"] == [
+        "tests/test_b.py::test_old",
+        "tests/test_c.py::test_base_red",
+    ]
+    # A gate with nothing red and nothing inherited is not a reading.
+    assert [result["name"] for result in rows[0]["results"]] == ["suite", "coverage-delta"]
+    # S-0118/D-4: each result carries its own inherited reds, not only the
+    # row's aggregate — a passing result's inherited list is the proof.
+    assert rows[0]["results"][0]["inherited_failures"] == ["tests/test_b.py::test_old"]
+    assert rows[0]["results"][1]["inherited_failures"] == ["tests/test_c.py::test_base_red"]
+    assert rows[0]["results"][0]["output"].startswith("FAILED tests/test_a.py::test_one")
+    assert rows[0]["results"][1]["output"] == ""
+
+
 def test_a_review_renders_its_counts_back_into_findings():
     """The envelope wants counts; the file row carries findings and the join
     counts them. The record carries the counts, so the rendering expands

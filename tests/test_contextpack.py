@@ -212,6 +212,41 @@ def test_gates_list_the_battery_with_axes_and_the_contract_gates(tmp_path: Path)
     assert "scope.allow" in payload["gates"][0]["convicts_on"]
 
 
+def test_the_retry_feedback_says_what_a_suite_conviction_means(tmp_path: Path) -> None:
+    """S-0118/D-1: the retry reads the conviction in the pack, so the `suite`
+    entry says what it convicts rather than the generic shell-gate line — keyed
+    by the builtin, so an entry named otherwise reads it too, and naming the
+    fail-closed cases of D-2."""
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "scope": {"allow": [], "deny": []},
+                "gates": [
+                    {
+                        "name": "whole-suite",
+                        "run": "@suite",
+                        "state": "blocking",
+                        "origin": "S-0118",
+                        "sabotage": "suite",
+                        "commands": ["pytest -q"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = gates_file(tmp_path, _task(), manifest)
+
+    assert payload["gates"][0]["convicts_on"] == (
+        "a test still red at the head that the base tree does not also fail or cannot "
+        "run, a file that does not collect, or a red that names no test"
+    )
+
+
 def test_tests_read_coverage_under_scope_and_the_named_test_files(tmp_path: Path) -> None:
     _seed(tmp_path)
     (tmp_path / "coverage.xml").write_text(

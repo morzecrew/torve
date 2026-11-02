@@ -436,6 +436,25 @@ def test_a_shell_gate_receives_the_batterys_computed_base(repo):
     assert ctx.merge_base != ctx.base
 
 
+def test_inherited_failures_pass_through_to_the_gate_result(repo, monkeypatch):
+    """S-0118/D-4: a builtin's inherited ids are a fact about a green gate, so
+    they ride the GateResult beside the quarantined commands rather than only
+    the output a passing result drops."""
+
+    from torve.gates import runner as gate_runner
+    from torve.gates.contract import BuiltinOutcome
+
+    def suite(gate, ctx):
+        return BuiltinOutcome("pass", inherited_failures=["tests/test_a.py::test_b"])
+
+    monkeypatch.setitem(gate_runner.BUILTINS, "suite", suite)
+    repo.seed(_single_gate_manifest("@suite"))
+    report = run_gates(context_for(repo), only={"g"})
+
+    assert report.results[0].outcome == "pass"
+    assert report.results[0].inherited_failures == ["tests/test_a.py::test_b"]
+
+
 def test_the_flaky_record_keeps_the_declared_command(repo):
     # An embedded SHA would make each run's flaky identity unique and
     # unquarantinable; the record is the declared command, placeholder intact.
@@ -511,6 +530,34 @@ def test_a_battery_budget_bounds_every_command_and_its_rerun(tmp_path):
 
     assert [g.name for g in battery(ctx)] == ["lint", "acceptance", "e2e", "docs"]
     assert battery_budget(battery(ctx), ctx) == 2 * (120 + 2 * 300 + 600)
+
+
+def test_a_suite_budget_counts_its_base_and_never_doubles(tmp_path):
+    """S-0118/D-1: the suite and its reports, then on a red the base
+    extraction, the rerun and the base run, each bounded by the gate's timeout.
+    None is retried, so a lease does not wait out a second pass of each."""
+
+    from torve.config.manifest import Manifest
+    from torve.gates.context import GateContext
+    from torve.gates.runner import battery, battery_budget
+
+    suite = Gate(
+        name="suite",
+        run="@suite",
+        state="blocking",
+        origin="S-0118",
+        timeout=100,
+        commands=["pytest -q", "diff-cover coverage.xml"],
+    )
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(gates=[suite]),
+        head_sha="0" * 40,
+        base=None,
+        merge_base=None,
+    )
+
+    assert battery_budget(battery(ctx), ctx) == (2 + 3) * 100
 
 
 def test_the_shipped_coverage_gate_judges_changed_lines_from_the_battery_base():

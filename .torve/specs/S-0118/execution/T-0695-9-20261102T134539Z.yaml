@@ -1,0 +1,237 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0695
+phase: 4
+attempt: 9
+base: 9a4cc3a5631456f186c4a4f1ad6219299f4af4a3
+commit: 9d41fa350104e59eca5aaa1681823c1be2352df4
+at: '2026-11-02T13:45:39Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T09:34:54Z'
+    claim: >-
+      The acceptance command runs tests/test_docs.py, whose authority-table test requires
+      the page to name every EventKind. lane.judged was added in phase 3 (S-0118/D-9)
+      but pages/docs/architecture/record.md still ends its table at verify.holdout,
+      so that test is red on the base tree. The file is outside this task's scope.allow
+      and contingent lists, so the page cannot be corrected without the scope gate
+      convicting the attempt; the contract is not executable as minted.
+    evidence: >-
+      pages/docs/architecture/record.md:90 — the authority table's last row is verify.holdout
+      and there is no lane.judged row; tests/test_docs.py:38 asserts the table names
+      every EventKind
+    action: halted
+    proposal: >-
+      Re-mint T-0695 with pages/docs/architecture/record.md in scope.allow (or add
+      it to contingent), so the task that settles D-10 can add the missing '| lane.judged
+      | manager, operator |' row the authority test already requires.
+    notes: >-
+      Pre-existing red since phase 3 landed: HEAD defines LANE_JUDGED in src/torve/domain/events.py:116
+      while record.md has no row.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T09:44:49Z'
+    attempt: 2
+    claim: >-
+      The acceptance command runs tests/test_docs.py, whose authority-table test requires
+      the record page to name every EventKind. T-0694 added lane.judged to src/torve/domain/events.py
+      but did not add its row to pages/docs/architecture/record.md, so that test is
+      red on the base tree inherited from the prior landing. record.md is outside
+      this task's scope.allow and scope.contingent, so correcting the page would make
+      the scope gate convict this attempt. The contract as minted cannot reach a green
+      acceptance.
+    evidence: >-
+      pages/docs/architecture/record.md:90 — the authority table's last row is verify.holdout
+      and no lane.judged row exists; tests/test_docs.py:38 asserts the page's rows
+      equal every EventKind, and the acceptance run fails there with 'Extra items
+      in the right set: lane.judged'
+    action: halted
+    proposal: >-
+      Re-mint T-0695 with pages/docs/architecture/record.md in scope.allow (or scope.contingent),
+      so this task can add the '| `lane.judged` | manager, operator |' row the authority
+      test already requires. Alternatively amend S-0118/D-9's paths to include the
+      page, since it governs the event kind that makes the table stale.
+    notes: >-
+      Pre-existing red since T-0694 landed: HEAD defines LANE_JUDGED at src/torve/domain/events.py:116
+      while record.md has no row. Attempt 1 recorded the same finding; the in-scope
+      D-10 implementation (projections, tests, operating guide) is present in the
+      worktree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T09:48:14Z'
+    attempt: 2
+    claim: >-
+      The acceptance command runs tests/test_docs.py, whose authority-table test requires
+      the record page to name every EventKind. T-0694 added lane.judged to src/torve/domain/events.py
+      but did not add its row to pages/docs/architecture/record.md, so that test is
+      red on the base tree inherited from the prior landing. record.md is outside
+      this task's scope.allow and scope.contingent, so correcting the page would make
+      the scope gate convict this attempt. The contract as minted cannot reach a green
+      acceptance.
+    evidence: >-
+      pages/docs/architecture/record.md:90 — the authority table's last row is verify.holdout
+      and no lane.judged row exists; tests/test_docs.py:38 asserts the page's rows
+      equal every EventKind, and the acceptance run fails there with 'Extra items
+      in the right set: lane.judged'
+    action: halted
+    proposal: >-
+      Re-mint T-0695 with pages/docs/architecture/record.md in scope.allow (or scope.contingent),
+      so this task can add the '| `lane.judged` | manager, operator |' row the authority
+      test already requires. Alternatively amend S-0118/D-9's paths to include the
+      page, since it governs the event kind that makes the table stale.
+    notes: >-
+      Pre-existing red since T-0694 landed: HEAD defines LANE_JUDGED at src/torve/domain/events.py:116
+      while record.md has no row. Attempt 1 recorded the same finding; the in-scope
+      D-10 implementation (projections, tests, operating guide) is present in the
+      worktree.
+  - decision: D-10
+    grade: ASSUMED
+    kind: blocked
+    at: '2026-11-02T12:39:59Z'
+    attempt: 6
+    claim: >-
+      This worktree is stale: the acceptance is red on the base because pages/docs/architecture/record.md
+      carries no lane.judged row, while EventKind.LANE_JUDGED exists, so tests/test_docs.py::test_the_authority_table_on_the_page_is_the_one_the_engine_enforces
+      fails. The review said this attempt would cut from torve/S-0118 at b11ddfc1,
+      which adds that row, but this worktree is cut at 947afde/a301749 and the commit
+      is absent. The page is outside this contract's scope, so the D-10 work cannot
+      green the acceptance here.
+    evidence: >-
+      pages/docs/architecture/record.md:60-92 — the authority table has no lane.judged
+      row; src/torve/domain/events.py:116 declares LANE_JUDGED; `git cat-file -e b11ddfc1^{commit}`
+      exits fatal: Not a valid object name b11ddfc1
+    action: halted
+    proposal: >-
+      Cut this attempt from torve/S-0118 at b11ddfc1 or later, where the lane.judged
+      authority row is present and tests/test_docs.py is green; no amendment to S-0118/D-10
+      is needed.
+    notes: >-
+      Reproduce: uv run pytest tests/test_docs.py::test_the_authority_table_on_the_page_is_the_one_the_engine_enforces
+      — 1 failed (lane.judged missing from the page, not from EventKind). The D-10
+      projection and its tests are in a301749 and pass: uv run pytest tests/test_why_record.py
+      tests/test_projections.py is green, uv run mypy src is green.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T12:53:22Z'
+    attempt: 7
+    claim: >-
+      The worktree is pinned at a301749, a previous attempt's checkpoint, which predates
+      the document branch's record-page fix b11ddfc1. pages/docs/architecture/record.md
+      therefore still lacks the lane.judged authority row that EventKind declares,
+      so the acceptance command tests/test_docs.py fails on the base before any in-scope
+      D-10 change can be judged. The page is outside this contract's scope, so the
+      D-10 work cannot reach a green acceptance in this tree.
+    evidence: >-
+      pages/docs/architecture/record.md:90 — the authority table ends at verify.holdout
+      with no lane.judged row while src/torve/domain/events.py:116 declares LANE_JUDGED,
+      and tests/test_docs.py:38 fails on the pinned tree; the runner pinned .torve/tmp/pin.json:3
+      to a301749 rather than the document tip b11ddfc1 that `git ls-remote https://github.com/morzecrew/torve
+      refs/heads/torve/S-0118` reports.
+    action: halted
+    proposal: >-
+      Re-cut T-0695's worktree from torve/S-0118 at b11ddfc1 or later (the pin should
+      name that tip, not the a301749 checkpoint), where the record page already carries
+      the lane.judged authority row; no scope amendment is needed for D-10. The in-scope
+      implementation is already committed in a301749 and passes tests/test_why_record.py
+      and tests/test_projections.py.
+    notes: >-
+      Acceptance run: only tests/test_docs.py::test_the_authority_table_on_the_page_is_the_one_the_engine_enforces
+      fails ('Extra items in the right set: lane.judged'); uv run mypy src is green.
+      The git object store is mounted read-only, so this session cannot fetch b11ddfc1
+      or re-cut the base itself.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T13:12:47Z'
+    attempt: 7
+    claim: >-
+      The worktree is pinned at a301749, a previous attempt's checkpoint, which predates
+      the document branch's record-page fix b11ddfc1. pages/docs/architecture/record.md
+      therefore still lacks the lane.judged authority row that EventKind declares,
+      so the acceptance command tests/test_docs.py fails on the base before any in-scope
+      D-10 change can be judged. The page is outside this contract's scope, so the
+      D-10 work cannot reach a green acceptance in this tree.
+    evidence: >-
+      pages/docs/architecture/record.md:90 — the authority table ends at verify.holdout
+      with no lane.judged row while src/torve/domain/events.py:116 declares LANE_JUDGED,
+      and tests/test_docs.py:38 fails on the pinned tree; the runner pinned .torve/tmp/pin.json:3
+      to a301749 rather than the document tip b11ddfc1 that `git ls-remote https://github.com/morzecrew/torve
+      refs/heads/torve/S-0118` reports.
+    action: halted
+    proposal: >-
+      Re-cut T-0695's worktree from torve/S-0118 at b11ddfc1 or later (the pin should
+      name that tip, not the a301749 checkpoint), where the record page already carries
+      the lane.judged authority row; no scope amendment is needed for D-10. The in-scope
+      implementation is already committed in a301749 and passes tests/test_why_record.py
+      and tests/test_projections.py.
+    notes: >-
+      Acceptance run: only tests/test_docs.py::test_the_authority_table_on_the_page_is_the_one_the_engine_enforces
+      fails ('Extra items in the right set: lane.judged'); uv run mypy src is green.
+      The git object store is mounted read-only, so this session cannot fetch b11ddfc1
+      or re-cut the base itself.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: blocked
+    class: spec-gap
+    at: '2026-11-02T13:15:24Z'
+    attempt: 7
+    claim: >-
+      The worktree is pinned at a301749, a previous attempt's checkpoint, which predates
+      the document branch's record-page fix b11ddfc1. pages/docs/architecture/record.md
+      therefore still lacks the lane.judged authority row that EventKind declares,
+      so the acceptance command tests/test_docs.py fails on the base before any in-scope
+      D-10 change can be judged. The page is outside this contract's scope, so the
+      D-10 work cannot reach a green acceptance in this tree.
+    evidence: >-
+      pages/docs/architecture/record.md:90 — the authority table ends at verify.holdout
+      with no lane.judged row while src/torve/domain/events.py:116 declares LANE_JUDGED,
+      and tests/test_docs.py:38 fails on the pinned tree; the runner pinned .torve/tmp/pin.json:3
+      to a301749 rather than the document tip b11ddfc1 that `git ls-remote https://github.com/morzecrew/torve
+      refs/heads/torve/S-0118` reports.
+    action: halted
+    proposal: >-
+      Re-cut T-0695's worktree from torve/S-0118 at b11ddfc1 or later (the pin should
+      name that tip, not the a301749 checkpoint), where the record page already carries
+      the lane.judged authority row; no scope amendment is needed for D-10. The in-scope
+      implementation is already committed in a301749 and passes tests/test_why_record.py
+      and tests/test_projections.py.
+    notes: >-
+      Acceptance run: only tests/test_docs.py::test_the_authority_table_on_the_page_is_the_one_the_engine_enforces
+      fails ('Extra items in the right set: lane.judged'); uv run mypy src is green.
+      The git object store is mounted read-only, so this session cannot fetch b11ddfc1
+      or re-cut the base itself.

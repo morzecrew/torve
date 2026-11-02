@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-02T15:13:04Z'
+    title: >-
+      The whole-document battery keeps the joined gates
+    changes:
+      - subject: D-6
+        field: text
+        before: >-
+          The lane's batteries, the re-gate after a rebase and the completion battery,
+          run only the gates whose state is `blocking` and the decision gates
+        after: >-
+          The lane's batteries, the re-gate after a rebase and the completion battery,
+          run only the gates whose state is `blocking` and the decision gates; the
+          whole-document battery also runs the gates whose readings S-0115/D-5 joins
+          into the pull request's table, `evidence` and `mutation`, whatever their
+          state
+      - subject: D-6
+        field: fingerprint
+        after: 0981614cfb58a9cd/d771b724686af7a2
+    md: |
+      S-0115/D-5 joins the `evidence` verdict and the mutation survivors into
+      the document pull request's table after the whole-document battery. Both
+      gates are shadow here, so under D-6 as written the completion battery ran
+      neither, and the table vanished from the body without anything saying so
+      (#229's review). The whole-document battery keeps them; the re-gate after
+      a rebase still runs only the blocking and decision gates.

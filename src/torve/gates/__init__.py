@@ -19,6 +19,7 @@ from torve.gates.scope import check_scope
 from torve.gates.secrets import check_secrets
 from torve.gates.self_audit import check_self_audit
 from torve.gates.source_layout import check_source_layout
+from torve.gates.suite import check_suite
 from torve.gates.user_facing_text import check_user_facing_text
 from torve.gates.verify_tests import check_verify_tests
 
@@ -40,6 +41,7 @@ BUILTINS: dict[str, Builtin] = {
     "user-facing-text": check_user_facing_text,
     "held-out": check_held_out,
     "verify-tests": check_verify_tests,
+    "suite": check_suite,
 }
 
 __all__ = ["BUILTINS", "Builtin", "BuiltinOutcome"]
