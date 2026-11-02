@@ -1,0 +1,241 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0699
+attempt: 2
+base: b11ddfc18a195b72d19dc60c1da0e9ee7cea5238
+at: '2026-11-02T12:29:08Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: LOCKED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: OPEN
+  - id: D-12
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-50
+    grade: LOCKED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0065/D-7
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0080/D-3
+    grade: ASSUMED
+  - id: S-0080/D-7
+    grade: ASSUMED
+  - id: S-0080/D-8
+    grade: ASSUMED
+  - id: S-0080/D-9
+    grade: ASSUMED
+  - id: S-0080/D-11
+    grade: ASSUMED
+  - id: S-0080/D-12
+    grade: ASSUMED
+  - id: S-0080/D-16
+    grade: ASSUMED
+  - id: S-0080/D-17
+    grade: ASSUMED
+  - id: S-0083/D-4
+    grade: ASSUMED
+  - id: S-0083/D-5
+    grade: ASSUMED
+  - id: S-0083/D-6
+    grade: ASSUMED
+  - id: S-0083/D-7
+    grade: ASSUMED
+  - id: S-0083/D-10
+    grade: ASSUMED
+  - id: S-0083/D-11
+    grade: ASSUMED
+  - id: S-0083/D-12
+    grade: ASSUMED
+  - id: S-0083/D-13
+    grade: ASSUMED
+  - id: S-0083/D-14
+    grade: ASSUMED
+  - id: S-0083/D-18
+    grade: ASSUMED
+  - id: S-0084/D-6
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-2
+    grade: ASSUMED
+  - id: S-0093/D-1
+    grade: ASSUMED
+  - id: S-0093/D-2
+    grade: ASSUMED
+  - id: S-0093/D-3
+    grade: ASSUMED
+  - id: S-0093/D-4
+    grade: ASSUMED
+  - id: S-0093/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0097/D-6
+    grade: ASSUMED
+  - id: S-0098/D-4
+    grade: ASSUMED
+  - id: S-0099/D-2
+    grade: ASSUMED
+  - id: S-0099/D-3
+    grade: ASSUMED
+  - id: S-0099/D-4
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0099/D-11
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0101/D-1
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0101/D-3
+    grade: ASSUMED
+  - id: S-0101/D-8
+    grade: ASSUMED
+  - id: S-0101/D-9
+    grade: ASSUMED
+  - id: S-0102/D-1
+    grade: ASSUMED
+  - id: S-0102/D-8
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0106/D-2
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0108/D-3
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-7
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0113/D-3
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0114/D-5
+    grade: ASSUMED
+  - id: S-0115/D-5
+    grade: ASSUMED
+  - id: S-0115/D-6
+    grade: OPEN
+  - id: S-0116/D-14
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-02T09:16:44Z'
+    claim: >-
+      The claim that D-7's check only pins a stubbed _regate is stale: tests/test_lane.py:4458
+      is test_a_rebased_candidate_with_only_inherited_failures_lands, which does not
+      monkeypatch _regate. It writes a genuinely failing tests/test_inherited.py,
+      commits it as red on the base, puts a real @suite gate with a pytest command
+      in the manifest, rebases a candidate onto that red base, and asserts process_lane
+      lands it with inherited_failures naming the node id and the suite result passing
+      with that id in its output. The real suite attribution therefore runs at head
+      and merge base; an implementation that handed the suite no merge base would
+      convict under D-2 and fail the landed assertion. The cited stub at line 4478
+      is not this test.
+    evidence: >-
+      tests/test_lane.py:4458-4510 — the inherited test runs the real suite gate,
+      asserts landed plus inherited_failures == [tests/test_inherited.py::test_still_red];
+      no monkeypatch of lane._regate is present, and 'uv run pytest tests/test_lane.py
+      -k inherited -q' passes.
+    action: decided
+    proposal: >-
+      No specification change owed; the rejecting reviewer should re-read the test
+      at tests/test_lane.py:4458 against the current tree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-02T12:21:22Z'
+    attempt: 2
+    claim: >-
+      The claim does not hold against this tree. The one test that `uv run pytest
+      tests/test_lane.py -k inherited` selects is a real end-to-end lane test, not
+      a stub: `test_a_rebased_candidate_with_only_inherited_failures_lands` declares
+      an actual `suite` gate entry whose `commands` run pytest over `tests/test_inherited.py`,
+      calls `process_lane`, and asserts the rebased candidate lands with the inherited
+      node id on the LaneResult. No `_regate` stub is patched in it, and the quoted
+      `return lane._Regate(0, "suite=pass", ...)` appears nowhere in the tree or its
+      history. The check does catch a battery that attributes nothing to the base:
+      making the suite's base reading unavailable fails the test with 'gates red'
+      instead of 'landed', which is D-2 convicting.
+    evidence: >-
+      tests/test_lane.py:4458-4459 — the test `-k inherited` selects runs the real
+      battery; its `suite` gate's `commands` at tests/test_lane.py:4476-4479 run pytest
+      over the red file, and `process_lane` at tests/test_lane.py:4494 is the real
+      lane. `rg -n 'suite=pass' tests/ src/` returns nothing. Temporarily making `_extract_base`
+      return its no-base note turns the check red: 'At index 0 diff: gates red !=
+      landed'.
+    action: decided
+    proposal: >-
+      No row is owed: S-0118/D-7's check already runs the real suite gate and its
+      inherited attribution, and the stub the claim cites is not in this tree.
