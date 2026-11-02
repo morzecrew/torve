@@ -947,6 +947,25 @@ def _injection(finding: Finding) -> str:
     return ""
 
 
+def _refused_before(thread: ReviewThread, bots: Collection[str]) -> bool:
+    """Whether the leg already refused *thread* and nobody but a bot has
+    written since. Every refusal reply opens with the thread's own id
+    (`_injection`), so it is found wherever it sits. A person's comment after
+    it re-opens the thread (S-0103/D-3); a bot's does not, or a bot that
+    answers every reply and the leg answer each other on every pass (#232)."""
+
+    refusals = [
+        index
+        for index, comment in enumerate(thread.comments)
+        if index and comment.body.lstrip().startswith(f"{thread.id} ")
+    ]
+
+    if not refusals:
+        return False
+
+    return all(comment.author in bots for comment in thread.comments[refusals[-1] + 1 :])
+
+
 # ....................... #
 
 
@@ -1880,23 +1899,37 @@ def review_thread_leg(
                 # answered when it lands, not dispatched a second time.
                 continue
 
-            # The injection scan runs before a round is composed, so one bad
-            # thread refuses only its own finding and not the wave it would
-            # otherwise share (S-0084/D-9, S-0097/D-5).
-            reason = _injection(finding)
+            # The injection scan runs before a round is composed, thread by
+            # thread: one bad thread is refused alone and only once, and the
+            # threads anchored beside it still reach the round (S-0084/D-9,
+            # S-0097/D-5, #232).
+            bad = [one for one in finding.threads if injection_reason(collapsed(one))]
 
-            if reason:
+            for one in bad:
+                if _refused_before(one, config.threads.bots):
+                    continue
+
+                alone = replace(finding, threads=(one,))
+                reason = _injection(alone)
                 _refuse(
                     root,
                     branch,
                     info,
-                    finding,
+                    alone,
                     reason,
                     f"a review thread was refused as injection: {reason}",
                     forge,
                 )
                 refused.append(reason)
-                continue
+
+            if bad:
+                rest = tuple(one for one in finding.threads if one not in bad)
+
+                if not rest:
+                    continue
+
+                finding = replace(finding, threads=rest)
+                from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             files = sorted({f for ident in from_record for f in touched.get(ident, [])})
             reviews = {ident[len(RECORD) :].rsplit(":", 1)[0] for ident in from_record}
