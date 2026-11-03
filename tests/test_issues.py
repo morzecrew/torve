@@ -17,7 +17,7 @@ import yaml
 
 from torve.application.intake import IntakeOutcome
 from torve.application.issues import issue_leg, issue_source_id
-from torve.application.ports import LabelledIssue
+from torve.application.ports import AgentResult, LabelledIssue, SandboxHandle
 from torve.config.runconfig import IntakeConfig, RunnerConfig
 
 LABEL = "torve:ready"
@@ -74,6 +74,27 @@ class FakeDraft:
         self.calls.append((request, source))
 
         return self.outcome
+
+
+class Unparseable:
+    """A drafting agent whose every answer fails to parse, so the run spends
+    its budget."""
+
+    def run(self, ctx: Any) -> AgentResult:
+        return AgentResult(exit_code=0, output="not json at all")
+
+
+class Stub:
+    """A runtime that hands out sandboxes and builds nothing."""
+
+    def create(self, spec: Any, workspace: Any) -> SandboxHandle:
+        return SandboxHandle(id="sbx-1", name=spec.name)
+
+    def destroy(self, handle: SandboxHandle) -> None:
+        pass
+
+    def resolve_image(self, image: str) -> str:
+        return "sha256:stub"
 
 
 def issue(number: int = 142, **overrides: Any) -> LabelledIssue:
@@ -360,6 +381,40 @@ def test_a_draft_that_spends_its_budget_is_not_retried_by_the_next_pass(tmp_path
     assert moved is False
     assert len(draft.calls) == 1
     assert "already filed" in detail
+
+
+def test_a_leg_started_draft_that_spends_its_budget_escalates_and_holds_the_pause(repo):
+    """S-0119/D-10: the leg's draft is the drafting run `torve intake` starts,
+    so one that spends its budget escalates `budget_exhausted` in its own run
+    state, and that escalation is one the pause counts, like any other."""
+
+    from torve.application.fleet import escalated_tasks
+    from torve.application.intake import draft_request
+    from torve.application.runstate import RunState
+    from torve.base import naming
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    repo.git("checkout", "-q", "main")
+    settings = config()
+    agent = Unparseable()
+
+    def draft(request: str, source: str) -> IntakeOutcome:
+        return draft_request(repo.root, request, settings, agent, source=source, runtime=Stub())
+
+    reader = FakeReader([issue()], triage={"alice": True})
+
+    detail, moved = issue_leg(repo.root, settings, reader, draft)
+
+    assert moved is True
+    (drafted,) = [row for row in events(repo.root) if row.get("event") == "issue_drafted"]
+    task_id = drafted["task"]
+    state = RunState.load(naming.state_file(repo.root, task_id))
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "budget_exhausted"
+    assert task_id in escalated_tasks(repo.root)
+    assert task_id in detail
 
 
 def test_the_leg_writes_the_source_file_the_issue_drafts_from(tmp_path: Path):
