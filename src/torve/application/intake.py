@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import shutil
 import subprocess
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -2010,6 +2011,10 @@ def draft_request(
     (S-0119/D-7): the run is minted, its worktree cut at base, `run_intake`
     given the caller's agent, and the worktree removed whatever happens.
 
+    The base tip is resolved before anything is minted, and a run whose
+    worktree cannot be cut takes its contract back with it: a request that
+    never started leaves no orphan draft and spends no task number.
+
     The planner tier's agent and the broker are the caller's, so the
     composition root stays in the CLI layer and this module never imports
     it; the broker carries the provider credential, never the sandbox."""
@@ -2017,7 +2022,6 @@ def draft_request(
     from torve.application.telemetry import config_hash
     from torve.gates.context import resolve_base
 
-    task = mint_intake_task(root, request, config, spec=spec, source=source, taken=taken)
     base_ref = resolve_base(root, config.base) or "HEAD"
     base = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--verify", f"{base_ref}^{{commit}}"],
@@ -2029,6 +2033,7 @@ def draft_request(
     if base.returncode != 0:
         raise ValueError("no base tip to draft against")
 
+    task = mint_intake_task(root, request, config, spec=spec, source=source, taken=taken)
     workdir = naming.intake_worktree(root, task.id)
     added = subprocess.run(
         ["git", "-C", str(root), "worktree", "add", "--detach", str(workdir), base.stdout.strip()],
@@ -2038,6 +2043,7 @@ def draft_request(
     )
 
     if added.returncode != 0:
+        shutil.rmtree(root / layout.TORVE_DIR / "tasks" / task.id, ignore_errors=True)
         raise RuntimeError(added.stderr.strip() or "worktree add failed")
 
     try:

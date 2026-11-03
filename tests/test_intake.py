@@ -1024,6 +1024,46 @@ def test_draft_request_hands_the_callers_broker_to_the_run(seeded, monkeypatch):
     assert seen["broker"] is broker
 
 
+def test_draft_request_mints_nothing_when_no_base_tip_exists(repo):
+    """S-0119/D-7: the base tip is resolved before the drafting run is
+    minted, so a repository with no commit leaves no orphan contract behind
+    and spends no task number."""
+
+    repo.git("init", "-q", "-b", "main")
+
+    with pytest.raises(ValueError, match="no base tip to draft against"):
+        draft_request(
+            repo.root,
+            "add a widget module",
+            RunnerConfig(),
+            ScriptedAgent([output_for(draft_dict())]),
+            runtime=StubRuntime(),
+        )
+
+    assert not (repo.root / ".torve" / "tasks").exists()
+
+
+def test_draft_request_takes_its_contract_back_when_the_worktree_cannot_be_cut(seeded):
+    """S-0119/D-7: a worktree that cannot be added fails the request before
+    it starts, so the contract minted for it is removed rather than left as
+    an orphan draft."""
+
+    workdir = naming.intake_worktree(seeded.root, "T-0001")
+    workdir.mkdir(parents=True)
+    (workdir / "occupied").write_text("already here\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(),
+            ScriptedAgent([output_for(draft_dict())]),
+            runtime=StubRuntime(),
+        )
+
+    assert not (seeded.root / ".torve" / "tasks" / "T-0001").exists()
+
+
 # ----------------------- #
 # Adoption (S-0020/D-1, S-0020/D-4).
 
