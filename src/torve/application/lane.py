@@ -1195,6 +1195,13 @@ def _document_branch(
     if tip is None:
         raise RuntimeError(f"no base to cut {branch!r} from — the remote has no main")
 
+    # The fetch above is the first read of a merge made since the pass began,
+    # and the checkout's own tree may never see it (S-0117/D-6): a candidate
+    # whose landing the fetched base holds has landed, and cutting the branch
+    # again would only replay it (#250).
+    if base and task_id in _landed_tasks(root, base):
+        raise _LandedOnBase(f"{task_id}'s landing is on {base}")
+
     if local is not None and local != tip:
         _keep_ref(root, f"refs/torve/documents/{branch}/{local}", local)
         engine_event(
@@ -1221,6 +1228,23 @@ def _document_branch(
 class _HeldConflict(RuntimeError):
     """A document branch's held landings that do not replay onto its remote
     copy: the candidate is not landed and the branch is not pushed."""
+
+
+class _LandedOnBase(Exception):
+    """A candidate whose landing file the base already holds: its document
+    merged, so there is nothing to cut a branch for."""
+
+
+def _landed_tasks(root: Path, ref: str) -> set[str]:
+    """The tasks whose landing files *ref*'s tree holds."""
+
+    from torve.domain.spec import LANDING_FILE
+
+    return {
+        match.group(1)
+        for path in _landing_paths(root, ref)
+        if (match := LANDING_FILE.match(path.rpartition("/")[2]))
+    }
 
 
 def _replayed_onto(root: Path, vcs: LaneVcs, document: str, branch: str, remote: str) -> bool:
@@ -3826,6 +3850,10 @@ def process_lane(
             results.append(
                 LaneResult(task_id, branch, "conflict", f"merge_conflict: {exc}", branch_tip)
             )
+            continue
+
+        except _LandedOnBase as exc:
+            results.append(LaneResult(task_id, branch, "already landed", str(exc), branch_tip))
             continue
 
         target = document or base
