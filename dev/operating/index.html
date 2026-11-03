@@ -625,6 +625,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-labelled-issue-becomes-drafts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A labelled issue becomes drafts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#getting-told" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1447,6 +1458,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Running a pass without spending
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-labelled-issue-becomes-drafts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A labelled issue becomes drafts
       </span>
     </span>
   </a>
@@ -2725,19 +2747,59 @@ in <code>night.opened</code> includes contracts minted since the last pass; a qu
 empty after the import refuses the night as it always did (S-0096/D-3). Reach
 for the pass above when you want to look at the board first, not to make a
 night work.</p>
+<h2 id="a-labelled-issue-becomes-drafts">A labelled issue becomes drafts<a class="headerlink" href="#a-labelled-issue-becomes-drafts" title="Permanent link">&para;</a></h2>
+<p>The manager's and the fleet's pass can turn a labelled issue into drafts with
+no command typed (S-0119/D-8). The leg is off until <code>intake.issue_label</code>
+names a label:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">intake</span><span class="p">:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">issue_label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">torve-candidate</span><span class="w">   </span><span class="c1"># empty, the default: the leg reads nothing</span>
+</span></code></pre></div>
+<p>With a label set, each pass lists the open issues carrying it, oldest
+labelling first, and starts at most one drafting run — for the first issue it
+may draft. Two rules decide what that is:</p>
+<ul>
+<li><strong>Who applied the label.</strong> The account behind the last event that applied
+  it must hold triage, write, maintain or admin on the repository; an account
+  that is not a collaborator answers no. An issue template that applies the
+  label for its author, or an issue a stranger labelled, is skipped and named
+  in the pass's detail line until a maintainer labels it again (S-0119/D-2).</li>
+<li><strong>Whether it moved since.</strong> Neither the title nor the body may be edited
+  after that labelling. The reader takes the later of the body's last edit
+  and the last title rename, and an issue whose text moved is skipped the
+  same way (S-0119/D-2).</li>
+</ul>
+<p>An issue drafts once (S-0119/D-5). Before the run the leg files it as an
+ordinary operator source, <code>.torve/sources/operator/issue-&lt;number&gt;.yaml</code>, with
+the issue's URL as <code>ref</code>, its title, the labelling instant as <code>at</code>, and its
+body as <code>summary</code>. A later pass skips any issue whose source file the tree
+already holds, so a run that fails or escalates — <code>budget_exhausted</code>
+included, which holds the pause like any escalation (S-0119/D-10) — is
+retried by a person, never by the loop: <code>torve intake --source
+operator/issue-&lt;number&gt;</code> re-runs it, or delete the file to let the next pass
+take the issue again.</p>
+<p>The leg never writes to the forge — no comment, no label change, no close
+(S-0119/D-9); the issue stays as the person left it. It runs after the
+standing leg and before the mint, and a paused pass skips it, so a pass that
+drafts dispatches only after the drafting run returns. One drafting run per
+pass drains a queue of labelled issues one per pass. The drafts are ordinary
+drafts: nothing dispatches until a person runs <code>torve adopt</code>, which commits
+the source file its drafting run names, beside the contracts that cite it.
+The pass's detail line and the <code>issue_drafted</code> and <code>issue_skipped</code> engine
+events name each issue drafted and skipped; nothing decides on them
+(S-0119/D-9).</p>
 <h2 id="getting-told">Getting told<a class="headerlink" href="#getting-told" title="Permanent link">&para;</a></h2>
 <p>An interrupt-class escalation is delivered once, by a leg of the manager's
 pass, to whatever destination is configured:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">notify</span><span class="p">:</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">adapter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">webhook</span><span class="w">          </span><span class="c1"># none | webhook</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">url_env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TORVE_NOTIFY_URL</span><span class="w"> </span><span class="c1"># the variable holding the URL, never the URL</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># deliveries before the queue parks one</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">notify</span><span class="p">:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">adapter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">webhook</span><span class="w">          </span><span class="c1"># none | webhook</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">url_env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TORVE_NOTIFY_URL</span><span class="w"> </span><span class="c1"># the variable holding the URL, never the URL</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># deliveries before the queue parks one</span>
 </span></code></pre></div>
 <p>An ntfy topic is the destination that needs no account and no code — the
 delivery is one JSON POST and a phone subscriber reads it. The URL is a
 bearer secret in practice, so the committed file names the variable and
 the environment carries the value (S-0001/D-13):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TORVE_NOTIFY_URL</span><span class="o">=</span>https://ntfy.sh/&lt;a-topic-only-you-subscribe-to&gt;
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TORVE_NOTIFY_URL</span><span class="o">=</span>https://ntfy.sh/&lt;a-topic-only-you-subscribe-to&gt;
 </span></code></pre></div>
 <p><code>none</code> is the default and is a choice, not a blank: a repository that has
 not picked a destination sends nothing on purpose. The queue is the log —
@@ -2894,9 +2956,9 @@ because a requeue over the escalated run's leftover host state failed as
 <code>gate_infrastructure_failure</code>; run <code>torve manager resolve --resolution
 requeued</code>; restart the night. The loop is now one amendment and one
 command (S-0094):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="c1"># it when pushed</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="c1"># it when pushed</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
 </span></code></pre></div>
 <p>The requeue clears the one task's escalated footprint, fetches, and
 refreshes the contract through <code>refresh_document</code>, the same derivation a
@@ -2952,31 +3014,31 @@ fast-forward and the planning and says so once at the start (S-0117/D-6):
 moving that checkout would move the code the process is running.</p>
 <p>So a document can go from acceptance to a ready pull request without its
 owner. The terms that make the run survive what its owner would have answered:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">      </span><span class="c1"># the thread leg reads a document's pull request</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># arms the pass's landing leg</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">require_review</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># at least one criterion must be armed</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="nt">review</span><span class="p">:</span>
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="s">"on"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">task_gated</span><span class="p p-Indicator">]</span><span class="w">          </span><span class="c1"># the task-gated verdict require_review waits for</span>
-</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
-</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="nt">scm</span><span class="p">:</span>
-</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">           </span><span class="c1"># the forge repository the pull request opens against</span>
-</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># landing: pull_request needs the forge's pull request</span>
-</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
-</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="nt">tiers</span><span class="p">:</span>
-</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">  </span><span class="nt">executor</span><span class="p">:</span>
-</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="w">    </span><span class="nt">revision_variant</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">executor.strong</span><span class="w">   </span><span class="c1"># a surviving blocker's revision rung</span>
-</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="w">  </span><span class="nt">executor.strong</span><span class="p">:</span>
-</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="w">    </span><span class="nt">harness</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude</span>
-</span><span id="__span-13-19"><a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-opus-5-5</span>
-</span><span id="__span-13-20"><a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">anthropic</span>
-</span><span id="__span-13-21"><a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>
-</span><span id="__span-13-22"><a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="nt">threads</span><span class="p">:</span>
-</span><span id="__span-13-23"><a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                         </span><span class="c1"># off by default</span>
-</span><span id="__span-13-24"><a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">      </span><span class="c1"># the forge's review bots: waited for and answered</span>
-</span><span id="__span-13-25"><a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">                </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">      </span><span class="c1"># the thread leg reads a document's pull request</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># arms the pass's landing leg</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="nt">require_review</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># at least one criterion must be armed</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="nt">review</span><span class="p">:</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">  </span><span class="s">"on"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">task_gated</span><span class="p p-Indicator">]</span><span class="w">          </span><span class="c1"># the task-gated verdict require_review waits for</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="nt">scm</span><span class="p">:</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">           </span><span class="c1"># the forge repository the pull request opens against</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># landing: pull_request needs the forge's pull request</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="nt">tiers</span><span class="p">:</span>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="w">  </span><span class="nt">executor</span><span class="p">:</span>
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="w">    </span><span class="nt">revision_variant</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">executor.strong</span><span class="w">   </span><span class="c1"># a surviving blocker's revision rung</span>
+</span><span id="__span-14-17"><a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="w">  </span><span class="nt">executor.strong</span><span class="p">:</span>
+</span><span id="__span-14-18"><a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="w">    </span><span class="nt">harness</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude</span>
+</span><span id="__span-14-19"><a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a><span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-opus-5-5</span>
+</span><span id="__span-14-20"><a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a><span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">anthropic</span>
+</span><span id="__span-14-21"><a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>
+</span><span id="__span-14-22"><a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a><span class="nt">threads</span><span class="p">:</span>
+</span><span id="__span-14-23"><a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                         </span><span class="c1"># off by default</span>
+</span><span id="__span-14-24"><a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">      </span><span class="c1"># the forge's review bots: waited for and answered</span>
+</span><span id="__span-14-25"><a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">                </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
 </span></code></pre></div>
 <p><code>revision_variant</code> names a configured tier, dotted, refused at load when it
 resolves to none (S-0117/D-1). When a review blocker survives the executor
@@ -2995,8 +3057,8 @@ for.</p>
 approval, a human act, and that is the whole of the safety story here — a
 manager with the switch off behaves exactly as it did before the landing
 leg existed.</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
 </span></code></pre></div>
 <p>Armed, each pass runs the <strong>same</strong> serialized lane the verb runs, with the
 same arguments this configuration already feeds it. It adds a caller, not
@@ -3076,12 +3138,12 @@ through a pause is the manager's to decide from <code>promotion.landing</code>;
 <p>What a landing <em>is</em> comes from two terms of <code>promotion</code>, and neither is ever
 inferred from whether a remote exists or from whether the ready candidates
 happen to share a document (S-0080/D-1, S-0083/D-1):</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nt">scm</span><span class="p">:</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
-</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="nt">scm</span><span class="p">:</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
 </span></code></pre></div>
 <p>Under <code>local</code>, <strong>landing is not publishing</strong>: the lane fast-forwards this
 checkout's base and stops, and pushing it stays yours. Under <code>pull_request</code>
@@ -3320,14 +3382,14 @@ task, the sha and the verb that writes one (<code>torve log land &lt;task&gt; --
 not carry (S-0065/D-7).</p>
 <p><strong>A reviewer's threads can be answered by the night too.</strong> Off by default, and
 a separate switch from <code>auto_merge</code>:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">threads</span><span class="p">:</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
-</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
-</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
-</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">threads</span><span class="p">:</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
 </span></code></pre></div>
 <p><code>bots</code> is every login the night both waits for and may answer: the review wait
 ends once all of them have reviewed the head, and only their threads does the
