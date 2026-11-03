@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0727
+phase: 2
+attempt: 3
+base: 2c7b493afdae0aa0b3f751f9baeb5e9bf9a0cf42
+commit: f6d232237fca3fcf3c324f26b0be607687d95ea6
+at: '2026-11-03T08:45:09Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-03T08:30:13Z'
+    attempt: 2
+    claim: >-
+      D-2 governs the intake leg's drafting decision, and this task builds none of
+      that leg: it adds the forge read D-3 names — an issue's title and body, the
+      account and instant of the last labelling, and the later edit — with no path
+      that drafts from one. D-2's check selects nothing because tests/test_issues.py
+      and the leg it would test land in a later phase of the document, so the row
+      is not exercised here rather than contradicted: the reader returns the facts
+      the leg will judge, and never labels, comments or drafts.
+    evidence: >-
+      `uv run pytest tests/test_issues.py -k labelled` — no tests ran in 3.64s
+    action: decided
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-11-03T08:39:52Z'
+    attempt: 2
+    claim: >-
+      The permission endpoint's legacy permission field reads triage back as read
+      and maintain as write, so may_triage reads role_name, falling back to permission
+      only when role_name is absent; triage, write, maintain and admin answer true
+      as the row says.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1334 — role taken from role_name before the legacy
+      permission field
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-03T08:40:08Z'
+    attempt: 2
+    claim: >-
+      D-2 governs the intake leg's drafting decision, and this task builds none of
+      that leg: it adds the forge read D-3 names — an issue's title and body, the
+      account and instant of the last labelling, and the later edit — with no path
+      that drafts from one. D-2's check selects nothing because tests/test_issues.py
+      and the leg it would test land in a later phase of the document, so the row
+      is not exercised here rather than contradicted: the reader returns the facts
+      the leg will judge, and never labels, comments or drafts.
+    evidence: >-
+      `uv run pytest tests/test_issues.py -k labelled` — no tests ran in 3.64s
+    action: decided
