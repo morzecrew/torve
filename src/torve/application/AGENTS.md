@@ -2298,28 +2298,28 @@ When a document's last phase lands, the lane commits the held-out properties rec
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: the held-out properties keep guarding the document's rows as visible tests after it merges
 
-### S-0117/D-1 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-1 — `ASSUMED` (A document reaches its pull request without its owner)
 
 A seat may name a `revision_variant`, a dotted tier. When the attempt about to run follows a surviving review blocker's revision, `advance_tier` resolves it to that tier, as it resolves a retry rung after a gate-red; empty, the default, keeps the revision on the seat. The load refuses a `revision_variant` that names no configured tier.
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py`
 - Consequence: a blocker the executor seat could not clear gets its revision on the stronger seat inside the same run, worktree and critique, and only a blocker that survives that reaches a person
 
-### S-0117/D-2 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-2 — `ASSUMED` (A document reaches its pull request without its owner)
 
 Every reader that lists the seats a run can reach lists all of them: the seat, its retry rungs and its `revision_variant`, and, followed transitively, each listed tier's own retry rungs and `revision_variant`. The readers are the broker's route table and the dispatch-time provider check.
 
 - Paths: `src/torve/application/dispatch.py` `src/torve/cli/assembly.py`
 - Consequence: a revision rung on another provider, or a rung reached from it, is routed before the first attempt and refused at dispatch when the repository may not reach it, never mid-run
 
-### S-0117/D-3 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-3 — `ASSUMED` (A document reaches its pull request without its owner)
 
 `torve manager serve <partition> --night --chain` runs nights back to back in one process. After a close it runs idle passes and opens the next night once the open's refusal reads empty and the day's budget has room; a night closed on a `stop_on` class ends the chain. `--chain` without `--night` is refused.
 
 - Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
 - Consequence: the engine serves until it is stopped, every night it ran keeps its own record, and a night that drains early no longer leaves the partition idle until a person notices
 
-### S-0117/D-4 — `LOCKED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-4 — `LOCKED` (A document reaches its pull request without its owner)
 
 Under `--chain`, the night section's `budget_usd` and `budget_attempts` bound a UTC day: each night opens with what remains of the day on each axis as its own budget. A day on which any axis configured above zero has no remainder opens no night until the next UTC midnight, because `reached` reads a zero budget as no bound; an axis configured as zero stays unbounded. A night that crosses midnight keeps the budget it opened with, and what it spends after midnight counts against the new day. `minutes` bounds each night.
 
@@ -2327,7 +2327,7 @@ Under `--chain`, the night section's `budget_usd` and `budget_attempts` bound a 
 - Consequence: a chain spends at most one night's configured budget per day however many nights it opens, plus what the attempts already running when a bound is reached spend, as a night already does, and `night.opened` records the remainder each night ran under
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0117/D-5 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-5 — `ASSUMED` (A document reaches its pull request without its owner)
 
 Between nights, with nothing in flight, the chain fetches and, when the checkout sits on the configured base branch with a clean tree, fast-forwards it to the remote's. It plans only from a checkout on the base branch, clean and at the remote's tip after that: in number order, every document whose status is accepted, whose implementation is none and which has minted no task is minted into the partition's record as `torve plan S-NNNN --partition <partition> --no-dry-run` does, writing no file. A refused plan is tried again within the sweep after each mint that succeeds, and one still refused when a pass mints nothing is recorded once per base commit and tried again when the base moves.
 
