@@ -1306,6 +1306,9 @@ writing no file. A refused plan is retried after each mint that succeeds, and
 one still refused when a pass mints nothing is recorded once per base commit
 and retried when the base moves. A document accepted only on another branch is
 never planned.
+A checkout off the base branch, with uncommitted changes or that will not
+fast-forward plans nothing, and the record names why once per base commit: a
+`plan_refused` engine event whose `document` is `checkout`.
 
 A chain whose engine imports from the checkout it serves skips the
 fast-forward and the planning and says so once at the start (S-0117/D-6):

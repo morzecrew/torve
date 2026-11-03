@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `torve manager serve <partition> --night --chain` runs nights back to back in one
   process. Between nights it fast-forwards a clean checkout on the base branch and plans
-  every accepted document that has minted no task, except in the checkout its own engine
-  runs from.
+  every accepted, unimplemented document that has minted no task, except in the checkout
+  its own engine runs from.
 
 - Under `--chain`, the night budget bounds a UTC day, and each night opens with what the
   day has left.
