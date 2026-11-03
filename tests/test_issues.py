@@ -423,6 +423,89 @@ def test_a_leg_started_draft_that_spends_its_budget_escalates_and_holds_the_paus
     assert task_id in detail
 
 
+class Raising(FakeDraft):
+    """A drafting run that raises the error it is given."""
+
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error = error
+
+    def __call__(self, request: str, source: str) -> IntakeOutcome:
+        self.calls.append((request, source))
+        raise self.error
+
+
+def test_a_draft_that_never_started_leaves_no_source_and_is_tried_again(tmp_path: Path):
+    """A drafting run that never started drafts nothing, so its source file
+    goes: kept, every later pass would skip the issue as already filed."""
+
+    from torve.application.intake import DraftNotStarted
+
+    reader = FakeReader([issue()], triage={"alice": True})
+    draft = Raising(DraftNotStarted("worktree add failed"))
+
+    detail, moved = issue_leg(tmp_path, config(), reader, draft)
+
+    assert moved is False
+    assert "could not draft operator/issue-142: worktree add failed" in detail
+    assert not source_path(tmp_path).exists()
+
+    issue_leg(tmp_path, config(), reader, draft)
+
+    assert len(draft.calls) == 2
+
+
+def test_a_minted_run_that_fails_keeps_its_source_and_is_not_retried(tmp_path: Path):
+    """A run that was minted and then failed is the issue's record: its source
+    stays, so the next pass skips the issue rather than minting it again."""
+
+    reader = FakeReader([issue()], triage={"alice": True})
+    draft = Raising(RuntimeError("T-0100 is already running"))
+
+    detail, moved = issue_leg(tmp_path, config(), reader, draft)
+
+    assert moved is False
+    assert "drafting operator/issue-142 failed: T-0100 is already running" in detail
+    assert source_path(tmp_path).exists()
+
+    issue_leg(tmp_path, config(), reader, draft)
+
+    assert len(draft.calls) == 1
+
+
+def test_a_source_that_cannot_be_built_leaves_no_file(tmp_path: Path):
+    """The text is built before the file exists, so a labelling the source
+    refuses (S-0058/D-7) files nothing and blocks no later pass."""
+
+    from torve.application.issues import _draft
+
+    draft = FakeDraft()
+
+    detail, moved = _draft(tmp_path, issue(labelled_at="yesterday"), draft, [])
+
+    assert moved is False
+    assert "could not file operator/issue-142" in detail
+    assert not source_path(tmp_path).exists()
+    assert draft.calls == []
+
+
+def test_a_source_another_pass_filed_first_is_not_drafted_again(tmp_path: Path):
+    """The source is created exclusively, so a pass that overlaps another and
+    finds the file already there drafts nothing."""
+
+    from torve.application.issues import _draft
+
+    source_path(tmp_path).parent.mkdir(parents=True, exist_ok=True)
+    source_path(tmp_path).write_text("id: operator/issue-142\n", encoding="utf-8")
+    draft = FakeDraft()
+
+    detail, moved = _draft(tmp_path, issue(), draft, [])
+
+    assert moved is False
+    assert draft.calls == []
+    assert "already filed" in detail
+
+
 def test_the_leg_writes_the_source_file_the_issue_drafts_from(tmp_path: Path):
     """S-0119/D-5: the filed source carries the URL as `ref`, the title, the
     labelling instant as `at` and the body as `summary`, and opens with its

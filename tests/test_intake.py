@@ -974,6 +974,100 @@ def test_run_intake_spent_budget_escalates(seeded):
     assert not drafts_file(seeded.root, task.id).exists()
 
 
+def test_draft_request_runs_no_repository_hook(seeded):
+    """Every git command torve runs carries `core.hooksPath=/dev/null`; the
+    drafting worktree's checkout is one, so a `post-checkout` hook stays put."""
+
+    hook = seeded.root / ".git" / "hooks" / "post-checkout"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    marker = seeded.root / "hooked"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    draft_request(
+        seeded.root,
+        "add a widget module",
+        RunnerConfig(),
+        ScriptedAgent([output_for(draft_dict())]),
+        runtime=StubRuntime(),
+    )
+
+    assert not marker.exists()
+
+
+def test_a_configuration_hash_that_fails_leaves_no_task_or_worktree(seeded, monkeypatch):
+    """The configuration is read before anything is minted or cut, so a
+    failure reading it leaves no task directory and no worktree behind."""
+
+    import torve.application.telemetry as telemetry
+
+    def broken(*args, **kwargs):
+        raise ValueError("gates.yaml does not parse")
+
+    monkeypatch.setattr(telemetry, "config_hash", broken)
+
+    with pytest.raises(ValueError, match="does not parse"):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(),
+            ScriptedAgent([]),
+            runtime=StubRuntime(),
+        )
+
+    assert not (seeded.root / ".torve" / "tasks").exists() or not any(
+        (seeded.root / ".torve" / "tasks").iterdir()
+    )
+    worktrees = subprocess.run(
+        ["git", "-C", str(seeded.root), "worktree", "list"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert len(worktrees.splitlines()) == 1
+
+
+def test_a_configured_base_that_names_no_ref_is_a_configuration_error(seeded):
+    """Nothing is minted before the base resolves, so a base that names no
+    ref is the configuration's error, which the leg and `torve intake` both
+    read as nothing drafted."""
+
+    with pytest.raises(ValueError, match="the configured base does not resolve"):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(base="no-such-branch"),
+            ScriptedAgent([]),
+            runtime=StubRuntime(),
+        )
+
+    assert not (seeded.root / ".torve" / "tasks").exists() or not any(
+        (seeded.root / ".torve" / "tasks").iterdir()
+    )
+
+
+def test_a_refusal_from_the_drafting_run_is_no_configuration_error(seeded, monkeypatch):
+    """A `ValueError` the run raises, such as a state conflict, reaches the
+    caller as a `RuntimeError`: `torve intake` reports a configuration error
+    only for what it read before the run."""
+
+    import torve.application.intake as intake
+
+    def refuse(*args, **kwargs):
+        raise ValueError("T-0001 is already running")
+
+    monkeypatch.setattr(intake, "run_intake", refuse)
+
+    with pytest.raises(RuntimeError, match="already running"):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(),
+            ScriptedAgent([]),
+            runtime=StubRuntime(),
+        )
+
+
 def test_draft_request_mints_cuts_runs_and_removes_the_worktree(seeded):
     """S-0119/D-7: one request drafts the same way whichever surface started
     it — the run minted, its worktree cut at base, the caller's agent run and
@@ -1312,6 +1406,42 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
     assert "adopt" in log and source in log
     assert not drafts_file(seeded.root, source).exists()
     assert not (seeded.root / ".torve" / "tick.lock").exists()  # lock released
+
+
+def test_adopt_commits_with_no_repository_hook(seeded):
+    """Adoption's commit carries `core.hooksPath=/dev/null` like every git
+    command torve runs, so a `pre-commit` hook neither runs nor refuses it."""
+
+    source = adopted_ready_run(seeded)
+    hook = seeded.root / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    marker = seeded.root / "hooked"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    adopted = adopt(seeded.root, source, RunnerConfig())
+
+    assert len(adopted) == 2
+    assert not marker.exists()
+
+
+def test_intake_exits_as_infrastructure_when_its_runtime_cannot_be_built(seeded, monkeypatch):
+    """A runtime this host cannot provide is no drafting run's escalation: no
+    run started, so `torve intake` exits with the infrastructure code."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+    from torve.domain.states import EXIT_INFRASTRUCTURE
+
+    def no_runtime(config, override):
+        raise RuntimeError("the opensandbox runtime is not installed")
+
+    monkeypatch.setattr("torve.cli.intake.runtime_for", no_runtime)
+
+    result = CliRunner().invoke(app, ["intake", "add a widget", "--root", str(seeded.root)])
+
+    assert result.exit_code == EXIT_INFRASTRUCTURE, result.output
 
 
 def test_adopt_numbers_past_the_record_when_a_store_holds_the_tasks(seeded):

@@ -37,7 +37,13 @@ from torve.cli.options import (
     runtime_for,
 )
 from torve.cli.run import ContractArgument, contract_for
-from torve.domain.states import EXIT_CONFIG, EXIT_ESCALATED, EXIT_GATES_RED, EXIT_OK
+from torve.domain.states import (
+    EXIT_CONFIG,
+    EXIT_ESCALATED,
+    EXIT_GATES_RED,
+    EXIT_INFRASTRUCTURE,
+    EXIT_OK,
+)
 
 # ----------------------- #
 
@@ -73,7 +79,7 @@ def intake_cmd(
     awaiting `torve adopt`; a spent budget escalates."""
 
     from torve.adapters.broker import build_broker
-    from torve.application.intake import draft_request
+    from torve.application.intake import DraftNotStarted, draft_request
     from torve.cli.run import build_tier_agent
 
     root = root.resolve()
@@ -81,6 +87,16 @@ def intake_cmd(
 
     try:
         agent = build_tier_agent(config, root, "planner")
+        runtime = runtime_for(config, runtime_name)
+        broker = build_broker(config.broker)
+
+    except ValueError as exc:
+        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    except RuntimeError as exc:  # a runtime or broker this host cannot provide
+        raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
+
+    try:
         outcome = draft_request(
             root,
             request,
@@ -88,13 +104,19 @@ def intake_cmd(
             agent,
             spec=spec,
             source=source,
-            runtime=runtime_for(config, runtime_name),
+            runtime=runtime,
             taken=recorded_ids(root, dsn, partition),
-            broker=build_broker(config.broker),
+            broker=broker,
         )
 
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
+
+    except DraftNotStarted as exc:
+        raise fail(str(exc), EXIT_INFRASTRUCTURE) from exc
+
+    except RuntimeError as exc:
+        raise fail(str(exc), EXIT_ESCALATED) from exc
 
     if fmt is Format.JSON:
         emit_json(

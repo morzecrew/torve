@@ -75,6 +75,15 @@ DRAFT_REF = re.compile(r"^DRAFT-(\d+)$")
 ADOPTED_FILE = "adopted.json"
 
 
+#: Every git command torve runs carries this, so no repository hook runs.
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
+
+
+class DraftNotStarted(RuntimeError):
+    """The drafting run could not start, and the task minted for it is gone:
+    nothing records the request, so a caller may ask again."""
+
+
 # ....................... #
 
 
@@ -2020,9 +2029,16 @@ def draft_request(
     it; the broker carries the provider credential, never the sandbox."""
 
     from torve.application.telemetry import config_hash
-    from torve.gates.context import resolve_base
+    from torve.gates.context import GitError, resolve_base
 
-    base_ref = resolve_base(root, config.base) or "HEAD"
+    try:
+        base_ref = resolve_base(root, config.base) or "HEAD"
+
+    except GitError as exc:
+        # A configured base that names no ref is the configuration's, and
+        # nothing has been minted yet.
+        raise ValueError(f"the configured base does not resolve: {exc}") from exc
+
     base = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--verify", f"{base_ref}^{{commit}}"],
         capture_output=True,
@@ -2033,10 +2049,23 @@ def draft_request(
     if base.returncode != 0:
         raise ValueError("no base tip to draft against")
 
+    # Read before anything is minted or cut, so a failure here leaves nothing.
+    digest = config_hash(layout.gates_file(root), root, config)
     task = mint_intake_task(root, request, config, spec=spec, source=source, taken=taken)
     workdir = naming.intake_worktree(root, task.id)
+    # No repository hook runs on a checkout torve makes, as in every adapter.
     added = subprocess.run(
-        ["git", "-C", str(root), "worktree", "add", "--detach", str(workdir), base.stdout.strip()],
+        [
+            "git",
+            *NO_HOOKS,
+            "-C",
+            str(root),
+            "worktree",
+            "add",
+            "--detach",
+            str(workdir),
+            base.stdout.strip(),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -2044,15 +2073,19 @@ def draft_request(
 
     if added.returncode != 0:
         shutil.rmtree(root / layout.TORVE_DIR / "tasks" / task.id, ignore_errors=True)
-        raise RuntimeError(added.stderr.strip() or "worktree add failed")
+        raise DraftNotStarted(added.stderr.strip() or "worktree add failed")
 
     try:
-        digest = config_hash(layout.gates_file(root), root, config)
         return run_intake(root, workdir, task, config, runtime, agent, digest, broker=broker)
+
+    except ValueError as exc:
+        # The configuration was read above; a refusal from the run itself,
+        # such as a state conflict, is the run's, so the caller tells it apart.
+        raise RuntimeError(str(exc)) from exc
 
     finally:
         subprocess.run(
-            ["git", "-C", str(root), "worktree", "remove", "--force", str(workdir)],
+            ["git", *NO_HOOKS, "-C", str(root), "worktree", "remove", "--force", str(workdir)],
             capture_output=True,
             text=True,
             check=False,
@@ -2250,7 +2283,8 @@ def adopt(
                         written.append(filed)
 
         proc = subprocess.run(
-            ["git", "-C", str(root), "add", "--"] + [str(p.relative_to(root)) for p in written],
+            ["git", *NO_HOOKS, "-C", str(root), "add", "--"]
+            + [str(p.relative_to(root)) for p in written],
             capture_output=True,
             text=True,
             check=False,
@@ -2275,6 +2309,7 @@ def adopt(
             proc = subprocess.run(
                 [
                     "git",
+                    *NO_HOOKS,
                     "-C",
                     str(root),
                     "commit",

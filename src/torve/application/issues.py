@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from torve.application.intake import DraftNotStarted
 from torve.application.telemetry import engine_event
 from torve.config.sources import schema_header, source_file
 from torve.domain.source import Source
@@ -252,14 +253,40 @@ def _draft(
     identifier = issue_source_id(issue.number)
     path = source_file(root, identifier)
 
+    created = False
+
     try:
+        text = _source_text(issue)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(_source_text(issue), encoding="utf-8")
+
+        # Created exclusively: a pass that overlaps this one finds it filed.
+        with path.open("x", encoding="utf-8") as handle:
+            created = True
+            handle.write(text)
+
+    except FileExistsError:
+        return _detail([f"#{issue.number} already filed as {identifier}"], skipped), False
 
     except (OSError, ValueError) as exc:  # a failed write, or a labelling S-0058/D-7 refuses
+        if created:
+            # A partial file would mark the issue filed with nothing drafted.
+            path.unlink(missing_ok=True)
+
         return _detail([f"could not file {identifier}: {exc}"], skipped), False
 
-    outcome = draft(f"{issue.title}\n\n{issue.body}", identifier)
+    try:
+        outcome = draft(f"{issue.title}\n\n{issue.body}", identifier)
+
+    except (ValueError, DraftNotStarted) as exc:
+        # Nothing was minted, so nothing drafts the issue: the source goes,
+        # or every later pass would skip the issue as already filed.
+        path.unlink(missing_ok=True)
+        return _detail([f"could not draft {identifier}: {exc}"], skipped), False
+
+    except Exception as exc:
+        # The run was minted and failed: its task is the issue's record, so
+        # the source stays and later passes skip the issue, as for a spent run.
+        return _detail([f"drafting {identifier} failed: {exc}"], skipped), False
 
     engine_event(
         root,

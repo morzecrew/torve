@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `torve intake` and `torve adopt` run git with repository hooks off, as the rest of
+  torve does. A drafting run's own refusal is no longer reported as a configuration error,
+  and an issue whose drafting run never started is tried again on the next pass.
+
 - A decision row's check runs only when the diff touches the row's paths or a file the
   check names. A row that a later phase of the same document builds no longer fails its
   check in each earlier phase, and those attempts no longer owe a log entry.
