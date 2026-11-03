@@ -72,6 +72,7 @@ def intake_cmd(
     worktree at base whose gate is the contract lint. Green persists drafts
     awaiting `torve adopt`; a spent budget escalates."""
 
+    from torve.adapters.broker import build_broker
     from torve.application.intake import draft_request
     from torve.cli.run import build_tier_agent
 
@@ -89,6 +90,7 @@ def intake_cmd(
             source=source,
             runtime=runtime_for(config, runtime_name),
             taken=recorded_ids(root, dsn, partition),
+            broker=build_broker(config.broker),
         )
 
     except ValueError as exc:

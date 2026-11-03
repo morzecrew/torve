@@ -996,6 +996,34 @@ def test_draft_request_mints_cuts_runs_and_removes_the_worktree(seeded):
     assert RunState.load(naming.state_file(seeded.root, outcome.task_id)).state is TaskState.READY
 
 
+def test_draft_request_hands_the_callers_broker_to_the_run(seeded, monkeypatch):
+    """S-0119/D-7: the broker is the caller's, like the agent, so a drafting
+    run started from any surface keeps the credential out of the sandbox."""
+    import torve.application.intake as intake
+    from torve.adapters.broker import NoneBroker
+
+    seen = {}
+    real = intake.run_intake
+
+    def spy(*args, **kwargs):
+        seen["broker"] = kwargs.get("broker")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(intake, "run_intake", spy)
+    broker = NoneBroker()
+
+    draft_request(
+        seeded.root,
+        "add a widget module",
+        RunnerConfig(),
+        ScriptedAgent([output_for(draft_dict())]),
+        runtime=StubRuntime(),
+        broker=broker,
+    )
+
+    assert seen["broker"] is broker
+
+
 # ----------------------- #
 # Adoption (S-0020/D-1, S-0020/D-4).
 

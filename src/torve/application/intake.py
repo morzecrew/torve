@@ -2004,13 +2004,15 @@ def draft_request(
     source: str | None = None,
     runtime: Runtime,
     taken: Iterable[str] = (),
+    broker: Broker | None = None,
 ) -> IntakeOutcome:
     """One request drafted the same way whichever surface started it
     (S-0119/D-7): the run is minted, its worktree cut at base, `run_intake`
     given the caller's agent, and the worktree removed whatever happens.
 
-    The planner tier's agent is the caller's, so the composition root stays
-    in the CLI layer and this module never imports it."""
+    The planner tier's agent and the broker are the caller's, so the
+    composition root stays in the CLI layer and this module never imports
+    it; the broker carries the provider credential, never the sandbox."""
 
     from torve.application.telemetry import config_hash
     from torve.gates.context import resolve_base
@@ -2040,7 +2042,7 @@ def draft_request(
 
     try:
         digest = config_hash(layout.gates_file(root), root, config)
-        return run_intake(root, workdir, task, config, runtime, agent, digest)
+        return run_intake(root, workdir, task, config, runtime, agent, digest, broker=broker)
 
     finally:
         subprocess.run(
