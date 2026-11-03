@@ -314,11 +314,14 @@ an entry like any other touched locked area, instead of the old rule that
 skipped every row carrying a check (S-0106/D-1).
 
 A row's paths are its gate's, as an invariant's are: a `decision:<id>` gate
-whose row governs nothing the diff touches is reported skipped, and a skipped
-check owes no entry. Every phase of a document carries all of its rows, so
-without this a row a later phase builds fails its check in each earlier phase
-and costs that attempt an entry. The phase that builds the row touches its
-paths, and the completion battery reads the whole document's diff.
+whose row declares paths, none of which the diff touches, is reported
+skipped, and a skipped check owes no entry. The files the check's command
+names count too, so an edit to its test runs it, and a renamed file counts
+at both its old and its new path. A row with no paths runs on every diff.
+Every phase of a document carries all of its rows, so without this a row a
+later phase builds fails its check in each earlier phase and costs that
+attempt an entry. The phase that builds the row touches its paths, and the
+completion battery reads the whole document's diff.
 
 A `check_state: blocking` row also names a `check_twin`: the test that
 proves the check *can* fail — a plausible wrong implementation of the row,

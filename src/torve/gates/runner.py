@@ -105,7 +105,8 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
     carries all its rows, so a row a later phase builds would otherwise fail
     its check in each earlier phase and owe an entry there (#241); the phase
     that builds it touches its paths, and the completion battery reads the
-    whole document's diff."""
+    whole document's diff. The files the check names count too, and a row
+    with no paths runs on every diff."""
 
     gates: list[Gate] = []
 
@@ -123,11 +124,21 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
                 input="worktree",
                 timeout=SHELL_GATE_TIMEOUT,
                 sabotage=row.check_twin,
-                paths=list(row.paths),
+                # A row with no paths runs on every diff, as before.
+                paths=[*row.paths, *_check_files(row.check)] if row.paths else [],
             )
         )
 
     return gates
+
+
+def _check_files(check: str) -> list[str]:
+    """The files a check's command names, such as its test file: an edit to
+    one changes the check itself, so it runs the check."""
+
+    return [
+        word.split("::", 1)[0] for word in check.split() if "/" in word and not word.startswith("-")
+    ]
 
 
 def decision_gates(task: Task | None) -> list[Gate]:
@@ -279,7 +290,10 @@ def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
     a directory, and what is under a matched path matches with it.
     """
 
-    changed = [*ctx.changed_paths, *ctx.untracked]
+    # A rename or copy counts at both ends: a file moved out of the area is a
+    # change to the area.
+    moved = [entry.old_path for entry in ctx.diff if entry.old_path]
+    changed = [*ctx.changed_paths, *moved, *ctx.untracked]
 
     return any(matches(path, gate.paths) for path in changed)
 
@@ -384,6 +398,10 @@ def run_gates(
                     ),
                 )
             )
+
+            if gate.name.startswith(DECISION_PREFIX):
+                checks[gate.name[len(DECISION_PREFIX) :]] = "skipped"
+
             continue
 
         if progress is not None:

@@ -641,7 +641,66 @@ def test_a_check_the_diff_does_not_reach_is_skipped_and_owes_nothing(repo):
 
     assert by_name["decision:S-0009/D-1"].outcome == "skipped"
     assert by_name["decisions-reported"].outcome == "pass"
+    assert (
+        "skipped: S-0009/D-1: its check judges nothing this diff touches"
+        in by_name["decisions-reported"].output
+    )
     assert report.exit_code == 0
+
+
+def test_a_decision_gate_judges_its_rows_paths_and_its_checks_files():
+    """A row's gate also runs when the diff edits the test its check names,
+    since that edit changes the check. A row with no paths runs on every diff."""
+    from torve.domain.task import InheritedDecision
+    from torve.gates.runner import row_gates
+
+    scoped = InheritedDecision(
+        id="S-0009/D-1",
+        grade="LOCKED",
+        text="x",
+        paths=["lib/issues.py"],
+        check="uv run pytest tests/test_issues.py::test_triage -k triage -p no:cacheprovider",
+    )
+    everywhere = InheritedDecision(
+        id="S-0009/D-2", grade="ASSUMED", text="y", check="uv run pytest tests/test_x.py"
+    )
+
+    first, second = row_gates([scoped, everywhere])
+
+    assert first.paths == ["lib/issues.py", "tests/test_issues.py"]
+    assert second.paths == []
+
+
+def test_a_rename_out_of_a_gates_paths_reaches_the_gate(tmp_path):
+    """A file moved out of what a gate judges is a change to it: the old path
+    counts as well as the new one."""
+    from torve.config.manifest import Gate, Manifest
+    from torve.gates.context import DiffEntry, GateContext
+    from torve.gates.runner import _judges_anything
+
+    gate = Gate(
+        name="decision:S-0009/D-1",
+        run="true",
+        state="shadow",
+        origin="S-0009/D-1",
+        paths=["lib/**"],
+    )
+
+    def context(*diff: DiffEntry) -> GateContext:
+        return GateContext(
+            root=tmp_path,
+            manifest=Manifest(gates=[]),
+            head_sha="",
+            base=None,
+            merge_base=None,
+            diff=list(diff),
+        )
+
+    moved = DiffEntry(status="R", path="src/issues.py", old_path="lib/issues.py")
+    elsewhere = DiffEntry(status="M", path="src/app.py")
+
+    assert _judges_anything(gate, context(moved))
+    assert not _judges_anything(gate, context(elsewhere))
 
 
 def test_a_passing_check_covers_its_row(repo):
