@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../schemas/agent.json
+# What the agent is, for a seat on the dsh image (owner, 2026-11-03: deepseek
+# runs in dsh, not in claude). `claude-equipped`'s two plugins are claude
+# plugins and do not load here, so this profile carries no equipment of its
+# own: the role's profile supplies the skills and the hook, and dsh's half of
+# the hook is the scope guard alone (S-0072/D-3).
+#
+# What claude's Stop hook does for a claude seat, running `torve log owed` and
+# blocking on its answer, nothing does in dsh, so the prompt asks for it. On
+# S-0119 every phase's first deepseek attempt was thrown away on
+# `decisions-reported` alone: a LOCKED row whose check selects code a later
+# phase builds, with no entry naming it.
+equipment: []
+prompt_extras: |
+  Prefer the smallest change that makes the acceptance commands pass.
+  This harness runs no finishing check, so do it yourself before you stop:
+  - Run `torve log owed <task> --touched <each file you changed>` and record what it names with `torve log divergence`.
+  - Run each decision row's `check` from the contract. A LOCKED row whose check fails still needs a log entry naming it, even when another phase builds what it checks: kind `resolved`, class `discovery`, action `decided`, and the claim names the phase that settles it.
+  - Run `uv run ruff format` and `uv run ruff check --fix` on the files you changed, then every acceptance command.
