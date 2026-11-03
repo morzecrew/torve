@@ -84,9 +84,19 @@ NONCE_ATTEMPTS = 3
 # What a thread may not ask for (S-0084/D-9). Deliberately over-broad: a
 # reviewer legitimately writing "run `torve init` to regenerate" is refused and
 # read by a person, which costs one escalation; the other error costs a command
-# run by an agent because a comment asked for it.
+# run by an agent because a comment asked for it. A command to run is the verb
+# with a command beside it, in a code span on its line or a shell code block;
+# the bare word in prose ("before a run starts", "Run-time errors") asks for
+# nothing (S-0084/A-4).
 INJECTION = (
-    ("a command to run", re.compile(r"\b(run|execute|invoke|install)\b", re.I)),
+    (
+        "a command to run",
+        re.compile(
+            r"\b(run|execute|invoke|install)\b(?!-)[^\n`]{0,40}`"
+            r"|```[ \t]*(bash|sh|shell|zsh|console)\b",
+            re.I,
+        ),
+    ),
     ("a shell fragment", re.compile(r"\b(curl|wget|sudo|chmod|rm\s+-rf|pip|npm|bash)\b", re.I)),
     ("a secret", re.compile(r"\b(secret|token|credential|password|api[ _-]?key)\b", re.I)),
     ("a change to CI", re.compile(r"(\.github/|\bworkflow\b|\bpipeline\b|\bCI\b)")),

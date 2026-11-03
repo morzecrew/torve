@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ### Changed
 
+- The review-thread leg refuses a thread as asking for a command only when it names one:
+  a run, execute, invoke or install verb with a code span beside it, or a shell code block.
+  The word alone in prose, as in "before a run starts", no longer sends a finding to a
+  person.
+
 - An open document's pull request is rebased, and its battery run again, only when the
   base's new commits conflict with it or change a file it changes. A merge that touches
   neither leaves it as judged.
