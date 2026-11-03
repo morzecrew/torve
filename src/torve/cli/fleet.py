@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from torve.application.manager import Board
     from torve.application.residency import Issues
     from torve.config.fleet import FleetManifest, FleetRepository
+    from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord
 
 # ----------------------- #
@@ -165,14 +166,16 @@ async def _serve_fleet(
     async with closing_module(module), runtime.scope():
         log = event_log(runtime.get_context())
 
-        # S-0119/D-8: one intake leg per repository for the whole serve, so the
-        # planner tier's agent is built once rather than once per pass, as the
-        # manager builds its one. The key is the manifest entry's root and
-        # partition, because the leg's record read is partition-scoped, and the
-        # label beside it: the label is the leg's one switch (S-0119/D-1), so a
-        # root whose configuration names another label under the resident
-        # process builds the leg again rather than drafting from the old one.
-        issues_legs: dict[tuple[str, str], tuple[str, Issues]] = {}
+        # S-0119/D-8: one intake leg per repository, so the planner tier's agent
+        # is built once rather than once per pass. The key is the manifest
+        # entry's root and partition, because the leg's record read is
+        # partition-scoped, and the configuration the leg closed over beside it:
+        # everything the leg reads — the planner's tier, `scm`, the runtime and
+        # the broker — comes from the configuration the pass loaded, so a root
+        # whose configuration moved under the resident process builds the leg
+        # again rather than drafting, pushing or brokering from the old one
+        # (S-0119/D-1's label is one field of it, not the whole switch).
+        issues_legs: dict[tuple[str, str], tuple[RunnerConfig, Issues]] = {}
 
         async def run_pass(repo: FleetRepository, paused: bool) -> str | None:
             # Built per pass rather than cached: the root's own configuration
@@ -195,8 +198,8 @@ async def _serve_fleet(
             key = (repo.root, repo.partition)
             cached = issues_legs.get(key)
 
-            if cached is None or cached[0] != config.intake.issue_label:
-                cached = (config.intake.issue_label, _issues_leg(root, config, records=records))
+            if cached is None or cached[0] != config:
+                cached = (config, _issues_leg(root, config, records=records))
                 issues_legs[key] = cached
 
             return await once(

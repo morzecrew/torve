@@ -453,6 +453,55 @@ def test_a_label_change_under_the_serve_builds_a_new_issues_leg(tmp_path, monkey
     assert seen[2] is not seen[0]
 
 
+def test_a_config_change_under_the_same_label_builds_a_new_issues_leg(tmp_path, monkeypatch):
+    """S-0119/D-8: the fleet reloads a root's configuration each pass, so a
+    configuration that moves under the serve while `intake.issue_label` stays
+    put — the forge, the broker, the runtime, the planner's seat — gets a leg
+    built from the new settings rather than drafting through the old ones."""
+
+    from torve.application import residency
+    from torve.cli import assembly
+    from torve.cli.fleet import _serve_fleet
+    from torve.config import runconfig as runconfig_module
+    from torve.config.fleet import FleetManifest
+    from torve.config.runconfig import IntakeConfig, RunnerConfig, ScmConfig
+
+    repos = ["acme/one", "acme/one", "acme/two"]
+    legs: list[object] = []
+    built_from: list[str | None] = []
+
+    async def spy(*_args, **kwargs):
+        legs.append(kwargs.get("issues"))
+
+    def agent(config, _root, _tier):
+        built_from.append(config.scm.repo)
+        return object()
+
+    def load(_root):
+        return RunnerConfig(
+            intake=IntakeConfig(issue_label="torve:ready"),
+            scm=ScmConfig(repo=repos[len(legs)]),
+        )
+
+    monkeypatch.setattr(residency, "once", spy)
+    monkeypatch.setattr(assembly, "build_tier_agent", agent)
+    monkeypatch.setattr(runconfig_module, "load_runner_config", load)
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    manifest_ = FleetManifest(
+        repositories=[FleetRepository(root=str(tmp_path), trust="own", partition="acme/one")]
+    )
+
+    asyncio.run(_serve_fleet(manifest_, None, worker="w-1", rounds=3, interval=0))
+
+    assert len(legs) == 3
+    # The label never moved, so the second pass reuses the first leg; `scm.repo`
+    # did, so the third builds again — from the configuration it just loaded,
+    # not the one the first leg closed over.
+    assert legs[0] is legs[1]
+    assert legs[2] is not legs[0]
+    assert built_from == ["acme/one", "acme/two"]
+
+
 def test_the_fleets_issues_leg_keeps_a_planner_build_error_on_its_detail_line(
     tmp_path, monkeypatch
 ):
