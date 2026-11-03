@@ -562,6 +562,37 @@ class Scm(Protocol):
     def open_pr(self, worktree: Path, branch: str, title: str, body: str) -> str: ...
 
 
+@dataclass(frozen=True)
+class LabelledIssue:
+    """One open issue carrying the label an intake pass drafts from
+    (S-0119/D-3): what the drafter reads, who applied the label and when, and
+    the later of the body's last edit and the last title rename — the instants
+    the leg compares, so text edited after a maintainer labelled it is skipped.
+
+    `unreadable` is set, and the labelling fields are None, when the issue's
+    last labelling falls outside the timeline window the reader saw: the leg
+    names it as a skip rather than drafting from text it cannot judge.
+    """
+
+    number: int
+    url: str
+    title: str
+    body: str
+    labelled_by: str | None = None
+    labelled_at: str | None = None  # YYYY-MM-DDTHH:MM:SSZ
+    edited_at: str | None = None  # later of the body edit and the last rename
+    unreadable: str | None = None
+
+
+class IssueReader(Protocol):
+    """The forge reads the intake leg needs (S-0119/D-3): the open issues
+    carrying one label, and whether one account holds triage or more."""
+
+    def labelled_issues(self, label: str) -> list[LabelledIssue]: ...
+
+    def may_triage(self, login: str) -> bool: ...
+
+
 # The contexts a status is written under, and read back by: a commit status on
 # the sha the judgement is about, so it stays for every host rather than in one
 # host's stream. `COMPLETION_CONTEXT` is the completion battery's verdict

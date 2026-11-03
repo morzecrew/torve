@@ -20,7 +20,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
-from torve.application.ports import COMPLETION_CONTEXT, PrInfo, ReviewThread, ThreadComment
+from torve.application.ports import (
+    COMPLETION_CONTEXT,
+    LabelledIssue,
+    PrInfo,
+    ReviewThread,
+    ThreadComment,
+)
 from torve.domain.spec import LANDING_FILE
 
 # ----------------------- #
@@ -1139,6 +1145,192 @@ class GhScm:
             raise RuntimeError(error)
 
         raise RuntimeError("unreachable")  # for the type checker
+
+    # ....................... #
+
+    ISSUES_QUERY = """
+      query($owner: String!, $name: String!, $label: String!, $cursor: String) {
+        repository(owner: $owner, name: $name) {
+          issues(first: 50, after: $cursor, states: OPEN, labels: [$label]) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              number
+              url
+              title
+              body
+              lastEditedAt
+              timelineItems(last: 100, itemTypes: [LABELED_EVENT, RENAMED_TITLE_EVENT]) {
+                nodes {
+                  __typename
+                  ... on LabeledEvent {
+                    createdAt
+                    actor { login }
+                    label { name }
+                  }
+                  ... on RenamedTitleEvent { createdAt }
+                }
+              }
+            }
+          }
+        }
+      }
+    """
+
+    @staticmethod
+    def _instant(raw: Any) -> datetime | None:
+        if not raw:
+            return None
+
+        try:
+            return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+
+        except ValueError:
+            return None
+
+    @classmethod
+    def _labelled_issue(cls, node: dict[str, Any], label: str) -> LabelledIssue:
+        """One issue as the intake leg reads it (S-0119/D-3). The last event
+        that applied *label* wins; an issue whose last labelling is not in the
+        window is marked unreadable, never dropped."""
+
+        events = cast(
+            "list[dict[str, Any]]",
+            cast("dict[str, Any]", node.get("timelineItems") or {}).get("nodes") or [],
+        )
+        applied = [
+            event
+            for event in events
+            if event.get("__typename") == "LabeledEvent"
+            and str(cast("dict[str, Any]", event.get("label") or {}).get("name") or "") == label
+        ]
+        labelled = (
+            max(applied, key=lambda event: str(event.get("createdAt") or "")) if applied else None
+        )
+        renames = [event for event in events if event.get("__typename") == "RenamedTitleEvent"]
+        renamed = (
+            max(renames, key=lambda event: str(event.get("createdAt") or "")) if renames else None
+        )
+
+        # The later of the body's last edit and the last title rename. GitHub
+        # usually folds a rename into `lastEditedAt`, but the timeline is the
+        # only place the rename's instant is stated.
+        edited = node.get("lastEditedAt")
+        edited_at = str(edited) if edited else None
+        renamed_at = renamed.get("createdAt") if renamed else None
+        renamed_instant = cls._instant(renamed_at)
+        edited_instant = cls._instant(edited)
+
+        if renamed_instant and (edited_instant is None or renamed_instant > edited_instant):
+            edited_at = str(renamed_at)
+
+        if labelled is None:
+            why = "the last labelling is outside the last 100 timeline items"
+
+            return LabelledIssue(
+                number=int(node.get("number") or 0),
+                url=str(node.get("url") or ""),
+                title=str(node.get("title") or ""),
+                body=str(node.get("body") or ""),
+                edited_at=edited_at,
+                unreadable=why,
+            )
+
+        actor = cast("dict[str, Any]", labelled.get("actor") or {})
+
+        return LabelledIssue(
+            number=int(node.get("number") or 0),
+            url=str(node.get("url") or ""),
+            title=str(node.get("title") or ""),
+            body=str(node.get("body") or ""),
+            labelled_by=str(actor.get("login") or "") or None,
+            labelled_at=str(labelled.get("createdAt") or "") or None,
+            edited_at=edited_at,
+        )
+
+    def labelled_issues(self, label: str) -> list[LabelledIssue]:
+        """The open issues carrying *label* (S-0119/D-3), page by page until
+        `pageInfo.hasNextPage` is false. A page that cannot be read raises, so
+        a pass drafts nothing from a partial listing; no repository is no
+        issues."""
+
+        if not self.repo:
+            return []
+
+        owner, _, name = self.repo.partition("/")
+        cursor: str | None = None
+        found: list[LabelledIssue] = []
+
+        while True:
+            args = [
+                "graphql",
+                "-f",
+                f"query={self.ISSUES_QUERY}",
+                "-f",
+                f"owner={owner}",
+                "-f",
+                f"name={name}",
+                "-f",
+                f"label={label}",
+            ]
+
+            if cursor:
+                args += ["-f", f"cursor={cursor}"]
+
+            answered = json.loads(self._api(*args) or "{}")
+
+            if answered.get("errors") and not answered.get("data"):
+                said = "; ".join(
+                    str(cast("dict[str, Any]", error).get("message") or "")
+                    for error in cast("list[Any]", answered["errors"])
+                )
+                raise RuntimeError(said or "gh api graphql failed")
+
+            repository = cast("dict[str, Any]", answered.get("data") or {}).get("repository")
+
+            if not repository:
+                raise RuntimeError("gh api graphql read no repository")
+
+            issues = cast("dict[str, Any]", repository).get("issues")
+
+            if not isinstance(issues, dict):
+                raise RuntimeError("gh api graphql read no issues")
+
+            for node in cast("list[dict[str, Any]]", issues.get("nodes") or []):
+                found.append(self._labelled_issue(node, label))
+
+            page = cast("dict[str, Any]", issues.get("pageInfo") or {})
+
+            if not page.get("hasNextPage"):
+                return found
+
+            cursor = str(page.get("endCursor") or "")
+
+            if not cursor:
+                return found
+
+    # ....................... #
+
+    def may_triage(self, login: str) -> bool:
+        """Whether *login* holds triage or more on the repository
+        (S-0119/D-3): triage, write, maintain and admin answer true, and an
+        account that is not a collaborator — a 404 — answers false rather than
+        failing the read."""
+
+        if not self.repo or not login:
+            return False
+
+        try:
+            raw = self._api(f"repos/{self.repo}/collaborators/{login}/permission")
+
+        except RuntimeError as refused:
+            if "404" in str(refused) or "not found" in str(refused).lower():
+                return False
+
+            raise
+
+        permission = str(cast("dict[str, Any]", json.loads(raw or "{}")).get("permission") or "")
+
+        return permission.lower() in {"triage", "write", "maintain", "admin"}
 
     # ....................... #
 
