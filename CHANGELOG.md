@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `torve log land` run with no execution log on disk records the work commit's parent as
+  the landing's base. It used to record the work commit as its own base.
+
 - A task whose document was merged on the forge is not landed again, even when the
   served checkout's own tree has not caught up. The lane used to cut the document branch
   again from main and try to land the merged tasks onto it.

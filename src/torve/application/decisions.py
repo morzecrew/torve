@@ -805,13 +805,20 @@ def land(
 
     log_document = open_log(root, task.id)
     carried = log_document["entries"] if entries is None else entries
+    # S-0058/D-12; a log written before S-0059/D-8 says `base_sha`.
+    base = str(log_document.get("base") or log_document.get("base_sha") or "")
+
+    if commit and base in ("", commit):
+        # No log on disk pins the base to this worktree's HEAD, which after the
+        # work commit is the commit itself; it was built on its parent (#222).
+        base = _first_parent(root, commit) or base
+
     landing = Landing.model_validate(
         {
             "task": task.id,
             "phase": task.phase,
             "attempt": attempt,
-            # S-0058/D-12; a log written before S-0059/D-8 says `base_sha`.
-            "base": str(log_document.get("base") or log_document.get("base_sha") or ""),
+            "base": base,
             "commit": commit,
             "at": at or stamp(),
             "agent": agent,
@@ -827,6 +834,21 @@ def land(
         stage(root, path)
 
     return path
+
+
+def _first_parent(root: Path, commit: str) -> str:
+    """*commit*'s first parent, or "" when git cannot name one."""
+
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"{commit}^"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
 # ....................... #

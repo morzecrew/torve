@@ -13,14 +13,21 @@ result looks to the engine exactly like a served landing.
 3. `torve spec project`, then run the phase's own acceptance commands. Not
    only the tests of the files you touched: a hand commit that breaks a test
    the phase owns turns the pull request red.
-4. `torve gates run --base origin/main --task .torve/tasks/<task>/contract.yaml`.
+4. `torve gates run --base origin/torve/S-NNNN --task .torve/tasks/<task>/contract.yaml`,
+   against the document branch the work sits on, as an attempt's own battery
+   judges it. Against `origin/main`, every earlier phase's files read as this
+   task's, and `scope` and `no-test-tampering` fail on them.
 5. Commit the work. If the branch lacks them, copy in
    `.torve/tasks/<task>/contract.yaml` and `log.yaml` first.
 6. Write the landing, naming the work commit and the attempt that produced
    it, and commit the landing file on its own:
    `torve log land <task> --commit <work-sha> --attempt <n>`.
 7. Push as a fast-forward to `torve/S-NNNN`, and only when no night is
-   working that document.
+   working that document. While one is, the night may hold landings on its
+   local copy of the branch that the remote does not have yet: stop it while no
+   sandbox runs, move the local branch with `git update-ref
+   refs/heads/torve/S-NNNN <landing-sha> <old-sha>` (full shas), and start it
+   again after step 8. Its next pass pushes the branch.
 8. Tell the record:
    `torve manager resolve <partition> <task> --resolution landed --sha <landing-sha>`,
    then run `torve reap --escalated`.
