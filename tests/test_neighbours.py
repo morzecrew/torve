@@ -235,3 +235,35 @@ def test_phase_reach_names_the_unowned_owned_and_unrun(tmp_path: Path) -> None:
             "tests/unit/test_core.py"
         ),
     ]
+
+
+def test_phase_reach_caps_the_paths_and_skips_a_landed_document(tmp_path: Path) -> None:
+    """S-0119/D-11: a line names at most ten sorted paths beside the full
+    count, and a document something has landed from is not reported."""
+
+    root = reach_tree(tmp_path)
+
+    for number in range(12):
+        (root / f"src/caller_{number:02}.py").write_text("import pkg.core\n", encoding="utf-8")
+
+    def widgets(implementation: str) -> Document:
+        return Document(
+            id="S-0001",
+            title="Widgets",
+            status="accepted",
+            owner="tester",
+            implementation=implementation,
+            phasing=[
+                Phase(phase=1, title="Core", intent="Do the work.", scope=["src/pkg/core.py"])
+            ],
+        )
+
+    lines = phase_reach(Corpus(documents=[widgets("none")]), root)
+    callers = sorted(
+        [*(f"src/caller_{number:02}.py" for number in range(12)), "src/app.py", "src/other.py"]
+    )
+
+    assert lines[0] == (
+        f"S-0001: phase 1 (Core) reaches 14 files no phase owns: {', '.join(callers[:10])}"
+    )
+    assert phase_reach(Corpus(documents=[widgets("partial")]), root) == []
