@@ -723,6 +723,34 @@ def test_the_document_less_landing_counts_as_shipped(tmp_path):
     assert set(project_landed(tmp_path, spec_dir)) == {task.id, "T-0002"}
 
 
+def test_a_landing_with_no_log_names_the_work_commits_parent_as_its_base(tmp_path):
+    """#222: with no log on disk the base is pinned to this worktree's HEAD,
+    which after the work commit is the commit itself. The landing names the
+    commit's first parent, which is what the work was built on."""
+
+    from torve.application.decisions import land
+    from torve.config.spec import load_document
+
+    spec_dir, task = _landing_repo(tmp_path)
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    git("init", "-q")
+    who = ("-c", "user.email=t@example.com", "-c", "user.name=t")
+    git(*who, "commit", "-q", "--allow-empty", "-m", "base")
+    parent = git("rev-parse", "HEAD")
+    git(*who, "commit", "-q", "--allow-empty", "-m", "work")
+    work = git("rev-parse", "HEAD")
+
+    land(tmp_path, spec_dir, task, attempt=1, commit=work)
+
+    landing = load_document(spec_dir / "S-0001").landings[0]
+    assert (landing.base, landing.commit) == (parent, work)
+
+
 def test_the_log_land_verb_lands_the_contracts_task_with_the_commit_named(tmp_path):
     from torve.application.planner import write_contract
     from torve.config.spec import load_document
