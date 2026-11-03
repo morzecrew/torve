@@ -2999,28 +2999,44 @@ def _document_verdicts(
             sha = info.merge_commit or info.head_sha
             merged.add(branch)
 
-            engine_event(
-                root,
-                "lane_document_landed",
-                {
-                    "branch": branch,
-                    "sha": sha,
-                    "pr": info.number,
-                    "tasks": tasks,
-                    # Read after the fact: `at` is when the engine asked, not
-                    # when the person clicked.
-                    "observed": True,
-                },
-            )
-            results.append(
-                LaneResult(
-                    document,
-                    branch,
-                    "landed",
-                    f"pull request #{info.number} merged, carrying {', '.join(tasks)}",
-                    sha,
+            # A merged pull request is read on every pass while its branch
+            # stays; its landing is recorded once per branch tip, as a task's
+            # verdict is, since the merge commit may not be here yet (#249).
+            tip = _ref_sha(root, f"refs/remotes/origin/{branch}") or _ref_sha(root, branch)
+
+            if tip is not None and _recorded_verdict(root, document) == ("landed", tip):
+                results.append(
+                    LaneResult(
+                        document, branch, "already landed", f"pull request #{info.number}", sha
+                    )
                 )
-            )
+
+            else:
+                if tip is not None:
+                    _record_verdict(root, document, "landed", tip)
+
+                engine_event(
+                    root,
+                    "lane_document_landed",
+                    {
+                        "branch": branch,
+                        "sha": sha,
+                        "pr": info.number,
+                        "tasks": tasks,
+                        # Read after the fact: `at` is when the engine asked, not
+                        # when the person clicked.
+                        "observed": True,
+                    },
+                )
+                results.append(
+                    LaneResult(
+                        document,
+                        branch,
+                        "landed",
+                        f"pull request #{info.number} merged, carrying {', '.join(tasks)}",
+                        sha,
+                    )
+                )
 
         elif info.state == "closed":
             engine_event(
