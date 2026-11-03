@@ -1499,6 +1499,51 @@ def test_a_group_with_a_reraise_still_mints_the_other_reviewers_thread(seeded):
     assert rounds[-1]["line"] == 14
 
 
+def test_threads_a_reraise_held_together_are_grouped_again(seeded):
+    """A re-raise at line 13 bridges new threads at 4 and 22, which sit further
+    than the window apart. Once it is taken out, they are two findings."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    forge = StubForge(pr(thread("t1")))
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (minted,) = events(seeded.root, "lane_review_task")
+    found = landing((minted["task"], "cafe123"))
+    review_thread_leg(seeded.root, config(), forge, found)
+
+    forge.info = pr(
+        thread("t7", line=4, author=HUMAN, body="this name is misleading"),
+        thread("t9", line=13),
+        thread("t8", line=22, author=HUMAN, body="this loop never ends"),
+    )
+    review_thread_leg(seeded.root, config(), forge, found)
+
+    (reraised,) = events(seeded.root, "lane_finding_reraised")
+    assert reraised["threads"] == ["t9"]
+    # One file's findings ride one round (S-0097/D-5), as two findings.
+    (wave,) = events(seeded.root, "lane_review_task")[1:]
+    assert [one["threads"] for one in wave["findings"]] == [["t7"], ["t8"]]
+
+
+def test_a_deleted_account_matches_no_answered_reviewer():
+    """A deleted account reads as `ghost` or as no name at all, the same for
+    every deleted reviewer, so it is never taken for the one a round answered."""
+
+    from torve.application.reviewleg import _reraised
+    from torve.application.threads import Finding
+
+    row = {
+        "findings": [{"path": "src/app.py", "line": 12, "threads": ["t1"], "authors": ["ghost"]}]
+    }
+
+    for author in ("ghost", ""):
+        finding = Finding("src/app.py", 13, 13, (thread("t9", line=13, author=author),))
+        assert _reraised(finding, row) is False
+
+    finding = Finding("src/app.py", 13, 13, (thread("t9", line=13),))
+    assert _reraised(finding, {"findings": [{**row["findings"][0], "authors": [BOT]}]})
+
+
 def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
     """S-0090/D-1: a round's own review blocks its landing on a blocker, but
     what it finds opens no further round; the same review of any other task of

@@ -1466,7 +1466,8 @@ def _reraised(finding: Finding, row: dict[str, Any]) -> bool:
     another reviewer's thread beside it is a new finding (#240). A round that
     recorded no authors matches on the anchor alone."""
 
-    raisers = set(_raisers(finding))
+    # A deleted account reads as "" or `ghost`, one name for many reviewers.
+    raisers = set(_raisers(finding)) - {"", "ghost"}
 
     return any(
         _near(finding, one) and (one.get("authors") is None or bool(raisers & set(one["authors"])))
@@ -1890,7 +1891,12 @@ def review_thread_leg(
 
         claims: list[Claim] = []
 
-        for finding in group_findings(raised):
+        # A split below can leave threads `group_findings` would not have put
+        # together, so what survives is grouped again and queued.
+        queue = group_findings(raised)
+
+        while queue:
+            finding = queue.pop(0)
             # A thread on a file the engine writes is answered with the fixed
             # reply, never composed and never escalated (S-0097/D-2).
             if engine_written(finding.path):
@@ -1957,7 +1963,8 @@ def review_thread_leg(
                 if not rest:
                     continue
 
-                finding = _narrowed(finding, rest)
+                finding, *more = group_findings(rest)
+                queue[:0] = more
                 from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             if any(_same_anchor(finding, row) for row in prior if row not in replied):
@@ -1995,7 +2002,8 @@ def review_thread_leg(
                 if not rest:
                     continue
 
-                finding = _narrowed(finding, rest)
+                finding, *more = group_findings(rest)
+                queue[:0] = more
                 from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             files = sorted({f for ident in from_record for f in touched.get(ident, [])})
