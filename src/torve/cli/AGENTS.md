@@ -831,28 +831,28 @@ When a document's last phase lands, the lane commits the held-out properties rec
 - Paths: `src/torve/application/lane.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py`
 - Consequence: the held-out properties keep guarding the document's rows as visible tests after it merges
 
-### S-0117/D-2 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-2 — `ASSUMED` (A document reaches its pull request without its owner)
 
 Every reader that lists the seats a run can reach lists all of them: the seat, its retry rungs and its `revision_variant`, and, followed transitively, each listed tier's own retry rungs and `revision_variant`. The readers are the broker's route table and the dispatch-time provider check.
 
 - Paths: `src/torve/application/dispatch.py` `src/torve/cli/assembly.py`
 - Consequence: a revision rung on another provider, or a rung reached from it, is routed before the first attempt and refused at dispatch when the repository may not reach it, never mid-run
 
-### S-0117/D-3 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-3 — `ASSUMED` (A document reaches its pull request without its owner)
 
 `torve manager serve <partition> --night --chain` runs nights back to back in one process. After a close it runs idle passes and opens the next night once the open's refusal reads empty and the day's budget has room; a night closed on a `stop_on` class ends the chain. `--chain` without `--night` is refused.
 
 - Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
 - Consequence: the engine serves until it is stopped, every night it ran keeps its own record, and a night that drains early no longer leaves the partition idle until a person notices
 
-### S-0117/D-5 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-5 — `ASSUMED` (A document reaches its pull request without its owner)
 
 Between nights, with nothing in flight, the chain fetches and, when the checkout sits on the configured base branch with a clean tree, fast-forwards it to the remote's. It plans only from a checkout on the base branch, clean and at the remote's tip after that: in number order, every document whose status is accepted, whose implementation is none and which has minted no task is minted into the partition's record as `torve plan S-NNNN --partition <partition> --no-dry-run` does, writing no file. A refused plan is tried again within the sweep after each mint that succeeds, and one still refused when a pass mints nothing is recorded once per base commit and tried again when the base moves.
 
 - Paths: `src/torve/cli/manager.py` `src/torve/application/planner.py`
 - Consequence: a document accepted on the base is minted and served by the next night without a command, a document accepted only on another branch is never planned, and a document that already minted a task is planned again only by a person's `plan --refresh`
 
-### S-0117/D-6 — `LOCKED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-6 — `LOCKED` (A document reaches its pull request without its owner)
 
 The chain never fast-forwards the checkout its own engine imports from: when the `torve` package resolves under the repository root, it skips the fast-forward and the planning, and says so once at the start.
 
@@ -860,7 +860,7 @@ The chain never fast-forwards the checkout its own engine imports from: when the
 - Consequence: torve's own repository plans accepted documents only when its chain runs from a tool install, and a chain run from the checkout never changes its own code between passes
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0117/D-7 — `OPEN` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-7 — `OPEN` (A document reaches its pull request without its owner)
 
 How the chain reports what it did between nights: the event names and payloads for a checkout left alone, a plan refused and a document planned, and whether they also reach the night report.
 

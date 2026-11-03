@@ -783,7 +783,22 @@ async def _sync_and_plan(
     if remote is None:
         return
 
-    if lane.current_branch(root) != branch or lane.dirty_paths(root):
+    def left_alone(reason: str) -> None:
+        # S-0117/D-7: a checkout the sweep cannot plan from says why, once per
+        # base commit, as a refusal of the whole sweep.
+        if not _refusal_recorded(root, base=remote, document="checkout"):
+            engine_event(
+                root, "plan_refused", {"document": "checkout", "error": reason, "base": remote}
+            )
+
+    current = lane.current_branch(root)
+
+    if current != branch:
+        left_alone(f"the checkout is on {current or 'a detached HEAD'}, not {branch}")
+        return
+
+    if lane.dirty_paths(root):
+        left_alone("the checkout's tree has uncommitted changes")
         return
 
     if lane.tip(root, "HEAD") != remote:
@@ -791,9 +806,11 @@ async def _sync_and_plan(
             lane.merge_ff(root, f"origin/{branch}")
 
         except RuntimeError:
+            left_alone(f"the checkout does not fast-forward to origin/{branch}")
             return
 
     if lane.tip(root, "HEAD") != remote:
+        left_alone(f"the checkout is not at origin/{branch} after the fast-forward")
         return
 
     rfc_dir = root / config.specs.path

@@ -870,7 +870,7 @@ async def day_remainder(
     *,
     now: datetime | None = None,
 ) -> tuple[float, int]:
-    """What the UTC day holding *now* has left of each budget axis.
+    """What the UTC day holding *now* has left of each budget axis (S-0117/D-4).
 
     A chained night opens with the remainder rather than the configured
     figure, so a day's nights together spend one day's budget however many

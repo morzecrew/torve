@@ -1891,12 +1891,24 @@ def test_the_sweep_leaves_a_dirty_or_off_branch_checkout_alone(tmp_path, state):
         repo.git("checkout", "-q", "-b", "side")
 
     async def scenario(log):
-        await manager_cli._sync_and_plan(
-            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
-        )
+        for _ in range(2):
+            await manager_cli._sync_and_plan(
+                repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+            )
         assert project(await log.since(partition=PARTITION)).tasks == {}
 
     run(scenario)
+
+    # S-0117/D-7: the record says why, once for the base it was left alone on.
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    (refused,) = [row for row in rows if row.get("event") == "plan_refused"]
+    assert refused["document"] == "checkout"
+    assert ("side" if state == "off_branch" else "uncommitted") in refused["error"]
 
 
 def test_the_sweep_mints_a_document_whose_after_target_has_a_higher_number(tmp_path):

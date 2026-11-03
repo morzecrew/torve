@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `torve manager serve <partition> --night --chain` runs nights back to back in one
+  process. Between nights it fast-forwards a clean checkout on the base branch and plans
+  every accepted, unimplemented document that has minted no task, except in the checkout
+  its own engine runs from.
+
+- Under `--chain`, the night budget bounds a UTC day, and each night opens with what the
+  day has left.
+
+- A seat may name a `revision_variant`, a configured tier. The revision that follows a
+  surviving review blocker runs on that tier before the task escalates. Empty, the
+  default, keeps the revision on the seat.
+
 - A gate manifest may name `@suite`. It runs the whole suite once, and a failing test
   convicts only when that test is still red at the head and not red on the merge base. A
   red the base also carries is recorded as inherited and never convicts; no command, an
@@ -29,11 +41,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 ### Changed
 
+- An open document's pull request is rebased, and its battery run again, only when the
+  base's new commits conflict with it or change a file it changes. A merge that touches
+  neither leaves it as judged.
+
 - The lane's re-gate after a rebase and its completion battery run only blocking and
   decision gates, plus `evidence` and `mutation` on the completion battery. A rebased
   candidate whose only failing tests also fail on its base lands.
 
 ### Fixed
+
+- The review-thread leg answers a refusal once per thread. It used to reply to its own
+  replies, and could loop with a review bot.
+
+- A document whose contracts were minted into the record, with no contract file in the
+  checkout, completes. The lane reads each task's contract from the files it landed, and
+  a verify holdout no landing placed turns the completion battery red.
 
 - A requeued task whose document branch moved past its checkpoint starts from the
   branch's tip. It used to resume a tree without what had landed since, and fail on its

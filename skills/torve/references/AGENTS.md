@@ -23,7 +23,7 @@ The operating guide and the torve skill's night reference say how to turn the pi
 - Paths: `pages/docs/operating.md` `skills/torve/references/night.md` `skills/spec-writer/**`
 - Consequence: a phase written for a verifier names what to test, so the verifier does not invent an API
 
-### S-0117/D-8 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-8 — `ASSUMED` (A document reaches its pull request without its owner)
 
 The torve skill's night and escalations references and the operating page describe running a document without its owner: `--chain`, the daily budget, a `revision_variant` on the executor seat, and the review-thread leg on with the forge's review bots named and `approve_comment` set.
 

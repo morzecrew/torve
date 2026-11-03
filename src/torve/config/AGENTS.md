@@ -779,7 +779,7 @@ A builtin gate `evidence` runs each row's citing functions against the base tree
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: an adopter that never sets the block mints exactly today's tasks, and one that turns it on without a seat finds out at load, not at dispatch
 
-### S-0117/D-1 — `ASSUMED` (A document reaches its pull request without its owner) — implementation: none
+### S-0117/D-1 — `ASSUMED` (A document reaches its pull request without its owner)
 
 A seat may name a `revision_variant`, a dotted tier. When the attempt about to run follows a surviving review blocker's revision, `advance_tier` resolves it to that tier, as it resolves a retry rung after a gate-red; empty, the default, keeps the revision on the seat. The load refuses a `revision_variant` that names no configured tier.
 
