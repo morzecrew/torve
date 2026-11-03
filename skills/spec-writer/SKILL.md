@@ -161,8 +161,7 @@ arrives first, invisibly.
    bare `README.md` matches at any depth and overlaps every other scope.
 
 3b. **A phase owns every file its acceptance can turn red.** A scope that is
-   too narrow is the most common reason an attempt halts. Before you write a
-   phase, grep for every caller of what it changes. The scope names the
+   too narrow is the most common reason an attempt halts. The scope names the
    modules and, beside each, its existing test file (the planner refuses a
    contract that allows a module without its test), the tests that enumerate
    artifacts, generated snapshots, docs pages a test compares against, the lock
@@ -170,6 +169,16 @@ arrives first, invisibly.
    the tree: the tests the phase touches, the type checker, `torve spec
    check`. A command that reads the host (a running service, a database, the
    network, the installed CLI) is refused at planning.
+
+   Find those files by searching each phase's callers independently: where
+   the session can delegate, run one search per phase at once, each returning
+   the importers, the call sites of every signature the phase changes, the
+   re-exports and the generated files. Fold the answers into the scopes and
+   acceptance. Then run `torve spec check` and settle each reach line it
+   prints for a phase of an unlanded document. Move the file into a scope,
+   add its test to an acceptance command, or say in the phase's intent why it
+   stays out. A reach line left standing is a choice the intent records, so a
+   reviewer can tell it from an oversight.
 
 3a. **A decision's paths must fit inside one phase's scope.** A row whose
    paths span two phases mints a contract that contradicts itself: the

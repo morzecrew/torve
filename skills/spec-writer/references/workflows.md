@@ -97,9 +97,19 @@ design says, what the description claims, when a status changes — is yours.
 4. Write the `description`: one sentence saying which design this is, so a
    reader of `torve spec list` knows whether to open the document. The
    summary the document deserves goes in its summary section.
-5. `torve spec check` until green; `torve spec fmt` if you want the
-   serializer's form (optional — a hand-authored document is legal as it
-   stands).
+5. `torve spec check` until green — then read its warnings before you ask
+   the owner to accept. For a document nothing has landed from it names each
+   LOCKED row of a `depends_on` document that a phase's scope touches, and
+   each reach line: a non-test Python file outside a phase's scope that
+   imports what the scope matches (owned by no phase, or by which other
+   phase), and a test of such a file that no acceptance command of the
+   document runs. Settle every reach line — move the file into a scope, add
+   its test to an acceptance command, or say in the phase's intent why it
+   stays out — and settle an inherited LOCKED conflict the same way, in the
+   phase or by amending the inherited document. A reach line left standing is
+   then a choice the intent records, not an oversight. `torve spec fmt` if you
+   want the serializer's form (optional — a hand-authored document is legal as
+   it stands).
 
 ### B — Update an existing document
 
