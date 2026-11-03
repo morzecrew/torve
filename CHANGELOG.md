@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A task whose document was merged on the forge is not landed again, even when the
+  served checkout's own tree has not caught up. The lane used to cut the document branch
+  again from main and try to land the merged tasks onto it.
+
 - A document pull request's merge is recorded once. While its branch stayed on the
   remote, a served night used to record the same merge again on every pass.
 

@@ -2048,6 +2048,39 @@ def test_a_document_merged_while_no_pass_ran_lands_none_of_its_tasks_again(lane_
     assert awaiting_landing(lane_repo, GitLane(), "main", unit="document") == []
 
 
+def test_a_document_merged_on_the_remote_alone_is_not_cut_again(lane_repo, tmp_path):
+    # torve, 2026-11-03: S-0119's pull request was squash-merged and its branch
+    # deleted, but the served checkout never moves (S-0117/D-6), so its own
+    # tree did not hold the landing files. The next pass re-cut the branch
+    # from main and tried to land the merged tasks onto it again (#250).
+    _origin(lane_repo, tmp_path)
+    candidate(lane_repo, "T-7341", "one.py", "one = 1\n")
+    _contract(lane_repo, "T-7341", "S-0914")
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    document = naming.document_branch("S-0914")
+    assert published == [("T-7341", document)]
+
+    # The squash merge happens on the remote; this checkout's main stays put.
+    git(lane_repo, "switch", "-q", "-c", "squash", "main")
+    git(lane_repo, "merge", "-q", "--squash", document)
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the document (#1)")
+    git(lane_repo, "push", "-q", "origin", "squash:main", f":refs/heads/{document}")
+    git(lane_repo, "switch", "-q", "main")
+    git(lane_repo, "branch", "-q", "-D", "squash")
+    kept = git(lane_repo, "rev-parse", document)
+    published.clear()
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+
+    (result,) = [result for result in results if result.task == "T-7341"]
+    assert result.action == "already landed"
+    assert published == []
+    assert git(lane_repo, "rev-parse", document) == kept
+    assert [e for e in _events(lane_repo) if e.get("event") == "lane_document_recut"] == []
+
+
 def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch(
     lane_repo, tmp_path
 ):
