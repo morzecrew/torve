@@ -1453,6 +1453,25 @@ def test_a_reraise_at_a_moved_anchor_is_a_new_finding(seeded):
     assert events(seeded.root, "lane_finding_reraised") == []
 
 
+def test_another_reviewers_thread_beside_an_answered_one_is_a_new_finding(seeded):
+    """#240: a re-raise is the answered reviewer's own; another reviewer's new
+    thread at the same anchor is a finding the next round takes."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1")))
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (minted,) = events(seeded.root, "lane_review_task")
+    assert minted["findings"][0]["authors"] == [BOT]
+    found = landing((minted["task"], "cafe123"))
+    review_thread_leg(seeded.root, config(), forge, found)
+
+    forge.info = pr(thread("t9", line=13, author=HUMAN, body="this loop never ends"))
+    review_thread_leg(seeded.root, config(), forge, found)
+
+    assert len(events(seeded.root, "lane_review_task")) == 2
+    assert events(seeded.root, "lane_finding_reraised") == []
+
+
 def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
     """S-0090/D-1: a round's own review blocks its landing on a blocker, but
     what it finds opens no further round; the same review of any other task of

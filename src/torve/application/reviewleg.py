@@ -769,6 +769,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round, taken: Collectio
                 "line": finding.line,
                 "end_line": finding.end_line,
                 "threads": list(finding.ids),
+                "authors": _raisers(finding),
             }
             for finding in round_.findings
         ],
@@ -795,6 +796,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round, taken: Collectio
                     "line": finding.line,
                     "end_line": finding.end_line,
                     "threads": list(finding.ids),
+                    "authors": _raisers(finding),
                 }
                 for finding in round_.findings
             ],
@@ -1442,17 +1444,42 @@ def _same_anchor(finding: Finding, row: dict[str, Any]) -> bool:
     the fix moved the code reads as new, which is the generous reading and the
     cheap error. A round carrying a wave matches on any of its findings."""
 
-    for one in _row_findings(row):
-        if one.get("path") != finding.path:
-            continue
+    return any(_near(finding, one) for one in _row_findings(row))
 
-        if finding.line is None or one.get("line") is None:
-            return True
 
-        if abs(int(one["line"]) - finding.line) <= WINDOW:
-            return True
+def _near(finding: Finding, one: dict[str, Any]) -> bool:
+    """Whether *finding* anchors within the window of one recorded finding."""
 
-    return False
+    if one.get("path") != finding.path:
+        return False
+
+    if finding.line is None or one.get("line") is None:
+        return True
+
+    return abs(int(one["line"]) - finding.line) <= WINDOW
+
+
+def _reraised(finding: Finding, row: dict[str, Any]) -> bool:
+    """Whether *finding* is a landed round's finding raised again (S-0084/D-14):
+    at its anchor, from a reviewer whose thread that round answered. A bot
+    re-raises on a new thread beside its old one, so the anchor still counts;
+    another reviewer's thread beside it is a new finding (#240). A round that
+    recorded no authors matches on the anchor alone."""
+
+    raisers = set(_raisers(finding))
+
+    return any(
+        _near(finding, one) and (one.get("authors") is None or bool(raisers & set(one["authors"])))
+        for one in _row_findings(row)
+    )
+
+
+def _raisers(finding: Finding) -> list[str]:
+    """Who opened *finding*'s threads. A recorded finding's author is the review
+    task that wrote it, a new one each review, so the engine's reviewer counts
+    as one reviewer under the record's prefix."""
+
+    return sorted({RECORD if one.id.startswith(RECORD) else one.author for one in finding.threads})
 
 
 # ....................... #
@@ -1872,7 +1899,7 @@ def review_thread_leg(
                 refused.append(reason)
                 continue
 
-            if any(_same_anchor(finding, row) for row in replied):
+            if any(_reraised(finding, row) for row in replied):
                 # S-0099/D-9, S-0102/D-6: only a re-raise on a moved head is
                 # news — a finding raised again on the head the lane already
                 # recorded writes no row and does not escalate twice. The head
@@ -1899,9 +1926,10 @@ def review_thread_leg(
                     escalated.append(finding.path)
                 continue
 
-            if any(_same_anchor(finding, row) for row in prior):
+            if any(_same_anchor(finding, row) for row in prior if row not in replied):
                 # A round of this finding is already on the board; it is
-                # answered when it lands, not dispatched a second time.
+                # answered when it lands, not dispatched a second time. A
+                # landed round's anchor was judged just above (#240).
                 continue
 
             # The injection scan runs before a round is composed, thread by
