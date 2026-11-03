@@ -1965,8 +1965,10 @@ def test_a_merged_document_pull_request_is_one_landing_naming_every_task(lane_re
     # The state is read from the forge on every pass, at most once per pass
     # (S-0099/D-3): the branch is still open — the merge put nothing on the
     # base — so it is asked about again, and no second pull request is opened.
+    # The merge is recorded once, so the second read is no second landing (#249).
     assert asked == [document, document]
-    assert [r.action for r in again] == ["landed", "already landed", "already landed"]
+    assert [r.action for r in again] == ["already landed", "already landed", "already landed"]
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_landed"]) == 1
     assert len(published) == 2
 
 

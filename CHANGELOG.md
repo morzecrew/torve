@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A document pull request's merge is recorded once. While its branch stayed on the
+  remote, a served night used to record the same merge again on every pass.
+
 - `torve intake` and `torve adopt` run git with repository hooks off, as the rest of
   torve does. A drafting run's own refusal is no longer reported as a configuration error,
   and an issue whose drafting run never started is tried again on the next pass.
