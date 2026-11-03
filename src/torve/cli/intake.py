@@ -72,55 +72,27 @@ def intake_cmd(
     worktree at base whose gate is the contract lint. Green persists drafts
     awaiting `torve adopt`; a spent budget escalates."""
 
-    from torve.adapters.broker import build_broker
-    from torve.adapters.vcs.git import GitLane, GitVcs
-    from torve.application.intake import mint_intake_task, run_intake
-    from torve.application.telemetry import config_hash
+    from torve.application.intake import draft_request
     from torve.cli.run import build_tier_agent
-    from torve.config import layout
-    from torve.gates.context import resolve_base
 
     root = root.resolve()
     config = load_config(root, config_path)
 
     try:
         agent = build_tier_agent(config, root, "planner")
-
-    except ValueError as exc:
-        raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
-
-    runtime = runtime_for(config, runtime_name)
-    vcs = GitVcs()
-    base_sha = GitLane().tip(root, resolve_base(root, config.base) or "HEAD")
-
-    if base_sha is None:
-        raise fail("configuration error: no base tip to draft against", EXIT_CONFIG)
-
-    from torve.base import naming
-
-    try:
-        task = mint_intake_task(
+        outcome = draft_request(
             root,
             request,
             config,
+            agent,
             spec=spec,
             source=source,
+            runtime=runtime_for(config, runtime_name),
             taken=recorded_ids(root, dsn, partition),
         )
 
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
-    workdir = naming.intake_worktree(root, task.id)
-    vcs.worktree_at(root, base_sha, workdir)
-
-    try:
-        digest = config_hash(layout.gates_file(root), root, config)
-        outcome = run_intake(
-            root, workdir, task, config, runtime, agent, digest, broker=build_broker(config.broker)
-        )
-
-    finally:
-        vcs.remove_worktree(root, workdir)
 
     if fmt is Format.JSON:
         emit_json(

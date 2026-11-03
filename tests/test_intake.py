@@ -20,6 +20,7 @@ from torve.application.intake import (
     build_intake_prompt,
     document_threshold,
     document_threshold_warnings,
+    draft_request,
     drafts_file,
     execution_facts,
     lint_configuration_change,
@@ -973,6 +974,28 @@ def test_run_intake_spent_budget_escalates(seeded):
     assert not drafts_file(seeded.root, task.id).exists()
 
 
+def test_draft_request_mints_cuts_runs_and_removes_the_worktree(seeded):
+    """S-0119/D-7: one request drafts the same way whichever surface started
+    it — the run minted, its worktree cut at base, the caller's agent run and
+    the worktree removed afterwards."""
+
+    config = RunnerConfig()
+    agent = ScriptedAgent([output_for(draft_dict())])
+
+    outcome = draft_request(
+        seeded.root,
+        "add a widget module",
+        config,
+        agent,
+        runtime=StubRuntime(),
+    )
+
+    assert [d.ref for d in outcome.drafts] == ["DRAFT-1"]
+    assert outcome.attempts == 1
+    assert not naming.intake_worktree(seeded.root, outcome.task_id).exists()
+    assert RunState.load(naming.state_file(seeded.root, outcome.task_id)).state is TaskState.READY
+
+
 # ----------------------- #
 # Adoption (S-0020/D-1, S-0020/D-4).
 
@@ -1037,6 +1060,79 @@ def test_the_source_reaches_the_drafts_file_and_every_adopted_contract(seeded):
 
         assert contract["source"] == asked
         assert Task.model_validate(contract).source == asked
+
+
+def _committed_names(root: Path) -> list[str]:
+    return subprocess.run(
+        ["git", "-C", str(root), "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+
+
+def test_adopt_commits_an_untracked_source_file_it_names(seeded):
+    """S-0119/D-6: a filed source the drafting run names travels in the
+    adoption commit with the contracts that cite it, so an adopted contract
+    never names a source its base commit lacks."""
+
+    asked = file_source(seeded.root)
+    source = adopted_ready_run(seeded, source=asked)
+    rel = ".torve/sources/audit/soc2-2026.yaml"
+    seeded.git("rm", "--cached", "-q", rel)
+    seeded.git("commit", "-q", "--no-gpg-sign", "-m", "untrack the source")
+    assert (seeded.root / rel).is_file()  # on disk, untracked
+
+    adopt(seeded.root, source, RunnerConfig())
+
+    assert rel in _committed_names(seeded.root)
+    assert (
+        subprocess.run(
+            ["git", "-C", str(seeded.root), "cat-file", "-e", f"HEAD:{rel}"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def test_adopt_leaves_a_tracked_source_file_alone(seeded):
+    """S-0119/D-6: a source the tree already tracks is left alone — adoption
+    commits the contracts, never a local edit to a source already on record."""
+
+    asked = file_source(seeded.root)
+    source = adopted_ready_run(seeded, source=asked)
+    rel = ".torve/sources/audit/soc2-2026.yaml"
+    path = seeded.root / rel
+    path.write_text(path.read_text(encoding="utf-8") + "# local edit\n", encoding="utf-8")
+
+    adopt(seeded.root, source, RunnerConfig())
+
+    status = subprocess.run(
+        ["git", "-C", str(seeded.root), "status", "--porcelain", "--", rel],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert status.startswith(" M")
+    committed = subprocess.run(
+        ["git", "-C", str(seeded.root), "show", f"HEAD:{rel}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "# local edit" not in committed
+
+
+def test_adopt_leaves_a_document_source_alone(seeded):
+    """S-0119/D-6: a document is a source without a file, so adoption has
+    nothing to add beside the contracts."""
+
+    place(seeded.root / SPECS, "0099", _rfc_doc("0099", "S-0099/D-1", "src/**"))
+    source = adopted_ready_run(seeded, source="S-0099")
+
+    assert adopt(seeded.root, source, RunnerConfig())
+    assert not any(name.startswith(".torve/sources/") for name in _committed_names(seeded.root))
 
 
 def test_an_unknown_source_is_refused_before_a_model_runs(seeded):
