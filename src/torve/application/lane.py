@@ -2626,6 +2626,47 @@ def _complete_by_hand(
     )
 
 
+def _base_reaches(root: Path, base_tip: str, branch_tip: str) -> bool:
+    """Whether a base that moved under an open document branch reaches what
+    the document changed (S-0083/A-3): their merge conflicts, or the base's
+    own change since their merge base touches a path the document's does. A
+    base that reaches neither merges as the battery judged the branch, so the
+    branch is left as it is: rebasing it would only rerun the whole battery and
+    the pull request's checks on the same verdict. Anything git cannot answer
+    reads as reaching, so the lane rebases rather than guesses.
+
+    Paths are compared as git writes them, NUL-separated bytes with renames
+    off: a rename on either side keeps its old path in the set, a space never
+    splits a name, and a path that is not UTF-8 is still a path."""
+
+    def git(*args: str) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(root), *args], capture_output=True, check=False
+        )
+
+    if git("merge-tree", "--write-tree", "--no-messages", base_tip, branch_tip).returncode != 0:
+        return True
+
+    fork = git("merge-base", base_tip, branch_tip)
+
+    if fork.returncode != 0 or not fork.stdout.strip():
+        return True
+
+    since = fork.stdout.strip().decode("ascii", "replace")
+
+    def paths(tip: str) -> set[bytes] | None:
+        diff = git("diff", "--name-only", "--no-renames", "-z", since, tip)
+
+        return None if diff.returncode != 0 else {one for one in diff.stdout.split(b"\0") if one}
+
+    moved, ours = paths(base_tip), paths(branch_tip)
+
+    if moved is None or ours is None:
+        return True
+
+    return bool(moved & ours)
+
+
 def _rebase_document(
     root: Path,
     vcs: LaneVcs,
@@ -2649,9 +2690,13 @@ def _rebase_document(
     a draft is a ready publication the forge refused, the lane's own or a
     hand completion's, and is published again. A
     base that moved under it is the ordinary case for a branch that lives
-    days: rebase in a disposable worktree, re-run the battery over the
-    rebased tree, republish under lease — bounded once per base tip, so a
-    branch against a moving `main` cannot rebase itself in a loop.
+    days. One that moved elsewhere leaves the branch as the battery judged it,
+    and so is read as an unmoved one (S-0083/A-3, `_base_reaches`). One that
+    reaches it — a conflicting merge, a shared path, or an answer git cannot
+    give — is rebased in a disposable worktree, the battery re-run over the
+    rebased tree and the branch republished under lease, bounded once per
+    base tip, so a branch against a moving `main` cannot rebase itself in a
+    loop.
 
     A conflict aborts and escalates for a person; the lane never resolves
     one, and the branch is left exactly as it was (S-0083/D-14). The conflict
@@ -2701,6 +2746,7 @@ def _rebase_document(
         or base is None
         or base_tip is None
         or vcs.is_ancestor(root, base_tip, branch_tip)
+        or not _base_reaches(root, base_tip, branch_tip)
     ):
         if (
             branch_tip is not None

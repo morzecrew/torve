@@ -2095,7 +2095,93 @@ def test_a_closed_document_pull_request_abandons_every_task_and_keeps_the_branch
     assert len(published) == 2
 
 
-def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_repo, tmp_path):
+@pytest.fixture
+def reaching_base(monkeypatch):
+    """A moved base that reaches the document (S-0083/A-3), for the tests of
+    what a rebase does once it is due. Their base moves touch `app.py`, which
+    the documents never change."""
+
+    import torve.application.lane as lane
+
+    monkeypatch.setattr(lane, "_base_reaches", lambda _root, _base, _tip: True)
+
+
+def test_an_open_document_on_a_base_that_moved_elsewhere_is_left_as_judged(
+    lane_repo, tmp_path, monkeypatch
+):
+    """S-0083/A-3: a base whose change neither conflicts with the document nor
+    touches a path it changed merges as the battery judged the branch, so the
+    branch is not rebased, no battery runs and nothing is republished."""
+
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0916", {"T-7309": "nine.py"}, published)
+    before = git(lane_repo, "rev-parse", document)
+    (lane_repo / "app.py").write_text("base = 9\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base moves elsewhere")
+    git(lane_repo, "push", "-q", "origin", "main")
+    published_before = len(published)
+    calls = _counting_regate(monkeypatch)
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=_forge(_pr(number=27, state="open"), []),
+        unit="document",
+    )
+
+    assert [r.action for r in results] == ["pull request open", "already landed"]
+    assert git(lane_repo, "rev-parse", document) == before
+    assert len(published) == published_before
+    assert calls == []
+
+
+def test_a_base_reaches_a_document_by_conflict_or_by_a_shared_path(lane_repo):
+    """S-0083/A-3: the rule itself. A change to another file does not reach
+    the branch; a change to a file the branch changed does, merging cleanly or
+    not."""
+
+    import torve.application.lane as lane
+
+    def commit(path: str, text: str, message: str) -> str:
+        (lane_repo / path).write_text(text, encoding="utf-8")
+        git(lane_repo, "add", "-A")
+        git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", message)
+        return git(lane_repo, "rev-parse", "HEAD").strip()
+
+    commit("shared.py", "a = 1\n\n\n\n\nb = 1\n", "a shared file")
+    fork = git(lane_repo, "rev-parse", "HEAD").strip()
+    git(lane_repo, "checkout", "-q", "-b", "doc")
+    tip = commit("shared.py", "a = 2\n\n\n\n\nb = 1\n", "the document edits the top")
+    git(lane_repo, "checkout", "-q", "-b", "elsewhere", fork)
+    elsewhere = commit("other.py", "c = 1\n", "the base edits another file")
+    git(lane_repo, "checkout", "-q", "-b", "same-file", fork)
+    same_file = commit("shared.py", "a = 1\n\n\n\n\nb = 2\n", "the base edits the bottom")
+    git(lane_repo, "checkout", "-q", "-b", "conflict", fork)
+    conflict = commit("shared.py", "a = 3\n\n\n\n\nb = 1\n", "the base edits the top too")
+    git(lane_repo, "checkout", "-q", "main")
+
+    git(lane_repo, "checkout", "-q", "-b", "renamed", fork)
+    git(lane_repo, "mv", "shared.py", "moved.py")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the base renames the shared file")
+    renamed = git(lane_repo, "rev-parse", "HEAD").strip()
+    git(lane_repo, "checkout", "-q", "-b", "spaced", fork)
+    spaced = commit("x shared.py", "d = 1\n", "a name with a space in it")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert not lane._base_reaches(lane_repo, elsewhere, tip)
+    assert lane._base_reaches(lane_repo, same_file, tip)
+    assert lane._base_reaches(lane_repo, conflict, tip)
+    # Renames off: the old path stays in the base's set and meets the document's.
+    assert lane._base_reaches(lane_repo, renamed, tip)
+    # `x shared.py` is one path: split on spaces, it would meet `shared.py`.
+    assert not lane._base_reaches(lane_repo, spaced, tip)
+
+
+def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(
+    lane_repo, tmp_path, reaching_base
+):
     published: list[tuple[str, str]] = []
     document = _landed_document(lane_repo, tmp_path, "S-0912", {"T-7305": "five.py"}, published)
 
@@ -2142,7 +2228,7 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(lane_r
 
 
 def test_a_candidate_cut_before_its_document_was_rebased_replays_only_its_own_commits(
-    lane_repo, tmp_path
+    lane_repo, tmp_path, reaching_base
 ):
     """The document's rebase onto a moved base restates the earlier phase's
     landing file, so that phase's pre-rebase commit no longer matches its
@@ -2184,7 +2270,9 @@ def test_a_candidate_cut_before_its_document_was_rebased_replays_only_its_own_co
     assert git(lane_repo, "show", f"{document}:two.py") == "two = 2"
 
 
-def test_an_open_document_rebases_the_remote_copy_and_keeps_a_hand_commit(lane_repo, tmp_path):
+def test_an_open_document_rebases_the_remote_copy_and_keeps_a_hand_commit(
+    lane_repo, tmp_path, reaching_base
+):
     published: list[tuple[str, str]] = []
     document = _landed_document(lane_repo, tmp_path, "S-0915", {"T-7308": "eight.py"}, published)
 
@@ -4166,7 +4254,7 @@ def test_held_landings_that_conflict_with_a_hand_commit_ask_a_person(lane_repo, 
 
 
 def test_a_copy_left_behind_a_rebased_remote_is_adopted_and_the_next_phase_lands(
-    lane_repo, tmp_path
+    lane_repo, tmp_path, reaching_base
 ):
     """The remote's copy of the document branch was rebased onto a moved base
     and published, its landings under new hashes and their files restated,

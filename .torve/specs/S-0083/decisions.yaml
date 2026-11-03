@@ -194,10 +194,13 @@ decisions:
   - id: D-13
     grade: ASSUMED
     text: >-
-      A document branch whose merge would no longer be clean is rebased onto the remote's
-      `main` in a disposable worktree, the battery re-run over the rebased tree and
-      the branch republished under lease, bounded once per base tip; a conflict escalates
-      for a person and never resolves itself
+      A document branch whose merge would no longer be clean — its merge with the
+      remote's `main` conflicts, `main`'s change since their merge base touches a
+      path the document changed (renames counted at their old paths), or git cannot
+      say either — is rebased onto that `main` in a disposable worktree, the battery
+      re-run over the rebased tree and the branch republished under lease, bounded
+      once per base tip; a conflict escalates for a person and never resolves itself.
+      A base that moved elsewhere leaves the branch as the battery judged it
     paths: [src/torve/application/lane.py]
     consequence: >-
       the person looking at the pull request is looking at the tree the battery judged,
@@ -207,6 +210,7 @@ decisions:
       it is the ordinary case; the disposal and its `conflict_base` bound are the
       lane's own and are not loosened because the branch is older
     cites: [S-0006/D-12, S-0080/D-9]
+    fingerprint: d012c01966f5bf03/c6da993128d86481
   - id: D-14
     grade: ASSUMED
     text: >-
