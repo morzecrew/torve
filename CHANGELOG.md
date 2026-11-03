@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implement, verify and revert tasks alone, and a task already minted with such an
   edge starts once those tasks land.
 
+- The review-thread leg takes a new thread beside an answered one as a new finding when
+  another reviewer opened it. Only the answered reviewer's own thread there is escalated
+  as a re-raise.
+
 ## [0.7.0] - 2026-10-27
 
 ### Added

@@ -769,6 +769,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round, taken: Collectio
                 "line": finding.line,
                 "end_line": finding.end_line,
                 "threads": list(finding.ids),
+                "authors": _raisers(finding),
             }
             for finding in round_.findings
         ],
@@ -795,6 +796,7 @@ def mint_round(root: Path, config: RunnerConfig, round_: Round, taken: Collectio
                     "line": finding.line,
                     "end_line": finding.end_line,
                     "threads": list(finding.ids),
+                    "authors": _raisers(finding),
                 }
                 for finding in round_.findings
             ],
@@ -1442,17 +1444,60 @@ def _same_anchor(finding: Finding, row: dict[str, Any]) -> bool:
     the fix moved the code reads as new, which is the generous reading and the
     cheap error. A round carrying a wave matches on any of its findings."""
 
-    for one in _row_findings(row):
-        if one.get("path") != finding.path:
-            continue
+    return any(_near(finding, one) for one in _row_findings(row))
 
-        if finding.line is None or one.get("line") is None:
-            return True
 
-        if abs(int(one["line"]) - finding.line) <= WINDOW:
-            return True
+def _near(finding: Finding, one: dict[str, Any]) -> bool:
+    """Whether *finding* anchors within the window of one recorded finding."""
 
-    return False
+    if one.get("path") != finding.path:
+        return False
+
+    if finding.line is None or one.get("line") is None:
+        return True
+
+    return abs(int(one["line"]) - finding.line) <= WINDOW
+
+
+def _reraised(finding: Finding, row: dict[str, Any]) -> bool:
+    """Whether *finding* is a landed round's finding raised again (S-0084/D-14):
+    at its anchor, from a reviewer whose thread that round answered. A bot
+    re-raises on a new thread beside its old one, so the anchor still counts;
+    another reviewer's thread beside it is a new finding (#240). A round that
+    recorded no authors matches on the anchor alone."""
+
+    # A deleted account reads as "" or `ghost`, one name for many reviewers.
+    raisers = set(_raisers(finding)) - {"", "ghost"}
+
+    return any(
+        _near(finding, one) and (one.get("authors") is None or bool(raisers & set(one["authors"])))
+        for one in _row_findings(row)
+    )
+
+
+def _narrowed(finding: Finding, threads: tuple[ReviewThread, ...]) -> Finding:
+    """*finding* carrying only *threads*, its span theirs (as `group_findings`
+    draws it), so a round never records a dropped thread's lines."""
+
+    lines = sorted(one.line for one in threads if one.line is not None)
+
+    return replace(
+        finding,
+        threads=threads,
+        line=lines[0] if lines else None,
+        end_line=lines[-1] if lines else None,
+    )
+
+
+# ....................... #
+
+
+def _raisers(finding: Finding) -> list[str]:
+    """Who opened *finding*'s threads. A recorded finding's author is the review
+    task that wrote it, a new one each review, so the engine's reviewer counts
+    as one reviewer under the record's prefix."""
+
+    return sorted({RECORD if one.id.startswith(RECORD) else one.author for one in finding.threads})
 
 
 # ....................... #
@@ -1846,7 +1891,12 @@ def review_thread_leg(
 
         claims: list[Claim] = []
 
-        for finding in group_findings(raised):
+        # A split below can leave threads `group_findings` would not have put
+        # together, so what survives is grouped again and queued.
+        queue = group_findings(raised)
+
+        while queue:
+            finding = queue.pop(0)
             # A thread on a file the engine writes is answered with the fixed
             # reply, never composed and never escalated (S-0097/D-2).
             if engine_written(finding.path):
@@ -1872,36 +1922,55 @@ def review_thread_leg(
                 refused.append(reason)
                 continue
 
-            if any(_same_anchor(finding, row) for row in replied):
+            # A group can hold several reviewers' threads, so each thread is
+            # judged alone: only the answered reviewer's own is a re-raise, and
+            # the rest go on as a finding (#240).
+            again = tuple(
+                one
+                for one in finding.threads
+                if any(_reraised(_narrowed(finding, (one,)), row) for row in replied)
+            )
+
+            if again:
+                reraise = _narrowed(finding, again)
                 # S-0099/D-9, S-0102/D-6: only a re-raise on a moved head is
                 # news — a finding raised again on the head the lane already
                 # recorded writes no row and does not escalate twice. The head
                 # the leg last recorded one at lives for the life of the
                 # process, so the dedupe needs no stream.
-                key = (str(root), branch, finding.path, finding.line or 0)
+                key = (str(root), branch, reraise.path, reraise.line or 0)
 
                 if RERAISED.get(key) != info.head_sha:
-                    detail = f"{finding.path} was raised again after a landed reply answered it"
+                    detail = f"{reraise.path} was raised again after a landed reply answered it"
                     engine_event(
                         root,
                         "lane_finding_reraised",
                         {
                             "branch": branch,
                             "pr": info.number,
-                            "path": finding.path,
-                            "line": finding.line,
-                            "threads": list(finding.ids),
+                            "path": reraise.path,
+                            "line": reraise.line,
+                            "threads": list(reraise.ids),
                             "head": info.head_sha,
                         },
                     )
                     RERAISED[key] = info.head_sha
                     _escalate(root, branch, detail)
-                    escalated.append(finding.path)
-                continue
+                    escalated.append(reraise.path)
 
-            if any(_same_anchor(finding, row) for row in prior):
+                rest = tuple(one for one in finding.threads if one not in again)
+
+                if not rest:
+                    continue
+
+                finding, *more = group_findings(rest)
+                queue[:0] = more
+                from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
+
+            if any(_same_anchor(finding, row) for row in prior if row not in replied):
                 # A round of this finding is already on the board; it is
-                # answered when it lands, not dispatched a second time.
+                # answered when it lands, not dispatched a second time. A
+                # landed round's anchor was judged just above (#240).
                 continue
 
             # The injection scan runs before a round is composed, thread by
@@ -1933,15 +2002,8 @@ def review_thread_leg(
                 if not rest:
                     continue
 
-                # The span is the surviving threads' own (as `group_findings`
-                # draws it), so a round never records a refused thread's lines.
-                lines = sorted(one.line for one in rest if one.line is not None)
-                finding = replace(
-                    finding,
-                    threads=rest,
-                    line=lines[0] if lines else None,
-                    end_line=lines[-1] if lines else None,
-                )
+                finding, *more = group_findings(rest)
+                queue[:0] = more
                 from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             files = sorted({f for ident in from_record for f in touched.get(ident, [])})

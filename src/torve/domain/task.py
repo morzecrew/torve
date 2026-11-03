@@ -134,6 +134,9 @@ class RoundFinding(BaseModel):
     """The last line of the span, None when the finding anchors at one line."""
     threads: list[str] = Field(default_factory=list)
     """The threads that raised it — the reply addresses the answer names."""
+    authors: list[str] | None = None
+    """Who opened those threads; None on a round minted before it was
+    recorded, which matches a re-raise on its anchor alone (#240)."""
 
 
 # ....................... #
