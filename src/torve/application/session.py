@@ -94,6 +94,20 @@ def previous_attempt_gate_red(state: RunState) -> bool:
 # ....................... #
 
 
+def previous_attempt_follows_blocker_revision(state: RunState) -> bool:
+    """S-0117/D-1: whether the attempt about to dispatch follows a surviving
+    review blocker's revision. `review_step` appends the revision fact without
+    a transition (the state stays GATED, retried), so it too sits one slot
+    behind this attempt's own "attempt N dispatched" entry."""
+
+    from torve.application.review import is_blocker_revision_fact
+
+    return len(state.history) >= 2 and is_blocker_revision_fact(state.history[-2]["fact"])
+
+
+# ....................... #
+
+
 # The fixed severity order of the gate axes, most severe first: retry
 # selection resolves the rung of the most severe axis present among a red
 # attempt's convictions (S-0034/D-5). This order is this module's rule, not the
@@ -176,8 +190,10 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
     the tier the red attempt's recorded gate outcomes select — the seat's
     mapping at the most severe axis present, the scalar read as its
     functional sugar — instead of continuing under the tier that just ran.
-    Any other attempt resolves the task's own tier, which is why an advance
-    is never sticky: a green pass hands the next attempt back to the seat.
+    The attempt after a surviving review blocker's revision resolves the
+    seat's `revision_variant`, when it names one (S-0117/D-1). Any other
+    attempt resolves the task's own tier, which is why an advance is never
+    sticky: a green pass hands the next attempt back to the seat.
 
     Never fabricated. This only advances when the CLI wired an agent factory
     to actually build the resolved tier's Agent, so telemetry never stamps a
@@ -194,6 +210,13 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
 
         if rung:
             resolved_name = rung
+            resolved_tier = tier_for(run.config, resolved_name)
+
+    elif retry_agent is not None and previous_attempt_follows_blocker_revision(state):
+        # S-0117/D-1: a revision the seat could not clear gets the stronger
+        # seat's worktree and critique, exactly as a gate-red gets its rung.
+        if seat_tier.revision_variant:
+            resolved_name = seat_tier.revision_variant
             resolved_tier = tier_for(run.config, resolved_name)
 
     if resolved_name != run.tier_name:

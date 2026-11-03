@@ -1416,9 +1416,18 @@ def review_pull_request(
 
 
 # A surviving blocker's revision fact (S-0043 S-0043/D-1) starts with this —
-# `_blocker_revisions_spent` is the only reader, so generation and counting
-# can never drift apart. Mirrors `_WALLCLOCK_MARKER` above.
-_BLOCKER_REVISION_MARKER = "review blocker (revision "
+# `_blocker_revisions_spent` is the only internal reader, so generation and
+# counting can never drift apart. Public because the next attempt's tier
+# selection reads the same fact (S-0117/D-1). Mirrors `_WALLCLOCK_MARKER` above.
+BLOCKER_REVISION_MARKER = "review blocker (revision "
+
+
+def is_blocker_revision_fact(fact: str) -> bool:
+    """S-0117/D-1: whether a history fact is the one a surviving blocker's
+    revision appends — the revision that sends the next attempt to the
+    seat's `revision_variant`."""
+
+    return fact.startswith(BLOCKER_REVISION_MARKER)
 
 
 def _blocker_revisions_spent(state: RunState) -> int:
@@ -1427,7 +1436,7 @@ def _blocker_revisions_spent(state: RunState) -> int:
     without a transition (the state stays GATED, retried), counted across
     the run's whole history, never just the last attempt."""
 
-    return sum(1 for h in state.history if h["fact"].startswith(_BLOCKER_REVISION_MARKER))
+    return sum(1 for h in state.history if is_blocker_revision_fact(h["fact"]))
 
 
 # ....................... #
@@ -1558,7 +1567,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
                     "from": str(state.state),
                     "to": str(state.state),
                     "fact": (
-                        f"{_BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
+                        f"{BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
                         f"{outcome.review_id}: {detail[:300]}"
                     ),
                 }

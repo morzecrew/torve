@@ -1,0 +1,167 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0721
+base: bf0169e5627bec1e734db834c766574b32a7f728
+commit: 3abe2d565fd7191037ae75cb85adbea32a23e2fc
+at: '2026-11-02T21:10:57Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-38
+    grade: ASSUMED
+  - id: S-0055/D-50
+    grade: LOCKED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-3
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-4
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-6
+    grade: ASSUMED
+  - id: S-0079/D-7
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0079/D-11
+    grade: ASSUMED
+  - id: S-0079/D-12
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0088/D-3
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-3
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0098/D-1
+    grade: ASSUMED
+  - id: S-0098/D-2
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0102/D-5
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0108/D-2
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0118/D-9
+    grade: LOCKED
+  - id: S-0119/D-8
+    grade: ASSUMED

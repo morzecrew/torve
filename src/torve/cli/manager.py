@@ -26,6 +26,7 @@ from torve.cli.console import (
     add_rows_truncated,
     closing,
     emit_json,
+    err,
     fail,
     footer,
     header,
@@ -49,12 +50,14 @@ if TYPE_CHECKING:
     from forze.application.execution import ExecutionRuntime
 
     from torve.adapters.vcs.git import GhScm
+    from torve.application.eventlog import EventLog
     from torve.application.lane import LaneJudgment
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
     from torve.application.runstate import Escalation
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord, HoldoutFile
+    from torve.domain.spec import Document
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -639,6 +642,212 @@ def _dependencies_on_base(root: Path, config: RunnerConfig) -> Callable[[Task, B
     return on_base
 
 
+# ....................... #
+
+
+def _engine_imports_under(root: Path) -> bool:
+    """Whether the running engine is the checkout at *root* (S-0117/D-6).
+    Fast-forwarding and planning from it would move the code this process
+    is executing, so the chain leaves it alone."""
+
+    import torve
+
+    location = getattr(torve, "__file__", None)
+
+    if not location:
+        return False
+
+    try:
+        relative = Path(location).resolve().relative_to(root.resolve())
+
+    except ValueError:
+        return False
+
+    # A torve installed into the project's own virtualenv sits under the root
+    # too, but it is a release, not the checkout's source.
+    return "site-packages" not in relative.parts
+
+
+# ....................... #
+
+
+def _refusal_recorded(root: Path, *, base: str, document: str) -> bool:
+    """Whether *base* already carries a recorded refusal for *document*.
+    Refusals are once per base commit, so a base that has not moved is not
+    asked to say the same thing on every idle pass (S-0117/D-7)."""
+
+    import json
+
+    from torve.config import layout
+    from torve.config.manifest import Manifest, load_manifest
+
+    manifest_path = layout.gates_file(root)
+    telemetry = (
+        load_manifest(manifest_path).telemetry
+        if manifest_path.is_file()
+        else Manifest(gates=[]).telemetry
+    )
+    path = root / telemetry
+
+    if not path.is_file():
+        return False
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+
+        except ValueError:
+            continue
+
+        if not isinstance(row, dict):
+            continue
+
+        if (
+            row.get("kind") == "engine"
+            and row.get("event") == "plan_refused"
+            and row.get("base") == base
+            and row.get("document") == document
+        ):
+            return True
+
+    return False
+
+
+# ....................... #
+
+
+async def _sync_and_plan(
+    root: Path,
+    log: EventLog,
+    partition: str,
+    *,
+    config: RunnerConfig,
+    worker: str,
+) -> None:
+    """S-0117/D-5: between nights, bring the checkout to the remote's base and
+    mint every accepted, unimplemented document the record has not planned
+    yet, into the record and no file.
+
+    Nothing happens while a task is in flight, on a checkout that is not the
+    base branch, or one with a dirty tree. Planning happens only at the
+    remote's tip after the fast-forward, so a document accepted on another
+    branch is never planned. A refusal is retried after each mint that
+    succeeds — its `after` target can carry a higher number — and one still
+    refused when a pass mints nothing is recorded once per base commit
+    (S-0117/D-5, D-7)."""
+
+    from torve.adapters.vcs.git import GitLane
+    from torve.application.manager import project
+    from torve.application.planner import (
+        PlanError,
+        mint_contracts,
+        plan_document,
+        unplanned_documents,
+    )
+    from torve.application.telemetry import engine_event
+    from torve.gates.context import GitError, resolve_base
+
+    board = project(await log.since(partition=partition))
+
+    if board.in_flight():
+        return
+
+    lane = GitLane()
+
+    try:
+        lane.fetch(root)
+
+    except RuntimeError:
+        # No remote to fetch: a checkout nothing can move is one the chain
+        # plans nothing from, not a chain that dies at the first pass.
+        return
+
+    try:
+        base_ref = resolve_base(root, config.base)
+
+    except GitError:
+        # A configured base the fetch just pruned waits for the next pass; it
+        # does not end the chain.
+        return
+
+    if base_ref is None:
+        return
+
+    branch = (
+        base_ref.removeprefix("refs/remotes/origin/")
+        .removeprefix("refs/heads/")
+        .removeprefix("origin/")
+    )
+    remote = lane.remote_tip(root, branch)
+
+    if remote is None:
+        return
+
+    if lane.current_branch(root) != branch or lane.dirty_paths(root):
+        return
+
+    if lane.tip(root, "HEAD") != remote:
+        try:
+            lane.merge_ff(root, f"origin/{branch}")
+
+        except RuntimeError:
+            return
+
+    if lane.tip(root, "HEAD") != remote:
+        return
+
+    rfc_dir = root / config.specs.path
+    try:
+        listing = unplanned_documents(root, board, rfc_dir=rfc_dir)
+
+    except ValueError as exc:
+        # A corpus the base cannot load (`SpecError`, `PlanError`) stops this
+        # sweep, never the chain.
+        if not _refusal_recorded(root, base=remote, document="corpus"):
+            engine_event(
+                root, "plan_refused", {"document": "corpus", "error": str(exc), "base": remote}
+            )
+
+        return
+
+    refusals: dict[str, str] = {}
+
+    while listing:
+        remaining: list[Document] = []
+        progressed = False
+
+        for doc in listing:
+            try:
+                report = plan_document(root, rfc_dir, doc.id, board=board)
+
+            except PlanError as exc:
+                refusals[doc.id] = str(exc)
+                remaining.append(doc)
+                continue
+
+            refusals.pop(doc.id, None)
+            await mint_contracts(log, report, partition=partition, actor_id=worker)
+            progressed = True
+            board = project(await log.since(partition=partition))
+
+        if not progressed:
+            break
+
+        listing = remaining
+
+    # The loop ends on a pass that minted nothing, and `refusals` holds only
+    # what that pass still refused: each is recorded, whatever an earlier
+    # pass of the sweep minted (S-0117/D-5).
+    for document, refusal in sorted(refusals.items()):
+        if _refusal_recorded(root, base=remote, document=document):
+            continue
+
+        engine_event(root, "plan_refused", {"document": document, "error": refusal, "base": remote})
+
+
+# ....................... #
+
+
 async def _serve(
     dsn: str | None,
     partition: str,
@@ -651,6 +860,7 @@ async def _serve(
     only: str | None,
     dispatch: bool,
     night: bool = False,
+    chain: bool = False,
     slot: int | None = None,
 ) -> tuple[int, str]:
     from torve.application.eventlog import event_log
@@ -659,8 +869,11 @@ async def _serve(
     from torve.application.manager import project
     from torve.application.projections import landed
     from torve.application.residency import (
+        Night,
         close_night,
         contracts,
+        day_has_room,
+        day_remainder,
         mint,
         open_night,
         ran_here,
@@ -916,65 +1129,188 @@ async def _serve(
                 ran=ran.__contains__,
             )
 
-        # S-0079/D-6: refused here, before the first pass, while the operator
-        # who typed the command is still standing there. Nothing refuses the
-        # night after this point — the same empty queue an hour later is the
-        # night's work finished, and `reached` closes it.
-        terms = (
-            await open_night(log, partition, config=config.night, actor_id=worker)
-            if night
-            else None
-        )
-
-        async def stop() -> str | None:
-            return await reached(log, partition, terms, owed=owed) if terms is not None else None
-
-        handled = await serve(
-            log,
-            Worker(
+        worker_obj = Worker(
+            log=log,
+            name=worker,
+            execute=runner_execute(
+                root,
+                config,
+                assembly.build_dispatch_prepare(root, config),
                 log=log,
-                name=worker,
-                execute=runner_execute(
-                    root,
-                    config,
-                    assembly.build_dispatch_prepare(root, config),
-                    log=log,
-                    partition=partition,
-                    seat=worker,
-                ),
-                on_base=_dependencies_on_base(root, config),
+                partition=partition,
+                seat=worker,
             ),
-            root,
-            partition,
-            idle_seconds=interval,
-            passes=passes,
-            landed=landings.get,
-            ran=ran.__contains__,
-            only=only,
-            dispatch=dispatch,
-            standing=standing,
-            paused=paused,
-            relay=relay,
-            lane=lane_leg,
-            lane_through_pause=config.promotion.landing == "pull_request",
-            threads=thread_leg,
-            stop=stop if terms is not None else None,
+            on_base=_dependencies_on_base(root, config),
         )
 
-        if terms is None:
-            return handled, ""
+        # S-0117/D-3: a `--passes` bound is the command's, not each night's.
+        # A chained night takes what is left of it and reports what it used.
+        passes_left = passes or None
 
-        # The reason is asked once more rather than remembered from the loop:
-        # `serve` also returns when its pass count runs out, and a night that
-        # ended that way has no term to name.
-        return handled, await close_night(
-            log,
-            partition,
-            terms,
-            reason=await reached(log, partition, terms, owed=owed) or "passes",
-            handled=handled,
-            actor_id=worker,
-        )
+        async def run_night(terms: Night) -> tuple[int, str]:
+            nonlocal passes_left
+
+            async def stop() -> str | None:
+                return await reached(log, partition, terms, owed=owed)
+
+            used = [0]
+            handled = await serve(
+                log,
+                worker_obj,
+                root,
+                partition,
+                idle_seconds=interval,
+                passes=passes_left,
+                landed=landings.get,
+                ran=ran.__contains__,
+                only=only,
+                dispatch=dispatch,
+                standing=standing,
+                paused=paused,
+                relay=relay,
+                lane=lane_leg,
+                lane_through_pause=config.promotion.landing == "pull_request",
+                threads=thread_leg,
+                stop=stop,
+                passes_run=used,
+            )
+
+            if passes_left is not None:
+                passes_left = max(0, passes_left - used[0])
+
+            # The reason is asked once more rather than remembered from the
+            # loop: `serve` also returns when its pass count runs out, and a
+            # night that ended that way has no term to name.
+            return handled, await close_night(
+                log,
+                partition,
+                terms,
+                reason=await reached(log, partition, terms, owed=owed) or "passes",
+                handled=handled,
+                actor_id=worker,
+            )
+
+        async def idle_pass() -> int:
+            """One pass between nights: mint, reclaim and run the legs, and
+            claim nothing. The chain is waiting for something startable, not
+            starting it outside the night that its budget belongs to."""
+
+            nonlocal passes_left
+
+            used = [0]
+            handled = await serve(
+                log,
+                worker_obj,
+                root,
+                partition,
+                idle_seconds=interval,
+                passes=1,
+                landed=landings.get,
+                ran=ran.__contains__,
+                only=only,
+                dispatch=False,
+                standing=standing,
+                paused=paused,
+                relay=relay,
+                lane=lane_leg,
+                lane_through_pause=config.promotion.landing == "pull_request",
+                threads=thread_leg,
+                passes_run=used,
+            )
+
+            if passes_left is not None:
+                passes_left = max(0, passes_left - used[0])
+
+            return handled
+
+        if not chain:
+            # S-0079/D-6: refused here, before the first pass, while the
+            # operator who typed the command is still standing there. Nothing
+            # refuses the night after this point — the same empty queue an
+            # hour later is the night's work finished, and `reached` closes it.
+            terms = (
+                await open_night(log, partition, config=config.night, actor_id=worker)
+                if night
+                else None
+            )
+
+            if terms is None:
+                return await serve(
+                    log,
+                    worker_obj,
+                    root,
+                    partition,
+                    idle_seconds=interval,
+                    passes=passes,
+                    landed=landings.get,
+                    ran=ran.__contains__,
+                    only=only,
+                    dispatch=dispatch,
+                    standing=standing,
+                    paused=paused,
+                    relay=relay,
+                    lane=lane_leg,
+                    lane_through_pause=config.promotion.landing == "pull_request",
+                    threads=thread_leg,
+                ), ""
+
+            return await run_night(terms)
+
+        # S-0117/D-3: nights back to back in one process. Each opens with the
+        # day's remainder (S-0117/D-4), and one closed on a class the terms
+        # name ends the chain rather than opening the next.
+        planning = not _engine_imports_under(root)
+
+        if not planning:
+            # S-0117/D-6: moving this checkout would move the code the process
+            # is running, so the chain neither fast-forwards nor plans from it.
+            err().print(
+                "the engine imports from this checkout — the chain leaves it "
+                "alone and plans nothing between nights"
+            )
+
+        handled = 0
+
+        while True:
+            if passes_left is not None and passes_left <= 0:
+                return handled, ""
+
+            # The escalation pause forbids growing the queue (S-0048/D-4), and
+            # minting is growing it.
+            if planning and not await paused():
+                await _sync_and_plan(root, log, partition, config=config, worker=worker)
+
+            remainder = await day_remainder(log, partition, config.night)
+
+            if not day_has_room(config.night, remainder):
+                # The day's bound is reached; nothing opens until the next
+                # UTC midnight, which the next loop reads off the clock.
+                handled += await idle_pass()
+                await asyncio.sleep(interval)
+                continue
+
+            try:
+                terms = await open_night(
+                    log,
+                    partition,
+                    config=config.night,
+                    actor_id=worker,
+                    budget_usd=remainder[0],
+                    budget_attempts=remainder[1],
+                )
+            except NightRefused:
+                # Nothing startable yet: an idle pass mints and reclaims,
+                # and the open is tried again at the next interval.
+                handled += await idle_pass()
+                await asyncio.sleep(interval)
+                continue
+
+            done, reason = await run_night(terms)
+            handled += done
+            bound, _, detail = reason.partition(":")
+
+            if bound == "escalation" and detail in terms.stop_on:
+                return handled, reason
 
 
 # ....................... #
@@ -1272,6 +1608,15 @@ def serve_cmd(
             "started, and stopped by a budget, the wall-clock end or a named escalation.",
         ),
     ] = False,
+    chain: Annotated[
+        bool,
+        typer.Option(
+            "--chain",
+            help="Run nights back to back in this process, each under what the UTC day "
+            "has left of the night budgets; a night stopped by a named escalation class "
+            "ends the chain. Needs --night.",
+        ),
+    ] = False,
     slot: Annotated[
         int | None,
         typer.Option(
@@ -1306,7 +1651,19 @@ def serve_cmd(
     stops on a budget, on the wall-clock end or on the first escalation of
     a class the terms name. Every bound is soft: they are read between
     passes, so the attempt that was running when one was reached finishes.
+
+    `--chain` keeps the process after a night closes: it runs idle passes
+    and opens the next night once something is startable and the UTC day
+    has budget left, and returns when a night closes on a class the terms
+    name. Each night's budget is the day's remainder, so the day's nights
+    together spend one day's allowance.
     """
+
+    if chain and not night:
+        raise fail("--chain needs --night", EXIT_CONFIG)
+
+    if chain and task:
+        raise fail("--chain serves the partition; it takes no --task", EXIT_CONFIG)
 
     root = root.resolve()
 
@@ -1327,6 +1684,7 @@ def serve_cmd(
                 only=task or None,
                 dispatch=not no_dispatch,
                 night=night,
+                chain=chain,
             )
         )
 

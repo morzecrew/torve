@@ -702,6 +702,7 @@ async def serve(
     lane_through_pause: bool = False,
     threads: Threads | None = None,
     stop: Stop | None = None,
+    passes_run: list[int] | None = None,
 ) -> int:
     """Run passes until cancelled, or until *passes* of them have run.
 
@@ -709,7 +710,9 @@ async def serve(
     a partition that just landed something may have unblocked the next
     thing. Returns how many tasks were handled — the bounded form is what
     tests and a `--passes` dispatch use, and the unbounded one is the
-    resident process S-0044/D-5 asks for.
+    resident process S-0044/D-5 asks for. *passes_run*, when given, receives
+    how many passes ran, so a chain can carry a command-wide `--passes` bound
+    across its nights (S-0117/D-3).
 
     `paused` may be a callable, and for a resident process it must be: the
     escalation queue changes while the manager runs, and a pause decided
@@ -734,6 +737,10 @@ async def serve(
             return handled
 
         seen += 1
+
+        if passes_run is not None:
+            passes_run[:] = [seen]
+
         task_id = await once(
             log,
             worker,
@@ -856,6 +863,61 @@ def _spend(board: Board) -> tuple[float, int]:
 # ....................... #
 
 
+async def day_remainder(
+    log: EventLog,
+    partition: str,
+    config: NightConfig,
+    *,
+    now: datetime | None = None,
+) -> tuple[float, int]:
+    """What the UTC day holding *now* has left of each budget axis.
+
+    A chained night opens with the remainder rather than the configured
+    figure, so a day's nights together spend one day's budget however many
+    of them the chain opens. An axis configured as zero has no bound and
+    reads zero here — the same zero `reached` treats as unbounded.
+    """
+
+    moment = now or datetime.now(UTC)
+    midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
+    spent_usd = 0.0
+    attempts = 0
+
+    # `since` reads strictly after its moment; the day starts at midnight, so
+    # ask from the last microsecond of the day before it. An event stamped
+    # exactly at 00:00 UTC belongs to this day, not the one that closed.
+    for event in await log.since(midnight - timedelta(microseconds=1), partition=partition):
+        if event.kind is EventKind.SEAT_CONSUMED:
+            spent_usd += float(event.payload.get("cost_usd") or 0.0)
+        elif event.kind is EventKind.ATTEMPT_STARTED:
+            attempts += 1
+
+    return (
+        max(0.0, config.budget_usd - spent_usd) if config.budget_usd > 0 else 0.0,
+        max(0, config.budget_attempts - attempts) if config.budget_attempts > 0 else 0,
+    )
+
+
+# ....................... #
+
+
+def day_has_room(config: NightConfig, remainder: tuple[float, int]) -> bool:
+    """Whether every axis the night section bounds has some of the day left.
+
+    One exhausted axis is enough to open no night: the alternative is a
+    night whose zero budget `reached` reads as no bound at all.
+    """
+
+    usd, attempts = remainder
+
+    return not (
+        (config.budget_usd > 0 and usd <= 0) or (config.budget_attempts > 0 and attempts <= 0)
+    )
+
+
+# ....................... #
+
+
 def _refusal(board: Board, partition: str, *, moment: datetime, window: timedelta) -> str:
     """Why the queue is empty, in the words an operator can act on: each
     claim still held and when its lease runs out, and how many queued tasks
@@ -909,6 +971,8 @@ async def open_night(
     now: datetime | None = None,
     seats_for_task: SeatsForTask | None = None,
     seat_env: SeatEnv | None = None,
+    budget_usd: float | None = None,
+    budget_attempts: int | None = None,
 ) -> Night:
     """Read the night's terms off the board and the configuration, refuse an
     empty ready queue, and record the open.
@@ -918,6 +982,12 @@ async def open_night(
     moment the operator is present to hear it. It is a refusal only *here* —
     the same empty queue an hour later is a night that finished its work,
     and closing is the right end for that.
+
+    `budget_usd` and `budget_attempts` override the configured figures, and
+    are what a chained open passes: the day's remainder, so that night's
+    budget is what the day has left rather than the whole day's allowance
+    again. The recorded terms carry the override, which is what lets two
+    chained nights be compared.
 
     `seats_for_task` and `seat_env` are S-0079/D-2's knob clause: for every
     queued task, the seats it can reach — its own, its retry rungs, the
@@ -975,8 +1045,8 @@ async def open_night(
         night_id=opened_at.strftime("%Y%m%dT%H%M%SZ"),
         opened_at=opened_at,
         queue=tuple(queue),
-        budget_usd=config.budget_usd,
-        budget_attempts=config.budget_attempts,
+        budget_usd=config.budget_usd if budget_usd is None else budget_usd,
+        budget_attempts=config.budget_attempts if budget_attempts is None else budget_attempts,
         minutes=config.minutes,
         stop_on=tuple(config.stop_on),
         lease_seconds=window.total_seconds(),

@@ -984,6 +984,71 @@ def minted_contracts(root: Path, document: str, board: Board | None = None) -> d
 # ....................... #
 
 
+def minted_documents(root: Path, board: Board | None = None) -> set[str]:
+    """Every document with at least one contract already minted — the board's
+    when a store holds the tasks (S-0056/D-9), the files otherwise. One read
+    for a sweep that asks the same question about every document, rather than
+    a glob and parse per document (S-0117/D-5)."""
+
+    from torve.gates.context import load_task
+
+    found: set[str] = set()
+
+    # A draft or a review names its document too, but plans none of it: only
+    # a dispatchable role's contract means the document was minted.
+    for view in board.tasks.values() if board is not None else []:
+        if view.contract is not None and view.contract.role in DISPATCHABLE_ROLES:
+            found.add(document_of(view.contract.spec or ""))
+
+    for path in sorted((root / layout.TORVE_DIR / "tasks").glob("T-*/contract.yaml")):
+        try:
+            task = load_task(path)
+
+        except ValueError:
+            continue
+
+        if task.role in DISPATCHABLE_ROLES:
+            found.add(document_of(task.spec or ""))
+
+    return found
+
+
+# ....................... #
+
+
+def unplanned_documents(
+    root: Path, board: Board | None = None, *, rfc_dir: Path | None = None
+) -> list[Document]:
+    """The corpus documents nobody has planned, in number order: accepted,
+    not implemented, and with no task minted from them (S-0117/D-5).
+
+    Archived documents are not on the corpus path, and superseded ones are
+    filtered out here: neither is ever offered; an implemented one landed already, and a minted one is a
+    person's to refresh (S-0088). What is left is exactly what the chain's
+    between-night sweep may mint into the record. *rfc_dir* is the corpus the
+    caller's configuration names; omitted, the default configuration's."""
+
+    from torve.config.runconfig import load_runner_config
+
+    corpus_dir = (
+        rfc_dir if rfc_dir is not None else root / load_runner_config(root, None).specs.path
+    )
+    minted = minted_documents(root, board)
+
+    return [
+        doc
+        for doc in sorted(load_corpus(corpus_dir).documents, key=lambda one: number_of(one.id))
+        if not doc.archived
+        and doc.status == "accepted"
+        and not doc.superseded_by
+        and doc.implementation == "none"
+        and document_of(doc.id) not in minted
+    ]
+
+
+# ....................... #
+
+
 def _beyond_refresh(root: Path, rfc_dir: Path, document: str) -> dict[str, str]:
     """Task id -> why a refresh leaves it alone, for everything a landing
     proves (S-0088/D-2): a landing file under the document's `execution/` or the

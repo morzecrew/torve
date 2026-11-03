@@ -147,6 +147,11 @@ class TierConfig(BaseModel):
     surface sees only the functional rung; `boundary` may not name a rung here at all
     (S-0034/D-7)."""
 
+    revision_variant: str = ""
+    """S-0117/D-1: the dotted tier a surviving review blocker's revision resolves to —
+    one rung, as `retry_variant` is after a gate-red. Empty, the default, keeps the
+    revision on the seat. A value naming no configured tier is refused at load."""
+
     character_routing: dict[str, str] = Field(default_factory=dict)
     """S-0034 S-0034/D-3: character -> variant, resolved once at dispatch
     (`resolve_character_tier`) before anything reads `tier_name_for`. A value is this
@@ -1898,6 +1903,27 @@ class RunnerConfig(BaseModel):
             )
 
             raise ValueError(f"retry_variant names no configured tier: {named}")
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _revision_variant_names_a_configured_tier(self) -> RunnerConfig:
+        """S-0117/D-1: a revision rung to nowhere is a configuration error at
+        load time, exactly as a retry rung is (S-0027/D-11) — never a
+        surprise when a blocker first sends the run to it."""
+
+        offenders = {
+            (seat, tier.revision_variant)
+            for seat, tier in self.tiers.items()
+            if tier.revision_variant and tier.revision_variant not in self.tiers
+        }
+
+        if offenders:
+            named = ", ".join(f"{seat!r} -> {rung!r}" for seat, rung in sorted(offenders))
+
+            raise ValueError(f"revision_variant names no configured tier: {named}")
 
         return self
 

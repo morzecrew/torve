@@ -3270,6 +3270,75 @@ BLOCKER_VERDICT = json.dumps(
 )
 
 
+def test_a_blocker_surviving_the_revision_variant_escalates_after_it(repo, monkeypatch):
+    """S-0117/D-1: the first blocker revises on the seat's revision_variant;
+    only the blocker that survives that revision escalates blocker_finding."""
+
+    from test_run_loop import (
+        OK,
+        MockRuntime,
+        MockScm,
+        MockVcs,
+        MockWorkspace,
+        ScriptedAgent,
+        task_for,
+    )
+
+    import torve.application.runner as run_module
+    from torve.adapters.store.durable import open_store
+    from torve.application.dispatch import RunDeps
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        run_module,
+        "run_gate_pass",
+        lambda *args, **kwargs: (0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"),
+    )
+
+    built: list[str] = []
+
+    def retry_agent(tier):
+        built.append(tier.model)
+        return ScriptedAgent([OK])
+
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),
+        agent=ScriptedAgent([OK]),
+        vcs=MockVcs(),
+        scm=MockScm(),
+        store=open_store,
+        review_agent=ScriptedAgent([AgentResult(exit_code=0, output=BLOCKER_VERDICT)]),
+        retry_agent=retry_agent,
+    )
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
+            "executor.strong": TierConfig(adapter="fake", model="strong"),
+        },
+        review=ReviewConfig(on=["task_gated"]),
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert state.attempts == 2
+    assert built == ["strong"]
+    facts = [h["fact"] for h in state.history]
+    assert any(f.startswith("review blocker (revision 1 of 1):") for f in facts)
+
+
 @pytest.mark.parametrize(
     ("verdict", "revisions", "reason"),
     [

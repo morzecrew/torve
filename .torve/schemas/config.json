@@ -1142,6 +1142,12 @@
           "title": "Retry Variants",
           "type": "object"
         },
+        "revision_variant": {
+          "default": "",
+          "description": "S-0117/D-1: the dotted tier a surviving review blocker's revision resolves to \u2014\none rung, as `retry_variant` is after a gate-red. Empty, the default, keeps the\nrevision on the seat. A value naming no configured tier is refused at load.",
+          "title": "Revision Variant",
+          "type": "string"
+        },
         "route": {
           "default": "",
           "description": "S-0064/D-2: what the broker calls this seat's route \u2014 provider and dialect together,\nbecause a provider serving two dialects is two upstreams. Derived, never written.",

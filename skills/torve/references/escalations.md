@@ -76,7 +76,16 @@ each attempt:
 - three attempts that each produced nothing: the contract is probably
   unclear, so rewrite its intent or acceptance before you requeue.
 
-**`blocker_finding`.** The reviewer blocked the candidate. Check the finding:
+**`blocker_finding`.** The reviewer blocked the candidate. When the executor
+seat names a `revision_variant` and `review.blocker_revisions` is at least 1, a
+blocker the review stage raises has already had its revision on that rung: the
+stronger seat ran the revision in the same run and against the same critique
+before the engine escalated. That needs a run that can build the rung's agent
+(`RunDeps.retry_agent`); an integration without one revises on the seat's own
+agent. Not every `blocker_finding` is revised: a blocker
+from a red whole-suite battery or a refused review reaches you without one, and
+`review.blocker_revisions: 0` escalates the first blocker unrevised. Check the
+finding and where it came from:
 
 - real and inside the scope: requeue with a note;
 - real but outside the scope: widen the scope, or fix it by hand on the

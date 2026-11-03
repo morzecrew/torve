@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0710
+phase: 2
+base: bb65c6b7d58e81d1a45b40c9990278ff762abad8
+commit: e3470023b46ca74ff7b4f1b2315721c2ee8fd461
+at: '2026-11-02T18:38:34Z'
+agent: subscription/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: ASSUMED
+    at: '2026-11-02T18:26:39Z'
+    claim: >-
+      The chain runs nights back to back in one process: after a close it runs idle
+      passes that mint and claim nothing, opens the next night once the queue is startable
+      and the UTC day has budget left, and returns when a night closes on a class
+      the terms name; --chain without --night is refused at the terminal.
+    evidence: >-
+      src/torve/cli/manager.py:1030-1074 — the chain loop and its idle passes, with
+      the --chain-needs---night refusal at src/torve/cli/manager.py:1416.
+    action: decided
+  - decision: D-4
+    grade: LOCKED
+    at: '2026-11-02T18:26:39Z'
+    claim: >-
+      Each chained open passes the UTC day's remainder on both axes as the night's
+      own budget, so night.opened records the remainder; a day with no remainder on
+      any configured axis opens no night until the next UTC midnight, while a zero-configured
+      axis stays unbounded, and a night crossing midnight keeps the budget it opened
+      with.
+    evidence: >-
+      src/torve/application/residency.py:859-903 — day_remainder and day_has_room
+      read the day's spend against the night section's budgets; src/torve/application/residency.py:1038
+      is where the open records the override.
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-11-02T18:26:39Z'
+    claim: >-
+      This phase adds no checkout fetch, fast-forward or planning between nights,
+      so a chain run from the repository the engine imports from never changes its
+      own code; the chain loop only opens nights and runs idle passes.
+    evidence: >-
+      src/torve/cli/manager.py:1035-1060 — the chain loop opens nights and runs idle
+      passes, with no git or planning call in it.
+    action: decided

@@ -1397,6 +1397,20 @@ def test_init_writes_the_verify_role_and_block_into_the_schemas(tmp_path):
     assert config["$defs"]["VerifyConfig"]["properties"]["variant"]["default"] == "verify"
 
 
+def test_init_writes_the_revision_variant_into_the_config_schema(tmp_path):
+    """S-0117/D-1: the schema is derived from the models, so a seat's
+    `revision_variant` reaches an editor validating a configuration."""
+
+    root = _bare_repo(tmp_path)
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+
+    config = json.loads((root / ".torve" / "schemas" / "config.json").read_text(encoding="utf-8"))
+    variant = config["$defs"]["TierConfig"]["properties"]["revision_variant"]
+
+    assert variant["type"] == "string"
+    assert variant["default"] == ""
+
+
 def test_init_appends_a_missing_pattern_below_the_operators_lines_and_rewrites_a_stale_schema(
     tmp_path,
 ):

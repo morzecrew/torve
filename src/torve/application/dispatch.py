@@ -265,6 +265,31 @@ def review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
 # ....................... #
 
 
+def reachable_tiers(config: RunnerConfig, base_name: str) -> list[tuple[str, TierConfig]]:
+    """S-0117/D-2: the seat and every tier a run can reach from it — its retry
+    rungs and its `revision_variant`, followed transitively through each
+    listed tier's own. Discovery order, each name once, so a rung naming the
+    seat is never emitted twice."""
+
+    found = [(base_name, tier_for(config, base_name))]
+    seen = {base_name}
+    index = 0
+
+    while index < len(found):
+        _, tier = found[index]
+        index += 1
+
+        for name in (*tier.resolved_retry_variants().values(), tier.revision_variant):
+            if name and name not in seen:
+                seen.add(name)
+                found.append((name, tier_for(config, name)))
+
+    return found
+
+
+# ....................... #
+
+
 def run_routing(
     config: RunnerConfig, task: Task, review_on: bool, include_retry: bool = False
 ) -> BrokerRouting:
@@ -273,21 +298,20 @@ def run_routing(
     the broker enforces them at the wire. A provider the broker configuration
     does not route is a configuration error, never a quiet fallback.
 
-    `include_retry` (S-0027/D-11, generalized by S-0034/D-6) also routes every rung
-    the task's tier resolves for a retry — every axis of `retry_variants`,
-    not only the scalar's functional one: the broker opens once, before the
-    first attempt, so a provider only a later conviction-routed retry
-    reaches must already be on the route table.
+    `include_retry` (S-0027/D-11, generalized by S-0034/D-6 and S-0117/D-2)
+    also routes every tier the task's seat can reach: every axis of
+    `retry_variants`, its `revision_variant`, and each listed tier's own.
+    The broker opens once, before the first attempt, so a provider only a
+    later conviction-routed retry or blocker revision reaches must already
+    be on the route table.
     """
 
     routes: list[BrokerRoute] = []
     base_name = tier_name_for(task)
-    base_tier = tier_for(config, base_name)
     tier_names = [base_name]
 
     if include_retry:
-        rung_names = base_tier.resolved_retry_variants().values()
-        tier_names = list(dict.fromkeys([*tier_names, *rung_names]))
+        tier_names = [name for name, _ in reachable_tiers(config, base_name)]
 
     if review_on and "reviewer" not in tier_names:
         tier_names.append("reviewer")

@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0711
+phase: 3
+attempt: 3
+base: 6d34df59fb29e91d5ee2094284942d3b64cca50c
+commit: 86f88faeb6f83b151843e630b450e1b4fc23c43c
+at: '2026-11-02T19:42:02Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: LOCKED
+  - id: D-7
+    grade: OPEN
+  - id: D-8
+    grade: ASSUMED
+entries:
+  - decision: D-5
+    grade: ASSUMED
+    at: '2026-11-02T18:56:19Z'
+    claim: >-
+      The between-night sweep is implemented as specified: it fetches, fast-forwards
+      a clean checkout on the base branch with merge_ff, and only then plans accepted,
+      unimplemented, unminted documents in number order into the partition record,
+      writing no file. A refused plan is retried after each successful mint within
+      the sweep.
+    evidence: >-
+      src/torve/application/planner.py:987 — unplanned_documents lists accepted, unimplemented,
+      unminted documents in number order; src/torve/cli/manager.py:713 is the sweep
+      that mints them into the record
+    action: decided
+  - decision: D-6
+    grade: LOCKED
+    at: '2026-11-02T18:56:19Z'
+    claim: >-
+      The chain never fast-forwards or plans from the checkout the imported torve
+      package resolves under: the start-up check skips both and prints the reason
+      once, before the chain loop.
+    evidence: >-
+      src/torve/cli/manager.py:647 — the import-under-root check; src/torve/cli/manager.py:1222
+      is the one start-up line and the chain drops the sweep
+    action: decided
+  - decision: D-7
+    grade: OPEN
+    at: '2026-11-02T18:56:19Z'
+    claim: >-
+      Between-night reports are engine telemetry, not the event log: a plan refused
+      on a base commit appends one plan_refused engine event naming the document,
+      the refusal and the base; a planned document is already reported by its task.minted
+      events; a checkout left alone is silent. None of these reach the night report,
+      which stays a fold over the night's own window.
+    evidence: >-
+      src/torve/cli/manager.py:713 — the sweep records plan_refused once per base
+      commit; the record's task.minted events are the planned-document report
+    action: decided
