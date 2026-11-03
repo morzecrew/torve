@@ -344,7 +344,8 @@ def owed(
 
     `checks` maps a row id to its `decision:<id>` gate's verdict. A row whose
     check ran and passed is covered (S-0054/D-3); one whose check failed — or
-    selected nothing — is owed an entry, whatever its paths (S-0106/D-1).
+    selected nothing — is owed an entry (S-0106/D-1); one the battery skipped,
+    because the diff does not reach its paths, is not.
     `None` means no verdicts are in hand (the pre-check, or a pass that ran
     without the checks), and a check stands for its row as before.
     """
@@ -373,6 +374,11 @@ def owed(
 
             if outcome in PASSING:
                 skipped.append(f"{decision.id}: covered by its check, which passed")
+                continue
+
+            if outcome == "skipped":
+                # The check judges files this diff does not reach (#241).
+                skipped.append(f"{decision.id}: its check judges nothing this diff touches")
                 continue
 
             if decision.id not in cited and local not in cited:

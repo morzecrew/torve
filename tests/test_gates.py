@@ -623,6 +623,27 @@ def test_a_failing_shadow_check_leaves_its_locked_row_owed(repo):
     assert report.exit_code == 1  # decisions-reported is blocking
 
 
+def test_a_check_the_diff_does_not_reach_is_skipped_and_owes_nothing(repo):
+    """#241: a document's phases all carry its rows, so a row a later phase
+    builds has a check that fails in every earlier one. Its paths are the
+    gate's: a diff that does not reach them skips the check, and the row owes
+    no entry there."""
+    from torve.gates.runner import run_gates
+
+    repo.seed()
+    later = [{**_checked("sh -c 'exit 1'")[0], "paths": ["lib/issues.py"]}]
+    repo.task(base_task(allow=["src/**"], decisions=later), log_document())
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    report = run_gates(context_for(repo))
+    by_name = {r.name: r for r in report.results}
+
+    assert by_name["decision:S-0009/D-1"].outcome == "skipped"
+    assert by_name["decisions-reported"].outcome == "pass"
+    assert report.exit_code == 0
+
+
 def test_a_passing_check_covers_its_row(repo):
     """D-1: a check that runs and passes stands for its row — no entry owed."""
     from torve.gates.runner import run_gates
@@ -646,7 +667,7 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
     row's shadow state, so it records rather than blocks."""
     from torve.config.manifest import Manifest
     from torve.domain.task import InheritedDecision, Task
-    from torve.gates.context import GateContext
+    from torve.gates.context import DiffEntry, GateContext
     from torve.gates.runner import run_gates
 
     row = InheritedDecision(
@@ -663,6 +684,8 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
         head_sha="",
         base=None,
         merge_base=None,
+        # A change under the row's paths, so its check is one the diff reaches.
+        diff=[DiffEntry(status="M", path="src/app.py")],
         task=task,
         execute=lambda command, timeout: (5, "no tests ran in 0.01s\n"),
     )

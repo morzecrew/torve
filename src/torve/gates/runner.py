@@ -98,7 +98,14 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
     — `shadow` until an amendment promotes it (S-0054/D-4) — with the row's
     twin as its sabotage reference. One reader for a task's contract rows and
     a document's inherited ones (S-0106/D-2), so the two batteries judge a row
-    the same way."""
+    the same way.
+
+    The row's paths are the gate's, as an invariant's are (S-0106/D-2): a row
+    the diff does not reach is reported skipped. Every phase of a document
+    carries all its rows, so a row a later phase builds would otherwise fail
+    its check in each earlier phase and owe an entry there (#241); the phase
+    that builds it touches its paths, and the completion battery reads the
+    whole document's diff."""
 
     gates: list[Gate] = []
 
@@ -116,6 +123,7 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
                 input="worktree",
                 timeout=SHELL_GATE_TIMEOUT,
                 sabotage=row.check_twin,
+                paths=list(row.paths),
             )
         )
 
