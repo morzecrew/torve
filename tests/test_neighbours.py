@@ -209,6 +209,55 @@ def test_acceptance_runs_stops_at_a_shell_operator() -> None:
     )
 
 
+def test_acceptance_runs_ignores_shell_redirections() -> None:
+    """S-0119/D-12: a redirection and its target are the shell's, not pytest's
+    positional paths, so `pytest -q > pytest.log` still runs the default suite
+    and a path written after `>` runs nothing."""
+
+    launcher = "python3 -m pytest -q -p no:cacheprovider"
+
+    assert acceptance_runs("uv run pytest -q > pytest.log", "tests/test_a.py", launcher)
+    assert acceptance_runs("uv run pytest -q >> pytest.log", "tests/test_a.py", launcher)
+    assert acceptance_runs("uv run pytest tests/test_a.py 2>/dev/null", "tests/test_a.py", launcher)
+    assert not acceptance_runs(
+        "uv run pytest tests/test_a.py > pytest.log", "tests/test_b.py", launcher
+    )
+    assert not acceptance_runs(
+        "uv run pytest 2>pytest.log tests/test_a.py", "tests/test_b.py", launcher
+    )
+
+
+def test_acceptance_runs_ignores_a_duplicated_descriptor() -> None:
+    """S-0119/D-12: `2>&1` and `>& out.log` are one redirection each, so the
+    descriptor or file after the ampersand is never a pytest path."""
+
+    launcher = "python3 -m pytest -q -p no:cacheprovider"
+
+    assert acceptance_runs("uv run pytest -q 2>&1 | tee log", "tests/test_a.py", launcher)
+    assert acceptance_runs("uv run pytest -q >/dev/null 2>&1", "tests/test_a.py", launcher)
+    assert acceptance_runs("uv run pytest -q >& out.log", "tests/test_a.py", launcher)
+    assert not acceptance_runs(
+        "uv run pytest tests/test_a.py 2>&1 | tee log", "tests/test_b.py", launcher
+    )
+
+
+def test_acceptance_runs_reads_the_pytest_options_that_take_a_value() -> None:
+    """S-0119/D-12: an option's value is where pytest writes or how it runs, not
+    a path it selects — `--basetemp .` names no test."""
+
+    launcher = "python3 -m pytest -q -p no:cacheprovider"
+
+    assert not acceptance_runs(
+        "uv run pytest --basetemp . tests/test_other.py", "tests/test_a.py", launcher
+    )
+    assert acceptance_runs(
+        "uv run pytest --basetemp . tests/test_a.py", "tests/test_a.py", launcher
+    )
+    assert not acceptance_runs(
+        "uv run pytest --import-mode importlib tests/test_other.py", "tests/test_a.py", launcher
+    )
+
+
 # ....................... #
 # S-0119/D-11
 
@@ -296,3 +345,29 @@ def test_phase_reach_caps_the_paths_and_skips_a_landed_document(tmp_path: Path) 
         f"S-0001: phase 1 (Core) reaches 14 files no phase owns: {', '.join(callers[:10])}"
     )
     assert phase_reach(Corpus(documents=[widgets("partial")]), root) == []
+
+
+def test_phase_reach_reads_no_tree_when_no_document_is_unbuilt(tmp_path: Path, monkeypatch) -> None:
+    """S-0119/D-11: with every document landed, the reach scan returns before
+    walking the tree or parsing a single Python file."""
+
+    def refuse(_root: Path) -> list[Path]:
+        raise AssertionError("no tree is walked when no document qualifies")
+
+    monkeypatch.setattr("torve.application.neighbours.tree_files", refuse)
+    corpus = Corpus(
+        documents=[
+            Document(
+                id="S-0001",
+                title="Widgets",
+                status="accepted",
+                owner="tester",
+                implementation="partial",
+                phasing=[
+                    Phase(phase=1, title="Core", intent="Do the work.", scope=["src/pkg/core.py"])
+                ],
+            )
+        ]
+    )
+
+    assert phase_reach(corpus, tmp_path) == []

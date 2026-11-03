@@ -2261,7 +2261,19 @@ def adopt(
                 )
 
                 if filed.is_file() and tracked.returncode != 0:
-                    written.append(filed)
+                    # An ignored source is not the tree's to add: `git add`
+                    # over it rejects the whole batch, so the contracts that
+                    # cite it would go uncommitted too and the failure below
+                    # would blame the tasks directory (S-0119/D-6).
+                    ignored = subprocess.run(
+                        ["git", "-C", str(root), "check-ignore", "-q", "--", str(rel)],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+
+                    if ignored.returncode != 0:
+                        written.append(filed)
 
         proc = subprocess.run(
             ["git", *NO_HOOKS, "-C", str(root), "add", "--"]

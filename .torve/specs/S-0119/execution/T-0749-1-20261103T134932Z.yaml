@@ -1,0 +1,343 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0749
+base: 9ddb8c3ddf6e168654e075ebbe9957c691081d07
+commit: 49d5515c71eb02c838cea70878d22a031df8ec6b
+at: '2026-11-03T13:49:32Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0054/D-14
+    grade: ASSUMED
+  - id: S-0055/D-4
+    grade: LOCKED
+  - id: S-0055/D-5
+    grade: LOCKED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-31
+    grade: ASSUMED
+  - id: S-0055/D-32
+    grade: ASSUMED
+  - id: S-0055/D-33
+    grade: ASSUMED
+  - id: S-0055/D-34
+    grade: ASSUMED
+  - id: S-0055/D-38
+    grade: ASSUMED
+  - id: S-0055/D-50
+    grade: LOCKED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-6
+    grade: LOCKED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-3
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-3
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-1
+    grade: LOCKED
+  - id: S-0060/D-4
+    grade: LOCKED
+  - id: S-0061/D-3
+    grade: LOCKED
+  - id: S-0061/D-9
+    grade: ASSUMED
+  - id: S-0061/D-11
+    grade: ASSUMED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0064/D-1
+    grade: LOCKED
+  - id: S-0064/D-4
+    grade: LOCKED
+  - id: S-0064/D-5
+    grade: ASSUMED
+  - id: S-0064/D-6
+    grade: LOCKED
+  - id: S-0068/D-1
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-5
+    grade: ASSUMED
+  - id: S-0079/D-6
+    grade: ASSUMED
+  - id: S-0079/D-7
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0079/D-11
+    grade: ASSUMED
+  - id: S-0079/D-12
+    grade: ASSUMED
+  - id: S-0080/D-1
+    grade: ASSUMED
+  - id: S-0080/D-2
+    grade: ASSUMED
+  - id: S-0083/D-1
+    grade: ASSUMED
+  - id: S-0083/D-2
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-5
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-1
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0086/D-6
+    grade: ASSUMED
+  - id: S-0087/D-1
+    grade: ASSUMED
+  - id: S-0088/D-3
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-3
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-1
+    grade: ASSUMED
+  - id: S-0095/D-2
+    grade: ASSUMED
+  - id: S-0095/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0097/D-5
+    grade: ASSUMED
+  - id: S-0097/D-7
+    grade: ASSUMED
+  - id: S-0098/D-1
+    grade: ASSUMED
+  - id: S-0098/D-2
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0100/D-9
+    grade: ASSUMED
+  - id: S-0100/D-12
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0102/D-5
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0108/D-2
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-2
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-8
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0111/D-1
+    grade: ASSUMED
+  - id: S-0111/D-4
+    grade: ASSUMED
+  - id: S-0112/D-2
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0116/D-2
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-1
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-4
+    grade: LOCKED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0118/D-9
+    grade: LOCKED
+entries:
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-11-03T13:43:05Z'
+    claim: >-
+      The only change in a user-facing-text-governed file is a cache condition and
+      its code comment: no help string, docstring a command renders, or printed line
+      moved, and no corpus coordinate reaches one.
+    evidence: >-
+      src/torve/cli/fleet.py:201-203 — the added prose is a code comment and the condition
+      prints nothing; the file's user-facing text is byte-for-byte what it was
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-03T13:43:05Z'
+    claim: >-
+      The changed file stays in cli and gains only a TYPE_CHECKING name from config,
+      a direction the layer contract permits; uv run lint-imports reports 5 contracts
+      kept and 0 broken.
+    evidence: >-
+      src/torve/cli/fleet.py:42 — RunnerConfig joins the type-checking imports of
+      a cli module, the cli-to-config direction the hexagon already allows
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-03T13:43:05Z'
+    claim: >-
+      No identifier is written or converted: the comment and the new test docstring
+      cite S-0119/D-8 and S-0119/D-1 in the corpus's one grammar, and nothing legacy
+      is introduced.
+    evidence: >-
+      src/torve/cli/fleet.py:177 — the only identifier the edit adds is S-0119/D-1,
+      an existing row cited in the current grammar
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-03T13:43:05Z'
+    claim: >-
+      The change reads no contract and writes no document name: it compares the loaded
+      RunnerConfig and reuses or rebuilds one intake leg, so the row's spec: S-NNNN
+      word is untouched.
+    evidence: >-
+      src/torve/cli/fleet.py:201-203 — the cache compares two loaded configurations;
+      no contract field, path or document name is read or written
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-03T13:43:05Z'
+    claim: >-
+      No landing reader is added or changed: the cache key is the pass's loaded configuration,
+      and nothing in the diff reads a trailer, a subject or a landing.
+    evidence: >-
+      src/torve/cli/fleet.py:198-203 — the key and the cached value are the root,
+      the partition and the configuration; no landing reader is touched
+    action: decided
+  - decision: D-8
+    grade: ASSUMED
+    at: '2026-11-03T13:43:05Z'
+    claim: >-
+      The fleet's intake leg is now rebuilt when the configuration the pass loaded
+      differs from the one its cached leg closed over, so a same-label configuration
+      change no longer drafts, pushes or brokers through the first pass's planner
+      tier, scm, runtime and broker settings, while an unchanged configuration still
+      builds the leg and its agent once for the serve. The reviewer's claim at src/torve/cli/fleet.py:200
+      held; tests/test_fleet_serve.py gains the same-label case, red on the previous
+      label-only key.
+    evidence: >-
+      src/torve/cli/fleet.py:201-203 — the cached leg is keyed on the whole loaded
+      RunnerConfig and rebuilt when it moves
+    action: decided

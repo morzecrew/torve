@@ -623,6 +623,109 @@ def test_a_failing_shadow_check_leaves_its_locked_row_owed(repo):
     assert report.exit_code == 1  # decisions-reported is blocking
 
 
+def test_a_check_the_diff_does_not_reach_is_skipped_and_owes_nothing(repo):
+    """#241: a document's phases all carry its rows, so a row a later phase
+    builds has a check that fails in every earlier one. Its paths are the
+    gate's: a diff that does not reach them skips the check, and the row owes
+    no entry there."""
+    from torve.gates.runner import run_gates
+
+    repo.seed()
+    later = [{**_checked("sh -c 'exit 1'")[0], "paths": ["lib/issues.py"]}]
+    repo.task(base_task(allow=["src/**"], decisions=later), log_document())
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    report = run_gates(context_for(repo))
+    by_name = {r.name: r for r in report.results}
+
+    assert by_name["decision:S-0009/D-1"].outcome == "skipped"
+    assert by_name["decisions-reported"].outcome == "pass"
+    assert (
+        "skipped: S-0009/D-1: its check judges nothing this diff touches"
+        in by_name["decisions-reported"].output
+    )
+    assert report.exit_code == 0
+
+
+def test_a_decision_gate_judges_its_rows_paths_and_its_checks_files():
+    """A row's gate also runs when the diff edits the test its check names,
+    since that edit changes the check. A row with no paths runs on every diff."""
+    from torve.domain.task import InheritedDecision
+    from torve.gates.runner import row_gates
+
+    scoped = InheritedDecision(
+        id="S-0009/D-1",
+        grade="LOCKED",
+        text="x",
+        paths=["lib/issues.py"],
+        check="uv run pytest tests/test_issues.py::test_triage -k triage -p no:cacheprovider",
+    )
+    everywhere = InheritedDecision(
+        id="S-0009/D-2", grade="ASSUMED", text="y", check="uv run pytest tests/test_x.py"
+    )
+
+    first, second = row_gates([scoped, everywhere])
+
+    assert first.paths[0] == "lib/issues.py"
+    assert "tests/test_issues.py" in first.paths
+    assert second.paths == []
+
+
+@pytest.mark.parametrize(
+    ("check", "named", "not_named"),
+    [
+        ("pytest tests/a.py # tests/b.py", "tests/a.py", "tests/b.py"),
+        ("pytest 'tests/test x.py'", "tests/test x.py", "tests/test"),
+        ("sh -c 'cd app && pytest tests/test_issue.py'", "app/tests/test_issue.py", None),
+        ("uv run pytest tests/test_issue.py;", "tests/test_issue.py", "tests/test_issue.py;"),
+        ("pytest tests", "/tests", "tests"),
+        ("sh -c 'uv run pytest \"tests/test x.py\" test_root.py'", "tests/test x.py", None),
+    ],
+)
+def test_a_checks_files_are_read_as_the_shell_reads_them(check, named, not_named):
+    """An edit to a file the check reads runs the check, so the gate's paths
+    take every operand the command names, read as a shell would."""
+    from torve.gates.runner import _check_files
+
+    files = _check_files(check)
+
+    assert named in files
+    assert not_named is None or not_named not in files
+
+
+def test_a_rename_out_of_a_gates_paths_reaches_the_gate(tmp_path):
+    """A file moved out of what a gate judges is a change to it: the old path
+    counts as well as the new one."""
+    from torve.config.manifest import Gate, Manifest
+    from torve.gates.context import DiffEntry, GateContext
+    from torve.gates.runner import _judges_anything
+
+    gate = Gate(
+        name="decision:S-0009/D-1",
+        run="true",
+        state="shadow",
+        origin="S-0009/D-1",
+        paths=["lib/**"],
+    )
+
+    def context(*diff: DiffEntry) -> GateContext:
+        return GateContext(
+            root=tmp_path,
+            manifest=Manifest(gates=[]),
+            head_sha="",
+            base=None,
+            merge_base=None,
+            diff=list(diff),
+        )
+
+    moved = DiffEntry(status="R", path="src/issues.py", old_path="lib/issues.py")
+    elsewhere = DiffEntry(status="M", path="src/app.py")
+
+    assert _judges_anything(gate, context(moved))
+    assert not _judges_anything(gate, context(elsewhere))
+
+
 def test_a_passing_check_covers_its_row(repo):
     """D-1: a check that runs and passes stands for its row — no entry owed."""
     from torve.gates.runner import run_gates
@@ -646,7 +749,7 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
     row's shadow state, so it records rather than blocks."""
     from torve.config.manifest import Manifest
     from torve.domain.task import InheritedDecision, Task
-    from torve.gates.context import GateContext
+    from torve.gates.context import DiffEntry, GateContext
     from torve.gates.runner import run_gates
 
     row = InheritedDecision(
@@ -663,6 +766,8 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
         head_sha="",
         base=None,
         merge_base=None,
+        # A change under the row's paths, so its check is one the diff reaches.
+        diff=[DiffEntry(status="M", path="src/app.py")],
         task=task,
         execute=lambda command, timeout: (5, "no tests ran in 0.01s\n"),
     )

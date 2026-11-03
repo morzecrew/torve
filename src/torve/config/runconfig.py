@@ -1585,6 +1585,15 @@ class IntakeConfig(BaseModel):
     """The label the pass's intake leg drafts from (S-0119/D-1). Empty, the default,
     turns the leg off and builds no drafting agent."""
 
+    @field_validator("issue_label")
+    @classmethod
+    def _blank_is_empty(cls, value: str) -> str:
+        """A label that is only whitespace names nothing, so it reads as the
+        empty default: blank turns the leg off rather than querying the forge
+        with a label nobody set (S-0119/D-1)."""
+
+        return value.strip()
+
 
 # ....................... #
 

@@ -1278,6 +1278,38 @@ def test_adopt_leaves_a_document_source_alone(seeded):
     assert not any(name.startswith(".torve/sources/") for name in _committed_names(seeded.root))
 
 
+def test_an_ignored_source_is_skipped_and_the_contracts_still_commit(seeded):
+    """S-0119/D-6: an ignored source is not the tree's to add, and it must not
+    take the contracts that cite it down with it — nor be reported as an
+    ignored tasks directory."""
+
+    from torve.application.streams import stream_rows
+
+    asked = file_source(seeded.root)
+    source = adopted_ready_run(seeded, source=asked)
+    rel = ".torve/sources/audit/soc2-2026.yaml"
+    seeded.git("rm", "--cached", "-q", rel)
+    seeded.git("commit", "-q", "--no-gpg-sign", "-m", "untrack the source")
+    ignore = seeded.root / ".torve" / ".gitignore"
+    ignore.write_text(
+        (ignore.read_text(encoding="utf-8") if ignore.exists() else "") + "sources/\n"
+    )
+    before = subprocess.run(
+        ["git", "-C", str(seeded.root), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout
+
+    adopted = adopt(seeded.root, source, RunnerConfig())
+
+    assert len(adopted) == 2
+    assert (seeded.root / rel).is_file()  # still filed, just not committed
+    after = subprocess.run(
+        ["git", "-C", str(seeded.root), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout
+    assert after != before  # the contracts committed
+    assert rel not in _committed_names(seeded.root)
+    assert not any(row.get("event") == "intake_uncommitted" for row in stream_rows(seeded.root))
+
+
 def test_an_unknown_source_is_refused_before_a_model_runs(seeded):
     """S-0060/D-5: a provenance nobody can open is worse than none, because
     it reads as an answer — so the run is refused at minting."""

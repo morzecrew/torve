@@ -55,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   torve does. A drafting run's own refusal is no longer reported as a configuration error,
   and an issue whose drafting run never started is tried again on the next pass.
 
+- A decision row's check runs only when the diff touches the row's paths or a file the
+  check names. A row that a later phase of the same document builds no longer fails its
+  check in each earlier phase, and those attempts no longer owe a log entry.
+
 - The review-thread leg answers a refusal once per thread. It used to reply to its own
   replies, and could loop with a review bot.
 

@@ -90,7 +90,10 @@ arrives first, invisibly.
    `check` is a command whose exit code judges the row; the runner appends
    it to the battery as a `decision:<id>` gate under the row's
    `check_state` (`shadow` until an amendment promotes it, naming the soak
-   evidence), and a row whose check passed owes no divergence entry. Which
+   evidence), and a row whose check passed owes no divergence entry. The gate
+   runs only when the diff touches the row's `paths` or a file its check
+   names; a row without paths runs on every diff. The paths select when the
+   check runs, not what its command may read. Which
    check is honest is a fact about the rule, not about what is easy to write:
 
    - **A rule over inputs gets a property.** When the row governs a parser,

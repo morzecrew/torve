@@ -996,6 +996,16 @@ def test_labelled_issues_follows_page_info_until_none_is_left(monkeypatch):
     assert "cursor=CUR1" in commands[1]
 
 
+def test_labelled_issues_a_page_promising_more_with_no_cursor_fails_the_read(monkeypatch):
+    """S-0119/D-3: `hasNextPage` with an empty `endCursor` cannot be paged, so
+    the read fails whole rather than returning part of the listing."""
+
+    _gh_run(monkeypatch, _page([_issue(1, timeline=[_labelled("alice", T1)])], more=True))
+
+    with pytest.raises(RuntimeError, match="cursor"):
+        GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+
 def test_labelled_issues_a_page_that_cannot_be_read_fails_the_whole_read(monkeypatch):
     """S-0119/D-3: a page the reader cannot read fails the read, not a partial
     listing."""
