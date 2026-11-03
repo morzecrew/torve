@@ -262,6 +262,18 @@ def _launch_at(argv: list[str], launcher: str) -> int | None:
     return None
 
 
+def _tree_path(path: str) -> str:
+    """*path* as the tree spells it: a leading `./` removed and nothing else.
+    A bare `lstrip("./")` also eats the dots and slashes of `../tests` and
+    `.hidden/t.py`, making them `tests` and `hidden/t.py` — paths they do not
+    name. `.` is the root, which names every path under it."""
+
+    while path.startswith("./"):
+        path = path[2:]
+
+    return "" if path == "." else path
+
+
 def acceptance_runs(command: str, test: str, launcher: str) -> bool:
     """Whether *command* runs the test file at *test* (S-0119/D-12). It must
     launch the tests — as `pytest`, `-m pytest`, or the manifest's
@@ -275,7 +287,7 @@ def acceptance_runs(command: str, test: str, launcher: str) -> bool:
     if start is None:
         return False
 
-    test = test.replace("\\", "/").lstrip("./")
+    test = _tree_path(test.replace("\\", "/"))
     named_a_path = False
     skip = False
 
@@ -289,7 +301,7 @@ def acceptance_runs(command: str, test: str, launcher: str) -> bool:
             continue
 
         named_a_path = True
-        candidate = token.split("::", 1)[0].replace("\\", "/").rstrip("/").lstrip("./")
+        candidate = _tree_path(token.split("::", 1)[0].replace("\\", "/")).rstrip("/")
 
         if not candidate or test == candidate or test.startswith(f"{candidate}/"):
             return True

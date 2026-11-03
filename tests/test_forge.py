@@ -1010,6 +1010,18 @@ def test_labelled_issues_a_page_that_cannot_be_read_fails_the_whole_read(monkeyp
         GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
 
 
+def test_labelled_issues_a_partial_error_page_fails_the_whole_read(monkeypatch):
+    """S-0119/D-3: `errors` beside partial `data` is a page the reader cannot
+    read, not an issue whose labelling falls outside the window."""
+
+    page = _page([{**_issue(1), "timelineItems": None}])
+    page["errors"] = [{"message": "timelineItems could not be resolved"}]
+    _gh_run(monkeypatch, page)
+
+    with pytest.raises(RuntimeError, match="timelineItems"):
+        GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+
 def test_labelled_issues_may_triage_answers_true_for_triage_and_false_for_read_only(
     monkeypatch,
 ):

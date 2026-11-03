@@ -180,6 +180,17 @@ def test_acceptance_runs_counts_only_a_command_that_launches_the_test(
     assert not acceptance_runs(f"uv run ruff check {path}", path, launcher)
 
 
+def test_acceptance_runs_strips_a_dot_slash_and_not_a_dot_prefix() -> None:
+    """S-0119/D-12: `./tests` names the same path as `tests`, while `../tests`
+    and `.hidden/t.py` name paths the test does not live under."""
+
+    launcher = "python3 -m pytest -q -p no:cacheprovider"
+
+    assert acceptance_runs("uv run pytest ./tests/x.py", "tests/x.py", launcher)
+    assert not acceptance_runs("uv run pytest ../tests", "tests/x.py", launcher)
+    assert not acceptance_runs("uv run pytest .hidden/t.py", "hidden/t.py", launcher)
+
+
 # ....................... #
 # S-0119/D-11
 

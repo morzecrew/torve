@@ -1278,7 +1278,10 @@ class GhScm:
 
             answered = json.loads(self._api(*args) or "{}")
 
-            if answered.get("errors") and not answered.get("data"):
+            # Any `errors` fails the read (S-0119/D-3): a page carrying them is
+            # one the reader could not read whole, and the `data` beside them
+            # may be missing the very timeline the labelling is read from.
+            if answered.get("errors"):
                 said = "; ".join(
                     str(cast("dict[str, Any]", error).get("message") or "")
                     for error in cast("list[Any]", answered["errors"])
