@@ -75,6 +75,9 @@ DRAFT_REF = re.compile(r"^DRAFT-(\d+)$")
 ADOPTED_FILE = "adopted.json"
 
 
+#: Every git command torve runs carries this, so no repository hook runs.
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
+
 # ....................... #
 
 
@@ -2035,8 +2038,19 @@ def draft_request(
 
     task = mint_intake_task(root, request, config, spec=spec, source=source, taken=taken)
     workdir = naming.intake_worktree(root, task.id)
+    # No repository hook runs on a checkout torve makes, as in every adapter.
     added = subprocess.run(
-        ["git", "-C", str(root), "worktree", "add", "--detach", str(workdir), base.stdout.strip()],
+        [
+            "git",
+            *NO_HOOKS,
+            "-C",
+            str(root),
+            "worktree",
+            "add",
+            "--detach",
+            str(workdir),
+            base.stdout.strip(),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -2046,13 +2060,19 @@ def draft_request(
         shutil.rmtree(root / layout.TORVE_DIR / "tasks" / task.id, ignore_errors=True)
         raise RuntimeError(added.stderr.strip() or "worktree add failed")
 
+    digest = config_hash(layout.gates_file(root), root, config)
+
     try:
-        digest = config_hash(layout.gates_file(root), root, config)
         return run_intake(root, workdir, task, config, runtime, agent, digest, broker=broker)
+
+    except ValueError as exc:
+        # The configuration was read above; a refusal from the run itself,
+        # such as a state conflict, is the run's, so the caller tells it apart.
+        raise RuntimeError(str(exc)) from exc
 
     finally:
         subprocess.run(
-            ["git", "-C", str(root), "worktree", "remove", "--force", str(workdir)],
+            ["git", *NO_HOOKS, "-C", str(root), "worktree", "remove", "--force", str(workdir)],
             capture_output=True,
             text=True,
             check=False,

@@ -259,7 +259,14 @@ def _draft(
     except (OSError, ValueError) as exc:  # a failed write, or a labelling S-0058/D-7 refuses
         return _detail([f"could not file {identifier}: {exc}"], skipped), False
 
-    outcome = draft(f"{issue.title}\n\n{issue.body}", identifier)
+    try:
+        outcome = draft(f"{issue.title}\n\n{issue.body}", identifier)
+
+    except Exception as exc:
+        # The run never started, so the issue is not drafted: the source goes,
+        # or every later pass would skip the issue as already filed.
+        path.unlink(missing_ok=True)
+        return _detail([f"could not draft {identifier}: {exc}"], skipped), False
 
     engine_event(
         root,

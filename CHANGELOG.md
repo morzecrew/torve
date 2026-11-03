@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `torve intake` and the issue leg cut their drafting worktree with repository hooks off,
+  as every other git command torve runs does. A drafting run's own refusal is no longer
+  reported as a configuration error, and an issue whose drafting run never started is
+  tried again on the next pass rather than skipped as already filed.
+
 - The review-thread leg answers a refusal once per thread. It used to reply to its own
   replies, and could loop with a review bot.
 

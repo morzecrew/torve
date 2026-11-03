@@ -423,6 +423,29 @@ def test_a_leg_started_draft_that_spends_its_budget_escalates_and_holds_the_paus
     assert task_id in detail
 
 
+def test_a_draft_that_raises_leaves_no_source_and_is_tried_again(tmp_path: Path):
+    """A drafting run that never started drafts nothing, so its source file
+    goes: kept, every later pass would skip the issue as already filed."""
+
+    class Raising(FakeDraft):
+        def __call__(self, request: str, source: str) -> IntakeOutcome:
+            self.calls.append((request, source))
+            raise RuntimeError("worktree add failed")
+
+    reader = FakeReader([issue()], triage={"alice": True})
+    draft = Raising()
+
+    detail, moved = issue_leg(tmp_path, config(), reader, draft)
+
+    assert moved is False
+    assert "could not draft operator/issue-142: worktree add failed" in detail
+    assert not source_path(tmp_path).exists()
+
+    issue_leg(tmp_path, config(), reader, draft)
+
+    assert len(draft.calls) == 2
+
+
 def test_the_leg_writes_the_source_file_the_issue_drafts_from(tmp_path: Path):
     """S-0119/D-5: the filed source carries the URL as `ref`, the title, the
     labelling instant as `at` and the body as `summary`, and opens with its

@@ -96,6 +96,9 @@ def intake_cmd(
     except ValueError as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
+    except RuntimeError as exc:
+        raise fail(str(exc), EXIT_ESCALATED) from exc
+
     if fmt is Format.JSON:
         emit_json(
             {

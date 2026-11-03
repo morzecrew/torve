@@ -974,6 +974,49 @@ def test_run_intake_spent_budget_escalates(seeded):
     assert not drafts_file(seeded.root, task.id).exists()
 
 
+def test_draft_request_runs_no_repository_hook(seeded):
+    """Every git command torve runs carries `core.hooksPath=/dev/null`; the
+    drafting worktree's checkout is one, so a `post-checkout` hook stays put."""
+
+    hook = seeded.root / ".git" / "hooks" / "post-checkout"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    marker = seeded.root / "hooked"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    draft_request(
+        seeded.root,
+        "add a widget module",
+        RunnerConfig(),
+        ScriptedAgent([output_for(draft_dict())]),
+        runtime=StubRuntime(),
+    )
+
+    assert not marker.exists()
+
+
+def test_a_refusal_from_the_drafting_run_is_no_configuration_error(seeded, monkeypatch):
+    """A `ValueError` the run raises, such as a state conflict, reaches the
+    caller as a `RuntimeError`: `torve intake` reports a configuration error
+    only for what it read before the run."""
+
+    import torve.application.intake as intake
+
+    def refuse(*args, **kwargs):
+        raise ValueError("T-0001 is already running")
+
+    monkeypatch.setattr(intake, "run_intake", refuse)
+
+    with pytest.raises(RuntimeError, match="already running"):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(),
+            ScriptedAgent([]),
+            runtime=StubRuntime(),
+        )
+
+
 def test_draft_request_mints_cuts_runs_and_removes_the_worktree(seeded):
     """S-0119/D-7: one request drafts the same way whichever surface started
     it — the run minted, its worktree cut at base, the caller's agent run and
