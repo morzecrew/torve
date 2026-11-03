@@ -78,6 +78,12 @@ ADOPTED_FILE = "adopted.json"
 #: Every git command torve runs carries this, so no repository hook runs.
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
 
+
+class DraftNotStarted(RuntimeError):
+    """The drafting run could not start, and the task minted for it is gone:
+    nothing records the request, so a caller may ask again."""
+
+
 # ....................... #
 
 
@@ -2060,7 +2066,7 @@ def draft_request(
 
     if added.returncode != 0:
         shutil.rmtree(root / layout.TORVE_DIR / "tasks" / task.id, ignore_errors=True)
-        raise RuntimeError(added.stderr.strip() or "worktree add failed")
+        raise DraftNotStarted(added.stderr.strip() or "worktree add failed")
 
     try:
         return run_intake(root, workdir, task, config, runtime, agent, digest, broker=broker)
@@ -2258,7 +2264,8 @@ def adopt(
                     written.append(filed)
 
         proc = subprocess.run(
-            ["git", "-C", str(root), "add", "--"] + [str(p.relative_to(root)) for p in written],
+            ["git", *NO_HOOKS, "-C", str(root), "add", "--"]
+            + [str(p.relative_to(root)) for p in written],
             capture_output=True,
             text=True,
             check=False,
@@ -2283,6 +2290,7 @@ def adopt(
             proc = subprocess.run(
                 [
                     "git",
+                    *NO_HOOKS,
                     "-C",
                     str(root),
                     "commit",

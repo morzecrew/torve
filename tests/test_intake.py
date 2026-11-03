@@ -1357,6 +1357,42 @@ def test_adopt_mints_ids_rewrites_refs_and_commits(seeded):
     assert not (seeded.root / ".torve" / "tick.lock").exists()  # lock released
 
 
+def test_adopt_commits_with_no_repository_hook(seeded):
+    """Adoption's commit carries `core.hooksPath=/dev/null` like every git
+    command torve runs, so a `pre-commit` hook neither runs nor refuses it."""
+
+    source = adopted_ready_run(seeded)
+    hook = seeded.root / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    marker = seeded.root / "hooked"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    adopted = adopt(seeded.root, source, RunnerConfig())
+
+    assert len(adopted) == 2
+    assert not marker.exists()
+
+
+def test_intake_exits_as_infrastructure_when_its_runtime_cannot_be_built(seeded, monkeypatch):
+    """A runtime this host cannot provide is no drafting run's escalation: no
+    run started, so `torve intake` exits with the infrastructure code."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli.main import app
+    from torve.domain.states import EXIT_INFRASTRUCTURE
+
+    def no_runtime(config, override):
+        raise RuntimeError("the opensandbox runtime is not installed")
+
+    monkeypatch.setattr("torve.cli.intake.runtime_for", no_runtime)
+
+    result = CliRunner().invoke(app, ["intake", "add a widget", "--root", str(seeded.root)])
+
+    assert result.exit_code == EXIT_INFRASTRUCTURE, result.output
+
+
 def test_adopt_numbers_past_the_record_when_a_store_holds_the_tasks(seeded):
     """S-0056/D-9: a review round or a standing instance adopted while a store
     holds the tasks skips the board's ids, which no file under `.torve/tasks/`
