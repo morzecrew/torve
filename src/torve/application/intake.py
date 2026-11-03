@@ -2036,6 +2036,8 @@ def draft_request(
     if base.returncode != 0:
         raise ValueError("no base tip to draft against")
 
+    # Read before anything is minted or cut, so a failure here leaves nothing.
+    digest = config_hash(layout.gates_file(root), root, config)
     task = mint_intake_task(root, request, config, spec=spec, source=source, taken=taken)
     workdir = naming.intake_worktree(root, task.id)
     # No repository hook runs on a checkout torve makes, as in every adapter.
@@ -2059,8 +2061,6 @@ def draft_request(
     if added.returncode != 0:
         shutil.rmtree(root / layout.TORVE_DIR / "tasks" / task.id, ignore_errors=True)
         raise RuntimeError(added.stderr.strip() or "worktree add failed")
-
-    digest = config_hash(layout.gates_file(root), root, config)
 
     try:
         return run_intake(root, workdir, task, config, runtime, agent, digest, broker=broker)

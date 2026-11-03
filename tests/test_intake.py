@@ -995,6 +995,38 @@ def test_draft_request_runs_no_repository_hook(seeded):
     assert not marker.exists()
 
 
+def test_a_configuration_hash_that_fails_leaves_no_task_or_worktree(seeded, monkeypatch):
+    """The configuration is read before anything is minted or cut, so a
+    failure reading it leaves no task directory and no worktree behind."""
+
+    import torve.application.telemetry as telemetry
+
+    def broken(*args, **kwargs):
+        raise ValueError("gates.yaml does not parse")
+
+    monkeypatch.setattr(telemetry, "config_hash", broken)
+
+    with pytest.raises(ValueError, match="does not parse"):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(),
+            ScriptedAgent([]),
+            runtime=StubRuntime(),
+        )
+
+    assert not (seeded.root / ".torve" / "tasks").exists() or not any(
+        (seeded.root / ".torve" / "tasks").iterdir()
+    )
+    worktrees = subprocess.run(
+        ["git", "-C", str(seeded.root), "worktree", "list"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert len(worktrees.splitlines()) == 1
+
+
 def test_a_refusal_from_the_drafting_run_is_no_configuration_error(seeded, monkeypatch):
     """A `ValueError` the run raises, such as a state conflict, reaches the
     caller as a `RuntimeError`: `torve intake` reports a configuration error
